@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	protobuf "github.com/golang/protobuf/proto"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/terraform"
@@ -221,6 +221,23 @@ func TestConvertResources(t *testing.T) {
 					Value:     "squirrel",
 					Sensitive: true,
 				}},
+				Agents: []*proto.Agent{{
+					Name:            "main",
+					Auth:            &proto.Agent_Token{},
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Metadata: []*proto.Agent_Metadata{{
+						Key:         "process_count",
+						DisplayName: "Process Count",
+						Script:      "ps -ef | wc -l",
+						Interval:    5,
+						Timeout:     1,
+					}},
+					ShutdownScriptTimeoutSeconds: 300,
+					StartupScriptTimeoutSeconds:  300,
+					LoginBeforeReady:             true,
+					ConnectionTimeoutSeconds:     120,
+				}},
 			}},
 		},
 		// Tests that resources with the same id correctly get metadata applied
@@ -380,10 +397,11 @@ func TestConvertResources(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 
-				if expected.parameters == nil {
-					expected.parameters = []*proto.RichParameter{}
+				expectedParams := expected.parameters
+				if expectedParams == nil {
+					expectedParams = []*proto.RichParameter{}
 				}
-				parametersWant, err := json.Marshal(expected.parameters)
+				parametersWant, err := json.Marshal(expectedParams)
 				require.NoError(t, err)
 				parametersGot, err := json.Marshal(state.Parameters)
 				require.NoError(t, err)

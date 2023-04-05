@@ -26,7 +26,6 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("common")
-
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
   const { searchResults } = searchState.context

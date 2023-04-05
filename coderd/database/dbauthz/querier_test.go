@@ -312,10 +312,10 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args(database.InsertLicenseParams{}).
 			Asserts(rbac.ResourceLicense, rbac.ActionCreate)
 	}))
-	s.Run("InsertOrUpdateLogoURL", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertLogoURL", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
-	s.Run("InsertOrUpdateServiceBanner", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertServiceBanner", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
 	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
@@ -336,12 +336,12 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args().Asserts().Returns("")
 	}))
 	s.Run("GetLogoURL", s.Subtest(func(db database.Store, check *expects) {
-		err := db.InsertOrUpdateLogoURL(context.Background(), "value")
+		err := db.UpsertLogoURL(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
 	}))
 	s.Run("GetServiceBanner", s.Subtest(func(db database.Store, check *expects) {
-		err := db.InsertOrUpdateServiceBanner(context.Background(), "value")
+		err := db.UpsertServiceBanner(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
 	}))
@@ -435,6 +435,36 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceRoleAssignment.InOrg(o.ID), rbac.ActionCreate, // org-mem
 			rbac.ResourceRoleAssignment.InOrg(o.ID), rbac.ActionDelete, // org-admin
 		).Returns(out)
+	}))
+}
+
+func (s *MethodTestSuite) TestWorkspaceProxy() {
+	s.Run("InsertWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceProxyParams{
+			ID: uuid.New(),
+		}).Asserts(rbac.ResourceWorkspaceProxy, rbac.ActionCreate)
+	}))
+	s.Run("UpdateWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
+		p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(database.UpdateWorkspaceProxyParams{
+			ID: p.ID,
+		}).Asserts(p, rbac.ActionUpdate)
+	}))
+	s.Run("GetWorkspaceProxyByID", s.Subtest(func(db database.Store, check *expects) {
+		p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(p.ID).Asserts(p, rbac.ActionRead).Returns(p)
+	}))
+	s.Run("UpdateWorkspaceProxyDeleted", s.Subtest(func(db database.Store, check *expects) {
+		p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(database.UpdateWorkspaceProxyDeletedParams{
+			ID:      p.ID,
+			Deleted: true,
+		}).Asserts(p, rbac.ActionDelete)
+	}))
+	s.Run("GetWorkspaceProxies", s.Subtest(func(db database.Store, check *expects) {
+		p1 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		p2 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args().Asserts(p1, rbac.ActionRead, p2, rbac.ActionRead).Returns(slice.New(p1, p2))
 	}))
 }
 

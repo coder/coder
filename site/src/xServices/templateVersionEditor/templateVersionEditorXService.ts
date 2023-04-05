@@ -10,6 +10,7 @@ import * as API from "api/api"
 import { FileTree, traverse } from "util/filetree"
 import { isAllowedFile } from "util/templateVersion"
 import { TarReader, TarWriter } from "util/tar"
+import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
 
 export interface CreateVersionData {
   file: File
@@ -24,6 +25,7 @@ export interface TemplateVersionEditorMachineContext {
   resources?: WorkspaceResource[]
   buildLogs?: ProvisionerJobLog[]
   tarReader?: TarReader
+  publishingError?: unknown
 }
 
 export const templateVersionEditorMachine = createMachine(
@@ -41,7 +43,10 @@ export const templateVersionEditorMachine = createMachine(
           }
         | { type: "CANCEL_VERSION" }
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
-        | { type: "UPDATE_ACTIVE_VERSION" },
+        | { type: "PUBLISH" }
+        | ({ type: "CONFIRM_PUBLISH" } & PublishVersionData)
+        | { type: "CANCEL_PUBLISH" },
+
       services: {} as {
         uploadTar: {
           data: UploadResponse
@@ -58,7 +63,7 @@ export const templateVersionEditorMachine = createMachine(
         getResources: {
           data: WorkspaceResource[]
         }
-        updateActiveVersion: {
+        publishingVersion: {
           data: void
         }
       },
@@ -80,18 +85,29 @@ export const templateVersionEditorMachine = createMachine(
             actions: ["assignCreateBuild"],
             target: "cancelingBuild",
           },
-          UPDATE_ACTIVE_VERSION: {
-            target: "updatingActiveVersion",
+          PUBLISH: {
+            target: "askPublishParameters",
           },
         },
       },
-      updatingActiveVersion: {
+      askPublishParameters: {
+        on: {
+          CANCEL_PUBLISH: "idle",
+          CONFIRM_PUBLISH: "publishingVersion",
+        },
+      },
+      publishingVersion: {
         tags: "loading",
+        entry: ["clearPublishingError"],
         invoke: {
-          id: "updateActiveVersion",
-          src: "updateActiveVersion",
+          id: "publishingVersion",
+          src: "publishingVersion",
           onDone: {
-            target: "idle",
+            actions: ["onPublish"],
+          },
+          onError: {
+            actions: ["assignPublishingError"],
+            target: "askPublishParameters",
           },
         },
       },
@@ -215,6 +231,10 @@ export const templateVersionEditorMachine = createMachine(
       assignTarReader: assign({
         tarReader: (_, { tarReader }) => tarReader,
       }),
+      assignPublishingError: assign({
+        publishingError: (_, event) => event.data,
+      }),
+      clearPublishingError: assign({ publishingError: (_) => undefined }),
     },
     services: {
       uploadTar: async ({ fileTree, tarReader }) => {
@@ -285,28 +305,17 @@ export const templateVersionEditorMachine = createMachine(
         }
         return API.getTemplateVersion(ctx.version.id)
       },
-      watchBuildLogs: (ctx) => async (callback) => {
-        return new Promise<void>((resolve, reject) => {
-          if (!ctx.version) {
-            return reject("version must be set")
+      watchBuildLogs:
+        ({ version }) =>
+        async (callback) => {
+          if (!version) {
+            throw new Error("version must be set")
           }
-          const proto = location.protocol === "https:" ? "wss:" : "ws:"
-          const socket = new WebSocket(
-            `${proto}//${location.host}/api/v2/templateversions/${ctx.version?.id}/logs?follow=true`,
-          )
-          socket.binaryType = "blob"
-          socket.addEventListener("message", (event) => {
-            callback({ type: "ADD_BUILD_LOG", log: JSON.parse(event.data) })
+
+          return API.watchBuildLogs(version.id, (log) => {
+            callback({ type: "ADD_BUILD_LOG", log })
           })
-          socket.addEventListener("error", () => {
-            reject(new Error("socket errored"))
-          })
-          socket.addEventListener("close", () => {
-            // When the socket closes, logs have finished streaming!
-            resolve()
-          })
-        })
-      },
+        },
       getResources: (ctx) => {
         if (!ctx.version) {
           throw new Error("template version must be set")
@@ -321,16 +330,27 @@ export const templateVersionEditorMachine = createMachine(
           await API.cancelTemplateVersionBuild(ctx.version.id)
         }
       },
-      updateActiveVersion: async (ctx) => {
-        if (!ctx.templateId) {
-          throw new Error("template must be set")
+      publishingVersion: async (
+        { version, templateId },
+        { name, isActiveVersion },
+      ) => {
+        if (!version) {
+          throw new Error("Version is not set")
         }
-        if (!ctx.version) {
-          throw new Error("template version must be set")
+        if (!templateId) {
+          throw new Error("Template is not set")
         }
-        await API.updateActiveTemplateVersion(ctx.templateId, {
-          id: ctx.version.id,
-        })
+        await Promise.all([
+          // Only do a patch if the name is different
+          name !== version.name
+            ? API.patchTemplateVersion(version.id, { name })
+            : Promise.resolve(),
+          isActiveVersion
+            ? API.updateActiveTemplateVersion(templateId, {
+                id: version.id,
+              })
+            : Promise.resolve(),
+        ])
       },
     },
   },

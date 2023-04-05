@@ -8,41 +8,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type ExpandableScope interface {
-	Expand() (Scope, error)
-	// Name is for logging and tracing purposes, we want to know the human
-	// name of the scope.
-	Name() string
-}
-
-type ScopeName string
-
-func (name ScopeName) Expand() (Scope, error) {
-	return ExpandScope(name)
-}
-
-func (name ScopeName) Name() string {
-	return string(name)
-}
-
-// Scope acts the exact same as a Role with the addition that is can also
-// apply an AllowIDList. Any resource being checked against a Scope will
-// reject any resource that is not in the AllowIDList.
-// To not use an AllowIDList to reject authorization, use a wildcard for the
-// AllowIDList. Eg: 'AllowIDList: []string{WildcardSymbol}'
-type Scope struct {
-	Role
-	AllowIDList []string `json:"allow_list"`
-}
-
-func (s Scope) Expand() (Scope, error) {
-	return s, nil
-}
-
-func (s Scope) Name() string {
-	return s.Role.Name
-}
-
 // WorkspaceAgentScope returns a scope that is the same as ScopeAll but can only
 // affect resources in the allow list. Only a scope is returned as the roles
 // should come from the workspace owner.
@@ -100,6 +65,41 @@ var builtinScopes = map[ScopeName]Scope{
 		},
 		AllowIDList: []string{WildcardSymbol},
 	},
+}
+
+type ExpandableScope interface {
+	Expand() (Scope, error)
+	// Name is for logging and tracing purposes, we want to know the human
+	// name of the scope.
+	Name() string
+}
+
+type ScopeName string
+
+func (name ScopeName) Expand() (Scope, error) {
+	return ExpandScope(name)
+}
+
+func (name ScopeName) Name() string {
+	return string(name)
+}
+
+// Scope acts the exact same as a Role with the addition that is can also
+// apply an AllowIDList. Any resource being checked against a Scope will
+// reject any resource that is not in the AllowIDList.
+// To not use an AllowIDList to reject authorization, use a wildcard for the
+// AllowIDList. Eg: 'AllowIDList: []string{WildcardSymbol}'
+type Scope struct {
+	Role
+	AllowIDList []string `json:"allow_list"`
+}
+
+func (s Scope) Expand() (Scope, error) {
+	return s, nil
+}
+
+func (s Scope) Name() string {
+	return s.Role.Name
 }
 
 func ExpandScope(scope ScopeName) (Scope, error) {

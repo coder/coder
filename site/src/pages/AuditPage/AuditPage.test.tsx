@@ -3,11 +3,13 @@ import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 import { rest } from "msw"
 import {
-  renderWithAuth,
   MockAuditLog,
   MockAuditLog2,
-  waitForLoaderToBeRemoved,
   MockEntitlementsWithAuditLog,
+} from "testHelpers/entities"
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 
@@ -47,10 +49,6 @@ describe("AuditPage", () => {
     // Mocking the dayjs module within the createDayString file
     const mock = jest.spyOn(CreateDayString, "createDayString")
     mock.mockImplementation(() => "a minute ago")
-
-    jest.spyOn(API, "checkAuthorization").mockResolvedValue({
-      readPagePermissions: true,
-    })
 
     // Mock the entitlements
     server.use(

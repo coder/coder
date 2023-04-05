@@ -1,10 +1,10 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import { createPaginationRef } from "components/PaginationWidget/utils"
 import {
-  MockAssignableSiteRoles,
   MockUser,
   MockUser2,
-} from "../../testHelpers/renderHelpers"
+  MockAssignableSiteRoles,
+} from "testHelpers/entities"
 import { UsersPageView, UsersPageViewProps } from "./UsersPageView"
 
 export default {

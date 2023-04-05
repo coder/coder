@@ -1,12 +1,6 @@
 import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import {
-  MockTemplate,
-  MockTemplateVersion2,
-  MockTemplateVersion,
-  MockTemplateVersionVariable1,
-  MockTemplateVersionVariable2,
-  MockTemplateVersionVariable5,
   renderWithTemplateSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
@@ -14,6 +8,14 @@ import * as API from "api/api"
 import i18next from "i18next"
 import TemplateVariablesPage from "./TemplateVariablesPage"
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter"
+import {
+  MockTemplate,
+  MockTemplateVersion,
+  MockTemplateVersionVariable1,
+  MockTemplateVersionVariable2,
+  MockTemplateVersion2,
+  MockTemplateVersionVariable5,
+} from "testHelpers/entities"
 
 const { t } = i18next
 

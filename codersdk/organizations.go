@@ -95,6 +95,17 @@ type CreateTemplateRequest struct {
 	// Allow users to cancel in-progress workspace jobs.
 	// *bool as the default value is "true".
 	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
+
+	// AllowUserAutostart allows users to set a schedule for autostarting their
+	// workspace. By default this is true. This can only be disabled when using
+	// an enterprise license.
+	AllowUserAutostart *bool `json:"allow_user_autostart"`
+
+	// AllowUserAutostop allows users to set a custom workspace TTL to use in
+	// place of the template's DefaultTTL field. By default this is true. If
+	// false, the DefaultTTL will always be used. This can only be disabled when
+	// using an enterprise license.
+	AllowUserAutostop *bool `json:"allow_user_autostop"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -221,6 +232,9 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 
 // TemplateByName finds a template inside the organization provided with a case-insensitive name.
 func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, name string) (Template, error) {
+	if name == "" {
+		return Template{}, xerrors.Errorf("template name cannot be empty")
+	}
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/templates/%s", organizationID.String(), name),
 		nil,

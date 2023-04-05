@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -14,14 +13,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
-	"unicode/utf8"
 
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
@@ -86,7 +82,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.templates(),
 		r.users(),
 		r.tokens(),
-		r.version(),
+		r.version(defaultVersionInfo),
 
 		// Workspace Commands
 		r.configSSH(),
@@ -372,36 +368,6 @@ func ContextWithLogger(ctx context.Context, l slog.Logger) context.Context {
 func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 	l, ok := ctx.Value(contextKeyLogger).(slog.Logger)
 	return l, ok
-}
-
-// version prints the coder version
-func (*RootCmd) version() *clibase.Cmd {
-	return &clibase.Cmd{
-		Use:   "version",
-		Short: "Show coder version",
-		Handler: func(inv *clibase.Invocation) error {
-			var str strings.Builder
-			_, _ = str.WriteString("Coder ")
-			if buildinfo.IsAGPL() {
-				_, _ = str.WriteString("(AGPL) ")
-			}
-			_, _ = str.WriteString(buildinfo.Version())
-			buildTime, valid := buildinfo.Time()
-			if valid {
-				_, _ = str.WriteString(" " + buildTime.Format(time.UnixDate))
-			}
-			_, _ = str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n\r\n")
-
-			if buildinfo.IsSlim() {
-				_, _ = str.WriteString(fmt.Sprintf("Slim build of Coder, does not support the %s subcommand.\n", cliui.Styles.Code.Render("server")))
-			} else {
-				_, _ = str.WriteString(fmt.Sprintf("Full build of Coder, supports the %s subcommand.\n", cliui.Styles.Code.Render("server")))
-			}
-
-			_, _ = fmt.Fprint(inv.Stdout, str.String())
-			return nil
-		},
-	}
 }
 
 func isTest() bool {
@@ -822,89 +788,61 @@ func isConnectionError(err error) bool {
 }
 
 type prettyErrorFormatter struct {
-	level int
-	w     io.Writer
-}
-
-func (prettyErrorFormatter) prefixLines(spaces int, s string) string {
-	twidth, _, err := terminal.GetSize(0)
-	if err != nil {
-		twidth = 80
-	}
-
-	s = lipgloss.NewStyle().Width(twidth - spaces).Render(s)
-
-	var b strings.Builder
-	scanner := bufio.NewScanner(strings.NewReader(s))
-	for i := 0; scanner.Scan(); i++ {
-		// The first line is already padded.
-		if i == 0 {
-			_, _ = fmt.Fprintf(&b, "%s\n", scanner.Text())
-			continue
-		}
-		_, _ = fmt.Fprintf(&b, "%s%s\n", strings.Repeat(" ", spaces), scanner.Text())
-	}
-	return strings.TrimSuffix(strings.TrimSuffix(b.String(), "\n"), " ")
+	w io.Writer
 }
 
 func (p *prettyErrorFormatter) format(err error) {
-	underErr := errors.Unwrap(err)
-
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
+	errTail := errors.Unwrap(err)
 
 	//nolint:errorlint
-	if _, ok := err.(*clibase.RunCommandError); ok && p.level == 0 && underErr != nil {
-		// We can do a better job now.
-		p.format(underErr)
+	if _, ok := err.(*clibase.RunCommandError); ok && errTail != nil {
+		// Avoid extra nesting.
+		p.format(errTail)
 		return
 	}
 
-	var (
-		padding    string
-		arrowWidth int
+	var headErr string
+	if errTail != nil {
+		headErr = strings.TrimSuffix(err.Error(), ": "+errTail.Error())
+	} else {
+		headErr = err.Error()
+	}
+
+	var msg string
+	var sdkError *codersdk.Error
+	if errors.As(err, &sdkError) {
+		// We don't want to repeat the same error message twice, so we
+		// only show the SDK error on the top of the stack.
+		msg = sdkError.Message
+		if sdkError.Helper != "" {
+			msg = msg + "\n" + sdkError.Helper
+		}
+		// The SDK error is usually good enough, and we don't want to overwhelm
+		// the user with output.
+		errTail = nil
+	} else {
+		msg = headErr
+	}
+
+	headStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644"))
+	p.printf(
+		headStyle,
+		"%s",
+		msg,
 	)
-	if p.level > 0 {
-		const arrow = "┗━ "
-		arrowWidth = utf8.RuneCount([]byte(arrow))
-		padding = strings.Repeat(" ", arrowWidth*p.level)
-		_, _ = fmt.Fprintf(p.w, "%v%v", padding, arrowStyle.Render(arrow))
-	}
 
-	if underErr != nil {
-		header := strings.TrimSuffix(err.Error(), ": "+underErr.Error())
-		_, _ = fmt.Fprintf(p.w, "%s\n", p.prefixLines(len(padding)+arrowWidth, header))
-		p.level++
-		p.format(underErr)
-		return
-	}
+	tailStyle := headStyle.Copy().Foreground(lipgloss.Color("#969696"))
 
-	{
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Bold(false)
-		// This is the last error in a tree.
-		p.wrappedPrintf(
-			"%s\n",
-			p.prefixLines(
-				len(padding)+arrowWidth,
-				fmt.Sprintf(
-					"%s%s%s",
-					lipgloss.NewStyle().Inherit(style).Underline(true).Render("ERROR"),
-					lipgloss.NewStyle().Inherit(style).Foreground(arrowStyle.GetForeground()).Render(" ► "),
-					style.Render(err.Error()),
-				),
-			),
-		)
+	if errTail != nil {
+		p.printf(headStyle, ": ")
+		// Grey out the less important, deep errors.
+		p.printf(tailStyle, "%s", errTail.Error())
 	}
+	p.printf(tailStyle, "\n")
 }
 
-func (p *prettyErrorFormatter) wrappedPrintf(format string, a ...interface{}) {
-	s := lipgloss.NewStyle().Width(ttyWidth()).Render(
-		fmt.Sprintf(format, a...),
-	)
-
-	// Not sure why, but lipgloss is adding extra spaces we need to remove.
-	excessSpaceRe := regexp.MustCompile(`[[:blank:]]*\n[[:blank:]]*$`)
-	s = excessSpaceRe.ReplaceAllString(s, "\n")
-
+func (p *prettyErrorFormatter) printf(style lipgloss.Style, format string, a ...interface{}) {
+	s := style.Render(fmt.Sprintf(format, a...))
 	_, _ = p.w.Write(
 		[]byte(
 			s,

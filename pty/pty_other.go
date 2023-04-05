@@ -7,11 +7,11 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"syscall"
 
 	"github.com/creack/pty"
 	"github.com/u-root/u-root/pkg/termios"
 	"golang.org/x/sys/unix"
-	"golang.org/x/xerrors"
 )
 
 func newPty(opt ...Option) (retPTY *otherPty, err error) {
@@ -113,6 +113,20 @@ func (p *otherPty) Resize(height uint16, width uint16) error {
 	})
 }
 
+func (p *otherPty) Dup() (*os.File, error) {
+	var newfd int
+	err := p.control(p.pty, func(fd uintptr) error {
+		var err error
+		newfd, err = syscall.Dup(int(fd))
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return os.NewFile(uintptr(newfd), p.pty.Name()), nil
+}
+
 func (p *otherPty) Close() error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -131,7 +145,7 @@ func (p *otherPty) Close() error {
 	if err != nil {
 		p.err = err
 	} else {
-		p.err = xerrors.New("pty: closed")
+		p.err = ErrClosed
 	}
 
 	return err

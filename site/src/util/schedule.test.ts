@@ -79,69 +79,69 @@ describe("getMaxDeadlineChange", () => {
 })
 
 describe("scheduleChanged", () => {
-  describe("autoStart", () => {
+  describe("autostart", () => {
     it("should be true if toggle values are different", () => {
-      const autoStart = { autoStartEnabled: true, ...emptySchedule }
+      const autostart = { autostartEnabled: true, ...emptySchedule }
       const formValues = {
-        autoStartEnabled: false,
+        autostartEnabled: false,
         ...emptySchedule,
-        autoStopEnabled: false,
+        autostopEnabled: false,
         ttl: emptyTTL,
       }
-      expect(scheduleChanged(autoStart, formValues)).toBe(true)
+      expect(scheduleChanged(autostart, formValues)).toBe(true)
     })
     it("should be true if schedule values are different", () => {
-      const autoStart = { autoStartEnabled: true, ...emptySchedule }
+      const autostart = { autostartEnabled: true, ...emptySchedule }
       const formValues = {
-        autoStartEnabled: true,
+        autostartEnabled: true,
         ...{ ...emptySchedule, monday: true, startTime: "09:00" },
-        autoStopEnabled: false,
+        autostopEnabled: false,
         ttl: emptyTTL,
       }
-      expect(scheduleChanged(autoStart, formValues)).toBe(true)
+      expect(scheduleChanged(autostart, formValues)).toBe(true)
     })
     it("should be false if all autostart values are the same", () => {
-      const autoStart = { autoStartEnabled: true, ...emptySchedule }
+      const autostart = { autostartEnabled: true, ...emptySchedule }
       const formValues = {
-        autoStartEnabled: true,
+        autostartEnabled: true,
         ...emptySchedule,
-        autoStopEnabled: false,
+        autostopEnabled: false,
         ttl: emptyTTL,
       }
-      expect(scheduleChanged(autoStart, formValues)).toBe(false)
+      expect(scheduleChanged(autostart, formValues)).toBe(false)
     })
   })
 
-  describe("autoStop", () => {
+  describe("autostop", () => {
     it("should be true if toggle values are different", () => {
-      const autoStop = { autoStopEnabled: true, ttl: 1000 }
+      const autostop = { autostopEnabled: true, ttl: 1000 }
       const formValues = {
-        autoStartEnabled: false,
+        autostartEnabled: false,
         ...emptySchedule,
-        autoStopEnabled: false,
+        autostopEnabled: false,
         ttl: 1000,
       }
-      expect(scheduleChanged(autoStop, formValues)).toBe(true)
+      expect(scheduleChanged(autostop, formValues)).toBe(true)
     })
     it("should be true if ttl values are different", () => {
-      const autoStop = { autoStopEnabled: true, ttl: 1000 }
+      const autostop = { autostopEnabled: true, ttl: 1000 }
       const formValues = {
-        autoStartEnabled: false,
+        autostartEnabled: false,
         ...emptySchedule,
-        autoStopEnabled: true,
+        autostopEnabled: true,
         ttl: 2000,
       }
-      expect(scheduleChanged(autoStop, formValues)).toBe(true)
+      expect(scheduleChanged(autostop, formValues)).toBe(true)
     })
     it("should be false if all autostop values are the same", () => {
-      const autoStop = { autoStopEnabled: true, ttl: 1000 }
+      const autostop = { autostopEnabled: true, ttl: 1000 }
       const formValues = {
-        autoStartEnabled: false,
+        autostartEnabled: false,
         ...emptySchedule,
-        autoStopEnabled: true,
+        autostopEnabled: true,
         ttl: 1000,
       }
-      expect(scheduleChanged(autoStop, formValues)).toBe(false)
+      expect(scheduleChanged(autostop, formValues)).toBe(false)
     })
   })
 })

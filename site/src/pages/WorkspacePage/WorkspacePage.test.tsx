@@ -3,24 +3,26 @@ import userEvent from "@testing-library/user-event"
 import EventSourceMock from "eventsourcemock"
 import i18next from "i18next"
 import { rest } from "msw"
+import {
+  MockTemplate,
+  MockWorkspace,
+  MockWorkspaceBuild,
+  MockStoppedWorkspace,
+  MockStartingWorkspace,
+  MockOutdatedWorkspace,
+  MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
+  MockStoppingWorkspace,
+  MockFailedWorkspace,
+  MockCancelingWorkspace,
+  MockCanceledWorkspace,
+  MockDeletingWorkspace,
+  MockDeletedWorkspace,
+  MockBuilds,
+} from "testHelpers/entities"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
 import {
-  MockBuilds,
-  MockCanceledWorkspace,
-  MockCancelingWorkspace,
-  MockDeletedWorkspace,
-  MockDeletingWorkspace,
-  MockFailedWorkspace,
-  MockOutdatedWorkspace,
-  MockStartingWorkspace,
-  MockStoppedWorkspace,
-  MockStoppingWorkspace,
-  MockTemplate,
-  MockTemplateVersionParameter1,
-  MockTemplateVersionParameter2,
-  MockWorkspace,
-  MockWorkspaceBuild,
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "../../testHelpers/renderHelpers"
@@ -31,9 +33,6 @@ const { t } = i18next
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
-  jest.spyOn(api, "checkAuthorization").mockResolvedValue({
-    readPagePermissions: true,
-  })
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([])
   renderWithAuth(<WorkspacePage />, {
@@ -194,9 +193,6 @@ describe("WorkspacePage", () => {
   it("updates the parameters when they are missing during update", async () => {
     // Setup mocks
     const user = userEvent.setup()
-    jest.spyOn(api, "checkAuthorization").mockResolvedValue({
-      readPagePermissions: true,
-    })
     jest
       .spyOn(api, "getWorkspaceByOwnerAndName")
       .mockResolvedValueOnce(MockOutdatedWorkspace)

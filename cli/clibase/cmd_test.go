@@ -3,6 +3,7 @@ package clibase_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -247,6 +248,7 @@ func TestCommand_FlagOverride(t *testing.T) {
 		Use: "1",
 		Options: clibase.OptionSet{
 			{
+				Name:  "flag",
 				Flag:  "f",
 				Value: clibase.DiscardValue,
 			},
@@ -256,6 +258,7 @@ func TestCommand_FlagOverride(t *testing.T) {
 				Use: "2",
 				Options: clibase.OptionSet{
 					{
+						Name:  "flag",
 						Flag:  "f",
 						Value: clibase.StringOf(&flag),
 					},
@@ -502,4 +505,92 @@ func TestCommand_SliceFlags(t *testing.T) {
 
 	err = cmd("bad", "bad", "bad").Invoke().Run()
 	require.NoError(t, err)
+}
+
+func TestCommand_EmptySlice(t *testing.T) {
+	t.Parallel()
+
+	cmd := func(want ...string) *clibase.Cmd {
+		var got []string
+		return &clibase.Cmd{
+			Use: "root",
+			Options: clibase.OptionSet{
+				{
+					Name:    "arr",
+					Flag:    "arr",
+					Default: "def,def,def",
+					Env:     "ARR",
+					Value:   clibase.StringArrayOf(&got),
+				},
+			},
+			Handler: (func(i *clibase.Invocation) error {
+				require.Equal(t, want, got)
+				return nil
+			}),
+		}
+	}
+
+	// Base-case, uses default.
+	err := cmd("def", "def", "def").Invoke().Run()
+	require.NoError(t, err)
+
+	// Empty-env uses default, too.
+	inv := cmd("def", "def", "def").Invoke()
+	inv.Environ.Set("ARR", "")
+	require.NoError(t, err)
+
+	// Reset to nothing at all via flag.
+	inv = cmd().Invoke("--arr", "")
+	inv.Environ.Set("ARR", "cant see")
+	err = inv.Run()
+	require.NoError(t, err)
+
+	// Reset to a specific value with flag.
+	inv = cmd("great").Invoke("--arr", "great")
+	inv.Environ.Set("ARR", "")
+	err = inv.Run()
+	require.NoError(t, err)
+}
+
+func TestCommand_DefaultsOverride(t *testing.T) {
+	t.Parallel()
+
+	var got string
+	cmd := &clibase.Cmd{
+		Options: clibase.OptionSet{
+			{
+				Name:    "url",
+				Flag:    "url",
+				Default: "def.com",
+				Env:     "URL",
+				Value:   clibase.StringOf(&got),
+			},
+		},
+		Handler: (func(i *clibase.Invocation) error {
+			_, _ = fmt.Fprintf(i.Stdout, "%s", got)
+			return nil
+		}),
+	}
+
+	// Base case
+	inv := cmd.Invoke()
+	stdio := fakeIO(inv)
+	err := inv.Run()
+	require.NoError(t, err)
+	require.Equal(t, "def.com", stdio.Stdout.String())
+
+	// Flag overrides
+	inv = cmd.Invoke("--url", "good.com")
+	stdio = fakeIO(inv)
+	err = inv.Run()
+	require.NoError(t, err)
+	require.Equal(t, "good.com", stdio.Stdout.String())
+
+	// Env overrides
+	inv = cmd.Invoke()
+	inv.Environ.Set("URL", "good.com")
+	stdio = fakeIO(inv)
+	err = inv.Run()
+	require.NoError(t, err)
+	require.Equal(t, "good.com", stdio.Stdout.String())
 }

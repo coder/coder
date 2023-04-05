@@ -21,6 +21,8 @@ func TestDeploymentValues(t *testing.T) {
 	// values should not be returned
 	cfg.OAuth2.Github.ClientSecret.Set(hi)
 	cfg.OIDC.ClientSecret.Set(hi)
+	cfg.OIDC.AuthURLParams.Set(`{"foo":"bar"}`)
+	cfg.OIDC.EmailField.Set("some_random_field_you_never_expected")
 	cfg.PostgresURL.Set(hi)
 	cfg.SCIMAPIKey.Set(hi)
 
@@ -32,6 +34,10 @@ func TestDeploymentValues(t *testing.T) {
 	require.NoError(t, err)
 	// ensure normal values pass through
 	require.EqualValues(t, true, scrubbed.Values.BrowserOnly.Value())
+	require.NotEmpty(t, cfg.OIDC.AuthURLParams)
+	require.EqualValues(t, cfg.OIDC.AuthURLParams, scrubbed.Values.OIDC.AuthURLParams)
+	require.NotEmpty(t, cfg.OIDC.EmailField)
+	require.EqualValues(t, cfg.OIDC.EmailField, scrubbed.Values.OIDC.EmailField)
 	// ensure secrets are removed
 	require.Empty(t, scrubbed.Values.OAuth2.Github.ClientSecret.Value())
 	require.Empty(t, scrubbed.Values.OIDC.ClientSecret.Value())

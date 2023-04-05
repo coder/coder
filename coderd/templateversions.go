@@ -123,6 +123,9 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errTemplateVersionNameConflict) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: err.Error(),
+			Validations: []codersdk.ValidationError{
+				{Field: "name", Detail: "Name is already used"},
+			},
 		})
 		return
 	}
@@ -1593,6 +1596,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 	}
 	return codersdk.TemplateVersionParameter{
 		Name:                 param.Name,
+		DisplayName:          param.DisplayName,
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,

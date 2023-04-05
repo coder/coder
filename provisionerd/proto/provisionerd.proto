@@ -20,15 +20,16 @@ message AcquiredJob {
         repeated provisioner.GitAuthProvider git_auth_providers = 6;
         provisioner.Provision.Metadata metadata = 7;
         bytes state = 8;
+        string log_level = 9;
     }
     message TemplateImport {
         provisioner.Provision.Metadata metadata = 1;
-		repeated provisioner.VariableValue user_variable_values = 2;
+        repeated provisioner.VariableValue user_variable_values = 2;
     }
     message TemplateDryRun {
         repeated provisioner.ParameterValue parameter_values = 1;
         repeated provisioner.RichParameterValue rich_parameter_values = 2;
-		repeated provisioner.VariableValue variable_values = 3;
+        repeated provisioner.VariableValue variable_values = 3;
         provisioner.Provision.Metadata metadata = 4;
     }
 
@@ -58,7 +59,7 @@ message FailedJob {
         TemplateImport template_import = 4;
         TemplateDryRun template_dry_run = 5;
     }
-	string error_code = 6;
+    string error_code = 6;
 }
 
 // CompletedJob is sent when the provisioner daemon completes a job.

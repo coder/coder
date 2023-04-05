@@ -243,7 +243,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
@@ -257,9 +257,9 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, "/hello-world", user.AvatarURL)
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.NotEqual(t, auditor.AuditLogs[numLogs-1].UserID, uuid.Nil)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
 		t.Parallel()
@@ -296,14 +296,14 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeamInFirstOrganization", func(t *testing.T) {
 		t.Parallel()
@@ -348,14 +348,14 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeamInSecondOrganization", func(t *testing.T) {
 		t.Parallel()
@@ -400,14 +400,14 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowEveryone", func(t *testing.T) {
 		t.Parallel()
@@ -438,14 +438,14 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupFailedInactiveInOrg", func(t *testing.T) {
 		t.Parallel()
@@ -501,6 +501,7 @@ func TestUserOIDC(t *testing.T) {
 		AvatarURL           string
 		StatusCode          int
 		IgnoreEmailVerified bool
+		IgnoreUserInfo      bool
 	}{{
 		Name: "EmailOnly",
 		IDTokenClaims: jwt.MapClaims{
@@ -643,6 +644,48 @@ func TestUserOIDC(t *testing.T) {
 		},
 		AllowSignups: true,
 		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "UserInfoOverridesIDTokenClaims",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "internaluser@internal.domain",
+			"email_verified": false,
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"email":              "externaluser@external.domain",
+			"email_verified":     true,
+			"preferred_username": "user",
+		},
+		Username:            "user",
+		AllowSignups:        true,
+		IgnoreEmailVerified: false,
+		StatusCode:          http.StatusTemporaryRedirect,
+	}, {
+		Name: "InvalidUserInfo",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "internaluser@internal.domain",
+			"email_verified": false,
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"email": 1,
+		},
+		AllowSignups:        true,
+		IgnoreEmailVerified: false,
+		StatusCode:          http.StatusInternalServerError,
+	}, {
+		Name: "IgnoreUserInfo",
+		IDTokenClaims: jwt.MapClaims{
+			"email":              "user@internal.domain",
+			"email_verified":     true,
+			"preferred_username": "user",
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"email":              "user.mcname@external.domain",
+			"preferred_username": "Mr. User McName",
+		},
+		Username:       "user",
+		IgnoreUserInfo: true,
+		AllowSignups:   true,
+		StatusCode:     http.StatusTemporaryRedirect,
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
@@ -654,12 +697,13 @@ func TestUserOIDC(t *testing.T) {
 			config.AllowSignups = tc.AllowSignups
 			config.EmailDomain = tc.EmailDomain
 			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
+			config.IgnoreUserInfo = tc.IgnoreUserInfo
 
 			client := coderdtest.New(t, &coderdtest.Options{
 				Auditor:    auditor,
 				OIDCConfig: config,
 			})
-			numLogs := len(auditor.AuditLogs)
+			numLogs := len(auditor.AuditLogs())
 
 			resp := oidcCallback(t, client, conf.EncodeClaims(t, tc.IDTokenClaims))
 			numLogs++ // add an audit log for login
@@ -673,9 +717,9 @@ func TestUserOIDC(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
 
-				require.Len(t, auditor.AuditLogs, numLogs)
-				require.NotEqual(t, auditor.AuditLogs[numLogs-1].UserID, uuid.Nil)
-				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+				require.Len(t, auditor.AuditLogs(), numLogs)
+				require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
+				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 			}
 
 			if tc.AvatarURL != "" {
@@ -684,8 +728,8 @@ func TestUserOIDC(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
 
-				require.Len(t, auditor.AuditLogs, numLogs)
-				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+				require.Len(t, auditor.AuditLogs(), numLogs)
+				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 			}
 		})
 	}
@@ -702,7 +746,7 @@ func TestUserOIDC(t *testing.T) {
 			Auditor:    auditor,
 			OIDCConfig: config,
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		code := conf.EncodeClaims(t, jwt.MapClaims{
 			"email": "jon@coder.com",
@@ -735,8 +779,8 @@ func TestUserOIDC(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
 	t.Run("Disabled", func(t *testing.T) {

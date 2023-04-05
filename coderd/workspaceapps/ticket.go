@@ -9,51 +9,49 @@ import (
 	"gopkg.in/square/go-jose.v2"
 )
 
-const ticketSigningAlgorithm = jose.HS512
+const tokenSigningAlgorithm = jose.HS512
 
-// Ticket is the struct data contained inside a workspace app ticket JWE. It
-// contains the details of the workspace app that the ticket is valid for to
+// SignedToken is the struct data contained inside a workspace app JWE. It
+// contains the details of the workspace app that the token is valid for to
 // avoid database queries.
-//
-// The JSON field names are short to reduce the size of the ticket.
-type Ticket struct {
+type SignedToken struct {
 	// Request details.
-	AccessMethod      AccessMethod `json:"access_method"`
-	UsernameOrID      string       `json:"username_or_id"`
-	WorkspaceNameOrID string       `json:"workspace_name_or_id"`
-	AgentNameOrID     string       `json:"agent_name_or_id"`
-	AppSlugOrPort     string       `json:"app_slug_or_port"`
+	Request `json:"request"`
 
 	// Trusted resolved details.
-	Expiry      int64     `json:"expiry"` // set by GenerateTicket if unset
+	Expiry      time.Time `json:"expiry"` // set by GenerateToken if unset
 	UserID      uuid.UUID `json:"user_id"`
 	WorkspaceID uuid.UUID `json:"workspace_id"`
 	AgentID     uuid.UUID `json:"agent_id"`
 	AppURL      string    `json:"app_url"`
 }
 
-func (t Ticket) MatchesRequest(req Request) bool {
+// MatchesRequest returns true if the token matches the request. Any token that
+// does not match the request should be considered invalid.
+func (t SignedToken) MatchesRequest(req Request) bool {
 	return t.AccessMethod == req.AccessMethod &&
+		t.BasePath == req.BasePath &&
 		t.UsernameOrID == req.UsernameOrID &&
 		t.WorkspaceNameOrID == req.WorkspaceNameOrID &&
 		t.AgentNameOrID == req.AgentNameOrID &&
 		t.AppSlugOrPort == req.AppSlugOrPort
 }
 
-func (p *Provider) GenerateTicket(payload Ticket) (string, error) {
-	if payload.Expiry == 0 {
-		payload.Expiry = time.Now().Add(TicketExpiry).Unix()
+// GenerateToken generates a signed workspace app token with the given key and
+// payload. If the payload doesn't have an expiry, it will be set to the current
+// time plus the default expiry.
+func GenerateToken(key []byte, payload SignedToken) (string, error) {
+	if payload.Expiry.IsZero() {
+		payload.Expiry = time.Now().Add(DefaultTokenExpiry)
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return "", xerrors.Errorf("marshal payload to JSON: %w", err)
 	}
 
-	// We use symmetric signing with an RSA key to support satellites in the
-	// future.
 	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: ticketSigningAlgorithm,
-		Key:       p.TicketSigningKey,
+		Algorithm: tokenSigningAlgorithm,
+		Key:       key,
 	}, nil)
 	if err != nil {
 		return "", xerrors.Errorf("create signer: %w", err)
@@ -72,31 +70,33 @@ func (p *Provider) GenerateTicket(payload Ticket) (string, error) {
 	return serialized, nil
 }
 
-func (p *Provider) ParseTicket(ticketStr string) (Ticket, error) {
-	object, err := jose.ParseSigned(ticketStr)
+// ParseToken parses a signed workspace app token with the given key and returns
+// the payload. If the token is invalid or expired, an error is returned.
+func ParseToken(key []byte, str string) (SignedToken, error) {
+	object, err := jose.ParseSigned(str)
 	if err != nil {
-		return Ticket{}, xerrors.Errorf("parse JWS: %w", err)
+		return SignedToken{}, xerrors.Errorf("parse JWS: %w", err)
 	}
 	if len(object.Signatures) != 1 {
-		return Ticket{}, xerrors.New("expected 1 signature")
+		return SignedToken{}, xerrors.New("expected 1 signature")
 	}
-	if object.Signatures[0].Header.Algorithm != string(ticketSigningAlgorithm) {
-		return Ticket{}, xerrors.Errorf("expected ticket signing algorithm to be %q, got %q", ticketSigningAlgorithm, object.Signatures[0].Header.Algorithm)
+	if object.Signatures[0].Header.Algorithm != string(tokenSigningAlgorithm) {
+		return SignedToken{}, xerrors.Errorf("expected token signing algorithm to be %q, got %q", tokenSigningAlgorithm, object.Signatures[0].Header.Algorithm)
 	}
 
-	output, err := object.Verify(p.TicketSigningKey)
+	output, err := object.Verify(key)
 	if err != nil {
-		return Ticket{}, xerrors.Errorf("verify JWS: %w", err)
+		return SignedToken{}, xerrors.Errorf("verify JWS: %w", err)
 	}
 
-	var ticket Ticket
-	err = json.Unmarshal(output, &ticket)
+	var tok SignedToken
+	err = json.Unmarshal(output, &tok)
 	if err != nil {
-		return Ticket{}, xerrors.Errorf("unmarshal payload: %w", err)
+		return SignedToken{}, xerrors.Errorf("unmarshal payload: %w", err)
 	}
-	if ticket.Expiry < time.Now().Unix() {
-		return Ticket{}, xerrors.New("ticket expired")
+	if tok.Expiry.Before(time.Now()) {
+		return SignedToken{}, xerrors.New("signed app token expired")
 	}
 
-	return ticket, nil
+	return tok, nil
 }

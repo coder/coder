@@ -389,12 +389,10 @@ export const authMachine =
         }),
         redirect: (_, { data }) => {
           if (!("redirectUrl" in data)) {
-            throw new Error(
-              "Redirect only should be called with data.redirectUrl",
-            )
+            window.location.href = location.origin
+          } else {
+            window.location.replace(data.redirectUrl)
           }
-
-          window.location.replace(data.redirectUrl)
         },
       },
       guards: {
