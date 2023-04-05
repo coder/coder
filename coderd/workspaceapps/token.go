@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"gopkg.in/square/go-jose.v2"
 
 	"github.com/coder/coder/coderd/database"
 )
