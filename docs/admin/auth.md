@@ -252,9 +252,9 @@ Below is an example mapping in the Coder Helm chart:
 ```yaml
 coder:
   env:
-  - name: CODER_OIDC_GROUP_MAPPING
-    value: >
-      {"myOIDCGroupID": "myCoderGroupName"}
+    - name: CODER_OIDC_GROUP_MAPPING
+      value: >
+        {"myOIDCGroupID": "myCoderGroupName"}
 ```
 
 From the example above, users that belong to the `myOIDCGroupID` group in your
