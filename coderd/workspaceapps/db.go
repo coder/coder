@@ -32,12 +32,12 @@ type DBTokenProvider struct {
 	DeploymentValues              *codersdk.DeploymentValues
 	OAuth2Configs                 *httpmw.OAuth2Configs
 	WorkspaceAgentInactiveTimeout time.Duration
-	SigningKey                    SigningKey
+	SigningKey                    SecurityKey
 }
 
 var _ SignedTokenProvider = &DBTokenProvider{}
 
-func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, signingKey SigningKey) SignedTokenProvider {
+func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, signingKey SecurityKey) SignedTokenProvider {
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
 	}

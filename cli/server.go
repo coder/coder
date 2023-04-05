@@ -781,7 +781,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// Read the app signing key from the DB. We store it hex encoded
 				// since the config table uses strings for the value and we
 				// don't want to deal with automatic encoding issues.
-				appSigningKeyStr, err := tx.GetAppSigningKey(ctx)
+				appSecurityKeyStr, err := tx.GetAppSecurityKey(ctx)
 				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 					return xerrors.Errorf("get app signing key: %w", err)
 				}
@@ -794,26 +794,26 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// generated automatically on failure. Any workspace app token
 				// smuggling operations in progress may fail, although with a
 				// helpful error.
-				if decoded, err := hex.DecodeString(appSigningKeyStr); err != nil || len(decoded) != len(workspaceapps.SigningKey{}) {
-					b := make([]byte, len(workspaceapps.SigningKey{}))
+				if decoded, err := hex.DecodeString(appSecurityKeyStr); err != nil || len(decoded) != len(workspaceapps.SecurityKey{}) {
+					b := make([]byte, len(workspaceapps.SecurityKey{}))
 					_, err := rand.Read(b)
 					if err != nil {
 						return xerrors.Errorf("generate fresh app signing key: %w", err)
 					}
 
-					appSigningKeyStr = hex.EncodeToString(b)
-					err = tx.UpsertAppSigningKey(ctx, appSigningKeyStr)
+					appSecurityKeyStr = hex.EncodeToString(b)
+					err = tx.UpsertAppSecurityKey(ctx, appSecurityKeyStr)
 					if err != nil {
 						return xerrors.Errorf("insert freshly generated app signing key to database: %w", err)
 					}
 				}
 
-				appSigningKey, err := workspaceapps.KeyFromString(appSigningKeyStr)
+				appSecurityKey, err := workspaceapps.KeyFromString(appSecurityKeyStr)
 				if err != nil {
 					return xerrors.Errorf("decode app signing key from database: %w", err)
 				}
 
-				options.AppSigningKey = appSigningKey
+				options.AppSecurityKey = appSecurityKey
 				return nil
 			}, nil)
 			if err != nil {

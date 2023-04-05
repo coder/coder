@@ -123,7 +123,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	}
 
 	// Encrypt the API key.
-	encryptedAPIKey, err := api.AppSigningKey.EncryptAPIKey(workspaceapps.EncryptedAPIKeyPayload{
+	encryptedAPIKey, err := api.AppSecurityKey.EncryptAPIKey(workspaceapps.EncryptedAPIKeyPayload{
 		APIKey: cookie.Value,
 	})
 	if err != nil {

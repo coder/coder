@@ -3022,12 +3022,12 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 	return i, err
 }
 
-const getAppSigningKey = `-- name: GetAppSigningKey :one
+const getAppSecurityKey = `-- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key'
 `
 
-func (q *sqlQuerier) GetAppSigningKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getAppSigningKey)
+func (q *sqlQuerier) GetAppSecurityKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getAppSecurityKey)
 	var value string
 	err := row.Scan(&value)
 	return value, err
@@ -3106,13 +3106,13 @@ func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error
 	return err
 }
 
-const upsertAppSigningKey = `-- name: UpsertAppSigningKey :exec
+const upsertAppSecurityKey = `-- name: UpsertAppSecurityKey :exec
 INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
 ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key'
 `
 
-func (q *sqlQuerier) UpsertAppSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertAppSigningKey, value)
+func (q *sqlQuerier) UpsertAppSecurityKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertAppSecurityKey, value)
 	return err
 }
 

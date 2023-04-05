@@ -44,14 +44,24 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 		t.AppSlugOrPort == req.AppSlugOrPort
 }
 
-// AppSigningKey is used for signing and encrypting app tokens and API keys.
+// SecurityKey is used for signing and encrypting app tokens and API keys.
 //
 // The first 64 bytes of the key are used for signing tokens with HMAC-SHA256,
 // and the last 32 bytes are used for encrypting API keys with AES-256-GCM.
-type SigningKey [96]byte
+// We use a single key for both operations to avoid having to store and manage
+// two keys.
+type SecurityKey [96]byte
 
-func KeyFromString(str string) (SigningKey, error) {
-	var key SigningKey
+func (k SecurityKey) signingKey() []byte {
+	return k[:64]
+}
+
+func (k SecurityKey) encryptionKey() []byte {
+	return k[64:]
+}
+
+func KeyFromString(str string) (SecurityKey, error) {
+	var key SecurityKey
 	decoded, err := hex.DecodeString(str)
 	if err != nil {
 		return key, xerrors.Errorf("decode key: %w", err)
@@ -67,7 +77,7 @@ func KeyFromString(str string) (SigningKey, error) {
 // SignToken generates a signed workspace app token with the given payload. If
 // the payload doesn't have an expiry, it will be set to the current time plus
 // the default expiry.
-func (k SigningKey) SignToken(payload SignedToken) (string, error) {
+func (k SecurityKey) SignToken(payload SignedToken) (string, error) {
 	if payload.Expiry.IsZero() {
 		payload.Expiry = time.Now().Add(DefaultTokenExpiry)
 	}
@@ -78,7 +88,7 @@ func (k SigningKey) SignToken(payload SignedToken) (string, error) {
 
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: tokenSigningAlgorithm,
-		Key:       k[:64],
+		Key:       k.signingKey(),
 	}, nil)
 	if err != nil {
 		return "", xerrors.Errorf("create signer: %w", err)
@@ -100,7 +110,7 @@ func (k SigningKey) SignToken(payload SignedToken) (string, error) {
 // VerifySignedToken parses a signed workspace app token with the given key and
 // returns the payload. If the token is invalid or expired, an error is
 // returned.
-func (k SigningKey) VerifySignedToken(str string) (SignedToken, error) {
+func (k SecurityKey) VerifySignedToken(str string) (SignedToken, error) {
 	object, err := jose.ParseSigned(str)
 	if err != nil {
 		return SignedToken{}, xerrors.Errorf("parse JWS: %w", err)
@@ -112,7 +122,7 @@ func (k SigningKey) VerifySignedToken(str string) (SignedToken, error) {
 		return SignedToken{}, xerrors.Errorf("expected token signing algorithm to be %q, got %q", tokenSigningAlgorithm, object.Signatures[0].Header.Algorithm)
 	}
 
-	output, err := object.Verify(k[:64])
+	output, err := object.Verify(k.signingKey())
 	if err != nil {
 		return SignedToken{}, xerrors.Errorf("verify JWS: %w", err)
 	}
@@ -135,7 +145,7 @@ type EncryptedAPIKeyPayload struct {
 }
 
 // EncryptAPIKey encrypts an API key for subdomain token smuggling.
-func (k SigningKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, error) {
+func (k SecurityKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, error) {
 	if payload.APIKey == "" {
 		return "", xerrors.New("API key is empty")
 	}
@@ -155,7 +165,7 @@ func (k SigningKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, error
 		jose.A256GCM,
 		jose.Recipient{
 			Algorithm: apiKeyEncryptionAlgorithm,
-			Key:       k[64:],
+			Key:       k.encryptionKey(),
 		},
 		&jose.EncrypterOptions{
 			Compression: jose.DEFLATE,
@@ -174,7 +184,7 @@ func (k SigningKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, error
 }
 
 // DecryptAPIKey undoes EncryptAPIKey and is used in the subdomain app handler.
-func (k SigningKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
+func (k SecurityKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	encrypted, err := base64.RawURLEncoding.DecodeString(encryptedAPIKey)
 	if err != nil {
 		return "", xerrors.Errorf("base64 decode encrypted API key: %w", err)
@@ -189,7 +199,7 @@ func (k SigningKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	}
 
 	// Decrypt using the hashed secret.
-	decrypted, err := object.Decrypt(k[64:])
+	decrypted, err := object.Decrypt(k.encryptionKey())
 	if err != nil {
 		return "", xerrors.Errorf("decrypt API key: %w", err)
 	}

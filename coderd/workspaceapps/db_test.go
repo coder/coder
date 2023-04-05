@@ -263,7 +263,7 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Equal(t, codersdk.DevURLSignedAppTokenCookie, cookie.Name)
 					require.Equal(t, req.BasePath, cookie.Path)
 
-					parsedToken, err := api.AppSigningKey.VerifySignedToken(cookie.Value)
+					parsedToken, err := api.AppSecurityKey.VerifySignedToken(cookie.Value)
 					require.NoError(t, err)
 					// normalize expiry
 					require.WithinDuration(t, token.Expiry, parsedToken.Expiry, 2*time.Second)
@@ -482,7 +482,7 @@ func Test_ResolveRequest(t *testing.T) {
 			AgentID:     agentID,
 			AppURL:      appURL,
 		}
-		badTokenStr, err := api.AppSigningKey.SignToken(badToken)
+		badTokenStr, err := api.AppSecurityKey.SignToken(badToken)
 		require.NoError(t, err)
 
 		req := workspaceapps.Request{
@@ -518,7 +518,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Len(t, cookies, 1)
 		require.Equal(t, cookies[0].Name, codersdk.DevURLSignedAppTokenCookie)
 		require.NotEqual(t, cookies[0].Value, badTokenStr)
-		parsedToken, err := api.AppSigningKey.VerifySignedToken(cookies[0].Value)
+		parsedToken, err := api.AppSecurityKey.VerifySignedToken(cookies[0].Value)
 		require.NoError(t, err)
 		require.Equal(t, appNameOwner, parsedToken.AppSlugOrPort)
 	})

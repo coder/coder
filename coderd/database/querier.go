@@ -47,7 +47,7 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
-	GetAppSigningKey(ctx context.Context) (string, error)
+	GetAppSecurityKey(ctx context.Context) (string, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
 	GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error)
@@ -242,7 +242,7 @@ type sqlcQuerier interface {
 	UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error
-	UpsertAppSigningKey(ctx context.Context, value string) error
+	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
 	UpsertServiceBanner(ctx context.Context, value string) error

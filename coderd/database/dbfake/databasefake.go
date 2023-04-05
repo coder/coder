@@ -141,7 +141,7 @@ type data struct {
 	lastUpdateCheck []byte
 	serviceBanner   []byte
 	logoURL         string
-	appSigningKey   string
+	appSecurityKey  string
 	lastLicenseID   int32
 }
 
@@ -4444,18 +4444,18 @@ func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	return q.logoURL, nil
 }
 
-func (q *fakeQuerier) GetAppSigningKey(_ context.Context) (string, error) {
+func (q *fakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.appSigningKey, nil
+	return q.appSecurityKey, nil
 }
 
-func (q *fakeQuerier) UpsertAppSigningKey(_ context.Context, data string) error {
+func (q *fakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	q.appSigningKey = data
+	q.appSecurityKey = data
 	return nil
 }
 

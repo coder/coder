@@ -123,9 +123,9 @@ type Options struct {
 	SwaggerEndpoint       bool
 	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
-	// AppSigningKey denotes the symmetric key to use for signing temporary app
-	// tokens.
-	AppSigningKey      workspaceapps.SigningKey
+	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
+	// workspace applications. It consists of both a signing and encryption key.
+	AppSecurityKey     workspaceapps.SecurityKey
 	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
@@ -302,7 +302,7 @@ func New(options *Options) *API {
 			options.DeploymentValues,
 			oauthConfigs,
 			options.AgentInactiveDisconnectTimeout,
-			options.AppSigningKey,
+			options.AppSecurityKey,
 		),
 		metricsCache:          metricsCache,
 		Auditor:               atomic.Pointer[audit.Auditor]{},
@@ -340,7 +340,7 @@ func New(options *Options) *API {
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		WorkspaceConnCache:  api.workspaceAgentCache,
-		AppSigningKey:       options.AppSigningKey,
+		AppSecurityKey:      options.AppSecurityKey,
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

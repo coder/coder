@@ -80,9 +80,9 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// AppSigningKey is a 64-byte key used to sign JWTs and encrypt JWEs for
+// AppSecurityKey is a 96-byte key used to sign JWTs and encrypt JWEs for
 // workspace app tokens in tests.
-var AppSigningKey = must(workspaceapps.KeyFromString("6465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e2077617320686572"))
+var AppSecurityKey = must(workspaceapps.KeyFromString("6465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e2077617320686572"))
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
@@ -338,7 +338,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			DeploymentValues:            options.DeploymentValues,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
-			AppSigningKey:               AppSigningKey,
+			AppSecurityKey:              AppSecurityKey,
 			SSHConfig:                   options.ConfigSSH,
 			HealthcheckFunc:             options.HealthcheckFunc,
 			HealthcheckTimeout:          options.HealthcheckTimeout,

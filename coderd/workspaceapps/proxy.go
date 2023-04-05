@@ -83,8 +83,8 @@ type Server struct {
 	RealIPConfig     *httpmw.RealIPConfig
 
 	SignedTokenProvider SignedTokenProvider
-	WorkspaceConnCache  *wsconncache.Cache
-	AppSigningKey       SigningKey
+	WorkspaceConnCache *wsconncache.Cache
+	AppSecurityKey     SecurityKey
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
@@ -245,7 +245,7 @@ func (s *Server) SubdomainAppMW(middlewares ...func(http.Handler) http.Handler) 
 			// cookie and strip that query parameter.
 			if encryptedAPIKey := r.URL.Query().Get(SubdomainProxyAPIKeyParam); encryptedAPIKey != "" {
 				// Exchange the encoded API key for a real one.
-				token, err := s.AppSigningKey.DecryptAPIKey(encryptedAPIKey)
+				token, err := s.AppSecurityKey.DecryptAPIKey(encryptedAPIKey)
 				if err != nil {
 					s.Logger.Debug(ctx, "could not decrypt API key", slog.Error(err))
 					site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
