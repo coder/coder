@@ -1,6 +1,10 @@
-Usage: coder version
+Usage: coder version [flags]
 
 Show coder version
+
+[1mOptions[0m
+      --json bool
+          Emit version information in machine-readable JSON format.
 
 ---
 Run `coder --help` for a list of global options.
