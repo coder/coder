@@ -45,6 +45,7 @@ const (
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
+	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -59,6 +60,7 @@ var FeatureNames = []FeatureName{
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
+	FeatureWorkspaceProxy,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -142,7 +144,6 @@ type DeploymentValues struct {
 	MetricsCacheRefreshInterval     clibase.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
 	AgentStatRefreshInterval        clibase.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
 	AgentFallbackTroubleshootingURL clibase.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
-	AuditLogging                    clibase.Bool                    `json:"audit_logging,omitempty" typescript:",notnull"`
 	BrowserOnly                     clibase.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
 	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
@@ -257,6 +258,7 @@ type OIDCConfig struct {
 	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
 	EmailField          clibase.String                    `json:"email_field" typescript:",notnull"`
 	AuthURLParams       clibase.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
+	IgnoreUserInfo      clibase.Bool                      `json:"ignore_user_info" typescript:",notnull"`
 	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
 	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
@@ -882,6 +884,16 @@ when required by your organization's security policy.`,
 			YAML:        "authURLParams",
 		},
 		{
+			Name:        "OIDC Ignore UserInfo",
+			Description: "Ignore the userinfo endpoint and only use the ID token for user information.",
+			Flag:        "oidc-ignore-userinfo",
+			Env:         "CODER_OIDC_IGNORE_USERINFO",
+			Default:     "false",
+			Value:       &c.OIDC.IgnoreUserInfo,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "ignoreUserInfo",
+		},
+		{
 			Name:        "OIDC Group Field",
 			Description: "Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.",
 			Flag:        "oidc-group-field",
@@ -900,7 +912,7 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Group Mapping",
 			Description: "A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.",
 			Flag:        "oidc-group-mapping",
-			Env:         "OIDC_GROUP_MAPPING",
+			Env:         "CODER_OIDC_GROUP_MAPPING",
 			Default:     "{}",
 			Value:       &c.OIDC.GroupMapping,
 			Group:       &deploymentGroupOIDC,
@@ -1263,16 +1275,6 @@ when required by your organization's security policy.`,
 			YAML:        "agentFallbackTroubleshootingURL",
 		},
 		{
-			Name:        "Audit Logging",
-			Description: "Specifies whether audit logging is enabled.",
-			Flag:        "audit-logging",
-			Env:         "CODER_AUDIT_LOGGING",
-			Default:     "true",
-			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
-			Value:       &c.AuditLogging,
-			YAML:        "auditLogging",
-		},
-		{
 			Name:        "Browser Only",
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
@@ -1569,6 +1571,10 @@ const (
 	// ExperimentTemplateEditor is an internal experiment that enables the template editor
 	// for all users.
 	ExperimentTemplateEditor Experiment = "template_editor"
+
+	// ExperimentMoons enabled the workspace proxy endpoints and CRUD. This
+	// feature is not yet complete in functionality.
+	ExperimentMoons Experiment = "moons"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"

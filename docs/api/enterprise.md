@@ -1181,3 +1181,61 @@ curl -X GET http://coder-server:8080/api/v2/workspace-quota/{user} \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceQuota](schemas.md#codersdkworkspacequota) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace proxies
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceproxies`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "deleted": true,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "url": "string",
+    "wildcard_hostname": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
+
+<h3 id="get-workspace-proxies-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                  | Type              | Required | Restrictions | Description                                                                            |
+| --------------------- | ----------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `[array item]`        | array             | false    |              |                                                                                        |
+| `» created_at`        | string(date-time) | false    |              |                                                                                        |
+| `» deleted`           | boolean           | false    |              |                                                                                        |
+| `» icon`              | string            | false    |              |                                                                                        |
+| `» id`                | string(uuid)      | false    |              |                                                                                        |
+| `» name`              | string            | false    |              |                                                                                        |
+| `» organization_id`   | string(uuid)      | false    |              |                                                                                        |
+| `» updated_at`        | string(date-time) | false    |              |                                                                                        |
+| `» url`               | string            | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
+| `» wildcard_hostname` | string            | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

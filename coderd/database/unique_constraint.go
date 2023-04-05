@@ -31,5 +31,6 @@ const (
 	UniqueTemplatesOrganizationIDNameIndex                  UniqueConstraint = "templates_organization_id_name_idx"                       // CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 	UniqueUsersEmailLowerIndex                              UniqueConstraint = "users_email_lower_idx"                                    // CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 	UniqueUsersUsernameLowerIndex                           UniqueConstraint = "users_username_lower_idx"                                 // CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
+	UniqueWorkspaceProxiesNameIndex                         UniqueConstraint = "workspace_proxies_name_idx"                               // CREATE UNIQUE INDEX workspace_proxies_name_idx ON workspace_proxies USING btree (name) WHERE (deleted = false);
 	UniqueWorkspacesOwnerIDLowerIndex                       UniqueConstraint = "workspaces_owner_id_lower_idx"                            // CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 )

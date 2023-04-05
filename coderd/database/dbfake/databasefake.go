@@ -65,6 +65,7 @@ func New() database.Store {
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
 			licenses:                  make([]database.License, 0),
+			workspaceProxies:          make([]database.WorkspaceProxy, 0),
 			locks:                     map[int64]struct{}{},
 		},
 	}
@@ -132,6 +133,7 @@ type data struct {
 	workspaceResourceMetadata []database.WorkspaceResourceMetadatum
 	workspaceResources        []database.WorkspaceResource
 	workspaces                []database.Workspace
+	workspaceProxies          []database.WorkspaceProxy
 
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
@@ -1915,6 +1917,8 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		if tpl.ID != arg.ID {
 			continue
 		}
+		tpl.AllowUserAutostart = arg.AllowUserAutostart
+		tpl.AllowUserAutostop = arg.AllowUserAutostop
 		tpl.UpdatedAt = database.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.MaxTTL = arg.MaxTTL
@@ -2916,6 +2920,8 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		DisplayName:                  arg.DisplayName,
 		Icon:                         arg.Icon,
 		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
+		AllowUserAutostart:           true,
+		AllowUserAutostop:            true,
 	}
 	q.templates = append(q.templates, template)
 	return template.DeepCopy(), nil
@@ -3370,6 +3376,7 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 		Name:              arg.Name,
 		AutostartSchedule: arg.AutostartSchedule,
 		Ttl:               arg.Ttl,
+		LastUsedAt:        arg.LastUsedAt,
 	}
 	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil
@@ -3988,6 +3995,31 @@ func (q *fakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 		stats = append(stats, agent)
 	}
 	return stats, nil
+}
+
+func (q *fakeQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := []database.Workspace{}
+	for _, workspace := range q.workspaces {
+		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		if build.Transition == database.WorkspaceTransitionStart && !build.Deadline.IsZero() && build.Deadline.Before(now) {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+
+		if build.Transition == database.WorkspaceTransitionStop && workspace.AutostartSchedule.Valid {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+	}
+
+	return workspaces, nil
 }
 
 func (q *fakeQuerier) UpdateWorkspaceTTLToBeWithinTemplateMax(_ context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
@@ -4957,6 +4989,89 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(_ context.Conte
 		if agent.ID == arg.ID {
 			agent.StartupLogsOverflowed = arg.StartupLogsOverflowed
 			q.workspaceAgents[i] = agent
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	cpy := make([]database.WorkspaceProxy, 0, len(q.workspaceProxies))
+
+	for _, p := range q.workspaceProxies {
+		if !p.Deleted {
+			cpy = append(cpy, p)
+		}
+	}
+	return cpy, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceProxyByID(_ context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, proxy := range q.workspaceProxies {
+		if proxy.ID == id {
+			return proxy, nil
+		}
+	}
+	return database.WorkspaceProxy{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, p := range q.workspaceProxies {
+		if !p.Deleted && p.Name == arg.Name {
+			return database.WorkspaceProxy{}, errDuplicateKey
+		}
+	}
+
+	p := database.WorkspaceProxy{
+		ID:               arg.ID,
+		Name:             arg.Name,
+		Icon:             arg.Icon,
+		Url:              arg.Url,
+		WildcardHostname: arg.WildcardHostname,
+		CreatedAt:        arg.CreatedAt,
+		UpdatedAt:        arg.UpdatedAt,
+		Deleted:          false,
+	}
+	q.workspaceProxies = append(q.workspaceProxies, p)
+	return p, nil
+}
+
+func (q *fakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, p := range q.workspaceProxies {
+		if p.ID == arg.ID {
+			p.Name = arg.Name
+			p.Icon = arg.Icon
+			p.Url = arg.Url
+			p.WildcardHostname = arg.WildcardHostname
+			p.UpdatedAt = database.Now()
+			q.workspaceProxies[i] = p
+			return p, nil
+		}
+	}
+	return database.WorkspaceProxy{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceProxyDeleted(_ context.Context, arg database.UpdateWorkspaceProxyDeletedParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, p := range q.workspaceProxies {
+		if p.ID == arg.ID {
+			p.Deleted = arg.Deleted
+			p.UpdatedAt = database.Now()
+			q.workspaceProxies[i] = p
 			return nil
 		}
 	}

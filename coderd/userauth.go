@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -452,6 +453,11 @@ type OIDCConfig struct {
 	// AuthURLParams are additional parameters to be passed to the OIDC provider
 	// when requesting an access token.
 	AuthURLParams map[string]string
+	// IgnoreUserInfo causes Coder to only use claims from the ID token to
+	// process OIDC logins. This is useful if the OIDC provider does not
+	// support the userinfo endpoint, or if the userinfo endpoint causes
+	// undesirable behavior.
+	IgnoreUserInfo bool
 	// GroupField selects the claim field to be used as the created user's
 	// groups. If the group field is the empty string, then no group updates
 	// will ever come from the OIDC provider.
@@ -520,46 +526,62 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	api.Logger.Debug(ctx, "got oidc claims",
+		slog.F("source", "id_token"),
+		slog.F("claim_fields", claimFields(claims)),
+		slog.F("blank", blankFields(claims)),
+	)
+
 	// Not all claims are necessarily embedded in the `id_token`.
 	// In GitLab, the username is left empty and must be fetched in UserInfo.
 	//
 	// The OIDC specification says claims can be in either place, so we fetch
-	// user info and merge the two claim sets to be sure we have all of
-	// the correct data.
-	userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
-	if err == nil {
-		userInfoClaims := map[string]interface{}{}
-		err = userInfo.Claims(&userInfoClaims)
-		if err != nil {
+	// user info if required and merge the two claim sets to be sure we have
+	// all of the correct data.
+	//
+	// Some providers (e.g. ADFS) do not support custom OIDC claims in the
+	// UserInfo endpoint, so we allow users to disable it and only rely on the
+	// ID token.
+	if !api.OIDCConfig.IgnoreUserInfo {
+		userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
+		if err == nil {
+			userInfoClaims := map[string]interface{}{}
+			err = userInfo.Claims(&userInfoClaims)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to unmarshal user info claims.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			api.Logger.Debug(ctx, "got oidc claims",
+				slog.F("source", "userinfo"),
+				slog.F("claim_fields", claimFields(userInfoClaims)),
+				slog.F("blank", blankFields(userInfoClaims)),
+			)
+
+			// Merge the claims from the ID token and the UserInfo endpoint.
+			// Information from UserInfo takes precedence.
+			claims = mergeClaims(claims, userInfoClaims)
+
+			// Log all of the field names after merging.
+			api.Logger.Debug(ctx, "got oidc claims",
+				slog.F("source", "merged"),
+				slog.F("claim_fields", claimFields(claims)),
+				slog.F("blank", blankFields(claims)),
+			)
+		} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to unmarshal user info claims.",
-				Detail:  err.Error(),
+				Message: "Failed to obtain user information claims.",
+				Detail:  "The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
 			})
 			return
+		} else {
+			// The OIDC provider does not support the UserInfo endpoint.
+			// This is not an error, but we should log it as it may mean
+			// that some claims are missing.
+			api.Logger.Warn(ctx, "OIDC provider does not support the user info endpoint, ensure that all required claims are present in the id_token")
 		}
-		for k, v := range userInfoClaims {
-			claims[k] = v
-		}
-	} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to obtain user information claims.",
-			Detail:  "The OIDC provider returned no claims as part of the `id_token`. The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
-		})
-		return
-	}
-
-	// Log all of the field names returned in the ID token claims, and the
-	// userinfo returned from the provider.
-	{
-		fields := make([]string, 0, len(claims))
-		for f := range claims {
-			fields = append(fields, f)
-		}
-
-		api.Logger.Debug(ctx, "got oidc claims",
-			slog.F("user_info", userInfo),
-			slog.F("claim_fields", fields),
-		)
 	}
 
 	usernameRaw, ok := claims[api.OIDCConfig.UsernameField]
@@ -626,7 +648,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 					group, ok := groupInterface.(string)
 					if !ok {
 						httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-							Message: fmt.Sprintf("Invalid group type. Expected string, got: %t", emailRaw),
+							Message: fmt.Sprintf("Invalid group type. Expected string, got: %T", groupInterface),
 						})
 						return
 					}
@@ -728,6 +750,42 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		redirect = "/"
 	}
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+}
+
+// claimFields returns the sorted list of fields in the claims map.
+func claimFields(claims map[string]interface{}) []string {
+	fields := []string{}
+	for field := range claims {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	return fields
+}
+
+// blankFields returns the list of fields in the claims map that are
+// an empty string.
+func blankFields(claims map[string]interface{}) []string {
+	fields := make([]string, 0)
+	for field, value := range claims {
+		if valueStr, ok := value.(string); ok && valueStr == "" {
+			fields = append(fields, field)
+		}
+	}
+	sort.Strings(fields)
+	return fields
+}
+
+// mergeClaims merges the claims from a and b and returns the merged set.
+// claims from b take precedence over claims from a.
+func mergeClaims(a, b map[string]interface{}) map[string]interface{} {
+	c := make(map[string]interface{})
+	for k, v := range a {
+		c[k] = v
+	}
+	for k, v := range b {
+		c[k] = v
+	}
+	return c
 }
 
 type oauthLoginParams struct {

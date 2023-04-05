@@ -156,6 +156,7 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 		OrganizationID:    takeFirst(orig.OrganizationID, uuid.New()),
 		TemplateID:        takeFirst(orig.TemplateID, uuid.New()),
+		LastUsedAt:        takeFirst(orig.LastUsedAt, database.Now()),
 		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		AutostartSchedule: orig.AutostartSchedule,
 		Ttl:               orig.Ttl,
@@ -335,6 +336,21 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 	})
 	require.NoError(t, err, "insert meta data")
 	return meta
+}
+
+func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) database.WorkspaceProxy {
+	resource, err := db.InsertWorkspaceProxy(context.Background(), database.InsertWorkspaceProxyParams{
+		ID:               takeFirst(orig.ID, uuid.New()),
+		Name:             takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName:      takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		Icon:             takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		Url:              takeFirst(orig.Url, fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1))),
+		WildcardHostname: takeFirst(orig.WildcardHostname, fmt.Sprintf(".%s.com", namesgenerator.GetRandomName(1))),
+		CreatedAt:        takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:        takeFirst(orig.UpdatedAt, database.Now()),
+	})
+	require.NoError(t, err, "insert app")
+	return resource
 }
 
 func File(t testing.TB, db database.Store, orig database.File) database.File {

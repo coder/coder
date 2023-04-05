@@ -1089,6 +1089,7 @@ func TestServer(t *testing.T) {
 			require.Equal(t, "preferred_username", deploymentConfig.Values.OIDC.UsernameField.Value())
 			require.Equal(t, "email", deploymentConfig.Values.OIDC.EmailField.Value())
 			require.Equal(t, map[string]string{"access_type": "offline"}, deploymentConfig.Values.OIDC.AuthURLParams.Value)
+			require.False(t, deploymentConfig.Values.OIDC.IgnoreUserInfo.Value())
 			require.Empty(t, deploymentConfig.Values.OIDC.GroupField.Value())
 			require.Empty(t, deploymentConfig.Values.OIDC.GroupMapping.Value)
 			require.Equal(t, "OpenID Connect", deploymentConfig.Values.OIDC.SignInText.Value())
@@ -1128,6 +1129,7 @@ func TestServer(t *testing.T) {
 				"--oidc-username-field", "not_preferred_username",
 				"--oidc-email-field", "not_email",
 				"--oidc-auth-url-params", `{"prompt":"consent"}`,
+				"--oidc-ignore-userinfo",
 				"--oidc-group-field", "serious_business_unit",
 				"--oidc-group-mapping", `{"serious_business_unit": "serious_business_unit"}`,
 				"--oidc-sign-in-text", "Sign In With Coder",
@@ -1172,6 +1174,7 @@ func TestServer(t *testing.T) {
 			require.True(t, deploymentConfig.Values.OIDC.IgnoreEmailVerified.Value())
 			require.Equal(t, "not_preferred_username", deploymentConfig.Values.OIDC.UsernameField.Value())
 			require.Equal(t, "not_email", deploymentConfig.Values.OIDC.EmailField.Value())
+			require.True(t, deploymentConfig.Values.OIDC.IgnoreUserInfo.Value())
 			require.Equal(t, map[string]string{"prompt": "consent"}, deploymentConfig.Values.OIDC.AuthURLParams.Value)
 			require.Equal(t, "serious_business_unit", deploymentConfig.Values.OIDC.GroupField.Value())
 			require.Equal(t, map[string]string{"serious_business_unit": "serious_business_unit"}, deploymentConfig.Values.OIDC.GroupMapping.Value)

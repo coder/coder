@@ -1271,6 +1271,8 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "default_ttl_ms": 0,
   "description": "string",
@@ -1293,17 +1295,19 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                                                                                                                                                                                      | Type                                                                        | Required | Restrictions | Description                                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
-| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                     | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                   |
-| `default_ttl_ms`                                                                                                                                                                          | integer                                                                     | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template. |
-| `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                |
-| `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                        |
-| `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.           |
-| `max_ttl_ms`                                                                                                                                                                              | integer                                                                     | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.        |
-| `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                          |
-| `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                         |
-| `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.       |
+| Name                                                                                                                                                                                      | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow_user_autostart`                                                                                                                                                                    | boolean                                                                     | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                            |
+| `allow_user_autostop`                                                                                                                                                                     | boolean                                                                     | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license. |
+| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                     | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                              |
+| `default_ttl_ms`                                                                                                                                                                          | integer                                                                     | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                            |
+| `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                           |
+| `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                   |
+| `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                      |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                     | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.                                                                                                                                                   |
+| `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                                                                                                                                                                     |
+| `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                                                                                                                                                                    |
+| `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                  |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
 ## codersdk.CreateTemplateVersionDryRunRequest
@@ -1539,6 +1543,28 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `transition` | `stop`   |
 | `transition` | `delete` |
 
+## codersdk.CreateWorkspaceProxyRequest
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+| ------------------- | ------ | -------- | ------------ | ----------- |
+| `display_name`      | string | false    |              |             |
+| `icon`              | string | false    |              |             |
+| `name`              | string | false    |              |             |
+| `url`               | string | false    |              |             |
+| `wildcard_hostname` | string | false    |              |             |
+
 ## codersdk.CreateWorkspaceRequest
 
 ```json
@@ -1750,7 +1776,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
-    "audit_logging": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
@@ -1852,6 +1877,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "user": {}
       },
       "ignore_email_verified": true,
+      "ignore_user_info": true,
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
@@ -2098,7 +2124,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
-  "audit_logging": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
@@ -2200,6 +2225,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "user": {}
     },
     "ignore_email_verified": true,
+    "ignore_user_info": true,
     "issuer_url": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
@@ -2317,7 +2343,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `address`                            | [clibase.HostPort](#clibasehostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
 | `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                    | false    |              |                                                                    |
-| `audit_logging`                      | boolean                                                                                    | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                    | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
@@ -2429,6 +2454,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Value             |
 | ----------------- |
 | `template_editor` |
+| `moons`           |
 
 ## codersdk.Feature
 
@@ -2866,6 +2892,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "user": {}
   },
   "ignore_email_verified": true,
+  "ignore_user_info": true,
   "issuer_url": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
@@ -2887,6 +2914,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `groups_field`          | string                     | false    |              |             |
 | `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
 | `ignore_email_verified` | boolean                    | false    |              |             |
+| `ignore_user_info`      | boolean                    | false    |              |             |
 | `issuer_url`            | string                     | false    |              |             |
 | `scopes`                | array of string            | false    |              |             |
 | `sign_in_text`          | string                     | false    |              |             |
@@ -3618,6 +3646,8 @@ Parameter represents a set value for the scope.
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -3647,25 +3677,27 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                               |
-| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                              |
-| `active_version_id`                | string                                                             | false    |              |                                                                                                                                           |
-| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                           |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
-| `created_at`                       | string                                                             | false    |              |                                                                                                                                           |
-| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                           |
-| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                           |
-| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                           |
-| `description`                      | string                                                             | false    |              |                                                                                                                                           |
-| `display_name`                     | string                                                             | false    |              |                                                                                                                                           |
-| `icon`                             | string                                                             | false    |              |                                                                                                                                           |
-| `id`                               | string                                                             | false    |              |                                                                                                                                           |
-| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature. |
-| `name`                             | string                                                             | false    |              |                                                                                                                                           |
-| `organization_id`                  | string                                                             | false    |              |                                                                                                                                           |
-| `provisioner`                      | string                                                             | false    |              |                                                                                                                                           |
-| `updated_at`                       | string                                                             | false    |              |                                                                                                                                           |
+| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                                                            |
+| `active_version_id`                | string                                                             | false    |              |                                                                                                                                                                         |
+| `allow_user_autostart`             | boolean                                                            | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature. |
+| `allow_user_autostop`              | boolean                                                            | false    |              |                                                                                                                                                                         |
+| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                                                         |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                                                         |
+| `created_at`                       | string                                                             | false    |              |                                                                                                                                                                         |
+| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                                                         |
+| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                                                         |
+| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                                                         |
+| `description`                      | string                                                             | false    |              |                                                                                                                                                                         |
+| `display_name`                     | string                                                             | false    |              |                                                                                                                                                                         |
+| `icon`                             | string                                                             | false    |              |                                                                                                                                                                         |
+| `id`                               | string                                                             | false    |              |                                                                                                                                                                         |
+| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                               |
+| `name`                             | string                                                             | false    |              |                                                                                                                                                                         |
+| `organization_id`                  | string                                                             | false    |              |                                                                                                                                                                         |
+| `provisioner`                      | string                                                             | false    |              |                                                                                                                                                                         |
+| `updated_at`                       | string                                                             | false    |              |                                                                                                                                                                         |
 
 #### Enumerated Values
 
@@ -5079,6 +5111,36 @@ Parameter represents a set value for the scope.
 | `rx_bytes`              | integer                                                                        | false    |              |             |
 | `stopped`               | integer                                                                        | false    |              |             |
 | `tx_bytes`              | integer                                                                        | false    |              |             |
+
+## codersdk.WorkspaceProxy
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                            |
+| ------------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `created_at`        | string  | false    |              |                                                                                        |
+| `deleted`           | boolean | false    |              |                                                                                        |
+| `icon`              | string  | false    |              |                                                                                        |
+| `id`                | string  | false    |              |                                                                                        |
+| `name`              | string  | false    |              |                                                                                        |
+| `organization_id`   | string  | false    |              |                                                                                        |
+| `updated_at`        | string  | false    |              |                                                                                        |
+| `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
+| `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
 
 ## codersdk.WorkspaceQuota
 

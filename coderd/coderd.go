@@ -122,7 +122,7 @@ type Options struct {
 	DERPMap               *tailcfg.DERPMap
 	SwaggerEndpoint       bool
 	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
-	TemplateScheduleStore schedule.TemplateScheduleStore
+	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey     workspaceapps.SecurityKey
@@ -235,7 +235,11 @@ func New(options *Options) *API {
 		}
 	}
 	if options.TemplateScheduleStore == nil {
-		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
+		options.TemplateScheduleStore = &atomic.Pointer[schedule.TemplateScheduleStore]{}
+	}
+	if options.TemplateScheduleStore.Load() == nil {
+		v := schedule.NewAGPLTemplateScheduleStore()
+		options.TemplateScheduleStore.Store(&v)
 	}
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
@@ -306,7 +310,7 @@ func New(options *Options) *API {
 		),
 		metricsCache:          metricsCache,
 		Auditor:               atomic.Pointer[audit.Auditor]{},
-		TemplateScheduleStore: atomic.Pointer[schedule.TemplateScheduleStore]{},
+		TemplateScheduleStore: options.TemplateScheduleStore,
 		Experiments:           experiments,
 		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
 	}
@@ -324,7 +328,6 @@ func New(options *Options) *API {
 	}
 
 	api.Auditor.Store(&options.Auditor)
-	api.TemplateScheduleStore.Store(&options.TemplateScheduleStore)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 
@@ -777,7 +780,7 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	TemplateScheduleStore             atomic.Pointer[schedule.TemplateScheduleStore]
+	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -890,7 +893,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,
 		Auditor:               &api.Auditor,
-		TemplateScheduleStore: &api.TemplateScheduleStore,
+		TemplateScheduleStore: api.TemplateScheduleStore,
 		AcquireJobDebounce:    debounce,
 		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})

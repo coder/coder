@@ -99,6 +99,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   {
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "allow_user_autostart": true,
+    "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
     "build_time_stats": {
       "property1": {
@@ -137,29 +139,31 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 Status Code **200**
 
-| Name                                 | Type                                                                         | Required | Restrictions | Description                                                                                                                               |
-| ------------------------------------ | ---------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                       | array                                                                        | false    |              |                                                                                                                                           |
-| `» active_user_count`                | integer                                                                      | false    |              | Active user count is set to -1 when loading.                                                                                              |
-| `» active_version_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                           |
-| `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                                                                                                                           |
-| `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
-| `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                                                                                                                           |
-| `»»» p50`                            | integer                                                                      | false    |              |                                                                                                                                           |
-| `»»» p95`                            | integer                                                                      | false    |              |                                                                                                                                           |
-| `» created_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                           |
-| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                                                                                                                           |
-| `» created_by_name`                  | string                                                                       | false    |              |                                                                                                                                           |
-| `» default_ttl_ms`                   | integer                                                                      | false    |              |                                                                                                                                           |
-| `» description`                      | string                                                                       | false    |              |                                                                                                                                           |
-| `» display_name`                     | string                                                                       | false    |              |                                                                                                                                           |
-| `» icon`                             | string                                                                       | false    |              |                                                                                                                                           |
-| `» id`                               | string(uuid)                                                                 | false    |              |                                                                                                                                           |
-| `» max_ttl_ms`                       | integer                                                                      | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature. |
-| `» name`                             | string                                                                       | false    |              |                                                                                                                                           |
-| `» organization_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                           |
-| `» provisioner`                      | string                                                                       | false    |              |                                                                                                                                           |
-| `» updated_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                           |
+| Name                                 | Type                                                                         | Required | Restrictions | Description                                                                                                                                                             |
+| ------------------------------------ | ---------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                       | array                                                                        | false    |              |                                                                                                                                                                         |
+| `» active_user_count`                | integer                                                                      | false    |              | Active user count is set to -1 when loading.                                                                                                                            |
+| `» active_version_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
+| `» allow_user_autostart`             | boolean                                                                      | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature. |
+| `» allow_user_autostop`              | boolean                                                                      | false    |              |                                                                                                                                                                         |
+| `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                                                                                                                                                         |
+| `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                                                         |
+| `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                                                                                                                                                         |
+| `»»» p50`                            | integer                                                                      | false    |              |                                                                                                                                                                         |
+| `»»» p95`                            | integer                                                                      | false    |              |                                                                                                                                                                         |
+| `» created_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                                                         |
+| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
+| `» created_by_name`                  | string                                                                       | false    |              |                                                                                                                                                                         |
+| `» default_ttl_ms`                   | integer                                                                      | false    |              |                                                                                                                                                                         |
+| `» description`                      | string                                                                       | false    |              |                                                                                                                                                                         |
+| `» display_name`                     | string                                                                       | false    |              |                                                                                                                                                                         |
+| `» icon`                             | string                                                                       | false    |              |                                                                                                                                                                         |
+| `» id`                               | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
+| `» max_ttl_ms`                       | integer                                                                      | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                               |
+| `» name`                             | string                                                                       | false    |              |                                                                                                                                                                         |
+| `» organization_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
+| `» provisioner`                      | string                                                                       | false    |              |                                                                                                                                                                         |
+| `» updated_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                                                         |
 
 #### Enumerated Values
 
@@ -187,6 +191,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "default_ttl_ms": 0,
   "description": "string",
@@ -222,6 +228,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -345,6 +353,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -670,6 +680,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -776,6 +788,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -2527,5 +2541,63 @@ Status Code **200**
 | `type`   | `string` |
 | `type`   | `number` |
 | `type`   | `bool`   |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create workspace proxy
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceproxies`
+
+> Body parameter
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                   | Required | Description                    |
+| ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `body` | body | [codersdk.CreateWorkspaceProxyRequest](schemas.md#codersdkcreateworkspaceproxyrequest) | true     | Create workspace proxy request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                       |
+| ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------ |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

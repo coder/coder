@@ -71,6 +71,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by":                       ActionTrack,
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
+		"allow_user_autostart":             ActionTrack,
+		"allow_user_autostop":              ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
 		"max_ttl":                          ActionTrack,
 	},
@@ -159,6 +161,17 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"jwt":         ActionIgnore,
 		"exp":         ActionTrack,
 		"uuid":        ActionTrack,
+	},
+	&database.WorkspaceProxy{}: {
+		"id":                ActionTrack,
+		"name":              ActionTrack,
+		"display_name":      ActionTrack,
+		"icon":              ActionTrack,
+		"url":               ActionTrack,
+		"wildcard_hostname": ActionTrack,
+		"created_at":        ActionTrack,
+		"updated_at":        ActionTrack,
+		"deleted":           ActionTrack,
 	},
 }
 
