@@ -14,7 +14,7 @@ import (
 
 func TestVersion(t *testing.T) {
 	t.Parallel()
-	expectedHuman := `Coder v0.0.0-devel
+	expectedText := `Coder v0.0.0-devel
 https://github.com/coder/coder
 
 Full build of Coder, supports the  [;mserver[0m  subcommand.
@@ -35,12 +35,17 @@ Full build of Coder, supports the  [;mserver[0m  subcommand.
 		{
 			Name:     "Defaults to human-readable output",
 			Args:     []string{"version"},
-			Expected: expectedHuman,
+			Expected: expectedText,
 		},
 		{
 			Name:     "JSON output",
-			Args:     []string{"version", "--json"},
+			Args:     []string{"version", "--output=json"},
 			Expected: expectedJSON,
+		},
+		{
+			Name:     "Text output",
+			Args:     []string{"version", "--output=text"},
+			Expected: expectedText,
 		},
 	} {
 		tt := tt
