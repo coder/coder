@@ -230,7 +230,6 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 
 					if node == nil {
 						logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.ID))
-						continue
 					} else {
 						// Collect information about connection latencies
 						for rawRegion, latency := range node.DERPLatency {
