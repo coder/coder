@@ -3088,16 +3088,6 @@ func (q *sqlQuerier) GetServiceBanner(ctx context.Context) (string, error) {
 	return value, err
 }
 
-const UpsertAppSigningKey = `-- name: UpsertAppSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key'
-`
-
-func (q *sqlQuerier) UpsertAppSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, UpsertAppSigningKey, value)
-	return err
-}
-
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -3113,6 +3103,16 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
 
 func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
+	return err
+}
+
+const upsertAppSigningKey = `-- name: UpsertAppSigningKey :exec
+INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key'
+`
+
+func (q *sqlQuerier) UpsertAppSigningKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertAppSigningKey, value)
 	return err
 }
 

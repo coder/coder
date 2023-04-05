@@ -367,7 +367,7 @@ export const authMachine =
         clearUpdateProfileError: assign({
           updateProfileError: (_) => undefined,
         }),
-        redirect: (_, { data }) => {
+        redirect: (_, _data) => {
           window.location.href = location.origin
         },
       },
