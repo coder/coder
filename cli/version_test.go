@@ -3,7 +3,6 @@ package cli_test
 import (
 	"bytes"
 	"context"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -15,16 +14,10 @@ import (
 
 func TestVersion(t *testing.T) {
 	t.Parallel()
-	ansiExpr := regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
-	clean := func(s string) string {
-		s = ansiExpr.ReplaceAllString(s, "")
-		s = strings.Replace(s, "\r\n", "\n", -1)
-		return s
-	}
 	expectedHuman := `Coder v0.0.0-devel
 https://github.com/coder/coder
 
-Full build of Coder, supports the  server  subcommand.
+Full build of Coder, supports the  [;mserver[0m  subcommand.
 `
 	expectedJSON := `{
   "version": "v0.0.0-devel",
@@ -60,7 +53,8 @@ Full build of Coder, supports the  server  subcommand.
 			inv.Stdout = buf
 			err := inv.WithContext(ctx).Run()
 			require.NoError(t, err)
-			actual := clean(buf.String())
+			actual := buf.String()
+			actual = strings.Replace(actual, "\r\n", "\n", -1)
 			require.Equal(t, tt.Expected, actual)
 		})
 	}
