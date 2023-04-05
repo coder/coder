@@ -46,7 +46,7 @@ func (*RootCmd) version() *clibase.Cmd {
 			AGPL        bool   `json:"agpl"`
 		}{
 			Version:     buildinfo.Version(),
-			BuildTime:   buildTime.Format(time.UnixDate),
+			BuildTime:   buildTime.Format(time.RFC3339),
 			ExternalURL: buildinfo.ExternalURL(),
 			Slim:        buildinfo.IsSlim(),
 			AGPL:        buildinfo.IsAGPL(),

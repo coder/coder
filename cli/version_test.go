@@ -28,7 +28,7 @@ Full build of Coder, supports the  server  subcommand.
 `
 	expectedJSON := `{
   "version": "v0.0.0-devel",
-  "build_time": "Mon Jan  1 00:00:00 UTC 0001",
+  "build_time": "0001-01-01T00:00:00Z",
   "external_url": "https://github.com/coder/coder",
   "slim": false,
   "agpl": false
