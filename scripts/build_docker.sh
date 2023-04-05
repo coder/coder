@@ -142,7 +142,6 @@ docker build \
 	--build-arg "CODER_VERSION=$version" \
 	--no-cache \
 	--tag "$image_tag" \
-	--tag "$CODER_IMAGE_BASE:latest" \
 	-f Dockerfile \
 	. 1>&2
 
