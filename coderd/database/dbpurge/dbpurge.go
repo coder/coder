@@ -29,13 +29,13 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 	go func() {
 		defer close(closed)
 
-		timer := time.NewTimer(delay)
-		defer timer.Stop()
+		ticker := time.NewTicker(delay)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-timer.C:
+			case <-ticker.C:
 			}
 
 			var eg errgroup.Group
@@ -53,7 +53,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 				logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
 			}
 
-			timer.Reset(delay)
+			ticker.Reset(delay)
 		}
 	}()
 	return &instance{
