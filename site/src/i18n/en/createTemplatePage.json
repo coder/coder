@@ -26,7 +26,7 @@
       "displayName": "Display name",
       "description": "Description",
       "icon": "Icon",
-      "autoStop": "Default auto-stop",
+      "autostop": "Default autostop",
       "maxTTL": "Max. Lifetime (alpha)",
       "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs"
     },
@@ -49,9 +49,9 @@
     "error": {
       "descriptionMax": "Please enter a description that is less than or equal to 128 characters.",
       "defaultTTLMax": "Please enter a limit that is less than or equal to 168 hours (7 days).",
-      "defaultTTLMin": "Default time until auto-stop must not be less than 0.",
+      "defaultTTLMin": "Default time until autostop must not be less than 0.",
       "maxTTLMax": "Please enter a limit that is less than or equal to 168 hours (7 days).",
-      "maxTTLMin": "Maximum time until auto-stop must not be less than 0."
+      "maxTTLMin": "Maximum time until autostop must not be less than 0."
     }
   }
 }

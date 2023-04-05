@@ -150,7 +150,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
-    "audit_logging": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
@@ -231,9 +230,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "oidc": {
       "allow_signups": true,
+      "auth_url_params": {},
       "client_id": "string",
       "client_secret": "string",
       "email_domain": ["string"],
+      "email_field": "string",
       "group_mapping": {},
       "groups_field": "string",
       "icon_url": {
@@ -250,6 +251,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "user": {}
       },
       "ignore_email_verified": true,
+      "ignore_user_info": true,
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",

@@ -132,7 +132,7 @@ describe("updateCheckMachine", () => {
     updateCheckService.send("DISMISS")
     await waitFor(() => {
       expect(updateCheckService.state.matches("dismissed")).toBeTruthy()
-      expect(getDismissedVersionOnLocal()).toEqual(MockUpdateCheck.version)
     })
+    expect(getDismissedVersionOnLocal()).toEqual(MockUpdateCheck.version)
   })
 })

@@ -359,6 +359,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/health": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Deployment Health",
+                "operationId": "debug-info-deployment-health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/healthcheck.Report"
+                        }
+                    }
+                }
+            }
+        },
         "/deployment/config": {
             "get": {
                 "security": [
@@ -558,44 +583,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
-                    }
-                }
-            }
-        },
-        "/groups": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get groups",
-                "operationId": "get-groups",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Group"
-                            }
-                        }
                     }
                 }
             }
@@ -944,7 +931,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Enterprise"
                 ],
                 "summary": "Create group for organization",
                 "operationId": "create-group-for-organization",
@@ -4263,7 +4250,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/metadata": {
+        "/workspaceagents/me/manifest": {
             "get": {
                 "security": [
                     {
@@ -4276,15 +4263,59 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get authorized workspace agent metadata",
-                "operationId": "get-authorized-workspace-agent-metadata",
+                "summary": "Get authorized workspace agent manifest",
+                "operationId": "get-authorized-workspace-agent-manifest",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.Metadata"
+                            "$ref": "#/definitions/agentsdk.Manifest"
                         }
                     }
+                }
+            }
+        },
+        "/workspaceagents/me/metadata/{key}": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace agent metadata",
+                "operationId": "submit-workspace-agent-metadata",
+                "parameters": [
+                    {
+                        "description": "Workspace agent metadata request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PostMetadataRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "metadata key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -4663,6 +4694,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/watch-metadata": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Watch for workspace agent metadata updates",
+                "operationId": "watch-for-workspace-agent-metadata-updates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspacebuilds/{workspacebuild}": {
             "get": {
                 "security": [
@@ -4889,6 +4952,71 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceproxies": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxies",
+                "operationId": "get-workspace-proxies",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create workspace proxy",
+                "operationId": "create-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Create workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
                     }
                 }
@@ -5397,7 +5525,7 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.Metadata": {
+        "agentsdk.Manifest": {
             "type": "object",
             "properties": {
                 "apps": {
@@ -5421,6 +5549,12 @@ const docTemplate = `{
                 "git_auth_configs": {
                     "description": "GitAuthConfigs stores the number of Git configurations\nthe Coder deployment has. If this number is \u003e0, we\nset up special configuration in the workspace.",
                     "type": "integer"
+                },
+                "metadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentMetadataDescription"
+                    }
                 },
                 "motd_file": {
                     "type": "string"
@@ -5470,6 +5604,25 @@ const docTemplate = `{
             "properties": {
                 "state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                }
+            }
+        },
+        "agentsdk.PostMetadataRequest": {
+            "type": "object",
+            "properties": {
+                "age": {
+                    "description": "Age is the number of seconds since the metadata was collected.\nIt is provided in addition to CollectedAt to protect against clock skew.",
+                    "type": "integer"
+                },
+                "collected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -6275,6 +6428,14 @@ const docTemplate = `{
                 "template_version_id"
             ],
             "properties": {
+                "allow_user_autostart": {
+                    "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
+                    "type": "boolean"
+                },
+                "allow_user_autostop": {
+                    "description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled when\nusing an enterprise license.",
+                    "type": "boolean"
+                },
                 "allow_user_cancel_workspace_jobs": {
                     "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
                     "type": "boolean"
@@ -6519,6 +6680,17 @@ const docTemplate = `{
                 "dry_run": {
                     "type": "boolean"
                 },
+                "log_level": {
+                    "description": "Log level changes the default logging verbosity of a provider (\"info\" if empty).",
+                    "enum": [
+                        "debug"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerLogLevel"
+                        }
+                    ]
+                },
                 "orphan": {
                     "description": "Orphan may be set for the Destroy transition.",
                     "type": "boolean"
@@ -6558,6 +6730,26 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceTransition"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.CreateWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "type": "string"
                 }
             }
         },
@@ -6748,9 +6940,6 @@ const docTemplate = `{
                 },
                 "agent_stat_refresh_interval": {
                     "type": "integer"
-                },
-                "audit_logging": {
-                    "type": "boolean"
                 },
                 "autobuild_poll_interval": {
                     "type": "integer"
@@ -6944,10 +7133,12 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "template_editor"
+                "template_editor",
+                "moons"
             ],
             "x-enum-varnames": [
-                "ExperimentTemplateEditor"
+                "ExperimentTemplateEditor",
+                "ExperimentMoons"
             ]
         },
         "codersdk.Feature": {
@@ -7294,6 +7485,9 @@ const docTemplate = `{
                 "allow_signups": {
                     "type": "boolean"
                 },
+                "auth_url_params": {
+                    "type": "object"
+                },
                 "client_id": {
                     "type": "string"
                 },
@@ -7306,6 +7500,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "email_field": {
+                    "type": "string"
+                },
                 "group_mapping": {
                     "type": "object"
                 },
@@ -7316,6 +7513,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/clibase.URL"
                 },
                 "ignore_email_verified": {
+                    "type": "boolean"
+                },
+                "ignore_user_info": {
                     "type": "boolean"
                 },
                 "issuer_url": {
@@ -7770,6 +7970,15 @@ const docTemplate = `{
                 "ProvisionerJobFailed"
             ]
         },
+        "codersdk.ProvisionerLogLevel": {
+            "type": "string",
+            "enum": [
+                "debug"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerLogLevelDebug"
+            ]
+        },
         "codersdk.ProvisionerStorageMethod": {
             "type": "string",
             "enum": [
@@ -8036,6 +8245,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "allow_user_autostart": {
+                    "description": "AllowUserAutostart and AllowUserAutostop are enterprise-only. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "type": "boolean"
+                },
+                "allow_user_autostop": {
+                    "type": "boolean"
+                },
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
                 },
@@ -8285,6 +8501,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "description_plaintext": {
+                    "type": "string"
+                },
+                "display_name": {
                     "type": "string"
                 },
                 "icon": {
@@ -8889,6 +9108,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentMetadataDescription": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "script": {
+                    "type": "string"
+                },
+                "timeout": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.WorkspaceAgentStartupLog": {
             "type": "object",
             "properties": {
@@ -9168,6 +9407,44 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceProxy": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "deleted": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "description": "Full url including scheme of the proxy api url: https://us.example.com",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.WorkspaceQuota": {
             "type": "object",
             "properties": {
@@ -9339,6 +9616,203 @@ const docTemplate = `{
                 "ParameterSourceSchemeNone",
                 "ParameterSourceSchemeData"
             ]
+        },
+        "healthcheck.DERPNodeReport": {
+            "type": "object",
+            "properties": {
+                "can_exchange_messages": {
+                    "type": "boolean"
+                },
+                "client_errs": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    }
+                },
+                "client_logs": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "node": {
+                    "$ref": "#/definitions/tailcfg.DERPNode"
+                },
+                "round_trip_ping": {
+                    "type": "integer"
+                },
+                "stun": {
+                    "$ref": "#/definitions/healthcheck.DERPStunReport"
+                },
+                "uses_websocket": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "healthcheck.DERPRegionReport": {
+            "type": "object",
+            "properties": {
+                "healthy": {
+                    "type": "boolean"
+                },
+                "node_reports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/healthcheck.DERPNodeReport"
+                    }
+                },
+                "region": {
+                    "$ref": "#/definitions/tailcfg.DERPRegion"
+                }
+            }
+        },
+        "healthcheck.DERPReport": {
+            "type": "object",
+            "properties": {
+                "healthy": {
+                    "type": "boolean"
+                },
+                "netcheck": {
+                    "$ref": "#/definitions/netcheck.Report"
+                },
+                "netcheck_logs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "regions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/healthcheck.DERPRegionReport"
+                    }
+                }
+            }
+        },
+        "healthcheck.DERPStunReport": {
+            "type": "object",
+            "properties": {
+                "canSTUN": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "error": {}
+            }
+        },
+        "healthcheck.Report": {
+            "type": "object",
+            "properties": {
+                "derp": {
+                    "$ref": "#/definitions/healthcheck.DERPReport"
+                },
+                "pass": {
+                    "description": "Healthy is true if the report returns no errors.",
+                    "type": "boolean"
+                },
+                "time": {
+                    "description": "Time is the time the report was generated at.",
+                    "type": "string"
+                }
+            }
+        },
+        "netcheck.Report": {
+            "type": "object",
+            "properties": {
+                "captivePortal": {
+                    "description": "CaptivePortal is set when we think there's a captive portal that is\nintercepting HTTP traffic.",
+                    "type": "string"
+                },
+                "globalV4": {
+                    "description": "ip:port of global IPv4",
+                    "type": "string"
+                },
+                "globalV6": {
+                    "description": "[ip]:port of global IPv6",
+                    "type": "string"
+                },
+                "hairPinning": {
+                    "description": "HairPinning is whether the router supports communicating\nbetween two local devices through the NATted public IP address\n(on IPv4).",
+                    "type": "string"
+                },
+                "icmpv4": {
+                    "description": "an ICMPv4 round trip completed",
+                    "type": "boolean"
+                },
+                "ipv4": {
+                    "description": "an IPv4 STUN round trip completed",
+                    "type": "boolean"
+                },
+                "ipv4CanSend": {
+                    "description": "an IPv4 packet was able to be sent",
+                    "type": "boolean"
+                },
+                "ipv6": {
+                    "description": "an IPv6 STUN round trip completed",
+                    "type": "boolean"
+                },
+                "ipv6CanSend": {
+                    "description": "an IPv6 packet was able to be sent",
+                    "type": "boolean"
+                },
+                "mappingVariesByDestIP": {
+                    "description": "MappingVariesByDestIP is whether STUN results depend which\nSTUN server you're talking to (on IPv4).",
+                    "type": "string"
+                },
+                "oshasIPv6": {
+                    "description": "could bind a socket to ::1",
+                    "type": "boolean"
+                },
+                "pcp": {
+                    "description": "PCP is whether PCP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                },
+                "pmp": {
+                    "description": "PMP is whether NAT-PMP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                },
+                "preferredDERP": {
+                    "description": "or 0 for unknown",
+                    "type": "integer"
+                },
+                "regionLatency": {
+                    "description": "keyed by DERP Region ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "regionV4Latency": {
+                    "description": "keyed by DERP Region ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "regionV6Latency": {
+                    "description": "keyed by DERP Region ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "udp": {
+                    "description": "a UDP STUN round trip completed",
+                    "type": "boolean"
+                },
+                "upnP": {
+                    "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                }
+            }
         },
         "parameter.ComputedValue": {
             "type": "object",

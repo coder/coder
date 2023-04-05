@@ -1,12 +1,10 @@
 import { fireEvent, screen, within } from "@testing-library/react"
 import * as API from "../../../api/api"
-import {
-  MockGitSSHKey,
-  renderWithAuth,
-} from "../../../testHelpers/renderHelpers"
+import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage"
 import { Language as SSHKeysPageViewLanguage } from "./SSHKeysPageView"
 import { i18n } from "i18n"
+import { MockGitSSHKey } from "testHelpers/entities"
 
 const { t } = i18n
 

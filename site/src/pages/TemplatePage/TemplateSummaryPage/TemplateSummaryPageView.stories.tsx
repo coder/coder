@@ -1,5 +1,11 @@
 import { Story } from "@storybook/react"
-import * as Mocks from "testHelpers/renderHelpers"
+import {
+  MockTemplate,
+  MockTemplateDAUResponse,
+  MockTemplateVersion,
+  MockWorkspaceResource,
+  MockWorkspaceResource2,
+} from "testHelpers/entities"
 import {
   TemplateSummaryPageView,
   TemplateSummaryPageViewProps,
@@ -16,31 +22,31 @@ const Template: Story<TemplateSummaryPageViewProps> = (args) => (
 
 export const Example = Template.bind({})
 Example.args = {
-  template: Mocks.MockTemplate,
-  activeVersion: Mocks.MockTemplateVersion,
+  template: MockTemplate,
+  activeVersion: MockTemplateVersion,
   data: {
-    resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
-    versions: [Mocks.MockTemplateVersion],
-    daus: Mocks.MockTemplateDAUResponse,
+    resources: [MockWorkspaceResource, MockWorkspaceResource2],
+    versions: [MockTemplateVersion],
+    daus: MockTemplateDAUResponse,
   },
 }
 
 export const NoIcon = Template.bind({})
 NoIcon.args = {
-  template: { ...Mocks.MockTemplate, icon: "" },
-  activeVersion: Mocks.MockTemplateVersion,
+  template: { ...MockTemplate, icon: "" },
+  activeVersion: MockTemplateVersion,
   data: {
-    resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
-    versions: [Mocks.MockTemplateVersion],
-    daus: Mocks.MockTemplateDAUResponse,
+    resources: [MockWorkspaceResource, MockWorkspaceResource2],
+    versions: [MockTemplateVersion],
+    daus: MockTemplateDAUResponse,
   },
 }
 
 export const SmallViewport = Template.bind({})
 SmallViewport.args = {
-  template: Mocks.MockTemplate,
+  template: MockTemplate,
   activeVersion: {
-    ...Mocks.MockTemplateVersion,
+    ...MockTemplateVersion,
     readme: `---
   name:Template test
   ---
@@ -54,9 +60,9 @@ SmallViewport.args = {
   `,
   },
   data: {
-    resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
-    versions: [Mocks.MockTemplateVersion],
-    daus: Mocks.MockTemplateDAUResponse,
+    resources: [MockWorkspaceResource, MockWorkspaceResource2],
+    versions: [MockTemplateVersion],
+    daus: MockTemplateDAUResponse,
   },
 }
 SmallViewport.parameters = {

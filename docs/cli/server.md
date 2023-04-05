@@ -29,16 +29,6 @@ coder server [flags]
 
 The URL that users will use to access the Coder deployment.
 
-### --audit-logging
-
-|             |                                   |
-| ----------- | --------------------------------- |
-| Type        | <code>bool</code>                 |
-| Environment | <code>$CODER_AUDIT_LOGGING</code> |
-| Default     | <code>true</code>                 |
-
-Specifies whether audit logging is enabled.
-
 ### --browser-only
 
 |             |                                  |
@@ -233,7 +223,7 @@ Output Stackdriver compatible logs to a given file.
 | ----------- | -------------------------------------- |
 | Type        | <code>duration</code>                  |
 | Environment | <code>$CODER_MAX_TOKEN_LIFETIME</code> |
-| Default     | <code>2562047h47m16.854775807s</code>  |
+| Default     | <code>876600h0m0s</code>               |
 
 The maximum lifetime duration users can specify when creating an API token.
 
@@ -310,6 +300,16 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
 Whether new users can sign up with OIDC.
 
+### --oidc-auth-url-params
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>struct[map[string]string]</code>   |
+| Environment | <code>$CODER_OIDC_AUTH_URL_PARAMS</code> |
+| Default     | <code>{"access_type": "offline"}</code>  |
+
+OIDC auth URL parameters to pass to the upstream provider.
+
 ### --oidc-client-id
 
 |             |                                    |
@@ -337,6 +337,16 @@ Client secret to use for Login with OIDC.
 
 Email domains that clients logging in with OIDC must match.
 
+### --oidc-email-field
+
+|             |                                      |
+| ----------- | ------------------------------------ |
+| Type        | <code>string</code>                  |
+| Environment | <code>$CODER_OIDC_EMAIL_FIELD</code> |
+| Default     | <code>email</code>                   |
+
+OIDC claim field to use as the email.
+
 ### --oidc-group-field
 
 |             |                                      |
@@ -351,7 +361,7 @@ Change the OIDC default 'groups' claim field. By default, will be 'groups' if pr
 |             |                                        |
 | ----------- | -------------------------------------- |
 | Type        | <code>struct[map[string]string]</code> |
-| Environment | <code>$OIDC_GROUP_MAPPING</code>       |
+| Environment | <code>$CODER_OIDC_GROUP_MAPPING</code> |
 | Default     | <code>{}</code>                        |
 
 A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.
@@ -373,6 +383,16 @@ URL pointing to the icon to use on the OepnID Connect login button.
 | Environment | <code>$CODER_OIDC_IGNORE_EMAIL_VERIFIED</code> |
 
 Ignore the email_verified claim from the upstream provider.
+
+### --oidc-ignore-userinfo
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_OIDC_IGNORE_USERINFO</code> |
+| Default     | <code>false</code>                       |
+
+Ignore the userinfo endpoint and only use the ID token for user information.
 
 ### --oidc-issuer-url
 

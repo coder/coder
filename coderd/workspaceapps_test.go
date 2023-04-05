@@ -24,7 +24,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -273,7 +272,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	if appHost != "" {
-		metadata, err := agentClient.Metadata(context.Background())
+		manifest, err := agentClient.Manifest(context.Background())
 		require.NoError(t, err)
 		proxyURL := fmt.Sprintf(
 			"http://{{port}}--%s--%s--%s%s",
@@ -285,7 +284,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		if client.URL.Port() != "" {
 			proxyURL += fmt.Sprintf(":%s", client.URL.Port())
 		}
-		require.Equal(t, proxyURL, metadata.VSCodePortProxyURI)
+		require.Equal(t, proxyURL, manifest.VSCodePortProxyURI)
 	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
@@ -410,27 +409,27 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		require.Equal(t, proxyTestAppBody, string(body))
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var sessionTicketCookie *http.Cookie
+		var appTokenCookie *http.Cookie
 		for _, c := range resp.Cookies() {
-			if c.Name == codersdk.DevURLSessionTicketCookie {
-				sessionTicketCookie = c
+			if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				appTokenCookie = c
 				break
 			}
 		}
-		require.NotNil(t, sessionTicketCookie, "no session ticket in response")
-		require.Equal(t, sessionTicketCookie.Path, basePath, "incorrect path on session ticket cookie")
+		require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+		require.Equal(t, appTokenCookie.Path, basePath, "incorrect path on app token cookie")
 
-		// Ensure the session ticket cookie is valid.
-		ticketClient := codersdk.New(client.URL)
-		ticketClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
-		ticketClient.HTTPClient.Transport = client.HTTPClient.Transport
-		u, err := ticketClient.URL.Parse(path)
+		// Ensure the session token cookie is valid.
+		appTokenClient := codersdk.New(client.URL)
+		appTokenClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+		appTokenClient.HTTPClient.Transport = client.HTTPClient.Transport
+		u, err := appTokenClient.URL.Parse(path)
 		require.NoError(t, err)
-		ticketClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
-		ticketClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{sessionTicketCookie})
+		appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
 
-		resp, err = requestWithRetries(ctx, t, ticketClient, http.MethodGet, path, nil)
+		resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, path, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err = io.ReadAll(resp.Body)
@@ -439,7 +438,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
-	t.Run("RedirectsMe", func(t *testing.T) {
+	t.Run("BlocksMe", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -448,30 +447,11 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		loc, err := resp.Location()
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.NotContains(t, loc.Path, "@me")
-		require.Contains(t, loc.Path, "@"+coderdtest.FirstUserParams.Username)
-	})
-
-	t.Run("RedirectsMeUnauthenticated", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		unauthenticatedClient := codersdk.New(client.URL)
-		unauthenticatedClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
-		unauthenticatedClient.HTTPClient.Transport = client.HTTPClient.Transport
-
-		resp, err := requestWithRetries(ctx, t, unauthenticatedClient, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		loc, err := resp.Location()
-		require.NoError(t, err)
-		require.Equal(t, "/login", loc.Path)
+		require.Contains(t, string(body), "must be accessed with the full username, not @me")
 	})
 
 	t.Run("ForwardsIP", func(t *testing.T) {
@@ -513,7 +493,9 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%d/", coderdtest.FirstUserParams.Username, workspace.Name, 8080), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		require.Equal(t, http.StatusNotFound, resp.StatusCode)
+		// TODO(@deansheather): This should be 400. There's a todo in the
+		// resolve request code to fix this.
+		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 	})
 }
 
@@ -710,7 +692,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {
 	t.Parallel()
 
-	// No AppHostname set.
+	// No Hostname set.
 	client := coderdtest.New(t, &coderdtest.Options{
 		AppHostname: "",
 	})
@@ -920,25 +902,25 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		require.Equal(t, proxyTestAppBody, string(body))
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var sessionTicketCookie *http.Cookie
+		var appTokenCookie *http.Cookie
 		for _, c := range resp.Cookies() {
-			if c.Name == codersdk.DevURLSessionTicketCookie {
-				sessionTicketCookie = c
+			if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				appTokenCookie = c
 				break
 			}
 		}
-		require.NotNil(t, sessionTicketCookie, "no session ticket in response")
-		require.Equal(t, sessionTicketCookie.Path, "/", "incorrect path on session ticket cookie")
+		require.NotNil(t, appTokenCookie, "no signed token cookie in response")
+		require.Equal(t, appTokenCookie.Path, "/", "incorrect path on signed token cookie")
 
-		// Ensure the session ticket cookie is valid.
-		ticketClient := codersdk.New(client.URL)
-		ticketClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
-		ticketClient.HTTPClient.Transport = client.HTTPClient.Transport
-		ticketClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		// Ensure the session token cookie is valid.
+		appTokenClient := codersdk.New(client.URL)
+		appTokenClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+		appTokenClient.HTTPClient.Transport = client.HTTPClient.Transport
+		appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
-		ticketClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{sessionTicketCookie})
+		appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
 
-		resp, err = requestWithRetries(ctx, t, ticketClient, http.MethodGet, uStr, nil)
+		resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, uStr, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err = io.ReadAll(resp.Body)
@@ -1062,195 +1044,6 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 			require.NotContains(t, string(body), proxyTestAppBody)
 		})
 	})
-}
-
-func TestAppSubdomainLogout(t *testing.T) {
-	t.Parallel()
-
-	keyID, keySecret, err := coderd.GenerateAPIKeyIDSecret()
-	require.NoError(t, err)
-	fakeAPIKey := fmt.Sprintf("%s-%s", keyID, keySecret)
-
-	cases := []struct {
-		name string
-		// The cookie to send with the request. The regular API key header
-		// is also sent to bypass any auth checks on this value, and to
-		// ensure that the logout code is safe when multiple keys are
-		// passed.
-		// Empty value means no cookie is sent, "-" means send a valid
-		// API key, and "bad-secret" means send a valid key ID with a bad
-		// secret.
-		cookie string
-		// You can use "access_url" to use the site access URL as the
-		// redirect URI, or "app_host" to use a valid app host.
-		redirectURI string
-
-		// If expectedStatus is not an error status, we expect the cookie to
-		// be deleted if it was set.
-		expectedStatus       int
-		expectedBodyContains string
-		// If empty, the expected location is the redirectURI if the
-		// expected status code is http.StatusTemporaryRedirect (using the
-		// access URL if not set).
-		// You can use "access_url" to force the access URL.
-		expectedLocation string
-	}{
-		{
-			name:           "OKAccessURL",
-			cookie:         "-",
-			redirectURI:    "access_url",
-			expectedStatus: http.StatusTemporaryRedirect,
-		},
-		{
-			name:           "OKAppHost",
-			cookie:         "-",
-			redirectURI:    "app_host",
-			expectedStatus: http.StatusTemporaryRedirect,
-		},
-		{
-			name:        "OKNoAPIKey",
-			cookie:      "",
-			redirectURI: "access_url",
-			// Even if the devurl cookie is missing, we still redirect without
-			// any complaints.
-			expectedStatus: http.StatusTemporaryRedirect,
-		},
-		{
-			name:        "OKBadAPIKey",
-			cookie:      "test-api-key",
-			redirectURI: "access_url",
-			// Even if the devurl cookie is bad, we still delete the cookie and
-			// redirect without any complaints.
-			expectedStatus: http.StatusTemporaryRedirect,
-		},
-		{
-			name:           "OKUnknownAPIKey",
-			cookie:         fakeAPIKey,
-			redirectURI:    "access_url",
-			expectedStatus: http.StatusTemporaryRedirect,
-		},
-		{
-			name:                 "BadAPIKeySecret",
-			cookie:               "bad-secret",
-			redirectURI:          "access_url",
-			expectedStatus:       http.StatusUnauthorized,
-			expectedBodyContains: "API key secret is invalid",
-		},
-		{
-			name:                 "InvalidRedirectURI",
-			cookie:               "-",
-			redirectURI:          string([]byte{0x00}),
-			expectedStatus:       http.StatusBadRequest,
-			expectedBodyContains: "Could not parse redirect URI",
-		},
-		{
-			name:        "DisallowedRedirectURI",
-			cookie:      "-",
-			redirectURI: "https://github.com/coder/coder",
-			// We don't allow redirecting to a different host, but we don't
-			// show an error page and just redirect to the access URL to avoid
-			// breaking the logout flow if the user is accessing from the wrong
-			// host.
-			expectedStatus:   http.StatusTemporaryRedirect,
-			expectedLocation: "access_url",
-		},
-	}
-
-	for _, c := range cases {
-		c := c
-
-		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-
-			client, _, _, _ := setupProxyTest(t, nil)
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			// The token should work.
-			_, err := client.User(ctx, codersdk.Me)
-			require.NoError(t, err)
-
-			appHost, err := client.AppHost(ctx)
-			require.NoError(t, err, "get app host")
-
-			if c.cookie == "-" {
-				c.cookie = client.SessionToken()
-			} else if c.cookie == "bad-secret" {
-				keyID, _, err := httpmw.SplitAPIToken(client.SessionToken())
-				require.NoError(t, err)
-				c.cookie = fmt.Sprintf("%s-%s", keyID, keySecret)
-			}
-			if c.redirectURI == "access_url" {
-				c.redirectURI = client.URL.String()
-			} else if c.redirectURI == "app_host" {
-				c.redirectURI = "http://" + strings.Replace(appHost.Host, "*", "something--something--something--something", 1) + "/"
-			}
-			if c.expectedLocation == "" && c.expectedStatus == http.StatusTemporaryRedirect {
-				c.expectedLocation = c.redirectURI
-			}
-			if c.expectedLocation == "access_url" {
-				c.expectedLocation = client.URL.String()
-			}
-
-			logoutURL := &url.URL{
-				Scheme: "http",
-				Host:   strings.Replace(appHost.Host, "*", "coder-logout", 1),
-				Path:   "/",
-			}
-			if c.redirectURI != "" {
-				q := logoutURL.Query()
-				q.Set("redirect_uri", c.redirectURI)
-				logoutURL.RawQuery = q.Encode()
-			}
-
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, logoutURL.String(), nil)
-			require.NoError(t, err, "create logout request")
-			// The header is prioritized over the devurl cookie if both are
-			// set, so this ensures we can trigger the logout code path with
-			// bad cookies during tests.
-			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
-			if c.cookie != "" {
-				req.AddCookie(&http.Cookie{
-					Name:  codersdk.DevURLSessionTokenCookie,
-					Value: c.cookie,
-				})
-			}
-
-			client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			}
-			resp, err := client.HTTPClient.Do(req)
-			require.NoError(t, err, "do logout request")
-			defer resp.Body.Close()
-
-			require.Equal(t, c.expectedStatus, resp.StatusCode, "logout response status code")
-			if c.expectedStatus < 400 && c.cookie != "" {
-				cookies := resp.Cookies()
-				require.Len(t, cookies, 1, "logout response cookies")
-				cookie := cookies[0]
-				require.Equal(t, codersdk.DevURLSessionTokenCookie, cookie.Name)
-				require.Equal(t, "", cookie.Value)
-				require.True(t, cookie.Expires.Before(time.Now()), "cookie should be expired")
-
-				// The token shouldn't work anymore if it was the original valid
-				// session token.
-				if c.cookie == client.SessionToken() {
-					_, err = client.User(ctx, codersdk.Me)
-					require.Error(t, err)
-				}
-			}
-			if c.expectedBodyContains != "" {
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				require.Contains(t, string(body), c.expectedBodyContains, "logout response body")
-			}
-			if c.expectedLocation != "" {
-				location := resp.Header.Get("Location")
-				require.Equal(t, c.expectedLocation, location, "logout response location")
-			}
-		})
-	}
 }
 
 func TestAppSharing(t *testing.T) {

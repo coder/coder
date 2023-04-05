@@ -30,7 +30,7 @@ jobs:
           languages: go, javascript
 
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 
@@ -71,7 +71,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 
@@ -97,6 +97,9 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install sqlc
+        run: |
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
       - name: Install protoc-gen-go
@@ -137,7 +140,7 @@ jobs:
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@8bd2f9fbda2109502356ff8a6a89da55b1ead252
+        uses: aquasecurity/trivy-action@1f0aa582c8c8f5f7639610d6d38baddfea4fdcee
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif

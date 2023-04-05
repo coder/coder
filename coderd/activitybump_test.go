@@ -16,29 +16,6 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-type mockTemplateScheduleStore struct {
-	getFn func(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error)
-	setFn func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error)
-}
-
-var _ schedule.TemplateScheduleStore = mockTemplateScheduleStore{}
-
-func (m mockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
-	if m.getFn != nil {
-		return m.getFn(ctx, db, templateID)
-	}
-
-	return schedule.NewAGPLTemplateScheduleStore().GetTemplateScheduleOptions(ctx, db, templateID)
-}
-
-func (m mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-	if m.setFn != nil {
-		return m.setFn(ctx, db, template, options)
-	}
-
-	return schedule.NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, options)
-}
-
 func TestWorkspaceActivityBump(t *testing.T) {
 	t.Parallel()
 
@@ -57,12 +34,12 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			// Agent stats trigger the activity bump, so we want to report
 			// very frequently in tests.
 			AgentStatsRefreshInterval: time.Millisecond * 100,
-			TemplateScheduleStore: mockTemplateScheduleStore{
-				getFn: func(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+				GetFn: func(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserSchedulingEnabled: true,
-						DefaultTTL:            ttl,
-						MaxTTL:                maxTTL,
+						UserAutostopEnabled: true,
+						DefaultTTL:          ttl,
+						MaxTTL:              maxTTL,
 					}, nil
 				},
 			},

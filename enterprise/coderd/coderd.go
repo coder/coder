@@ -81,6 +81,22 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
+		r.Route("/workspaceproxies", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.moonsEnabledMW,
+			)
+			r.Post("/", api.postWorkspaceProxy)
+			r.Get("/", api.workspaceProxies)
+			// TODO: Add specific workspace proxy endpoints.
+			// r.Route("/{proxyName}", func(r chi.Router) {
+			//	r.Use(
+			//		httpmw.ExtractWorkspaceProxyByNameParam(api.Database),
+			//	)
+			//
+			//	r.Get("/", api.workspaceProxyByName)
+			// })
+		})
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -254,6 +270,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
+			codersdk.FeatureWorkspaceProxy:             true,
 		})
 	if err != nil {
 		return err

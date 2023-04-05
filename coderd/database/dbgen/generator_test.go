@@ -75,6 +75,13 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, exp, must(db.GetWorkspaceResourceMetadataByResourceIDs(context.Background(), []uuid.UUID{exp[0].WorkspaceResourceID})))
 	})
 
+	t.Run("WorkspaceProxy", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		exp := dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+		require.Equal(t, exp, must(db.GetWorkspaceProxyByID(context.Background(), exp.ID)))
+	})
+
 	t.Run("Job", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()

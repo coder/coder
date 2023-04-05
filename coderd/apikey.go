@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -354,19 +353,10 @@ func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var maxTokenLifetime time.Duration
-	// if --max-token-lifetime is unset (default value is math.MaxInt64)
-	// send back a falsy value
-	if values.MaxTokenLifetime.Value() == time.Duration(math.MaxInt64) {
-		maxTokenLifetime = 0
-	} else {
-		maxTokenLifetime = values.MaxTokenLifetime.Value()
-	}
-
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
 		codersdk.TokenConfig{
-			MaxTokenLifetime: maxTokenLifetime,
+			MaxTokenLifetime: values.MaxTokenLifetime.Value(),
 		},
 	)
 }
