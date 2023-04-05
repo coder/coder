@@ -10,6 +10,11 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
+)
+
+const (
+	delay = 24 * time.Hour
 )
 
 // New creates a new periodically purging database instance.
@@ -19,15 +24,18 @@ import (
 func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 	closed := make(chan struct{})
 	ctx, cancelFunc := context.WithCancel(ctx)
+	//nolint:gocritic // The system purges old db records without user input.
+	ctx = dbauthz.AsSystemRestricted(ctx)
 	go func() {
 		defer close(closed)
-		ticker := time.NewTicker(24 * time.Hour)
-		defer ticker.Stop()
+
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-timer.C:
 			}
 
 			var eg errgroup.Group
@@ -44,6 +52,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 				}
 				logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
 			}
+
+			timer.Reset(delay)
 		}
 	}()
 	return &instance{
