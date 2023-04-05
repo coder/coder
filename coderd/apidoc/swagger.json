@@ -796,7 +796,7 @@
         ],
         "consumes": ["application/json"],
         "produces": ["application/json"],
-        "tags": ["Templates"],
+        "tags": ["Enterprise"],
         "summary": "Create group for organization",
         "operationId": "create-group-for-organization",
         "parameters": [

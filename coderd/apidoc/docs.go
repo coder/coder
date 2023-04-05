@@ -931,7 +931,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Enterprise"
                 ],
                 "summary": "Create group for organization",
                 "operationId": "create-group-for-organization",
