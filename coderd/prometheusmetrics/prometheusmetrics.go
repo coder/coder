@@ -3,7 +3,6 @@ package prometheusmetrics
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -13,8 +12,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/tailnet"
 )
 
@@ -115,119 +117,134 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 }
 
 // Agents tracks the total number of workspaces with labels on status.
-func Agents(ctx context.Context, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMap *tailcfg.DERPMap, duration time.Duration) (context.CancelFunc, error) {
+func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMap *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (context.CancelFunc, error) {
 	if duration == 0 {
 		duration = 15 * time.Second // TODO 5 * time.Minute
+	}
+
+	workspaceAgentsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agents",
+		Name:      "up",
+		Help:      "The number of active agents per workspace.",
+	}, []string{"username", "workspace_name"})
+	err := registerer.Register(workspaceAgentsGauge)
+	if err != nil {
+		return nil, err
 	}
 
 	agentsConnectionGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
-		Name:      "connection",
-		Help:      "The agent connection with a status.",
-	}, []string{"agent_name", "workspace_name", "status"})
-	err := registerer.Register(agentsConnectionGauge)
+		Name:      "connections",
+		Help:      "Agent connections with statuses.",
+	}, []string{"agent_name", "username", "workspace_name", "status", "lifecycle_state", "tailnet_node"})
+	err = registerer.Register(agentsConnectionGauge)
 	if err != nil {
 		return nil, err
 	}
 
-	agentsUserLatenciesGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	agentsConnectionLatenciesGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
-		Name:      "user_latencies_seconds",
-		Help:      "The user's agent latency in seconds.",
-	}, []string{"agent_id", "workspace_name", "derp_region", "preferred"})
-	err = registerer.Register(agentsUserLatenciesGauge)
+		Name:      "connection_latencies_seconds",
+		Help:      "Agent connection latencies in seconds.",
+	}, []string{"agent_id", "username", "workspace_name", "derp_region", "preferred"})
+	err = registerer.Register(agentsConnectionLatenciesGauge)
 	if err != nil {
 		return nil, err
 	}
 
-	// FIXME connection_type ide
-
-	ctx, cancelFunc := context.WithCancel(ctx)
+	// nolint:gocritic // Prometheus must collect metrics for all Coder users.
+	ctx, cancelFunc := context.WithCancel(dbauthz.AsSystemRestricted(ctx))
 	ticker := time.NewTicker(duration)
 	go func() {
 		defer ticker.Stop()
 		for {
-			log.Println("Agents!!!")
-
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
 			}
 
-			// FIXME Optimize this routine: SQL db calls
+			logger.Info(ctx, "Collect agent metrics now")
 
-			builds, err := db.GetLatestWorkspaceBuilds(ctx)
+			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
+				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
+			})
 			if err != nil {
-				log.Println("1", err)
+				logger.Error(ctx, "can't get workspace rows", slog.Error(err))
 				continue
 			}
 
+			workspaceAgentsGauge.Reset()
 			agentsConnectionGauge.Reset()
-			agentsUserLatenciesGauge.Reset()
-			for _, build := range builds {
-				workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
+			agentsConnectionLatenciesGauge.Reset()
+
+			for _, workspace := range workspaceRows {
+				user, err := db.GetUserByID(ctx, workspace.OwnerID)
 				if err != nil {
-					log.Println("2", err)
+					logger.Error(ctx, "can't get user", slog.Error(err), slog.F("user_id", workspace.OwnerID))
+					workspaceAgentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
 					continue
 				}
 
-				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, build.WorkspaceID)
+				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if err != nil {
-					log.Println("3", err)
+					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_name", workspace.Name), slog.Error(err))
+					workspaceAgentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
 					continue
 				}
 
 				if len(agents) == 0 {
+					logger.Info(ctx, "workspace agents are unavailable", slog.F("workspace_name", workspace.Name))
+					workspaceAgentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
 					continue
 				}
 
-				// FIXME publish workspace even if no agents
-
 				for _, agent := range agents {
-					connectionStatus := agent.Status(6 * time.Second)
+					// Collect information about agents
+					workspaceAgentsGauge.WithLabelValues(user.Username, workspace.Name).Add(1)
 
-					// FIXME AgentInactiveDisconnectTimeout
-					//  ? connection_timeout_seconds
-					// obok latency lifecycle_state
-					log.Println("with value " + agent.Name)
-					agentsConnectionGauge.WithLabelValues(agent.Name, workspace.Name, string(connectionStatus.Status)).Set(1)
-
+					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
 					node := (*coordinator.Load()).Node(agent.ID)
+
+					tailnetNode := "unknown"
 					if node != nil {
-						log.Println("coordinator")
-
-						for rawRegion, latency := range node.DERPLatency {
-							log.Println(rawRegion, latency)
-
-							regionParts := strings.SplitN(rawRegion, "-", 2)
-							regionID, err := strconv.Atoi(regionParts[0])
-							if err != nil {
-								continue // xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
-							}
-							region, found := derpMap.Regions[regionID]
-							if !found {
-								// It's possible that a workspace agent is using an old DERPMap
-								// and reports regions that do not exist. If that's the case,
-								// report the region as unknown!
-								region = &tailcfg.DERPRegion{
-									RegionID:   regionID,
-									RegionName: fmt.Sprintf("Unnamed %d", regionID),
-								}
-							}
-
-							log.Println(region, latency)
-							agentsUserLatenciesGauge.WithLabelValues(agent.Name, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID)).Set(latency)
-						}
-					} else {
-						log.Println("node is null")
+						tailnetNode = node.ID.String()
 					}
 
-					// FIXME publish agent even if DERP is missing
+					agentsConnectionGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode).Set(1)
+
+					if node == nil {
+						logger.Info(ctx, "can't read in-memory node for agent", slog.F("workspace_name", workspace.Name), slog.F("agent_name", agent.Name))
+						continue
+					}
+
+					// Collect information about connection latencies
+					for rawRegion, latency := range node.DERPLatency {
+						regionParts := strings.SplitN(rawRegion, "-", 2)
+						regionID, err := strconv.Atoi(regionParts[0])
+						if err != nil {
+							logger.Error(ctx, "can't convert DERP region", slog.Error(err), slog.F("agent_name", agent.Name), slog.F("raw_region", rawRegion))
+							continue
+						}
+						region, found := derpMap.Regions[regionID]
+						if !found {
+							// It's possible that a workspace agent is using an old DERPMap
+							// and reports regions that do not exist. If that's the case,
+							// report the region as unknown!
+							region = &tailcfg.DERPRegion{
+								RegionID:   regionID,
+								RegionName: fmt.Sprintf("Unnamed %d", regionID),
+							}
+						}
+
+						agentsConnectionLatenciesGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID)).Set(latency)
+					}
+
 					// FIXME IDE?
-					// FIXME agent connection zero
+					// FIXME connection_type ide
 				}
 			}
 		}
