@@ -9,16 +9,16 @@ With Coder, you can deploy workspaces in additional Kubernetes clusters using di
 First, create a kubeconfig file with [multiple contexts](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
 
 ```sh
-$ kubectl config get-contexts 
+$ kubectl config get-contexts
 
-CURRENT   NAME                        CLUSTER                     
-          workspaces-europe-west2-c   workspaces-europe-west2-c   
-*         workspaces-us-central1-a    workspaces-us-central1-a 
+CURRENT   NAME                        CLUSTER
+          workspaces-europe-west2-c   workspaces-europe-west2-c
+*         workspaces-us-central1-a    workspaces-us-central1-a
 ```
 
 ### Kubernetes control plane
 
-If you deployed Coder on Kubernetes, you can attach a kubeconfig as a secret. 
+If you deployed Coder on Kubernetes, you can attach a kubeconfig as a secret.
 
 This assumes Coder is deployed on the `coder` namespace and your kubeconfig file is in ~/.kube/config.
 
@@ -26,20 +26,22 @@ This assumes Coder is deployed on the `coder` namespace and your kubeconfig file
 kubectl create secret generic kubeconfig-secret -n coder--from-file=~/.kube/config
 ```
 
-Modify your helm values to mount the secret and [upgrade Coder](http://localhost:3000/docs/v2/latest/install/kubernetes#upgrading-coder-via-helm)
+Modify your helm values to mount the secret:
 
 ```yaml
 coder:
   # ...
   volumes:
-  - name: "kubeconfig-mount"
-    secret:
-      secretName: "kubeconfig-secret"   
+    - name: "kubeconfig-mount"
+      secret:
+        secretName: "kubeconfig-secret"
   volumeMounts:
-  - name: "kubeconfig-mount"
-    mountPath: "/mnt/secrets/kube"
-    readOnly: true
+    - name: "kubeconfig-mount"
+      mountPath: "/mnt/secrets/kube"
+      readOnly: true
 ```
+
+ [Upgrade Coder](http://localhost:3000/docs/v2/latest/install/kubernetes#upgrading-coder-via-helm) with these new values.
 
 ### VM control plane
 
@@ -47,7 +49,7 @@ If you deployed Coder on a VM, copy the kubeconfig file to `/home/coder/.kube/co
 
 ### Create a Coder template
 
-You can start from our [example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes). From there, add [template parameters](../../templates/parameters.md) to allow developers to pick their desired cluster. 
+You can start from our [example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes). From there, add [template parameters](../../templates/parameters.md) to allow developers to pick their desired cluster.
 
 ```hcl
 # main.tf
@@ -75,11 +77,9 @@ provider "kubernetes" {
 }
 ```
 
-
-
 ## Option 2) Kubernetes ServiceAccounts
 
-Alternatively, you can authenticate with remote clusters with ServiceAccount tokens. Coder can store these secrets on your behalf with [managed Terraform variables](../../templates/parameters.md#managed-terraform-variables). 
+Alternatively, you can authenticate with remote clusters with ServiceAccount tokens. Coder can store these secrets on your behalf with [managed Terraform variables](../../templates/parameters.md#managed-terraform-variables).
 
 Alternatively, these could also be fetched from Kubernetes secrets or even [Hashicorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
 
@@ -184,7 +184,6 @@ $ export CLUSTER_ADDRESS=https://example.domain:6443
 ```
 
 To fetch the CA certificate and token:
-
 
 ```sh
 export CLUSTER_CA_CERTIFICATE=$(kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data.ca\.crt}")
