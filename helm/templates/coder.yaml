@@ -14,7 +14,9 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
-    {{- toYaml .Values.coder.labels | nindent 4 }}
+    {{- with .Values.coder.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
   replicas: {{ .Values.coder.replicaCount }}
