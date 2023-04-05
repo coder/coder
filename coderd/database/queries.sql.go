@@ -3088,12 +3088,13 @@ func (q *sqlQuerier) GetServiceBanner(ctx context.Context) (string, error) {
 	return value, err
 }
 
-const insertAppSigningKey = `-- name: InsertAppSigningKey :exec
+const UpsertAppSigningKey = `-- name: UpsertAppSigningKey :exec
 INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key'
 `
 
-func (q *sqlQuerier) InsertAppSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, insertAppSigningKey, value)
+func (q *sqlQuerier) UpsertAppSigningKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, UpsertAppSigningKey, value)
 	return err
 }
 

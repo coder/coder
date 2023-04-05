@@ -384,9 +384,9 @@ func (q *querier) GetAppSigningKey(ctx context.Context) (string, error) {
 	return q.db.GetAppSigningKey(ctx)
 }
 
-func (q *querier) InsertAppSigningKey(ctx context.Context, data string) error {
+func (q *querier) UpsertAppSigningKey(ctx context.Context, data string) error {
 	// No authz checks as this is done during startup
-	return q.db.InsertAppSigningKey(ctx, data)
+	return q.db.UpsertAppSigningKey(ctx, data)
 }
 
 func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {

@@ -159,7 +159,7 @@ type sqlcQuerier interface {
 	// for simplicity since all users is
 	// every member of the org.
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
-	InsertAppSigningKey(ctx context.Context, value string) error
+	UpsertAppSigningKey(ctx context.Context, value string) error
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertDERPMeshKey(ctx context.Context, value string) error
 	InsertDeploymentID(ctx context.Context, value string) error

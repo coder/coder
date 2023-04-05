@@ -77,12 +77,23 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 	secret, _ := cryptorand.String(22)
 	hashed := sha256.Sum256([]byte(secret))
 
+	ip := seed.IPAddress
+	if !ip.Valid {
+		ip = pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(127, 0, 0, 1),
+				Mask: net.IPv4Mask(255, 255, 255, 255),
+			},
+			Valid: true,
+		}
+	}
+
 	key, err := db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 		ID: takeFirst(seed.ID, id),
 		// 0 defaults to 86400 at the db layer
 		LifetimeSeconds: takeFirst(seed.LifetimeSeconds, 0),
 		HashedSecret:    takeFirstSlice(seed.HashedSecret, hashed[:]),
-		IPAddress:       pqtype.Inet{},
+		IPAddress:       ip,
 		UserID:          takeFirst(seed.UserID, uuid.New()),
 		LastUsed:        takeFirst(seed.LastUsed, database.Now()),
 		ExpiresAt:       takeFirst(seed.ExpiresAt, database.Now().Add(time.Hour)),

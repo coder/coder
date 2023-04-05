@@ -80,9 +80,9 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tokens in
-// tests.
-var AppSigningKey = must(workspaceapps.KeyFromString("64656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566"))
+// AppSigningKey is a 64-byte key used to sign JWTs and encrypt JWEs for
+// workspace app tokens in tests.
+var AppSigningKey = must(workspaceapps.KeyFromString("6465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e2077617320686572"))
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest

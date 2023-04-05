@@ -301,8 +301,11 @@ func Test_ParseToken(t *testing.T) {
 		t.Parallel()
 
 		// Create a valid token using a different key.
-		otherKey, err := workspaceapps.KeyFromString("62656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164")
-		require.NoError(t, err)
+		var otherKey workspaceapps.SigningKey
+		copy(otherKey[:], coderdtest.AppSigningKey[:])
+		for i := range otherKey {
+			otherKey[i] ^= 0xff
+		}
 		require.NotEqual(t, coderdtest.AppSigningKey, otherKey)
 
 		tokenStr, err := otherKey.SignToken(workspaceapps.SignedToken{
@@ -334,7 +337,7 @@ func Test_ParseToken(t *testing.T) {
 		t.Parallel()
 
 		// Create a signature for an invalid body.
-		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS512, Key: coderdtest.AppSigningKey[:]}, nil)
+		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS512, Key: coderdtest.AppSigningKey[:64]}, nil)
 		require.NoError(t, err)
 		signedObject, err := signer.Sign([]byte("hi"))
 		require.NoError(t, err)
@@ -395,8 +398,11 @@ func TestAPIKeyEncryption(t *testing.T) {
 			t.Parallel()
 
 			// Create a valid token using a different key.
-			otherKey, err := workspaceapps.KeyFromString("62656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164")
-			require.NoError(t, err)
+			var otherKey workspaceapps.SigningKey
+			copy(otherKey[:], coderdtest.AppSigningKey[:])
+			for i := range otherKey {
+				otherKey[i] ^= 0xff
+			}
 			require.NotEqual(t, coderdtest.AppSigningKey, otherKey)
 
 			// Encrypt with the other key.

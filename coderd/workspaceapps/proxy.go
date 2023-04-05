@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -84,6 +85,22 @@ type Server struct {
 	SignedTokenProvider SignedTokenProvider
 	WorkspaceConnCache  *wsconncache.Cache
 	AppSigningKey       SigningKey
+
+	websocketWaitMutex sync.Mutex
+	websocketWaitGroup sync.WaitGroup
+}
+
+// Close waits for all reconnecting-pty WebSocket connections to drain before
+// returning.
+func (s *Server) Close() error {
+	s.websocketWaitMutex.Lock()
+	s.websocketWaitGroup.Wait()
+	s.websocketWaitMutex.Unlock()
+
+	// The caller must close the SignedTokenProvider (if necessary) and the
+	// wsconncache.
+
+	return nil
 }
 
 func (s *Server) Attach(r chi.Router) {
@@ -503,11 +520,10 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// TODO: Fix this later
-	// s.WebsocketWaitMutex.Lock()
-	// s.WebsocketWaitGroup.Add(1)
-	// s.WebsocketWaitMutex.Unlock()
-	// defer s.WebsocketWaitGroup.Done()
+	s.websocketWaitMutex.Lock()
+	s.websocketWaitGroup.Add(1)
+	s.websocketWaitMutex.Unlock()
+	defer s.websocketWaitGroup.Done()
 
 	appToken, ok := ResolveRequest(s.Logger, s.AccessURL, s.SignedTokenProvider, rw, r, Request{
 		AccessMethod:  AccessMethodTerminal,

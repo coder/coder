@@ -4451,7 +4451,7 @@ func (q *fakeQuerier) GetAppSigningKey(_ context.Context) (string, error) {
 	return q.appSigningKey, nil
 }
 
-func (q *fakeQuerier) InsertAppSigningKey(_ context.Context, data string) error {
+func (q *fakeQuerier) UpsertAppSigningKey(_ context.Context, data string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

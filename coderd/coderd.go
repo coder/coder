@@ -328,7 +328,7 @@ func New(options *Options) *API {
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 
-	workspaceAppServer := workspaceapps.Server{
+	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: options.Logger.Named("workspaceapps"),
 
 		DashboardURL:     api.AccessURL,
@@ -380,7 +380,7 @@ func New(options *Options) *API {
 		//
 		// Workspace apps do their own auth and must be BEFORE the auth
 		// middleware.
-		workspaceAppServer.SubdomainAppMW(apiRateLimiter),
+		api.workspaceAppServer.SubdomainAppMW(apiRateLimiter),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -406,7 +406,7 @@ func New(options *Options) *API {
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
 		r.Use(apiRateLimiter)
-		workspaceAppServer.Attach(r)
+		api.workspaceAppServer.Attach(r)
 	})
 
 	r.Route("/derp", func(r chi.Router) {
@@ -796,6 +796,7 @@ type API struct {
 	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
 	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
+	workspaceAppServer    *workspaceapps.Server
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

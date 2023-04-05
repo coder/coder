@@ -13,7 +13,10 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-const tokenSigningAlgorithm = jose.HS512
+const (
+	tokenSigningAlgorithm     = jose.HS512
+	apiKeyEncryptionAlgorithm = jose.A256GCMKW
+)
 
 // SignedToken is the struct data contained inside a workspace app JWE. It
 // contains the details of the workspace app that the token is valid for to
@@ -41,14 +44,11 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 		t.AppSlugOrPort == req.AppSlugOrPort
 }
 
-// SigningKey is used for signing and encrypting app tokens and API keys.
-// TODO: we cannot use the same key for signing and encrypting with two
-// different algorithms, that's a security issue. We should use a different key
-// for each.
-// OR
-// We get rid of signing and use encryption for both api keys and tickets.
-// Do this by switching to JWE.
-type SigningKey [64]byte
+// AppSigningKey is used for signing and encrypting app tokens and API keys.
+//
+// The first 64 bytes of the key are used for signing tokens with HMAC-SHA256,
+// and the last 32 bytes are used for encrypting API keys with AES-256-GCM.
+type SigningKey [96]byte
 
 func KeyFromString(str string) (SigningKey, error) {
 	var key SigningKey
@@ -78,7 +78,7 @@ func (k SigningKey) SignToken(payload SignedToken) (string, error) {
 
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: tokenSigningAlgorithm,
-		Key:       k[:],
+		Key:       k[:64],
 	}, nil)
 	if err != nil {
 		return "", xerrors.Errorf("create signer: %w", err)
@@ -112,7 +112,7 @@ func (k SigningKey) VerifySignedToken(str string) (SignedToken, error) {
 		return SignedToken{}, xerrors.Errorf("expected token signing algorithm to be %q, got %q", tokenSigningAlgorithm, object.Signatures[0].Header.Algorithm)
 	}
 
-	output, err := object.Verify(k[:])
+	output, err := object.Verify(k[:64])
 	if err != nil {
 		return SignedToken{}, xerrors.Errorf("verify JWS: %w", err)
 	}
@@ -154,8 +154,8 @@ func (k SigningKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, error
 	encrypter, err := jose.NewEncrypter(
 		jose.A256GCM,
 		jose.Recipient{
-			Algorithm: jose.A256GCMKW,
-			Key:       k[:32],
+			Algorithm: apiKeyEncryptionAlgorithm,
+			Key:       k[64:],
 		},
 		&jose.EncrypterOptions{
 			Compression: jose.DEFLATE,
@@ -184,9 +184,12 @@ func (k SigningKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	if err != nil {
 		return "", xerrors.Errorf("parse encrypted API key: %w", err)
 	}
+	if object.Header.Algorithm != string(apiKeyEncryptionAlgorithm) {
+		return "", xerrors.Errorf("expected API key encryption algorithm to be %q, got %q", apiKeyEncryptionAlgorithm, object.Header.Algorithm)
+	}
 
 	// Decrypt using the hashed secret.
-	decrypted, err := object.Decrypt(k[:32])
+	decrypted, err := object.Decrypt(k[64:])
 	if err != nil {
 		return "", xerrors.Errorf("decrypt API key: %w", err)
 	}
