@@ -31,6 +31,10 @@ The environment variable `CODER_PROMETHEUS_ENABLE` will be enabled automatically
 
 | Name                                         | Type      | Description                                                        | Labels                                                                              |
 | -------------------------------------------- | --------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `coderd_agents_apps`                         | gauge     | Agent applications with statuses.                                  | `agent_name` `app_name` `health` `username` `workspace_name`                        |
+| `coderd_agents_connection_latencies_seconds` | gauge     | Agent connection latencies in seconds.                             | `agent_id` `derp_region` `preferred` `username` `workspace_name`                    |
+| `coderd_agents_connections`                  | gauge     | Agent connections with statuses.                                   | `agent_name` `lifecycle_state` `status` `tailnet_node` `username` `workspace_name`  |
+| `coderd_agents_up`                           | gauge     | The number of active agents per workspace.                         | `username` `workspace_name`                                                         |
 | `coderd_api_active_users_duration_hour`      | gauge     | The number of users that have been active within the last hour.    |                                                                                     |
 | `coderd_api_concurrent_requests`             | gauge     | The number of concurrent API requests.                             |                                                                                     |
 | `coderd_api_concurrent_websockets`           | gauge     | The total number of concurrent API websockets.                     |                                                                                     |

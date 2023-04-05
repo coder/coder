@@ -1,3 +1,23 @@
+# HELP coderd_agents_apps Agent applications with statuses.
+# TYPE coderd_agents_apps gauge
+coderd_agents_apps{agent_name="main",app_name="code-server",health="healthy",username="admin",workspace_name="workspace-1"} 1
+coderd_agents_apps{agent_name="main",app_name="code-server",health="healthy",username="admin",workspace_name="workspace-2"} 1
+coderd_agents_apps{agent_name="main",app_name="code-server",health="healthy",username="admin",workspace_name="workspace-3"} 1
+# HELP coderd_agents_connection_latencies_seconds Agent connection latencies in seconds.
+# TYPE coderd_agents_connection_latencies_seconds gauge
+coderd_agents_connection_latencies_seconds{agent_id="main",derp_region="Coder Embedded Relay",preferred="true",username="admin",workspace_name="workspace-1"} 0.03018125
+coderd_agents_connection_latencies_seconds{agent_id="main",derp_region="Coder Embedded Relay",preferred="true",username="admin",workspace_name="workspace-2"} 0.028658416
+coderd_agents_connection_latencies_seconds{agent_id="main",derp_region="Coder Embedded Relay",preferred="true",username="admin",workspace_name="workspace-3"} 0.028041416
+# HELP coderd_agents_connections Agent connections with statuses.
+# TYPE coderd_agents_connections gauge
+coderd_agents_connections{agent_name="main",lifecycle_state="ready",status="connected",tailnet_node="nodeid:16966f7df70d8cc5",username="admin",workspace_name="workspace-3"} 1
+coderd_agents_connections{agent_name="main",lifecycle_state="start_timeout",status="connected",tailnet_node="nodeid:3237d00938be23e3",username="admin",workspace_name="workspace-2"} 1
+coderd_agents_connections{agent_name="main",lifecycle_state="start_timeout",status="connected",tailnet_node="nodeid:3779bd45d00be0eb",username="admin",workspace_name="workspace-1"} 1
+# HELP coderd_agents_up The number of active agents per workspace.
+# TYPE coderd_agents_up gauge
+coderd_agents_up{username="admin",workspace_name="workspace-1"} 1
+coderd_agents_up{username="admin",workspace_name="workspace-2"} 1
+coderd_agents_up{username="admin",workspace_name="workspace-3"} 1
 # HELP coderd_api_websocket_durations_seconds Websocket duration distribution of requests in seconds.
 # TYPE coderd_api_websocket_durations_seconds histogram
 coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/me/coordinate",le="0.001"} 0
