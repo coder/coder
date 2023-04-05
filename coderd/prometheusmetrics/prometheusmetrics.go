@@ -119,7 +119,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 // Agents tracks the total number of workspaces with labels on status.
 func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMap *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (context.CancelFunc, error) {
 	if duration == 0 {
-		duration = 15 * time.Second // TODO 5 * time.Minute
+		duration = 1 * time.Minute
 	}
 
 	agentsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
