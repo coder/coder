@@ -82,7 +82,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.templates(),
 		r.users(),
 		r.tokens(),
-		r.version(),
+		r.version(defaultVersionInfo),
 
 		// Workspace Commands
 		r.configSSH(),
