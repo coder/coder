@@ -1,10 +1,15 @@
 package externalproxy
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"regexp"
 	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/coder/coder/codersdk"
 
 	"github.com/coder/coder/buildinfo"
 
@@ -75,6 +80,14 @@ type Server struct {
 	//		- derpserver
 
 	Options *Options
+	// SDKClient is a client to the primary coderd instance.
+	// TODO: We really only need 'DialWorkspaceAgent', so maybe just pass that?
+	SDKClient *codersdk.Client
+
+	// Used for graceful shutdown.
+	// Required for the dialer.
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func New(opts *Options) *Server {
@@ -82,29 +95,41 @@ func New(opts *Options) *Server {
 		opts.PrometheusRegistry = prometheus.NewRegistry()
 	}
 
+	client := codersdk.New(opts.PrimaryAccessURL)
+	// TODO: @emyrk we need to implement some form of authentication for the
+	// 		external proxy to the the primary. This allows us to make workspace
+	//		connections.
+	//		Ideally we reuse the same client as the cli, but this can be changed.
+	//		If the auth fails, we need some logic to retry and make sure this client
+	//		is always authenticated and usable.
+	client.SetSessionToken("fake-token")
+
 	r := chi.NewRouter()
+	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		Options:          opts,
-		PrimaryAccessURL: opts.PrimaryAccessURL,
-		AppServer: &workspaceapps.Server{
-			Logger:        opts.Logger.Named("workspaceapps"),
-			DashboardURL:  opts.PrimaryAccessURL,
-			AccessURL:     opts.AccessURL,
-			Hostname:      opts.AppHostname,
-			HostnameRegex: opts.AppHostnameRegex,
-			// TODO: @emyrk We should reduce the options passed in here.
-			DeploymentValues: nil,
-			RealIPConfig:     opts.RealIPConfig,
-			// TODO: @emyrk we need to implement this for external token providers.
-			SignedTokenProvider: nil,
-			// TODO: @emyrk we need to implement a dialer
-			WorkspaceConnCache: wsconncache.New(nil, 0),
-			AppSecurityKey:     opts.AppSecurityKey,
-		},
+		Options:            opts,
+		PrimaryAccessURL:   opts.PrimaryAccessURL,
 		Logger:             opts.Logger.Named("workspace-proxy"),
 		TracerProvider:     opts.Tracing,
 		PrometheusRegistry: opts.PrometheusRegistry,
 		Handler:            r,
+		ctx:                ctx,
+		cancel:             cancel,
+	}
+
+	s.AppServer = &workspaceapps.Server{
+		Logger:        opts.Logger.Named("workspaceapps"),
+		DashboardURL:  opts.PrimaryAccessURL,
+		AccessURL:     opts.AccessURL,
+		Hostname:      opts.AppHostname,
+		HostnameRegex: opts.AppHostnameRegex,
+		// TODO: @emyrk We should reduce the options passed in here.
+		DeploymentValues: nil,
+		RealIPConfig:     opts.RealIPConfig,
+		// TODO: @emyrk we need to implement this for external token providers.
+		SignedTokenProvider: nil,
+		WorkspaceConnCache:  wsconncache.New(s.DialWorkspaceAgent, 0),
+		AppSecurityKey:      opts.AppSecurityKey,
 	}
 
 	// Routes
@@ -157,5 +182,10 @@ func New(opts *Options) *Server {
 }
 
 func (s *Server) Close() error {
+	s.cancel()
 	return s.AppServer.Close()
+}
+
+func (s *Server) DialWorkspaceAgent(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+	return s.SDKClient.DialWorkspaceAgent(s.ctx, id, nil)
 }
