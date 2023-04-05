@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
-	"github.com/google/uuid"
 )
 
 // @Summary Create workspace proxy

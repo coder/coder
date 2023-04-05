@@ -89,13 +89,13 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Post("/", api.postWorkspaceProxy)
 			r.Get("/", api.workspaceProxies)
 			// TODO: Add specific workspace proxy endpoints.
-			//r.Route("/{proxyName}", func(r chi.Router) {
+			// r.Route("/{proxyName}", func(r chi.Router) {
 			//	r.Use(
 			//		httpmw.ExtractWorkspaceProxyByNameParam(api.Database),
 			//	)
 			//
 			//	r.Get("/", api.workspaceProxyByName)
-			//})
+			// })
 		})
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
