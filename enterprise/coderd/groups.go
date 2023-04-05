@@ -22,7 +22,7 @@ import (
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Tags Templates
+// @Tags Enterprise
 // @Param request body codersdk.CreateGroupRequest true "Create group request"
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.Group
