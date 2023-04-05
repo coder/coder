@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/tailnet"
@@ -818,8 +819,9 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	// We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
 	// because we want to log the agent's last ping time.
-	lastPing := time.Now() // Since the agent initiated the request, assume it's alive.
-	var pingMu sync.Mutex
+	var lastPing atomic.Pointer[time.Time]
+	lastPing.Store(ptr.Ref(time.Now())) // Since the agent initiated the request, assume it's alive.
+
 	go pprof.Do(ctx, pprof.Labels("agent", workspaceAgent.ID.String()), func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
 		t := time.NewTicker(api.AgentConnectionUpdateFrequency)
@@ -840,9 +842,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			if err != nil {
 				return
 			}
-			pingMu.Lock()
-			lastPing = time.Now()
-			pingMu.Unlock()
+			lastPing.Store(ptr.Ref(time.Now()))
 		}
 	})
 
@@ -950,9 +950,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		case <-ticker.C:
 		}
 
-		pingMu.Lock()
-		lastPing := lastPing
-		pingMu.Unlock()
+		lastPing := *lastPing.Load()
 
 		var connectionStatusChanged bool
 		if time.Since(lastPing) > api.AgentInactiveDisconnectTimeout {
@@ -1163,6 +1161,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @Param request body agentsdk.Stats true "Stats request"
 // @Success 200 {object} agentsdk.StatsResponse
 // @Router /workspaceagents/me/report-stats [post]
+// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
