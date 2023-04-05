@@ -83,8 +83,8 @@ type Server struct {
 	RealIPConfig     *httpmw.RealIPConfig
 
 	SignedTokenProvider SignedTokenProvider
-	WorkspaceConnCache *wsconncache.Cache
-	AppSecurityKey     SecurityKey
+	WorkspaceConnCache  *wsconncache.Cache
+	AppSecurityKey      SecurityKey
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
