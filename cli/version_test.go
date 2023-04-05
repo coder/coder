@@ -59,7 +59,7 @@ Full build of Coder, supports the  [;mserver[0m  subcommand.
 			err := inv.WithContext(ctx).Run()
 			require.NoError(t, err)
 			actual := buf.String()
-			actual = strings.Replace(actual, "\r\n", "\n", -1)
+			actual = strings.ReplaceAll(actual, "\r\n", "\n")
 			require.Equal(t, tt.Expected, actual)
 		})
 	}
