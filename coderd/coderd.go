@@ -786,7 +786,6 @@ type API struct {
 	siteHandler http.Handler
 
 	WebsocketWatch *activewebsockets.Active
-	derpCloseFunc  func()
 
 	metricsCache          *metricscache.Cache
 	workspaceAgentCache   *wsconncache.Cache
@@ -803,7 +802,6 @@ type API struct {
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
 	api.cancel()
-	api.derpCloseFunc()
 
 	api.WebsocketWatch.Close()
 
