@@ -3,10 +3,9 @@ package prometheusmetrics_test
 import (
 	"context"
 	"database/sql"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
