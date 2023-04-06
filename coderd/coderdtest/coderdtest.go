@@ -484,7 +484,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
-		Username:       randomUsername(),
+		Username:       randomUsername(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
@@ -589,8 +589,8 @@ func CreateWorkspaceBuild(
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
-		Name:        randomUsername(),
-		Description: randomUsername(),
+		Name:        randomUsername(t),
+		Description: randomUsername(t),
 		VersionID:   version,
 	}
 	for _, mut := range mutators {
@@ -709,7 +709,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	t.Helper()
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
-		Name:              randomUsername(),
+		Name:              randomUsername(t),
 		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 	}
@@ -1065,8 +1065,10 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 		}
 }
 
-func randomUsername() string {
-	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-")
+func randomUsername(t testing.TB) string {
+	suffix, err := cryptorand.String(3)
+	require.NoError(t, err)
+	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-") + "-" + suffix
 }
 
 // Used to easily create an HTTP transport!
