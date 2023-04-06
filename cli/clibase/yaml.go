@@ -201,6 +201,12 @@ func (o *Option) setFromYAMLNode(n *yaml.Node) error {
 	case yaml.ScalarNode:
 		return o.Value.Set(n.Value)
 	case yaml.SequenceNode:
+		// We treat empty values as nil for consistency with other option
+		// mechanisms.
+		if len(n.Content) == 0 {
+			o.Value = nil
+			return nil
+		}
 		return n.Decode(o.Value)
 	case yaml.MappingNode:
 		return xerrors.Errorf("mapping node must implement yaml.Unmarshaler")

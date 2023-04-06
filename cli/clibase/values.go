@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -350,6 +351,12 @@ func (s *Struct[T]) MarshalYAML() (interface{}, error) {
 }
 
 func (s *Struct[T]) UnmarshalYAML(n *yaml.Node) error {
+	// HACK: for compatibility with flags, we set the value to nil if the node
+	// is empty and T is a slice.
+	if typ := reflect.TypeOf(s.Value); typ.Kind() == reflect.Slice && len(n.Content) == 0 {
+		reflect.ValueOf(&s.Value).Elem().Set(reflect.Zero(typ))
+		return nil
+	}
 	return n.Decode(&s.Value)
 }
 
