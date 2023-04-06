@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/go-jose/go-jose/v3"
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/codersdk"
 )
 
 const (
@@ -216,4 +218,24 @@ func (k SecurityKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	}
 
 	return payload.APIKey, nil
+}
+
+func TokenFromRequest(r *http.Request, key SecurityKey) (*SignedToken, bool) {
+	// Get the existing token from the request.
+	tokenCookie, err := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
+	if err == nil {
+		token, err := key.VerifySignedToken(tokenCookie.Value)
+		if err == nil {
+			req := token.Request.Normalize()
+			err := req.Validate()
+			if err == nil {
+				// The request has a valid signed app token, which is a valid
+				// token signed by us. The caller must check that it matches
+				// the request.
+				return &token, true
+			}
+		}
+	}
+
+	return nil, false
 }

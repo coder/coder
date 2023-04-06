@@ -167,7 +167,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return nil, nil, false
 	}
 
-	token := apiTokenFromRequest(r)
+	token := ApiTokenFromRequest(r)
 	if token == "" {
 		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 			Message: SignedOutErrorMessage,
@@ -376,14 +376,14 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	return &key, &authz, true
 }
 
-// apiTokenFromRequest returns the api token from the request.
+// ApiTokenFromRequest returns the api token from the request.
 // Find the session token from:
 // 1: The cookie
 // 1: The devurl cookie
 // 3: The old cookie
 // 4. The coder_session_token query parameter
 // 5. The custom auth header
-func apiTokenFromRequest(r *http.Request) string {
+func ApiTokenFromRequest(r *http.Request) string {
 	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value

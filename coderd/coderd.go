@@ -338,12 +338,14 @@ func New(options *Options) *API {
 		AccessURL:        api.AccessURL,
 		Hostname:         api.AppHostname,
 		HostnameRegex:    api.AppHostnameRegex,
-		DeploymentValues: options.DeploymentValues,
 		RealIPConfig:     options.RealIPConfig,
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		WorkspaceConnCache:  api.workspaceAgentCache,
 		AppSecurityKey:      options.AppSecurityKey,
+
+		DisablePathApps:     options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie:    options.DeploymentValues.SecureAuthCookie.Value(),
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

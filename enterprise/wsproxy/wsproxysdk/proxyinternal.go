@@ -37,7 +37,7 @@ func (c *Client) IssueSignedAppToken(ctx context.Context, req IssueSignedAppToke
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusCreated {
 		return IssueSignedAppTokenResponse{}, codersdk.ReadBodyAsError(resp)
 	}
 

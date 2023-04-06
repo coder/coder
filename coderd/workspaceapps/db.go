@@ -55,23 +55,7 @@ func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authoriz
 }
 
 func (p *DBTokenProvider) TokenFromRequest(r *http.Request) (*SignedToken, bool) {
-	// Get the existing token from the request.
-	tokenCookie, err := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
-	if err == nil {
-		token, err := p.SigningKey.VerifySignedToken(tokenCookie.Value)
-		if err == nil {
-			req := token.Request.Normalize()
-			err := req.Validate()
-			if err == nil {
-				// The request has a valid signed app token, which is a valid
-				// token signed by us. The caller must check that it matches
-				// the request.
-				return &token, true
-			}
-		}
-	}
-
-	return nil, false
+	return TokenFromRequest(r, p.SigningKey)
 }
 
 // ResolveRequest takes an app request, checks if it's valid and authenticated,

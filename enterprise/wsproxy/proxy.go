@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 )
 
 type Options struct {
@@ -83,19 +85,22 @@ type Server struct {
 	cancel context.CancelFunc
 }
 
-func New(opts *Options) *Server {
+func New(opts *Options) (*Server, error) {
 	if opts.PrometheusRegistry == nil {
 		opts.PrometheusRegistry = prometheus.NewRegistry()
 	}
 
-	client := codersdk.New(opts.PrimaryAccessURL)
+	client := wsproxysdk.New(opts.PrimaryAccessURL)
 	// TODO: @emyrk we need to implement some form of authentication for the
 	// 		external proxy to the the primary. This allows us to make workspace
 	//		connections.
 	//		Ideally we reuse the same client as the cli, but this can be changed.
 	//		If the auth fails, we need some logic to retry and make sure this client
 	//		is always authenticated and usable.
-	client.SetSessionToken("fake-token")
+	err := client.SetSessionToken("fake-token")
+	if err != nil {
+		return nil, xerrors.Errorf("set client token: %w", err)
+	}
 
 	r := chi.NewRouter()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -116,13 +121,19 @@ func New(opts *Options) *Server {
 		AccessURL:     opts.AccessURL,
 		Hostname:      opts.AppHostname,
 		HostnameRegex: opts.AppHostnameRegex,
-		// TODO: @emyrk We should reduce the options passed in here.
-		DeploymentValues: nil,
-		RealIPConfig:     opts.RealIPConfig,
-		// TODO: @emyrk we need to implement this for external token providers.
-		SignedTokenProvider: nil,
-		WorkspaceConnCache:  wsconncache.New(s.DialWorkspaceAgent, 0),
-		AppSecurityKey:      opts.AppSecurityKey,
+		RealIPConfig:  opts.RealIPConfig,
+		SignedTokenProvider: &ProxyTokenProvider{
+			DashboardURL: opts.PrimaryAccessURL,
+			Client:       client,
+			SecurityKey:  s.Options.AppSecurityKey,
+			Logger:       s.Logger.Named("proxy_token_provider"),
+		},
+		WorkspaceConnCache: wsconncache.New(s.DialWorkspaceAgent, 0),
+		AppSecurityKey:     opts.AppSecurityKey,
+
+		// TODO: We need to pass some deployment values to here
+		DisablePathApps:  false,
+		SecureAuthCookie: false,
 	}
 
 	// Routes
@@ -137,6 +148,7 @@ func New(opts *Options) *Server {
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		httpmw.Logger(s.Logger),
 		httpmw.Prometheus(s.PrometheusRegistry),
+		ExtractSessionTokenMW(),
 
 		// SubdomainAppMW is a middleware that handles all requests to the
 		// subdomain based workspace apps.
@@ -171,7 +183,7 @@ func New(opts *Options) *Server {
 
 	// TODO: @emyrk Buildinfo and healthz routes.
 
-	return s
+	return s, nil
 }
 
 func (s *Server) Close() error {
