@@ -615,6 +615,9 @@ func (s *Server) Close() error {
 	// Close all active sessions to gracefully
 	// terminate client connections.
 	for ss := range s.sessions {
+		// We call Close on the underlying channel here because we don't
+		// want to send an exit status to the client (via Exit()).
+		// Typically OpenSSH clients will return 255 as the exit status.
 		_ = ss.Close()
 	}
 
