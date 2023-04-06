@@ -47,10 +47,16 @@ const (
 )
 
 type Server struct {
-	serveWg sync.WaitGroup
-	logger  slog.Logger
+	mu        sync.RWMutex // Protects following.
+	listeners map[net.Listener]struct{}
+	conns     map[net.Conn]struct{}
+	closing   chan struct{}
+	// Wait for goroutines to exit, waited without
+	// a lock on mu but protected by closing.
+	wg sync.WaitGroup
 
-	srv *ssh.Server
+	logger slog.Logger
+	srv    *ssh.Server
 
 	Env        map[string]string
 	AgentToken func() string
@@ -78,7 +84,9 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 	unixForwardHandler := &forwardedUnixHandler{log: logger}
 
 	s := &Server{
-		logger: logger,
+		listeners: make(map[net.Listener]struct{}),
+		conns:     make(map[net.Conn]struct{}),
+		logger:    logger,
 	}
 
 	s.srv = &ssh.Server{
@@ -472,14 +480,118 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 }
 
 func (s *Server) Serve(l net.Listener) error {
-	s.serveWg.Add(1)
-	defer s.serveWg.Done()
-	return s.srv.Serve(l)
+	defer l.Close()
+
+	s.trackListener(l, true)
+	defer s.trackListener(l, false)
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return err
+		}
+		go s.handleConn(l, conn)
+	}
 }
 
+func (s *Server) handleConn(l net.Listener, c net.Conn) {
+	defer c.Close()
+
+	if !s.trackConn(l, c, true) {
+		// Server is closed or we no longer want
+		// connections from this listener.
+		s.logger.Debug(context.Background(), "received connection after server closed")
+		return
+	}
+	defer s.trackConn(l, c, false)
+
+	s.srv.HandleConn(c)
+}
+
+// trackListener registers the listener with the server. If the server is
+// closing, the function will block until the server is closed.
+//
+//nolint:revive
+func (s *Server) trackListener(l net.Listener, add bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		for s.closing != nil {
+			closing := s.closing
+			// Wait until close is complete before
+			// serving a new listener.
+			s.mu.Unlock()
+			<-closing
+			s.mu.Lock()
+		}
+		s.wg.Add(1)
+		s.listeners[l] = struct{}{}
+		return
+	}
+	s.wg.Done()
+	delete(s.listeners, l)
+}
+
+// trackConn registers the connection with the server. If the server is
+// closed or the listener is closed, the connection is not registered
+// and should be closed.
+//
+//nolint:revive
+func (s *Server) trackConn(l net.Listener, c net.Conn, add bool) (ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		found := false
+		for ll := range s.listeners {
+			if l == ll {
+				found = true
+				break
+			}
+		}
+		if s.closing != nil || !found {
+			// Server or listener closed.
+			return false
+		}
+		s.wg.Add(1)
+		s.conns[c] = struct{}{}
+		return true
+	}
+	s.wg.Done()
+	delete(s.conns, c)
+	return true
+}
+
+// Close the server and all active connections. Server can be re-used
+// after Close is done.
 func (s *Server) Close() error {
+	s.mu.Lock()
+
+	// Guard against multiple calls to Close and
+	// accepting new connections during close.
+	if s.closing != nil {
+		s.mu.Unlock()
+		return xerrors.New("server is closing")
+	}
+	s.closing = make(chan struct{})
+
+	// Close all active listeners and connections.
+	for l := range s.listeners {
+		_ = l.Close()
+	}
+	for c := range s.conns {
+		_ = c.Close()
+	}
+
+	// Close the underlying SSH server.
 	err := s.srv.Close()
-	s.serveWg.Wait()
+
+	s.mu.Unlock()
+	s.wg.Wait() // Wait for all goroutines to exit.
+
+	s.mu.Lock()
+	close(s.closing)
+	s.closing = nil
+	s.mu.Unlock()
+
 	return err
 }
 
