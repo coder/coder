@@ -11,14 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type CreateWorkspaceProxyRequest struct {
-	Name             string `json:"name"`
-	DisplayName      string `json:"display_name"`
-	Icon             string `json:"icon"`
-	URL              string `json:"url"`
-	WildcardHostname string `json:"wildcard_hostname"`
-}
-
 type WorkspaceProxy struct {
 	ID             uuid.UUID `db:"id" json:"id" format:"uuid"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id" format:"uuid"`
@@ -33,24 +25,37 @@ type WorkspaceProxy struct {
 	Deleted          bool      `db:"deleted" json:"deleted"`
 }
 
-func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (WorkspaceProxy, error) {
+type CreateWorkspaceProxyRequest struct {
+	Name             string `json:"name"`
+	DisplayName      string `json:"display_name"`
+	Icon             string `json:"icon"`
+	URL              string `json:"url"`
+	WildcardHostname string `json:"wildcard_hostname"`
+}
+
+type CreateWorkspaceProxyResponse struct {
+	Proxy      WorkspaceProxy `json:"proxy"`
+	ProxyToken string         `json:"proxy_token"`
+}
+
+func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (CreateWorkspaceProxyResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost,
 		"/api/v2/workspaceproxies",
 		req,
 	)
 	if err != nil {
-		return WorkspaceProxy{}, xerrors.Errorf("make request: %w", err)
+		return CreateWorkspaceProxyResponse{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return WorkspaceProxy{}, ReadBodyAsError(res)
+		return CreateWorkspaceProxyResponse{}, ReadBodyAsError(res)
 	}
-	var resp WorkspaceProxy
+	var resp CreateWorkspaceProxyResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) WorkspaceProxiesByOrganization(ctx context.Context) ([]WorkspaceProxy, error) {
+func (c *Client) WorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		"/api/v2/workspaceproxies",
 		nil,

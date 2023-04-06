@@ -15,8 +15,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/coder/coder/coderd/tracing"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/coder/coder/coderd/tracing"
 
 	"github.com/go-chi/chi/v5"
 
@@ -134,7 +135,7 @@ func New(opts *Options) *Server {
 
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)
-	// Persistant middlewares to all routes
+	// Persistent middlewares to all routes
 	r.Use(
 		// TODO: @emyrk Should we standardize these in some other package?
 		httpmw.Recover(s.Logger),

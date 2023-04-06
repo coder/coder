@@ -1671,10 +1671,11 @@ type WorkspaceProxy struct {
 	// Full url including scheme of the proxy api url: https://us.example.com
 	Url string `db:"url" json:"url"`
 	// Hostname with the wildcard for subdomain based app hosting: *.us.example.com
-	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	Deleted          bool      `db:"deleted" json:"deleted"`
+	WildcardHostname  string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	Deleted           bool      `db:"deleted" json:"deleted"`
+	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
 }
 
 type WorkspaceResource struct {

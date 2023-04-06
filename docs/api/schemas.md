@@ -6071,6 +6071,59 @@ Parameter represents a set value for the scope.
 | `source_value`         | string                                                                     | false    |              |             |
 | `updated_at`           | string                                                                     | false    |              |             |
 
+## proxysdk.IssueSignedAppTokenRequest
+
+```json
+{
+  "app_request": {
+    "access_method": "path",
+    "agent_name_or_id": "string",
+    "app_slug_or_port": "string",
+    "base_path": "string",
+    "username_or_id": "string",
+    "workspace_name_or_id": "string"
+  },
+  "session_token": "string"
+}
+```
+
+### Properties
+
+| Name            | Type                                           | Required | Restrictions | Description                                              |
+| --------------- | ---------------------------------------------- | -------- | ------------ | -------------------------------------------------------- |
+| `app_request`   | [workspaceapps.Request](#workspaceappsrequest) | false    |              |                                                          |
+| `session_token` | string                                         | false    |              | Session token is the session token provided by the user. |
+
+## proxysdk.IssueSignedAppTokenResponse
+
+```json
+{
+  "signed_token": {
+    "agent_id": "string",
+    "app_url": "string",
+    "expiry": "string",
+    "request": {
+      "access_method": "path",
+      "agent_name_or_id": "string",
+      "app_slug_or_port": "string",
+      "base_path": "string",
+      "username_or_id": "string",
+      "workspace_name_or_id": "string"
+    },
+    "user_id": "string",
+    "workspace_id": "string"
+  },
+  "signed_token_str": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                   | Required | Restrictions | Description                                                 |
+| ------------------ | ------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------- |
+| `signed_token`     | [workspaceapps.SignedToken](#workspaceappssignedtoken) | false    |              |                                                             |
+| `signed_token_str` | string                                                 | false    |              | Signed token str should be set as a cookie on the response. |
+
 ## sql.NullTime
 
 ```json
@@ -6245,3 +6298,74 @@ RegionIDs in range 900-999 are reserved for end users to run their own DERP node
 ### Properties
 
 _None_
+
+## workspaceapps.AccessMethod
+
+```json
+"path"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value       |
+| ----------- |
+| `path`      |
+| `subdomain` |
+| `terminal`  |
+
+## workspaceapps.Request
+
+```json
+{
+  "access_method": "path",
+  "agent_name_or_id": "string",
+  "app_slug_or_port": "string",
+  "base_path": "string",
+  "username_or_id": "string",
+  "workspace_name_or_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                     | Required | Restrictions | Description                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_method`        | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |                                                                                                                                                                                       |
+| `agent_name_or_id`     | string                                                   | false    |              | Agent name or ID is not required if the workspace has only one agent.                                                                                                                 |
+| `app_slug_or_port`     | string                                                   | false    |              |                                                                                                                                                                                       |
+| `base_path`            | string                                                   | false    |              | Base path of the app. For path apps, this is the path prefix in the router for this particular app. For subdomain apps, this should be "/". This is used for setting the cookie path. |
+| `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |
+| `workspace_name_or_id` | string                                                   | false    |              |                                                                                                                                                                                       |
+
+## workspaceapps.SignedToken
+
+```json
+{
+  "agent_id": "string",
+  "app_url": "string",
+  "expiry": "string",
+  "request": {
+    "access_method": "path",
+    "agent_name_or_id": "string",
+    "app_slug_or_port": "string",
+    "base_path": "string",
+    "username_or_id": "string",
+    "workspace_name_or_id": "string"
+  },
+  "user_id": "string",
+  "workspace_id": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                           | Required | Restrictions | Description               |
+| -------------- | ---------------------------------------------- | -------- | ------------ | ------------------------- |
+| `agent_id`     | string                                         | false    |              |                           |
+| `app_url`      | string                                         | false    |              |                           |
+| `expiry`       | string                                         | false    |              | Trusted resolved details. |
+| `request`      | [workspaceapps.Request](#workspaceappsrequest) | false    |              | Request details.          |
+| `user_id`      | string                                         | false    |              |                           |
+| `workspace_id` | string                                         | false    |              |                           |

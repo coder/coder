@@ -1499,6 +1499,41 @@
         }
       }
     },
+    "/proxy-internal/issue-signed-app-token": {
+      "post": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Enterprise"],
+        "summary": "Issue signed workspace app token",
+        "operationId": "proxy-internal-issue-signed-workspace-app-ticket",
+        "parameters": [
+          {
+            "description": "Issue signed app token request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/proxysdk.IssueSignedAppTokenRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/proxysdk.IssueSignedAppTokenResponse"
+            }
+          }
+        },
+        "x-apidocgen": {
+          "skip": true
+        }
+      }
+    },
     "/replicas": {
       "get": {
         "security": [
@@ -8951,6 +8986,30 @@
         }
       }
     },
+    "proxysdk.IssueSignedAppTokenRequest": {
+      "type": "object",
+      "properties": {
+        "app_request": {
+          "$ref": "#/definitions/workspaceapps.Request"
+        },
+        "session_token": {
+          "description": "SessionToken is the session token provided by the user.",
+          "type": "string"
+        }
+      }
+    },
+    "proxysdk.IssueSignedAppTokenResponse": {
+      "type": "object",
+      "properties": {
+        "signed_token": {
+          "$ref": "#/definitions/workspaceapps.SignedToken"
+        },
+        "signed_token_str": {
+          "description": "SignedTokenStr should be set as a cookie on the response.",
+          "type": "string"
+        }
+      }
+    },
     "sql.NullTime": {
       "type": "object",
       "properties": {
@@ -9066,6 +9125,70 @@
     },
     "url.Userinfo": {
       "type": "object"
+    },
+    "workspaceapps.AccessMethod": {
+      "type": "string",
+      "enum": ["path", "subdomain", "terminal"],
+      "x-enum-varnames": [
+        "AccessMethodPath",
+        "AccessMethodSubdomain",
+        "AccessMethodTerminal"
+      ]
+    },
+    "workspaceapps.Request": {
+      "type": "object",
+      "properties": {
+        "access_method": {
+          "$ref": "#/definitions/workspaceapps.AccessMethod"
+        },
+        "agent_name_or_id": {
+          "description": "AgentNameOrID is not required if the workspace has only one agent.",
+          "type": "string"
+        },
+        "app_slug_or_port": {
+          "type": "string"
+        },
+        "base_path": {
+          "description": "BasePath of the app. For path apps, this is the path prefix in the router\nfor this particular app. For subdomain apps, this should be \"/\". This is\nused for setting the cookie path.",
+          "type": "string"
+        },
+        "username_or_id": {
+          "description": "For the following fields, if the AccessMethod is AccessMethodTerminal,\nthen only AgentNameOrID may be set and it must be a UUID. The other\nfields must be left blank.",
+          "type": "string"
+        },
+        "workspace_name_or_id": {
+          "type": "string"
+        }
+      }
+    },
+    "workspaceapps.SignedToken": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "app_url": {
+          "type": "string"
+        },
+        "expiry": {
+          "description": "Trusted resolved details.",
+          "type": "string"
+        },
+        "request": {
+          "description": "Request details.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/workspaceapps.Request"
+            }
+          ]
+        },
+        "user_id": {
+          "type": "string"
+        },
+        "workspace_id": {
+          "type": "string"
+        }
+      }
     }
   },
   "securityDefinitions": {

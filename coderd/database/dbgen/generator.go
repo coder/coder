@@ -338,19 +338,24 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 	return meta
 }
 
-func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) database.WorkspaceProxy {
+func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) (string, database.WorkspaceProxy) {
+	secret, err := cryptorand.HexString(64)
+	require.NoError(t, err, "generate secret")
+	hashedSecret := sha256.Sum256([]byte(secret))
+
 	resource, err := db.InsertWorkspaceProxy(context.Background(), database.InsertWorkspaceProxyParams{
-		ID:               takeFirst(orig.ID, uuid.New()),
-		Name:             takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
-		DisplayName:      takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
-		Icon:             takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
-		Url:              takeFirst(orig.Url, fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1))),
-		WildcardHostname: takeFirst(orig.WildcardHostname, fmt.Sprintf(".%s.com", namesgenerator.GetRandomName(1))),
-		CreatedAt:        takeFirst(orig.CreatedAt, database.Now()),
-		UpdatedAt:        takeFirst(orig.UpdatedAt, database.Now()),
+		ID:                takeFirst(orig.ID, uuid.New()),
+		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName:       takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		Icon:              takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		Url:               takeFirst(orig.Url, fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1))),
+		WildcardHostname:  takeFirst(orig.WildcardHostname, fmt.Sprintf("*.%s.com", namesgenerator.GetRandomName(1))),
+		TokenHashedSecret: hashedSecret[:],
+		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 	})
 	require.NoError(t, err, "insert app")
-	return resource
+	return secret, resource
 }
 
 func File(t testing.TB, db database.Store, orig database.File) database.File {

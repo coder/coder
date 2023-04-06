@@ -2817,7 +2817,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 FROM
 	workspace_proxies
 WHERE
@@ -2843,6 +2843,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Deleted,
+			&i.TokenHashedSecret,
 		); err != nil {
 			return nil, err
 		}
@@ -2859,7 +2860,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 FROM
 	workspace_proxies
 WHERE
@@ -2881,6 +2882,7 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Deleted,
+		&i.TokenHashedSecret,
 	)
 	return i, err
 }
@@ -2894,23 +2896,25 @@ INSERT INTO
 		icon,
 		url,
 		wildcard_hostname,
+		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 `
 
 type InsertWorkspaceProxyParams struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	Name             string    `db:"name" json:"name"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
-	Icon             string    `db:"icon" json:"icon"`
-	Url              string    `db:"url" json:"url"`
-	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	ID                uuid.UUID `db:"id" json:"id"`
+	Name              string    `db:"name" json:"name"`
+	DisplayName       string    `db:"display_name" json:"display_name"`
+	Icon              string    `db:"icon" json:"icon"`
+	Url               string    `db:"url" json:"url"`
+	WildcardHostname  string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error) {
@@ -2921,6 +2925,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		arg.Icon,
 		arg.Url,
 		arg.WildcardHostname,
+		arg.TokenHashedSecret,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -2935,6 +2940,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Deleted,
+		&i.TokenHashedSecret,
 	)
 	return i, err
 }
@@ -2951,7 +2957,7 @@ SET
 	updated_at = Now()
 WHERE
 	id = $6
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 `
 
 type UpdateWorkspaceProxyParams struct {
@@ -2983,6 +2989,7 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Deleted,
+		&i.TokenHashedSecret,
 	)
 	return i, err
 }

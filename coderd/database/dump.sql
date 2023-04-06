@@ -644,7 +644,8 @@ CREATE TABLE workspace_proxies (
     wildcard_hostname text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    deleted boolean NOT NULL
+    deleted boolean NOT NULL,
+    token_hashed_secret bytea NOT NULL
 );
 
 COMMENT ON COLUMN workspace_proxies.url IS 'Full url including scheme of the proxy api url: https://us.example.com';
