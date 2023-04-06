@@ -154,28 +154,32 @@ func (g *Group) filterOptionSet(s *OptionSet) []*Option {
 
 // mapYAMLNodes converts n into a map with keys of form "group.subgroup.option"
 // and values of the corresponding YAML nodes.
-func mapYAMLNodes(n *yaml.Node) (map[string]*yaml.Node, error) {
-	if n.Kind != yaml.MappingNode {
-		return nil, xerrors.Errorf("expected mapping node, got type %v", n.Kind)
+func mapYAMLNodes(parent *yaml.Node) (map[string]*yaml.Node, error) {
+	if parent.Kind != yaml.MappingNode {
+		return nil, xerrors.Errorf("expected mapping node, got type %v", parent.Kind)
+	}
+	if len(parent.Content)%2 != 0 {
+		return nil, xerrors.Errorf("expected an even number of k/v pairs, got %d", len(parent.Content))
 	}
 	var (
 		key  string
 		m    = make(map[string]*yaml.Node)
 		merr error
 	)
-	for i, node := range n.Content {
-		if i&2 == 0 {
-			if node.Kind != yaml.ScalarNode {
-				return nil, xerrors.Errorf("expected scalar node for key, got type %v", n.Content[i].Kind)
+	for i, child := range parent.Content {
+		if i%2 == 0 {
+			if child.Kind != yaml.ScalarNode {
+				return nil, xerrors.Errorf("expected scalar node for key, got type %v", child.Kind)
 			}
-			key = node.Value
+			key = child.Value
 			continue
 		}
-		// Even if we have a mapping node, we don't know if it's a group or a
-		// complex option, so we store both.
-		m[key] = node
-		if node.Kind == yaml.MappingNode {
-			sub, err := mapYAMLNodes(node)
+		// Even if we have a mapping node, we don't know if it's a grouped simple
+		// option a complex option, so we store both "key" and "group.key". Since
+		// we're storing pointers, the additional memory is of little concern.
+		m[key] = child
+		if child.Kind == yaml.MappingNode {
+			sub, err := mapYAMLNodes(child)
 			if err != nil {
 				merr = errors.Join(merr, xerrors.Errorf("mapping node %q: %w", key, err))
 				continue
@@ -190,6 +194,7 @@ func mapYAMLNodes(n *yaml.Node) (map[string]*yaml.Node, error) {
 }
 
 func (o *Option) setFromYAMLNode(n *yaml.Node) error {
+	o.ValueSource = ValueSourceYAML
 	if um, ok := o.Value.(yaml.Unmarshaler); ok {
 		return um.UnmarshalYAML(n)
 	}
@@ -224,7 +229,8 @@ func (s *OptionSet) FromYAML(rootNode *yaml.Node) error {
 	}
 
 	var merr error
-	for _, opt := range *s {
+	for i := range *s {
+		opt := &(*s)[i]
 		if opt.YAML == "" {
 			continue
 		}
@@ -238,12 +244,16 @@ func (s *OptionSet) FromYAML(rootNode *yaml.Node) error {
 				)
 			}
 			group = append(group, g.YAML)
+			// Delete groups from the map so that we are accurately detecting
+			// unknown options.
+			delete(m, strings.Join(group, "."))
 		}
 		key := strings.Join(append(group, opt.YAML), ".")
 		node, ok := m[key]
 		if !ok {
 			continue
 		}
+
 		if err := opt.setFromYAMLNode(node); err != nil {
 			merr = errors.Join(merr, xerrors.Errorf("setting %q: %w", opt.YAML, err))
 		}

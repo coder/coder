@@ -58,6 +58,8 @@ func TestOptionSet_YAML(t *testing.T) {
 	})
 }
 
+// TestOptionSet_YAMLIsomorphism tests that the YAML representations of an item
+// converts to the same item when read back in.
 func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 	t.Parallel()
 	//nolint:unused
@@ -131,6 +133,7 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			// Set initial values.
 			for i := range tc.os {
 				tc.os[i].Value = tc.zeroValue()
 			}
@@ -157,7 +160,7 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 
 			// os2 values should be zeroed whereas tc.os should be
 			// set to defaults.
-			// This makes sure we aren't mixing pointers.
+			// This check makes sure we aren't mixing pointers.
 			require.NotEqual(t, tc.os, os2)
 			err = os2.FromYAML(&y2)
 			require.NoError(t, err)
