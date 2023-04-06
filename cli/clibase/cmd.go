@@ -292,7 +292,7 @@ func (inv *Invocation) run(state *runState) error {
 			return xerrors.Errorf("decoding config: %w", err)
 		}
 
-		err = inv.Command.Options.FromYAML(&n)
+		err = inv.Command.Options.UnmarshalYAML(&n)
 		if err != nil {
 			return xerrors.Errorf("applying config: %w", err)
 		}

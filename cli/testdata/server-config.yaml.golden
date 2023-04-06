@@ -246,8 +246,6 @@ sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template. (default:
 # https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates)
 agentFallbackTroubleshootingURL: https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates
-# Specifies whether audit logging is enabled. (default: true)
-auditLogging: true
 # Disable workspace apps that are not served from subdomains. Path-based apps can
 # make requests to the Coder API and pose a security risk when the workspace
 # serves malicious JavaScript. This is recommended for security purposes if a
@@ -265,8 +263,6 @@ client:
     sshConfigOptions: []
 # Support links to display in the top right drop down menu. (default: <unset>)
 supportLinks: []
-# Git Authentication providers. (default: <unset>)
-gitAuthProviders: []
 # Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By
 # default, this will pick the best available wgtunnel server hosted by Coder. e.g.
 # "tunnel.example.com". (default: <unset>)

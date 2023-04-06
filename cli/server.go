@@ -175,7 +175,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer cancel()
 
 			if cfg.WriteConfig {
-				n, err := opts.ToYAML()
+				n, err := opts.MarshalYAML()
 				if err != nil {
 					return xerrors.Errorf("generate yaml: %w", err)
 				}

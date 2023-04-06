@@ -10,6 +10,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var (
+	_ yaml.Marshaler   = new(OptionSet)
+	_ yaml.Unmarshaler = new(OptionSet)
+)
+
 // deepMapNode returns the mapping node at the given path,
 // creating it if it doesn't exist.
 func deepMapNode(n *yaml.Node, path []string, headComment string) *yaml.Node {
@@ -39,14 +44,14 @@ func deepMapNode(n *yaml.Node, path []string, headComment string) *yaml.Node {
 	return deepMapNode(&valueNode, path[1:], headComment)
 }
 
-// ToYAML converts the option set to a YAML node, that can be
+// MarshalYAML converts the option set to a YAML node, that can be
 // converted into bytes via yaml.Marshal.
 //
 // The node is returned to enable post-processing higher up in
 // the stack.
 //
 // It is isomorphic with FromYAML.
-func (s *OptionSet) ToYAML() (*yaml.Node, error) {
+func (s *OptionSet) MarshalYAML() (any, error) {
 	root := yaml.Node{
 		Kind: yaml.MappingNode,
 	}
@@ -140,18 +145,6 @@ func (s *OptionSet) ToYAML() (*yaml.Node, error) {
 	return &root, nil
 }
 
-func (g *Group) filterOptionSet(s *OptionSet) []*Option {
-	var opts []*Option
-	for i := range *s {
-		opt := (*s)[i]
-		if opt.Group != g {
-			continue
-		}
-		opts = append(opts, &opt)
-	}
-	return opts
-}
-
 // mapYAMLNodes converts n into a map with keys of form "group.subgroup.option"
 // and values of the corresponding YAML nodes.
 func mapYAMLNodes(parent *yaml.Node) (map[string]*yaml.Node, error) {
@@ -211,9 +204,9 @@ func (o *Option) setFromYAMLNode(n *yaml.Node) error {
 	}
 }
 
-// FromYAML converts the given YAML node into the option set.
+// UnmarshalYAML converts the given YAML node into the option set.
 // It is isomorphic with ToYAML.
-func (s *OptionSet) FromYAML(rootNode *yaml.Node) error {
+func (s *OptionSet) UnmarshalYAML(rootNode *yaml.Node) error {
 	// The rootNode will be a DocumentNode if it's read from a file. Currently,
 	// we don't support multiple YAML documents.
 	if rootNode.Kind == yaml.DocumentNode {
@@ -223,10 +216,12 @@ func (s *OptionSet) FromYAML(rootNode *yaml.Node) error {
 		rootNode = rootNode.Content[0]
 	}
 
-	m, err := mapYAMLNodes(rootNode)
+	yamlNodes, err := mapYAMLNodes(rootNode)
 	if err != nil {
 		return xerrors.Errorf("mapping nodes: %w", err)
 	}
+
+	matchedNodes := make(map[string]*yaml.Node, len(yamlNodes))
 
 	var merr error
 	for i := range *s {
@@ -244,12 +239,10 @@ func (s *OptionSet) FromYAML(rootNode *yaml.Node) error {
 				)
 			}
 			group = append(group, g.YAML)
-			// Delete groups from the map so that we are accurately detecting
-			// unknown options.
-			delete(m, strings.Join(group, "."))
+			delete(yamlNodes, strings.Join(group, "."))
 		}
 		key := strings.Join(append(group, opt.YAML), ".")
-		node, ok := m[key]
+		node, ok := yamlNodes[key]
 		if !ok {
 			continue
 		}
@@ -257,10 +250,24 @@ func (s *OptionSet) FromYAML(rootNode *yaml.Node) error {
 		if err := opt.setFromYAMLNode(node); err != nil {
 			merr = errors.Join(merr, xerrors.Errorf("setting %q: %w", opt.YAML, err))
 		}
-		delete(m, key)
+		matchedNodes[key] = node
 	}
 
-	for k := range m {
+	// Remove all matched nodes and their descendants from yamlNodes so we
+	// can accurately report unknown options.
+	for k := range yamlNodes {
+		var key string
+		for _, part := range strings.Split(k, ".") {
+			if key != "" {
+				key += "."
+			}
+			key += part
+			if _, ok := matchedNodes[key]; ok {
+				delete(yamlNodes, k)
+			}
+		}
+	}
+	for k := range yamlNodes {
 		merr = errors.Join(merr, xerrors.Errorf("unknown option %q", k))
 	}
 

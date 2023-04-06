@@ -1538,11 +1538,11 @@ func TestServerYAMLConfig(t *testing.T) {
 	err := opts.SetDefaults()
 	require.NoError(t, err)
 
-	n, err := opts.ToYAML()
+	n, err := opts.MarshalYAML()
 	require.NoError(t, err)
 
 	// Sanity-check that we can read the config back in.
-	err = opts.FromYAML(n)
+	err = opts.UnmarshalYAML(n)
 	require.NoError(t, err)
 
 	wantByt, err := yaml.Marshal(n)

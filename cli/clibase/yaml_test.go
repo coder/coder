@@ -25,9 +25,9 @@ func TestOptionSet_YAML(t *testing.T) {
 			},
 		}
 
-		node, err := os.ToYAML()
+		node, err := os.MarshalYAML()
 		require.NoError(t, err)
-		require.Len(t, node.Content, 0)
+		require.Len(t, node.(*yaml.Node).Content, 0)
 	})
 
 	t.Run("SimpleString", func(t *testing.T) {
@@ -49,7 +49,7 @@ func TestOptionSet_YAML(t *testing.T) {
 		err := os.SetDefaults()
 		require.NoError(t, err)
 
-		n, err := os.ToYAML()
+		n, err := os.MarshalYAML()
 		require.NoError(t, err)
 		// Visually inspect for now.
 		byt, err := yaml.Marshal(n)
@@ -58,8 +58,33 @@ func TestOptionSet_YAML(t *testing.T) {
 	})
 }
 
-// TestOptionSet_YAMLIsomorphism tests that the YAML representations of an item
-// converts to the same item when read back in.
+func TestOptionSet_YAMLUnknownOptions(t *testing.T) {
+	t.Parallel()
+	os := clibase.OptionSet{
+		{
+			Name:        "Workspace Name",
+			Default:     "billie",
+			Description: "The workspace's name.",
+			YAML:        "workspaceName",
+			Value:       new(clibase.String),
+		},
+	}
+
+	const yamlDoc = `something: else`
+	err := yaml.Unmarshal([]byte(yamlDoc), &os)
+	require.Error(t, err)
+	require.Empty(t, os[0].Value.String())
+
+	os[0].YAML = "something"
+
+	err = yaml.Unmarshal([]byte(yamlDoc), &os)
+	require.NoError(t, err)
+
+	require.Equal(t, "else", os[0].Value.String())
+}
+
+// TestOptionSet_YAMLIsomorphism tests that the YAML representations of an
+// OptionSet converts to the same OptionSet when read back in.
 func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 	t.Parallel()
 	//nolint:unused
@@ -140,7 +165,7 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 			err := tc.os.SetDefaults()
 			require.NoError(t, err)
 
-			y, err := tc.os.ToYAML()
+			y, err := tc.os.MarshalYAML()
 			require.NoError(t, err)
 
 			toByt, err := yaml.Marshal(y)
@@ -162,7 +187,7 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 			// set to defaults.
 			// This check makes sure we aren't mixing pointers.
 			require.NotEqual(t, tc.os, os2)
-			err = os2.FromYAML(&y2)
+			err = os2.UnmarshalYAML(&y2)
 			require.NoError(t, err)
 
 			want := tc.os
