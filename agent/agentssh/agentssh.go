@@ -50,6 +50,7 @@ type Server struct {
 	mu        sync.RWMutex // Protects following.
 	listeners map[net.Listener]struct{}
 	conns     map[net.Conn]struct{}
+	sessions  map[ssh.Session]struct{}
 	closing   chan struct{}
 	// Wait for goroutines to exit, waited without
 	// a lock on mu but protected by closing.
@@ -86,6 +87,7 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 	s := &Server{
 		listeners: make(map[net.Listener]struct{}),
 		conns:     make(map[net.Conn]struct{}),
+		sessions:  make(map[ssh.Session]struct{}),
 		logger:    logger,
 	}
 
@@ -129,7 +131,7 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 			}
 		},
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
-			"sftp": s.sftpHandler,
+			"sftp": s.sessionHandler,
 		},
 		MaxTimeout: maxTimeout,
 	}
@@ -152,7 +154,25 @@ func (s *Server) ConnStats() ConnStats {
 }
 
 func (s *Server) sessionHandler(session ssh.Session) {
+	if !s.trackSession(session, true) {
+		session.Exit(MagicSessionErrorCode)
+		return
+	}
+	defer s.trackSession(session, false)
+
 	ctx := session.Context()
+
+	switch ss := session.Subsystem(); ss {
+	case "":
+	case "sftp":
+		s.sftpHandler(session)
+		return
+	default:
+		s.logger.Debug(ctx, "unsupported subsystem", slog.F("subsystem", ss))
+		_ = session.Exit(1)
+		return
+	}
+
 	err := s.sessionStart(session)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
@@ -560,6 +580,25 @@ func (s *Server) trackConn(l net.Listener, c net.Conn, add bool) (ok bool) {
 	return true
 }
 
+// trackSession registers the session with the server. If the server is
+// closing, the session is not registered and should be closed.
+//
+//nolint:revive
+func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		if s.closing != nil {
+			// Server closed.
+			return false
+		}
+		s.sessions[ss] = struct{}{}
+		return true
+	}
+	delete(s.sessions, ss)
+	return true
+}
+
 // Close the server and all active connections. Server can be re-used
 // after Close is done.
 func (s *Server) Close() error {
@@ -572,6 +611,12 @@ func (s *Server) Close() error {
 		return xerrors.New("server is closing")
 	}
 	s.closing = make(chan struct{})
+
+	// Close all active sessions to gracefully
+	// terminate client connections.
+	for ss := range s.sessions {
+		_ = ss.Close()
+	}
 
 	// Close all active listeners and connections.
 	for l := range s.listeners {
