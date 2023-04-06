@@ -16,7 +16,8 @@ type Auditable interface {
 		database.GitSSHKey |
 		database.WorkspaceBuild |
 		database.AuditableGroup |
-		database.License
+		database.License |
+		database.WorkspaceProxy
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

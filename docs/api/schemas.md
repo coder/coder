@@ -1543,6 +1543,28 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `transition` | `stop`   |
 | `transition` | `delete` |
 
+## codersdk.CreateWorkspaceProxyRequest
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+| ------------------- | ------ | -------- | ------------ | ----------- |
+| `display_name`      | string | false    |              |             |
+| `icon`              | string | false    |              |             |
+| `name`              | string | false    |              |             |
+| `url`               | string | false    |              |             |
+| `wildcard_hostname` | string | false    |              |             |
+
 ## codersdk.CreateWorkspaceRequest
 
 ```json
@@ -1754,7 +1776,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
-    "audit_logging": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
@@ -1856,6 +1877,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "user": {}
       },
       "ignore_email_verified": true,
+      "ignore_user_info": true,
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
@@ -2102,7 +2124,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
-  "audit_logging": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
@@ -2204,6 +2225,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "user": {}
     },
     "ignore_email_verified": true,
+    "ignore_user_info": true,
     "issuer_url": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
@@ -2321,7 +2343,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `address`                            | [clibase.HostPort](#clibasehostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
 | `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                    | false    |              |                                                                    |
-| `audit_logging`                      | boolean                                                                                    | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                    | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
@@ -2433,6 +2454,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Value             |
 | ----------------- |
 | `template_editor` |
+| `moons`           |
 
 ## codersdk.Feature
 
@@ -2870,6 +2892,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "user": {}
   },
   "ignore_email_verified": true,
+  "ignore_user_info": true,
   "issuer_url": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
@@ -2891,6 +2914,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `groups_field`          | string                     | false    |              |             |
 | `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
 | `ignore_email_verified` | boolean                    | false    |              |             |
+| `ignore_user_info`      | boolean                    | false    |              |             |
 | `issuer_url`            | string                     | false    |              |             |
 | `scopes`                | array of string            | false    |              |             |
 | `sign_in_text`          | string                     | false    |              |             |
@@ -5087,6 +5111,36 @@ Parameter represents a set value for the scope.
 | `rx_bytes`              | integer                                                                        | false    |              |             |
 | `stopped`               | integer                                                                        | false    |              |             |
 | `tx_bytes`              | integer                                                                        | false    |              |             |
+
+## codersdk.WorkspaceProxy
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                            |
+| ------------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `created_at`        | string  | false    |              |                                                                                        |
+| `deleted`           | boolean | false    |              |                                                                                        |
+| `icon`              | string  | false    |              |                                                                                        |
+| `id`                | string  | false    |              |                                                                                        |
+| `name`              | string  | false    |              |                                                                                        |
+| `organization_id`   | string  | false    |              |                                                                                        |
+| `updated_at`        | string  | false    |              |                                                                                        |
+| `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
+| `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
 
 ## codersdk.WorkspaceQuota
 

@@ -11,7 +11,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -69,6 +68,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/cryptorand"
@@ -81,9 +81,9 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tokens in
-// tests.
-var AppSigningKey = must(hex.DecodeString("64656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566"))
+// AppSecurityKey is a 96-byte key used to sign JWTs and encrypt JWEs for
+// workspace app tokens in tests.
+var AppSecurityKey = must(workspaceapps.KeyFromString("6465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e2077617320686572"))
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
@@ -346,7 +346,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			DeploymentValues:            options.DeploymentValues,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
-			AppSigningKey:               AppSigningKey,
+			AppSecurityKey:              AppSecurityKey,
 			SSHConfig:                   options.ConfigSSH,
 			HealthcheckFunc:             options.HealthcheckFunc,
 			HealthcheckTimeout:          options.HealthcheckTimeout,

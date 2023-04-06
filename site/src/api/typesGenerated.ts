@@ -253,6 +253,15 @@ export interface CreateWorkspaceBuildRequest {
   readonly log_level?: ProvisionerLogLevel
 }
 
+// From codersdk/workspaceproxy.go
+export interface CreateWorkspaceProxyRequest {
+  readonly name: string
+  readonly display_name: string
+  readonly icon: string
+  readonly url: string
+  readonly wildcard_hostname: string
+}
+
 // From codersdk/organizations.go
 export interface CreateWorkspaceRequest {
   readonly template_id: string
@@ -349,7 +358,6 @@ export interface DeploymentValues {
   readonly metrics_cache_refresh_interval?: number
   readonly agent_stat_refresh_interval?: number
   readonly agent_fallback_troubleshooting_url?: string
-  readonly audit_logging?: boolean
   readonly browser_only?: boolean
   readonly scim_api_key?: string
   readonly provisioner?: ProvisionerConfig
@@ -523,6 +531,7 @@ export interface OIDCConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly auth_url_params: any
+  readonly ignore_user_info: boolean
   readonly groups_field: string
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
@@ -1202,6 +1211,19 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
+// From codersdk/workspaceproxy.go
+export interface WorkspaceProxy {
+  readonly id: string
+  readonly organization_id: string
+  readonly name: string
+  readonly icon: string
+  readonly url: string
+  readonly wildcard_hostname: string
+  readonly created_at: string
+  readonly updated_at: string
+  readonly deleted: boolean
+}
+
 // From codersdk/workspaces.go
 export interface WorkspaceQuota {
   readonly credits_consumed: number
@@ -1281,8 +1303,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "template_editor"
-export const Experiments: Experiment[] = ["template_editor"]
+export type Experiment = "moons" | "template_editor"
+export const Experiments: Experiment[] = ["moons", "template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1296,6 +1318,7 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
+  | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
   "appearance",
@@ -1307,6 +1330,7 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
+  "workspace_proxy",
 ]
 
 // From codersdk/workspaceagents.go

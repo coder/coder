@@ -30,7 +30,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitauth"
@@ -38,7 +37,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/workspaceapps"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/tailnet"
@@ -546,83 +545,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 }
 
-// workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
-// This is used for the web terminal.
-//
-// @Summary Open PTY to workspace agent
-// @ID open-pty-to-workspace-agent
-// @Security CoderSessionToken
-// @Tags Agents
-// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Success 101
-// @Router /workspaceagents/{workspaceagent}/pty [get]
-func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
-
-	appToken, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
-		AccessMethod:  workspaceapps.AccessMethodTerminal,
-		BasePath:      r.URL.Path,
-		AgentNameOrID: chi.URLParam(r, "workspaceagent"),
-	})
-	if !ok {
-		return
-	}
-
-	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query param 'reconnect' must be a valid UUID.",
-			Validations: []codersdk.ValidationError{
-				{Field: "reconnect", Detail: "invalid UUID"},
-			},
-		})
-		return
-	}
-	height, err := strconv.ParseUint(r.URL.Query().Get("height"), 10, 16)
-	if err != nil {
-		height = 80
-	}
-	width, err := strconv.ParseUint(r.URL.Query().Get("width"), 10, 16)
-	if err != nil {
-		width = 80
-	}
-
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	defer wsNetConn.Close() // Also closes conn.
-
-	go httpapi.Heartbeat(ctx, conn)
-
-	agentConn, release, err := api.workspaceAgentCache.Acquire(appToken.AgentID)
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
-		return
-	}
-	defer release()
-	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
-		return
-	}
-	defer ptNetConn.Close()
-	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
-}
-
 // @Summary Get listening ports for workspace agent
 // @ID get-listening-ports-for-workspace-agent
 // @Security CoderSessionToken
@@ -897,8 +819,9 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	// We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
 	// because we want to log the agent's last ping time.
-	lastPing := time.Now() // Since the agent initiated the request, assume it's alive.
-	var pingMu sync.Mutex
+	var lastPing atomic.Pointer[time.Time]
+	lastPing.Store(ptr.Ref(time.Now())) // Since the agent initiated the request, assume it's alive.
+
 	go pprof.Do(ctx, pprof.Labels("agent", workspaceAgent.ID.String()), func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
 		t := time.NewTicker(api.AgentConnectionUpdateFrequency)
@@ -919,9 +842,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			if err != nil {
 				return
 			}
-			pingMu.Lock()
-			lastPing = time.Now()
-			pingMu.Unlock()
+			lastPing.Store(ptr.Ref(time.Now()))
 		}
 	})
 
@@ -1029,9 +950,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		case <-ticker.C:
 		}
 
-		pingMu.Lock()
-		lastPing := lastPing
-		pingMu.Unlock()
+		lastPing := *lastPing.Load()
 
 		var connectionStatusChanged bool
 		if time.Since(lastPing) > api.AgentInactiveDisconnectTimeout {
@@ -1242,6 +1161,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @Param request body agentsdk.Stats true "Stats request"
 // @Success 200 {object} agentsdk.StatsResponse
 // @Router /workspaceagents/me/report-stats [post]
+// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

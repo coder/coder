@@ -1,76 +1,5 @@
 # Templates
 
-## Create group for organization
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /organizations/{organization}/groups`
-
-> Body parameter
-
-```json
-{
-  "avatar_url": "string",
-  "name": "string",
-  "quota_allowance": 0
-}
-```
-
-### Parameters
-
-| Name           | In   | Type                                                                 | Required | Description          |
-| -------------- | ---- | -------------------------------------------------------------------- | -------- | -------------------- |
-| `organization` | path | string                                                               | true     | Organization ID      |
-| `body`         | body | [codersdk.CreateGroupRequest](schemas.md#codersdkcreategrouprequest) | true     | Create group request |
-
-### Example responses
-
-> 201 Response
-
-```json
-{
-  "avatar_url": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
-      "status": "active",
-      "username": "string"
-    }
-  ],
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0
-}
-```
-
-### Responses
-
-| Status | Meaning                                                      | Description | Schema                                     |
-| ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------ |
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Group](schemas.md#codersdkgroup) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get templates by organization
 
 ### Code samples
@@ -2541,5 +2470,63 @@ Status Code **200**
 | `type`   | `string` |
 | `type`   | `number` |
 | `type`   | `bool`   |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create workspace proxy
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceproxies`
+
+> Body parameter
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                   | Required | Description                    |
+| ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `body` | body | [codersdk.CreateWorkspaceProxyRequest](schemas.md#codersdkcreateworkspaceproxyrequest) | true     | Create workspace proxy request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                       |
+| ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------ |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

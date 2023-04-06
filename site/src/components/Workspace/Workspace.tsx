@@ -47,12 +47,14 @@ export interface WorkspaceProps {
   handleUpdate: () => void
   handleCancel: () => void
   handleSettings: () => void
+  handleChangeVersion: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
   canUpdateTemplate: boolean
+  canChangeVersions: boolean
   hideSSHButton?: boolean
   hideVSCodeDesktopButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
@@ -76,12 +78,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleUpdate,
   handleCancel,
   handleSettings,
+  handleChangeVersion,
   workspace,
   isUpdating,
   resources,
   builds,
   canUpdateWorkspace,
   canUpdateTemplate,
+  canChangeVersions,
   workspaceErrors,
   hideSSHButton,
   hideVSCodeDesktopButton,
@@ -142,6 +146,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
               handleSettings={handleSettings}
+              handleChangeVersion={handleChangeVersion}
+              canChangeVersions={canChangeVersions}
               isUpdating={isUpdating}
             />
           </Stack>

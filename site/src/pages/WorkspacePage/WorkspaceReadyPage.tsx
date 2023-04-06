@@ -3,7 +3,7 @@ import { ProvisionerJobLog } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import dayjs from "dayjs"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -27,6 +27,9 @@ import {
   workspaceMachine,
 } from "../../xServices/workspace/workspaceXService"
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog"
+import { ChangeVersionDialog } from "./ChangeVersionDialog"
+import { useQuery } from "@tanstack/react-query"
+import { getTemplateVersions } from "api/api"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -67,6 +70,13 @@ export const WorkspaceReadyPage = ({
   const { t } = useTranslation("workspacePage")
   const favicon = getFaviconByStatus(workspace.latest_build)
   const navigate = useNavigate()
+  const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false)
+  const { data: templateVersions } = useQuery({
+    queryKey: ["template", "versions", workspace.template_id],
+    queryFn: () => getTemplateVersions(workspace.template_id),
+    enabled: changeVersionDialogOpen,
+  })
+  const dashboard = useDashboard()
 
   // keep banner machine in sync with workspace
   useEffect(() => {
@@ -119,10 +129,16 @@ export const WorkspaceReadyPage = ({
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
         handleSettings={() => navigate("settings")}
         handleBuildRetry={() => workspaceSend({ type: "RETRY_BUILD" })}
+        handleChangeVersion={() => {
+          setChangeVersionDialogOpen(true)
+        }}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
         canUpdateTemplate={canUpdateTemplate}
+        canChangeVersions={
+          canUpdateTemplate && dashboard.experiments.includes("template_editor")
+        }
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
@@ -158,6 +174,24 @@ export const WorkspaceReadyPage = ({
         }}
         onUpdate={(buildParameters) => {
           workspaceSend({ type: "UPDATE", buildParameters })
+        }}
+      />
+      <ChangeVersionDialog
+        templateVersions={templateVersions?.reverse()}
+        template={template}
+        defaultTemplateVersion={templateVersions?.find(
+          (v) => workspace.latest_build.template_version_id === v.id,
+        )}
+        open={changeVersionDialogOpen}
+        onClose={() => {
+          setChangeVersionDialogOpen(false)
+        }}
+        onConfirm={(templateVersion) => {
+          setChangeVersionDialogOpen(false)
+          workspaceSend({
+            type: "CHANGE_VERSION",
+            templateVersionId: templateVersion.id,
+          })
         }}
       />
     </>
