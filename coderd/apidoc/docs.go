@@ -5721,12 +5721,6 @@ const docTemplate = `{
         "clibase.Group": {
             "type": "object",
             "properties": {
-                "children": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/clibase.Group"
-                    }
-                },
                 "description": {
                     "type": "string"
                 },

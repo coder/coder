@@ -60,9 +60,12 @@ Clients include the coder cli, vs code extension, and the web UI.
 [1mConfig Options[0m 
 Use a YAML configuration file when your server launch become unwieldy.
 
-      --write-config bool, $CODER_WRITE_CONFIG
+  -c, --config yaml-config-path, $CODER_CONFIG_PATH
+          Specify a YAML file to load configuration from.
+
+      --write-config bool
           
-          Write out the current server as YAML to stdout.
+          Write out the current server config as YAML to stdout.
 
 [1mIntrospection / Logging Options[0m 
       --log-human string, $CODER_LOGGING_HUMAN (default: /dev/stderr)

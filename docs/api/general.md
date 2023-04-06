@@ -371,19 +371,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "flag": "string",
       "flag_shorthand": "string",
       "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {},
-            "yaml_name": "string"
-          }
-        ],
         "description": "string",
         "name": "string",
         "parent": {
-          "children": [{}],
           "description": "string",
           "name": "string",
           "parent": {},

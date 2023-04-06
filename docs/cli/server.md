@@ -48,6 +48,15 @@ Whether Coder only allows connections to workspaces via the browser.
 
 The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
 
+### -c, --config
+
+|             |                                 |
+| ----------- | ------------------------------- |
+| Type        | <code>yaml-config-path</code>   |
+| Environment | <code>$CODER_CONFIG_PATH</code> |
+
+Specify a YAML file to load configuration from.
+
 ### --dangerous-allow-path-app-sharing
 
 |             |                                                      |
@@ -790,3 +799,11 @@ Output debug-level logs.
 | Environment | <code>$CODER_WILDCARD_ACCESS_URL</code> |
 
 Specifies the wildcard hostname to use for workspace applications in the form "\*.example.com".
+
+### --write-config
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+<br/>Write out the current server config as YAML to stdout.

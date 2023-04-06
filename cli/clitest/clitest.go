@@ -226,7 +226,7 @@ func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 			// down Postgres.
 			t.Logf("command %q timed out during test cleanup", inv.Command.FullName())
 		}
-		// When or not this failed the test is up to the caller.
+		// Whether or not this fails the test is left to the caller.
 		t.Logf("command %q exited with error: %v", inv.Command.FullName(), err)
 		errCh <- err
 	}()

@@ -202,6 +202,9 @@ oidc:
     # {"access_type": "offline"}, type: struct[map[string]string])
     authURLParams:
         access_type: offline
+    # Ignore the userinfo endpoint and only use the ID token for user information.
+    # (default: false, type: bool)
+    ignoreUserInfo: false
     # Change the OIDC default 'groups' claim field. By default, will be 'groups' if
     # present in the oidc scopes argument. (default: <unset>, type: string)
     groupField: ""

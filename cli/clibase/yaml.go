@@ -150,8 +150,8 @@ func (s *OptionSet) MarshalYAML() (any, error) {
 	return &root, nil
 }
 
-// mapYAMLNodes converts n into a map with keys of form "group.subgroup.option"
-// and values of the corresponding YAML nodes.
+// mapYAMLNodes converts parent into a map with keys of form "group.subgroup.option"
+// and values as the corresponding YAML nodes.
 func mapYAMLNodes(parent *yaml.Node) (map[string]*yaml.Node, error) {
 	if parent.Kind != yaml.MappingNode {
 		return nil, xerrors.Errorf("expected mapping node, got type %v", parent.Kind)
@@ -161,30 +161,35 @@ func mapYAMLNodes(parent *yaml.Node) (map[string]*yaml.Node, error) {
 	}
 	var (
 		key  string
-		m    = make(map[string]*yaml.Node)
+		m    = make(map[string]*yaml.Node, len(parent.Content)/2)
 		merr error
 	)
 	for i, child := range parent.Content {
 		if i%2 == 0 {
 			if child.Kind != yaml.ScalarNode {
+				// We immediately because the rest of the code is bound to fail
+				// if we don't know to expect a key or a value.
 				return nil, xerrors.Errorf("expected scalar node for key, got type %v", child.Kind)
 			}
 			key = child.Value
 			continue
 		}
-		// Even if we have a mapping node, we don't know if it's a grouped simple
-		// option a complex option, so we store both "key" and "group.key". Since
-		// we're storing pointers, the additional memory is of little concern.
+
+		// We don't know if this is a grouped simple option or complex option,
+		// so we store both "key" and "group.key". Since we're storing pointers,
+		// the additional memory is of little concern.
 		m[key] = child
-		if child.Kind == yaml.MappingNode {
-			sub, err := mapYAMLNodes(child)
-			if err != nil {
-				merr = errors.Join(merr, xerrors.Errorf("mapping node %q: %w", key, err))
-				continue
-			}
-			for k, v := range sub {
-				m[key+"."+k] = v
-			}
+		if child.Kind != yaml.MappingNode {
+			continue
+		}
+
+		sub, err := mapYAMLNodes(child)
+		if err != nil {
+			merr = errors.Join(merr, xerrors.Errorf("mapping node %q: %w", key, err))
+			continue
+		}
+		for k, v := range sub {
+			m[key+"."+k] = v
 		}
 	}
 
@@ -209,7 +214,7 @@ func (o *Option) setFromYAMLNode(n *yaml.Node) error {
 		}
 		return n.Decode(o.Value)
 	case yaml.MappingNode:
-		return xerrors.Errorf("mapping node must implement yaml.Unmarshaler")
+		return xerrors.Errorf("mapping nodes must implement yaml.Unmarshaler")
 	default:
 		return xerrors.Errorf("unexpected node kind %v", n.Kind)
 	}
@@ -218,8 +223,8 @@ func (o *Option) setFromYAMLNode(n *yaml.Node) error {
 // UnmarshalYAML converts the given YAML node into the option set.
 // It is isomorphic with ToYAML.
 func (s *OptionSet) UnmarshalYAML(rootNode *yaml.Node) error {
-	// The rootNode will be a DocumentNode if it's read from a file. Currently,
-	// we don't support multiple YAML documents.
+	// The rootNode will be a DocumentNode if it's read from a file. We do
+	// not support multiple documents in a single file.
 	if rootNode.Kind == yaml.DocumentNode {
 		if len(rootNode.Content) != 1 {
 			return xerrors.Errorf("expected one node in document, got %d", len(rootNode.Content))

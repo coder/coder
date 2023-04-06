@@ -270,31 +270,27 @@ func (inv *Invocation) run(state *runState) error {
 		}
 	}
 
-	// Read configs, if any.
+	// Read YAML configs, if any.
 	for _, opt := range inv.Command.Options {
 		path, ok := opt.Value.(*YAMLConfigPath)
 		if !ok || path.String() == "" {
 			continue
 		}
 
-		fi, err := os.OpenFile(path.String(), os.O_RDONLY, 0)
+		byt, err := os.ReadFile(path.String())
 		if err != nil {
-			return xerrors.Errorf("opening config file: %w", err)
+			return xerrors.Errorf("reading yaml: %w", err)
 		}
-		//nolint:revive
-		defer fi.Close()
-
-		dec := yaml.NewDecoder(fi)
 
 		var n yaml.Node
-		err = dec.Decode(&n)
+		err = yaml.Unmarshal(byt, &n)
 		if err != nil {
-			return xerrors.Errorf("decoding config: %w", err)
+			return xerrors.Errorf("decoding yaml: %w", err)
 		}
 
 		err = inv.Command.Options.UnmarshalYAML(&n)
 		if err != nil {
-			return xerrors.Errorf("applying config: %w", err)
+			return xerrors.Errorf("applying yaml: %w", err)
 		}
 	}
 

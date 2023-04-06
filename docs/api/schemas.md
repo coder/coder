@@ -384,19 +384,9 @@
 
 ```json
 {
-  "children": [
-    {
-      "children": [],
-      "description": "string",
-      "name": "string",
-      "parent": {},
-      "yaml_name": "string"
-    }
-  ],
   "description": "string",
   "name": "string",
   "parent": {
-    "children": [{}],
     "description": "string",
     "name": "string",
     "parent": {},
@@ -408,13 +398,12 @@
 
 ### Properties
 
-| Name          | Type                                    | Required | Restrictions | Description |
-| ------------- | --------------------------------------- | -------- | ------------ | ----------- |
-| `children`    | array of [clibase.Group](#clibasegroup) | false    |              |             |
-| `description` | string                                  | false    |              |             |
-| `name`        | string                                  | false    |              |             |
-| `parent`      | [clibase.Group](#clibasegroup)          | false    |              |             |
-| `yaml_name`   | string                                  | false    |              |             |
+| Name          | Type                           | Required | Restrictions | Description |
+| ------------- | ------------------------------ | -------- | ------------ | ----------- |
+| `description` | string                         | false    |              |             |
+| `name`        | string                         | false    |              |             |
+| `parent`      | [clibase.Group](#clibasegroup) | false    |              |             |
+| `yaml_name`   | string                         | false    |              |             |
 
 ## clibase.HostPort
 
@@ -446,19 +435,9 @@
   "flag": "string",
   "flag_shorthand": "string",
   "group": {
-    "children": [
-      {
-        "children": [],
-        "description": "string",
-        "name": "string",
-        "parent": {},
-        "yaml_name": "string"
-      }
-    ],
     "description": "string",
     "name": "string",
     "parent": {
-      "children": [{}],
       "description": "string",
       "name": "string",
       "parent": {},
@@ -480,19 +459,9 @@
       "flag": "string",
       "flag_shorthand": "string",
       "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {},
-            "yaml_name": "string"
-          }
-        ],
         "description": "string",
         "name": "string",
         "parent": {
-          "children": [{}],
           "description": "string",
           "name": "string",
           "parent": {},
@@ -2028,19 +1997,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "flag": "string",
       "flag_shorthand": "string",
       "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {},
-            "yaml_name": "string"
-          }
-        ],
         "description": "string",
         "name": "string",
         "parent": {
-          "children": [{}],
           "description": "string",
           "name": "string",
           "parent": {},
