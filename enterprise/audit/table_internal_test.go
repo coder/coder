@@ -17,6 +17,8 @@ import (
 
 // TestAuditableResources ensures that all auditable resources are included in
 // the Auditable interface and vice versa.
+//
+//nolint:tparallel
 func TestAuditableResources(t *testing.T) {
 	t.Parallel()
 
