@@ -23,7 +23,7 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
@@ -574,7 +574,7 @@ func sshForwardRemote(ctx context.Context, stderr io.Writer, sshClient *gossh.Cl
 					}
 				}
 
-				agent.Bicopy(ctx, localConn, remoteConn)
+				agentssh.Bicopy(ctx, localConn, remoteConn)
 			}()
 		}
 	}()
