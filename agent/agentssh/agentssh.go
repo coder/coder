@@ -155,7 +155,8 @@ func (s *Server) ConnStats() ConnStats {
 
 func (s *Server) sessionHandler(session ssh.Session) {
 	if !s.trackSession(session, true) {
-		session.Exit(MagicSessionErrorCode)
+		// See (*Server).Close() for why we call Close instead of Exit.
+		_ = session.Close()
 		return
 	}
 	defer s.trackSession(session, false)
