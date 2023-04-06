@@ -7,26 +7,18 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/codersdk"
-
-	"github.com/coder/coder/buildinfo"
-
 	"github.com/prometheus/client_golang/prometheus"
-
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/coder/coder/coderd/tracing"
-
-	"github.com/go-chi/chi/v5"
-
-	"github.com/coder/coder/coderd/wsconncache"
-
-	"github.com/coder/coder/coderd/httpmw"
-
 	"cdr.dev/slog"
+	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/workspaceapps"
+	"github.com/coder/coder/coderd/wsconncache"
+	"github.com/coder/coder/codersdk"
 )
 
 type Options struct {

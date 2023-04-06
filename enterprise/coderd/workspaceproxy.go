@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 
@@ -257,16 +256,23 @@ func (api *API) issueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// HACK: the CreateToken code reads the session token from the request, but
-	// since the session token is in a header, we need to make a fake request.
+	// userReq is a http request from the user on the other side of the proxy.
+	// Although the workspace proxy is making this call, we want to use the user's
+	// authorization context to create the token.
 	//
-	// TODO(@dean): fix this hack. This could be fixed by providing the token as
-	// a param to CreateToken instead of the whole request.
-	fakeReq := httptest.NewRequest("GET", req.AppRequest.BasePath, nil)
-	fakeReq.Header.Set(codersdk.SessionTokenHeader, req.SessionToken)
+	// We can use the existing request context for all tracing/logging purposes.
+	// Any workspace proxy auth uses different context keys so we don't need to
+	// worry about that.
+	userReq, err := http.NewRequestWithContext(ctx, "GET", req.AppRequest.BasePath, nil)
+	if err != nil {
+		// This should never happen
+		httpapi.InternalServerError(rw, xerrors.Errorf("[DEV ERROR] new request: %w", err))
+		return
+	}
+	userReq.Header.Set(codersdk.SessionTokenHeader, req.SessionToken)
 
 	// Exchange the token.
-	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.CreateToken(ctx, rw, fakeReq, req.AppRequest)
+	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.CreateToken(ctx, rw, userReq, req.AppRequest)
 	if !ok {
 		return
 	}
