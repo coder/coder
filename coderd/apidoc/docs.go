@@ -5730,7 +5730,7 @@ const docTemplate = `{
                 "parent": {
                     "$ref": "#/definitions/clibase.Group"
                 },
-                "yaml_name": {
+                "yaml": {
                     "type": "string"
                 }
             }
@@ -5800,7 +5800,7 @@ const docTemplate = `{
                 "value": {
                     "description": "Value includes the types listed in values.go."
                 },
-                "valueSource": {
+                "value_source": {
                     "$ref": "#/definitions/clibase.ValueSource"
                 },
                 "yaml": {

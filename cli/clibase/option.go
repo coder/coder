@@ -2,6 +2,7 @@ package clibase
 
 import (
 	"os"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/pflag"
@@ -57,7 +58,18 @@ type Option struct {
 
 	Hidden bool `json:"hidden,omitempty"`
 
-	ValueSource ValueSource
+	ValueSource ValueSource `json:"value_source,omitempty"`
+}
+
+func (o Option) YAMLPath() string {
+	if o.YAML == "" {
+		return ""
+	}
+	var gs []string
+	for _, g := range o.Group.Ancestry() {
+		gs = append(gs, g.YAML)
+	}
+	return strings.Join(append(gs, o.YAML), ".")
 }
 
 // OptionSet is a group of options that can be applied to a command.

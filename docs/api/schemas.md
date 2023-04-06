@@ -390,9 +390,9 @@
     "description": "string",
     "name": "string",
     "parent": {},
-    "yaml_name": "string"
+    "yaml": "string"
   },
-  "yaml_name": "string"
+  "yaml": "string"
 }
 ```
 
@@ -403,7 +403,7 @@
 | `description` | string                         | false    |              |             |
 | `name`        | string                         | false    |              |             |
 | `parent`      | [clibase.Group](#clibasegroup) | false    |              |             |
-| `yaml_name`   | string                         | false    |              |             |
+| `yaml`        | string                         | false    |              |             |
 
 ## clibase.HostPort
 
@@ -441,9 +441,9 @@
       "description": "string",
       "name": "string",
       "parent": {},
-      "yaml_name": "string"
+      "yaml": "string"
     },
-    "yaml_name": "string"
+    "yaml": "string"
   },
   "hidden": true,
   "name": "string",
@@ -465,20 +465,20 @@
           "description": "string",
           "name": "string",
           "parent": {},
-          "yaml_name": "string"
+          "yaml": "string"
         },
-        "yaml_name": "string"
+        "yaml": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [],
       "value": null,
-      "valueSource": "",
+      "value_source": "",
       "yaml": "string"
     }
   ],
   "value": null,
-  "valueSource": "",
+  "value_source": "",
   "yaml": "string"
 }
 ```
@@ -498,7 +498,7 @@
 | `name`           | string                                     | false    |              |                                                                                                                                |
 | `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
 | `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                  |
-| `valueSource`    | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                |
+| `value_source`   | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                |
 | `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
 
 ## clibase.Struct-array_codersdk_GitAuthConfig
@@ -2003,15 +2003,15 @@ CreateParameterRequest is a structure used to create a new parameter value for a
           "description": "string",
           "name": "string",
           "parent": {},
-          "yaml_name": "string"
+          "yaml": "string"
         },
-        "yaml_name": "string"
+        "yaml": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [{}],
       "value": null,
-      "valueSource": "",
+      "value_source": "",
       "yaml": "string"
     }
   ]

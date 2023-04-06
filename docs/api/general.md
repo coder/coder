@@ -377,15 +377,15 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "description": "string",
           "name": "string",
           "parent": {},
-          "yaml_name": "string"
+          "yaml": "string"
         },
-        "yaml_name": "string"
+        "yaml": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [{}],
       "value": null,
-      "valueSource": "",
+      "value_source": "",
       "yaml": "string"
     }
   ]
