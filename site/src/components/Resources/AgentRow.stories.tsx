@@ -109,9 +109,9 @@ Starting.args = {
   agent: MockWorkspaceAgentStarting,
 
   storybookStartupLogs: [
-    "Cloning Git repository...",
-    "Starting Docker Daemon...",
-    "Adding some 🧙magic🧙...",
+    "\x1b[91mCloning Git repository...",
+    "\x1b[2;37;41mStarting Docker Daemon...",
+    "\x1b[1;95mAdding some 🧙magic🧙...",
     "Starting VS Code...",
   ].map((line, index) => ({
     id: index,
