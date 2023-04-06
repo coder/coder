@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -1441,12 +1443,13 @@ func TestServer(t *testing.T) {
 			client := codersdk.New(gotURL)
 
 			_ = coderdtest.CreateFirstUser(t, client)
-			wantValues, err := client.DeploymentConfig(ctx)
+			wantConfig, err := client.DeploymentConfig(ctx)
 			require.NoError(t, err)
 			cancel()
 			w.RequireSuccess()
 
-			// Next, we instruct the same server to display config.
+			// Next, we instruct the same server to display the YAML config
+			// and then save it.
 			inv = inv.WithContext(testutil.Context(t, testutil.WaitMedium))
 			inv.Args = append(args, "--write-config")
 			fi, err := os.OpenFile(testutil.TempFile(t, "", "coder-config-test-*"), os.O_WRONLY|os.O_CREATE, 0o600)
@@ -1458,17 +1461,53 @@ func TestServer(t *testing.T) {
 			err = inv.Run()
 			require.NoError(t, err)
 
-			// Finally, we read the config back in and ensure it matches the
-			// original.
-			inv.Args = append(args, "--config="+fi.Name())
+			// Reset the context.
+			ctx = testutil.Context(t, testutil.WaitMedium)
+			// Finally, we restart the server with just the config and no flags
+			// and ensure that the live configuration is equivalent.
+			inv, cfg = clitest.New(t, "server", "--config="+fi.Name())
 			w = clitest.StartWithWaiter(t, inv)
-			// The same client should work.
-			gotValues, err := client.DeploymentConfig(ctx)
-			require.NoError(t, err, "config:\n%s", conf.String())
-			require.Equal(t, wantValues, gotValues)
+			client = codersdk.New(waitAccessURL(t, cfg))
+			_ = coderdtest.CreateFirstUser(t, client)
+			gotConfig, err := client.DeploymentConfig(ctx)
+			normalizeNilsInOptionSet(&wantConfig.Options)
+			normalizeNilsInOptionSet(&gotConfig.Options)
+			require.NoError(t, err, "config:\n%s\nargs: %+v", conf.String(), inv.Args)
+			gotConfig.Options.ByName("Config Path").Value.Set("")
+			require.EqualValues(t, wantConfig.Options, gotConfig.Options)
 			w.RequireSuccess()
 		})
 	})
+}
+
+// The YAML process sets slice values to nil if they are empty, leading to
+// false negatives when comparing equality.
+func normalizeNilsInOptionSet(s *clibase.OptionSet) {
+	for i := range *s {
+		opt := &(*s)[i]
+		if opt.Value == nil {
+			continue
+		}
+
+		var (
+			v    = reflect.Indirect(reflect.ValueOf(opt.Value))
+			kind = v.Type().Kind()
+		)
+
+		if opt.YAML == "supportLinks" {
+			fmt.Printf("supportLinks: %v, %v", kind, v.IsZero())
+		}
+
+		if kind == reflect.Slice && v.Len() > 0 {
+			continue
+		}
+
+		if kind == reflect.Struct && !v.IsZero() {
+			continue
+		}
+
+		opt.Value = nil
+	}
 }
 
 func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {
@@ -1542,7 +1581,7 @@ func TestServerYAMLConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Sanity-check that we can read the config back in.
-	err = opts.UnmarshalYAML(n)
+	err = opts.UnmarshalYAML(n.(*yaml.Node))
 	require.NoError(t, err)
 
 	wantByt, err := yaml.Marshal(n)

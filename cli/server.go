@@ -195,8 +195,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
 			}
 
-			println("HERE1")
-
 			// Print deprecation warnings.
 			for _, opt := range opts {
 				if opt.UseInstead == nil {

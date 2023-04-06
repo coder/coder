@@ -194,3 +194,15 @@ func (s *OptionSet) SetDefaults() error {
 	}
 	return merr.ErrorOrNil()
 }
+
+// ByName returns the Option with the given name, or nil if no such option
+// exists.
+func (s *OptionSet) ByName(name string) *Option {
+	for i := range *s {
+		opt := &(*s)[i]
+		if opt.Name == name {
+			return opt
+		}
+	}
+	return nil
+}

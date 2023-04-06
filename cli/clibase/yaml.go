@@ -66,7 +66,7 @@ func (s *OptionSet) MarshalYAML() (any, error) {
 			defValue = "<unset>"
 		}
 		comment := wordwrap.WrapString(
-			fmt.Sprintf("%s (default: %s)", opt.Description, defValue),
+			fmt.Sprintf("%s (default: %s, type: %s)", opt.Description, defValue, opt.Value.Type()),
 			80,
 		)
 		nameNode := yaml.Node{
@@ -75,7 +75,12 @@ func (s *OptionSet) MarshalYAML() (any, error) {
 			HeadComment: wordwrap.WrapString(comment, 80),
 		}
 		var valueNode yaml.Node
-		if m, ok := opt.Value.(yaml.Marshaler); ok {
+		if opt.Value == nil {
+			valueNode = yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: "null",
+			}
+		} else if m, ok := opt.Value.(yaml.Marshaler); ok {
 			v, err := m.MarshalYAML()
 			if err != nil {
 				return nil, xerrors.Errorf(
