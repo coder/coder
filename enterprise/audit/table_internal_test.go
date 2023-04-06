@@ -6,14 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coder/coder/coderd/util/slice"
-
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/go/packages"
+
+	"github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 // TestAuditableResources ensures that all auditable resources are included in
