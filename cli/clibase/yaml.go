@@ -257,16 +257,20 @@ func (s *OptionSet) UnmarshalYAML(rootNode *yaml.Node) error {
 			group = append(group, g.YAML)
 			delete(yamlNodes, strings.Join(group, "."))
 		}
+
 		key := strings.Join(append(group, opt.YAML), ".")
 		node, ok := yamlNodes[key]
 		if !ok {
 			continue
 		}
 
+		matchedNodes[key] = node
+		if opt.ValueSource != ValueSourceNone {
+			continue
+		}
 		if err := opt.setFromYAMLNode(node); err != nil {
 			merr = errors.Join(merr, xerrors.Errorf("setting %q: %w", opt.YAML, err))
 		}
-		matchedNodes[key] = node
 	}
 
 	// Remove all matched nodes and their descendants from yamlNodes so we

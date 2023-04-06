@@ -59,6 +59,14 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 ## Options
 
+### --debug-options
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Print all options, how they're set, then exit.
+
 ### --global-config
 
 |             |                                |
