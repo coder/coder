@@ -11,17 +11,18 @@ import (
 	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
@@ -33,6 +34,71 @@ func RunTests(t *testing.T, factory DeploymentFactory) {
 	setupProxyTest := func(t *testing.T, opts *DeploymentOptions) *AppDetails {
 		return setupProxyTestWithFactory(t, factory, opts)
 	}
+
+	t.Run("ReconnectingPTY", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			// This might be our implementation, or ConPTY itself.
+			// It's difficult to find extensive tests for it, so
+			// it seems like it could be either.
+			t.Skip("ConPTY appears to be inconsistent on Windows.")
+		}
+
+		appDetails := setupProxyTest(t, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Run the test against the path app hostname since that's where the
+		// reconnecting-pty proxy server we want to test is mounted.
+		client := codersdk.New(appDetails.PathAppBaseURL)
+		client.SetSessionToken(appDetails.Client.SessionToken())
+
+		conn, err := client.WorkspaceAgentReconnectingPTY(ctx, appDetails.Agent.ID, uuid.New(), 80, 80, "/bin/bash")
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// First attempt to resize the TTY.
+		// The websocket will close if it fails!
+		data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+			Height: 250,
+			Width:  250,
+		})
+		require.NoError(t, err)
+		_, err = conn.Write(data)
+		require.NoError(t, err)
+		bufRead := bufio.NewReader(conn)
+
+		// Brief pause to reduce the likelihood that we send keystrokes while
+		// the shell is simultaneously sending a prompt.
+		time.Sleep(100 * time.Millisecond)
+
+		data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+			Data: "echo test\r\n",
+		})
+		require.NoError(t, err)
+		_, err = conn.Write(data)
+		require.NoError(t, err)
+
+		expectLine := func(matcher func(string) bool) {
+			for {
+				line, err := bufRead.ReadString('\n')
+				require.NoError(t, err)
+				if matcher(line) {
+					break
+				}
+			}
+		}
+		matchEchoCommand := func(line string) bool {
+			return strings.Contains(line, "echo test")
+		}
+		matchEchoOutput := func(line string) bool {
+			return strings.Contains(line, "test") && !strings.Contains(line, "echo")
+		}
+
+		expectLine(matchEchoCommand)
+		expectLine(matchEchoOutput)
+	})
 
 	t.Run("WorkspaceAppsProxyPath", func(t *testing.T) {
 		t.Parallel()
@@ -704,11 +770,11 @@ func RunTests(t *testing.T, factory DeploymentFactory) {
 	t.Run("AppSharing", func(t *testing.T) {
 		t.Parallel()
 
-		setup := func(t *testing.T, allowPathAppSharing, allowSiteOwnerAccess bool) (workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, ownerClient *codersdk.Client, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
+		setup := func(t *testing.T, allowPathAppSharing, allowSiteOwnerAccess bool) (appDetails *AppDetails, workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, ownerClient *codersdk.Client, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
 			//nolint:gosec
 			const password = "SomeSecurePassword!"
 
-			appDetails := setupProxyTest(t, &DeploymentOptions{
+			appDetails = setupProxyTest(t, &DeploymentOptions{
 				DangerousAllowPathAppSharing:         allowPathAppSharing,
 				DangerousAllowPathAppSiteOwnerAccess: allowSiteOwnerAccess,
 				// we make the workspace below
@@ -800,10 +866,10 @@ func RunTests(t *testing.T, factory DeploymentFactory) {
 			}
 			forceURLTransport(t, clientWithNoAuth)
 
-			return workspace, agnt, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth
+			return appDetails, workspace, agnt, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth
 		}
 
-		verifyAccess := func(t *testing.T, isPathApp bool, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
+		verifyAccess := func(t *testing.T, appDetails *AppDetails, isPathApp bool, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
 			t.Helper()
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -829,20 +895,19 @@ func RunTests(t *testing.T, factory DeploymentFactory) {
 			for i, client := range clients {
 				msg := fmt.Sprintf("client %d", i)
 
-				u := fmt.Sprintf("/@%s/%s.%s/apps/%s/?%s", username, workspaceName, agentName, appName, proxyTestAppQuery)
-				if !isPathApp {
-					subdomain := httpapi.ApplicationURL{
-						AppSlugOrPort: appName,
-						AgentName:     agentName,
-						WorkspaceName: workspaceName,
-						Username:      username,
-					}.String()
-
-					hostname := strings.Replace(proxyTestSubdomainRaw, "*", subdomain, 1)
-					u = fmt.Sprintf("http://%s/?%s", hostname, proxyTestAppQuery)
+				app := App{
+					AppSlugOrPort: appName,
+					AgentName:     agentName,
+					WorkspaceName: workspaceName,
+					Username:      username,
+					Query:         proxyTestAppQuery,
+				}
+				u := appDetails.SubdomainAppURL(app)
+				if isPathApp {
+					u = appDetails.PathAppURL(app)
 				}
 
-				res, err := requestWithRetries(ctx, t, client, http.MethodGet, u, nil)
+				res, err := requestWithRetries(ctx, t, client, http.MethodGet, u.String(), nil)
 				require.NoError(t, err, msg)
 
 				dump, err := httputil.DumpResponse(res, true)
@@ -877,7 +942,7 @@ func RunTests(t *testing.T, factory DeploymentFactory) {
 		}
 
 		testLevels := func(t *testing.T, isPathApp, pathAppSharingEnabled, siteOwnerPathAppAccessEnabled bool) {
-			workspace, agnt, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth := setup(t, pathAppSharingEnabled, siteOwnerPathAppAccessEnabled)
+			appDetails, workspace, agnt, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth := setup(t, pathAppSharingEnabled, siteOwnerPathAppAccessEnabled)
 
 			allowedUnlessSharingDisabled := !isPathApp || pathAppSharingEnabled
 			siteOwnerCanAccess := !isPathApp || siteOwnerPathAppAccessEnabled
@@ -894,17 +959,17 @@ func RunTests(t *testing.T, factory DeploymentFactory) {
 
 				// Site owner should be able to access all workspaces if
 				// enabled.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, ownerClient, siteOwnerCanAccess, false)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, ownerClient, siteOwnerCanAccess, false)
 
 				// Owner should be able to access their own workspace.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, client, true, false)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, client, true, false)
 
 				// Authenticated users should not have access to a workspace that
 				// they do not own.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, clientInOtherOrg, false, false)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, clientInOtherOrg, false, false)
 
 				// Unauthenticated user should not have any access.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, clientWithNoAuth, false, true)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, clientWithNoAuth, false, true)
 			})
 
 			t.Run("LevelAuthenticated", func(t *testing.T) {
@@ -912,16 +977,16 @@ func RunTests(t *testing.T, factory DeploymentFactory) {
 
 				// Site owner should be able to access all workspaces if
 				// enabled.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, ownerClient, siteOwnerCanAccessShared, false)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, ownerClient, siteOwnerCanAccessShared, false)
 
 				// Owner should be able to access their own workspace.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, client, true, false)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, client, true, false)
 
 				// Authenticated users should be able to access the workspace.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientInOtherOrg, allowedUnlessSharingDisabled, false)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientInOtherOrg, allowedUnlessSharingDisabled, false)
 
 				// Unauthenticated user should not have any access.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
 			})
 
 			t.Run("LevelPublic", func(t *testing.T) {
@@ -929,16 +994,16 @@ func RunTests(t *testing.T, factory DeploymentFactory) {
 
 				// Site owner should be able to access all workspaces if
 				// enabled.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, ownerClient, siteOwnerCanAccessShared, false)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, ownerClient, siteOwnerCanAccessShared, false)
 
 				// Owner should be able to access their own workspace.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, client, true, false)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, client, true, false)
 
 				// Authenticated users should be able to access the workspace.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, clientInOtherOrg, allowedUnlessSharingDisabled, false)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, clientInOtherOrg, allowedUnlessSharingDisabled, false)
 
 				// Unauthenticated user should be able to access the workspace.
-				verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, clientWithNoAuth, allowedUnlessSharingDisabled, !allowedUnlessSharingDisabled)
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, clientWithNoAuth, allowedUnlessSharingDisabled, !allowedUnlessSharingDisabled)
 			})
 		}
 
