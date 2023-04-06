@@ -16,11 +16,11 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gliderlabs/ssh"
 	"github.com/pkg/sftp"
+	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
@@ -54,8 +54,7 @@ type Server struct {
 
 	Env        map[string]string
 	AgentToken func() string
-
-	manifest atomic.Pointer[agentsdk.Manifest]
+	Manifest   *atomic.Pointer[agentsdk.Manifest]
 
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
@@ -128,11 +127,6 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 	}
 
 	return s, nil
-}
-
-// SetManifest sets the manifest used for starting commands.
-func (s *Server) SetManifest(m *agentsdk.Manifest) {
-	s.manifest.Store(m)
 }
 
 type ConnStats struct {
@@ -215,7 +209,7 @@ func (s *Server) sessionStart(session ssh.Session) (retErr error) {
 		session.DisablePTYEmulation()
 
 		if !isQuietLogin(session.RawCommand()) {
-			manifest := s.manifest.Load()
+			manifest := s.Manifest.Load()
 			if manifest != nil {
 				err = showMOTD(session, manifest.MOTDFile)
 				if err != nil {
@@ -388,7 +382,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
 
-	manifest := s.manifest.Load()
+	manifest := s.Manifest.Load()
 	if manifest == nil {
 		return nil, xerrors.Errorf("no metadata was provided")
 	}

@@ -167,6 +167,7 @@ func (a *agent) init(ctx context.Context) {
 	}
 	sshSrv.Env = a.envVars
 	sshSrv.AgentToken = func() string { return *a.sessionToken.Load() }
+	sshSrv.Manifest = &a.manifest
 	a.sshServer = sshSrv
 
 	go a.runLoop(ctx)
@@ -478,7 +479,6 @@ func (a *agent) run(ctx context.Context) error {
 	}
 
 	oldManifest := a.manifest.Swap(&manifest)
-	a.sshServer.SetManifest(&manifest)
 
 	// The startup script should only execute on the first run!
 	if oldManifest == nil {

@@ -1,3 +1,5 @@
+// Package agentssh_test provides tests for basic functinoality of the agentssh
+// package, more test coverage can be found in the `agent` and `cli` package(s).
 package agentssh_test
 
 import (
@@ -10,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
 
@@ -34,7 +37,7 @@ func TestNewServer_ServeClient(t *testing.T) {
 
 	// The assumption is that these are set before serving SSH connections.
 	s.AgentToken = func() string { return "" }
-	s.SetManifest(&agentsdk.Manifest{})
+	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -74,7 +77,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 
 	// The assumption is that these are set before serving SSH connections.
 	s.AgentToken = func() string { return "" }
-	s.SetManifest(&agentsdk.Manifest{})
+	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
