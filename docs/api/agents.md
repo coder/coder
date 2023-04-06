@@ -394,65 +394,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Submit workspace agent stats
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /workspaceagents/me/report-stats`
-
-> Body parameter
-
-```json
-{
-  "connection_count": 0,
-  "connection_median_latency_ms": 0,
-  "connections_by_proto": {
-    "property1": 0,
-    "property2": 0
-  },
-  "rx_bytes": 0,
-  "rx_packets": 0,
-  "session_count_jetbrains": 0,
-  "session_count_reconnecting_pty": 0,
-  "session_count_ssh": 0,
-  "session_count_vscode": 0,
-  "tx_bytes": 0,
-  "tx_packets": 0
-}
-```
-
-### Parameters
-
-| Name   | In   | Type                                       | Required | Description   |
-| ------ | ---- | ------------------------------------------ | -------- | ------------- |
-| `body` | body | [agentsdk.Stats](schemas.md#agentsdkstats) | true     | Stats request |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "report_interval": 0
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                     |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.StatsResponse](schemas.md#agentsdkstatsresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get workspace agent by ID
 
 ### Code samples

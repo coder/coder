@@ -1729,6 +1729,11 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 			return
 		}
 
+		if r.Header.Get("X-Forwarded-Host") == accessURL.Host {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
 		if appHostnameRegex != nil && appHostnameRegex.MatchString(r.Host) {
 			handler.ServeHTTP(w, r)
 			return

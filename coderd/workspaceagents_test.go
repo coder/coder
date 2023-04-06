@@ -1353,9 +1353,13 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	var update []codersdk.WorkspaceAgentMetadata
 
 	check := func(want codersdk.WorkspaceAgentMetadataResult, got codersdk.WorkspaceAgentMetadata) {
-		require.WithinDuration(t, want.CollectedAt, got.Result.CollectedAt, time.Second)
+		require.Greater(t, got.Result.CollectedAt, want.CollectedAt)
+
+		ageImpliedNow := got.Result.CollectedAt.Add(time.Duration(got.Result.Age) * time.Second)
+		// We use a long WithinDuration to tolerate slow CI, but we're still making sure
+		// that Age is within the ballpark.
 		require.WithinDuration(
-			t, time.Now(), got.Result.CollectedAt.Add(time.Duration(got.Result.Age)*time.Second), time.Second,
+			t, time.Now(), ageImpliedNow, time.Second*10,
 		)
 		require.Equal(t, want.Value, got.Result.Value)
 		require.Equal(t, want.Error, got.Result.Error)

@@ -18,7 +18,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/tracing"
@@ -575,7 +575,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ptNetConn.Close()
-	agent.Bicopy(ctx, wsNetConn, ptNetConn)
+	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

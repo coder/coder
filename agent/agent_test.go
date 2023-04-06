@@ -41,6 +41,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -131,13 +132,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agent.MagicSSHSessionTypeEnvironmentVariable, agent.MagicSSHSessionTypeVSCode)
+		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, agentssh.MagicSessionTypeVSCode)
 		defer session.Close()
 
-		command := "sh -c 'echo $" + agent.MagicSSHSessionTypeEnvironmentVariable + "'"
+		command := "sh -c 'echo $" + agentssh.MagicSessionTypeEnvironmentVariable + "'"
 		expected := ""
 		if runtime.GOOS == "windows" {
-			expected = "%" + agent.MagicSSHSessionTypeEnvironmentVariable + "%"
+			expected = "%" + agentssh.MagicSessionTypeEnvironmentVariable + "%"
 			command = "cmd.exe /c echo " + expected
 		}
 		output, err := session.Output(command)
@@ -158,7 +159,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agent.MagicSSHSessionTypeEnvironmentVariable, agent.MagicSSHSessionTypeVSCode)
+		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, agentssh.MagicSessionTypeVSCode)
 		defer session.Close()
 		stdin, err := session.StdinPipe()
 		require.NoError(t, err)
@@ -480,9 +481,23 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 		}
 	}()
 
+	pty := ptytest.New(t)
+
 	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "5"})
+	cmd.Stdin = pty.Input()
+	cmd.Stdout = pty.Output()
+	cmd.Stderr = pty.Output()
 	err = cmd.Start()
 	require.NoError(t, err)
+
+	go func() {
+		err := cmd.Wait()
+		select {
+		case <-done:
+		default:
+			assert.NoError(t, err)
+		}
+	}()
 
 	require.Eventually(t, func() bool {
 		conn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(randomPort))
@@ -547,9 +562,23 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 		}
 	}()
 
+	pty := ptytest.New(t)
+
 	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "5"})
+	cmd.Stdin = pty.Input()
+	cmd.Stdout = pty.Output()
+	cmd.Stderr = pty.Output()
 	err = cmd.Start()
 	require.NoError(t, err)
+
+	go func() {
+		err := cmd.Wait()
+		select {
+		case <-done:
+		default:
+			assert.NoError(t, err)
+		}
+	}()
 
 	require.Eventually(t, func() bool {
 		conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", randomPort))
@@ -612,9 +641,23 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 		}
 	}()
 
+	pty := ptytest.New(t)
+
 	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "5"})
+	cmd.Stdin = pty.Input()
+	cmd.Stdout = pty.Output()
+	cmd.Stderr = pty.Output()
 	err = cmd.Start()
 	require.NoError(t, err)
+
+	go func() {
+		err := cmd.Wait()
+		select {
+		case <-done:
+		default:
+			assert.NoError(t, err)
+		}
+	}()
 
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(localSocketPath)
@@ -670,9 +713,23 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		}
 	}()
 
+	pty := ptytest.New(t)
+
 	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "5"})
+	cmd.Stdin = pty.Input()
+	cmd.Stdout = pty.Output()
+	cmd.Stderr = pty.Output()
 	err = cmd.Start()
 	require.NoError(t, err)
+
+	go func() {
+		err := cmd.Wait()
+		select {
+		case <-done:
+		default:
+			assert.NoError(t, err)
+		}
+	}()
 
 	// It's possible that the socket is created but the server is not ready to
 	// accept connections yet. We need to retry until we can connect.
@@ -1595,7 +1652,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 			}
 			waitGroup.Add(1)
 			go func() {
-				agent.Bicopy(context.Background(), conn, ssh)
+				agentssh.Bicopy(context.Background(), conn, ssh)
 				waitGroup.Done()
 			}()
 		}
