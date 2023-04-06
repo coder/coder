@@ -113,7 +113,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 }
 
 func ResourceType[T Auditable](tgt T) database.ResourceType {
-	switch any(tgt).(type) {
+	switch typed := any(tgt).(type) {
 	case database.Template:
 		return database.ResourceTypeTemplate
 	case database.TemplateVersion:
@@ -135,7 +135,7 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 	case database.WorkspaceProxy:
 		return database.ResourceTypeWorkspaceProxy
 	default:
-		panic(fmt.Sprintf("unknown resource %T", tgt))
+		panic(fmt.Sprintf("unknown resource %T", typed))
 	}
 }
 
