@@ -66,21 +66,21 @@ func TestAuditableResources(t *testing.T) {
 	// nolint:paralleltest
 	t.Run("ResourceID", func(t *testing.T) {
 		// The function being tested, provided here to make it easier to find
-		var _ = audit.ResourceID[database.APIKey]
+		_ = audit.ResourceID[database.APIKey]
 		testAuditFunctionWithSwitch(t, auditPkg, "ResourceID", expectedList)
 	})
 
 	// nolint:paralleltest
 	t.Run("ResourceType", func(t *testing.T) {
 		// The function being tested, provided here to make it easier to find
-		var _ = audit.ResourceType[database.APIKey]
+		_ = audit.ResourceType[database.APIKey]
 		testAuditFunctionWithSwitch(t, auditPkg, "ResourceType", expectedList)
 	})
 
 	// nolint:paralleltest
 	t.Run("ResourceTarget", func(t *testing.T) {
 		// The function being tested, provided here to make it easier to find
-		var _ = audit.ResourceTarget[database.APIKey]
+		_ = audit.ResourceTarget[database.APIKey]
 		testAuditFunctionWithSwitch(t, auditPkg, "ResourceTarget", expectedList)
 	})
 }
