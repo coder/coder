@@ -55,6 +55,8 @@ type Options struct {
 
 	APIRateLimit     int
 	SecureAuthCookie bool
+
+	ProxySessionToken string
 }
 
 // Server is an external workspace proxy server. This server can communicate
@@ -97,7 +99,7 @@ func New(opts *Options) (*Server, error) {
 	//		Ideally we reuse the same client as the cli, but this can be changed.
 	//		If the auth fails, we need some logic to retry and make sure this client
 	//		is always authenticated and usable.
-	err := client.SetSessionToken("fake-token")
+	err := client.SetSessionToken(opts.ProxySessionToken)
 	if err != nil {
 		return nil, xerrors.Errorf("set client token: %w", err)
 	}
