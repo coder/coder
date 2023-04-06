@@ -86,6 +86,8 @@ func TestAuditableResources(t *testing.T) {
 	})
 }
 
+// testAuditFunctionWithSwitch is a helper function to test that a function has
+// a typed switch statement that includes all the types in expectedTypes.
 func testAuditFunctionWithSwitch(t *testing.T, pkg *packages.Package, funcName string, expectedTypes []string) {
 	t.Helper()
 
@@ -129,6 +131,8 @@ func returnSwitchBlocks(sc *types.Scope) []*types.Scope {
 	return switches
 }
 
+// findCaseTypes returns all case types in a typed switch statement. Excluding
+// the "Default:" case.
 func findCaseTypes(sc *types.Scope) []string {
 	caseTypes := make([]string, 0)
 	for i := 0; i < sc.NumChildren(); i++ {
