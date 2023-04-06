@@ -4391,6 +4391,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },

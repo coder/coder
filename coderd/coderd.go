@@ -186,7 +186,7 @@ func New(options *Options) *API {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
 	if options.AgentConnectionUpdateFrequency == 0 {
-		options.AgentConnectionUpdateFrequency = 3 * time.Second
+		options.AgentConnectionUpdateFrequency = 15 * time.Second
 	}
 	if options.AgentInactiveDisconnectTimeout == 0 {
 		// Multiply the update by two to allow for some lag-time.
