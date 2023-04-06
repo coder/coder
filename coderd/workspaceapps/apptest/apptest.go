@@ -28,9 +28,9 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// RunTests runs the entire workspace app test suite against deployments minted
+// Run runs the entire workspace app test suite against deployments minted
 // by the provided factory.
-func RunTests(t *testing.T, factory DeploymentFactory) {
+func Run(t *testing.T, factory DeploymentFactory) {
 	setupProxyTest := func(t *testing.T, opts *DeploymentOptions) *AppDetails {
 		return setupProxyTestWithFactory(t, factory, opts)
 	}

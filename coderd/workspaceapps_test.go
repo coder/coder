@@ -81,7 +81,7 @@ func TestGetAppHost(t *testing.T) {
 func TestWorkspaceApps(t *testing.T) {
 	t.Parallel()
 
-	apptest.RunTests(t, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
+	apptest.Run(t, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
 		deploymentValues := coderdtest.DeploymentValues(t)
 		deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
 		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
