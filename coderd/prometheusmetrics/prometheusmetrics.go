@@ -168,6 +168,18 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		return nil, err
 	}
 
+	metricsCollectorAgents := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "prometheusmetrics",
+		Name:      "agents_execution_seconds",
+		Help:      "Histogram for duration of agents metrics collection in seconds.",
+		Buckets:   []float64{0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500, 1, 5, 10, 30},
+	})
+	err = registerer.Register(metricsCollectorAgents)
+	if err != nil {
+		return nil, err
+	}
+
 	// nolint:gocritic // Prometheus must collect metrics for all Coder users.
 	ctx, cancelFunc := context.WithCancel(dbauthz.AsSystemRestricted(ctx))
 	ticker := time.NewTicker(duration)
@@ -180,7 +192,8 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			case <-ticker.C:
 			}
 
-			logger.Debug(ctx, "Collect agent metrics now")
+			logger.Debug(ctx, "Agent metrics collection is starting")
+			timer := prometheus.NewTimer(metricsCollectorAgents)
 
 			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
@@ -269,6 +282,9 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					}
 				}
 			}
+
+			logger.Debug(ctx, "Agent metrics collection is done")
+			metricsCollectorAgents.Observe(timer.ObserveDuration().Seconds())
 		}
 	}()
 	return cancelFunc, nil

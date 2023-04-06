@@ -588,6 +588,22 @@ coderd_api_requests_processed_total{code="401",method="POST",path="/api/v2/files
 # HELP coderd_api_workspace_latest_build_total The latest workspace builds with a status.
 # TYPE coderd_api_workspace_latest_build_total gauge
 coderd_api_workspace_latest_build_total{status="succeeded"} 1
+# HELP coderd_metrics_collector_agents_execution_seconds Histogram for duration of agents metrics collection in seconds.
+# TYPE coderd_metrics_collector_agents_execution_seconds histogram
+coderd_metrics_collector_agents_execution_seconds_bucket{le="0.001"} 0
+coderd_metrics_collector_agents_execution_seconds_bucket{le="0.005"} 0
+coderd_metrics_collector_agents_execution_seconds_bucket{le="0.01"} 0
+coderd_metrics_collector_agents_execution_seconds_bucket{le="0.025"} 0
+coderd_metrics_collector_agents_execution_seconds_bucket{le="0.05"} 2
+coderd_metrics_collector_agents_execution_seconds_bucket{le="0.1"} 2
+coderd_metrics_collector_agents_execution_seconds_bucket{le="0.5"} 2
+coderd_metrics_collector_agents_execution_seconds_bucket{le="1"} 2
+coderd_metrics_collector_agents_execution_seconds_bucket{le="5"} 2
+coderd_metrics_collector_agents_execution_seconds_bucket{le="10"} 2
+coderd_metrics_collector_agents_execution_seconds_bucket{le="30"} 2
+coderd_metrics_collector_agents_execution_seconds_bucket{le="+Inf"} 2
+coderd_metrics_collector_agents_execution_seconds_sum 0.0592915
+coderd_metrics_collector_agents_execution_seconds_count 2
 # HELP coderd_provisionerd_job_timings_seconds The provisioner job time duration in seconds.
 # TYPE coderd_provisionerd_job_timings_seconds histogram
 coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="1"} 0

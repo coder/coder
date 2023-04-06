@@ -310,6 +310,7 @@ func TestAgents(t *testing.T) {
 	var agentsUp bool
 	var agentsConnections bool
 	var agentsApps bool
+	var agentsExecutionInSeconds bool
 	require.Eventually(t, func() bool {
 		metrics, err := registry.Gather()
 		assert.NoError(t, err)
@@ -342,10 +343,12 @@ func TestAgents(t *testing.T) {
 				assert.Equal(t, workspace.Name, metric.Metric[0].Label[4].GetValue())     // Workspace name
 				assert.Equal(t, 1, int(metric.Metric[0].Gauge.GetValue()))                // Metric value
 				agentsApps = true
+			case "coderd_prometheusmetrics_agents_execution_seconds":
+				agentsExecutionInSeconds = true
 			default:
 				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
 			}
 		}
-		return agentsUp && agentsConnections && agentsApps
+		return agentsUp && agentsConnections && agentsApps && agentsExecutionInSeconds
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
