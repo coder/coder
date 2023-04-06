@@ -884,6 +884,7 @@ const (
 	ResourceTypeGroup           ResourceType = "group"
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
 	ResourceTypeLicense         ResourceType = "license"
+	ResourceTypeWorkspaceProxy ResourceType = "workspace_proxy"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
