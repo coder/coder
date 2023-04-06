@@ -3,9 +3,9 @@ package clibase
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/mitchellh/go-wordwrap"
-	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 )
@@ -140,12 +140,6 @@ func (s *OptionSet) ToYAML() (*yaml.Node, error) {
 	return &root, nil
 }
 
-// FromYAML converts the given YAML node into the option set.
-// It is isomorphic with ToYAML.
-func (s *OptionSet) FromYAML(n *yaml.Node) error {
-	return fromYAML(*s, nil, n)
-}
-
 func (g *Group) filterOptionSet(s *OptionSet) []*Option {
 	var opts []*Option
 	for i := range *s {
@@ -158,159 +152,107 @@ func (g *Group) filterOptionSet(s *OptionSet) []*Option {
 	return opts
 }
 
-func (g *Group) subGroups(s *OptionSet) []*Group {
-	groups := make(map[*Group]struct{})
-	for _, opt := range *s {
-		if opt.Group == nil {
-			continue
-		}
-
-		parent := opt.Group.Parent
-
-		if parent == g {
-			groups[opt.Group] = struct{}{}
-		}
-
-		if parent != nil {
-			// HACK: We need to check the grandparent in case the group exists
-			// just to contain other groups.
-			if pp := parent.Parent; pp == g {
-				groups[parent] = struct{}{}
-			}
-		}
-	}
-	return maps.Keys(groups)
-}
-
-func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
-	if n.Kind == yaml.DocumentNode && ofGroup == nil {
-		// The root may be a document node.
-		if len(n.Content) != 1 {
-			return xerrors.Errorf("expected one content node, got %d", len(n.Content))
-		}
-		return fromYAML(os, ofGroup, n.Content[0])
-	}
-
+// mapYAMLNodes converts n into a map with keys of form "group.subgroup.option"
+// and values of the corresponding YAML nodes.
+func mapYAMLNodes(n *yaml.Node) (map[string]*yaml.Node, error) {
 	if n.Kind != yaml.MappingNode {
-		byt, _ := yaml.Marshal(n)
-		return xerrors.Errorf("expected mapping node, got type %v, contents:\n%v", n.Kind, string(byt))
+		return nil, xerrors.Errorf("expected mapping node, got type %v", n.Kind)
 	}
-
-	// We're only interested in options that can be YAML-ified.
-	var os2 OptionSet
-	for _, opt := range os {
-		if opt.YAML == "" {
-			continue
-		}
-		os2 = append(os2, opt)
-	}
-	os = os2
-
-	options, subgroups := ofGroup.filterOptionSet(&os), ofGroup.subGroups(&os)
 	var (
-		subGroupsByName = make(map[string]*Group)
-		optionsByName   = make(map[string]*Option)
-	)
-	for _, g := range subgroups {
-		if g.YAML == "" {
-			return xerrors.Errorf("group yaml name is empty for %q", g.Name)
-		}
-		subGroupsByName[g.YAML] = g
-	}
-	for i, opt := range options {
-		if opt.YAML == "" {
-			continue
-		}
-
-		if _, ok := optionsByName[opt.YAML]; ok {
-			return xerrors.Errorf("duplicate option name %q", opt.YAML)
-		}
-
-		optionsByName[opt.YAML] = &os[i]
-	}
-
-	for k := range subGroupsByName {
-		if _, ok := optionsByName[k]; !ok {
-			continue
-		}
-		return xerrors.Errorf("there is both an option and a group with name %q", k)
-	}
-
-	var (
-		name string
+		key  string
+		m    = make(map[string]*yaml.Node)
 		merr error
 	)
-
-	for i, item := range n.Content {
-		if isName := i%2 == 0; isName {
-			if item.Kind != yaml.ScalarNode {
-				return xerrors.Errorf("expected scalar node for name, got %v", item.Kind)
+	for i, node := range n.Content {
+		if i&2 == 0 {
+			if node.Kind != yaml.ScalarNode {
+				return nil, xerrors.Errorf("expected scalar node for key, got type %v", n.Content[i].Kind)
 			}
-			name = item.Value
+			key = node.Value
 			continue
 		}
-
-		opt, foundOpt := optionsByName[name]
-		if foundOpt {
-			if opt.ValueSource != ValueSourceNone {
+		// Even if we have a mapping node, we don't know if it's a group or a
+		// complex option, so we store both.
+		m[key] = node
+		if node.Kind == yaml.MappingNode {
+			sub, err := mapYAMLNodes(node)
+			if err != nil {
+				merr = errors.Join(merr, xerrors.Errorf("mapping node %q: %w", key, err))
 				continue
 			}
-			opt.ValueSource = ValueSourceYAML
-		}
-
-		switch item.Kind {
-		case yaml.MappingNode:
-			// Item is either a group or an option with a complex object.
-			if foundOpt {
-				unmarshaler, ok := opt.Value.(yaml.Unmarshaler)
-				if !ok {
-					return xerrors.Errorf("complex option %q must support unmarshaling", opt.Name)
-				}
-				err := unmarshaler.UnmarshalYAML(item)
-				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("unmarshal %q: %w", opt.Name, err))
-				}
-				continue
+			for k, v := range sub {
+				m[key+"."+k] = v
 			}
-			if g, ok := subGroupsByName[name]; ok {
-				// Group, recurse.
-				err := fromYAML(os, g, item)
-				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("group %q: %w", g.YAML, err))
-				}
-				continue
-			}
-			merr = errors.Join(merr, xerrors.Errorf("unknown option or subgroup %q in group %v", name, ofGroup))
-		case yaml.ScalarNode, yaml.SequenceNode:
-			if !foundOpt {
-				merr = errors.Join(merr, xerrors.Errorf("unknown option %q", name))
-				continue
-			}
-
-			unmarshaler, _ := opt.Value.(yaml.Unmarshaler)
-			switch {
-			case unmarshaler != nil:
-				err := unmarshaler.UnmarshalYAML(item)
-				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("unmarshal %q: %w", opt.YAML, err))
-				}
-			case item.Kind == yaml.ScalarNode:
-				err := opt.Value.Set(item.Value)
-				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("set %q: %w", opt.YAML, err))
-				}
-			case item.Kind == yaml.SequenceNode:
-				// Item is an option with a slice value.
-				err := item.Decode(opt.Value)
-				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("decode %q: %w", opt.YAML, err))
-				}
-			default:
-				panic("unreachable?")
-			}
-		default:
-			return xerrors.Errorf("unexpected kind for value %v", item.Kind)
 		}
 	}
+
+	return m, nil
+}
+
+func (o *Option) setFromYAMLNode(n *yaml.Node) error {
+	if um, ok := o.Value.(yaml.Unmarshaler); ok {
+		return um.UnmarshalYAML(n)
+	}
+
+	switch n.Kind {
+	case yaml.ScalarNode:
+		return o.Value.Set(n.Value)
+	case yaml.SequenceNode:
+		return n.Decode(o.Value)
+	case yaml.MappingNode:
+		return xerrors.Errorf("mapping node must implement yaml.Unmarshaler")
+	default:
+		return xerrors.Errorf("unexpected node kind %v", n.Kind)
+	}
+}
+
+// FromYAML converts the given YAML node into the option set.
+// It is isomorphic with ToYAML.
+func (s *OptionSet) FromYAML(rootNode *yaml.Node) error {
+	// The rootNode will be a DocumentNode if it's read from a file. Currently,
+	// we don't support multiple YAML documents.
+	if rootNode.Kind == yaml.DocumentNode {
+		if len(rootNode.Content) != 1 {
+			return xerrors.Errorf("expected one node in document, got %d", len(rootNode.Content))
+		}
+		rootNode = rootNode.Content[0]
+	}
+
+	m, err := mapYAMLNodes(rootNode)
+	if err != nil {
+		return xerrors.Errorf("mapping nodes: %w", err)
+	}
+
+	var merr error
+	for _, opt := range *s {
+		if opt.YAML == "" {
+			continue
+		}
+		var group []string
+		for _, g := range opt.Group.Ancestry() {
+			if g.YAML == "" {
+				return xerrors.Errorf(
+					"group yaml name is empty for %q, groups: %+v",
+					opt.Name,
+					opt.Group,
+				)
+			}
+			group = append(group, g.YAML)
+		}
+		key := strings.Join(append(group, opt.YAML), ".")
+		node, ok := m[key]
+		if !ok {
+			continue
+		}
+		if err := opt.setFromYAMLNode(node); err != nil {
+			merr = errors.Join(merr, xerrors.Errorf("setting %q: %w", opt.YAML, err))
+		}
+		delete(m, key)
+	}
+
+	for k := range m {
+		merr = errors.Join(merr, xerrors.Errorf("unknown option %q", k))
+	}
+
 	return merr
 }

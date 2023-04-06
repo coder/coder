@@ -682,7 +682,7 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) 
 func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) error {
 	if r.noFeatureWarning {
 		return nil
-	}
+}
 
 	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
 	defer cancel()
