@@ -1,4 +1,4 @@
-package proxysdk
+package wsproxysdk
 
 import (
 	"context"

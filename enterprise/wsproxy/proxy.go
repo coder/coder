@@ -1,4 +1,4 @@
-package externalproxy
+package wsproxy
 
 import (
 	"context"

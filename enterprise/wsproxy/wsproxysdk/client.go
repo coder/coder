@@ -1,4 +1,4 @@
-package proxysdk
+package wsproxysdk
 
 import (
 	"context"
@@ -9,14 +9,14 @@ import (
 )
 
 const (
-	// ExternalProxyTokenHeader is the auth header used for requests from
-	// external proxies.
+	// AuthTokenHeader is the auth header used for requests from
+	// external workspace proxies.
 	//
 	// The format of an external proxy token is:
 	//     <proxy id>:<proxy secret>
 	//
 	//nolint:gosec
-	ExternalProxyTokenHeader = "Coder-External-Proxy-Token"
+	AuthTokenHeader = "Coder-External-Proxy-Token"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -29,7 +29,7 @@ type Client struct {
 // URL.
 func New(serverURL *url.URL) *Client {
 	coderSDKClient := codersdk.New(serverURL)
-	coderSDKClient.TokenHeader = ExternalProxyTokenHeader
+	coderSDKClient.TokenHeader = AuthTokenHeader
 
 	return &Client{
 		CoderSDKClient: coderSDKClient,

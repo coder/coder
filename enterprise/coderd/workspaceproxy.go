@@ -15,10 +15,11 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/enterprise/proxysdk"
+	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 )
 
 // @Summary Create workspace proxy
@@ -74,7 +75,7 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	fullToken := fmt.Sprintf("%s:%s", id, secret)
 
 	proxy, err := api.Database.InsertWorkspaceProxy(ctx, database.InsertWorkspaceProxyParams{
-		ID:                uuid.New(),
+		ID:                id,
 		Name:              req.Name,
 		DisplayName:       req.DisplayName,
 		Icon:              req.Icon,
@@ -163,7 +164,7 @@ func requireExternalProxyAuth(db database.Store) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			token := r.Header.Get(proxysdk.ExternalProxyTokenHeader)
+			token := r.Header.Get(wsproxysdk.AuthTokenHeader)
 			if token == "" {
 				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
 					Message: "Missing external proxy token",
@@ -195,7 +196,8 @@ func requireExternalProxyAuth(db database.Store) func(http.Handler) http.Handler
 			}
 
 			// Get the proxy.
-			proxy, err := db.GetWorkspaceProxyByID(ctx, proxyID)
+			// nolint:gocritic // Get proxy by ID to check auth token
+			proxy, err := db.GetWorkspaceProxyByID(dbauthz.AsSystemRestricted(ctx), proxyID)
 			if xerrors.Is(err, sql.ErrNoRows) {
 				// Proxy IDs are public so we don't care about leaking them via
 				// timing attacks.
@@ -251,7 +253,7 @@ func (api *API) issueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
 	// return a self-contained HTML error page on failure. The external proxy
 	// should forward any non-201 response to the client.
 
-	var req proxysdk.IssueSignedAppTokenRequest
+	var req wsproxysdk.IssueSignedAppTokenRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -281,7 +283,7 @@ func (api *API) issueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, proxysdk.IssueSignedAppTokenResponse{
+	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.IssueSignedAppTokenResponse{
 		SignedToken:    *token,
 		SignedTokenStr: tokenStr,
 	})

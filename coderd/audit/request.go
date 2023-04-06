@@ -78,6 +78,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return ""
 	case database.License:
 		return strconv.Itoa(int(typed.ID))
+	case database.WorkspaceProxy:
+		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -103,6 +105,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.License:
 		return typed.UUID
+	case database.WorkspaceProxy:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -128,6 +132,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeApiKey
 	case database.License:
 		return database.ResourceTypeLicense
+	case database.WorkspaceProxy:
+		return database.ResourceTypeWorkspaceProxy
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
