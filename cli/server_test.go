@@ -672,8 +672,7 @@ func TestServer(t *testing.T) {
 				if c.tlsListener {
 					accessURLParsed, err := url.Parse(c.requestURL)
 					require.NoError(t, err)
-					client := codersdk.New(accessURLParsed)
-					client.HTTPClient = &http.Client{
+					client := &http.Client{
 						CheckRedirect: func(req *http.Request, via []*http.Request) error {
 							return http.ErrUseLastResponse
 						},
@@ -686,11 +685,15 @@ func TestServer(t *testing.T) {
 							},
 						},
 					}
-					defer client.HTTPClient.CloseIdleConnections()
-					_, err = client.HasFirstUser(ctx)
-					if err != nil {
-						require.ErrorContains(t, err, "Invalid application URL")
-					}
+					defer client.CloseIdleConnections()
+
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, accessURLParsed.String(), nil)
+					require.NoError(t, err)
+					resp, err := client.Do(req)
+					// We don't care much about the response, just that TLS
+					// worked.
+					require.NoError(t, err)
+					defer resp.Body.Close()
 				}
 			})
 		}
@@ -1090,6 +1093,7 @@ func TestServer(t *testing.T) {
 			require.Equal(t, "preferred_username", deploymentConfig.Values.OIDC.UsernameField.Value())
 			require.Equal(t, "email", deploymentConfig.Values.OIDC.EmailField.Value())
 			require.Equal(t, map[string]string{"access_type": "offline"}, deploymentConfig.Values.OIDC.AuthURLParams.Value)
+			require.False(t, deploymentConfig.Values.OIDC.IgnoreUserInfo.Value())
 			require.Empty(t, deploymentConfig.Values.OIDC.GroupField.Value())
 			require.Empty(t, deploymentConfig.Values.OIDC.GroupMapping.Value)
 			require.Equal(t, "OpenID Connect", deploymentConfig.Values.OIDC.SignInText.Value())
@@ -1129,6 +1133,7 @@ func TestServer(t *testing.T) {
 				"--oidc-username-field", "not_preferred_username",
 				"--oidc-email-field", "not_email",
 				"--oidc-auth-url-params", `{"prompt":"consent"}`,
+				"--oidc-ignore-userinfo",
 				"--oidc-group-field", "serious_business_unit",
 				"--oidc-group-mapping", `{"serious_business_unit": "serious_business_unit"}`,
 				"--oidc-sign-in-text", "Sign In With Coder",
@@ -1173,6 +1178,7 @@ func TestServer(t *testing.T) {
 			require.True(t, deploymentConfig.Values.OIDC.IgnoreEmailVerified.Value())
 			require.Equal(t, "not_preferred_username", deploymentConfig.Values.OIDC.UsernameField.Value())
 			require.Equal(t, "not_email", deploymentConfig.Values.OIDC.EmailField.Value())
+			require.True(t, deploymentConfig.Values.OIDC.IgnoreUserInfo.Value())
 			require.Equal(t, map[string]string{"prompt": "consent"}, deploymentConfig.Values.OIDC.AuthURLParams.Value)
 			require.Equal(t, "serious_business_unit", deploymentConfig.Values.OIDC.GroupField.Value())
 			require.Equal(t, map[string]string{"serious_business_unit": "serious_business_unit"}, deploymentConfig.Values.OIDC.GroupMapping.Value)

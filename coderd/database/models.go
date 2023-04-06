@@ -1663,6 +1663,20 @@ type WorkspaceBuildParameter struct {
 	Value string `db:"value" json:"value"`
 }
 
+type WorkspaceProxy struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Icon        string    `db:"icon" json:"icon"`
+	// Full url including scheme of the proxy api url: https://us.example.com
+	Url string `db:"url" json:"url"`
+	// Hostname with the wildcard for subdomain based app hosting: *.us.example.com
+	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	Deleted          bool      `db:"deleted" json:"deleted"`
+}
+
 type WorkspaceResource struct {
 	ID           uuid.UUID           `db:"id" json:"id"`
 	CreatedAt    time.Time           `db:"created_at" json:"created_at"`

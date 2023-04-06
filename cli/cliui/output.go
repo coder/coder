@@ -3,6 +3,7 @@ package cliui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -170,4 +171,24 @@ func (jsonFormat) Format(_ context.Context, data any) (string, error) {
 	}
 
 	return string(outBytes), nil
+}
+
+type textFormat struct{}
+
+var _ OutputFormat = textFormat{}
+
+// TextFormat is a formatter that just outputs unstructured text.
+// It uses fmt.Sprintf under the hood.
+func TextFormat() OutputFormat {
+	return textFormat{}
+}
+
+func (textFormat) ID() string {
+	return "text"
+}
+
+func (textFormat) AttachOptions(_ *clibase.OptionSet) {}
+
+func (textFormat) Format(_ context.Context, data any) (string, error) {
+	return fmt.Sprintf("%s", data), nil
 }

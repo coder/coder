@@ -287,12 +287,16 @@ can safely ignore these settings.
           Change the OIDC default 'groups' claim field. By default, will be
           'groups' if present in the oidc scopes argument.
 
-      --oidc-group-mapping struct[map[string]string], $OIDC_GROUP_MAPPING (default: {})
+      --oidc-group-mapping struct[map[string]string], $CODER_OIDC_GROUP_MAPPING (default: {})
           A map of OIDC group IDs and the group in Coder it should map to. This
           is useful for when OIDC providers only return group IDs.
 
       --oidc-ignore-email-verified bool, $CODER_OIDC_IGNORE_EMAIL_VERIFIED
           Ignore the email_verified claim from the upstream provider.
+
+      --oidc-ignore-userinfo bool, $CODER_OIDC_IGNORE_USERINFO (default: false)
+          Ignore the userinfo endpoint and only use the ID token for user
+          information.
 
       --oidc-issuer-url string, $CODER_OIDC_ISSUER_URL
           Issuer URL to use for Login with OIDC.
