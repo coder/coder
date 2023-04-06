@@ -124,45 +124,45 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		duration = 1 * time.Minute
 	}
 
-	agentsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	agentsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{"username", "workspace_name"})
+	}, []string{"username", "workspace_name"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err
 	}
 
-	agentsConnectionsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	agentsConnectionsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
 		Name:      "connections",
 		Help:      "Agent connections with statuses.",
-	}, []string{"agent_name", "username", "workspace_name", "status", "lifecycle_state", "tailnet_node"})
+	}, []string{"agent_name", "username", "workspace_name", "status", "lifecycle_state", "tailnet_node"}))
 	err = registerer.Register(agentsConnectionsGauge)
 	if err != nil {
 		return nil, err
 	}
 
-	agentsConnectionLatenciesGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	agentsConnectionLatenciesGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
 		Name:      "connection_latencies_seconds",
 		Help:      "Agent connection latencies in seconds.",
-	}, []string{"agent_id", "username", "workspace_name", "derp_region", "preferred"})
+	}, []string{"agent_id", "username", "workspace_name", "derp_region", "preferred"}))
 	err = registerer.Register(agentsConnectionLatenciesGauge)
 	if err != nil {
 		return nil, err
 	}
 
-	agentsAppsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	agentsAppsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
 		Name:      "apps",
 		Help:      "Agent applications with statuses.",
-	}, []string{"agent_name", "username", "workspace_name", "app_name", "health"})
+	}, []string{"agent_name", "username", "workspace_name", "app_name", "health"}))
 	err = registerer.Register(agentsAppsGauge)
 	if err != nil {
 		return nil, err
@@ -203,35 +203,30 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				continue
 			}
 
-			agentsGauge.Reset()
-			agentsConnectionsGauge.Reset()
-			agentsConnectionLatenciesGauge.Reset()
-			agentsAppsGauge.Reset()
-
 			for _, workspace := range workspaceRows {
 				user, err := db.GetUserByID(ctx, workspace.OwnerID)
 				if err != nil {
 					logger.Error(ctx, "can't get user", slog.F("user_id", workspace.OwnerID), slog.Error(err))
-					agentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
 					continue
 				}
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if err != nil {
 					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
-					agentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
 					continue
 				}
 
 				if len(agents) == 0 {
 					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
-					agentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
 					continue
 				}
 
 				for _, agent := range agents {
 					// Collect information about agents
-					agentsGauge.WithLabelValues(user.Username, workspace.Name).Add(1)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name)
 
 					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
 					node := (*coordinator.Load()).Node(agent.ID)
@@ -241,7 +236,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 						tailnetNode = node.ID.String()
 					}
 
-					agentsConnectionsGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode).Set(1)
+					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
 
 					if node == nil {
 						logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.ID))
@@ -266,7 +261,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 								}
 							}
 
-							agentsConnectionLatenciesGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID)).Set(latency)
+							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
 						}
 					}
 
@@ -278,10 +273,15 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					}
 
 					for _, app := range apps {
-						agentsAppsGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, app.DisplayName, string(app.Health)).Add(1)
+						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, user.Username, workspace.Name, app.DisplayName, string(app.Health))
 					}
 				}
 			}
+
+			agentsGauge.Commit()
+			agentsConnectionsGauge.Commit()
+			agentsConnectionLatenciesGauge.Commit()
+			agentsAppsGauge.Commit()
 
 			logger.Debug(ctx, "Agent metrics collection is done")
 			metricsCollectorAgents.Observe(timer.ObserveDuration().Seconds())
