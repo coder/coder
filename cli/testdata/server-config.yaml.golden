@@ -255,8 +255,8 @@ updateCheck: false
 enableSwagger: false
 # The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is
 # set, it will be used for compatibility with systemd. (default:
-# /home/coder/.cache/coder, type: string)
-cacheDir: /home/coder/.cache/coder
+# [cache dir], type: string)
+cacheDir: [cache dir]
 # Controls whether data will be stored in an in-memory database. (default:
 # <unset>, type: bool)
 inMemoryDatabase: false

@@ -1569,6 +1569,7 @@ func TestServerYAMLConfig(t *testing.T) {
 
 	goldenPath := filepath.Join("testdata", "server-config.yaml.golden")
 
+	wantByt = normalizeGoldenFile(t, wantByt)
 	if *updateGoldenFiles {
 		require.NoError(t, os.WriteFile(goldenPath, wantByt, 0o600))
 		return
