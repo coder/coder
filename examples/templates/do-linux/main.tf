@@ -112,7 +112,7 @@ data "coder_parameter" "droplet_image" {
 
 data "coder_parameter" "droplet_size" {
   name         = "droplet_size"
-  display_name = "Droplet Size"
+  display_name = "Droplet size"
   description  = "Which Droplet configuration would you like to use?"
   default      = "s-1vcpu-1gb"
   type         = "string"
