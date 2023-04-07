@@ -103,7 +103,7 @@ resource "coder_agent" "dev" {
     script       = <<-EOT
       #!/bin/bash
       set -e
-      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}'
+      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
     EOT
   }
   metadata {
