@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/open-policy-agent/opa/rego"
 )
@@ -54,6 +55,13 @@ func (e UnauthorizedError) Unwrap() error {
 // Error implements the error interface.
 func (UnauthorizedError) Error() string {
 	return errUnauthorized
+}
+
+func (e *UnauthorizedError) LongError() string {
+	return fmt.Sprintf(
+		"%s: (subject: %v), (action: %v), (object: %v), (output: %v)",
+		errUnauthorized, e.subject, e.action, e.object, e.output,
+	)
 }
 
 // Internal allows the internal error message to be logged.
