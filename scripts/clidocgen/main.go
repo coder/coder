@@ -44,7 +44,7 @@ func prepareEnv() {
 	if err != nil {
 		panic(err)
 	}
-	_ = os.Setenv("CLIDOCGEN_CONFIG_DIRECTORY", "~/.config/coderv2")
+	err = os.Setenv("CLIDOCGEN_CONFIG_DIRECTORY", "~/.config/coderv2")
 	if err != nil {
 		panic(err)
 	}
