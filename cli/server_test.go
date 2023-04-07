@@ -1430,7 +1430,7 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--log-human", filepath.Join(t.TempDir(), "coder-logging-test-*"),
+				"--log-human", filepath.Join(t.TempDir(), "coder-logging-test-human"),
 				"--ssh-keygen-algorithm", "rsa4096",
 				"--cache-dir", t.TempDir(),
 			}
