@@ -14,15 +14,10 @@ import (
 
 // Group describes a hierarchy of groups that an option or command belongs to.
 type Group struct {
-	Parent      *Group  `json:"parent,omitempty"`
-	Name        string  `json:"name,omitempty"`
-	Children    []Group `json:"children,omitempty"`
-	Description string  `json:"description,omitempty"`
-}
-
-func (g *Group) AddChild(child Group) {
-	child.Parent = g
-	g.Children = append(g.Children, child)
+	Parent      *Group `json:"parent,omitempty"`
+	Name        string `json:"name,omitempty"`
+	YAML        string `json:"yaml,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // Ancestry returns the group and all of its parents, in order.
