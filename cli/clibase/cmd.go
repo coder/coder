@@ -77,10 +77,8 @@ func (c *Cmd) PrepareAll() error {
 	}
 	var merr error
 
-	slices.SortFunc(c.Options, func(a, b Option) bool {
-		return a.Flag < b.Flag
-	})
-	for _, opt := range c.Options {
+	for i := range c.Options {
+		opt := &c.Options[i]
 		if opt.Name == "" {
 			switch {
 			case opt.Flag != "":
@@ -103,6 +101,10 @@ func (c *Cmd) PrepareAll() error {
 			}
 		}
 	}
+
+	slices.SortFunc(c.Options, func(a, b Option) bool {
+		return a.Name < b.Name
+	})
 	slices.SortFunc(c.Children, func(a, b *Cmd) bool {
 		return a.Name() < b.Name()
 	})
