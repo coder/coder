@@ -205,7 +205,7 @@ data "coder_parameter" "instance_type" {
 
 data "coder_parameter" "home_size" {
   name         = "home_size"
-  display_name = "Home Volume Size"
+  display_name = "Home volume size"
   description  = "How large would you like your home volume to be (in GB)?"
   default      = 20
   type         = "number"
