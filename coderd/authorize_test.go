@@ -73,7 +73,7 @@ func TestCheckPermissions(t *testing.T) {
 		},
 		updateSpecificTemplate: {
 			Object: codersdk.AuthorizationObject{
-				ResourceType: rbac.ResourceTemplate.Type,
+				ResourceType: codersdk.ResourceTemplate,
 				ResourceID:   template.ID.String(),
 			},
 			Action: "update",
