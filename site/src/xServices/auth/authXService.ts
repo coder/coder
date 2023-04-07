@@ -59,7 +59,7 @@ export const permissionsToCheck = {
   },
   [checks.viewDeploymentValues]: {
     object: {
-      resource_type: "deployment_config"
+      resource_type: "deployment_config",
     },
     action: "read",
   },
