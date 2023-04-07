@@ -152,7 +152,7 @@ data "coder_parameter" "location" {
 
 data "coder_parameter" "instance_type" {
   name         = "instance_type"
-  display_name = "Instance Type"
+  display_name = "Instance type"
   description  = "What instance type should your workspace use?"
   default      = "Standard_B4ms"
   icon         = "/icon/azure.png"
