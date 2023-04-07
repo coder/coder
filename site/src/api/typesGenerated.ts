@@ -379,6 +379,7 @@ export interface DeploymentValues {
   readonly git_auth?: any
   readonly config_ssh?: SSHConfig
   readonly wgtunnel_host?: string
+  readonly disable_owner_workspace_exec?: boolean
   readonly config?: string
   readonly write_config?: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"

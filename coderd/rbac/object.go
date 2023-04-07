@@ -14,6 +14,12 @@ type Objecter interface {
 // Resources are just typed objects. Making resources this way allows directly
 // passing them into an Authorize function and use the chaining api.
 var (
+	// ResourceWildcard represents all resource types
+	// Try to avoid using this where possible.
+	ResourceWildcard = Object{
+		Type: WildcardSymbol,
+	}
+
 	// ResourceWorkspace CRUD. Org + User owner
 	//	create/delete = make or delete workspaces
 	// 	read = access workspace
