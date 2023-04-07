@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 
 	"github.com/open-policy-agent/opa/rego"
@@ -52,16 +53,19 @@ func (e UnauthorizedError) Unwrap() error {
 	return e.internal
 }
 
-// Error implements the error interface.
-func (UnauthorizedError) Error() string {
-	return errUnauthorized
-}
-
-func (e *UnauthorizedError) LongError() string {
+func (e *UnauthorizedError) longError() string {
 	return fmt.Sprintf(
 		"%s: (subject: %v), (action: %v), (object: %v), (output: %v)",
 		errUnauthorized, e.subject, e.action, e.object, e.output,
 	)
+}
+
+// Error implements the error interface.
+func (e UnauthorizedError) Error() string {
+	if flag.Lookup("test.v") != nil {
+		return e.longError()
+	}
+	return errUnauthorized
 }
 
 // Internal allows the internal error message to be logged.

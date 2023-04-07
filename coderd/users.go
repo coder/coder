@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
@@ -1024,15 +1023,6 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			PublicKey:  publicKey,
 		})
 		if err != nil {
-			var unauthError rbac.UnauthorizedError
-			if errors.As(err, &unauthError) {
-				// This should be impossible.
-				api.Logger.Error(
-					ctx,
-					"unexpected unauthorize error when inserting ssh key",
-					slog.F("error", unauthError.LongError()),
-				)
-			}
 			return xerrors.Errorf("insert user gitsshkey: %w", err)
 		}
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
