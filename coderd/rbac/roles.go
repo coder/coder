@@ -80,10 +80,6 @@ func allPermsExcept(excepts ...Object) []Permission {
 		if skip[r.Type] {
 			continue
 		}
-		// Do not include the wildcard
-		if r.Type == ResourceWildcard.Type {
-			continue
-		}
 		// Owners can do everything else
 		perms = append(perms, Permission{
 			Negate:       false,
@@ -149,10 +145,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					// All users can see the provisioner daemons.
 					ResourceProvisionerDaemon.Type: {ActionRead},
 				}),
-				Org: map[string][]Permission{},
-				User: Permissions(map[string][]Action{
-					ResourceWildcard.Type: {WildcardSymbol},
-				}),
+				Org:  map[string][]Permission{},
+				User: allPermsExcept(),
 			}
 		},
 

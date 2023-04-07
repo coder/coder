@@ -136,11 +136,6 @@ var (
 		Type: "organization_member",
 	}
 
-	// ResourceWildcard represents all resource types
-	ResourceWildcard = Object{
-		Type: WildcardSymbol,
-	}
-
 	// ResourceLicense is the license in the 'licenses' table.
 	// ResourceLicense is site wide.
 	// 	create/delete = add or remove license from site.

@@ -203,6 +203,8 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	if options.DeploymentValues == nil {
 		options.DeploymentValues = DeploymentValues(t)
 	}
+	// This value is not safe to run in parallel. Force it to be false.
+	options.DeploymentValues.DisableOwnerWorkspaceExec = false
 
 	// If no ratelimits are set, disable all rate limiting for tests.
 	if options.APIRateLimit == 0 {

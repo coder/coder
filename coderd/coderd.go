@@ -171,9 +171,11 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 
-	rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-		NoOwnerWorkspaceExec: true,
-	})
+	if options.DeploymentValues.DisableOwnerWorkspaceExec {
+		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
+			NoOwnerWorkspaceExec: true,
+		})
+	}
 
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
