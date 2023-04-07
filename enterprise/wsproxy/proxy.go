@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"reflect"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -59,6 +61,24 @@ type Options struct {
 	ProxySessionToken string
 }
 
+func (o *Options) Validate() error {
+	var errs optErrors
+
+	errs.Required("Logger", o.Logger)
+	errs.Required("PrimaryAccessURL", o.PrimaryAccessURL)
+	errs.Required("AccessURL", o.AccessURL)
+	errs.Required("RealIPConfig", o.RealIPConfig)
+	errs.Required("Tracing", o.Tracing)
+	errs.Required("PrometheusRegistry", o.PrometheusRegistry)
+	errs.NotEmpty("ProxySessionToken", o.ProxySessionToken)
+	errs.NotEmpty("AppSecurityKey", o.AppSecurityKey)
+
+	if len(errs) > 0 {
+		return errs
+	}
+	return nil
+}
+
 // Server is an external workspace proxy server. This server can communicate
 // directly with a workspace. It requires a primary coderd to establish a said
 // connection.
@@ -90,6 +110,10 @@ type Server struct {
 func New(opts *Options) (*Server, error) {
 	if opts.PrometheusRegistry == nil {
 		opts.PrometheusRegistry = prometheus.NewRegistry()
+	}
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
 
 	client := wsproxysdk.New(opts.PrimaryAccessURL)
@@ -195,4 +219,26 @@ func (s *Server) Close() error {
 
 func (s *Server) DialWorkspaceAgent(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	return s.SDKClient.DialWorkspaceAgent(s.ctx, id, nil)
+}
+
+type optErrors []error
+
+func (e optErrors) Error() string {
+	var b strings.Builder
+	for _, err := range e {
+		b.WriteString(err.Error())
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func (e *optErrors) Required(name string, v any) {
+	if v == nil {
+		*e = append(*e, xerrors.Errorf("%s is required, got <nil>", name))
+	}
+}
+func (e *optErrors) NotEmpty(name string, v any) {
+	if reflect.ValueOf(v).IsZero() {
+		*e = append(*e, xerrors.Errorf("%s is required, got the zero value", name))
+	}
 }

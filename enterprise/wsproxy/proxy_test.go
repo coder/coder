@@ -1,15 +1,8 @@
 package wsproxy_test
 
 import (
-	"context"
 	"net"
 	"testing"
-
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/enterprise/wsproxy"
-
-	"github.com/moby/moby/pkg/namesgenerator"
-	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/enterprise/coderd/license"
 
@@ -39,8 +32,9 @@ func TestExternalProxyWorkspaceApps(t *testing.T) {
 		client, _, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: deploymentValues,
-				// TODO: @emyrk Should we give a hostname here too?
-				AppHostname:              "",
+				// TODO: @emyrk This hostname should be for the external
+				//	 proxy, not the internal one.
+				AppHostname:              opts.AppHost,
 				IncludeProvisionerDaemon: true,
 				RealIPConfig: &httpmw.RealIPConfig{
 					TrustedOrigins: []*net.IPNet{{
@@ -62,46 +56,15 @@ func TestExternalProxyWorkspaceApps(t *testing.T) {
 		})
 
 		// Create the external proxy
-		// TODO: @emyrk this code will probably change as we create a better
-		// 		method of creating external proxies.
-		ctx := context.Background()
-		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-			Name:             namesgenerator.GetRandomName(1),
-			Icon:             "/emojis/flag.png",
-			URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
-			WildcardHostname: opts.AppHost,
-		})
-		require.NoError(t, err)
-
-		appHostRegex, err := httpapi.CompileHostnamePattern(opts.AppHost)
-		require.NoError(t, err, "app host regex should compile")
-
-		// Make the external proxy service
-		proxy, err := wsproxy.New(&wsproxy.Options{
-			Logger:           api.Logger,
-			PrimaryAccessURL: api.AccessURL,
-			// TODO: @emyrk give this an access url
-			AccessURL:          nil,
-			AppHostname:        opts.AppHost,
-			AppHostnameRegex:   appHostRegex,
-			RealIPConfig:       api.RealIPConfig,
-			AppSecurityKey:     api.AppSecurityKey,
-			Tracing:            api.TracerProvider,
-			PrometheusRegistry: api.PrometheusRegistry,
-			APIRateLimit:       api.APIRateLimit,
-			SecureAuthCookie:   api.SecureAuthCookie,
-			ProxySessionToken:  proxyRes.ProxyToken,
-		})
-		require.NoError(t, err, "wsproxy should be created")
-
-		// TODO: Run the wsproxy, http.Serve
-		_ = proxy
+		proxyAPI := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{})
+		var _ = proxyAPI
 
 		return &apptest.Deployment{
-			Options:        opts,
-			Client:         client,
-			FirstUser:      user,
-			PathAppBaseURL: client.URL,
+			Options:   opts,
+			Client:    client,
+			FirstUser: user,
+			//PathAppBaseURL: api.AccessURL,
+			PathAppBaseURL: proxyAPI.AppServer.AccessURL,
 		}
 	})
 }

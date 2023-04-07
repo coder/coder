@@ -12,10 +12,9 @@ import (
 )
 
 type WorkspaceProxy struct {
-	ID             uuid.UUID `db:"id" json:"id" format:"uuid"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id" format:"uuid"`
-	Name           string    `db:"name" json:"name"`
-	Icon           string    `db:"icon" json:"icon"`
+	ID   uuid.UUID `db:"id" json:"id" format:"uuid"`
+	Name string    `db:"name" json:"name"`
+	Icon string    `db:"icon" json:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
 	URL string `db:"url" json:"url"`
 	// WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com
