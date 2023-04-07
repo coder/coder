@@ -1538,6 +1538,15 @@ type BuildInfoResponse struct {
 	ExternalURL string `json:"external_url"`
 	// Version returns the semantic version of the build.
 	Version string `json:"version"`
+
+	WorkspaceProxy *WorkspaceProxyBuildInfo `json:"workspace_proxy,omitempty"`
+}
+
+type WorkspaceProxyBuildInfo struct {
+	// TODO: @emyrk what should we include here?
+	IsWorkspaceProxy bool `json:"is_workspace_proxy"`
+	// DashboardURL is the URL of the coderd this proxy is connected to.
+	DashboardURL string `json:"dashboard_url"`
 }
 
 // CanonicalVersion trims build information from the version.

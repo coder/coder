@@ -36,9 +36,8 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
 
-	// Used to serve the Swagger endpoint
+	"github.com/coder/coder/buildinfo"
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
@@ -334,18 +333,18 @@ func New(options *Options) *API {
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: options.Logger.Named("workspaceapps"),
 
-		DashboardURL:     api.AccessURL,
-		AccessURL:        api.AccessURL,
-		Hostname:         api.AppHostname,
-		HostnameRegex:    api.AppHostnameRegex,
-		RealIPConfig:     options.RealIPConfig,
+		DashboardURL:  api.AccessURL,
+		AccessURL:     api.AccessURL,
+		Hostname:      api.AppHostname,
+		HostnameRegex: api.AppHostnameRegex,
+		RealIPConfig:  options.RealIPConfig,
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		WorkspaceConnCache:  api.workspaceAgentCache,
 		AppSecurityKey:      options.AppSecurityKey,
 
-		DisablePathApps:     options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie:    options.DeploymentValues.SecureAuthCookie.Value(),
+		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

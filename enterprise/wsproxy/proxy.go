@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/coder/coderd/httpapi"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -57,6 +59,7 @@ type Options struct {
 
 	APIRateLimit     int
 	SecureAuthCookie bool
+	DisablePathApps  bool
 
 	ProxySessionToken string
 }
@@ -156,9 +159,8 @@ func New(opts *Options) (*Server, error) {
 		WorkspaceConnCache: wsconncache.New(s.DialWorkspaceAgent, 0),
 		AppSecurityKey:     opts.AppSecurityKey,
 
-		// TODO: We need to pass some deployment values to here
-		DisablePathApps:  false,
-		SecureAuthCookie: false,
+		DisablePathApps:  opts.DisablePathApps,
+		SecureAuthCookie: opts.SecureAuthCookie,
 	}
 
 	// Routes
@@ -173,11 +175,10 @@ func New(opts *Options) (*Server, error) {
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		httpmw.Logger(s.Logger),
 		httpmw.Prometheus(s.PrometheusRegistry),
-		ExtractSessionTokenMW(),
 
 		// SubdomainAppMW is a middleware that handles all requests to the
 		// subdomain based workspace apps.
-		s.AppServer.SubdomainAppMW(apiRateLimiter),
+		s.AppServer.SubdomainAppMW(apiRateLimiter, ExtractSessionTokenMW()),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -202,11 +203,15 @@ func New(opts *Options) (*Server, error) {
 
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
-		r.Use(apiRateLimiter)
+		r.Use(
+			apiRateLimiter,
+			ExtractSessionTokenMW(),
+		)
 		s.AppServer.Attach(r)
 	})
 
-	// TODO: @emyrk Buildinfo and healthz routes.
+	r.Get("/buildinfo", s.buildInfo)
+	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	return s, nil
 }
@@ -218,6 +223,17 @@ func (s *Server) Close() error {
 
 func (s *Server) DialWorkspaceAgent(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	return s.SDKClient.DialWorkspaceAgent(s.ctx, id, nil)
+}
+
+func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
+		ExternalURL: buildinfo.ExternalURL(),
+		Version:     buildinfo.Version(),
+		WorkspaceProxy: &codersdk.WorkspaceProxyBuildInfo{
+			IsWorkspaceProxy: true,
+			DashboardURL:     s.PrimaryAccessURL.String(),
+		},
+	})
 }
 
 type optErrors []error
