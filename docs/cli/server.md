@@ -51,6 +51,16 @@ Whether Coder only allows connections to workspaces via the browser.
 
 The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
 
+### --trace-logs
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_TRACE_LOGS</code>                 |
+| YAML        | <code>introspection.tracing.captureLogs</code> |
+
+Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.
+
 ### -c, --config
 
 |             |                                 |
@@ -193,6 +203,16 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 
 Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
 
+### --swagger-enable
+
+|             |                                    |
+| ----------- | ---------------------------------- |
+| Type        | <code>bool</code>                  |
+| Environment | <code>$CODER_SWAGGER_ENABLE</code> |
+| YAML        | <code>enableSwagger</code>         |
+
+Expose the swagger endpoint via /swagger.
+
 ### --experiments
 
 |             |                                 |
@@ -202,6 +222,17 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 | YAML        | <code>experiments</code>        |
 
 Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '\*' to opt-in to all available experiments.
+
+### --provisioner-force-cancel-interval
+
+|             |                                                       |
+| ----------- | ----------------------------------------------------- |
+| Type        | <code>duration</code>                                 |
+| Environment | <code>$CODER_PROVISIONER_FORCE_CANCEL_INTERVAL</code> |
+| YAML        | <code>provisioning.forceCancelInterval</code>         |
+| Default     | <code>10m0s</code>                                    |
+
+Time to force cancel provisioning tasks that are stuck.
 
 ### --http-address
 
@@ -234,16 +265,6 @@ Output human-readable logs to a given file.
 | YAML        | <code>introspection.logging.jsonPath</code> |
 
 Output JSON logs to a given file.
-
-### --log-stackdriver
-
-|             |                                                    |
-| ----------- | -------------------------------------------------- |
-| Type        | <code>string</code>                                |
-| Environment | <code>$CODER_LOGGING_STACKDRIVER</code>            |
-| YAML        | <code>introspection.logging.stackdriverPath</code> |
-
-Output Stackdriver compatible logs to a given file.
 
 ### --max-token-lifetime
 
@@ -408,16 +429,6 @@ Change the OIDC default 'groups' claim field. By default, will be 'groups' if pr
 
 A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.
 
-### --oidc-icon-url
-
-|             |                                   |
-| ----------- | --------------------------------- |
-| Type        | <code>url</code>                  |
-| Environment | <code>$CODER_OIDC_ICON_URL</code> |
-| YAML        | <code>oidc.iconURL</code>         |
-
-URL pointing to the icon to use on the OepnID Connect login button.
-
 ### --oidc-ignore-email-verified
 
 |             |                                                |
@@ -460,17 +471,6 @@ Issuer URL to use for Login with OIDC.
 
 Scopes to grant when authenticating with OIDC.
 
-### --oidc-sign-in-text
-
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Type        | <code>string</code>                   |
-| Environment | <code>$CODER_OIDC_SIGN_IN_TEXT</code> |
-| YAML        | <code>oidc.signInText</code>          |
-| Default     | <code>OpenID Connect</code>           |
-
-The text to show on the OpenID Connect sign in button.
-
 ### --oidc-username-field
 
 |             |                                         |
@@ -482,56 +482,26 @@ The text to show on the OpenID Connect sign in button.
 
 OIDC claim field to use as the username.
 
-### --postgres-url
+### --oidc-sign-in-text
 
 |             |                                       |
 | ----------- | ------------------------------------- |
 | Type        | <code>string</code>                   |
-| Environment | <code>$CODER_PG_CONNECTION_URL</code> |
+| Environment | <code>$CODER_OIDC_SIGN_IN_TEXT</code> |
+| YAML        | <code>oidc.signInText</code>          |
+| Default     | <code>OpenID Connect</code>           |
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
+The text to show on the OpenID Connect sign in button.
 
-### --pprof-address
+### --oidc-icon-url
 
-|             |                                          |
-| ----------- | ---------------------------------------- |
-| Type        | <code>host:port</code>                   |
-| Environment | <code>$CODER_PPROF_ADDRESS</code>        |
-| YAML        | <code>introspection.pprof.address</code> |
-| Default     | <code>127.0.0.1:6060</code>              |
+|             |                                   |
+| ----------- | --------------------------------- |
+| Type        | <code>url</code>                  |
+| Environment | <code>$CODER_OIDC_ICON_URL</code> |
+| YAML        | <code>oidc.iconURL</code>         |
 
-The bind address to serve pprof.
-
-### --pprof-enable
-
-|             |                                         |
-| ----------- | --------------------------------------- |
-| Type        | <code>bool</code>                       |
-| Environment | <code>$CODER_PPROF_ENABLE</code>        |
-| YAML        | <code>introspection.pprof.enable</code> |
-
-Serve pprof metrics on the address defined by pprof address.
-
-### --prometheus-address
-
-|             |                                               |
-| ----------- | --------------------------------------------- |
-| Type        | <code>host:port</code>                        |
-| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code>        |
-| YAML        | <code>introspection.prometheus.address</code> |
-| Default     | <code>127.0.0.1:2112</code>                   |
-
-The bind address to serve prometheus metrics.
-
-### --prometheus-enable
-
-|             |                                              |
-| ----------- | -------------------------------------------- |
-| Type        | <code>bool</code>                            |
-| Environment | <code>$CODER_PROMETHEUS_ENABLE</code>        |
-| YAML        | <code>introspection.prometheus.enable</code> |
-
-Serve prometheus metrics on the address defined by prometheus address.
+URL pointing to the icon to use on the OepnID Connect login button.
 
 ### --provisioner-daemon-poll-interval
 
@@ -555,6 +525,36 @@ Time to wait before polling for a new job.
 
 Random jitter added to the poll interval.
 
+### --postgres-url
+
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Type        | <code>string</code>                   |
+| Environment | <code>$CODER_PG_CONNECTION_URL</code> |
+
+URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
+
+### --prometheus-address
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Type        | <code>host:port</code>                        |
+| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code>        |
+| YAML        | <code>introspection.prometheus.address</code> |
+| Default     | <code>127.0.0.1:2112</code>                   |
+
+The bind address to serve prometheus metrics.
+
+### --prometheus-enable
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_PROMETHEUS_ENABLE</code>        |
+| YAML        | <code>introspection.prometheus.enable</code> |
+
+Serve prometheus metrics on the address defined by prometheus address.
+
 ### --provisioner-daemons
 
 |             |                                         |
@@ -565,17 +565,6 @@ Random jitter added to the poll interval.
 | Default     | <code>3</code>                          |
 
 Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
-
-### --provisioner-force-cancel-interval
-
-|             |                                                       |
-| ----------- | ----------------------------------------------------- |
-| Type        | <code>duration</code>                                 |
-| Environment | <code>$CODER_PROVISIONER_FORCE_CANCEL_INTERVAL</code> |
-| YAML        | <code>provisioning.forceCancelInterval</code>         |
-| Default     | <code>10m0s</code>                                    |
-
-Time to force cancel provisioning tasks that are stuck.
 
 ### --proxy-trusted-headers
 
@@ -616,27 +605,6 @@ Specifies whether to redirect requests that do not match the access URL host.
 
 Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
 
-### --secure-auth-cookie
-
-|             |                                          |
-| ----------- | ---------------------------------------- |
-| Type        | <code>bool</code>                        |
-| Environment | <code>$CODER_SECURE_AUTH_COOKIE</code>   |
-| YAML        | <code>networking.secureAuthCookie</code> |
-
-Controls if the 'Secure' property is set on browser session cookies.
-
-### --session-duration
-
-|             |                                              |
-| ----------- | -------------------------------------------- |
-| Type        | <code>duration</code>                        |
-| Environment | <code>$CODER_SESSION_DURATION</code>         |
-| YAML        | <code>networking.http.sessionDuration</code> |
-| Default     | <code>24h0m0s</code>                         |
-
-The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
-
 ### --ssh-config-options
 
 |             |                                        |
@@ -669,6 +637,37 @@ The SSH deployment prefix is used in the Host of the ssh config.
 
 The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
 
+### --secure-auth-cookie
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_SECURE_AUTH_COOKIE</code>   |
+| YAML        | <code>networking.secureAuthCookie</code> |
+
+Controls if the 'Secure' property is set on browser session cookies.
+
+### --session-duration
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>duration</code>                        |
+| Environment | <code>$CODER_SESSION_DURATION</code>         |
+| YAML        | <code>networking.http.sessionDuration</code> |
+| Default     | <code>24h0m0s</code>                         |
+
+The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
+
+### --log-stackdriver
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>string</code>                                |
+| Environment | <code>$CODER_LOGGING_STACKDRIVER</code>            |
+| YAML        | <code>introspection.logging.stackdriverPath</code> |
+
+Output Stackdriver compatible logs to a given file.
+
 ### --strict-transport-security
 
 |             |                                                     |
@@ -689,38 +688,6 @@ Controls if the 'Strict-Transport-Security' header is set on all static file res
 | YAML        | <code>networking.tls.strictTransportSecurityOptions</code> |
 
 Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
-
-### --swagger-enable
-
-|             |                                    |
-| ----------- | ---------------------------------- |
-| Type        | <code>bool</code>                  |
-| Environment | <code>$CODER_SWAGGER_ENABLE</code> |
-| YAML        | <code>enableSwagger</code>         |
-
-Expose the swagger endpoint via /swagger.
-
-### --telemetry
-
-|             |                                      |
-| ----------- | ------------------------------------ |
-| Type        | <code>bool</code>                    |
-| Environment | <code>$CODER_TELEMETRY_ENABLE</code> |
-| YAML        | <code>telemetry.enable</code>        |
-| Default     | <code>true</code>                    |
-
-Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.
-
-### --telemetry-trace
-
-|             |                                     |
-| ----------- | ----------------------------------- |
-| Type        | <code>bool</code>                   |
-| Environment | <code>$CODER_TELEMETRY_TRACE</code> |
-| YAML        | <code>telemetry.trace</code>        |
-| Default     | <code>true</code>                   |
-
-Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.
 
 ### --tls-address
 
@@ -815,6 +782,28 @@ Paths to the private keys for each of the certificates. It requires a PEM-encode
 
 Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13".
 
+### --telemetry
+
+|             |                                      |
+| ----------- | ------------------------------------ |
+| Type        | <code>bool</code>                    |
+| Environment | <code>$CODER_TELEMETRY_ENABLE</code> |
+| YAML        | <code>telemetry.enable</code>        |
+| Default     | <code>true</code>                    |
+
+Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.
+
+### --telemetry-trace
+
+|             |                                     |
+| ----------- | ----------------------------------- |
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_TELEMETRY_TRACE</code> |
+| YAML        | <code>telemetry.trace</code>        |
+| Default     | <code>true</code>                   |
+
+Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.
+
 ### --trace
 
 |             |                                           |
@@ -833,16 +822,6 @@ Whether application tracing data is collected. It exports to a backend configure
 | Environment | <code>$CODER_TRACE_HONEYCOMB_API_KEY</code> |
 
 Enables trace exporting to Honeycomb.io using the provided API Key.
-
-### --trace-logs
-
-|             |                                                |
-| ----------- | ---------------------------------------------- |
-| Type        | <code>bool</code>                              |
-| Environment | <code>$CODER_TRACE_LOGS</code>                 |
-| YAML        | <code>introspection.tracing.captureLogs</code> |
-
-Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.
 
 ### --update-check
 
@@ -882,3 +861,24 @@ Specifies the wildcard hostname to use for workspace applications in the form "\
 | Type | <code>bool</code> |
 
 <br/>Write out the current server config as YAML to stdout.
+
+### --pprof-address
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>host:port</code>                   |
+| Environment | <code>$CODER_PPROF_ADDRESS</code>        |
+| YAML        | <code>introspection.pprof.address</code> |
+| Default     | <code>127.0.0.1:6060</code>              |
+
+The bind address to serve pprof.
+
+### --pprof-enable
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>bool</code>                       |
+| Environment | <code>$CODER_PPROF_ENABLE</code>        |
+| YAML        | <code>introspection.pprof.enable</code> |
+
+Serve pprof metrics on the address defined by pprof address.

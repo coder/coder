@@ -66,13 +66,13 @@ func (s *OptionSet) MarshalYAML() (any, error) {
 			defValue = "<unset>"
 		}
 		comment := wordwrap.WrapString(
-			fmt.Sprintf("%s (default: %s, type: %s)", opt.Description, defValue, opt.Value.Type()),
+			fmt.Sprintf("%s\n(default: %s, type: %s)", opt.Description, defValue, opt.Value.Type()),
 			80,
 		)
 		nameNode := yaml.Node{
 			Kind:        yaml.ScalarNode,
 			Value:       opt.YAML,
-			HeadComment: wordwrap.WrapString(comment, 80),
+			HeadComment: comment,
 		}
 		var valueNode yaml.Node
 		if opt.Value == nil {

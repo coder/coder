@@ -87,6 +87,7 @@ func TestOptionSet_YAMLUnknownOptions(t *testing.T) {
 // OptionSet converts to the same OptionSet when read back in.
 func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 	t.Parallel()
+	// This is used to form a generic.
 	//nolint:unused
 	type kid struct {
 		Name string `yaml:"name"`
