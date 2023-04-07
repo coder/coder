@@ -68,7 +68,6 @@ func (o *Options) Validate() error {
 	errs.Required("PrimaryAccessURL", o.PrimaryAccessURL)
 	errs.Required("AccessURL", o.AccessURL)
 	errs.Required("RealIPConfig", o.RealIPConfig)
-	errs.Required("Tracing", o.Tracing)
 	errs.Required("PrometheusRegistry", o.PrometheusRegistry)
 	errs.NotEmpty("ProxySessionToken", o.ProxySessionToken)
 	errs.NotEmpty("AppSecurityKey", o.AppSecurityKey)

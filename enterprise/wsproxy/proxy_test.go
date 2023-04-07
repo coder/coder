@@ -4,16 +4,13 @@ import (
 	"net"
 	"testing"
 
-	"github.com/coder/coder/enterprise/coderd/license"
-
-	"github.com/coder/coder/codersdk"
-
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/workspaceapps/apptest"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 )
 
 func TestExternalProxyWorkspaceApps(t *testing.T) {
@@ -56,8 +53,10 @@ func TestExternalProxyWorkspaceApps(t *testing.T) {
 		})
 
 		// Create the external proxy
-		proxyAPI := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{})
-		var _ = proxyAPI
+		proxyAPI := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+			Name:        "best-proxy",
+			AppHostname: opts.AppHost,
+		})
 
 		return &apptest.Deployment{
 			Options:   opts,

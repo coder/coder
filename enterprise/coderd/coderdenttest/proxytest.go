@@ -22,27 +22,20 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
-
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 )
 
 type ProxyOptions struct {
 	Name string
 
-	Database        database.Store
-	Pubsub          database.Pubsub
-	Authorizer      rbac.Authorizer
 	TLSCertificates []tls.Certificate
-	ProxyURL        *url.URL
 	AppHostname     string
+
+	// ProxyURL is optional
+	ProxyURL *url.URL
 }
 
 // NewWorkspaceProxy will configure a wsproxy.Server with the given options.
@@ -55,17 +48,6 @@ func NewWorkspaceProxy(t *testing.T, coderd *coderd.API, owner *codersdk.Client,
 
 	if options == nil {
 		options = &ProxyOptions{}
-	}
-
-	if options.Authorizer == nil {
-		options.Authorizer = &coderdtest.RecordingAuthorizer{
-			Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
-		}
-	}
-
-	if options.Database == nil {
-		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
 
 	// HTTP Server
@@ -132,11 +114,12 @@ func NewWorkspaceProxy(t *testing.T, coderd *coderd.API, owner *codersdk.Client,
 		URL:              accessURL.String(),
 		WildcardHostname: options.AppHostname,
 	})
+	require.NoError(t, err, "failed to create workspace proxy")
 
 	wssrv, err := wsproxy.New(&wsproxy.Options{
 		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		PrimaryAccessURL:  coderd.AccessURL,
-		AccessURL:         options.ProxyURL,
+		AccessURL:         accessURL,
 		AppHostname:       options.AppHostname,
 		AppHostnameRegex:  appHostnameRegex,
 		RealIPConfig:      coderd.RealIPConfig,
