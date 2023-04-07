@@ -76,9 +76,26 @@ var builtInRoles = map[string]func(orgID string) Role{
 		return Role{
 			Name:        owner,
 			DisplayName: "Owner",
-			Site: Permissions(map[string][]Action{
-				ResourceWildcard.Type: {WildcardSymbol},
-			}),
+			Site: func() []Permission {
+				// Owner can do all actions on all resources, minus some exceptions.
+				resources := AllResources()
+				var perms []Permission
+
+				for _, r := range resources {
+					// Exceptions
+					if r.Equal(ResourceWildcard) ||
+						r.Equal(ResourceWorkspaceExecution) {
+						continue
+					}
+					// Owners can do everything else
+					perms = append(perms, Permission{
+						Negate:       false,
+						ResourceType: r.Type,
+						Action:       WildcardSymbol,
+					})
+				}
+				return perms
+			}(),
 			Org:  map[string][]Permission{},
 			User: []Permission{},
 		}
