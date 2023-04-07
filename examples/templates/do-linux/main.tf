@@ -147,8 +147,8 @@ data "coder_parameter" "droplet_size" {
 
 data "coder_parameter" "home_volume_size" {
   name         = "home_volume_size"
-  display_name = "How large would you like your home volume to be (in GB)?"
-  description  = "This volume will be mounted to /home/coder."
+  display_name = "Home Volume Size"
+  description  = "How large would you like your home volume to be (in GB)?"
   type         = "number"
   default      = "20"
   mutable      = false
@@ -160,7 +160,7 @@ data "coder_parameter" "home_volume_size" {
 
 data "coder_parameter" "region" {
   name         = "region"
-  display_name = "Which region would you like to use?"
+  display_name = "Region"
   description  = "This is the region where your workspace will be created."
   icon         = "/emojis/1f30e.png"
   type         = "string"

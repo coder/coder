@@ -52,7 +52,7 @@ resource "coder_app" "code-server" {
 }
 
 data "coder_parameter" "docker_image" {
-  name        = "What Docker image would you like to use for your workspace?"
+  name        = "Docker Image"
   description = "The Docker image will be used to build your workspace. You can choose from a list of pre-built images or provide your own."
   default     = "base"
   icon        = "/icon/docker.png"

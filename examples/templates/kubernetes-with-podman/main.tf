@@ -20,6 +20,7 @@ data "coder_workspace" "me" {}
 data "coder_parameter" "os" {
   name         = "os"
   display_name = "Operating system"
+  description  = "The operating system to use for your workspace."
   default      = "ubuntu"
   option {
     name  = "Ubuntu"
@@ -35,7 +36,8 @@ data "coder_parameter" "os" {
 
 data "coder_parameter" "cpu" {
   name         = "cpu"
-  display_name = "CPU (cores)"
+  display_name = "CPU"
+  description  = "The number of CPU cores"
   default      = "2"
   option {
     name  = "2 Cores"
@@ -57,7 +59,8 @@ data "coder_parameter" "cpu" {
 
 data "coder_parameter" "memory" {
   name         = "memory"
-  display_name = "Memory (GB)"
+  display_name = "Memory"
+  description  = "The amount of memory (in GB)"
   default      = "2"
   option {
     name  = "2 GB"
@@ -96,7 +99,7 @@ resource "coder_agent" "dev" {
 # code-server
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.dev.id
-  display_name = "Code Server"
+  display_name = "code-server"
   slug         = "code-server"
   icon         = "/icon/code.svg"
   url          = "http://localhost:13337"

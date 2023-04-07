@@ -21,7 +21,8 @@ variable "project_id" {
 
 data "coder_parameter" "zone" {
   name         = "zone"
-  display_name = "What region should your workspace live in?"
+  display_name = "Zone"
+  description  = "Which zone should your workspace live in?"
   type         = "string"
   icon         = "/emojis/1f30e.png"
   default      = "us-central1-a"

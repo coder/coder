@@ -148,7 +148,7 @@ data "coder_parameter" "cputype" {
 
 data "coder_parameter" "memory" {
   name         = "memory"
-  display_name = "Memory (GB)"
+  display_name = "Memory"
   description  = "The amount of memory to allocate to the workspace in GB (up to 16GB)"
   type         = "number"
   default      = "2"
@@ -162,7 +162,7 @@ data "coder_parameter" "memory" {
 
 data "coder_parameter" "volume-size" {
   name         = "volume-size"
-  display_name = "Volume Size"
+  display_name = "Home Volume Size"
   description  = "The size of the volume to create for the workspace in GB (1-20)"
   type         = "number"
   default      = "1"
@@ -260,7 +260,7 @@ data "coder_parameter" "region" {
 resource "coder_app" "code-server" {
   count        = 1
   agent_id     = coder_agent.main.id
-  display_name = "Code Server"
+  display_name = "code-server"
   slug         = "code-server"
   url          = "http://localhost:8080?folder=/home/coder/"
   icon         = "/icon/code.svg"

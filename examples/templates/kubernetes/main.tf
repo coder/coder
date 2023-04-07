@@ -36,7 +36,8 @@ variable "namespace" {
 
 data "coder_parameter" "cpu" {
   name         = "cpu"
-  display_name = "CPU (cores)"
+  display_name = "CPU"
+  description  = "The number of CPU cores"
   default      = "2"
   icon         = "/icon/memory.svg"
   mutable      = true
@@ -60,7 +61,8 @@ data "coder_parameter" "cpu" {
 
 data "coder_parameter" "memory" {
   name         = "memory"
-  display_name = "Memory (GB)"
+  display_name = "Memory"
+  description  = "The amount of memory in GB"
   default      = "2"
   icon         = "/icon/memory.svg"
   mutable      = true
@@ -84,7 +86,8 @@ data "coder_parameter" "memory" {
 
 data "coder_parameter" "home_disk_size" {
   name         = "home_disk_size"
-  display_name = "Home Disk Size (GB)"
+  display_name = "Home Disk Size"
+  description  = "The size of the home disk in GB"
   default      = "10"
   type         = "number"
   icon         = "/emojis/1f4be.png"

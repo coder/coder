@@ -29,7 +29,7 @@ data "coder_workspace" "me" {
 
 data "coder_parameter" "docker_image" {
   name         = "docker_image"
-  display_name = "What Docker image would you like to use for your workspace?"
+  display_name = "Docker Image"
   description  = "The Docker image will be used to build your workspace."
   default      = "codercom/enterprise-base:ubuntu"
   icon         = "/icon/docker.png"
@@ -39,7 +39,7 @@ data "coder_parameter" "docker_image" {
 
 data "coder_parameter" "dotfiles_uri" {
   name         = "dotfiles_uri"
-  display_name = "What dotfiles repo would you like to use for your workspace?"
+  display_name = "dotfiles URI"
   description  = <<-EOF
   Dotfiles repo URI (optional)
 
