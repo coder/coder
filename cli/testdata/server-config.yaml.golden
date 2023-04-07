@@ -1,286 +1,286 @@
 networking:
-    # The URL that users will use to access the Coder deployment.
-    # (default: <unset>, type: url)
-    accessURL:
-    # Specifies the wildcard hostname to use for workspace applications in the form
-    # "*.example.com".
-    # (default: <unset>, type: url)
-    wildcardAccessURL:
-    # Specifies whether to redirect requests that do not match the access URL host.
+  # The URL that users will use to access the Coder deployment.
+  # (default: <unset>, type: url)
+  accessURL:
+  # Specifies the wildcard hostname to use for workspace applications in the form
+  # "*.example.com".
+  # (default: <unset>, type: url)
+  wildcardAccessURL:
+  # Specifies whether to redirect requests that do not match the access URL host.
+  # (default: <unset>, type: bool)
+  redirectToAccessURL: false
+  http:
+    # HTTP bind address of the server. Unset to disable the HTTP endpoint.
+    # (default: 127.0.0.1:3000, type: string)
+    httpAddress: 127.0.0.1:3000
+    # The maximum lifetime duration users can specify when creating an API token.
+    # (default: 876600h0m0s, type: duration)
+    maxTokenLifetime: 876600h0m0s
+    # The token expiry duration for browser sessions. Sessions may last longer if they
+    # are actively making requests, but this functionality can be disabled via
+    # --disable-session-expiry-refresh.
+    # (default: 24h0m0s, type: duration)
+    sessionDuration: 24h0m0s
+    # Disable automatic session expiry bumping due to activity. This forces all
+    # sessions to become invalid after the session expiry duration has been reached.
     # (default: <unset>, type: bool)
-    redirectToAccessURL: false
-    http:
-        # HTTP bind address of the server. Unset to disable the HTTP endpoint.
-        # (default: 127.0.0.1:3000, type: string)
-        httpAddress: 127.0.0.1:3000
-        # The maximum lifetime duration users can specify when creating an API token.
-        # (default: 876600h0m0s, type: duration)
-        maxTokenLifetime: 876600h0m0s
-        # The token expiry duration for browser sessions. Sessions may last longer if they
-        # are actively making requests, but this functionality can be disabled via
-        # --disable-session-expiry-refresh.
-        # (default: 24h0m0s, type: duration)
-        sessionDuration: 24h0m0s
-        # Disable automatic session expiry bumping due to activity. This forces all
-        # sessions to become invalid after the session expiry duration has been reached.
-        # (default: <unset>, type: bool)
-        disableSessionExpiryRefresh: false
-        # Disable password authentication. This is recommended for security purposes in
-        # production deployments that rely on an identity provider. Any user with the
-        # owner role will be able to sign in with their password regardless of this
-        # setting to avoid potential lock out. If you are locked out of your account, you
-        # can use the `coder server create-admin` command to create a new admin user
-        # directly in the database.
-        # (default: <unset>, type: bool)
-        disablePasswordAuth: false
-    # Configure TLS / HTTPS for your Coder deployment. If you're running
-    #  Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
-    #  secure link, you can safely ignore these settings.
-    tls:
-        # HTTPS bind address of the server.
-        # (default: 127.0.0.1:3443, type: host:port)
-        address: 127.0.0.1:3443
-        # Whether TLS will be enabled.
-        # (default: <unset>, type: bool)
-        enable: false
-        # Whether HTTP requests will be redirected to the access URL (if it's a https URL
-        # and TLS is enabled). Requests to local IP addresses are never redirected
-        # regardless of this setting.
-        # (default: true, type: bool)
-        redirectHTTP: true
-        # Path to each certificate for TLS. It requires a PEM-encoded file. To configure
-        # the listener to use a CA certificate, concatenate the primary certificate and
-        # the CA certificate together. The primary certificate should appear first in the
-        # combined file.
-        # (default: <unset>, type: string-array)
-        certFiles: []
-        # PEM-encoded Certificate Authority file used for checking the authenticity of
-        # client.
-        # (default: <unset>, type: string)
-        clientCAFile: ""
-        # Policy the server will follow for TLS Client Authentication. Accepted values are
-        # "none", "request", "require-any", "verify-if-given", or "require-and-verify".
-        # (default: none, type: string)
-        clientAuth: none
-        # Paths to the private keys for each of the certificates. It requires a
-        # PEM-encoded file.
-        # (default: <unset>, type: string-array)
-        keyFiles: []
-        # Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12"
-        # or "tls13".
-        # (default: tls12, type: string)
-        minVersion: tls12
-        # Path to certificate for client TLS authentication. It requires a PEM-encoded
-        # file.
-        # (default: <unset>, type: string)
-        clientCertFile: ""
-        # Path to key for client TLS authentication. It requires a PEM-encoded file.
-        # (default: <unset>, type: string)
-        clientKeyFile: ""
-        # Controls if the 'Strict-Transport-Security' header is set on all static file
-        # responses. This header should only be set if the server is accessed via HTTPS.
-        # This value is the MaxAge in seconds of the header.
-        # (default: 0, type: int)
-        strictTransportSecurity: 0
-        # Two optional fields can be set in the Strict-Transport-Security header;
-        # 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be
-        # set to a non-zero value for these options to be used.
-        # (default: <unset>, type: string-array)
-        strictTransportSecurityOptions: []
-    # Most Coder deployments never have to think about DERP because all connections
-    #  between workspaces and users are peer-to-peer. However, when Coder cannot
-    # establish
-    #  a peer to peer connection, Coder uses a distributed relay network backed by
-    #  Tailscale and WireGuard.
-    derp:
-        # Whether to enable or disable the embedded DERP relay server.
-        # (default: true, type: bool)
-        enable: true
-        # Region ID to use for the embedded DERP server.
-        # (default: 999, type: int)
-        regionID: 999
-        # Region code to use for the embedded DERP server.
-        # (default: coder, type: string)
-        regionCode: coder
-        # Region name that for the embedded DERP server.
-        # (default: Coder Embedded Relay, type: string)
-        regionName: Coder Embedded Relay
-        # Addresses for STUN servers to establish P2P connections. Set empty to disable
-        # P2P connections.
-        # (default: stun.l.google.com:19302, type: string-array)
-        stunAddresses:
-            - stun.l.google.com:19302
-        # An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
-        # for high availability.
-        # (default: <unset>, type: url)
-        relayURL:
-        # URL to fetch a DERP mapping on startup. See:
-        # https://tailscale.com/kb/1118/custom-derp-servers/.
-        # (default: <unset>, type: string)
-        url: ""
-        # Path to read a DERP mapping from. See:
-        # https://tailscale.com/kb/1118/custom-derp-servers/.
-        # (default: <unset>, type: string)
-        configPath: ""
-    # Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
-    # True-Client-Ip, X-Forwarded-For.
+    disableSessionExpiryRefresh: false
+    # Disable password authentication. This is recommended for security purposes in
+    # production deployments that rely on an identity provider. Any user with the
+    # owner role will be able to sign in with their password regardless of this
+    # setting to avoid potential lock out. If you are locked out of your account, you
+    # can use the `coder server create-admin` command to create a new admin user
+    # directly in the database.
+    # (default: <unset>, type: bool)
+    disablePasswordAuth: false
+  # Configure TLS / HTTPS for your Coder deployment. If you're running
+  #  Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
+  #  secure link, you can safely ignore these settings.
+  tls:
+    # HTTPS bind address of the server.
+    # (default: 127.0.0.1:3443, type: host:port)
+    address: 127.0.0.1:3443
+    # Whether TLS will be enabled.
+    # (default: <unset>, type: bool)
+    enable: false
+    # Whether HTTP requests will be redirected to the access URL (if it's a https URL
+    # and TLS is enabled). Requests to local IP addresses are never redirected
+    # regardless of this setting.
+    # (default: true, type: bool)
+    redirectHTTP: true
+    # Path to each certificate for TLS. It requires a PEM-encoded file. To configure
+    # the listener to use a CA certificate, concatenate the primary certificate and
+    # the CA certificate together. The primary certificate should appear first in the
+    # combined file.
     # (default: <unset>, type: string-array)
-    proxyTrustedHeaders: []
-    # Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+    certFiles: []
+    # PEM-encoded Certificate Authority file used for checking the authenticity of
+    # client.
+    # (default: <unset>, type: string)
+    clientCAFile: ""
+    # Policy the server will follow for TLS Client Authentication. Accepted values are
+    # "none", "request", "require-any", "verify-if-given", or "require-and-verify".
+    # (default: none, type: string)
+    clientAuth: none
+    # Paths to the private keys for each of the certificates. It requires a
+    # PEM-encoded file.
     # (default: <unset>, type: string-array)
-    proxyTrustedOrigins: []
-    # Controls if the 'Secure' property is set on browser session cookies.
-    # (default: <unset>, type: bool)
-    secureAuthCookie: false
-    # Whether Coder only allows connections to workspaces via the browser.
-    # (default: <unset>, type: bool)
-    browserOnly: false
+    keyFiles: []
+    # Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12"
+    # or "tls13".
+    # (default: tls12, type: string)
+    minVersion: tls12
+    # Path to certificate for client TLS authentication. It requires a PEM-encoded
+    # file.
+    # (default: <unset>, type: string)
+    clientCertFile: ""
+    # Path to key for client TLS authentication. It requires a PEM-encoded file.
+    # (default: <unset>, type: string)
+    clientKeyFile: ""
+    # Controls if the 'Strict-Transport-Security' header is set on all static file
+    # responses. This header should only be set if the server is accessed via HTTPS.
+    # This value is the MaxAge in seconds of the header.
+    # (default: 0, type: int)
+    strictTransportSecurity: 0
+    # Two optional fields can be set in the Strict-Transport-Security header;
+    # 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be
+    # set to a non-zero value for these options to be used.
+    # (default: <unset>, type: string-array)
+    strictTransportSecurityOptions: []
+  # Most Coder deployments never have to think about DERP because all connections
+  #  between workspaces and users are peer-to-peer. However, when Coder cannot
+  # establish
+  #  a peer to peer connection, Coder uses a distributed relay network backed by
+  #  Tailscale and WireGuard.
+  derp:
+    # Whether to enable or disable the embedded DERP relay server.
+    # (default: true, type: bool)
+    enable: true
+    # Region ID to use for the embedded DERP server.
+    # (default: 999, type: int)
+    regionID: 999
+    # Region code to use for the embedded DERP server.
+    # (default: coder, type: string)
+    regionCode: coder
+    # Region name that for the embedded DERP server.
+    # (default: Coder Embedded Relay, type: string)
+    regionName: Coder Embedded Relay
+    # Addresses for STUN servers to establish P2P connections. Set empty to disable
+    # P2P connections.
+    # (default: stun.l.google.com:19302, type: string-array)
+    stunAddresses:
+      - stun.l.google.com:19302
+    # An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
+    # for high availability.
+    # (default: <unset>, type: url)
+    relayURL:
+    # URL to fetch a DERP mapping on startup. See:
+    # https://tailscale.com/kb/1118/custom-derp-servers/.
+    # (default: <unset>, type: string)
+    url: ""
+    # Path to read a DERP mapping from. See:
+    # https://tailscale.com/kb/1118/custom-derp-servers/.
+    # (default: <unset>, type: string)
+    configPath: ""
+  # Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
+  # True-Client-Ip, X-Forwarded-For.
+  # (default: <unset>, type: string-array)
+  proxyTrustedHeaders: []
+  # Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+  # (default: <unset>, type: string-array)
+  proxyTrustedOrigins: []
+  # Controls if the 'Secure' property is set on browser session cookies.
+  # (default: <unset>, type: bool)
+  secureAuthCookie: false
+  # Whether Coder only allows connections to workspaces via the browser.
+  # (default: <unset>, type: bool)
+  browserOnly: false
 # Interval to poll for scheduled workspace builds.
 # (default: 1m0s, type: duration)
 autobuildPollInterval: 1m0s
 introspection:
-    prometheus:
-        # Serve prometheus metrics on the address defined by prometheus address.
-        # (default: <unset>, type: bool)
-        enable: false
-        # The bind address to serve prometheus metrics.
-        # (default: 127.0.0.1:2112, type: host:port)
-        address: 127.0.0.1:2112
-    pprof:
-        # Serve pprof metrics on the address defined by pprof address.
-        # (default: <unset>, type: bool)
-        enable: false
-        # The bind address to serve pprof.
-        # (default: 127.0.0.1:6060, type: host:port)
-        address: 127.0.0.1:6060
-    tracing:
-        # Whether application tracing data is collected. It exports to a backend
-        # configured by environment variables. See:
-        # https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
-        # (default: <unset>, type: bool)
-        enable: false
-        # Enables capturing of logs as events in traces. This is useful for debugging, but
-        # may result in a very large amount of events being sent to the tracing backend
-        # which may incur significant costs. If the verbose flag was supplied, debug-level
-        # logs will be included.
-        # (default: <unset>, type: bool)
-        captureLogs: false
-    logging:
-        # Output debug-level logs.
-        # (default: <unset>, type: bool)
-        verbose: false
-        # Output human-readable logs to a given file.
-        # (default: /dev/stderr, type: string)
-        humanPath: /dev/stderr
-        # Output JSON logs to a given file.
-        # (default: <unset>, type: string)
-        jsonPath: ""
-        # Output Stackdriver compatible logs to a given file.
-        # (default: <unset>, type: string)
-        stackdriverPath: ""
+  prometheus:
+    # Serve prometheus metrics on the address defined by prometheus address.
+    # (default: <unset>, type: bool)
+    enable: false
+    # The bind address to serve prometheus metrics.
+    # (default: 127.0.0.1:2112, type: host:port)
+    address: 127.0.0.1:2112
+  pprof:
+    # Serve pprof metrics on the address defined by pprof address.
+    # (default: <unset>, type: bool)
+    enable: false
+    # The bind address to serve pprof.
+    # (default: 127.0.0.1:6060, type: host:port)
+    address: 127.0.0.1:6060
+  tracing:
+    # Whether application tracing data is collected. It exports to a backend
+    # configured by environment variables. See:
+    # https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
+    # (default: <unset>, type: bool)
+    enable: false
+    # Enables capturing of logs as events in traces. This is useful for debugging, but
+    # may result in a very large amount of events being sent to the tracing backend
+    # which may incur significant costs. If the verbose flag was supplied, debug-level
+    # logs will be included.
+    # (default: <unset>, type: bool)
+    captureLogs: false
+  logging:
+    # Output debug-level logs.
+    # (default: <unset>, type: bool)
+    verbose: false
+    # Output human-readable logs to a given file.
+    # (default: /dev/stderr, type: string)
+    humanPath: /dev/stderr
+    # Output JSON logs to a given file.
+    # (default: <unset>, type: string)
+    jsonPath: ""
+    # Output Stackdriver compatible logs to a given file.
+    # (default: <unset>, type: string)
+    stackdriverPath: ""
 oauth2:
-    github:
-        # Client ID for Login with GitHub.
-        # (default: <unset>, type: string)
-        clientID: ""
-        # Organizations the user must be a member of to Login with GitHub.
-        # (default: <unset>, type: string-array)
-        allowedOrgs: []
-        # Teams inside organizations the user must be a member of to Login with GitHub.
-        # Structured as: <organization-name>/<team-slug>.
-        # (default: <unset>, type: string-array)
-        allowedTeams: []
-        # Whether new users can sign up with GitHub.
-        # (default: <unset>, type: bool)
-        allowSignups: false
-        # Allow all logins, setting this option means allowed orgs and teams must be
-        # empty.
-        # (default: <unset>, type: bool)
-        allowEveryone: false
-        # Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
-        # (default: <unset>, type: string)
-        enterpriseBaseURL: ""
-oidc:
-    # Whether new users can sign up with OIDC.
-    # (default: true, type: bool)
-    allowSignups: true
-    # Client ID to use for Login with OIDC.
+  github:
+    # Client ID for Login with GitHub.
     # (default: <unset>, type: string)
     clientID: ""
-    # Email domains that clients logging in with OIDC must match.
+    # Organizations the user must be a member of to Login with GitHub.
     # (default: <unset>, type: string-array)
-    emailDomain: []
-    # Issuer URL to use for Login with OIDC.
-    # (default: <unset>, type: string)
-    issuerURL: ""
-    # Scopes to grant when authenticating with OIDC.
-    # (default: openid,profile,email, type: string-array)
-    scopes:
-        - openid
-        - profile
-        - email
-    # Ignore the email_verified claim from the upstream provider.
+    allowedOrgs: []
+    # Teams inside organizations the user must be a member of to Login with GitHub.
+    # Structured as: <organization-name>/<team-slug>.
+    # (default: <unset>, type: string-array)
+    allowedTeams: []
+    # Whether new users can sign up with GitHub.
     # (default: <unset>, type: bool)
-    ignoreEmailVerified: false
-    # OIDC claim field to use as the username.
-    # (default: preferred_username, type: string)
-    usernameField: preferred_username
-    # OIDC claim field to use as the email.
-    # (default: email, type: string)
-    emailField: email
-    # OIDC auth URL parameters to pass to the upstream provider.
-    # (default: {"access_type": "offline"}, type: struct[map[string]string])
-    authURLParams:
-        access_type: offline
-    # Ignore the userinfo endpoint and only use the ID token for user information.
-    # (default: false, type: bool)
-    ignoreUserInfo: false
-    # Change the OIDC default 'groups' claim field. By default, will be 'groups' if
-    # present in the oidc scopes argument.
+    allowSignups: false
+    # Allow all logins, setting this option means allowed orgs and teams must be
+    # empty.
+    # (default: <unset>, type: bool)
+    allowEveryone: false
+    # Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
     # (default: <unset>, type: string)
-    groupField: ""
-    # A map of OIDC group IDs and the group in Coder it should map to. This is useful
-    # for when OIDC providers only return group IDs.
-    # (default: {}, type: struct[map[string]string])
-    groupMapping: {}
-    # The text to show on the OpenID Connect sign in button.
-    # (default: OpenID Connect, type: string)
-    signInText: OpenID Connect
-    # URL pointing to the icon to use on the OepnID Connect login button.
-    # (default: <unset>, type: url)
-    iconURL:
+    enterpriseBaseURL: ""
+oidc:
+  # Whether new users can sign up with OIDC.
+  # (default: true, type: bool)
+  allowSignups: true
+  # Client ID to use for Login with OIDC.
+  # (default: <unset>, type: string)
+  clientID: ""
+  # Email domains that clients logging in with OIDC must match.
+  # (default: <unset>, type: string-array)
+  emailDomain: []
+  # Issuer URL to use for Login with OIDC.
+  # (default: <unset>, type: string)
+  issuerURL: ""
+  # Scopes to grant when authenticating with OIDC.
+  # (default: openid,profile,email, type: string-array)
+  scopes:
+    - openid
+    - profile
+    - email
+  # Ignore the email_verified claim from the upstream provider.
+  # (default: <unset>, type: bool)
+  ignoreEmailVerified: false
+  # OIDC claim field to use as the username.
+  # (default: preferred_username, type: string)
+  usernameField: preferred_username
+  # OIDC claim field to use as the email.
+  # (default: email, type: string)
+  emailField: email
+  # OIDC auth URL parameters to pass to the upstream provider.
+  # (default: {"access_type": "offline"}, type: struct[map[string]string])
+  authURLParams:
+    access_type: offline
+  # Ignore the userinfo endpoint and only use the ID token for user information.
+  # (default: false, type: bool)
+  ignoreUserInfo: false
+  # Change the OIDC default 'groups' claim field. By default, will be 'groups' if
+  # present in the oidc scopes argument.
+  # (default: <unset>, type: string)
+  groupField: ""
+  # A map of OIDC group IDs and the group in Coder it should map to. This is useful
+  # for when OIDC providers only return group IDs.
+  # (default: {}, type: struct[map[string]string])
+  groupMapping: {}
+  # The text to show on the OpenID Connect sign in button.
+  # (default: OpenID Connect, type: string)
+  signInText: OpenID Connect
+  # URL pointing to the icon to use on the OepnID Connect login button.
+  # (default: <unset>, type: url)
+  iconURL:
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 # information before sending data to our servers. Please only disable telemetry
 # when required by your organization's security policy.
 telemetry:
-    # Whether telemetry is enabled or not. Coder collects anonymized usage data to
-    # help improve our product.
-    # (default: false, type: bool)
-    enable: false
-    # Whether Opentelemetry traces are sent to Coder. Coder collects anonymized
-    # application tracing to help improve our product. Disabling telemetry also
-    # disables this option.
-    # (default: false, type: bool)
-    trace: false
-    # URL to send telemetry.
-    # (default: https://telemetry.coder.com, type: url)
-    url: https://telemetry.coder.com
+  # Whether telemetry is enabled or not. Coder collects anonymized usage data to
+  # help improve our product.
+  # (default: false, type: bool)
+  enable: false
+  # Whether Opentelemetry traces are sent to Coder. Coder collects anonymized
+  # application tracing to help improve our product. Disabling telemetry also
+  # disables this option.
+  # (default: false, type: bool)
+  trace: false
+  # URL to send telemetry.
+  # (default: https://telemetry.coder.com, type: url)
+  url: https://telemetry.coder.com
 # Tune the behavior of the provisioner, which is responsible for creating,
 # updating, and deleting workspace resources.
 provisioning:
-    # Number of provisioner daemons to create on start. If builds are stuck in queued
-    # state for a long time, consider increasing this.
-    # (default: 3, type: int)
-    daemons: 3
-    # Time to wait before polling for a new job.
-    # (default: 1s, type: duration)
-    daemonPollInterval: 1s
-    # Random jitter added to the poll interval.
-    # (default: 100ms, type: duration)
-    daemonPollJitter: 100ms
-    # Time to force cancel provisioning tasks that are stuck.
-    # (default: 10m0s, type: duration)
-    forceCancelInterval: 10m0s
+  # Number of provisioner daemons to create on start. If builds are stuck in queued
+  # state for a long time, consider increasing this.
+  # (default: 3, type: int)
+  daemons: 3
+  # Time to wait before polling for a new job.
+  # (default: 1s, type: duration)
+  daemonPollInterval: 1s
+  # Random jitter added to the poll interval.
+  # (default: 100ms, type: duration)
+  daemonPollJitter: 100ms
+  # Time to force cancel provisioning tasks that are stuck.
+  # (default: 10m0s, type: duration)
+  forceCancelInterval: 10m0s
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.
@@ -318,14 +318,14 @@ disablePathApps: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the coder cli, vs code extension, and the web UI.
 client:
-    # The SSH deployment prefix is used in the Host of the ssh config.
-    # (default: coder., type: string)
-    sshHostnamePrefix: coder.
-    # These SSH config options will override the default SSH config options. Provide
-    # options in "key=value" or "key value" format separated by commas.Using this
-    # incorrectly can break SSH to your deployment, use cautiously.
-    # (default: <unset>, type: string-array)
-    sshConfigOptions: []
+  # The SSH deployment prefix is used in the Host of the ssh config.
+  # (default: coder., type: string)
+  sshHostnamePrefix: coder.
+  # These SSH config options will override the default SSH config options. Provide
+  # options in "key=value" or "key value" format separated by commas.Using this
+  # incorrectly can break SSH to your deployment, use cautiously.
+  # (default: <unset>, type: string-array)
+  sshConfigOptions: []
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []

@@ -1564,8 +1564,13 @@ func TestServerYAMLConfig(t *testing.T) {
 	err = opts.UnmarshalYAML(n.(*yaml.Node))
 	require.NoError(t, err)
 
-	wantByt, err := yaml.Marshal(n)
+	var wantBuf bytes.Buffer
+	enc := yaml.NewEncoder(&wantBuf)
+	enc.SetIndent(2)
+	err = enc.Encode(n)
 	require.NoError(t, err)
+
+	wantByt := wantBuf.Bytes()
 
 	goldenPath := filepath.Join("testdata", "server-config.yaml.golden")
 
