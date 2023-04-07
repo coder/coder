@@ -10,29 +10,30 @@ INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1);
 -- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key';
 
--- name: InsertOrUpdateLastUpdateCheck :exec
+-- name: UpsertLastUpdateCheck :exec
 INSERT INTO site_configs (key, value) VALUES ('last_update_check', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update_check';
 
 -- name: GetLastUpdateCheck :one
 SELECT value FROM site_configs WHERE key = 'last_update_check';
 
--- name: InsertOrUpdateServiceBanner :exec
+-- name: UpsertServiceBanner :exec
 INSERT INTO site_configs (key, value) VALUES ('service_banner', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_banner';
 
 -- name: GetServiceBanner :one
 SELECT value FROM site_configs WHERE key = 'service_banner';
 
--- name: InsertOrUpdateLogoURL :exec
+-- name: UpsertLogoURL :exec
 INSERT INTO site_configs (key, value) VALUES ('logo_url', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url';
 
 -- name: GetLogoURL :one
 SELECT value FROM site_configs WHERE key = 'logo_url';
 
--- name: GetAppSigningKey :one
+-- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key';
 
--- name: InsertAppSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1);
+-- name: UpsertAppSecurityKey :exec
+INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key';

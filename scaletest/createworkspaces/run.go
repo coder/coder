@@ -53,7 +53,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.client.LogBodies = true
 
 	_, _ = fmt.Fprintln(logs, "Generating user password...")
-	password, err := cryptorand.HexString(16)
+	password, err := cryptorand.String(16)
 	if err != nil {
 		return xerrors.Errorf("generate random password for user: %w", err)
 	}

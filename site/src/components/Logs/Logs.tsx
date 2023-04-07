@@ -1,9 +1,10 @@
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import { LogLevel } from "api/typesGenerated"
 import dayjs from "dayjs"
-import { FC } from "react"
+import { FC, useMemo } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
+import AnsiToHTML from "ansi-to-html"
 
 export interface Line {
   time: string
@@ -53,6 +54,8 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
 
 export const logLineHeight = 20
 
+const convert = new AnsiToHTML()
+
 export const LogLine: FC<{
   line: Line
   hideTimestamp?: boolean
@@ -62,6 +65,9 @@ export const LogLine: FC<{
   const styles = useStyles({
     lineNumbers: Boolean(number),
   })
+  const output = useMemo(() => {
+    return convert.toHtml(line.output)
+  }, [line.output])
 
   return (
     <div className={combineClasses([styles.line, line.level])} style={style}>
@@ -73,7 +79,11 @@ export const LogLine: FC<{
           <span className={styles.space}>&nbsp;&nbsp;&nbsp;&nbsp;</span>
         </>
       )}
-      <span>{line.output}</span>
+      <span
+        dangerouslySetInnerHTML={{
+          __html: output,
+        }}
+      />
     </div>
   )
 }
@@ -93,7 +103,7 @@ const useStyles = makeStyles<
     background: theme.palette.background.default,
   },
   scrollWrapper: {
-    width: "fit-content",
+    minWidth: "fit-content",
   },
   line: {
     wordBreak: "break-all",
@@ -109,7 +119,7 @@ const useStyles = makeStyles<
     },
 
     "&.debug": {
-      backgroundColor: theme.palette.grey[900],
+      backgroundColor: theme.palette.background.paperLight,
     },
 
     "&.warn": {

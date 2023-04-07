@@ -3,14 +3,10 @@ import "jest-canvas-mock"
 import WS from "jest-websocket-mock"
 import { rest } from "msw"
 import { Route, Routes } from "react-router-dom"
+import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities"
 import { TextDecoder, TextEncoder } from "util"
 import { ReconnectingPTYRequest } from "../../api/types"
-import {
-  history,
-  MockWorkspace,
-  MockWorkspaceAgent,
-  render,
-} from "../../testHelpers/renderHelpers"
+import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import TerminalPage, { Language } from "./TerminalPage"
 

@@ -30,11 +30,12 @@ import (
 
 func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	var (
-		auth          string
-		logDir        string
-		pprofAddress  string
-		noReap        bool
-		sshMaxTimeout time.Duration
+		auth              string
+		logDir            string
+		pprofAddress      string
+		noReap            bool
+		sshMaxTimeout     time.Duration
+		tailnetListenPort int64
 	)
 	cmd := &clibase.Cmd{
 		Use:   "agent",
@@ -187,9 +188,10 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			}
 
 			closer := agent.New(agent.Options{
-				Client: client,
-				Logger: logger,
-				LogDir: logDir,
+				Client:            client,
+				Logger:            logger,
+				LogDir:            logDir,
+				TailnetListenPort: uint16(tailnetListenPort),
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
 						return client.SDK.SessionToken(), nil
@@ -247,6 +249,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Env:         "CODER_AGENT_SSH_MAX_TIMEOUT",
 			Description: "Specify the max timeout for a SSH connection.",
 			Value:       clibase.DurationOf(&sshMaxTimeout),
+		},
+		{
+			Flag:        "tailnet-listen-port",
+			Default:     "0",
+			Env:         "CODER_AGENT_TAILNET_LISTEN_PORT",
+			Description: "Specify a static port for Tailscale to use for listening.",
+			Value:       clibase.Int64Of(&tailnetListenPort),
 		},
 	}
 
@@ -327,8 +336,8 @@ func urlPort(u string) (int, error) {
 		return -1, xerrors.Errorf("invalid url %q: %w", u, err)
 	}
 	if parsed.Port() != "" {
-		port, err := strconv.ParseInt(parsed.Port(), 10, 64)
-		if err == nil && port > 0 {
+		port, err := strconv.ParseUint(parsed.Port(), 10, 16)
+		if err == nil && port > 0 && port < 1<<16 {
 			return int(port), nil
 		}
 	}

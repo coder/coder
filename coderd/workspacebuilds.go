@@ -530,10 +530,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		// Check if parameter value is in request
 		if buildParameter, found := findWorkspaceBuildParameter(createBuild.RichParameterValues, templateVersionParameter.Name); found {
 			if !templateVersionParameter.Mutable {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", templateVersionParameter.Name),
-				})
-				return
+				if _, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", templateVersionParameter.Name),
+					})
+					return
+				}
 			}
 			parameters = append(parameters, *buildParameter)
 			continue
@@ -543,6 +545,13 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		if buildParameter, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
 			parameters = append(parameters, *buildParameter)
 		}
+	}
+
+	if createBuild.LogLevel != "" && !api.Authorize(r, rbac.ActionUpdate, template) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace builds with a custom log level are restricted to template authors only.",
+		})
+		return
 	}
 
 	var workspaceBuild database.WorkspaceBuild
@@ -582,6 +591,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuildID := uuid.New()
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
+			LogLevel:         string(createBuild.LogLevel),
 		})
 		if err != nil {
 			return xerrors.Errorf("marshal provision job: %w", err)

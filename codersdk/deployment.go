@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -46,6 +45,7 @@ const (
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
+	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -60,6 +60,7 @@ var FeatureNames = []FeatureName{
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
+	FeatureWorkspaceProxy,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -143,7 +144,6 @@ type DeploymentValues struct {
 	MetricsCacheRefreshInterval     clibase.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
 	AgentStatRefreshInterval        clibase.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
 	AgentFallbackTroubleshootingURL clibase.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
-	AuditLogging                    clibase.Bool                    `json:"audit_logging,omitempty" typescript:",notnull"`
 	BrowserOnly                     clibase.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
 	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
@@ -256,6 +256,9 @@ type OIDCConfig struct {
 	Scopes              clibase.StringArray               `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified clibase.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
+	EmailField          clibase.String                    `json:"email_field" typescript:",notnull"`
+	AuthURLParams       clibase.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
+	IgnoreUserInfo      clibase.Bool                      `json:"ignore_user_info" typescript:",notnull"`
 	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
 	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
@@ -846,10 +849,9 @@ when required by your organization's security policy.`,
 			Description: "Ignore the email_verified claim from the upstream provider.",
 			Flag:        "oidc-ignore-email-verified",
 			Env:         "CODER_OIDC_IGNORE_EMAIL_VERIFIED",
-
-			Value: &c.OIDC.IgnoreEmailVerified,
-			Group: &deploymentGroupOIDC,
-			YAML:  "ignoreEmailVerified",
+			Value:       &c.OIDC.IgnoreEmailVerified,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "ignoreEmailVerified",
 		},
 		{
 			Name:        "OIDC Username Field",
@@ -860,6 +862,36 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.UsernameField,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "usernameField",
+		},
+		{
+			Name:        "OIDC Email Field",
+			Description: "OIDC claim field to use as the email.",
+			Flag:        "oidc-email-field",
+			Env:         "CODER_OIDC_EMAIL_FIELD",
+			Default:     "email",
+			Value:       &c.OIDC.EmailField,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "emailField",
+		},
+		{
+			Name:        "OIDC Auth URL Parameters",
+			Description: "OIDC auth URL parameters to pass to the upstream provider.",
+			Flag:        "oidc-auth-url-params",
+			Env:         "CODER_OIDC_AUTH_URL_PARAMS",
+			Default:     `{"access_type": "offline"}`,
+			Value:       &c.OIDC.AuthURLParams,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "authURLParams",
+		},
+		{
+			Name:        "OIDC Ignore UserInfo",
+			Description: "Ignore the userinfo endpoint and only use the ID token for user information.",
+			Flag:        "oidc-ignore-userinfo",
+			Env:         "CODER_OIDC_IGNORE_USERINFO",
+			Default:     "false",
+			Value:       &c.OIDC.IgnoreUserInfo,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "ignoreUserInfo",
 		},
 		{
 			Name:        "OIDC Group Field",
@@ -880,7 +912,7 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Group Mapping",
 			Description: "A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.",
 			Flag:        "oidc-group-mapping",
-			Env:         "OIDC_GROUP_MAPPING",
+			Env:         "CODER_OIDC_GROUP_MAPPING",
 			Default:     "{}",
 			Value:       &c.OIDC.GroupMapping,
 			Group:       &deploymentGroupOIDC,
@@ -1113,10 +1145,13 @@ when required by your organization's security policy.`,
 			Description: "The maximum lifetime duration users can specify when creating an API token.",
 			Flag:        "max-token-lifetime",
 			Env:         "CODER_MAX_TOKEN_LIFETIME",
-			Default:     time.Duration(math.MaxInt64).String(),
-			Value:       &c.MaxTokenLifetime,
-			Group:       &deploymentGroupNetworkingHTTP,
-			YAML:        "maxTokenLifetime",
+			// The default value is essentially "forever", so just use 100 years.
+			// We have to add in the 25 leap days for the frontend to show the
+			// "100 years" correctly.
+			Default: ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
+			Value:   &c.MaxTokenLifetime,
+			Group:   &deploymentGroupNetworkingHTTP,
+			YAML:    "maxTokenLifetime",
 		},
 		{
 			Name:        "Enable swagger endpoint",
@@ -1238,16 +1273,6 @@ when required by your organization's security policy.`,
 			Default:     "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
 			Value:       &c.AgentFallbackTroubleshootingURL,
 			YAML:        "agentFallbackTroubleshootingURL",
-		},
-		{
-			Name:        "Audit Logging",
-			Description: "Specifies whether audit logging is enabled.",
-			Flag:        "audit-logging",
-			Env:         "CODER_AUDIT_LOGGING",
-			Default:     "true",
-			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
-			Value:       &c.AuditLogging,
-			YAML:        "auditLogging",
 		},
 		{
 			Name:        "Browser Only",
@@ -1546,6 +1571,10 @@ const (
 	// ExperimentTemplateEditor is an internal experiment that enables the template editor
 	// for all users.
 	ExperimentTemplateEditor Experiment = "template_editor"
+
+	// ExperimentMoons enabled the workspace proxy endpoints and CRUD. This
+	// feature is not yet complete in functionality.
+	ExperimentMoons Experiment = "moons"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"

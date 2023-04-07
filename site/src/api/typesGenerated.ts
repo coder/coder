@@ -190,6 +190,8 @@ export interface CreateTemplateRequest {
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
+  readonly allow_user_autostart?: boolean
+  readonly allow_user_autostop?: boolean
 }
 
 // From codersdk/templateversions.go
@@ -248,6 +250,16 @@ export interface CreateWorkspaceBuildRequest {
   readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
+  readonly log_level?: ProvisionerLogLevel
+}
+
+// From codersdk/workspaceproxy.go
+export interface CreateWorkspaceProxyRequest {
+  readonly name: string
+  readonly display_name: string
+  readonly icon: string
+  readonly url: string
+  readonly wildcard_hostname: string
 }
 
 // From codersdk/organizations.go
@@ -346,7 +358,6 @@ export interface DeploymentValues {
   readonly metrics_cache_refresh_interval?: number
   readonly agent_stat_refresh_interval?: number
   readonly agent_fallback_troubleshooting_url?: string
-  readonly audit_logging?: boolean
   readonly browser_only?: boolean
   readonly scim_api_key?: string
   readonly provisioner?: ProvisionerConfig
@@ -516,6 +527,11 @@ export interface OIDCConfig {
   readonly scopes: string[]
   readonly ignore_email_verified: boolean
   readonly username_field: string
+  readonly email_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly auth_url_params: any
+  readonly ignore_user_info: boolean
   readonly groups_field: string
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
@@ -780,6 +796,8 @@ export interface Template {
   readonly max_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+  readonly allow_user_autostart: boolean
+  readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
 }
 
@@ -845,6 +863,7 @@ export interface TemplateVersionGitAuth {
 // From codersdk/templateversions.go
 export interface TemplateVersionParameter {
   readonly name: string
+  readonly display_name?: string
   readonly description: string
   readonly description_plaintext: string
   readonly type: string
@@ -946,6 +965,8 @@ export interface UpdateTemplateMeta {
   readonly icon?: string
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
+  readonly allow_user_autostart?: boolean
+  readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
@@ -1082,6 +1103,29 @@ export interface WorkspaceAgentListeningPortsResponse {
 }
 
 // From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadata {
+  readonly result: WorkspaceAgentMetadataResult
+  readonly description: WorkspaceAgentMetadataDescription
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadataDescription {
+  readonly display_name: string
+  readonly key: string
+  readonly script: string
+  readonly interval: number
+  readonly timeout: number
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadataResult {
+  readonly collected_at: string
+  readonly age: number
+  readonly value: string
+  readonly error: string
+}
+
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentStartupLog {
   readonly id: number
   readonly created_at: string
@@ -1167,6 +1211,19 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
+// From codersdk/workspaceproxy.go
+export interface WorkspaceProxy {
+  readonly id: string
+  readonly organization_id: string
+  readonly name: string
+  readonly icon: string
+  readonly url: string
+  readonly wildcard_hostname: string
+  readonly created_at: string
+  readonly updated_at: string
+  readonly deleted: boolean
+}
+
 // From codersdk/workspaces.go
 export interface WorkspaceQuota {
   readonly credits_consumed: number
@@ -1246,8 +1303,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "template_editor"
-export const Experiments: Experiment[] = ["template_editor"]
+export type Experiment = "moons" | "template_editor"
+export const Experiments: Experiment[] = ["moons", "template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1261,6 +1318,7 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
+  | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
   "appearance",
@@ -1272,6 +1330,7 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
+  "workspace_proxy",
 ]
 
 // From codersdk/workspaceagents.go
@@ -1347,6 +1406,10 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "running",
   "succeeded",
 ]
+
+// From codersdk/workspaces.go
+export type ProvisionerLogLevel = "debug"
+export const ProvisionerLogLevels: ProvisionerLogLevel[] = ["debug"]
 
 // From codersdk/organizations.go
 export type ProvisionerStorageMethod = "file"

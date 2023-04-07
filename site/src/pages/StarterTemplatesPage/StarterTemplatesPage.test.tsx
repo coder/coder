@@ -1,7 +1,6 @@
 import { screen } from "@testing-library/react"
+import { MockTemplateExample, MockTemplateExample2 } from "testHelpers/entities"
 import {
-  MockTemplateExample,
-  MockTemplateExample2,
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
