@@ -71,7 +71,7 @@ resource "coder_agent" "main" {
     script       = <<-EOT
       #!/bin/bash
       set -e
-      df -h | awk '$NF=="/home/coder"{printf "%d/%dGB (%s)\t", $3,$2,$5}'
+      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
     EOT
   }
 }

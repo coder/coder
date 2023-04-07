@@ -125,7 +125,7 @@ resource "coder_agent" "dev" {
     script       = <<-EOT
       #!/bin/bash
       set -e
-      df -h | awk '$NF=="/home/podman"{printf "%d/%dGB (%s)\t", $3,$2,$5}'
+      df /home/podman | awk '$NF=="/"{printf "%s", $5}'
     EOT
   }
 }
