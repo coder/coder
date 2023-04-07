@@ -181,6 +181,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("generate yaml: %w", err)
 				}
 				enc := yaml.NewEncoder(inv.Stdout)
+				enc.SetIndent(2)
 				err = enc.Encode(n)
 				if err != nil {
 					return xerrors.Errorf("encode yaml: %w", err)
