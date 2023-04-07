@@ -1577,6 +1577,7 @@ func TestServerYAMLConfig(t *testing.T) {
 
 	got, err := os.ReadFile(goldenPath)
 	require.NoError(t, err)
+	got = normalizeGoldenFile(t, got)
 
 	require.Equal(t, string(wantByt), string(got))
 }
