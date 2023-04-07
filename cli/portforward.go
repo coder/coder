@@ -14,7 +14,7 @@ import (
 	"github.com/pion/udp"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -226,7 +226,7 @@ func listenAndPortForward(ctx context.Context, inv *clibase.Invocation, conn *co
 				}
 				defer remoteConn.Close()
 
-				agent.Bicopy(ctx, netConn, remoteConn)
+				agentssh.Bicopy(ctx, netConn, remoteConn)
 			}(netConn)
 		}
 	}(spec)

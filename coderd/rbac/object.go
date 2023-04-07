@@ -22,6 +22,14 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceWorkspaceProxy CRUD. Org
+	//	create/delete = make or delete proxies
+	// 	read = read proxy urls
+	//	update = edit workspace proxy fields
+	ResourceWorkspaceProxy = Object{
+		Type: "workspace_proxy",
+	}
+
 	// ResourceWorkspaceExecution CRUD. Org + User owner
 	//	create = workspace remote execution
 	// 	read = ?

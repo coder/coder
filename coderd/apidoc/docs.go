@@ -587,44 +587,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/groups": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get groups",
-                "operationId": "get-groups",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Group"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/groups/{group}": {
             "get": {
                 "security": [
@@ -969,7 +931,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Enterprise"
                 ],
                 "summary": "Create group for organization",
                 "operationId": "create-group-for-organization",
@@ -4429,6 +4391,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -4990,6 +4955,71 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceproxies": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxies",
+                "operationId": "get-workspace-proxies",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create workspace proxy",
+                "operationId": "create-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Create workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
                     }
                 }
@@ -6401,6 +6431,14 @@ const docTemplate = `{
                 "template_version_id"
             ],
             "properties": {
+                "allow_user_autostart": {
+                    "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
+                    "type": "boolean"
+                },
+                "allow_user_autostop": {
+                    "description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled when\nusing an enterprise license.",
+                    "type": "boolean"
+                },
                 "allow_user_cancel_workspace_jobs": {
                     "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
                     "type": "boolean"
@@ -6698,6 +6736,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -6885,9 +6943,6 @@ const docTemplate = `{
                 },
                 "agent_stat_refresh_interval": {
                     "type": "integer"
-                },
-                "audit_logging": {
-                    "type": "boolean"
                 },
                 "autobuild_poll_interval": {
                     "type": "integer"
@@ -7081,10 +7136,12 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "template_editor"
+                "template_editor",
+                "moons"
             ],
             "x-enum-varnames": [
-                "ExperimentTemplateEditor"
+                "ExperimentTemplateEditor",
+                "ExperimentMoons"
             ]
         },
         "codersdk.Feature": {
@@ -7459,6 +7516,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/clibase.URL"
                 },
                 "ignore_email_verified": {
+                    "type": "boolean"
+                },
+                "ignore_user_info": {
                     "type": "boolean"
                 },
                 "issuer_url": {
@@ -8187,6 +8247,13 @@ const docTemplate = `{
                 "active_version_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "allow_user_autostart": {
+                    "description": "AllowUserAutostart and AllowUserAutostop are enterprise-only. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "type": "boolean"
+                },
+                "allow_user_autostop": {
+                    "type": "boolean"
                 },
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
@@ -9340,6 +9407,44 @@ const docTemplate = `{
                 },
                 "tx_bytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkspaceProxy": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "deleted": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "description": "Full url including scheme of the proxy api url: https://us.example.com",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
+                    "type": "string"
                 }
             }
         },

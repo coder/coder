@@ -19,14 +19,14 @@ const (
 	RedirectURIQueryParam = "redirect_uri"
 )
 
-// ResolveRequest calls TokenProvider to use an existing signed app token in the
+// ResolveRequest calls SignedTokenProvider to use an existing signed app token in the
 // request or issue a new one. If it returns a newly minted token, it sets the
 // cookie for you.
-func ResolveRequest(log slog.Logger, accessURL *url.URL, p SignedTokenProvider, rw http.ResponseWriter, r *http.Request, appReq Request) (*SignedToken, bool) {
+func ResolveRequest(log slog.Logger, dashboardURL *url.URL, p SignedTokenProvider, rw http.ResponseWriter, r *http.Request, appReq Request) (*SignedToken, bool) {
 	appReq = appReq.Normalize()
 	err := appReq.Validate()
 	if err != nil {
-		WriteWorkspaceApp500(log, accessURL, rw, r, &appReq, err, "invalid app request")
+		WriteWorkspaceApp500(log, dashboardURL, rw, r, &appReq, err, "invalid app request")
 		return nil, false
 	}
 

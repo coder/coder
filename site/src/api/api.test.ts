@@ -199,9 +199,9 @@ describe("api.ts", () => {
 
       expect(error).toBeInstanceOf(api.MissingBuildParameters)
       // Verify if the correct missing parameters are being passed
-      // It should not require immutable parameters
       expect((error as api.MissingBuildParameters).parameters).toEqual([
         MockTemplateVersionParameter1,
+        { ...MockTemplateVersionParameter2, mutable: false },
       ])
     })
 

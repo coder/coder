@@ -97,6 +97,9 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install sqlc
+        run: |
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
       - name: Install protoc-gen-go

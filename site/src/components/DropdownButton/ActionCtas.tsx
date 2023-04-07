@@ -4,6 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import BlockIcon from "@material-ui/icons/Block"
 import CloudQueueIcon from "@material-ui/icons/CloudQueue"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
+import HistoryOutlined from "@material-ui/icons/HistoryOutlined"
 import CropSquareIcon from "@material-ui/icons/CropSquare"
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
 import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
@@ -49,6 +50,23 @@ export const SettingsButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
       onClick={handleAction}
     >
       {t("actionButton.settings")}
+    </Button>
+  )
+}
+
+export const ChangeVersionButton: FC<
+  React.PropsWithChildren<WorkspaceAction>
+> = ({ handleAction }) => {
+  const styles = useStyles()
+
+  return (
+    <Button
+      variant="outlined"
+      className={styles.actionButton}
+      startIcon={<HistoryOutlined />}
+      onClick={handleAction}
+    >
+      Change version
     </Button>
   )
 }

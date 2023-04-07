@@ -379,14 +379,14 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) GetAppSigningKey(ctx context.Context) (string, error) {
+func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	// No authz checks
-	return q.db.GetAppSigningKey(ctx)
+	return q.db.GetAppSecurityKey(ctx)
 }
 
-func (q *querier) InsertAppSigningKey(ctx context.Context, data string) error {
+func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
 	// No authz checks as this is done during startup
-	return q.db.InsertAppSigningKey(ctx, data)
+	return q.db.UpsertAppSecurityKey(ctx, data)
 }
 
 func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
@@ -992,6 +992,16 @@ func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]dat
 		return nil, err
 	}
 	return q.db.GetTemplateUserRoles(ctx, id)
+}
+
+func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+	// TODO: This is not 100% correct because it omits apikey IDs.
+	err := q.authorizeContext(ctx, rbac.ActionDelete,
+		rbac.ResourceAPIKey.WithOwner(userID.String()))
+	if err != nil {
+		return err
+	}
+	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
 func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -1683,6 +1693,34 @@ func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWor
 
 func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
+}
+
+func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
+	return fetchWithPostFilter(q.auth, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxies(ctx)
+	})(ctx, nil)
+}
+
+func (q *querier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
+	return fetch(q.log, q.auth, q.db.GetWorkspaceProxyByID)(ctx, id)
+}
+
+func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	return insert(q.log, q.auth, rbac.ResourceWorkspaceProxy, q.db.InsertWorkspaceProxy)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspaceProxy)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg database.UpdateWorkspaceProxyDeletedParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceProxyDeletedParams) (database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
+	}
+	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceProxyDeleted)(ctx, arg)
 }
 
 func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job database.ProvisionerJob) (database.TemplateVersion, error) {

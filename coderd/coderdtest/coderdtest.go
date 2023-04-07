@@ -11,7 +11,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -26,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -68,6 +68,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/cryptorand"
@@ -80,9 +81,9 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tokens in
-// tests.
-var AppSigningKey = must(hex.DecodeString("64656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566"))
+// AppSecurityKey is a 96-byte key used to sign JWTs and encrypt JWEs for
+// workspace app tokens in tests.
+var AppSecurityKey = must(workspaceapps.KeyFromString("6465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e2077617320686572"))
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
@@ -214,10 +215,17 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		options.FilesRateLimit = -1
 	}
 
+	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
+	if options.TemplateScheduleStore == nil {
+		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
+	}
+	templateScheduleStore.Store(&options.TemplateScheduleStore)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
 		ctx,
 		options.Database,
+		&templateScheduleStore,
 		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
@@ -311,7 +319,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			FilesRateLimit:        options.FilesRateLimit,
 			Authorizer:            options.Authorizer,
 			Telemetry:             telemetry.NewNoop(),
-			TemplateScheduleStore: options.TemplateScheduleStore,
+			TemplateScheduleStore: &templateScheduleStore,
 			TLSCertificates:       options.TLSCertificates,
 			TrialGenerator:        options.TrialGenerator,
 			DERPMap: &tailcfg.DERPMap{
@@ -338,7 +346,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			DeploymentValues:            options.DeploymentValues,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
-			AppSigningKey:               AppSigningKey,
+			AppSecurityKey:              AppSecurityKey,
 			SSHConfig:                   options.ConfigSSH,
 			HealthcheckFunc:             options.HealthcheckFunc,
 			HealthcheckTimeout:          options.HealthcheckTimeout,
@@ -476,7 +484,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
-		Username:       randomUsername(),
+		Username:       randomUsername(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
@@ -581,8 +589,8 @@ func CreateWorkspaceBuild(
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
-		Name:        randomUsername(),
-		Description: randomUsername(),
+		Name:        randomUsername(t),
+		Description: randomUsername(t),
 		VersionID:   version,
 	}
 	for _, mut := range mutators {
@@ -701,7 +709,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	t.Helper()
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
-		Name:              randomUsername(),
+		Name:              randomUsername(t),
 		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 	}
@@ -1057,8 +1065,10 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 		}
 }
 
-func randomUsername() string {
-	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-")
+func randomUsername(t testing.TB) string {
+	suffix, err := cryptorand.String(3)
+	require.NoError(t, err)
+	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-") + "-" + suffix
 }
 
 // Used to easily create an HTTP transport!

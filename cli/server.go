@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -72,10 +73,12 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/prometheusmetrics"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -632,6 +635,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				SSHConfig: codersdk.SSHConfigResponse{
 					HostnamePrefix:   cfg.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
@@ -728,6 +732,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					UsernameField:       cfg.OIDC.UsernameField.String(),
 					EmailField:          cfg.OIDC.EmailField.String(),
 					AuthURLParams:       cfg.OIDC.AuthURLParams.Value,
+					IgnoreUserInfo:      cfg.OIDC.IgnoreUserInfo.Value(),
 					GroupField:          cfg.OIDC.GroupField.String(),
 					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					SignInText:          cfg.OIDC.SignInText.String(),
@@ -777,37 +782,42 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 				}
 
-				// Read the app signing key from the DB. We store it hex
-				// encoded since the config table uses strings for the value and
-				// we don't want to deal with automatic encoding issues.
-				appSigningKeyStr, err := tx.GetAppSigningKey(ctx)
+				// Read the app signing key from the DB. We store it hex encoded
+				// since the config table uses strings for the value and we
+				// don't want to deal with automatic encoding issues.
+				appSecurityKeyStr, err := tx.GetAppSecurityKey(ctx)
 				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 					return xerrors.Errorf("get app signing key: %w", err)
 				}
-				if appSigningKeyStr == "" {
-					// Generate 64 byte secure random string.
-					b := make([]byte, 64)
+				// If the string in the DB is an invalid hex string or the
+				// length is not equal to the current key length, generate a new
+				// one.
+				//
+				// If the key is regenerated, old signed tokens and encrypted
+				// strings will become invalid. New signed app tokens will be
+				// generated automatically on failure. Any workspace app token
+				// smuggling operations in progress may fail, although with a
+				// helpful error.
+				if decoded, err := hex.DecodeString(appSecurityKeyStr); err != nil || len(decoded) != len(workspaceapps.SecurityKey{}) {
+					b := make([]byte, len(workspaceapps.SecurityKey{}))
 					_, err := rand.Read(b)
 					if err != nil {
 						return xerrors.Errorf("generate fresh app signing key: %w", err)
 					}
 
-					appSigningKeyStr = hex.EncodeToString(b)
-					err = tx.InsertAppSigningKey(ctx, appSigningKeyStr)
+					appSecurityKeyStr = hex.EncodeToString(b)
+					err = tx.UpsertAppSecurityKey(ctx, appSecurityKeyStr)
 					if err != nil {
 						return xerrors.Errorf("insert freshly generated app signing key to database: %w", err)
 					}
 				}
 
-				appSigningKey, err := hex.DecodeString(appSigningKeyStr)
+				appSecurityKey, err := workspaceapps.KeyFromString(appSecurityKeyStr)
 				if err != nil {
-					return xerrors.Errorf("decode app signing key from database as hex: %w", err)
-				}
-				if len(appSigningKey) != 64 {
-					return xerrors.Errorf("app signing key must be 64 bytes, key in database is %d bytes", len(appSigningKey))
+					return xerrors.Errorf("decode app signing key from database: %w", err)
 				}
 
-				options.AppSigningKey = appSigningKey
+				options.AppSecurityKey = appSecurityKey
 				return nil
 			}, nil)
 			if err != nil {
@@ -1019,7 +1029,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value())
 			defer autobuildPoller.Stop()
-			autobuildExecutor := executor.New(ctx, options.Database, logger, autobuildPoller.C)
+			autobuildExecutor := executor.New(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildPoller.C)
 			autobuildExecutor.Run()
 
 			// Currently there is no way to ask the server to shut
@@ -1715,6 +1725,11 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 		}
 
 		if r.Host == accessURL.Host {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
+		if r.Header.Get("X-Forwarded-Host") == accessURL.Host {
 			handler.ServeHTTP(w, r)
 			return
 		}

@@ -227,9 +227,19 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var allowUserCancelWorkspaceJobs bool
+	var (
+		allowUserCancelWorkspaceJobs bool
+		allowUserAutostart           = true
+		allowUserAutostop            = true
+	)
 	if createTemplate.AllowUserCancelWorkspaceJobs != nil {
 		allowUserCancelWorkspaceJobs = *createTemplate.AllowUserCancelWorkspaceJobs
+	}
+	if createTemplate.AllowUserAutostart != nil {
+		allowUserAutostart = *createTemplate.AllowUserAutostart
+	}
+	if createTemplate.AllowUserAutostop != nil {
+		allowUserAutostop = *createTemplate.AllowUserAutostop
 	}
 
 	var dbTemplate database.Template
@@ -259,9 +269,10 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
-			UserSchedulingEnabled: true,
-			DefaultTTL:            defaultTTL,
-			MaxTTL:                maxTTL,
+			UserAutostartEnabled: allowUserAutostart,
+			UserAutostopEnabled:  allowUserAutostop,
+			DefaultTTL:           defaultTTL,
+			MaxTTL:               maxTTL,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)
@@ -478,6 +489,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Description == template.Description &&
 			req.DisplayName == template.DisplayName &&
 			req.Icon == template.Icon &&
+			req.AllowUserAutostart == template.AllowUserAutostart &&
+			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() {
@@ -491,7 +504,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		displayName := req.DisplayName
 		desc := req.Description
 		icon := req.Icon
-		allowUserCancelWorkspaceJobs := req.AllowUserCancelWorkspaceJobs
 
 		if name == "" {
 			name = template.Name
@@ -508,7 +520,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisplayName:                  displayName,
 			Description:                  desc,
 			Icon:                         icon,
-			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
+			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -516,11 +528,18 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
-		if defaultTTL != time.Duration(template.DefaultTTL) || maxTTL != time.Duration(template.MaxTTL) {
+		if defaultTTL != time.Duration(template.DefaultTTL) ||
+			maxTTL != time.Duration(template.MaxTTL) ||
+			req.AllowUserAutostart != template.AllowUserAutostart ||
+			req.AllowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, updated, schedule.TemplateScheduleOptions{
-				UserSchedulingEnabled: true,
-				DefaultTTL:            defaultTTL,
-				MaxTTL:                maxTTL,
+				// Some of these values are enterprise-only, but the
+				// TemplateScheduleStore will handle avoiding setting them if
+				// unlicensed.
+				UserAutostartEnabled: req.AllowUserAutostart,
+				UserAutostopEnabled:  req.AllowUserAutostop,
+				DefaultTTL:           defaultTTL,
+				MaxTTL:               maxTTL,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)
@@ -661,6 +680,8 @@ func (api *API) convertTemplate(
 		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                  template.CreatedBy,
 		CreatedByName:                createdByName,
+		AllowUserAutostart:           template.AllowUserAutostart,
+		AllowUserAutostop:            template.AllowUserAutostop,
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 	}
 }

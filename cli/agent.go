@@ -336,8 +336,8 @@ func urlPort(u string) (int, error) {
 		return -1, xerrors.Errorf("invalid url %q: %w", u, err)
 	}
 	if parsed.Port() != "" {
-		port, err := strconv.ParseInt(parsed.Port(), 10, 64)
-		if err == nil && port > 0 {
+		port, err := strconv.ParseUint(parsed.Port(), 10, 16)
+		if err == nil && port > 0 && port < 1<<16 {
 			return int(port), nil
 		}
 	}

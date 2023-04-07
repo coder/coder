@@ -241,18 +241,34 @@ export const AgentMetadata: FC<{
       setMetadata(storybookMetadata)
       return
     }
-    const source = watchAgentMetadata(agent.id)
 
-    source.onerror = (e) => {
-      console.error("received error in watch stream", e)
+    let timeout: NodeJS.Timeout | undefined = undefined
+
+    const connect = (): (() => void) => {
+      const source = watchAgentMetadata(agent.id)
+
+      source.onerror = (e) => {
+        console.error("received error in watch stream", e)
+        setMetadata(undefined)
+        source.close()
+
+        timeout = setTimeout(() => {
+          connect()
+        }, 3000)
+      }
+
+      source.addEventListener("data", (e) => {
+        const data = JSON.parse(e.data)
+        setMetadata(data)
+      })
+      return () => {
+        if (timeout !== undefined) {
+          clearTimeout(timeout)
+        }
+        source.close()
+      }
     }
-    source.addEventListener("data", (e) => {
-      const data = JSON.parse(e.data)
-      setMetadata(data)
-    })
-    return () => {
-      source.close()
-    }
+    return connect()
   }, [agent.id, watchAgentMetadata, storybookMetadata])
 
   if (metadata === undefined) {
