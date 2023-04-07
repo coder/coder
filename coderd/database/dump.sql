@@ -94,7 +94,8 @@ CREATE TYPE resource_type AS ENUM (
     'api_key',
     'group',
     'workspace_build',
-    'license'
+    'license',
+    'workspace_proxy'
 );
 
 CREATE TYPE user_status AS ENUM (

@@ -348,7 +348,9 @@ func DefaultCacheDir() string {
 		// For compatibility with systemd.
 		defaultCacheDir = dir
 	}
-
+	if dir := os.Getenv("CLIDOCGEN_CACHE_DIRECTORY"); dir != "" {
+		defaultCacheDir = dir
+	}
 	return filepath.Join(defaultCacheDir, "coder")
 }
 
