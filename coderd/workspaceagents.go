@@ -22,7 +22,6 @@ import (
 	"github.com/bep/debounce"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
@@ -36,7 +35,6 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -859,7 +857,8 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 	disconnectedAt := workspaceAgent.DisconnectedAt
 	updateConnectionTimes := func(ctx context.Context) error {
-		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+		//nolint:gocritic // We only update ourself.
+		err = api.Database.UpdateWorkspaceAgentConnectionByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentConnectionByIDParams{
 			ID:               workspaceAgent.ID,
 			FirstConnectedAt: firstConnectedAt,
 			LastConnectedAt:  lastConnectedAt,
@@ -919,11 +918,6 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
-
-	// End span so we don't get long lived trace data.
-	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
-	// Ignore all trace spans after this.
-	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
 	api.Logger.Info(ctx, "accepting agent", slog.F("agent", workspaceAgent))
 
@@ -1355,10 +1349,6 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	defer func() {
 		<-senderClosed
 	}()
-
-	// We don't want this intentionally long request to skew our tracing
-	// reports.
-	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
 	const refreshInterval = time.Second * 5
 	refreshTicker := time.NewTicker(refreshInterval)
