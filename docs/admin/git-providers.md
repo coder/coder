@@ -41,8 +41,8 @@ CODER_GITAUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_GITAUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 ```
 
-### Azure Devops
-Azure Devops requires the following environment variables:
+### Azure DevOps
+Azure DevOps requires the following environment variables:
 
 ```console
 CODER_GITAUTH_0_ID="primary-azure-devops"
