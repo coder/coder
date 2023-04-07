@@ -53,7 +53,7 @@ variable "step2_do_admin_ssh_key" {
 
 data "coder_parameter" "droplet_image" {
   name         = "droplet_image"
-  display_name = "Droplet Image"
+  display_name = "Droplet image"
   description  = "Which Droplet image would you like to use?"
   default      = "ubuntu-22-04-x64"
   type         = "string"
