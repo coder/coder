@@ -26,3 +26,7 @@ const (
 	ResourceDebugInfo                   RBACResource = "debug_info"
 	ResourceSystem                      RBACResource = "system"
 )
+
+func (r RBACResource) String() string {
+	return string(r)
+}

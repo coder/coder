@@ -143,6 +143,15 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 
 Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.
 
+### --disable-owner-workspace-exec
+
+|             |                                                  |
+| ----------- | ------------------------------------------------ |
+| Type        | <code>bool</code>                                |
+| Environment | <code>$CODER_DISABLE_OWNER_WORKSPACE_EXEC</code> |
+
+Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.
+
 ### --disable-password-auth
 
 |             |                                           |
