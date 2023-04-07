@@ -19,6 +19,42 @@ type authSubject struct {
 	Actor rbac.Subject
 }
 
+//nolint:tparallel,paralleltest
+func TestOwnerExec(t *testing.T) {
+	owner := rbac.Subject{
+		ID:    uuid.NewString(),
+		Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOwner()},
+		Scope: rbac.ScopeAll,
+	}
+
+	t.Run("NoExec", func(t *testing.T) {
+		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
+			NoOwnerWorkspaceExec: true,
+		})
+		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+
+		auth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+		// Exec a random workspace
+		err := auth.Authorize(context.Background(), owner, rbac.ActionCreate,
+			rbac.ResourceWorkspaceExecution.WithID(uuid.New()).InOrg(uuid.New()).WithOwner(uuid.NewString()))
+		require.ErrorAsf(t, err, &rbac.UnauthorizedError{}, "expected unauthorized error")
+	})
+
+	t.Run("Exec", func(t *testing.T) {
+		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
+			NoOwnerWorkspaceExec: false,
+		})
+		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+
+		auth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+
+		// Exec a random workspace
+		err := auth.Authorize(context.Background(), owner, rbac.ActionCreate,
+			rbac.ResourceWorkspaceExecution.WithID(uuid.New()).InOrg(uuid.New()).WithOwner(uuid.NewString()))
+		require.NoError(t, err, "expected owner can")
+	})
+}
+
 // TODO: add the SYSTEM to the MATRIX
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()

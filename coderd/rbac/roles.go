@@ -80,6 +80,10 @@ func allPermsExcept(excepts ...Object) []Permission {
 		if skip[r.Type] {
 			continue
 		}
+		// This should always be skipped.
+		if r.Type == ResourceWildcard.Type {
+			continue
+		}
 		// Owners can do everything else
 		perms = append(perms, Permission{
 			Negate:       false,
@@ -118,7 +122,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 	var ownerAndAdminExceptions []Object
 	if opts.NoOwnerWorkspaceExec {
-		ownerAndAdminExceptions = append(ownerAndAdminExceptions, ResourceWorkspaceExecution)
+		ownerAndAdminExceptions = append(ownerAndAdminExceptions,
+			ResourceWorkspaceExecution,
+			ResourceWorkspaceApplicationConnect,
+		)
 	}
 
 	builtInRoles = map[string]func(orgID string) Role{
