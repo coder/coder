@@ -147,8 +147,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 			Resource: rbac.ResourceWorkspaceExecution.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin},
+				true:  {owner, orgMemberMe},
+				false: {orgAdmin, memberMe, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin},
 			},
 		},
 		{
