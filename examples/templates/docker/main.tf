@@ -47,40 +47,6 @@ resource "coder_agent" "main" {
     GIT_AUTHOR_EMAIL    = "${data.coder_workspace.me.owner_email}"
     GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
   }
-
-  metadata {
-    key          = "cpu"
-    display_name = "CPU Usage"
-    interval     = 5
-    timeout      = 5
-    script       = <<-EOT
-      #!/bin/bash
-      set -e
-      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
-    EOT
-  }
-  metadata {
-    key          = "memory"
-    display_name = "Memory Usage"
-    interval     = 5
-    timeout      = 5
-    script       = <<-EOT
-      #!/bin/bash
-      set -e
-      free -m | awk 'NR==2{printf "%.2f%%\t", $3*100/$2 }'
-    EOT
-  }
-  metadata {
-    key          = "disk"
-    display_name = "Disk Usage"
-    interval     = 600 # every 10 minutes
-    timeout      = 30  # df can take a while on large filesystems
-    script       = <<-EOT
-      #!/bin/bash
-      set -e
-      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
-    EOT
-  }
 }
 
 resource "coder_app" "code-server" {

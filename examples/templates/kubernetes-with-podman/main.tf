@@ -96,28 +96,6 @@ resource "coder_agent" "dev" {
   EOF
 
   metadata {
-    key          = "cpu"
-    display_name = "CPU Usage"
-    interval     = 5
-    timeout      = 5
-    script       = <<-EOT
-      #!/bin/bash
-      set -e
-      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
-    EOT
-  }
-  metadata {
-    key          = "memory"
-    display_name = "Memory Usage"
-    interval     = 5
-    timeout      = 5
-    script       = <<-EOT
-      #!/bin/bash
-      set -e
-      free -m | awk 'NR==2{printf "%.2f%%\t", $3*100/$2 }'
-    EOT
-  }
-  metadata {
     key          = "disk"
     display_name = "Disk Usage"
     interval     = 600 # every 10 minutes
