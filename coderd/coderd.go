@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
+
 	"github.com/coder/coder/site"
 	"github.com/coder/coder/tailnet"
 )
@@ -143,9 +144,9 @@ type Options struct {
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
 	// SSHConfig is the response clients use to configure config-ssh locally.
-	SSHConfig codersdk.SSHConfigResponse
-
-	HTTPClient *http.Client
+	SSHConfig                  codersdk.SSHConfigResponse
+	SystemAccountTokenProvider systemaccounttokenprovider
+	HTTPClient                 *http.Client
 }
 
 // @title Coder API
@@ -312,6 +313,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore: atomic.Pointer[schedule.TemplateScheduleStore]{},
 		Experiments:           experiments,
 		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
+		systemAccountProvider: NewSystemAccountTokenProvider{}
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -621,6 +623,24 @@ func New(options *Options) *API {
 				})
 			})
 		})
+
+		r.Route("/systemaccounts", func(r chi.Router) {
+			r.Post("", api.createSystemAccount)
+			r.Route("/{id}", func(r chi.Router) {
+
+				r.Delete("/", api.deleteSystemAccount)
+				r.Put("/", api.updateSystemAccount)
+
+				r.Route("/tokens", func(r chi.Router) {
+					r.Post("", api.createSystemToken)
+					r.Route("/{tokenid}", func(r chi.Router) {
+						r.Delete("", api.invalidateSystemToken)
+					})
+
+				})
+			})
+		})
+
 		r.Route("/workspaceagents", func(r chi.Router) {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)

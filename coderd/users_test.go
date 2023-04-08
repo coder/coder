@@ -598,25 +598,42 @@ func TestUpdateUserProfile(t *testing.T) {
 func TestUpdateUserPassword(t *testing.T) {
 	t.Parallel()
 
-	t.Run("MemberCantUpdateAdminPassword", func(t *testing.T) {
+	t.Run("MemberCantUpdateOwnerPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		err := member.UpdateUserPassword(ctx, admin.UserID.String(), codersdk.UpdateUserPasswordRequest{
+		err := member.UpdateUserPassword(ctx, owner.UserID.String(), codersdk.UpdateUserPasswordRequest{
 			Password: "newpassword",
 		})
-		require.Error(t, err, "member should not be able to update admin password")
+		require.Error(t, err, "member should not be able to update owner password")
 	})
 
-	t.Run("AdminCanUpdateMemberPassword", func(t *testing.T) {
+	t.Run("AdminCantUpdateMemberPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
+		admin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		_, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := admin.UpdateUserPassword(ctx, memberUser.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "newpassword",
+		})
+		require.Error(t, err, "admin should not be able to update member password")
+	})
+
+	t.Run("OwnerCanUpdateMemberPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -625,13 +642,13 @@ func TestUpdateUserPassword(t *testing.T) {
 			Email:          "coder@coder.com",
 			Username:       "coder",
 			Password:       "SomeStrongPassword!",
-			OrganizationID: admin.OrganizationID,
+			OrganizationID: owner.OrganizationID,
 		})
 		require.NoError(t, err, "create member")
 		err = client.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
 			Password: "SomeNewStrongPassword!",
 		})
-		require.NoError(t, err, "admin should be able to update member password")
+		require.NoError(t, err, "owner should be able to update member password")
 		// Check if the member can login using the new password
 		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    "coder@coder.com",
@@ -645,11 +662,11 @@ func TestUpdateUserPassword(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
-		admin := coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for user create
 		numLogs++ // add an audit log for login
 
-		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		numLogs++ // add an audit log for user create
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -669,8 +686,8 @@ func TestUpdateUserPassword(t *testing.T) {
 	t.Run("MemberCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -680,7 +697,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		require.Error(t, err, "member should not be able to update own password without providing old password")
 	})
-	t.Run("AdminCanUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
+	t.Run("OwnerCanUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
@@ -697,7 +714,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		numLogs++ // add an audit log for user update
 
-		require.NoError(t, err, "admin should be able to update own password without providing old password")
+		require.NoError(t, err, "owner should be able to update own password without providing old password")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)

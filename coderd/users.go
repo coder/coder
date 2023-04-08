@@ -737,6 +737,16 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
+		//Divya: Based on my testing, currently only owner/user can modify user password.
+		//Adding relevant error message indicating the reason behind failure
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "You are not authorized to update userpassword",
+			})
+			return
+
+		}
+
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user's password.",
 			Detail:  err.Error(),
