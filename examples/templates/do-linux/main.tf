@@ -147,7 +147,7 @@ data "coder_parameter" "droplet_size" {
 
 data "coder_parameter" "home_volume_size" {
   name         = "home_volume_size"
-  display_name = "Home Volume Size"
+  display_name = "Home volume size"
   description  = "How large would you like your home volume to be (in GB)?"
   type         = "number"
   default      = "20"
