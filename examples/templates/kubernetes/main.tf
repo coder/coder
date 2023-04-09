@@ -86,7 +86,7 @@ data "coder_parameter" "memory" {
 
 data "coder_parameter" "home_disk_size" {
   name         = "home_disk_size"
-  display_name = "Home Disk Size"
+  display_name = "Home disk size"
   description  = "The size of the home disk in GB"
   default      = "10"
   type         = "number"
