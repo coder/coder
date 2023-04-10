@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -76,7 +78,7 @@
     {
       "title": "Platforms",
       "description": "Platform-specific guides using Coder",
-      "path": "./platforms.md",
+      "path": "./platforms/README.md",
       "icon_path": "./images/icons/star.svg",
       "children": [
         {
@@ -125,7 +127,7 @@
     {
       "title": "Templates",
       "description": "Learn about templates, which define the infrastructure underlying workspaces",
-      "path": "./templates.md",
+      "path": "./templates/README.md",
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
@@ -241,7 +243,7 @@
     {
       "title": "Administration",
       "description": "How to install and deploy Coder",
-      "path": "./admin/index.md",
+      "path": "./admin/README.md",
       "icon_path": "./images/icons/wrench.svg",
       "children": [
         {
