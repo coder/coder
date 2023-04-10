@@ -9,6 +9,7 @@ import {
 } from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
 import { Stats, StatsItem } from "components/Stats/Stats"
+import upperFirst from "lodash/upperFirst"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -73,9 +74,13 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
       />
       <StatsItem
         label={Language.lastBuiltLabel}
-        value={createDayString(workspace.latest_build.created_at)}
+        value={
+          <>
+            {upperFirst(createDayString(workspace.latest_build.created_at))} by{" "}
+            {initiatedBy}
+          </>
+        }
       />
-      <StatsItem label={Language.byLabel} value={initiatedBy} />
       {workspace.latest_build.daily_cost > 0 && (
         <StatsItem
           label={Language.costLabel}
