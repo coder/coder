@@ -103,7 +103,7 @@ resource "docker_volume" "home_volume" {
 }
 
 resource "docker_image" "coder_image" {
-  name = "coder-base-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  name = "coder-base-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
   build {
     context    = "./images/"
     dockerfile = "${data.coder_parameter.docker_image.value}.Dockerfile"
