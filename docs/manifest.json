@@ -82,12 +82,6 @@
       "icon_path": "./images/icons/star.svg",
       "children": [
         {
-          "title": "Docker",
-          "description": "Set up Coder with Docker",
-          "path": "./platforms/docker.md",
-          "icon_path": "./images/icons/docker.svg"
-        },
-        {
           "title": "AWS",
           "description": "Set up Coder on an AWS EC2 VM",
           "path": "./platforms/aws.md",
@@ -116,6 +110,12 @@
               "path": "./platforms/kubernetes/additional-clusters.md"
             }
           ]
+        },
+        {
+          "title": "Docker",
+          "description": "Set up Coder with Docker",
+          "path": "./platforms/docker.md",
+          "icon_path": "./images/icons/docker.svg"
         },
         {
           "title": "Other platforms",
