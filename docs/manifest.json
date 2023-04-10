@@ -162,12 +162,6 @@
           "state": "alpha"
         },
         {
-          "title": "Docker in Docker",
-          "description": "Use docker inside containerized templates",
-          "path": "./templates/docker-in-docker.md",
-          "icon_path": "./images/icons/docker.svg"
-        },
-        {
           "title": "Parameters",
           "description": "Use parameters to customize templates",
           "path": "./templates/parameters.md",
@@ -178,6 +172,12 @@
           "description": "Learn how to add an \"Open in Coder\" button to your repos",
           "path": "./templates/open-in-coder.md",
           "icon_path": "./images/icons/key.svg"
+        },
+        {
+          "title": "Docker in Workspaces",
+          "description": "Use docker inside containerized templates",
+          "path": "./templates/docker-in-workspaces.md",
+          "icon_path": "./images/icons/docker.svg"
         }
       ]
     },
