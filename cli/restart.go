@@ -56,7 +56,6 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			// this seems to return the provisioner job - perhaps we are watching for an error
 			err = cliui.WorkspaceBuild(ctx, out, client, build.ID)
 			if err != nil {
 				return err
