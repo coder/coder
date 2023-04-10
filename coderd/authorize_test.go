@@ -46,27 +46,27 @@ func TestCheckPermissions(t *testing.T) {
 	params := map[string]codersdk.AuthorizationCheck{
 		readAllUsers: {
 			Object: codersdk.AuthorizationObject{
-				ResourceType: "users",
+				ResourceType: codersdk.ResourceUser,
 			},
 			Action: "read",
 		},
 		readMyself: {
 			Object: codersdk.AuthorizationObject{
-				ResourceType: "users",
+				ResourceType: codersdk.ResourceUser,
 				OwnerID:      "me",
 			},
 			Action: "read",
 		},
 		readOwnWorkspaces: {
 			Object: codersdk.AuthorizationObject{
-				ResourceType: "workspaces",
+				ResourceType: codersdk.ResourceWorkspace,
 				OwnerID:      "me",
 			},
 			Action: "read",
 		},
 		readOrgWorkspaces: {
 			Object: codersdk.AuthorizationObject{
-				ResourceType:   "workspaces",
+				ResourceType:   codersdk.ResourceWorkspace,
 				OrganizationID: adminUser.OrganizationID.String(),
 			},
 			Action: "read",
@@ -103,7 +103,7 @@ func TestCheckPermissions(t *testing.T) {
 			Client: orgAdminClient,
 			UserID: orgAdminUser.ID,
 			Check: map[string]bool{
-				readAllUsers:           false,
+				readAllUsers:           true,
 				readMyself:             true,
 				readOwnWorkspaces:      true,
 				readOrgWorkspaces:      true,
@@ -115,7 +115,7 @@ func TestCheckPermissions(t *testing.T) {
 			Client: memberClient,
 			UserID: memberUser.ID,
 			Check: map[string]bool{
-				readAllUsers:           false,
+				readAllUsers:           true,
 				readMyself:             true,
 				readOwnWorkspaces:      true,
 				readOrgWorkspaces:      false,
