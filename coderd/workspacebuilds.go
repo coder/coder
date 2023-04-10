@@ -288,27 +288,14 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
-// Azure supports instance identity verification:
-// https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
-//
-// @Summary Create workspace build
-// @ID create-workspace-build
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Builds
-// @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
-// @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /workspaces/{workspace}/builds [post]
-// nolint:gocyclo
-func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postBuild(rw http.ResponseWriter, r *http.Request) (codersdk.WorkspaceBuild, error) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	workspace := httpmw.WorkspaceParam(r)
+
 	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(ctx, rw, r, &createBuild) {
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Decode CreateWorkspaceBuildRequest")
 	}
 
 	// Doing this up front saves a lot of work if the user doesn't have permission.
@@ -324,11 +311,11 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Transition %q not supported.", createBuild.Transition),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Transition %q not supported.", createBuild.Transition)
 	}
 	if !api.Authorize(r, action, workspace) {
 		httpapi.ResourceNotFound(rw)
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Resource not found.")
 	}
 
 	if createBuild.TemplateVersionID == uuid.Nil {
@@ -338,7 +325,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				Message: "Internal error fetching the latest workspace build.",
 				Detail:  latestBuildErr.Error(),
 			})
-			return
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("Fetch the latest workspace build: %w", latestBuildErr.Error())
 		}
 		createBuild.TemplateVersionID = latestBuild.TemplateVersionID
 	}
@@ -352,14 +339,18 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				Detail: "template version not found",
 			}},
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Template version not found: %w", []codersdk.ValidationError{{
+			Field:  "template_version_id",
+			Detail: "template version not found",
+		}})
+
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template version.",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Fetch template version: %w", err.Error())
 	}
 
 	template, err := api.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
@@ -368,7 +359,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to get template",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Get template: %w", err.Error())
 	}
 
 	var state []byte
@@ -379,7 +370,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: "Only template managers may provide custom state",
 			})
-			return
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("Unauthorized request.")
 		}
 		state = createBuild.ProvisionerState
 	}
@@ -390,14 +381,14 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				Message: "Orphan is only permitted when deleting a workspace.",
 				Detail:  err.Error(),
 			})
-			return
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("Orphan is only permitted when deleting a workspace: %w", err.Error())
 		}
 
 		if createBuild.ProvisionerState != nil && createBuild.Orphan {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "ProvisionerState cannot be set alongside Orphan since state intent is unclear.",
 			})
-			return
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("ProvisionerState cannot be set alongside Orphan since state intent is unclear.")
 		}
 		state = []byte{}
 	}
@@ -408,7 +399,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Fetch provisioner job: %w", err.Error())
 	}
 	templateVersionJobStatus := convertProvisionerJob(templateVersionJob).Status
 	switch templateVersionJobStatus {
@@ -416,17 +407,17 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusNotAcceptable, codersdk.Response{
 			Message: fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("The provided template version is %s.", templateVersionJobStatus)
 	case codersdk.ProvisionerJobFailed:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("The provided template version %q has failed to import: %q. You cannot build workspaces with it!", templateVersion.Name, templateVersionJob.Error.String),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("The provided template version %q failed to import.", templateVersion.Name)
 	case codersdk.ProvisionerJobCanceled:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The provided template version was canceled during import. You cannot builds workspaces with it!",
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("The provided template version was canceled during import.")
 	}
 
 	tags := provisionerdserver.MutateTags(workspace.OwnerID, templateVersionJob.Tags)
@@ -440,7 +431,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "A workspace build is already active.",
 			})
-			return
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("Workspace build is already active.")
 		}
 
 		priorBuildNum = priorHistory.BuildNumber
@@ -449,7 +440,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching prior workspace build.",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Fetch prior workspace build: %w", err.Error())
 	}
 
 	if state == nil {
@@ -462,7 +453,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching template version parameters.",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Fetch template version parameters: %w", err.Error())
 	}
 	templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
 	if err != nil {
@@ -470,7 +461,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error converting template version parameters.",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Convert template version parameters: %w", err.Error())
 	}
 
 	lastBuildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
@@ -479,7 +470,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching prior workspace build parameters.",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Fetch prior workspace build parameters: %w", err.Error())
+
 	}
 	apiLastBuildParameters := convertWorkspaceBuildParameters(lastBuildParameters)
 
@@ -492,7 +484,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Error fetching previous legacy parameters.",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Fetch previous legacy parameters: %w", err.Error())
 	}
 
 	// Rich parameters migration: include legacy variables to the last build parameters
@@ -522,7 +514,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Error validating workspace build parameters.",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Validate workspace build parameters: %w", err.Error())
 	}
 
 	var parameters []codersdk.WorkspaceBuildParameter
@@ -533,7 +525,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", templateVersionParameter.Name),
 				})
-				return
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("Parameter %q is not mutable", templateVersionParameter.Name)
 			}
 			parameters = append(parameters, *buildParameter)
 			continue
@@ -642,7 +634,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error inserting workspace build.",
 			Detail:  err.Error(),
 		})
-		return
+		xerrors.Errorf("Insert workspace build: %w", err.Error())
 	}
 
 	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{
@@ -654,7 +646,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error getting user.",
 			Detail:  err.Error(),
 		})
-		return
+		xerrors.Errorf("Get user: %w", err.Error())
 	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
@@ -673,12 +665,415 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error converting workspace build.",
 			Detail:  err.Error(),
 		})
-		return
+		xerrors.Errorf("Convert workspace build: %w", err.Error())
 	}
 
 	api.publishWorkspaceUpdate(ctx, workspace.ID)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
+	return apiBuild, nil
+}
+
+// Azure supports instance identity verification:
+// https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
+//
+// @Summary Create workspace build
+// @ID create-workspace-build
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Builds
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /workspaces/{workspace}/builds [post]
+// nolint:gocyclo
+func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	build, buildErr := api.postBuild(rw, r)
+	if buildErr != nil {
+		// all errors handled in api.postBuild
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, build)
+
+	// ctx := r.Context()
+	// apiKey := httpmw.APIKey(r)
+	// workspace := httpmw.WorkspaceParam(r)
+	// var createBuild codersdk.CreateWorkspaceBuildRequest
+	// if !httpapi.Read(ctx, rw, r, &createBuild) {
+	// 	return
+	// }
+
+	// // Doing this up front saves a lot of work if the user doesn't have permission.
+	// // This is checked again in the dbauthz layer, but the check is cached
+	// // and will be a noop later.
+	// var action rbac.Action
+	// switch createBuild.Transition {
+	// case codersdk.WorkspaceTransitionDelete:
+	// 	action = rbac.ActionDelete
+	// case codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop:
+	// 	action = rbac.ActionUpdate
+	// default:
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: fmt.Sprintf("Transition %q not supported.", createBuild.Transition),
+	// 	})
+	// 	return
+	// }
+	// if !api.Authorize(r, action, workspace) {
+	// 	httpapi.ResourceNotFound(rw)
+	// 	return
+	// }
+
+	// if createBuild.TemplateVersionID == uuid.Nil {
+	// 	latestBuild, latestBuildErr := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	// 	if latestBuildErr != nil {
+	// 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 			Message: "Internal error fetching the latest workspace build.",
+	// 			Detail:  latestBuildErr.Error(),
+	// 		})
+	// 		return
+	// 	}
+	// 	createBuild.TemplateVersionID = latestBuild.TemplateVersionID
+	// }
+
+	// templateVersion, err := api.Database.GetTemplateVersionByID(ctx, createBuild.TemplateVersionID)
+	// if errors.Is(err, sql.ErrNoRows) {
+	// 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	// 		Message: "Template version not found.",
+	// 		Validations: []codersdk.ValidationError{{
+	// 			Field:  "template_version_id",
+	// 			Detail: "template version not found",
+	// 		}},
+	// 	})
+	// 	return
+	// }
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error fetching template version.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// template, err := api.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Failed to get template",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// var state []byte
+	// // If custom state, deny request since user could be corrupting or leaking
+	// // cloud state.
+	// if createBuild.ProvisionerState != nil || createBuild.Orphan {
+	// 	if !api.Authorize(r, rbac.ActionUpdate, template.RBACObject()) {
+	// 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+	// 			Message: "Only template managers may provide custom state",
+	// 		})
+	// 		return
+	// 	}
+	// 	state = createBuild.ProvisionerState
+	// }
+
+	// if createBuild.Orphan {
+	// 	if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
+	// 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	// 			Message: "Orphan is only permitted when deleting a workspace.",
+	// 			Detail:  err.Error(),
+	// 		})
+	// 		return
+	// 	}
+
+	// 	if createBuild.ProvisionerState != nil && createBuild.Orphan {
+	// 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	// 			Message: "ProvisionerState cannot be set alongside Orphan since state intent is unclear.",
+	// 		})
+	// 		return
+	// 	}
+	// 	state = []byte{}
+	// }
+
+	// templateVersionJob, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error fetching provisioner job.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+	// templateVersionJobStatus := convertProvisionerJob(templateVersionJob).Status
+	// switch templateVersionJobStatus {
+	// case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
+	// 	httpapi.Write(ctx, rw, http.StatusNotAcceptable, codersdk.Response{
+	// 		Message: fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
+	// 	})
+	// 	return
+	// case codersdk.ProvisionerJobFailed:
+	// 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	// 		Message: fmt.Sprintf("The provided template version %q has failed to import: %q. You cannot build workspaces with it!", templateVersion.Name, templateVersionJob.Error.String),
+	// 	})
+	// 	return
+	// case codersdk.ProvisionerJobCanceled:
+	// 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	// 		Message: "The provided template version was canceled during import. You cannot builds workspaces with it!",
+	// 	})
+	// 	return
+	// }
+
+	// tags := provisionerdserver.MutateTags(workspace.OwnerID, templateVersionJob.Tags)
+
+	// // Store prior build number to compute new build number
+	// var priorBuildNum int32
+	// priorHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	// if err == nil {
+	// 	priorJob, err := api.Database.GetProvisionerJobByID(ctx, priorHistory.JobID)
+	// 	if err == nil && convertProvisionerJob(priorJob).Status.Active() {
+	// 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+	// 			Message: "A workspace build is already active.",
+	// 		})
+	// 		return
+	// 	}
+
+	// 	priorBuildNum = priorHistory.BuildNumber
+	// } else if !errors.Is(err, sql.ErrNoRows) {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error fetching prior workspace build.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// if state == nil {
+	// 	state = priorHistory.ProvisionerState
+	// }
+
+	// dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, createBuild.TemplateVersionID)
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error fetching template version parameters.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+	// templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error converting template version parameters.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// lastBuildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error fetching prior workspace build parameters.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+	// apiLastBuildParameters := convertWorkspaceBuildParameters(lastBuildParameters)
+
+	// legacyParameters, err := api.Database.ParameterValues(ctx, database.ParameterValuesParams{
+	// 	Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
+	// 	ScopeIds: []uuid.UUID{workspace.ID},
+	// })
+	// if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Error fetching previous legacy parameters.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// // Rich parameters migration: include legacy variables to the last build parameters
+	// for _, templateVersionParameter := range templateVersionParameters {
+	// 	// Check if parameter is defined in previous build
+	// 	if _, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
+	// 		continue
+	// 	}
+
+	// 	// Check if legacy variable is defined
+	// 	for _, legacyParameter := range legacyParameters {
+	// 		if legacyParameter.Name != templateVersionParameter.LegacyVariableName {
+	// 			continue
+	// 		}
+
+	// 		apiLastBuildParameters = append(apiLastBuildParameters, codersdk.WorkspaceBuildParameter{
+	// 			Name:  templateVersionParameter.Name,
+	// 			Value: legacyParameter.SourceValue,
+	// 		})
+	// 		break
+	// 	}
+	// }
+
+	// err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createBuild.RichParameterValues, apiLastBuildParameters)
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	// 		Message: "Error validating workspace build parameters.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// var parameters []codersdk.WorkspaceBuildParameter
+	// for _, templateVersionParameter := range templateVersionParameters {
+	// 	// Check if parameter value is in request
+	// 	if buildParameter, found := findWorkspaceBuildParameter(createBuild.RichParameterValues, templateVersionParameter.Name); found {
+	// 		if !templateVersionParameter.Mutable {
+	// 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	// 				Message: fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", templateVersionParameter.Name),
+	// 			})
+	// 			return
+	// 		}
+	// 		parameters = append(parameters, *buildParameter)
+	// 		continue
+	// 	}
+
+	// 	// Check if parameter is defined in previous build
+	// 	if buildParameter, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
+	// 		parameters = append(parameters, *buildParameter)
+	// 	}
+	// }
+
+	// var workspaceBuild database.WorkspaceBuild
+	// var provisionerJob database.ProvisionerJob
+	// // This must happen in a transaction to ensure history can be inserted, and
+	// // the prior history can update it's "after" column to point at the new.
+	// err = api.Database.InTx(func(db database.Store) error {
+	// 	// Write/Update any new params
+	// 	now := database.Now()
+	// 	for _, param := range createBuild.ParameterValues {
+	// 		for _, exists := range legacyParameters {
+	// 			// If the param exists, delete the old param before inserting the new one
+	// 			if exists.Name == param.Name {
+	// 				err = db.DeleteParameterValueByID(ctx, exists.ID)
+	// 				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	// 					return xerrors.Errorf("Failed to delete old param %q: %w", exists.Name, err)
+	// 				}
+	// 			}
+	// 		}
+
+	// 		_, err = db.InsertParameterValue(ctx, database.InsertParameterValueParams{
+	// 			ID:                uuid.New(),
+	// 			Name:              param.Name,
+	// 			CreatedAt:         now,
+	// 			UpdatedAt:         now,
+	// 			Scope:             database.ParameterScopeWorkspace,
+	// 			ScopeID:           workspace.ID,
+	// 			SourceScheme:      database.ParameterSourceScheme(param.SourceScheme),
+	// 			SourceValue:       param.SourceValue,
+	// 			DestinationScheme: database.ParameterDestinationScheme(param.DestinationScheme),
+	// 		})
+	// 		if err != nil {
+	// 			return xerrors.Errorf("insert parameter value: %w", err)
+	// 		}
+	// 	}
+
+	// 	workspaceBuildID := uuid.New()
+	// 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+	// 		WorkspaceBuildID: workspaceBuildID,
+	// 	})
+	// 	if err != nil {
+	// 		return xerrors.Errorf("marshal provision job: %w", err)
+	// 	}
+	// 	provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+	// 		ID:             uuid.New(),
+	// 		CreatedAt:      database.Now(),
+	// 		UpdatedAt:      database.Now(),
+	// 		InitiatorID:    apiKey.UserID,
+	// 		OrganizationID: template.OrganizationID,
+	// 		Provisioner:    template.Provisioner,
+	// 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	// 		StorageMethod:  templateVersionJob.StorageMethod,
+	// 		FileID:         templateVersionJob.FileID,
+	// 		Input:          input,
+	// 		Tags:           tags,
+	// 	})
+	// 	if err != nil {
+	// 		return xerrors.Errorf("insert provisioner job: %w", err)
+	// 	}
+
+	// 	workspaceBuild, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+	// 		ID:                workspaceBuildID,
+	// 		CreatedAt:         database.Now(),
+	// 		UpdatedAt:         database.Now(),
+	// 		WorkspaceID:       workspace.ID,
+	// 		TemplateVersionID: templateVersion.ID,
+	// 		BuildNumber:       priorBuildNum + 1,
+	// 		ProvisionerState:  state,
+	// 		InitiatorID:       apiKey.UserID,
+	// 		Transition:        database.WorkspaceTransition(createBuild.Transition),
+	// 		JobID:             provisionerJob.ID,
+	// 		Reason:            database.BuildReasonInitiator,
+	// 	})
+	// 	if err != nil {
+	// 		return xerrors.Errorf("insert workspace build: %w", err)
+	// 	}
+
+	// 	names := make([]string, 0, len(parameters))
+	// 	values := make([]string, 0, len(parameters))
+	// 	for _, param := range parameters {
+	// 		names = append(names, param.Name)
+	// 		values = append(values, param.Value)
+	// 	}
+	// 	err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
+	// 		WorkspaceBuildID: workspaceBuildID,
+	// 		Name:             names,
+	// 		Value:            values,
+	// 	})
+	// 	if err != nil {
+	// 		return xerrors.Errorf("insert workspace build parameters: %w", err)
+	// 	}
+
+	// 	return nil
+	// }, nil)
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error inserting workspace build.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{
+	// 	workspace.OwnerID,
+	// 	workspaceBuild.InitiatorID,
+	// })
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error getting user.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// apiBuild, err := api.convertWorkspaceBuild(
+	// 	workspaceBuild,
+	// 	workspace,
+	// 	provisionerJob,
+	// 	users,
+	// 	[]database.WorkspaceResource{},
+	// 	[]database.WorkspaceResourceMetadatum{},
+	// 	[]database.WorkspaceAgent{},
+	// 	[]database.WorkspaceApp{},
+	// 	database.TemplateVersion{},
+	// )
+	// if err != nil {
+	// 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	// 		Message: "Internal error converting workspace build.",
+	// 		Detail:  err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// api.publishWorkspaceUpdate(ctx, workspace.ID)
+
+	// httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
 
 // @Summary Cancel workspace build

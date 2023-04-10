@@ -34,28 +34,33 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
+			// get the workspace - this can probably stay in here
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
+			// create a build - stop the workspace
 			build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
 			})
 			if err != nil {
 				return err
 			}
+			// this seems to return the provisioner job - perhaps we are watching for an error
 			err = cliui.WorkspaceBuild(ctx, out, client, build.ID)
 			if err != nil {
 				return err
 			}
 
+			// create a build - start the workspace
 			build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
 			})
 			if err != nil {
 				return err
 			}
+			// this seems to return the provisioner job - perhaps we are watching for an error
 			err = cliui.WorkspaceBuild(ctx, out, client, build.ID)
 			if err != nil {
 				return err
