@@ -17,6 +17,7 @@ import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout"
+import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -265,7 +266,9 @@ export const AppRouter: FC = () => {
                     path="builds/:buildNumber"
                     element={<WorkspaceBuildPage />}
                   />
-                  <Route path="settings" element={<WorkspaceSettingsPage />} />
+                  <Route path="settings" element={<WorkspaceSettingsLayout />}>
+                    <Route index element={<WorkspaceSettingsPage />} />
+                  </Route>
                 </Route>
               </Route>
             </Route>
