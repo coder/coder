@@ -194,6 +194,7 @@ issues:
       linters:
         # We use assertions rather than explicitly checking errors in tests
         - errcheck
+        - forcetypeassert
 
   fix: true
   max-issues-per-linter: 0

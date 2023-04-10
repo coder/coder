@@ -591,7 +591,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		req := codersdk.UpdateTemplateACL{
 			GroupPerms: map[string]codersdk.TemplateRole{
@@ -602,9 +602,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 		numLogs++
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs[numLogs-1].Action)
-		require.Equal(t, template.ID, auditor.AuditLogs[numLogs-1].ResourceID)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, template.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
 	})
 
 	t.Run("DeleteUser", func(t *testing.T) {

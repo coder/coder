@@ -3,6 +3,7 @@ package database
 import (
 	"sort"
 	"strconv"
+	"time"
 
 	"golang.org/x/exp/maps"
 
@@ -30,6 +31,26 @@ func (s WorkspaceStatus) Valid() bool {
 		WorkspaceStatusStopping, WorkspaceStatusStopped, WorkspaceStatusFailed,
 		WorkspaceStatusCanceling, WorkspaceStatusCanceled, WorkspaceStatusDeleting,
 		WorkspaceStatusDeleted:
+		return true
+	default:
+		return false
+	}
+}
+
+type WorkspaceAgentStatus string
+
+// This is also in codersdk/workspaceagents.go and should be kept in sync.
+const (
+	WorkspaceAgentStatusConnecting   WorkspaceAgentStatus = "connecting"
+	WorkspaceAgentStatusConnected    WorkspaceAgentStatus = "connected"
+	WorkspaceAgentStatusDisconnected WorkspaceAgentStatus = "disconnected"
+	WorkspaceAgentStatusTimeout      WorkspaceAgentStatus = "timeout"
+)
+
+func (s WorkspaceAgentStatus) Valid() bool {
+	switch s {
+	case WorkspaceAgentStatusConnecting, WorkspaceAgentStatusConnected,
+		WorkspaceAgentStatusDisconnected, WorkspaceAgentStatusTimeout:
 		return true
 	default:
 		return false
@@ -160,6 +181,11 @@ func (p ProvisionerDaemon) RBACObject() rbac.Object {
 	return rbac.ResourceProvisionerDaemon.WithID(p.ID)
 }
 
+func (w WorkspaceProxy) RBACObject() rbac.Object {
+	return rbac.ResourceWorkspaceProxy.
+		WithID(w.ID)
+}
+
 func (f File) RBACObject() rbac.Object {
 	return rbac.ResourceFile.
 		WithID(f.ID).
@@ -197,6 +223,61 @@ func (u UserLink) RBACObject() rbac.Object {
 
 func (l License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
+}
+
+type WorkspaceAgentConnectionStatus struct {
+	Status           WorkspaceAgentStatus `json:"status"`
+	FirstConnectedAt *time.Time           `json:"first_connected_at"`
+	LastConnectedAt  *time.Time           `json:"last_connected_at"`
+	DisconnectedAt   *time.Time           `json:"disconnected_at"`
+}
+
+func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConnectionStatus {
+	connectionTimeout := time.Duration(a.ConnectionTimeoutSeconds) * time.Second
+
+	status := WorkspaceAgentConnectionStatus{
+		Status: WorkspaceAgentStatusDisconnected,
+	}
+	if a.FirstConnectedAt.Valid {
+		status.FirstConnectedAt = &a.FirstConnectedAt.Time
+	}
+	if a.LastConnectedAt.Valid {
+		status.LastConnectedAt = &a.LastConnectedAt.Time
+	}
+	if a.DisconnectedAt.Valid {
+		status.DisconnectedAt = &a.DisconnectedAt.Time
+	}
+
+	switch {
+	case !a.FirstConnectedAt.Valid:
+		switch {
+		case connectionTimeout > 0 && Now().Sub(a.CreatedAt) > connectionTimeout:
+			// If the agent took too long to connect the first time,
+			// mark it as timed out.
+			status.Status = WorkspaceAgentStatusTimeout
+		default:
+			// If the agent never connected, it's waiting for the compute
+			// to start up.
+			status.Status = WorkspaceAgentStatusConnecting
+		}
+	// We check before instead of after because last connected at and
+	// disconnected at can be equal timestamps in tight-timed tests.
+	case !a.DisconnectedAt.Time.Before(a.LastConnectedAt.Time):
+		// If we've disconnected after our last connection, we know the
+		// agent is no longer connected.
+		status.Status = WorkspaceAgentStatusDisconnected
+	case Now().Sub(a.LastConnectedAt.Time) > inactiveTimeout:
+		// The connection died without updating the last connected.
+		status.Status = WorkspaceAgentStatusDisconnected
+		// Client code needs an accurate disconnected at if the agent has been inactive.
+		status.DisconnectedAt = &a.LastConnectedAt.Time
+	case a.LastConnectedAt.Valid:
+		// The agent should be assumed connected if it's under inactivity timeouts
+		// and last connected at has been properly set.
+		status.Status = WorkspaceAgentStatusConnected
+	}
+
+	return status
 }
 
 func ConvertUserRows(rows []GetUsersRow) []User {

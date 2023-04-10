@@ -1,29 +1,31 @@
-import axios, { AxiosRequestHeaders } from "axios"
+import axios from "axios"
 import dayjs from "dayjs"
 import * as Types from "./types"
 import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 // Adds 304 for the default axios validateStatus function
-// https://github.com/axios/axios#handling-errors
-// Check status here https://httpstatusdogs.com/
+// https://github.com/axios/axios#handling-errors Check status here
+// https://httpstatusdogs.com/
 axios.defaults.validateStatus = (status) => {
   return (status >= 200 && status < 300) || status === 304
 }
 
 export const hardCodedCSRFCookie = (): string => {
-  // This is a hard coded CSRF token/cookie pair for local development.
-  // In prod, the GoLang webserver generates a random cookie with a new token for
-  // each document request. For local development, we don't use the Go webserver for static files,
-  // so this is the 'hack' to make local development work with remote apis.
-  // The CSRF cookie for this token is "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
+  // This is a hard coded CSRF token/cookie pair for local development. In prod,
+  // the GoLang webserver generates a random cookie with a new token for each
+  // document request. For local development, we don't use the Go webserver for
+  // static files, so this is the 'hack' to make local development work with
+  // remote apis. The CSRF cookie for this token is
+  // "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
   const csrfToken =
     "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A=="
   axios.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken
   return csrfToken
 }
 
-// withDefaultFeatures sets all unspecified features to not_entitled and disabled.
+// withDefaultFeatures sets all unspecified features to not_entitled and
+// disabled.
 export const withDefaultFeatures = (
   fs: Partial<TypesGen.Entitlements["features"]>,
 ): TypesGen.Entitlements["features"] => {
@@ -40,9 +42,8 @@ export const withDefaultFeatures = (
   return fs as TypesGen.Entitlements["features"]
 }
 
-// Always attach CSRF token to all requests.
-// In puppeteer the document is undefined. In those cases, just
-// do nothing.
+// Always attach CSRF token to all requests. In puppeteer the document is
+// undefined. In those cases, just do nothing.
 const token =
   typeof document !== "undefined"
     ? document.head.querySelector('meta[property="csrf-token"]')
@@ -64,7 +65,7 @@ if (token !== null && token.getAttribute("content") !== null) {
   }
 }
 
-const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
+const CONTENT_TYPE_JSON = {
   "Content-Type": "application/json",
 }
 
@@ -335,7 +336,7 @@ export const getTemplateVersionGitAuth = async (
 
 export const getTemplateVersionParameters = async (
   versionId: string,
-): Promise<TypesGen.Parameter[]> => {
+): Promise<TypesGen.ComputedParameter[]> => {
   const response = await axios.get(
     `/api/v2/templateversions/${versionId}/parameters`,
   )
@@ -489,15 +490,29 @@ export const postWorkspaceBuild = async (
 export const startWorkspace = (
   workspaceId: string,
   templateVersionID: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
     template_version_id: templateVersionID,
+    log_level: logLevel,
   })
-export const stopWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "stop" })
-export const deleteWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "delete" })
+export const stopWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "stop",
+    log_level: logLevel,
+  })
+export const deleteWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "delete",
+    log_level: logLevel,
+  })
 
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
@@ -960,11 +975,47 @@ export class MissingBuildParameters extends Error {
   }
 }
 
+/** Steps to change the workspace version
+ * - Get the latest template to access the latest active version
+ * - Get the current build parameters
+ * - Get the template parameters
+ * - Update the build parameters and check if there are missed parameters for the new version
+ *   - If there are missing parameters raise an error
+ * - Create a build with the version and updated build parameters
+ */
+export const changeWorkspaceVersion = async (
+  workspace: TypesGen.Workspace,
+  templateVersionId: string,
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+): Promise<TypesGen.WorkspaceBuild> => {
+  const [currentBuildParameters, templateParameters] = await Promise.all([
+    getWorkspaceBuildParameters(workspace.latest_build.id),
+    getTemplateVersionRichParameters(templateVersionId),
+  ])
+
+  const missingParameters = getMissingParameters(
+    currentBuildParameters,
+    newBuildParameters,
+    templateParameters,
+  )
+
+  if (missingParameters.length > 0) {
+    throw new MissingBuildParameters(missingParameters)
+  }
+
+  return postWorkspaceBuild(workspace.id, {
+    transition: "start",
+    template_version_id: templateVersionId,
+    rich_parameter_values: newBuildParameters,
+  })
+}
+
 /** Steps to update the workspace
  * - Get the latest template to access the latest active version
  * - Get the current build parameters
  * - Get the template parameters
- * - Update the build parameters and check if there are missed parameters for the newest version
+ * - Update the build parameters and check if there are missed parameters for
+ *   the newest version
  *   - If there are missing parameters raise an error
  * - Create a build with the latest version and updated build parameters
  */
@@ -1003,12 +1054,22 @@ const getMissingParameters = (
   templateParameters: TypesGen.TemplateVersionParameter[],
 ) => {
   const missingParameters: TypesGen.TemplateVersionParameter[] = []
-  const requiredParameters = templateParameters.filter(
-    // It is required
-    // and it can be changed
-    // and it is not from a legacy variable
-    (p) => p.required && p.mutable && p.legacy_variable_name === undefined,
-  )
+  const requiredParameters: TypesGen.TemplateVersionParameter[] = []
+
+  templateParameters.forEach((p) => {
+    // Legacy parameters should be required. So we can migrate them.
+    const isLegacy = p.legacy_variable_name === undefined
+    // It is mutable and required. Mutable values can be changed after so we
+    // don't need to ask them if they are not required.
+    const isMutableAndRequired = p.mutable && p.required
+    // Is immutable, so we can check if it is its first time on the build
+    const isImmutable = !p.mutable
+
+    if (isLegacy || isMutableAndRequired || isImmutable) {
+      requiredParameters.push(p)
+      return
+    }
+  })
 
   for (const parameter of requiredParameters) {
     // Check if there is a new value
@@ -1030,6 +1091,19 @@ const getMissingParameters = (
   }
 
   return missingParameters
+}
+
+/**
+ *
+ * @param agentId
+ * @returns An EventSource that emits agent metadata event objects
+ * (ServerSentEvent)
+ */
+export const watchAgentMetadata = (agentId: string): EventSource => {
+  return new EventSource(
+    `${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
+    { withCredentials: true },
+  )
 }
 
 export const watchBuildLogs = (

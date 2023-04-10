@@ -70,7 +70,7 @@ coder templates create <template-name>
 > [examples/](https://github.com/coder/coder/tree/main/examples/templates)
 > directory in the repo.
 
-## Configure Max Workspace Auto-Stop
+## Configure Max Workspace Autostop
 
 To control cost, specify a maximum time to live flag for a template in hours or
 minutes.

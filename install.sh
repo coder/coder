@@ -44,7 +44,7 @@ Usage:
   --prefix <dir>
       Sets the prefix used by standalone release archives. Defaults to /usr/local
       and the binary is copied into /usr/local/bin
-      To install in \$HOME, pass ---prefix=\$HOME/.local
+      To install in \$HOME, pass --prefix=\$HOME/.local
 
   --binary-name <name>
 	  Sets the name for the CLI in standalone release archives. Defaults to "coder"

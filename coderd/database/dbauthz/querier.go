@@ -379,14 +379,14 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) GetAppSigningKey(ctx context.Context) (string, error) {
+func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	// No authz checks
-	return q.db.GetAppSigningKey(ctx)
+	return q.db.GetAppSecurityKey(ctx)
 }
 
-func (q *querier) InsertAppSigningKey(ctx context.Context, data string) error {
+func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
 	// No authz checks as this is done during startup
-	return q.db.InsertAppSigningKey(ctx, data)
+	return q.db.UpsertAppSecurityKey(ctx, data)
 }
 
 func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
@@ -994,6 +994,16 @@ func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]dat
 	return q.db.GetTemplateUserRoles(ctx, id)
 }
 
+func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+	// TODO: This is not 100% correct because it omits apikey IDs.
+	err := q.authorizeContext(ctx, rbac.ActionDelete,
+		rbac.ResourceAPIKey.WithOwner(userID.String()))
+	if err != nil {
+		return err
+	}
+	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
+}
+
 func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, rbac.ActionDelete,
@@ -1292,6 +1302,15 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 	return agent, nil
 }
 
+func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	workspace, err := q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+}
+
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {
@@ -1533,14 +1552,6 @@ func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorksp
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspace)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
-	// TODO: This is a workspace agent operation. Should users be able to query this?
-	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) (database.Workspace, error) {
-		return q.db.GetWorkspaceByAgentID(ctx, arg.ID)
-	}
-	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAgentConnectionByID)(ctx, arg)
-}
-
 func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	// Not really sure what this is for.
@@ -1553,6 +1564,44 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 		return database.WorkspaceAgentStat{}, err
 	}
 	return q.db.InsertWorkspaceAgentStat(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
+	// We don't check for workspace ownership here since the agent metadata may
+	// be associated with an orphaned agent used by a dry run build.
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+
+	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	if err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, workspaceAgentID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionRead, workspace)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
 }
 
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
@@ -1636,6 +1685,34 @@ func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWor
 
 func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
+}
+
+func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
+	return fetchWithPostFilter(q.auth, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxies(ctx)
+	})(ctx, nil)
+}
+
+func (q *querier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
+	return fetch(q.log, q.auth, q.db.GetWorkspaceProxyByID)(ctx, id)
+}
+
+func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	return insert(q.log, q.auth, rbac.ResourceWorkspaceProxy, q.db.InsertWorkspaceProxy)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspaceProxy)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg database.UpdateWorkspaceProxyDeletedParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceProxyDeletedParams) (database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
+	}
+	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceProxyDeleted)(ctx, arg)
 }
 
 func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job database.ProvisionerJob) (database.TemplateVersion, error) {

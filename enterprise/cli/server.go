@@ -49,18 +49,15 @@ func (r *RootCmd) server() *clibase.Cmd {
 			}
 		}
 		options.DERPServer.SetMeshKey(meshKey)
-
-		if options.DeploymentValues.AuditLogging.Value() {
-			options.Auditor = audit.NewAuditor(audit.DefaultFilter,
-				backends.NewPostgres(options.Database, true),
-				backends.NewSlog(options.Logger),
-			)
-		}
+		options.Auditor = audit.NewAuditor(audit.DefaultFilter,
+			backends.NewPostgres(options.Database, true),
+			backends.NewSlog(options.Logger),
+		)
 
 		options.TrialGenerator = trialer.New(options.Database, "https://v2-licensor.coder.com/trial", coderd.Keys)
 
 		o := &coderd.Options{
-			AuditLogging:           options.DeploymentValues.AuditLogging.Value(),
+			AuditLogging:           true,
 			BrowserOnly:            options.DeploymentValues.BrowserOnly.Value(),
 			SCIMAPIKey:             []byte(options.DeploymentValues.SCIMAPIKey.Value()),
 			RBAC:                   true,

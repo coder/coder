@@ -134,8 +134,36 @@ helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 
 ## OIDC Claims
 
-Coder requires all OIDC email addresses to be verified by default. If the
-`email_verified` claim is present in the token response from the identity
+When a user logs in for the first time via OIDC, Coder will merge both
+the claims from the ID token and the claims obtained from hitting the
+upstream provider's `userinfo` endpoint, and use the resulting data
+as a basis for creating a new user or looking up an existing user.
+
+To troubleshoot claims, set `CODER_VERBOSE=true` and follow the logs
+while signing in via OIDC as a new user. Coder will log the claim fields
+returned by the upstream identity provider in a message containing the
+string `got oidc claims`, as well as the user info returned.
+
+> **Note:** If you need to ensure that Coder only uses information from
+> the ID token and does not hit the UserInfo endpoint, you can set the
+> configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
+
+### Email Addresses
+
+By default, Coder will look for the OIDC claim named `email` and use that
+value for the newly created user's email address.
+
+If your upstream identity provider users a different claim, you can set
+`CODER_OIDC_EMAIL_FIELD` to the desired claim.
+
+> **Note:** If this field is not present, Coder will attempt to use the
+> claim field configured for `username` as an email address. If this field
+> is not a valid email address, OIDC logins will fail.
+
+### Email Address Verification
+
+Coder requires all OIDC email addresses to be verified by default. If
+the `email_verified` claim is present in the token response from the identity
 provider, Coder will validate that its value is `true`. If needed, you can
 disable this behavior with the following setting:
 
@@ -144,11 +172,22 @@ CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 ```
 
 > **Note:** This will cause Coder to implicitly treat all OIDC emails as
-> "verified".
+> "verified", regardless of what the upstream identity provider says.
 
-When a new user is created, the `preferred_username` claim becomes the username.
-If this claim is empty, the email address will be stripped of the domain, and
-become the username (e.g. `example@coder.com` becomes `example`).
+### Usernames
+
+When a new user logs in via OIDC, Coder will by default use the value
+of the claim field named `preferred_username` as the the username.
+
+If your upstream identity provider uses a different claim, you can
+set `CODER_OIDC_USERNAME_FIELD` to the desired claim.
+
+> **Note:** If this claim is empty, the email address will be stripped of
+> the domain, and become the username (e.g. `example@coder.com` becomes `example`).
+> To avoid conflicts, Coder may also append a random word to the resulting
+> username.
+
+## OIDC Login Customization
 
 If you'd like to change the OpenID Connect button text and/or icon, you can
 configure them like so:
@@ -208,9 +247,66 @@ CODER_OIDC_GROUP_MAPPING='{"myOIDCGroupID": "myCoderGroupName"}'
 --oidc-group-mapping '{"myOIDCGroupID": "myCoderGroupName"}'
 ```
 
+Below is an example mapping in the Coder Helm chart:
+
+```yaml
+coder:
+  env:
+    - name: CODER_OIDC_GROUP_MAPPING
+      value: >
+        {"myOIDCGroupID": "myCoderGroupName"}
+```
+
 From the example above, users that belong to the `myOIDCGroupID` group in your
 OIDC provider will be added to the `myCoderGroupName` group in Coder.
 
 > **Note:** Groups are only updated on login.
 
 [azure-gids]: https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
+
+## Provider-Specific Guides
+
+Below are some details specific to individual OIDC providers.
+
+### Active Directory Federation Services (ADFS)
+
+> **Note:** Tested on ADFS 4.0, Windows Server 2019
+
+1. In your Federation Server, create a new application group for Coder. Follow the
+   steps as described [here.](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/development/msal/adfs-msal-web-app-web-api#app-registration-in-ad-fs)
+   - **Server Application**: Note the Client ID.
+   - **Configure Application Credentials**: Note the Client Secret.
+   - **Configure Web API**: Set the Client ID as the relying party identifier.
+   - **Application Permissions**: Allow access to the claims `openid`, `email`, `profile`, and `allatclaims`.
+1. Visit your ADFS server's `/.well-known/openid-configuration` URL and note
+   the value for `issuer`.
+   > **Note:** This is usually of the form `https://adfs.corp/adfs/.well-known/openid-configuration`
+1. In Coder's configuration file (or Helm values as appropriate), set the following
+   environment variables or their corresponding CLI arguments:
+
+   - `CODER_OIDC_ISSUER_URL`: the `issuer` value from the previous step.
+   - `CODER_OIDC_CLIENT_ID`: the Client ID from step 1.
+   - `CODER_OIDC_CLIENT_SECRET`: the Client Secret from step 1.
+   - `CODER_OIDC_AUTH_URL_PARAMS`: set to
+
+     ```console
+     {"resource":"$CLIENT_ID"}
+     ```
+
+     where `$CLIENT_ID` is the Client ID from step 1 ([see here](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional)).
+     This is required for the upstream OIDC provider to return the requested claims.
+
+   - `CODER_OIDC_IGNORE_USERINFO`: Set to `true`.
+
+1. Configure [Issuance Transform Rules](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims)
+   on your federation server to send the following claims:
+
+   - `preferred_username`: You can use e.g. "Display Name" as required.
+   - `email`: You can use e.g. the LDAP attribute "E-Mail-Addresses" as required.
+   - `email_verified`: Create a custom claim rule:
+
+     ```console
+     => issue(Type = "email_verified", Value = "true")
+     ```
+
+   - (Optional) If using Group Sync, send the required groups in the configured groups claim field. See [here](https://stackoverflow.com/a/55570286) for an example.

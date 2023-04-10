@@ -86,17 +86,20 @@ func TestGitAskpass(t *testing.T) {
 
 		inv, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
+		stdout := ptytest.New(t)
+		inv.Stdout = stdout.Output()
+		stderr := ptytest.New(t)
+		inv.Stderr = stderr.Output()
 		go func() {
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 		<-poll
+		stderr.ExpectMatch("Open the following URL to authenticate")
 		resp.Store(&agentsdk.GitAuthResponse{
 			Username: "username",
 			Password: "password",
 		})
-		pty.ExpectMatch("username")
+		stdout.ExpectMatch("username")
 	})
 }

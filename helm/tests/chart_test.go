@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/testutil"
 )
 
 // These tests run `helm template` with the values file specified in each test
@@ -54,7 +56,7 @@ func TestRenderChart(t *testing.T) {
 	if *UpdateGoldenFiles {
 		t.Skip("Golden files are being updated. Skipping test.")
 	}
-	if _, runningInCI := os.LookupEnv("CI"); runningInCI {
+	if testutil.InCI() {
 		switch runtime.GOOS {
 		case "windows", "darwin":
 			t.Skip("Skipping tests on Windows and macOS in CI")

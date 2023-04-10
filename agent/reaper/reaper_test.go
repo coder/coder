@@ -23,7 +23,7 @@ func TestReap(t *testing.T) {
 	// Don't run the reaper test in CI. It does weird
 	// things like forkexecing which may have unintended
 	// consequences in CI.
-	if _, ok := os.LookupEnv("CI"); ok {
+	if testutil.InCI() {
 		t.Skip("Detected CI, skipping reaper tests")
 	}
 
@@ -73,7 +73,7 @@ func TestReapInterrupt(t *testing.T) {
 	// Don't run the reaper test in CI. It does weird
 	// things like forkexecing which may have unintended
 	// consequences in CI.
-	if _, ok := os.LookupEnv("CI"); ok {
+	if testutil.InCI() {
 		t.Skip("Detected CI, skipping reaper tests")
 	}
 

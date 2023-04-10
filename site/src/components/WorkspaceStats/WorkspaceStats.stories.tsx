@@ -1,6 +1,5 @@
 import { Story } from "@storybook/react"
-import * as Mocks from "../../testHelpers/renderHelpers"
-import { MockWorkspace } from "testHelpers/renderHelpers"
+import { MockWorkspace } from "testHelpers/entities"
 import {
   WorkspaceStats,
   WorkspaceStatsProps,
@@ -17,7 +16,7 @@ const Template: Story<WorkspaceStatsProps> = (args) => (
 
 export const Example = Template.bind({})
 Example.args = {
-  workspace: Mocks.MockWorkspace,
+  workspace: MockWorkspace,
 }
 
 export const Outdated = Template.bind({})

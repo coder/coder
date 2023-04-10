@@ -28,6 +28,7 @@ const Language = {
   createButton: "Create workspace",
   deleteButton: "Delete",
   editFilesButton: "Edit files",
+  duplicateButton: "Duplicate",
 }
 
 const TemplateMenu: FC<{
@@ -67,6 +68,15 @@ const TemplateMenu: FC<{
         >
           {Language.settingsButton}
         </MenuItem>
+        {canEditFiles && (
+          <MenuItem
+            onClick={handleClose}
+            component={RouterLink}
+            to={`/templates/new?fromTemplate=${templateName}`}
+          >
+            {Language.duplicateButton}
+          </MenuItem>
+        )}
         {canEditFiles && (
           <MenuItem
             component={RouterLink}

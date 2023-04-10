@@ -1596,6 +1596,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 	}
 	return codersdk.TemplateVersionParameter{
 		Name:                 param.Name,
+		DisplayName:          param.DisplayName,
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -190,21 +191,19 @@ func (d *Duration) String() string {
 	return time.Duration(*d).String()
 }
 
-func (d *Duration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.String())
-}
-
-func (d *Duration) UnmarshalJSON(b []byte) error {
-	var s string
-	err := json.Unmarshal(b, &s)
-	if err != nil {
-		return err
-	}
-	return d.Set(s)
-}
-
 func (Duration) Type() string {
 	return "duration"
+}
+
+func (d *Duration) MarshalYAML() (interface{}, error) {
+	return yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: d.String(),
+	}, nil
+}
+
+func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
+	return d.Set(n.Value)
 }
 
 type URL url.URL
@@ -225,6 +224,17 @@ func (u *URL) Set(v string) error {
 func (u *URL) String() string {
 	uu := url.URL(*u)
 	return uu.String()
+}
+
+func (u *URL) MarshalYAML() (interface{}, error) {
+	return yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: u.String(),
+	}, nil
+}
+
+func (u *URL) UnmarshalYAML(n *yaml.Node) error {
+	return u.Set(n.Value)
 }
 
 func (u *URL) MarshalJSON() ([]byte, error) {
@@ -290,6 +300,17 @@ func (hp *HostPort) UnmarshalJSON(b []byte) error {
 	return hp.Set(s)
 }
 
+func (hp *HostPort) MarshalYAML() (interface{}, error) {
+	return yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: hp.String(),
+	}, nil
+}
+
+func (hp *HostPort) UnmarshalYAML(n *yaml.Node) error {
+	return hp.Set(n.Value)
+}
+
 func (*HostPort) Type() string {
 	return "host:port"
 }
@@ -330,6 +351,13 @@ func (s *Struct[T]) MarshalYAML() (interface{}, error) {
 }
 
 func (s *Struct[T]) UnmarshalYAML(n *yaml.Node) error {
+	// HACK: for compatibility with flags, we use nil slices instead of empty
+	// slices. In most cases, nil slices and empty slices are treated
+	// the same, so this behavior may be removed at some point.
+	if typ := reflect.TypeOf(s.Value); typ.Kind() == reflect.Slice && len(n.Content) == 0 {
+		reflect.ValueOf(&s.Value).Elem().Set(reflect.Zero(typ))
+		return nil
+	}
 	return n.Decode(&s.Value)
 }
 
@@ -394,4 +422,23 @@ func (e *Enum) Type() string {
 
 func (e *Enum) String() string {
 	return *e.Value
+}
+
+var _ pflag.Value = (*YAMLConfigPath)(nil)
+
+// YAMLConfigPath is a special value type that encodes a path to a YAML
+// configuration file where options are read from.
+type YAMLConfigPath string
+
+func (p *YAMLConfigPath) Set(v string) error {
+	*p = YAMLConfigPath(v)
+	return nil
+}
+
+func (p *YAMLConfigPath) String() string {
+	return string(*p)
+}
+
+func (*YAMLConfigPath) Type() string {
+	return "yaml-config-path"
 }

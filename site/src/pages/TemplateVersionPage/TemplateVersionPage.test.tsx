@@ -36,7 +36,7 @@ describe("TemplateVersionPage", () => {
   beforeEach(setup)
 
   it("shows files", () => {
-    expect(screen.queryByText(TERRAFORM_FILENAME)).toBeInTheDocument()
-    expect(screen.queryByText(README_FILENAME)).toBeInTheDocument()
+    expect(screen.getByText(TERRAFORM_FILENAME)).toBeInTheDocument()
+    expect(screen.getByText(README_FILENAME)).toBeInTheDocument()
   })
 })

@@ -438,6 +438,36 @@ func (s *MethodTestSuite) TestOrganization() {
 	}))
 }
 
+func (s *MethodTestSuite) TestWorkspaceProxy() {
+	s.Run("InsertWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceProxyParams{
+			ID: uuid.New(),
+		}).Asserts(rbac.ResourceWorkspaceProxy, rbac.ActionCreate)
+	}))
+	s.Run("UpdateWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
+		p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(database.UpdateWorkspaceProxyParams{
+			ID: p.ID,
+		}).Asserts(p, rbac.ActionUpdate)
+	}))
+	s.Run("GetWorkspaceProxyByID", s.Subtest(func(db database.Store, check *expects) {
+		p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(p.ID).Asserts(p, rbac.ActionRead).Returns(p)
+	}))
+	s.Run("UpdateWorkspaceProxyDeleted", s.Subtest(func(db database.Store, check *expects) {
+		p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(database.UpdateWorkspaceProxyDeletedParams{
+			ID:      p.ID,
+			Deleted: true,
+		}).Asserts(p, rbac.ActionDelete)
+	}))
+	s.Run("GetWorkspaceProxies", s.Subtest(func(db database.Store, check *expects) {
+		p1 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		p2 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args().Asserts(p1, rbac.ActionRead, p2, rbac.ActionRead).Returns(slice.New(p1, p2))
+	}))
+}
+
 func (s *MethodTestSuite) TestParameters() {
 	s.Run("Workspace/InsertParameterValue", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
@@ -1139,15 +1169,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(database.UpdateWorkspaceParams{
 			ID: w.ID,
 		}).Asserts(w, rbac.ActionUpdate).Returns(expected)
-	}))
-	s.Run("UpdateWorkspaceAgentConnectionByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID: agt.ID,
-		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("InsertWorkspaceAgentStat", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})

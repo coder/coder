@@ -270,10 +270,11 @@ INSERT INTO
 		template_id,
 		name,
 		autostart_schedule,
-		ttl
+		ttl,
+		last_used_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
@@ -356,7 +357,7 @@ WITH workspaces_with_jobs AS (
 			build_number DESC
 		LIMIT
 			1
-	) latest_build ON TRUE
+	) latest_build ON TRUE WHERE deleted = false
 ), pending_workspaces AS (
 	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
 		started_at IS NULL
@@ -364,8 +365,8 @@ WITH workspaces_with_jobs AS (
 	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
 		started_at IS NOT NULL AND
 		canceled_at IS NULL AND
-		updated_at - INTERVAL '30 seconds' < NOW() AND
-		completed_at IS NULL
+		completed_at IS NULL AND
+		updated_at - INTERVAL '30 seconds' < NOW()
 ), running_workspaces AS (
 	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
 		completed_at IS NOT NULL AND
@@ -392,3 +393,42 @@ SELECT
 	failed_workspaces.count AS failed_workspaces,
 	stopped_workspaces.count AS stopped_workspaces
 FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces;
+
+-- name: GetWorkspacesEligibleForAutoStartStop :many
+SELECT
+	workspaces.*
+FROM
+	workspaces
+LEFT JOIN
+	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+WHERE
+	workspace_builds.build_number = (
+		SELECT
+			MAX(build_number)
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+	) AND
+
+	(
+		-- If the workspace build was a start transition, the workspace is
+		-- potentially eligible for autostop if it's past the deadline. The
+		-- deadline is computed at build time upon success and is bumped based
+		-- on activity (up the max deadline if set). We don't need to check
+		-- license here since that's done when the values are written to the build.
+		(
+			workspace_builds.transition = 'start'::workspace_transition AND
+			workspace_builds.deadline IS NOT NULL AND
+			workspace_builds.deadline < @now :: timestamptz
+		) OR
+
+		-- If the workspace build was a stop transition, the workspace is
+		-- potentially eligible for autostart if it has a schedule set. The
+		-- caller must check if the template allows autostart in a license-aware
+		-- fashion as we cannot check it here.
+		(
+			workspace_builds.transition = 'stop'::workspace_transition AND
+			workspaces.autostart_schedule IS NOT NULL
+		)
+	);

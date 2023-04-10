@@ -10,8 +10,8 @@ import utc from "dayjs/plugin/utc"
 import { Workspace } from "../api/typesGenerated"
 import { isWorkspaceOn } from "./workspace"
 import { WorkspaceScheduleFormValues } from "components/WorkspaceScheduleForm/WorkspaceScheduleForm"
-import { AutoStop } from "pages/WorkspaceSchedulePage/ttl"
-import { AutoStart } from "pages/WorkspaceSchedulePage/schedule"
+import { Autostop } from "pages/WorkspaceSchedulePage/ttl"
+import { Autostart } from "pages/WorkspaceSchedulePage/schedule"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -62,11 +62,11 @@ export const Language = {
   manual: "Manual",
   workspaceShuttingDownLabel: "Workspace is shutting down",
   afterStart: "after start",
-  autoStartLabel: "Starts at",
-  autoStopLabel: "Stops at",
+  autostartLabel: "Starts at",
+  autostopLabel: "Stops at",
 }
 
-export const autoStartDisplay = (schedule: string | undefined): string => {
+export const autostartDisplay = (schedule: string | undefined): string => {
   if (schedule) {
     return (
       cronstrue
@@ -95,7 +95,7 @@ export const isShuttingDown = (
   return isWorkspaceOn(workspace) && now.isAfter(deadline)
 }
 
-export const autoStopDisplay = (workspace: Workspace): string => {
+export const autostopDisplay = (workspace: Workspace): string => {
   const ttl = workspace.ttl_ms
 
   if (isWorkspaceOn(workspace) && workspace.latest_build.deadline) {
@@ -164,7 +164,7 @@ export const getMaxDeadlineChange = (
 ): number => Math.abs(deadline.diff(extremeDeadline, "hours"))
 
 export const scheduleChanged = (
-  initialValues: AutoStart | AutoStop,
+  initialValues: Autostart | Autostop,
   formValues: WorkspaceScheduleFormValues,
 ): boolean =>
   some(

@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -12,12 +13,14 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -29,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
@@ -37,6 +41,7 @@ import (
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -667,8 +672,7 @@ func TestServer(t *testing.T) {
 				if c.tlsListener {
 					accessURLParsed, err := url.Parse(c.requestURL)
 					require.NoError(t, err)
-					client := codersdk.New(accessURLParsed)
-					client.HTTPClient = &http.Client{
+					client := &http.Client{
 						CheckRedirect: func(req *http.Request, via []*http.Request) error {
 							return http.ErrUseLastResponse
 						},
@@ -681,11 +685,15 @@ func TestServer(t *testing.T) {
 							},
 						},
 					}
-					defer client.HTTPClient.CloseIdleConnections()
-					_, err = client.HasFirstUser(ctx)
-					if err != nil {
-						require.ErrorContains(t, err, "Invalid application URL")
-					}
+					defer client.CloseIdleConnections()
+
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, accessURLParsed.String(), nil)
+					require.NoError(t, err)
+					resp, err := client.Do(req)
+					// We don't care much about the response, just that TLS
+					// worked.
+					require.NoError(t, err)
+					defer resp.Body.Close()
 				}
 			})
 		}
@@ -1016,6 +1024,169 @@ func TestServer(t *testing.T) {
 		require.True(t, strings.HasPrefix(fakeURL.String(), fakeRedirect), fakeURL.String())
 	})
 
+	t.Run("OIDC", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Defaults", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			// Startup a fake server that just responds to .well-known/openid-configuration
+			// This is just needed to get Coder to start up.
+			oidcServer := httptest.NewServer(nil)
+			fakeWellKnownHandler := func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				payload := fmt.Sprintf("{\"issuer\": %q}", oidcServer.URL)
+				_, _ = w.Write([]byte(payload))
+			}
+			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
+			t.Cleanup(oidcServer.Close)
+
+			inv, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--oidc-client-id", "fake",
+				"--oidc-client-secret", "fake",
+				"--oidc-issuer-url", oidcServer.URL,
+				// Leaving the rest of the flags as defaults.
+			)
+
+			// Ensure that the server starts up without error.
+			clitest.Start(t, inv)
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			randPassword, err := cryptorand.String(24)
+			require.NoError(t, err)
+
+			_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+				Username: "admin",
+				Trial:    true,
+			})
+			require.NoError(t, err)
+
+			loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+			})
+			require.NoError(t, err)
+			client.SetSessionToken(loginResp.SessionToken)
+
+			deploymentConfig, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err)
+
+			// Ensure that the OIDC provider is configured correctly.
+			require.Equal(t, "fake", deploymentConfig.Values.OIDC.ClientID.Value())
+			// The client secret is not returned from the API.
+			require.Empty(t, deploymentConfig.Values.OIDC.ClientSecret.Value())
+			require.Equal(t, oidcServer.URL, deploymentConfig.Values.OIDC.IssuerURL.Value())
+			// These are the default values returned from the API. See codersdk/deployment.go for the default values.
+			require.True(t, deploymentConfig.Values.OIDC.AllowSignups.Value())
+			require.Empty(t, deploymentConfig.Values.OIDC.EmailDomain.Value())
+			require.Equal(t, []string{"openid", "profile", "email"}, deploymentConfig.Values.OIDC.Scopes.Value())
+			require.False(t, deploymentConfig.Values.OIDC.IgnoreEmailVerified.Value())
+			require.Equal(t, "preferred_username", deploymentConfig.Values.OIDC.UsernameField.Value())
+			require.Equal(t, "email", deploymentConfig.Values.OIDC.EmailField.Value())
+			require.Equal(t, map[string]string{"access_type": "offline"}, deploymentConfig.Values.OIDC.AuthURLParams.Value)
+			require.False(t, deploymentConfig.Values.OIDC.IgnoreUserInfo.Value())
+			require.Empty(t, deploymentConfig.Values.OIDC.GroupField.Value())
+			require.Empty(t, deploymentConfig.Values.OIDC.GroupMapping.Value)
+			require.Equal(t, "OpenID Connect", deploymentConfig.Values.OIDC.SignInText.Value())
+			require.Empty(t, deploymentConfig.Values.OIDC.IconURL.Value())
+		})
+
+		t.Run("Overrides", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			// Startup a fake server that just responds to .well-known/openid-configuration
+			// This is just needed to get Coder to start up.
+			oidcServer := httptest.NewServer(nil)
+			fakeWellKnownHandler := func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				payload := fmt.Sprintf("{\"issuer\": %q}", oidcServer.URL)
+				_, _ = w.Write([]byte(payload))
+			}
+			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
+			t.Cleanup(oidcServer.Close)
+
+			inv, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--oidc-client-id", "fake",
+				"--oidc-client-secret", "fake",
+				"--oidc-issuer-url", oidcServer.URL,
+				// The following values have defaults that we want to override.
+				"--oidc-allow-signups=false",
+				"--oidc-email-domain", "example.com",
+				"--oidc-scopes", "360noscope",
+				"--oidc-ignore-email-verified",
+				"--oidc-username-field", "not_preferred_username",
+				"--oidc-email-field", "not_email",
+				"--oidc-auth-url-params", `{"prompt":"consent"}`,
+				"--oidc-ignore-userinfo",
+				"--oidc-group-field", "serious_business_unit",
+				"--oidc-group-mapping", `{"serious_business_unit": "serious_business_unit"}`,
+				"--oidc-sign-in-text", "Sign In With Coder",
+				"--oidc-icon-url", "https://example.com/icon.png",
+			)
+
+			// Ensure that the server starts up without error.
+			clitest.Start(t, inv)
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			randPassword, err := cryptorand.String(24)
+			require.NoError(t, err)
+
+			_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+				Username: "admin",
+				Trial:    true,
+			})
+			require.NoError(t, err)
+
+			loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+			})
+			require.NoError(t, err)
+			client.SetSessionToken(loginResp.SessionToken)
+
+			deploymentConfig, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err)
+
+			// Ensure that the OIDC provider is configured correctly.
+			require.Equal(t, "fake", deploymentConfig.Values.OIDC.ClientID.Value())
+			// The client secret is not returned from the API.
+			require.Empty(t, deploymentConfig.Values.OIDC.ClientSecret.Value())
+			require.Equal(t, oidcServer.URL, deploymentConfig.Values.OIDC.IssuerURL.Value())
+			// These are values that we want to make sure were overridden.
+			require.False(t, deploymentConfig.Values.OIDC.AllowSignups.Value())
+			require.Equal(t, []string{"example.com"}, deploymentConfig.Values.OIDC.EmailDomain.Value())
+			require.Equal(t, []string{"360noscope"}, deploymentConfig.Values.OIDC.Scopes.Value())
+			require.True(t, deploymentConfig.Values.OIDC.IgnoreEmailVerified.Value())
+			require.Equal(t, "not_preferred_username", deploymentConfig.Values.OIDC.UsernameField.Value())
+			require.Equal(t, "not_email", deploymentConfig.Values.OIDC.EmailField.Value())
+			require.True(t, deploymentConfig.Values.OIDC.IgnoreUserInfo.Value())
+			require.Equal(t, map[string]string{"prompt": "consent"}, deploymentConfig.Values.OIDC.AuthURLParams.Value)
+			require.Equal(t, "serious_business_unit", deploymentConfig.Values.OIDC.GroupField.Value())
+			require.Equal(t, map[string]string{"serious_business_unit": "serious_business_unit"}, deploymentConfig.Values.OIDC.GroupMapping.Value)
+			require.Equal(t, "Sign In With Coder", deploymentConfig.Values.OIDC.SignInText.Value())
+			require.Equal(t, "https://example.com/icon.png", deploymentConfig.Values.OIDC.IconURL.Value().String())
+		})
+	})
+
 	t.Run("RateLimit", func(t *testing.T) {
 		t.Parallel()
 
@@ -1244,6 +1415,80 @@ func TestServer(t *testing.T) {
 			waitFile(t, fi3, testutil.WaitSuperLong)
 		})
 	})
+
+	t.Run("YAML", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("WriteThenReadConfig", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			args := []string{
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--log-human", filepath.Join(t.TempDir(), "coder-logging-test-human"),
+				// We use ecdsa here because it's the fastest alternative algorithm.
+				"--ssh-keygen-algorithm", "ecdsa",
+				"--cache-dir", t.TempDir(),
+			}
+
+			// First, we get the base config as set via flags (like users before
+			// migrating).
+			inv, cfg := clitest.New(t,
+				args...,
+			)
+			ptytest.New(t).Attach(inv)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
+			gotURL := waitAccessURL(t, cfg)
+			client := codersdk.New(gotURL)
+
+			_ = coderdtest.CreateFirstUser(t, client)
+			wantConfig, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err)
+			cancel()
+			w.RequireSuccess()
+
+			// Next, we instruct the same server to display the YAML config
+			// and then save it.
+			inv = inv.WithContext(testutil.Context(t, testutil.WaitMedium))
+			inv.Args = append(args, "--write-config")
+			fi, err := os.OpenFile(testutil.TempFile(t, "", "coder-config-test-*"), os.O_WRONLY|os.O_CREATE, 0o600)
+			require.NoError(t, err)
+			defer fi.Close()
+			var conf bytes.Buffer
+			inv.Stdout = io.MultiWriter(fi, &conf)
+			t.Logf("%+v", inv.Args)
+			err = inv.Run()
+			require.NoError(t, err)
+
+			// Reset the context.
+			ctx = testutil.Context(t, testutil.WaitMedium)
+			// Finally, we restart the server with just the config and no flags
+			// and ensure that the live configuration is equivalent.
+			inv, cfg = clitest.New(t, "server", "--config="+fi.Name())
+			w = clitest.StartWithWaiter(t, inv)
+			client = codersdk.New(waitAccessURL(t, cfg))
+			_ = coderdtest.CreateFirstUser(t, client)
+			gotConfig, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err, "config:\n%s\nargs: %+v", conf.String(), inv.Args)
+			gotConfig.Options.ByName("Config Path").Value.Set("")
+			// We check the options individually for better error messages.
+			for i := range wantConfig.Options {
+				assert.Equal(
+					t, wantConfig.Options[i],
+					gotConfig.Options[i],
+					"option %q",
+					wantConfig.Options[i].Name,
+				)
+			}
+			w.RequireSuccess()
+		})
+	})
 }
 
 func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {
@@ -1302,4 +1547,43 @@ func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
 	require.NoError(t, err, "failed to parse access URL")
 
 	return accessURL
+}
+
+func TestServerYAMLConfig(t *testing.T) {
+	t.Parallel()
+
+	var deployValues codersdk.DeploymentValues
+	opts := deployValues.Options()
+
+	err := opts.SetDefaults()
+	require.NoError(t, err)
+
+	n, err := opts.MarshalYAML()
+	require.NoError(t, err)
+
+	// Sanity-check that we can read the config back in.
+	err = opts.UnmarshalYAML(n.(*yaml.Node))
+	require.NoError(t, err)
+
+	var wantBuf bytes.Buffer
+	enc := yaml.NewEncoder(&wantBuf)
+	enc.SetIndent(2)
+	err = enc.Encode(n)
+	require.NoError(t, err)
+
+	wantByt := wantBuf.Bytes()
+
+	goldenPath := filepath.Join("testdata", "server-config.yaml.golden")
+
+	wantByt = normalizeGoldenFile(t, wantByt)
+	if *updateGoldenFiles {
+		require.NoError(t, os.WriteFile(goldenPath, wantByt, 0o600))
+		return
+	}
+
+	got, err := os.ReadFile(goldenPath)
+	require.NoError(t, err)
+	got = normalizeGoldenFile(t, got)
+
+	require.Equal(t, string(wantByt), string(got))
 }
