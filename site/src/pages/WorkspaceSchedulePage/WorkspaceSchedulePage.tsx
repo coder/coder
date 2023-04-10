@@ -7,7 +7,8 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import dayjs from "dayjs"
 import { scheduleToAutostart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutostop } from "pages/WorkspaceSchedulePage/ttl"
-import { useEffect, FC } from "react"
+import { useWorkspaceSettingsContext } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
@@ -44,24 +45,17 @@ export const WorkspaceSchedulePage: FC = () => {
   const navigate = useNavigate()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
-  const [scheduleState, scheduleSend] = useMachine(workspaceSchedule)
+  const { workspace } = useWorkspaceSettingsContext()
+  const [scheduleState, scheduleSend] = useMachine(workspaceSchedule, {
+    context: { workspace },
+  })
   const {
     checkPermissionsError,
     submitScheduleError,
-    getWorkspaceError,
     getTemplateError,
     permissions,
-    workspace,
     template,
   } = scheduleState.context
-
-  // Get workspace on mount and whenever the args for getting a workspace change.
-  // scheduleSend should not change.
-  useEffect(() => {
-    username &&
-      workspaceName &&
-      scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
-  }, [username, workspaceName, scheduleSend])
 
   if (!username || !workspaceName) {
     return <Navigate to="/workspaces" />
@@ -83,10 +77,7 @@ export const WorkspaceSchedulePage: FC = () => {
       {scheduleState.matches("error") && (
         <AlertBanner
           severity="error"
-          error={getWorkspaceError || checkPermissionsError || getTemplateError}
-          retry={() =>
-            scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
-          }
+          error={checkPermissionsError || getTemplateError}
         />
       )}
       {permissions && !permissions.updateWorkspace && (
