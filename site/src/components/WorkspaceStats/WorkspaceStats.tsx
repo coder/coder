@@ -6,10 +6,12 @@ import { createDayString } from "util/createDayString"
 import {
   getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceTemplateName,
+  isWorkspaceOn,
 } from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import upperFirst from "lodash/upperFirst"
+import { autostopDisplay } from "util/schedule"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -81,6 +83,12 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           </>
         }
       />
+      {shouldDisplayScheduleLabel(workspace) && (
+        <StatsItem
+          label={getScheduleLabel(workspace)}
+          value={autostopDisplay(workspace)}
+        />
+      )}
       {workspace.latest_build.daily_cost > 0 && (
         <StatsItem
           label={Language.costLabel}
@@ -91,4 +99,22 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
       )}
     </Stats>
   )
+}
+
+export const canEditDeadline = (workspace: Workspace): boolean => {
+  return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline)
+}
+
+export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
+  if (canEditDeadline(workspace)) {
+    return true
+  }
+  if (isWorkspaceOn(workspace)) {
+    return false
+  }
+  return Boolean(workspace.autostart_schedule)
+}
+
+const getScheduleLabel = (workspace: Workspace) => {
+  return isWorkspaceOn(workspace) ? "Stops at" : "Starts at"
 }
