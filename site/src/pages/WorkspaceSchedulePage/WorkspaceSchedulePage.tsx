@@ -3,13 +3,15 @@ import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Loader } from "components/Loader/Loader"
-import { Margins } from "components/Margins/Margins"
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import dayjs from "dayjs"
 import { scheduleToAutostart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutostop } from "pages/WorkspaceSchedulePage/ttl"
 import { useEffect, FC } from "react"
+import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
+import { pageTitle } from "util/page"
 import { scheduleChanged } from "util/schedule"
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceScheduleForm } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
@@ -20,14 +22,17 @@ import {
   formValuesToTTLRequest,
 } from "./formToRequest"
 
-const getAutostart = (workspace?: TypesGen.Workspace) =>
-  scheduleToAutostart(workspace?.autostart_schedule)
-const getAutostop = (workspace?: TypesGen.Workspace) =>
-  ttlMsToAutostop(workspace?.ttl_ms)
+const getAutostart = (workspace: TypesGen.Workspace) =>
+  scheduleToAutostart(workspace.autostart_schedule)
+const getAutostop = (workspace: TypesGen.Workspace) =>
+  ttlMsToAutostop(workspace.ttl_ms)
 
 const useStyles = makeStyles((theme) => ({
   topMargin: {
     marginTop: `${theme.spacing(3)}px`,
+  },
+  pageHeader: {
+    paddingTop: 0,
   },
 }))
 
@@ -62,71 +67,65 @@ export const WorkspaceSchedulePage: FC = () => {
     return <Navigate to="/workspaces" />
   }
 
-  if (scheduleState.hasTag("loading") || !template) {
-    return <Loader />
+  if (scheduleState.matches("done")) {
+    return <Navigate to={`/@${username}/${workspaceName}`} />
   }
 
-  if (scheduleState.matches("error")) {
-    return (
-      <Margins>
-        <div className={styles.topMargin}>
-          <AlertBanner
-            severity="error"
-            error={
-              getWorkspaceError || checkPermissionsError || getTemplateError
-            }
-            retry={() =>
-              scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
-            }
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle([workspaceName, "Schedule"])}</title>
+      </Helmet>
+      <PageHeader className={styles.pageHeader}>
+        <PageHeaderTitle>Workspace Schedule</PageHeaderTitle>
+      </PageHeader>
+      {(scheduleState.hasTag("loading") || !template) && <Loader />}
+      {scheduleState.matches("error") && (
+        <AlertBanner
+          severity="error"
+          error={getWorkspaceError || checkPermissionsError || getTemplateError}
+          retry={() =>
+            scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
+          }
+        />
+      )}
+      {permissions && !permissions.updateWorkspace && (
+        <AlertBanner severity="error" error={Error(t("forbiddenError"))} />
+      )}
+      {template &&
+        workspace &&
+        (scheduleState.matches("presentForm") ||
+          scheduleState.matches("submittingSchedule")) && (
+          <WorkspaceScheduleForm
+            submitScheduleError={submitScheduleError}
+            initialValues={{
+              ...getAutostart(workspace),
+              ...getAutostop(workspace),
+            }}
+            isLoading={scheduleState.tags.has("loading")}
+            defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
+            onCancel={() => {
+              navigate(`/@${username}/${workspaceName}`)
+            }}
+            onSubmit={(values) => {
+              scheduleSend({
+                type: "SUBMIT_SCHEDULE",
+                autostart: formValuesToAutostartRequest(values),
+                ttl: formValuesToTTLRequest(values),
+                autostartChanged: scheduleChanged(
+                  getAutostart(workspace),
+                  values,
+                ),
+                autostopChanged: scheduleChanged(
+                  getAutostop(workspace),
+                  values,
+                ),
+              })
+            }}
           />
-        </div>
-      </Margins>
-    )
-  }
-
-  if (!permissions?.updateWorkspace) {
-    return (
-      <Margins>
-        <div className={styles.topMargin}>
-          <AlertBanner severity="error" error={Error(t("forbiddenError"))} />
-        </div>
-      </Margins>
-    )
-  }
-
-  if (
-    scheduleState.matches("presentForm") ||
-    scheduleState.matches("submittingSchedule")
-  ) {
-    return (
-      <WorkspaceScheduleForm
-        submitScheduleError={submitScheduleError}
-        initialValues={{
-          ...getAutostart(workspace),
-          ...getAutostop(workspace),
-        }}
-        isLoading={scheduleState.tags.has("loading")}
-        defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
-        onCancel={() => {
-          navigate(`/@${username}/${workspaceName}`)
-        }}
-        onSubmit={(values) => {
-          scheduleSend({
-            type: "SUBMIT_SCHEDULE",
-            autostart: formValuesToAutostartRequest(values),
-            ttl: formValuesToTTLRequest(values),
-            autostartChanged: scheduleChanged(getAutostart(workspace), values),
-            autostopChanged: scheduleChanged(getAutostop(workspace), values),
-          })
-        }}
-      />
-    )
-  }
-
-  if (scheduleState.matches("showingRestartDialog")) {
-    return (
+        )}
       <ConfirmDialog
-        open
+        open={scheduleState.matches("showingRestartDialog")}
         title={t("dialogTitle")}
         description={t("dialogDescription")}
         confirmText={t("restart")}
@@ -139,16 +138,8 @@ export const WorkspaceSchedulePage: FC = () => {
           scheduleSend("APPLY_LATER")
         }}
       />
-    )
-  }
-
-  if (scheduleState.matches("done")) {
-    return <Navigate to={`/@${username}/${workspaceName}`} />
-  }
-
-  // Theoretically impossible - log and bail
-  console.error("WorkspaceSchedulePage: unknown state :: ", scheduleState)
-  return <Navigate to="/" />
+    </>
+  )
 }
 
 export default WorkspaceSchedulePage

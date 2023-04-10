@@ -261,13 +261,16 @@ export const AppRouter: FC = () => {
               <Route path="/@:username">
                 <Route path=":workspace">
                   <Route index element={<WorkspacePage />} />
-                  <Route path="schedule" element={<WorkspaceSchedulePage />} />
                   <Route
                     path="builds/:buildNumber"
                     element={<WorkspaceBuildPage />}
                   />
                   <Route path="settings" element={<WorkspaceSettingsLayout />}>
                     <Route index element={<WorkspaceSettingsPage />} />
+                    <Route
+                      path="schedule"
+                      element={<WorkspaceSchedulePage />}
+                    />
                   </Route>
                 </Route>
               </Route>

@@ -30,7 +30,7 @@ const WorkspaceSettingsPage = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(t("title"))}</title>
+        <title>{pageTitle([workspaceName, "Settings"])}</title>
       </Helmet>
 
       <WorkspaceSettingsPageView
