@@ -1499,6 +1499,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--http-address", ":0",
+			"--access-url", "https://example.com",
 		)
 		inv.Environ.Set("CODER_DERP_SERVER_STUN_ADDRESSES", "disable")
 		ptytest.New(t).Attach(inv)
