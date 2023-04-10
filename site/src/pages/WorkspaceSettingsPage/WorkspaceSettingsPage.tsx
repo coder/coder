@@ -39,7 +39,7 @@ const WorkspaceSettingsPage = () => {
         isLoading={isLoading}
         isSubmitting={updateSettings.isLoading}
         settings={settings}
-        onCancel={() => navigate(-1)}
+        onCancel={() => navigate(`/@${username}/${workspaceName}`)}
         onSubmit={updateSettings.mutate}
       />
     </>
