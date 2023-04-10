@@ -84,7 +84,6 @@ func allResources(pkg *packages.Package) []string {
 		if ok && obj.Type().String() == "github.com/coder/coder/coderd/rbac.Object" {
 			resources = append(resources, obj.Name())
 		}
-
 	}
 	sort.Strings(resources)
 	return resources

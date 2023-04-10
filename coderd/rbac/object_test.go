@@ -178,6 +178,8 @@ func TestObjectEqual(t *testing.T) {
 
 // TestAllResources ensures that all resources have a unique type name.
 func TestAllResources(t *testing.T) {
+	t.Parallel()
+
 	var typeNames []string
 	resources := rbac.AllResources()
 	for _, r := range resources {
