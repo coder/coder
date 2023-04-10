@@ -499,6 +499,15 @@ export const stopWorkspace = (workspaceId: string) =>
 export const deleteWorkspace = (workspaceId: string) =>
   postWorkspaceBuild(workspaceId, { transition: "delete" })
 
+export const restartWorkspace = async (
+  workspaceId: string,
+): Promise<TypesGen.WorkspaceBuild> => {
+  const response = await axios.post(
+    `/api/v2/workspaces/${workspaceId}/builds/restart`,
+  )
+  return response.data
+}
+
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
 ): Promise<Types.Message> => {

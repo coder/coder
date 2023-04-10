@@ -79,6 +79,7 @@ export type WorkspaceEvent =
   | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "START" }
   | { type: "STOP" }
+  | { type: "RESTART" }
   | { type: "ASK_DELETE" }
   | { type: "DELETE" }
   | { type: "CANCEL_DELETE" }
@@ -275,6 +276,7 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
+                  RESTART: "requestingRestart",
                   ASK_DELETE: "askingDelete",
                   UPDATE: "requestingUpdate",
                   CANCEL: "requestingCancel",
@@ -341,6 +343,25 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   src: "stopWorkspace",
                   id: "stopWorkspace",
+                  onDone: [
+                    {
+                      actions: ["assignBuild"],
+                      target: "idle",
+                    },
+                  ],
+                  onError: [
+                    {
+                      actions: "assignBuildError",
+                      target: "idle",
+                    },
+                  ],
+                },
+              },
+              requestingRestart: {
+                entry: ["clearBuildError", "updateStatusToPending"],
+                invoke: {
+                  src: "restartWorkspace",
+                  id: "restartWorkspace",
                   onDone: [
                     {
                       actions: ["assignBuild"],
@@ -660,6 +681,17 @@ export const workspaceMachine = createMachine(
           return stopWorkspacePromise
         } else {
           throw Error("Cannot stop workspace without workspace id")
+        }
+      },
+      restartWorkspace: (context) => async (send) => {
+        if (context.workspace) {
+          const restartWorkspacePromise = await API.restartWorkspace(
+            context.workspace.id,
+          )
+          send({ type: "REFRESH_TIMELINE" })
+          return restartWorkspacePromise
+        } else {
+          throw Error("Cannot restart workspace without workspace id")
         }
       },
       deleteWorkspace: async (context) => {

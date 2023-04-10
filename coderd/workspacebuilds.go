@@ -288,15 +288,10 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
-func (api *API) postBuild(rw http.ResponseWriter, r *http.Request) (codersdk.WorkspaceBuild, error) {
+func (api *API) postBuild(rw http.ResponseWriter, r *http.Request, createBuild codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	workspace := httpmw.WorkspaceParam(r)
-
-	var createBuild codersdk.CreateWorkspaceBuildRequest
-	if !httpapi.Read(ctx, rw, r, &createBuild) {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("Decode CreateWorkspaceBuildRequest")
-	}
 
 	// Doing this up front saves a lot of work if the user doesn't have permission.
 	// This is checked again in the dbauthz layer, but the check is cached
@@ -673,6 +668,58 @@ func (api *API) postBuild(rw http.ResponseWriter, r *http.Request) (codersdk.Wor
 	return apiBuild, nil
 }
 
+// Restarts a workspace.
+//
+// @Summary Restart workspace
+// @ID restart-workspace
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Builds
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /workspaces/{workspace}/builds/restart [post]
+func (api *API) restartWorkspace(rw http.ResponseWriter, r *http.Request) {
+	// what about audit
+	ctx := r.Context()
+	fmt.Println("in restartWorkspace!!!!!")
+
+	// create a build - stop the workspace
+	build, err := api.postBuild(rw, r, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+	})
+	if err != nil {
+		fmt.Println("in postBuildStop err!!!!!")
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error stopping workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// this seems to return the provisioner job - perhaps we are watching for an error - do i need this
+
+	// create a build - start the workspace
+	build, err = api.postBuild(rw, r, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+	})
+	if err != nil {
+		fmt.Println("in postBuildStart err!!!!!")
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error starting workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// this seems to return the provisioner job - perhaps we are watching for an error - do i need this
+
+	// not sure what to return
+	httpapi.Write(ctx, rw, http.StatusOK, build)
+
+}
+
 // Azure supports instance identity verification:
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
 //
@@ -690,8 +737,13 @@ func (api *API) postBuild(rw http.ResponseWriter, r *http.Request) (codersdk.Wor
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	build, buildErr := api.postBuild(rw, r)
-	if buildErr != nil {
+	var createBuild codersdk.CreateWorkspaceBuildRequest
+	if !httpapi.Read(ctx, rw, r, &createBuild) {
+		return
+	}
+
+	build, err := api.postBuild(rw, r, createBuild)
+	if err != nil {
 		// all errors handled in api.postBuild
 		return
 	}

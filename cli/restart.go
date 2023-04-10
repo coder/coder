@@ -34,7 +34,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
-			// get the workspace - this can probably stay in here
+			// get the workspace
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err

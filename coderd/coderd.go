@@ -646,6 +646,7 @@ func New(options *Options) *API {
 				r.Route("/builds", func(r chi.Router) {
 					r.Get("/", api.workspaceBuilds)
 					r.Post("/", api.postWorkspaceBuilds)
+					r.Post("/restart", api.restartWorkspace)
 				})
 				r.Route("/autostart", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceAutostart)
