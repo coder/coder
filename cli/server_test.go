@@ -1489,6 +1489,30 @@ func TestServer(t *testing.T) {
 			w.RequireSuccess()
 		})
 	})
+	t.Run("DisableDERP", func(t *testing.T) {
+		t.Parallel()
+
+		// Make sure that $CODER_DERP_SERVER_STUN_ADDRESSES can be set to
+		// disable STUN.
+
+		inv, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--http-address", ":0",
+		)
+		inv.Environ.Set("CODER_DERP_SERVER_STUN_ADDRESSES", "disable")
+		ptytest.New(t).Attach(inv)
+		clitest.Start(t, inv)
+		gotURL := waitAccessURL(t, cfg)
+		client := codersdk.New(gotURL)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_ = coderdtest.CreateFirstUser(t, client)
+		gotConfig, err := client.DeploymentConfig(ctx)
+		require.NoError(t, err)
+
+		require.Len(t, gotConfig.Values.DERP.Server.STUNAddresses, 0)
+	})
 }
 
 func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {

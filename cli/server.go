@@ -568,6 +568,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if !cfg.DERP.Server.Enable {
 				defaultRegion = nil
 			}
+
+			// HACK: see https://github.com/coder/coder/issues/6791.
+			for _, addr := range cfg.DERP.Server.STUNAddresses {
+				if addr != "disable" {
+					continue
+				}
+				err := cfg.DERP.Server.STUNAddresses.Replace(nil)
+				if err != nil {
+					panic(err)
+				}
+				break
+			}
+
 			derpMap, err := tailnet.NewDERPMap(
 				ctx, defaultRegion, cfg.DERP.Server.STUNAddresses,
 				cfg.DERP.Config.URL.String(), cfg.DERP.Config.Path.String(),
