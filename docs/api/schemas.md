@@ -217,6 +217,7 @@
   "logs": [
     {
       "created_at": "string",
+      "level": "trace",
       "output": "string"
     }
   ]
@@ -302,16 +303,18 @@
 ```json
 {
   "created_at": "string",
+  "level": "trace",
   "output": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-| ------------ | ------ | -------- | ------------ | ----------- |
-| `created_at` | string | false    |              |             |
-| `output`     | string | false    |              |             |
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -4766,17 +4769,19 @@ Parameter represents a set value for the scope.
 {
   "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
+  "level": "trace",
   "output": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `created_at` | string  | false    |              |             |
-| `id`         | integer | false    |              |             |
-| `output`     | string  | false    |              |             |
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `id`         | integer                                | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
 
 ## codersdk.WorkspaceAgentStatus
 

@@ -510,4 +510,5 @@ type WorkspaceAgentStartupLog struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Output    string    `json:"output"`
+	Level     LogLevel  `json:"level"`
 }
