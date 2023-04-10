@@ -38,7 +38,10 @@ const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
   return <Icon className={styles.sidebarNavItemIcon} />
 }
 
-export const Sidebar: React.FC<{ workspace: Workspace }> = ({ workspace }) => {
+export const Sidebar: React.FC<{ username: string; workspace: Workspace }> = ({
+  username,
+  workspace,
+}) => {
   const styles = useStyles()
 
   return (
@@ -50,7 +53,7 @@ export const Sidebar: React.FC<{ workspace: Workspace }> = ({ workspace }) => {
       >
         <Avatar src={workspace.template_icon} variant="square" fitImage />
         <Stack spacing={0} className={styles.workspaceData}>
-          <Link className={styles.name} to={`/workspaces/${workspace.name}`}>
+          <Link className={styles.name} to={`/@${username}/${workspace.name}`}>
             {workspace.name}
           </Link>
           <span className={styles.secondary}>

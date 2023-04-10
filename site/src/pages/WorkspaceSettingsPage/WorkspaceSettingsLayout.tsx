@@ -59,7 +59,7 @@ export const WorkspaceSettingsLayout: FC = () => {
         <WorkspaceSettingsContext.Provider value={settings}>
           <Margins>
             <Stack className={styles.wrapper} direction="row" spacing={10}>
-              <Sidebar workspace={settings.workspace} />
+              <Sidebar workspace={settings.workspace} username={username} />
               <Suspense fallback={<Loader />}>
                 <main className={styles.content}>
                   <Outlet />
