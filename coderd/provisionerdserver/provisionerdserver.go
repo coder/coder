@@ -490,14 +490,14 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 				slog.F("stage", log.Stage),
 				slog.F("output", log.Output))
 		}
-		//nolint:gocritic // Provisionerd has specific authz rules.
-		logs, err := server.Database.InsertProvisionerJobLogs(dbauthz.AsProvisionerd(context.Background()), insertParams)
+
+		logs, err := server.Database.InsertProvisionerJobLogs(ctx, insertParams)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
-		// Publish by the lowest log ID inserted so the
-		// log stream will fetch everything from that point.
+		// Publish by the lowest log ID inserted so the log stream will fetch
+		// everything from that point.
 		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
 		data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{
