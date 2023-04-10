@@ -1,6 +1,6 @@
 import Link from "@material-ui/core/Link"
 import { OutdatedHelpTooltip } from "components/Tooltips"
-import { FC } from "react"
+import { FC, useRef, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { createDayString } from "util/createDayString"
 import {
@@ -12,6 +12,14 @@ import { Workspace } from "../../api/typesGenerated"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import upperFirst from "lodash/upperFirst"
 import { autostopDisplay } from "util/schedule"
+import IconButton from "@material-ui/core/IconButton"
+import RemoveIcon from "@material-ui/icons/RemoveOutlined"
+import { makeStyles } from "@material-ui/core/styles"
+import AddIcon from "@material-ui/icons/AddOutlined"
+import Popover from "@material-ui/core/Popover"
+import TextField from "@material-ui/core/TextField"
+import { Stack } from "components/Stack/Stack"
+import Button from "@material-ui/core/Button"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -27,6 +35,8 @@ const Language = {
 
 export interface WorkspaceStatsProps {
   workspace: Workspace
+  maxDeadlineIncrease: number
+  maxDeadlineDecrease: number
   quota_budget?: number
   handleUpdate: () => void
 }
@@ -34,70 +44,155 @@ export interface WorkspaceStatsProps {
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   workspace,
   quota_budget,
+  maxDeadlineDecrease,
+  maxDeadlineIncrease,
   handleUpdate,
 }) => {
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
     workspace.latest_build,
   )
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace)
+  const styles = useStyles()
+  const deadlinePlusEnabled = maxDeadlineIncrease >= 1
+  const deadlineMinusEnabled = maxDeadlineDecrease >= 1
+  const addingButtonRef = useRef<HTMLButtonElement>(null)
+  const [isAddingTime, setIsAddingTime] = useState(false)
 
   return (
-    <Stats aria-label={Language.workspaceDetails}>
-      <StatsItem
-        label={Language.templateLabel}
-        value={
-          <Link
-            component={RouterLink}
-            to={`/templates/${workspace.template_name}`}
-          >
-            {displayTemplateName}
-          </Link>
-        }
-      />
-      <StatsItem
-        label={Language.versionLabel}
-        value={
-          <>
+    <>
+      <Stats aria-label={Language.workspaceDetails}>
+        <StatsItem
+          label={Language.templateLabel}
+          value={
             <Link
               component={RouterLink}
-              to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
+              to={`/templates/${workspace.template_name}`}
             >
-              {workspace.latest_build.template_version_name}
+              {displayTemplateName}
             </Link>
+          }
+        />
+        <StatsItem
+          label={Language.versionLabel}
+          value={
+            <>
+              <Link
+                component={RouterLink}
+                to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
+              >
+                {workspace.latest_build.template_version_name}
+              </Link>
 
-            {workspace.outdated && (
-              <OutdatedHelpTooltip
-                onUpdateVersion={handleUpdate}
-                ariaLabel="update version"
-              />
-            )}
-          </>
-        }
-      />
-      <StatsItem
-        label={Language.lastBuiltLabel}
-        value={
-          <>
-            {upperFirst(createDayString(workspace.latest_build.created_at))} by{" "}
-            {initiatedBy}
-          </>
-        }
-      />
-      {shouldDisplayScheduleLabel(workspace) && (
-        <StatsItem
-          label={getScheduleLabel(workspace)}
-          value={autostopDisplay(workspace)}
+              {workspace.outdated && (
+                <OutdatedHelpTooltip
+                  onUpdateVersion={handleUpdate}
+                  ariaLabel="update version"
+                />
+              )}
+            </>
+          }
         />
-      )}
-      {workspace.latest_build.daily_cost > 0 && (
         <StatsItem
-          label={Language.costLabel}
-          value={`${workspace.latest_build.daily_cost} ${
-            quota_budget ? `/ ${quota_budget}` : ""
-          }`}
+          label={Language.lastBuiltLabel}
+          value={
+            <>
+              {upperFirst(createDayString(workspace.latest_build.created_at))}{" "}
+              by {initiatedBy}
+            </>
+          }
         />
-      )}
-    </Stats>
+        {shouldDisplayScheduleLabel(workspace) && (
+          <StatsItem
+            label={getScheduleLabel(workspace)}
+            value={
+              <span className={styles.scheduleValue}>
+                <Link
+                  component={RouterLink}
+                  to="settings/schedule"
+                  title="Schedule settings"
+                >
+                  {autostopDisplay(workspace)}
+                </Link>
+                <span className={styles.scheduleControls}>
+                  <IconButton
+                    disabled={!deadlineMinusEnabled}
+                    size="small"
+                    title="Subtract hours from deadline"
+                    className={styles.scheduleButton}
+                  >
+                    <RemoveIcon />
+                  </IconButton>
+                  <IconButton
+                    disabled={!deadlinePlusEnabled}
+                    size="small"
+                    title="Add hours to deadline"
+                    className={styles.scheduleButton}
+                    ref={addingButtonRef}
+                    onClick={() => setIsAddingTime(true)}
+                  >
+                    <AddIcon />
+                  </IconButton>
+                </span>
+              </span>
+            }
+          />
+        )}
+        {workspace.latest_build.daily_cost > 0 && (
+          <StatsItem
+            label={Language.costLabel}
+            value={`${workspace.latest_build.daily_cost} ${
+              quota_budget ? `/ ${quota_budget}` : ""
+            }`}
+          />
+        )}
+      </Stats>
+
+      <Popover
+        id="schedule-add"
+        classes={{ paper: styles.timePopoverPaper }}
+        open={isAddingTime}
+        anchorEl={addingButtonRef.current}
+        onClose={() => setIsAddingTime(false)}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+      >
+        <span className={styles.timePopoverTitle}>Add hours to deadline</span>
+        <span className={styles.timePopoverDescription}>
+          Delay the shutdown of this workspace for a few more hours. This is
+          only applied once.
+        </span>
+        <form className={styles.timePopoverForm}>
+          <TextField
+            type="number"
+            size="small"
+            fullWidth
+            className={styles.timePopoverField}
+            InputProps={{ className: styles.timePopoverFieldInput }}
+            inputProps={{
+              min: 0,
+              max: maxDeadlineIncrease,
+              step: 1,
+              defaultValue: 1,
+            }}
+          />
+
+          <Button
+            variant="outlined"
+            size="small"
+            className={styles.timePopoverButton}
+            type="submit"
+          >
+            Apply
+          </Button>
+        </form>
+      </Popover>
+    </>
   )
 }
 
@@ -118,3 +213,69 @@ export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
 const getScheduleLabel = (workspace: Workspace) => {
   return isWorkspaceOn(workspace) ? "Stops at" : "Starts at"
 }
+
+const useStyles = makeStyles((theme) => ({
+  scheduleValue: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1.5),
+  },
+
+  scheduleControls: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
+  },
+
+  scheduleButton: {
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: 4,
+
+    "& svg.MuiSvgIcon-root": {
+      width: theme.spacing(1.5),
+      height: theme.spacing(1.5),
+    },
+  },
+
+  timePopoverPaper: {
+    padding: theme.spacing(3),
+    maxWidth: theme.spacing(36),
+    marginTop: theme.spacing(1),
+    borderRadius: 4,
+    display: "flex",
+    flexDirection: "column",
+    gap: theme.spacing(1),
+  },
+
+  timePopoverTitle: {
+    fontWeight: 600,
+  },
+
+  timePopoverDescription: {
+    color: theme.palette.text.secondary,
+  },
+
+  timePopoverForm: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1),
+    padding: theme.spacing(1, 0),
+  },
+
+  timePopoverField: {
+    margin: 0,
+  },
+
+  timePopoverFieldInput: {
+    fontSize: 14,
+    padding: theme.spacing(0),
+    borderRadius: 4,
+  },
+
+  timePopoverButton: {
+    borderRadius: 4,
+    paddingLeft: theme.spacing(2),
+    paddingRight: theme.spacing(2),
+    flexShrink: 0,
+  },
+}))
