@@ -117,7 +117,7 @@ resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = docker_image.coder_image.image_id
   # Uses lower() to avoid Docker restriction on container names.
-  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  name = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
   # Use the docker gateway if the access URL is 127.0.0.1
