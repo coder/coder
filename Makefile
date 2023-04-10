@@ -510,12 +510,12 @@ docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
 	cd site
 	yarn run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json
 
-docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go
+docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
 	cd site
 	yarn run format:write:only ../docs/admin/audit-logs.md
 
-coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo docs/manifest.json
+coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
 	yarn run --cwd=site format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
