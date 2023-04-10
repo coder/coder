@@ -105,6 +105,8 @@ const defaultInitialValues: CreateTemplateData = {
   // you are not licensed. We hide the form value based on entitlements.
   max_ttl_hours: 24 * 7,
   allow_user_cancel_workspace_jobs: false,
+  allow_user_autostart: false,
+  allow_user_autostop: false,
 }
 
 type GetInitialValuesParams = {
@@ -340,6 +342,55 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               variant="outlined"
               type="number"
             />
+          </Stack>
+          <Stack direction="column">
+            <Stack direction="row" alignItems="center">
+              <Checkbox
+                id="allow_user_autostart"
+                size="small"
+                color="primary"
+                disabled={isSubmitting || !canSetMaxTTL}
+                onChange={async () => {
+                  await form.setFieldValue(
+                    "allow_user_autostart",
+                    !form.values.allow_user_autostart,
+                  )
+                }}
+                name="allow_user_autostart"
+                checked={form.values.allow_user_autostart}
+              />
+              <Stack spacing={0.5}>
+                <strong>
+                  Allow users to auto-start workspaces on a schedule.
+                </strong>
+              </Stack>
+            </Stack>
+            <Stack direction="row" alignItems="center">
+              <Checkbox
+                id="allow-user-autostop"
+                size="small"
+                color="primary"
+                disabled={isSubmitting || !canSetMaxTTL}
+                onChange={async () => {
+                  await form.setFieldValue(
+                    "allow_user_autostop",
+                    !form.values.allow_user_autostop,
+                  )
+                }}
+                name="allow-user-autostop"
+                checked={form.values.allow_user_autostop}
+              />
+              <Stack spacing={0.5}>
+                <strong>
+                  Allow users to customize auto-stop duration for workspaces.
+                </strong>
+                <span className={styles.optionText}>
+                  Workspaces will always use the default TTL if this is set.
+                  Regardless of this setting, workspaces can only stay on for
+                  the max lifetime.
+                </span>
+              </Stack>
+            </Stack>
           </Stack>
         </FormFields>
       </FormSection>
