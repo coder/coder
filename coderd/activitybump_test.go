@@ -9,35 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
-
-type mockTemplateScheduleStore struct {
-	getFn func(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error)
-	setFn func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error)
-}
-
-var _ schedule.TemplateScheduleStore = mockTemplateScheduleStore{}
-
-func (m mockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
-	if m.getFn != nil {
-		return m.getFn(ctx, db, templateID)
-	}
-
-	return schedule.NewAGPLTemplateScheduleStore().GetTemplateScheduleOptions(ctx, db, templateID)
-}
-
-func (m mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-	if m.setFn != nil {
-		return m.setFn(ctx, db, template, options)
-	}
-
-	return schedule.NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, options)
-}
 
 func TestWorkspaceActivityBump(t *testing.T) {
 	t.Parallel()
@@ -52,17 +33,16 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		}
 
 		client = coderdtest.New(t, &coderdtest.Options{
-			AppHostname:              proxyTestSubdomainRaw,
 			IncludeProvisionerDaemon: true,
 			// Agent stats trigger the activity bump, so we want to report
 			// very frequently in tests.
 			AgentStatsRefreshInterval: time.Millisecond * 100,
-			TemplateScheduleStore: mockTemplateScheduleStore{
-				getFn: func(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+				GetFn: func(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserSchedulingEnabled: true,
-						DefaultTTL:            ttl,
-						MaxTTL:                maxTTL,
+						UserAutostopEnabled: true,
+						DefaultTTL:          ttl,
+						MaxTTL:              maxTTL,
 					}, nil
 				},
 			},
@@ -70,9 +50,45 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ttlMillis := int64(ttl / time.Millisecond)
-		workspace = createWorkspaceWithApps(t, client, user.OrganizationID, "", 1234, func(cwr *codersdk.CreateWorkspaceRequest) {
+		agentToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id:   uuid.NewString(),
+								Name: "agent",
+								Auth: &proto.Agent_Token{
+									Token: agentToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = &ttlMillis
 		})
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(agentToken)
+		agentCloser := agent.New(agent.Options{
+			Client: agentClient,
+			Logger: slogtest.Make(t, nil).Named("agent"),
+		})
+		t.Cleanup(func() {
+			_ = agentCloser.Close()
+		})
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Sanity-check that deadline is near.
 		workspace, err := client.Workspace(ctx, workspace.ID)

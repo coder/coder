@@ -96,6 +96,5 @@ See Docker's official documentation to [Manage Docker as a non-root user](https:
 
 ## Next steps
 
-- [Quickstart](../quickstart.md)
 - [Configuring Coder](../admin/configure.md)
 - [Templates](../templates.md)

@@ -16,8 +16,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
-	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/tracing"
@@ -42,10 +41,11 @@ const (
 	// token on app domains.
 	//nolint:gosec
 	DevURLSessionTokenCookie = "coder_devurl_session_token"
-	// DevURLSessionTicketCookie is the name of the cookie that stores a
+	// DevURLSignedAppTokenCookie is the name of the cookie that stores a
 	// temporary JWT that can be used to authenticate instead of the session
 	// token.
-	DevURLSessionTicketCookie = "coder_devurl_session_ticket"
+	//nolint:gosec
+	DevURLSignedAppTokenCookie = "coder_devurl_signed_app_token"
 
 	// BypassRatelimitHeader is the custom header to use to bypass ratelimits.
 	// Only owners can bypass rate limits. This is typically used for scale testing.
@@ -159,8 +159,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		opt(req)
 	}
 
-	span.SetAttributes(semconv.NetAttributesFromHTTPRequest("tcp", req)...)
-	span.SetAttributes(semconv.HTTPClientAttributesFromHTTPRequest(req)...)
+	span.SetAttributes(httpconv.ClientRequest(req)...)
 
 	// Inject tracing headers if enabled.
 	if c.Trace {
@@ -184,8 +183,8 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, err
 	}
 
-	span.SetAttributes(semconv.HTTPStatusCodeKey.Int(resp.StatusCode))
-	span.SetStatus(semconv.SpanStatusFromHTTPStatusCodeAndSpanKind(resp.StatusCode, trace.SpanKindClient))
+	span.SetAttributes(httpconv.ClientResponse(resp)...)
+	span.SetStatus(httpconv.ClientStatus(resp.StatusCode))
 
 	// Copy the response body so we can log it if it's a loggable mime type.
 	var respBody []byte

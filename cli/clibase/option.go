@@ -2,10 +2,21 @@ package clibase
 
 import (
 	"os"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
+)
+
+type ValueSource string
+
+const (
+	ValueSourceNone    ValueSource = ""
+	ValueSourceFlag    ValueSource = "flag"
+	ValueSourceEnv     ValueSource = "env"
+	ValueSourceYAML    ValueSource = "yaml"
+	ValueSourceDefault ValueSource = "default"
 )
 
 // Option is a configuration option for a CLI application.
@@ -46,6 +57,19 @@ type Option struct {
 	UseInstead []Option `json:"use_instead,omitempty"`
 
 	Hidden bool `json:"hidden,omitempty"`
+
+	ValueSource ValueSource `json:"value_source,omitempty"`
+}
+
+func (o Option) YAMLPath() string {
+	if o.YAML == "" {
+		return ""
+	}
+	var gs []string
+	for _, g := range o.Group.Ancestry() {
+		gs = append(gs, g.YAML)
+	}
+	return strings.Join(append(gs, o.YAML), ".")
 }
 
 // OptionSet is a group of options that can be applied to a command.
@@ -115,7 +139,7 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 		envs[v.Name] = v.Value
 	}
 
-	for _, opt := range *s {
+	for i, opt := range *s {
 		if opt.Env == "" {
 			continue
 		}
@@ -133,6 +157,7 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 			continue
 		}
 
+		(*s)[i].ValueSource = ValueSourceEnv
 		if err := opt.Value.Set(envVal); err != nil {
 			merr = multierror.Append(
 				merr, xerrors.Errorf("parse %q: %w", opt.Name, err),
@@ -143,8 +168,8 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 	return merr.ErrorOrNil()
 }
 
-// SetDefaults sets the default values for each Option.
-// It should be called before all parsing (e.g. ParseFlags, ParseEnv).
+// SetDefaults sets the default values for each Option, skipping values
+// that already have a value source.
 func (s *OptionSet) SetDefaults() error {
 	if s == nil {
 		return nil
@@ -152,10 +177,16 @@ func (s *OptionSet) SetDefaults() error {
 
 	var merr *multierror.Error
 
-	for _, opt := range *s {
+	for i, opt := range *s {
+		// Skip values that may have already been set by the user.
+		if opt.ValueSource != ValueSourceNone {
+			continue
+		}
+
 		if opt.Default == "" {
 			continue
 		}
+
 		if opt.Value == nil {
 			merr = multierror.Append(
 				merr,
@@ -166,6 +197,7 @@ func (s *OptionSet) SetDefaults() error {
 			)
 			continue
 		}
+		(*s)[i].ValueSource = ValueSourceDefault
 		if err := opt.Value.Set(opt.Default); err != nil {
 			merr = multierror.Append(
 				merr, xerrors.Errorf("parse %q: %w", opt.Name, err),
@@ -173,4 +205,16 @@ func (s *OptionSet) SetDefaults() error {
 		}
 	}
 	return merr.ErrorOrNil()
+}
+
+// ByName returns the Option with the given name, or nil if no such option
+// exists.
+func (s *OptionSet) ByName(name string) *Option {
+	for i := range *s {
+		opt := &(*s)[i]
+		if opt.Name == name {
+			return opt
+		}
+	}
+	return nil
 }

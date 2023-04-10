@@ -135,8 +135,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Equal(t, "bananas", version.Name)
 		require.Equal(t, provisionerdserver.ScopeOrganization, version.Job.Tags[provisionerdserver.TagScope])
 
-		require.Len(t, auditor.AuditLogs, 2)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[1].Action)
+		require.Len(t, auditor.AuditLogs(), 2)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
 	})
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
@@ -715,8 +715,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs, 5)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
+		require.Len(t, auditor.AuditLogs(), 5)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
 	})
 }
 

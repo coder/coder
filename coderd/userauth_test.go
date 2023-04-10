@@ -22,6 +22,8 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -243,7 +245,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
@@ -257,9 +259,9 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, "/hello-world", user.AvatarURL)
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.NotEqual(t, auditor.AuditLogs[numLogs-1].UserID, uuid.Nil)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
 		t.Parallel()
@@ -296,14 +298,14 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeamInFirstOrganization", func(t *testing.T) {
 		t.Parallel()
@@ -348,14 +350,14 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeamInSecondOrganization", func(t *testing.T) {
 		t.Parallel()
@@ -400,14 +402,14 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowEveryone", func(t *testing.T) {
 		t.Parallel()
@@ -438,14 +440,14 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupFailedInactiveInOrg", func(t *testing.T) {
 		t.Parallel()
@@ -501,6 +503,7 @@ func TestUserOIDC(t *testing.T) {
 		AvatarURL           string
 		StatusCode          int
 		IgnoreEmailVerified bool
+		IgnoreUserInfo      bool
 	}{{
 		Name: "EmailOnly",
 		IDTokenClaims: jwt.MapClaims{
@@ -643,6 +646,48 @@ func TestUserOIDC(t *testing.T) {
 		},
 		AllowSignups: true,
 		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "UserInfoOverridesIDTokenClaims",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "internaluser@internal.domain",
+			"email_verified": false,
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"email":              "externaluser@external.domain",
+			"email_verified":     true,
+			"preferred_username": "user",
+		},
+		Username:            "user",
+		AllowSignups:        true,
+		IgnoreEmailVerified: false,
+		StatusCode:          http.StatusTemporaryRedirect,
+	}, {
+		Name: "InvalidUserInfo",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "internaluser@internal.domain",
+			"email_verified": false,
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"email": 1,
+		},
+		AllowSignups:        true,
+		IgnoreEmailVerified: false,
+		StatusCode:          http.StatusInternalServerError,
+	}, {
+		Name: "IgnoreUserInfo",
+		IDTokenClaims: jwt.MapClaims{
+			"email":              "user@internal.domain",
+			"email_verified":     true,
+			"preferred_username": "user",
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"email":              "user.mcname@external.domain",
+			"preferred_username": "Mr. User McName",
+		},
+		Username:       "user",
+		IgnoreUserInfo: true,
+		AllowSignups:   true,
+		StatusCode:     http.StatusTemporaryRedirect,
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
@@ -654,12 +699,13 @@ func TestUserOIDC(t *testing.T) {
 			config.AllowSignups = tc.AllowSignups
 			config.EmailDomain = tc.EmailDomain
 			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
+			config.IgnoreUserInfo = tc.IgnoreUserInfo
 
 			client := coderdtest.New(t, &coderdtest.Options{
 				Auditor:    auditor,
 				OIDCConfig: config,
 			})
-			numLogs := len(auditor.AuditLogs)
+			numLogs := len(auditor.AuditLogs())
 
 			resp := oidcCallback(t, client, conf.EncodeClaims(t, tc.IDTokenClaims))
 			numLogs++ // add an audit log for login
@@ -673,9 +719,9 @@ func TestUserOIDC(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
 
-				require.Len(t, auditor.AuditLogs, numLogs)
-				require.NotEqual(t, auditor.AuditLogs[numLogs-1].UserID, uuid.Nil)
-				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+				require.Len(t, auditor.AuditLogs(), numLogs)
+				require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
+				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 			}
 
 			if tc.AvatarURL != "" {
@@ -684,8 +730,8 @@ func TestUserOIDC(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
 
-				require.Len(t, auditor.AuditLogs, numLogs)
-				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+				require.Len(t, auditor.AuditLogs(), numLogs)
+				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 			}
 		})
 	}
@@ -702,7 +748,7 @@ func TestUserOIDC(t *testing.T) {
 			Auditor:    auditor,
 			OIDCConfig: config,
 		})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		code := conf.EncodeClaims(t, jwt.MapClaims{
 			"email": "jon@coder.com",
@@ -735,8 +781,8 @@ func TestUserOIDC(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
@@ -783,6 +829,110 @@ func TestUserOIDC(t *testing.T) {
 
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
+}
+
+func TestUserLogout(t *testing.T) {
+	t.Parallel()
+
+	// Create a custom database so it's easier to make scoped tokens for
+	// testing.
+	db, pubSub := dbtestutil.NewDB(t)
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubSub,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create a user with built-in auth.
+	const (
+		email    = "dean.was.here@test.coder.com"
+		username = "dean"
+		//nolint:gosec
+		password = "SomeSecurePassword123!"
+	)
+	newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		Email:          email,
+		Username:       username,
+		Password:       password,
+		OrganizationID: firstUser.OrganizationID,
+	})
+	require.NoError(t, err)
+
+	// Log in with basic auth and keep the the session token (but don't use it).
+	userClient := codersdk.New(client.URL)
+	loginRes1, err := userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+		Email:    email,
+		Password: password,
+	})
+	require.NoError(t, err)
+
+	// Log in again but actually set the token this time.
+	loginRes2, err := userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+		Email:    email,
+		Password: password,
+	})
+	require.NoError(t, err)
+	userClient.SetSessionToken(loginRes2.SessionToken)
+
+	// Add the user's second session token to the list of API keys that should
+	// be deleted.
+	shouldBeDeleted := map[string]string{
+		"user login 2 (logging out with this)": loginRes2.SessionToken,
+	}
+
+	// Add the user's first token, and the admin's session token to the list of
+	// API keys that should not be deleted.
+	shouldNotBeDeleted := map[string]string{
+		"user login 1 (not logging out of)": loginRes1.SessionToken,
+		"admin login":                       client.SessionToken(),
+	}
+
+	// Create a few application_connect-scoped API keys that should be deleted.
+	for i := 0; i < 3; i++ {
+		key, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID: newUser.ID,
+			Scope:  database.APIKeyScopeApplicationConnect,
+		})
+		shouldBeDeleted[fmt.Sprintf("application_connect key owned by logout user %d", i)] = key.ID
+	}
+
+	// Create a few application_connect-scoped API keys for the admin user that
+	// should not be deleted.
+	for i := 0; i < 3; i++ {
+		key, _ := dbgen.APIKey(t, db, database.APIKey{
+			UserID: firstUser.UserID,
+			Scope:  database.APIKeyScopeApplicationConnect,
+		})
+		shouldNotBeDeleted[fmt.Sprintf("application_connect key owned by admin user %d", i)] = key.ID
+	}
+
+	// Log out of the new user.
+	err = userClient.Logout(ctx)
+	require.NoError(t, err)
+
+	// Ensure the new user's session token is no longer valid.
+	_, err = userClient.User(ctx, codersdk.Me)
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+
+	// Check that the deleted keys are gone.
+	for name, id := range shouldBeDeleted {
+		id := strings.Split(id, "-")[0]
+		_, err := db.GetAPIKeyByID(ctx, id)
+		require.Error(t, err, name)
+	}
+
+	// Check that the other keys are still there.
+	for name, id := range shouldNotBeDeleted {
+		id := strings.Split(id, "-")[0]
+		_, err := db.GetAPIKeyByID(ctx, id)
+		require.NoError(t, err, name)
+	}
 }
 
 func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {

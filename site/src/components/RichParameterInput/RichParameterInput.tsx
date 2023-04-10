@@ -22,6 +22,9 @@ export interface ParameterLabelProps {
 const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
   const styles = useStyles()
   const hasDescription = parameter.description && parameter.description !== ""
+  const displayName = parameter.display_name
+    ? parameter.display_name
+    : parameter.name
 
   return (
     <label htmlFor={id}>
@@ -38,13 +41,13 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
 
         {hasDescription ? (
           <Stack spacing={0.5}>
-            <span className={styles.labelCaption}>{parameter.name}</span>
+            <span className={styles.labelCaption}>{displayName}</span>
             <span className={styles.labelPrimary}>
               <MemoizedMarkdown>{parameter.description}</MemoizedMarkdown>
             </span>
           </Stack>
         ) : (
-          <span className={styles.labelPrimary}>{parameter.name}</span>
+          <span className={styles.labelPrimary}>{displayName}</span>
         )}
       </Stack>
     </label>

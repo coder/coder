@@ -94,6 +94,38 @@ SET
 WHERE
 	id = $1;
 
+-- name: InsertWorkspaceAgentMetadata :exec
+INSERT INTO
+	workspace_agent_metadata (
+		workspace_agent_id,
+		display_name,
+		key,
+		script,
+		timeout,
+		interval
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6);
+
+-- name: UpdateWorkspaceAgentMetadata :exec
+UPDATE
+	workspace_agent_metadata
+SET
+	value = $3,
+	error = $4,
+	collected_at = $5
+WHERE
+	workspace_agent_id = $1
+	AND key = $2;
+
+-- name: GetWorkspaceAgentMetadata :many
+SELECT
+	*
+FROM
+	workspace_agent_metadata
+WHERE
+	workspace_agent_id = $1;
+
 -- name: UpdateWorkspaceAgentStartupLogOverflowByID :exec
 UPDATE
 	workspace_agents
@@ -119,11 +151,12 @@ WITH new_length AS (
 	startup_logs_length = startup_logs_length + @output_length WHERE workspace_agents.id = @agent_id
 )
 INSERT INTO
-		workspace_agent_startup_logs
+		workspace_agent_startup_logs (agent_id, created_at, output, level)
 	SELECT
 		@agent_id :: uuid AS agent_id,
 		unnest(@created_at :: timestamptz [ ]) AS created_at,
-		unnest(@output :: VARCHAR(1024) [ ]) AS output
+		unnest(@output :: VARCHAR(1024) [ ]) AS output,
+		unnest(@level :: log_level [ ]) AS level
 	RETURNING workspace_agent_startup_logs.*;
 
 -- If an agent hasn't connected in the last 7 days, we purge it's logs.
@@ -132,3 +165,23 @@ INSERT INTO
 DELETE FROM workspace_agent_startup_logs WHERE agent_id IN
 	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL
 		AND last_connected_at < NOW() - INTERVAL '7 day');
+
+-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceID :many
+SELECT
+	workspace_agents.*
+FROM
+	workspace_agents
+JOIN
+	workspace_resources ON workspace_agents.resource_id = workspace_resources.id
+JOIN
+	workspace_builds ON workspace_resources.job_id = workspace_builds.job_id
+WHERE
+	workspace_builds.workspace_id = @workspace_id :: uuid AND
+	workspace_builds.build_number = (
+    	SELECT
+			MAX(build_number)
+    	FROM
+			workspace_builds AS wb
+    	WHERE
+			wb.workspace_id = @workspace_id :: uuid
+	);
