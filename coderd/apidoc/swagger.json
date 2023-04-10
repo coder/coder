@@ -5066,12 +5066,6 @@
     "clibase.Group": {
       "type": "object",
       "properties": {
-        "children": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/clibase.Group"
-          }
-        },
         "description": {
           "type": "string"
         },
@@ -5080,6 +5074,9 @@
         },
         "parent": {
           "$ref": "#/definitions/clibase.Group"
+        },
+        "yaml": {
+          "type": "string"
         }
       }
     },
@@ -5147,6 +5144,9 @@
         },
         "value": {
           "description": "Value includes the types listed in values.go."
+        },
+        "value_source": {
+          "$ref": "#/definitions/clibase.ValueSource"
         },
         "yaml": {
           "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
@@ -5227,6 +5227,17 @@
           ]
         }
       }
+    },
+    "clibase.ValueSource": {
+      "type": "string",
+      "enum": ["", "flag", "env", "yaml", "default"],
+      "x-enum-varnames": [
+        "ValueSourceNone",
+        "ValueSourceFlag",
+        "ValueSourceEnv",
+        "ValueSourceYAML",
+        "ValueSourceDefault"
+      ]
     },
     "coderd.SCIMUser": {
       "type": "object",

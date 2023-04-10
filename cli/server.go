@@ -176,12 +176,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer cancel()
 
 			if cfg.WriteConfig {
-				// TODO: this should output to a file.
-				n, err := opts.ToYAML()
+				n, err := opts.MarshalYAML()
 				if err != nil {
 					return xerrors.Errorf("generate yaml: %w", err)
 				}
-				enc := yaml.NewEncoder(inv.Stderr)
+				enc := yaml.NewEncoder(inv.Stdout)
+				enc.SetIndent(2)
 				err = enc.Encode(n)
 				if err != nil {
 					return xerrors.Errorf("encode yaml: %w", err)
@@ -191,6 +191,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("close yaml encoder: %w", err)
 				}
 				return nil
+			}
+
+			if cfg.Config != "" {
+				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
 			}
 
 			// Print deprecation warnings.
