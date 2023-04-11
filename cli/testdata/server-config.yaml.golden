@@ -320,7 +320,7 @@ disablePathApps: false
 # on the 'owner' role. They still have their user permissions to access their own
 # workspaces.
 # (default: <unset>, type: bool)
-disableOwnerWorkspaceExec: false
+disableOwnerWorkspaceAccess: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the coder cli, vs code extension, and the web UI.
 client:
