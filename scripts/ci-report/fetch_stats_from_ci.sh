@@ -82,7 +82,7 @@ while read -r run; do
 			#   test-go (ubuntu-latest)	Print test stats	2023-04-11T03:02:19.3444048Z     },
 			#   ...
 			gh run view --job "${job_database_id}" --log >"${job_log}" || {
-				# Sometimes gh failes to extract ZIP, etc. :'(
+				# Sometimes gh fails to extract ZIP, etc. :'(
 				rm -f "${job_log}"
 				echo "Failed to fetch log for: ${job_name} (${job_database_id}, ${job_url}), skipping..."
 				continue
