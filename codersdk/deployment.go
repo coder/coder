@@ -1322,10 +1322,10 @@ when required by your organization's security policy.`,
 			YAML:  "disablePathApps",
 		},
 		{
-			Name:        "Disable Owner Workspace Execution",
+			Name:        "Disable Owner Workspace Access",
 			Description: "Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.",
-			Flag:        "disable-owner-workspace-exec",
-			Env:         "CODER_DISABLE_OWNER_WORKSPACE_EXEC",
+			Flag:        "disable-owner-workspace-access",
+			Env:         "CODER_DISABLE_OWNER_WORKSPACE_ACCESS",
 
 			Value: &c.DisableOwnerWorkspaceExec,
 			YAML:  "disableOwnerWorkspaceExec",
