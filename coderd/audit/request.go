@@ -38,7 +38,7 @@ type Request[T Auditable] struct {
 	UserID uuid.UUID
 
 	// This optional field can be passed in if the AuditAction must be overridden
-	// such as in the case of new user authentication, in which case the Audit Action is 'register', not 'login'.
+	// such as in the case of new user authentication when the Audit Action is 'register', not 'login'.
 	Action database.AuditAction
 }
 
