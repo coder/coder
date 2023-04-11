@@ -25,7 +25,7 @@ import { FormikTouched, useFormik } from "formik"
 import {
   defaultSchedule,
   emptySchedule,
-} from "pages/WorkspaceSchedulePage/schedule"
+} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
 import { ChangeEvent, FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpers } from "../../util/formUtils"

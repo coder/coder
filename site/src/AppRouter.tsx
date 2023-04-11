@@ -46,7 +46,10 @@ const WorkspaceBuildPage = lazy(
 )
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
 const WorkspaceSchedulePage = lazy(
-  () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
+  () =>
+    import(
+      "./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
+    ),
 )
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const TemplatePermissionsPage = lazy(

@@ -1,16 +1,19 @@
-import { renderWithAuth } from "testHelpers/renderHelpers"
+import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers"
 import userEvent from "@testing-library/user-event"
 import { screen } from "@testing-library/react"
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
-} from "pages/WorkspaceSchedulePage/formToRequest"
+} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/formToRequest"
 import {
   Autostart,
   scheduleToAutostart,
-} from "pages/WorkspaceSchedulePage/schedule"
-import { Autostop, ttlMsToAutostop } from "pages/WorkspaceSchedulePage/ttl"
-import * as TypesGen from "../../api/typesGenerated"
+} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
+import {
+  Autostop,
+  ttlMsToAutostop,
+} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
+import * as TypesGen from "../../../api/typesGenerated"
 import {
   WorkspaceScheduleFormValues,
   Language as FormLanguage,
@@ -257,7 +260,7 @@ describe("WorkspaceSchedulePage", () => {
 
   describe("autostop change dialog", () => {
     it("shows if autostop is changed", async () => {
-      renderWithAuth(<WorkspaceSchedulePage />, {
+      renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
         path: "/@:username/:workspace/schedule",
       })
@@ -276,7 +279,7 @@ describe("WorkspaceSchedulePage", () => {
     })
 
     it("doesn't show if autostop is not changed", async () => {
-      renderWithAuth(<WorkspaceSchedulePage />, {
+      renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
         path: "/@:username/:workspace/schedule",
       })
@@ -309,7 +312,7 @@ describe("WorkspaceSchedulePage", () => {
           },
         ),
       )
-      renderWithAuth(<WorkspaceSchedulePage />, {
+      renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
         path: "/@:username/:workspace/schedule",
       })
