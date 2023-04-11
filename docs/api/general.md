@@ -188,6 +188,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "stun_addresses": ["string"]
       }
     },
+    "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,

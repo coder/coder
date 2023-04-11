@@ -57,8 +57,7 @@ func (v *CachedGaugeVec) Collect(ch chan<- prometheus.Metric) {
 
 func (v *CachedGaugeVec) WithLabelValues(operation VectorOperation, value float64, labelValues ...string) {
 	switch operation {
-	case VectorOperationAdd:
-	case VectorOperationSet:
+	case VectorOperationAdd, VectorOperationSet:
 	default:
 		panic("unsupported vector operation")
 	}
