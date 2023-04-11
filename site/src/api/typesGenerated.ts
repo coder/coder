@@ -1275,6 +1275,7 @@ export type AuditAction =
   | "delete"
   | "login"
   | "logout"
+  | "register"
   | "start"
   | "stop"
   | "write"
@@ -1283,6 +1284,7 @@ export const AuditActions: AuditAction[] = [
   "delete",
   "login",
   "logout",
+  "register",
   "start",
   "stop",
   "write",

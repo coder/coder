@@ -36,6 +36,10 @@ type Request[T Auditable] struct {
 	// This optional field can be passed in when the userID cannot be determined from the API Key
 	// such as in the case of login, when the audit log is created prior the API Key's existence.
 	UserID uuid.UUID
+
+	// This optional field can be passed in if the AuditAction must be overridden
+	// such as in the case of new user authentication, in which case the Audit Action is 'register', not 'login'.
+	Action database.AuditAction
 }
 
 type BuildAuditParams[T Auditable] struct {
@@ -198,6 +202,11 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			return
 		}
 
+		var action database.AuditAction = p.Action
+		if req.Action != "" {
+			action = req.Action
+		}
+
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
@@ -208,7 +217,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			ResourceType:     either(req.Old, req.New, ResourceType[T], req.params.Action),
 			ResourceID:       either(req.Old, req.New, ResourceID[T], req.params.Action),
 			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T], req.params.Action),
-			Action:           p.Action,
+			Action:           action,
 			Diff:             diffRaw,
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),
