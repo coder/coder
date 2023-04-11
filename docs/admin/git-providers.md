@@ -48,7 +48,7 @@ Azure DevOps requires the following environment variables:
 CODER_GITAUTH_0_ID="primary-azure-devops"
 CODER_GITAUTH_0_TYPE=azure-devops
 CODER_GITAUTH_0_CLIENT_ID=xxxxxx
-# Ensure this value is your "Client Secret," not "App Secret"
+# Ensure this value is your "Client Secret", not "App Secret"
 CODER_GITAUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_GITAUTH_0_AUTH_URL="https://app.vssps.visualstudio.com/oauth2/authorize"
 CODER_GITAUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token"
