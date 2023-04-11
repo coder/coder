@@ -1170,15 +1170,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: w.ID,
 		}).Asserts(w, rbac.ActionUpdate).Returns(expected)
 	}))
-	s.Run("UpdateWorkspaceAgentConnectionByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID: agt.ID,
-		}).Asserts(ws, rbac.ActionUpdate).Returns()
-	}))
 	s.Run("InsertWorkspaceAgentStat", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		check.Args(database.InsertWorkspaceAgentStatParams{

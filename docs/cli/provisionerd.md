@@ -12,6 +12,6 @@ coder provisionerd
 
 ## Subcommands
 
-| Name                                       | Purpose                  |
-| ------------------------------------------ | ------------------------ |
-| [<code>start</code>](./provisionerd_start) | Run a provisioner daemon |
+| Name                                          | Purpose                  |
+| --------------------------------------------- | ------------------------ |
+| [<code>start</code>](./provisionerd_start.md) | Run a provisioner daemon |

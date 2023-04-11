@@ -47,6 +47,9 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
+      --debug-options bool
+          Print all options, how they're set, then exit.
+
       --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
           Path to the global `coder` config directory.
 

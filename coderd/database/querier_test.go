@@ -111,6 +111,7 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 		AgentID:   agent.ID,
 		CreatedAt: []time.Time{database.Now()},
 		Output:    []string{"first"},
+		Level:     []database.LogLevel{database.LogLevelInfo},
 		// 1 MB is the max
 		OutputLength: 1 << 20,
 	})
@@ -121,6 +122,7 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 		AgentID:      agent.ID,
 		CreatedAt:    []time.Time{database.Now()},
 		Output:       []string{"second"},
+		Level:        []database.LogLevel{database.LogLevelInfo},
 		OutputLength: 1,
 	})
 	require.True(t, database.IsStartupLogsLimitError(err))

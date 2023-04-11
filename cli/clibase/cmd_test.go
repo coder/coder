@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -555,42 +556,80 @@ func TestCommand_EmptySlice(t *testing.T) {
 func TestCommand_DefaultsOverride(t *testing.T) {
 	t.Parallel()
 
-	var got string
-	cmd := &clibase.Cmd{
-		Options: clibase.OptionSet{
-			{
-				Name:    "url",
-				Flag:    "url",
-				Default: "def.com",
-				Env:     "URL",
-				Value:   clibase.StringOf(&got),
-			},
-		},
-		Handler: (func(i *clibase.Invocation) error {
-			_, _ = fmt.Fprintf(i.Stdout, "%s", got)
-			return nil
-		}),
+	test := func(name string, want string, fn func(t *testing.T, inv *clibase.Invocation)) {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				got    string
+				config clibase.YAMLConfigPath
+			)
+			cmd := &clibase.Cmd{
+				Options: clibase.OptionSet{
+					{
+						Name:    "url",
+						Flag:    "url",
+						Default: "def.com",
+						Env:     "URL",
+						Value:   clibase.StringOf(&got),
+						YAML:    "url",
+					},
+					{
+						Name:    "config",
+						Flag:    "config",
+						Default: "",
+						Value:   &config,
+					},
+				},
+				Handler: (func(i *clibase.Invocation) error {
+					_, _ = fmt.Fprintf(i.Stdout, "%s", got)
+					return nil
+				}),
+			}
+
+			inv := cmd.Invoke()
+			stdio := fakeIO(inv)
+			fn(t, inv)
+			err := inv.Run()
+			require.NoError(t, err)
+			require.Equal(t, want, stdio.Stdout.String())
+		})
 	}
 
-	// Base case
-	inv := cmd.Invoke()
-	stdio := fakeIO(inv)
-	err := inv.Run()
-	require.NoError(t, err)
-	require.Equal(t, "def.com", stdio.Stdout.String())
+	test("DefaultOverNothing", "def.com", func(t *testing.T, inv *clibase.Invocation) {})
 
-	// Flag overrides
-	inv = cmd.Invoke("--url", "good.com")
-	stdio = fakeIO(inv)
-	err = inv.Run()
-	require.NoError(t, err)
-	require.Equal(t, "good.com", stdio.Stdout.String())
+	test("FlagOverDefault", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		inv.Args = []string{"--url", "good.com"}
+	})
 
-	// Env overrides
-	inv = cmd.Invoke()
-	inv.Environ.Set("URL", "good.com")
-	stdio = fakeIO(inv)
-	err = inv.Run()
-	require.NoError(t, err)
-	require.Equal(t, "good.com", stdio.Stdout.String())
+	test("EnvOverDefault", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		inv.Environ.Set("URL", "good.com")
+	})
+
+	test("FlagOverEnv", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		inv.Environ.Set("URL", "bad.com")
+		inv.Args = []string{"--url", "good.com"}
+	})
+
+	test("FlagOverYAML", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		fi, err := os.CreateTemp(t.TempDir(), "config.yaml")
+		require.NoError(t, err)
+		defer fi.Close()
+
+		_, err = fi.WriteString("url: bad.com")
+		require.NoError(t, err)
+
+		inv.Args = []string{"--config", fi.Name(), "--url", "good.com"}
+	})
+
+	test("YAMLOverDefault", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		fi, err := os.CreateTemp(t.TempDir(), "config.yaml")
+		require.NoError(t, err)
+		defer fi.Close()
+
+		_, err = fi.WriteString("url: good.com")
+		require.NoError(t, err)
+
+		inv.Args = []string{"--config", fi.Name()}
+	})
 }

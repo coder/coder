@@ -30,6 +30,7 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		},
 		"Write Config": {
 			yaml: true,
+			env:  true,
 		},
 		// Dangerous values? Not sure we should help users
 		// persistent their configuration.

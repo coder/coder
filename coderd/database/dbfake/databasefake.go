@@ -3706,6 +3706,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg dat
 			ID:        id,
 			AgentID:   arg.AgentID,
 			CreatedAt: arg.CreatedAt[index],
+			Level:     arg.Level[index],
 			Output:    output,
 		})
 		outputLength += int32(len(output))

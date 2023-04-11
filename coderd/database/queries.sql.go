@@ -5581,7 +5581,7 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAge
 
 const getWorkspaceAgentStartupLogsAfter = `-- name: GetWorkspaceAgentStartupLogsAfter :many
 SELECT
-	agent_id, created_at, output, id
+	agent_id, created_at, output, id, level
 FROM
 	workspace_agent_startup_logs
 WHERE
@@ -5610,6 +5610,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg 
 			&i.CreatedAt,
 			&i.Output,
 			&i.ID,
+			&i.Level,
 		); err != nil {
 			return nil, err
 		}
@@ -5971,21 +5972,23 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 const insertWorkspaceAgentStartupLogs = `-- name: InsertWorkspaceAgentStartupLogs :many
 WITH new_length AS (
 	UPDATE workspace_agents SET
-	startup_logs_length = startup_logs_length + $4 WHERE workspace_agents.id = $1
+	startup_logs_length = startup_logs_length + $5 WHERE workspace_agents.id = $1
 )
 INSERT INTO
-		workspace_agent_startup_logs
+		workspace_agent_startup_logs (agent_id, created_at, output, level)
 	SELECT
 		$1 :: uuid AS agent_id,
 		unnest($2 :: timestamptz [ ]) AS created_at,
-		unnest($3 :: VARCHAR(1024) [ ]) AS output
-	RETURNING workspace_agent_startup_logs.agent_id, workspace_agent_startup_logs.created_at, workspace_agent_startup_logs.output, workspace_agent_startup_logs.id
+		unnest($3 :: VARCHAR(1024) [ ]) AS output,
+		unnest($4 :: log_level [ ]) AS level
+	RETURNING workspace_agent_startup_logs.agent_id, workspace_agent_startup_logs.created_at, workspace_agent_startup_logs.output, workspace_agent_startup_logs.id, workspace_agent_startup_logs.level
 `
 
 type InsertWorkspaceAgentStartupLogsParams struct {
 	AgentID      uuid.UUID   `db:"agent_id" json:"agent_id"`
 	CreatedAt    []time.Time `db:"created_at" json:"created_at"`
 	Output       []string    `db:"output" json:"output"`
+	Level        []LogLevel  `db:"level" json:"level"`
 	OutputLength int32       `db:"output_length" json:"output_length"`
 }
 
@@ -5994,6 +5997,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg In
 		arg.AgentID,
 		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Output),
+		pq.Array(arg.Level),
 		arg.OutputLength,
 	)
 	if err != nil {
@@ -6008,6 +6012,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg In
 			&i.CreatedAt,
 			&i.Output,
 			&i.ID,
+			&i.Level,
 		); err != nil {
 			return nil, err
 		}

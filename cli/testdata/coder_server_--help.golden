@@ -16,6 +16,12 @@ Start a Coder server
           $CACHE_DIRECTORY is set, it will be used for compatibility with
           systemd.
 
+      --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
+          Remove the permission for the 'owner' role to have workspace execution
+          on all workspaces. This prevents the 'owner' from ssh, apps, and
+          terminal access based on the 'owner' role. They still have their user
+          permissions to access their own workspaces.
+
       --disable-path-apps bool, $CODER_DISABLE_PATH_APPS
           Disable workspace apps that are not served from subdomains. Path-based
           apps can make requests to the Coder API and pose a security risk when
@@ -56,6 +62,16 @@ Clients include the coder cli, vs code extension, and the web UI.
 
       --ssh-hostname-prefix string, $CODER_SSH_HOSTNAME_PREFIX (default: coder.)
           The SSH deployment prefix is used in the Host of the ssh config.
+
+[1mConfig Options[0m 
+Use a YAML configuration file when your server launch become unwieldy.
+
+  -c, --config yaml-config-path, $CODER_CONFIG_PATH
+          Specify a YAML file to load configuration from.
+
+      --write-config bool
+          
+          Write out the current server config as YAML to stdout.
 
 [1mIntrospection / Logging Options[0m 
       --log-human string, $CODER_LOGGING_HUMAN (default: /dev/stderr)

@@ -28,7 +28,8 @@ type manifest struct {
 	Routes   []route  `json:"routes,omitempty"`
 }
 
-func unsetCoderEnv() {
+func prepareEnv() {
+	// Unset CODER_ environment variables
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, "CODER_") {
 			split := strings.SplitN(env, "=", 2)
@@ -36,6 +37,16 @@ func unsetCoderEnv() {
 				panic(err)
 			}
 		}
+	}
+
+	// Override default OS values to ensure the same generated results.
+	err := os.Setenv("CLIDOCGEN_CACHE_DIRECTORY", "~/.cache")
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("CLIDOCGEN_CONFIG_DIRECTORY", "~/.config/coderv2")
+	if err != nil {
+		panic(err)
 	}
 }
 
@@ -63,7 +74,7 @@ func deleteEmptyDirs(dir string) error {
 }
 
 func main() {
-	unsetCoderEnv()
+	prepareEnv()
 
 	workdir, err := os.Getwd()
 	if err != nil {

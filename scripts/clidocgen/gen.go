@@ -55,10 +55,7 @@ func init() {
 				return fmt.Sprintf("<code>%s</code>", s)
 			},
 			"commandURI": func(cmd *clibase.Cmd) string {
-				return strings.TrimSuffix(
-					fmtDocFilename(cmd),
-					".md",
-				)
+				return fmtDocFilename(cmd)
 			},
 			"fullName": fullName,
 			"tableHeader": func() string {
