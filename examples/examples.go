@@ -25,8 +25,6 @@ var (
 	//go:embed templates/azure-linux
 	//go:embed templates/do-linux
 	//go:embed templates/docker
-	//go:embed templates/docker-code-server
-	//go:embed templates/docker-image-builds
 	//go:embed templates/docker-with-dotfiles
 	//go:embed templates/gcp-linux
 	//go:embed templates/gcp-vm-container
