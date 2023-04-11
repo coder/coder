@@ -10,13 +10,11 @@ import (
 	"sync"
 	"testing"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
-	"golang.org/x/crypto/ssh"
-
-	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -49,7 +47,7 @@ func TestNewServer_ServeClient(t *testing.T) {
 		assert.Error(t, err) // Server is closed.
 	}()
 
-	c := sshClient(t, ln.Addr().String())
+	c := agentssh.SSHTestClient(t, ln.Addr().String())
 	var b bytes.Buffer
 	sess, err := c.NewSession()
 	sess.Stdout = &b
@@ -95,7 +93,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 	doClose := make(chan struct{})
 	go func() {
 		defer wg.Done()
-		c := sshClient(t, ln.Addr().String())
+		c := agentssh.SSHTestClient(t, ln.Addr().String())
 		sess, err := c.NewSession()
 		sess.Stdin = pty.Input()
 		sess.Stdout = pty.Output()
@@ -115,25 +113,4 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 	require.NoError(t, err)
 
 	wg.Wait()
-}
-
-func sshClient(t *testing.T, addr string) *ssh.Client {
-	conn, err := net.Dial("tcp", addr)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = conn.Close()
-	})
-
-	sshConn, channels, requests, err := ssh.NewClientConn(conn, "localhost:22", &ssh.ClientConfig{
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // This is a test.
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = sshConn.Close()
-	})
-	c := ssh.NewClient(sshConn, channels, requests)
-	t.Cleanup(func() {
-		_ = c.Close()
-	})
-	return c
 }
