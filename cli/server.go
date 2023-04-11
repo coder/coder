@@ -168,30 +168,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		Use:        "server",
 		Short:      "Start a Coder server",
 		Options:    opts,
-		Middleware: clibase.RequireNArgs(0),
+		Middleware: clibase.Chain(writeConfigMW(cfg), clibase.RequireNArgs(0)),
 		Handler: func(inv *clibase.Invocation) error {
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
-			if cfg.WriteConfig {
-				n, err := opts.MarshalYAML()
-				if err != nil {
-					return xerrors.Errorf("generate yaml: %w", err)
-				}
-				enc := yaml.NewEncoder(inv.Stdout)
-				enc.SetIndent(2)
-				err = enc.Encode(n)
-				if err != nil {
-					return xerrors.Errorf("encode yaml: %w", err)
-				}
-				err = enc.Close()
-				if err != nil {
-					return xerrors.Errorf("close yaml encoder: %w", err)
-				}
-				return nil
-			}
 
 			if cfg.Config != "" {
 				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
@@ -1220,6 +1202,33 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	)
 
 	return serverCmd
+}
+
+func writeConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
+	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
+		return func(inv *clibase.Invocation) error {
+			if !cfg.WriteConfig {
+				return next(inv)
+			}
+
+			opts := inv.Command.Options
+			n, err := opts.MarshalYAML()
+			if err != nil {
+				return xerrors.Errorf("generate yaml: %w", err)
+			}
+			enc := yaml.NewEncoder(inv.Stdout)
+			enc.SetIndent(2)
+			err = enc.Encode(n)
+			if err != nil {
+				return xerrors.Errorf("encode yaml: %w", err)
+			}
+			err = enc.Close()
+			if err != nil {
+				return xerrors.Errorf("close yaml encoder: %w", err)
+			}
+			return nil
+		}
+	}
 }
 
 // isLocalURL returns true if the hostname of the provided URL appears to
