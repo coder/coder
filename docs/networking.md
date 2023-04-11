@@ -51,7 +51,7 @@ is no special geo-distribution configuration. To speed up direct connections,
 move the user and workspace closer together.
 
 If a direct connection is not available (e.g. client or server is behind NAT), Coder
-will use a relayed connection. By default, [Coder uses Google's public STUN server](./cli/coder_server#--derp-server-stun-addresses), but
+will use a relayed connection. By default, [Coder uses Google's public STUN server](./cli/server.md#--derp-server-stun-addresses), but
 this can be disabled or changed for [offline deployments](./install/offline.md).
 
 ### Relayed connections
