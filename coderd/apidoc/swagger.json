@@ -4991,6 +4991,9 @@
         "created_at": {
           "type": "string"
         },
+        "level": {
+          "$ref": "#/definitions/codersdk.LogLevel"
+        },
         "output": {
           "type": "string"
         }
@@ -8261,6 +8264,9 @@
         },
         "id": {
           "type": "integer"
+        },
+        "level": {
+          "$ref": "#/definitions/codersdk.LogLevel"
         },
         "output": {
           "type": "string"
