@@ -59,7 +59,7 @@ export interface TemplateScheduleForm {
   onCancel: () => void
   isSubmitting: boolean
   error?: unknown
-  canSetMaxTTL: boolean
+  allowAdvancedScheduling: boolean
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>
 }
@@ -69,7 +69,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   onSubmit,
   onCancel,
   error,
-  canSetMaxTTL,
+  allowAdvancedScheduling,
   isSubmitting,
   initialTouched,
 }) => {
@@ -81,7 +81,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
       // the API ignores this value, but to avoid tripping up validation set
       // it to zero if the user can't set the field.
-      max_ttl_ms: canSetMaxTTL ? template.max_ttl_ms / MS_HOUR_CONVERSION : 0,
+      max_ttl_ms: allowAdvancedScheduling
+        ? template.max_ttl_ms / MS_HOUR_CONVERSION
+        : 0,
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
     },
@@ -134,7 +136,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           <TextField
             {...getFieldHelpers(
               "max_ttl_ms",
-              canSetMaxTTL ? (
+              allowAdvancedScheduling ? (
                 <TTLHelperText
                   translationName="maxTTLHelperText"
                   ttl={form.values.max_ttl_ms}
@@ -149,7 +151,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 </>
               ),
             )}
-            disabled={isSubmitting || !canSetMaxTTL}
+            disabled={isSubmitting || !allowAdvancedScheduling}
             fullWidth
             inputProps={{ min: 0, step: 1 }}
             label={t("maxTtlLabel")}
@@ -161,7 +163,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 
       <FormSection
         title="Allow users scheduling"
-        description="Allow users to set custom auto-start and auto-stop scheduling options for workspaces created from this template."
+        description="Allow users to set custom autostart and autostop scheduling options for workspaces created from this template."
       >
         <Stack direction="column">
           <Stack direction="row" alignItems="center">
@@ -169,7 +171,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               id="allow_user_autostart"
               size="small"
               color="primary"
-              disabled={isSubmitting || !canSetMaxTTL}
+              disabled={isSubmitting || !allowAdvancedScheduling}
               onChange={async () => {
                 await form.setFieldValue(
                   "allow_user_autostart",
@@ -181,7 +183,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             />
             <Stack spacing={0.5}>
               <strong>
-                Allow users to auto-start workspaces on a schedule.
+                Allow users to autostart workspaces on a schedule.
               </strong>
             </Stack>
           </Stack>
@@ -190,7 +192,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               id="allow-user-autostop"
               size="small"
               color="primary"
-              disabled={isSubmitting || !canSetMaxTTL}
+              disabled={isSubmitting || !allowAdvancedScheduling}
               onChange={async () => {
                 await form.setFieldValue(
                   "allow_user_autostop",
@@ -202,7 +204,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             />
             <Stack spacing={0.5}>
               <strong>
-                Allow users to customize auto-stop duration for workspaces.
+                Allow users to customize autostop duration for workspaces.
               </strong>
               <span className={styles.optionDescription}>
                 Workspaces will always use the default TTL if this is set.

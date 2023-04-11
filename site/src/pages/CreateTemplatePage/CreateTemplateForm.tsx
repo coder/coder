@@ -114,19 +114,19 @@ type GetInitialValuesParams = {
   fromCopy?: Template
   parameters?: ParameterSchema[]
   variables?: TemplateVersionVariable[]
-  canSetMaxTTL: boolean
+  allowAdvancedScheduling: boolean
 }
 
 const getInitialValues = ({
   fromExample,
   fromCopy,
-  canSetMaxTTL,
+  allowAdvancedScheduling,
   variables,
   parameters,
 }: GetInitialValuesParams) => {
   let initialValues = defaultInitialValues
 
-  if (!canSetMaxTTL) {
+  if (!allowAdvancedScheduling) {
     initialValues = {
       ...initialValues,
       max_ttl_hours: 0,
@@ -190,7 +190,7 @@ export interface CreateTemplateFormProps {
   error?: unknown
   jobError?: string
   logs?: ProvisionerJobLog[]
-  canSetMaxTTL: boolean
+  allowAdvancedScheduling: boolean
   copiedTemplate?: Template
 }
 
@@ -206,12 +206,12 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   error,
   jobError,
   logs,
-  canSetMaxTTL,
+  allowAdvancedScheduling,
 }) => {
   const styles = useStyles()
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
-      canSetMaxTTL,
+      allowAdvancedScheduling,
       fromExample: starterTemplate,
       fromCopy: copiedTemplate,
       variables,
@@ -321,7 +321,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             <TextField
               {...getFieldHelpers(
                 "max_ttl_hours",
-                canSetMaxTTL ? (
+                allowAdvancedScheduling ? (
                   <TTLHelperText
                     translationName="form.helperText.maxTTLHelperText"
                     ttl={form.values.max_ttl_hours}
@@ -336,7 +336,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   </>
                 ),
               )}
-              disabled={isSubmitting || !canSetMaxTTL}
+              disabled={isSubmitting || !allowAdvancedScheduling}
               fullWidth
               label={t("form.fields.maxTTL")}
               variant="outlined"
@@ -349,7 +349,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 id="allow_user_autostart"
                 size="small"
                 color="primary"
-                disabled={isSubmitting || !canSetMaxTTL}
+                disabled={isSubmitting || !allowAdvancedScheduling}
                 onChange={async () => {
                   await form.setFieldValue(
                     "allow_user_autostart",
@@ -361,7 +361,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               />
               <Stack spacing={0.5}>
                 <strong>
-                  Allow users to auto-start workspaces on a schedule.
+                  Allow users to autostart workspaces on a schedule.
                 </strong>
               </Stack>
             </Stack>
@@ -370,7 +370,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 id="allow-user-autostop"
                 size="small"
                 color="primary"
-                disabled={isSubmitting || !canSetMaxTTL}
+                disabled={isSubmitting || !allowAdvancedScheduling}
                 onChange={async () => {
                   await form.setFieldValue(
                     "allow_user_autostop",
@@ -382,7 +382,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               />
               <Stack spacing={0.5}>
                 <strong>
-                  Allow users to customize auto-stop duration for workspaces.
+                  Allow users to customize autostop duration for workspaces.
                 </strong>
                 <span className={styles.optionText}>
                   Workspaces will always use the default TTL if this is set.

@@ -15,7 +15,7 @@ const TemplateSchedulePage: FC = () => {
   const navigate = useNavigate()
   const { template } = useTemplateSettingsContext()
   const { entitlements } = useDashboard()
-  const canSetMaxTTL =
+  const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled
   const {
     mutate: updateTemplate,
@@ -36,7 +36,7 @@ const TemplateSchedulePage: FC = () => {
         <title>{pageTitle([template.name, "Schedule"])}</title>
       </Helmet>
       <TemplateSchedulePageView
-        canSetMaxTTL={canSetMaxTTL}
+        allowAdvancedScheduling={allowAdvancedScheduling}
         isSubmitting={isSubmitting}
         template={template}
         submitError={submitError}
