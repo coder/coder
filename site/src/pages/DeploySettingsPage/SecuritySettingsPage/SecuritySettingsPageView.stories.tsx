@@ -22,6 +22,11 @@ export default {
           value: "1234",
         },
         {
+          name: "Disable Owner Workspace Execution",
+          usage: "something",
+          value: false,
+        },
+        {
           name: "TLS Version",
           usage: "something",
           value: ["something"],
@@ -51,6 +56,10 @@ NoTLS.args = {
     {
       name: "SSH Keygen Algorithm",
       value: "1234",
+    } as DeploymentOption,
+    {
+      name: "Disable Owner Workspace Execution",
+      value: false,
     } as DeploymentOption,
     {
       name: "Secure Auth Cookie",

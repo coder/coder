@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 func TestObjectEqual(t *testing.T) {
@@ -172,5 +173,24 @@ func TestObjectEqual(t *testing.T) {
 				t.Errorf("expected %v, got %v", tc.Expected, actual)
 			}
 		})
+	}
+}
+
+// TestAllResources ensures that all resources have a unique type name.
+func TestAllResources(t *testing.T) {
+	t.Parallel()
+
+	var typeNames []string
+	resources := rbac.AllResources()
+	for _, r := range resources {
+		if r.Type == "" {
+			t.Errorf("empty type name: %s", r.Type)
+			continue
+		}
+		if slice.Contains(typeNames, r.Type) {
+			t.Errorf("duplicate type name: %s", r.Type)
+			continue
+		}
+		typeNames = append(typeNames, r.Type)
 	}
 }
