@@ -130,9 +130,7 @@ func (p *DBTokenProvider) IssueToken(ctx context.Context, rw http.ResponseWriter
 		// and they aren't signed in.
 		switch appReq.AccessMethod {
 		case AccessMethodPath:
-			// TODO(@deansheather): this doesn't work on moons so will need to
-			// be updated to include the access URL as a param
-			httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
+			httpmw.RedirectToLogin(rw, r, p.DashboardURL, httpmw.SignedOutErrorMessage)
 		case AccessMethodSubdomain:
 			// Redirect to the app auth redirect endpoint with a valid redirect
 			// URI.

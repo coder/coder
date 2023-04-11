@@ -149,7 +149,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// like workspace applications.
 	write := func(code int, response codersdk.Response) (*database.APIKey, *Authorization, bool) {
 		if cfg.RedirectToLogin {
-			RedirectToLogin(rw, r, response.Message)
+			RedirectToLogin(rw, r, nil, response.Message)
 			return nil, nil, false
 		}
 
@@ -440,7 +440,11 @@ func SplitAPIToken(token string) (id string, secret string, err error) {
 
 // RedirectToLogin redirects the user to the login page with the `message` and
 // `redirect` query parameters set.
-func RedirectToLogin(rw http.ResponseWriter, r *http.Request, message string) {
+//
+// If dashboardURL is nil, the redirect will be relative to the current
+// request's host. If it is not nil, the redirect will be absolute with dashboard
+// url as the host.
+func RedirectToLogin(rw http.ResponseWriter, r *http.Request, dashboardURL *url.URL, message string) {
 	path := r.URL.Path
 	if r.URL.RawQuery != "" {
 		path += "?" + r.URL.RawQuery
@@ -453,6 +457,14 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, message string) {
 	u := &url.URL{
 		Path:     "/login",
 		RawQuery: q.Encode(),
+	}
+	// If dashboardURL is provided, we want to redirect to the dashboard
+	// login page.
+	if dashboardURL != nil {
+		cpy := *dashboardURL
+		cpy.Path = u.Path
+		cpy.RawQuery = u.RawQuery
+		u = &cpy
 	}
 
 	// See other forces a GET request rather than keeping the current method
