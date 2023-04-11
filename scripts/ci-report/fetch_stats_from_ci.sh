@@ -97,9 +97,9 @@ while read -r run; do
 		fi
 
 		job_stats="$(
-			grep "${job_name}.*${job_step_name}" "${job_log}" \
-				| sed -E 's/.*[0-9-]{10}T[0-9:]{8}\.[0-9]*Z //' \
-				| grep -E "^[{}\ ].*"
+			grep "${job_name}.*${job_step_name}" "${job_log}" |
+				sed -E 's/.*[0-9-]{10}T[0-9:]{8}\.[0-9]*Z //' |
+				grep -E "^[{}\ ].*"
 		)"
 
 		if ! jq -e . >/dev/null 2>&1 <<<"${job_stats}"; then
