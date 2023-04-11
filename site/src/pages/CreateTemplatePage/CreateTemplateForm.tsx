@@ -387,7 +387,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 <span className={styles.optionText}>
                   Workspaces will always use the default TTL if this is set.
                   Regardless of this setting, workspaces can only stay on for
-                  the max lifetime.
+                  the max TTL.
                 </span>
               </Stack>
             </Stack>
