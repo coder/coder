@@ -471,7 +471,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 			}
 
 			cliui.Errorf(inv.Stderr, "Found %d scaletest users\n", len(users))
-			if len(workspaces) != 0 {
+			if len(users) != 0 {
 				cliui.Infof(inv.Stdout, "Deleting scaletest users..."+"\n")
 				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
 
@@ -534,6 +534,8 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		connectHold     time.Duration
 		connectInterval time.Duration
 		connectTimeout  time.Duration
+
+		useHostUser bool
 
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
@@ -693,33 +695,35 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 				const name = "workspacebuild"
 				id := strconv.Itoa(i)
 
-				username, email, err := newScaleTestUser(id)
-				if err != nil {
-					return xerrors.Errorf("create scaletest username and email: %w", err)
-				}
-				workspaceName, err := newScaleTestWorkspace(id)
-				if err != nil {
-					return xerrors.Errorf("create scaletest workspace name: %w", err)
-				}
-
 				config := createworkspaces.Config{
 					User: createworkspaces.UserConfig{
 						// TODO: configurable org
 						OrganizationID: me.OrganizationIDs[0],
-						Username:       username,
-						Email:          email,
 					},
 					Workspace: workspacebuild.Config{
 						OrganizationID: me.OrganizationIDs[0],
 						// UserID is set by the test automatically.
 						Request: codersdk.CreateWorkspaceRequest{
 							TemplateID:      tpl.ID,
-							Name:            workspaceName,
 							ParameterValues: params,
 						},
 						NoWaitForAgents: noWaitForAgents,
 					},
 					NoCleanup: noCleanup,
+				}
+
+				if useHostUser {
+					config.User.SessionToken = client.SessionToken()
+				} else {
+					config.User.Username, config.User.Email, err = newScaleTestUser(id)
+					if err != nil {
+						return xerrors.Errorf("create scaletest username and email: %w", err)
+					}
+				}
+
+				config.Workspace.Request.Name, err = newScaleTestWorkspace(id)
+				if err != nil {
+					return xerrors.Errorf("create scaletest workspace name: %w", err)
 				}
 
 				if runCommand != "" {
@@ -927,6 +931,13 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Description: "Timeout for each request to the --connect-url.",
 			Value:       clibase.DurationOf(&connectTimeout),
 		},
+		{
+			Flag:        "use-host-login",
+			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
+			Default:     "false",
+			Description: "Use the use logged in on the host machine, instead of creating users.",
+			Value:       clibase.BoolOf(&useHostUser),
+		},
 	}
 
 	tracingFlags.attach(&cmd.Options)
@@ -1009,9 +1020,6 @@ func isScaleTestUser(user codersdk.User) bool {
 }
 
 func isScaleTestWorkspace(workspace codersdk.Workspace) bool {
-	if !strings.HasPrefix(workspace.OwnerName, "scaletest-") {
-		return false
-	}
-
-	return strings.HasPrefix(workspace.Name, "scaletest-")
+	return strings.HasPrefix(workspace.OwnerName, "scaletest-") ||
+		strings.HasPrefix(workspace.Name, "scaletest-")
 }
