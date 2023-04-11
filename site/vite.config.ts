@@ -43,16 +43,26 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      api: path.resolve(__dirname, "./src/api"),
-      components: path.resolve(__dirname, "./src/components"),
-      hooks: path.resolve(__dirname, "./src/hooks"),
-      i18n: path.resolve(__dirname, "./src/i18n"),
-      pages: path.resolve(__dirname, "./src/pages"),
-      testHelpers: path.resolve(__dirname, "./src/testHelpers"),
-      theme: path.resolve(__dirname, "./src/theme"),
-      util: path.resolve(__dirname, "./src/util"),
-      xServices: path.resolve(__dirname, "./src/xServices"),
-    },
-  },
+    alias: [
+      { find: "api", replacement: path.resolve(__dirname, "./src/api") },
+      {
+        find: "components",
+        replacement: path.resolve(__dirname, "./src/components"),
+      },
+      { find: "hooks", replacement: path.resolve(__dirname, "./src/hooks") },
+      { find: "i18n", replacement: path.resolve(__dirname, "./src/i18n") },
+      { find: "pages", replacement: path.resolve(__dirname, "./src/pages") },
+      {
+        find: "testHelpers",
+        replacement: path.resolve(__dirname, "./src/testHelpers"),
+      },
+      { find: "theme", replacement: path.resolve(__dirname, "./src/theme") },
+      { find: /^util$/, replacement: path.resolve("./node_modules/util") },
+      { find: "util", replacement: path.resolve(__dirname, "./src/util") },
+      {
+        find: "xServices",
+        replacement: path.resolve(__dirname, "./src/xServices"),
+      },
+    ],
+  }
 })

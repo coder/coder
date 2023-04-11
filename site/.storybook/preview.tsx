@@ -1,18 +1,20 @@
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { createMemoryHistory } from "history"
-import { addDecorator } from "node_modules/@storybook/react"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
 import { dark } from "../src/theme"
 import "../src/theme/globalFonts"
 import "../src/i18n"
+import React from "react"
+import { Preview } from '@storybook/react';
 
-addDecorator((story) => (
+
+const themeProviderDecorator = (story) => (
   <ThemeProvider theme={dark}>
     <CssBaseline />
     {story()}
   </ThemeProvider>
-))
+)
 
 const history = createMemoryHistory()
 
@@ -24,18 +26,20 @@ const routerDecorator = (Story) => {
   )
 }
 
-addDecorator(routerDecorator)
-
-export const parameters = {
-  actions: {
-    argTypesRegex: "^on[A-Z].*",
-    argTypesRegex: "^handle[A-Z].*",
-  },
-  controls: {
-    expanded: true,
-    matchers: {
-      color: /(background|color)$/i,
-      date: /Date$/,
+const preview: Preview = {
+  decorators: [themeProviderDecorator, routerDecorator],
+  parameters: {
+    actions: {
+      argTypesRegex: "(^on[A-Z].*)?(^handle[A-Z].*)",
+    },
+    controls: {
+      expanded: true,
+      matchers: {
+        color: /(background|color)$/i,
+        date: /Date$/,
+      },
     },
   },
 }
+
+export default preview
