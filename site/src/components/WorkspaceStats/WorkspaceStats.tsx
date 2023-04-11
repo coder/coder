@@ -11,7 +11,7 @@ import {
 import { Workspace } from "../../api/typesGenerated"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import upperFirst from "lodash/upperFirst"
-import { autostopDisplay } from "util/schedule"
+import { autostartDisplay, autostopDisplay } from "util/schedule"
 import IconButton from "@material-ui/core/IconButton"
 import RemoveIcon from "@material-ui/icons/RemoveOutlined"
 import { makeStyles } from "@material-ui/core/styles"
@@ -110,7 +110,9 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                   to="settings/schedule"
                   title="Schedule settings"
                 >
-                  {autostopDisplay(workspace)}
+                  {isWorkspaceOn(workspace)
+                    ? autostopDisplay(workspace)
+                    : autostartDisplay(workspace.autostart_schedule)}
                 </Link>
                 <span className={styles.scheduleControls}>
                   <IconButton
