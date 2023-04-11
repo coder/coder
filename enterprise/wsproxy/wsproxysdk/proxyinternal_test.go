@@ -95,7 +95,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 		var (
 			expectedProxyToken     = "hi:test"
 			expectedResponseStatus = http.StatusBadRequest
-			expectedReponseBody    = "bad request"
+			expectedResponseBody   = "bad request"
 		)
 		var called int64
 		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -106,13 +106,13 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 			assert.Equal(t, r.Header.Get(httpmw.ExternalProxyAuthTokenHeader), expectedProxyToken)
 
 			rw.WriteHeader(expectedResponseStatus)
-			_, _ = rw.Write([]byte(expectedReponseBody))
+			_, _ = rw.Write([]byte(expectedResponseBody))
 		}))
 
 		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 		client := wsproxysdk.New(u)
-		client.SetSessionToken(expectedProxyToken)
+		_ = client.SetSessionToken(expectedProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -130,7 +130,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 		require.Equal(t, expectedResponseStatus, res.StatusCode)
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
-		require.Equal(t, expectedReponseBody, string(body))
+		require.Equal(t, expectedResponseBody, string(body))
 
 		require.EqualValues(t, called, 1)
 	})
