@@ -8,7 +8,6 @@ import "../src/i18n"
 import React from "react"
 import { Preview } from '@storybook/react';
 
-
 const themeProviderDecorator = (story) => (
   <ThemeProvider theme={dark}>
     <CssBaseline />

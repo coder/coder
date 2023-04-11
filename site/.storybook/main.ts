@@ -3,7 +3,8 @@
  *
  * @see <https://storybook.js.org/docs/react/configure/overview>
  */
-import type { StorybookConfig } from '@storybook/react-vite';
+const path = require("path");
+import type { StorybookConfig } from "@storybook/react-webpack5";
 const config: StorybookConfig = {
   // Automatically loads all stories in source ending in 'stories.tsx'
   //
@@ -17,8 +18,7 @@ const config: StorybookConfig = {
     options: {
       actions: false
     }
-  },
-  ],
+  }],
   // SEE: https://storybook.js.org/docs/react/configure/babel
   babel: async options => ({
     ...options,
@@ -30,16 +30,32 @@ const config: StorybookConfig = {
   //
   // SEE: https://storybook.js.org/docs/react/configure/overview#using-storybook-api
   staticDirs: ["../static"],
-  typescript: { check: false },
+  // Storybook internally uses its own Webpack configuration instead of ours.
+  //
+  // SEE: https://storybook.js.org/docs/react/configure/webpack
+  webpackFinal: async config => {
+    config.resolve!.modules = [path.resolve(__dirname, ".."), "node_modules", "../src"];
+    return config;
+  },
   framework: {
-    name: "@storybook/react-vite",
+    name: "@storybook/react-webpack5",
     options: {}
   },
   features: {
-    storyStoreV7: true
+    storyStoreV7: true,
+  },
+  core: {
+    builder: {
+      name: "@storybook/builder-webpack5",
+      options: {
+        lazyCompilation: true,
+        fsCache: true,
+      }
+    }
   },
   docs: {
     autodocs: true
   }
 };
+
 export default config
