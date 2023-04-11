@@ -1131,6 +1131,7 @@ export interface WorkspaceAgentStartupLog {
   readonly id: number
   readonly created_at: string
   readonly output: string
+  readonly level: LogLevel
 }
 
 // From codersdk/workspaceapps.go

@@ -545,8 +545,9 @@ func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error 
 }
 
 type StartupLog struct {
-	CreatedAt time.Time `json:"created_at"`
-	Output    string    `json:"output"`
+	CreatedAt time.Time         `json:"created_at"`
+	Output    string            `json:"output"`
+	Level     codersdk.LogLevel `json:"level"`
 }
 
 type PatchStartupLogs struct {

@@ -5646,6 +5646,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
                 "output": {
                     "type": "string"
                 }
@@ -9157,6 +9160,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
                 },
                 "output": {
                     "type": "string"

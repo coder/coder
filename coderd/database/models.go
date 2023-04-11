@@ -1601,6 +1601,7 @@ type WorkspaceAgentStartupLog struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	Output    string    `db:"output" json:"output"`
 	ID        int64     `db:"id" json:"id"`
+	Level     LogLevel  `db:"level" json:"level"`
 }
 
 type WorkspaceAgentStat struct {
