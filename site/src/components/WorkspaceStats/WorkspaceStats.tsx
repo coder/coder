@@ -18,7 +18,6 @@ import { makeStyles } from "@material-ui/core/styles"
 import AddIcon from "@material-ui/icons/AddOutlined"
 import Popover from "@material-ui/core/Popover"
 import TextField from "@material-ui/core/TextField"
-import { Stack } from "components/Stack/Stack"
 import Button from "@material-ui/core/Button"
 
 const Language = {
