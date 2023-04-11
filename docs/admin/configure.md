@@ -1,5 +1,4 @@
-Coder server's primary configuration is done via environment variables. For a full list
-of the options, run `coder server --help` on the host.
+Coder server's primary configuration is done via environment variables. For a full list of the options, run `coder server --help` on the see our [CLI documentation](../cli/server.md).
 
 ## Access URL
 
