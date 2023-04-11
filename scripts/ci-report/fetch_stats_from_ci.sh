@@ -40,6 +40,11 @@ while read -r run; do
 	head_branch="${parts[3]}"
 	head_sha="${parts[4]}"
 
+	if [[ ${database_id} -le 4595490577 ]]; then
+		echo "Skipping ${database_id} (${display_title}), too old..."
+		continue
+	fi
+
 	run_jobs_file=run-"${database_id}"-"${event}"-jobs.json
 	if [[ ! -f "${run_jobs_file}" ]]; then
 		echo "Fetching jobs for run: ${display_title} (${database_id}, ${event}, ${head_branch})"
