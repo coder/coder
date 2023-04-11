@@ -165,10 +165,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		opts = cfg.Options()
 	)
 	serverCmd := &clibase.Cmd{
-		Use:        "server",
-		Short:      "Start a Coder server",
-		Options:    opts,
-		Middleware: clibase.Chain(writeConfigMW(cfg), clibase.RequireNArgs(0)),
+		Use:     "server",
+		Short:   "Start a Coder server",
+		Options: opts,
+		Middleware: clibase.Chain(
+			writeConfigMW(cfg),
+			printDeprecatedOptions(),
+			clibase.RequireNArgs(0),
+		),
 		Handler: func(inv *clibase.Invocation) error {
 			// Main command context for managing cancellation of running
 			// services.
@@ -177,30 +181,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if cfg.Config != "" {
 				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
-			}
-
-			// Print deprecation warnings.
-			for _, opt := range opts {
-				if opt.UseInstead == nil {
-					continue
-				}
-
-				if opt.Value.String() == opt.Default {
-					continue
-				}
-
-				warnStr := opt.Name + " is deprecated, please use "
-				for i, use := range opt.UseInstead {
-					warnStr += use.Name + " "
-					if i != len(opt.UseInstead)-1 {
-						warnStr += "and "
-					}
-				}
-				warnStr += "instead.\n"
-
-				cliui.Warn(inv.Stderr,
-					warnStr,
-				)
 			}
 
 			go dumpHandler(ctx)
@@ -1204,6 +1184,44 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	return serverCmd
 }
 
+// printDeprecatedOptions loops through all command options, and prints
+// a warning for usage of deprecated options.
+func printDeprecatedOptions() clibase.MiddlewareFunc {
+	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
+		return func(inv *clibase.Invocation) error {
+			opts := inv.Command.Options
+			// Print deprecation warnings.
+			for _, opt := range opts {
+				if opt.UseInstead == nil {
+					continue
+				}
+
+				if opt.Value.String() == opt.Default {
+					continue
+				}
+
+				warnStr := opt.Name + " is deprecated, please use "
+				for i, use := range opt.UseInstead {
+					warnStr += use.Name + " "
+					if i != len(opt.UseInstead)-1 {
+						warnStr += "and "
+					}
+				}
+				warnStr += "instead.\n"
+
+				cliui.Warn(inv.Stderr,
+					warnStr,
+				)
+			}
+
+			return next(inv)
+		}
+	}
+}
+
+// writeConfigMW will prevent the main command from running if the write-config
+// flag is set. Instead, it will marshal the command options to YAML and write
+// them to stdout.
 func writeConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
 		return func(inv *clibase.Invocation) error {
