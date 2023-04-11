@@ -3,7 +3,6 @@
  *
  * @see <https://storybook.js.org/docs/react/configure/overview>
  */
-import remarkGfm from 'remark-gfm';
 import type { StorybookConfig } from '@storybook/react-vite';
 const config: StorybookConfig = {
   // Automatically loads all stories in source ending in 'stories.tsx'
@@ -19,16 +18,6 @@ const config: StorybookConfig = {
       actions: false
     }
   },
-    {
-      name: '@storybook/addon-docs',
-      options: {
-        mdxPluginOptions: {
-          mdxCompileOptions: {
-            remarkPlugins: [remarkGfm],
-          },
-        },
-      },
-    },
   ],
   // SEE: https://storybook.js.org/docs/react/configure/babel
   babel: async options => ({
@@ -41,9 +30,13 @@ const config: StorybookConfig = {
   //
   // SEE: https://storybook.js.org/docs/react/configure/overview#using-storybook-api
   staticDirs: ["../static"],
+  typescript: { check: false },
   framework: {
     name: "@storybook/react-vite",
     options: {}
+  },
+  features: {
+    storyStoreV7: true
   },
   docs: {
     autodocs: true
