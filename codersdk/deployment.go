@@ -1328,7 +1328,7 @@ when required by your organization's security policy.`,
 			Env:         "CODER_DISABLE_OWNER_WORKSPACE_ACCESS",
 
 			Value: &c.DisableOwnerWorkspaceExec,
-			YAML:  "disableOwnerWorkspaceExec",
+			YAML:  "disableOwnerWorkspaceAccess",
 		},
 		{
 			Name:        "Session Duration",
