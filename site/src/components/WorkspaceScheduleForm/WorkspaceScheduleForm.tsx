@@ -367,7 +367,7 @@ export const WorkspaceScheduleForm: FC<
 
       <FormSection
         title="Autostop"
-        description="Set how much hours after your workspace is on it should shutdown. Helpful to control infrastructure costs."
+        description="Set how many hours should elapse after a workspace is started before it automatically shuts down. If workspace connection activity is detected, the autostop timer will be bumped up one hour."
       >
         <FormFields>
           <FormControlLabel
