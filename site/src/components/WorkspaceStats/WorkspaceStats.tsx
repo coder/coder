@@ -36,6 +36,7 @@ export interface WorkspaceStatsProps {
   workspace: Workspace
   maxDeadlineIncrease: number
   maxDeadlineDecrease: number
+  canUpdateWorkspace: boolean
   quota_budget?: number
   handleUpdate: () => void
 }
@@ -46,6 +47,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   maxDeadlineDecrease,
   maxDeadlineIncrease,
   handleUpdate,
+  canUpdateWorkspace,
 }) => {
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
     workspace.latest_build,
@@ -114,26 +116,28 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                     ? autostopDisplay(workspace)
                     : autostartDisplay(workspace.autostart_schedule)}
                 </Link>
-                <span className={styles.scheduleControls}>
-                  <IconButton
-                    disabled={!deadlineMinusEnabled}
-                    size="small"
-                    title="Subtract hours from deadline"
-                    className={styles.scheduleButton}
-                  >
-                    <RemoveIcon />
-                  </IconButton>
-                  <IconButton
-                    disabled={!deadlinePlusEnabled}
-                    size="small"
-                    title="Add hours to deadline"
-                    className={styles.scheduleButton}
-                    ref={addingButtonRef}
-                    onClick={() => setIsAddingTime(true)}
-                  >
-                    <AddIcon />
-                  </IconButton>
-                </span>
+                {canUpdateWorkspace && canEditDeadline(workspace) && (
+                  <span className={styles.scheduleControls}>
+                    <IconButton
+                      disabled={!deadlineMinusEnabled}
+                      size="small"
+                      title="Subtract hours from deadline"
+                      className={styles.scheduleButton}
+                    >
+                      <RemoveIcon />
+                    </IconButton>
+                    <IconButton
+                      disabled={!deadlinePlusEnabled}
+                      size="small"
+                      title="Add hours to deadline"
+                      className={styles.scheduleButton}
+                      ref={addingButtonRef}
+                      onClick={() => setIsAddingTime(true)}
+                    >
+                      <AddIcon />
+                    </IconButton>
+                  </span>
+                )}
               </span>
             }
           />
