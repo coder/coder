@@ -285,7 +285,7 @@ export const WorkspaceScheduleForm: FC<
     <HorizontalForm onSubmit={form.handleSubmit}>
       <FormSection
         title="Autostart"
-        description="Select the time and days of week you want your workspace starting automatically."
+        description="Select the time and days of week on which you want the workspace starting automatically."
       >
         <FormFields>
           <FormControlLabel
