@@ -38,6 +38,8 @@ export interface WorkspaceStatsProps {
   maxDeadlineDecrease: number
   canUpdateWorkspace: boolean
   quota_budget?: number
+  onDeadlinePlus: (hours: number) => void
+  onDeadlineMinus: (hours: number) => void
   handleUpdate: () => void
 }
 
@@ -46,8 +48,10 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   quota_budget,
   maxDeadlineDecrease,
   maxDeadlineIncrease,
-  handleUpdate,
   canUpdateWorkspace,
+  handleUpdate,
+  onDeadlineMinus,
+  onDeadlinePlus,
 }) => {
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
     workspace.latest_build,
@@ -56,8 +60,10 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const styles = useStyles()
   const deadlinePlusEnabled = maxDeadlineIncrease >= 1
   const deadlineMinusEnabled = maxDeadlineDecrease >= 1
-  const addingButtonRef = useRef<HTMLButtonElement>(null)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
+  const subButtonRef = useRef<HTMLButtonElement>(null)
   const [isAddingTime, setIsAddingTime] = useState(false)
+  const [isSubTime, setIsSubTime] = useState(false)
 
   return (
     <>
@@ -123,6 +129,8 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                       size="small"
                       title="Subtract hours from deadline"
                       className={styles.scheduleButton}
+                      ref={subButtonRef}
+                      onClick={() => setIsSubTime(true)}
                     >
                       <RemoveIcon />
                     </IconButton>
@@ -131,7 +139,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
                       size="small"
                       title="Add hours to deadline"
                       className={styles.scheduleButton}
-                      ref={addingButtonRef}
+                      ref={addButtonRef}
                       onClick={() => setIsAddingTime(true)}
                     >
                       <AddIcon />
@@ -156,7 +164,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         id="schedule-add"
         classes={{ paper: styles.timePopoverPaper }}
         open={isAddingTime}
-        anchorEl={addingButtonRef.current}
+        anchorEl={addButtonRef.current}
         onClose={() => setIsAddingTime(false)}
         anchorOrigin={{
           vertical: "bottom",
@@ -172,8 +180,18 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           Delay the shutdown of this workspace for a few more hours. This is
           only applied once.
         </span>
-        <form className={styles.timePopoverForm}>
+        <form
+          className={styles.timePopoverForm}
+          onSubmit={(e) => {
+            e.preventDefault()
+            const formData = new FormData(e.currentTarget)
+            const hours = Number(formData.get("hours"))
+            onDeadlinePlus(hours)
+            setIsAddingTime(false)
+          }}
+        >
           <TextField
+            name="hours"
             type="number"
             size="small"
             fullWidth
@@ -182,6 +200,64 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
             inputProps={{
               min: 0,
               max: maxDeadlineIncrease,
+              step: 1,
+              defaultValue: 1,
+            }}
+          />
+
+          <Button
+            variant="outlined"
+            size="small"
+            className={styles.timePopoverButton}
+            type="submit"
+          >
+            Apply
+          </Button>
+        </form>
+      </Popover>
+
+      <Popover
+        id="schedule-sub"
+        classes={{ paper: styles.timePopoverPaper }}
+        open={isSubTime}
+        anchorEl={subButtonRef.current}
+        onClose={() => setIsSubTime(false)}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+      >
+        <span className={styles.timePopoverTitle}>
+          Subtract hours to deadline
+        </span>
+        <span className={styles.timePopoverDescription}>
+          Anticipate the shutdown of this workspace for a few more hours. This
+          is only applied once.
+        </span>
+        <form
+          className={styles.timePopoverForm}
+          onSubmit={(e) => {
+            e.preventDefault()
+            const formData = new FormData(e.currentTarget)
+            const hours = Number(formData.get("hours"))
+            onDeadlineMinus(hours)
+            setIsSubTime(false)
+          }}
+        >
+          <TextField
+            name="hours"
+            type="number"
+            size="small"
+            fullWidth
+            className={styles.timePopoverField}
+            InputProps={{ className: styles.timePopoverFieldInput }}
+            inputProps={{
+              min: 0,
+              max: maxDeadlineDecrease,
               step: 1,
               defaultValue: 1,
             }}

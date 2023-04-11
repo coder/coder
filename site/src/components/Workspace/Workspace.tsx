@@ -197,6 +197,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
           maxDeadlineIncrease={scheduleProps.maxDeadlineIncrease}
           canUpdateWorkspace={canUpdateWorkspace}
+          onDeadlineMinus={scheduleProps.onDeadlineMinus}
+          onDeadlinePlus={scheduleProps.onDeadlinePlus}
         />
 
         {failedBuildLogs && (
