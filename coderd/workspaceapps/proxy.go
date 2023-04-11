@@ -156,14 +156,23 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 
 	// ResolveRequest will only return a new signed token if the actor has the RBAC
 	// permissions to connect to a workspace.
-	token, ok := ResolveRequest(s.Logger, s.DashboardURL, s.SignedTokenProvider, rw, r, Request{
-		AccessMethod:      AccessMethodPath,
-		BasePath:          basePath,
-		UsernameOrID:      chi.URLParam(r, "user"),
-		WorkspaceAndAgent: chi.URLParam(r, "workspace_and_agent"),
-		// We don't support port proxying on paths. The ResolveRequest method
-		// won't allow port proxying on path-based apps if the app is a number.
-		AppSlugOrPort: chi.URLParam(r, "workspaceapp"),
+	token, ok := ResolveRequest(rw, r, ResolveRequestOpts{
+		Logger:              s.Logger,
+		SignedTokenProvider: s.SignedTokenProvider,
+		DashboardURL:        s.DashboardURL,
+		PathAppBaseURL:      s.AccessURL,
+		AppHostname:         s.Hostname,
+		AppRequest: Request{
+			AccessMethod:      AccessMethodPath,
+			BasePath:          basePath,
+			UsernameOrID:      chi.URLParam(r, "user"),
+			WorkspaceAndAgent: chi.URLParam(r, "workspace_and_agent"),
+			// We don't support port proxying on paths. The ResolveRequest method
+			// won't allow port proxying on path-based apps if the app is a number.
+			AppSlugOrPort: chi.URLParam(r, "workspaceapp"),
+		},
+		AppPath:  chiPath,
+		AppQuery: r.URL.RawQuery,
 	})
 	if !ok {
 		return
@@ -276,17 +285,26 @@ func (s *Server) SubdomainAppMW(middlewares ...func(http.Handler) http.Handler) 
 					path += "?" + q.Encode()
 				}
 
-				http.Redirect(rw, r, path, http.StatusTemporaryRedirect)
+				http.Redirect(rw, r, path, http.StatusSeeOther)
 				return
 			}
 
-			token, ok := ResolveRequest(s.Logger, s.DashboardURL, s.SignedTokenProvider, rw, r, Request{
-				AccessMethod:      AccessMethodSubdomain,
-				BasePath:          "/",
-				UsernameOrID:      app.Username,
-				WorkspaceNameOrID: app.WorkspaceName,
-				AgentNameOrID:     app.AgentName,
-				AppSlugOrPort:     app.AppSlugOrPort,
+			token, ok := ResolveRequest(rw, r, ResolveRequestOpts{
+				Logger:              s.Logger,
+				SignedTokenProvider: s.SignedTokenProvider,
+				DashboardURL:        s.DashboardURL,
+				PathAppBaseURL:      s.AccessURL,
+				AppHostname:         s.Hostname,
+				AppRequest: Request{
+					AccessMethod:      AccessMethodSubdomain,
+					BasePath:          "/",
+					UsernameOrID:      app.Username,
+					WorkspaceNameOrID: app.WorkspaceName,
+					AgentNameOrID:     app.AgentName,
+					AppSlugOrPort:     app.AppSlugOrPort,
+				},
+				AppPath:  r.URL.Path,
+				AppQuery: r.URL.RawQuery,
 			})
 			if !ok {
 				return
@@ -335,7 +353,7 @@ func (s *Server) parseHostname(rw http.ResponseWriter, r *http.Request, next htt
 	// Check if the request is part of the deprecated logout flow. If so, we
 	// just redirect to the main access URL.
 	if subdomain == appLogoutHostname {
-		http.Redirect(rw, r, s.AccessURL.String(), http.StatusTemporaryRedirect)
+		http.Redirect(rw, r, s.AccessURL.String(), http.StatusSeeOther)
 		return httpapi.ApplicationURL{}, false
 	}
 
@@ -527,10 +545,19 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	s.websocketWaitMutex.Unlock()
 	defer s.websocketWaitGroup.Done()
 
-	appToken, ok := ResolveRequest(s.Logger, s.AccessURL, s.SignedTokenProvider, rw, r, Request{
-		AccessMethod:  AccessMethodTerminal,
-		BasePath:      r.URL.Path,
-		AgentNameOrID: chi.URLParam(r, "workspaceagent"),
+	appToken, ok := ResolveRequest(rw, r, ResolveRequestOpts{
+		Logger:              s.Logger,
+		SignedTokenProvider: s.SignedTokenProvider,
+		DashboardURL:        s.DashboardURL,
+		PathAppBaseURL:      s.AccessURL,
+		AppHostname:         s.Hostname,
+		AppRequest: Request{
+			AccessMethod:  AccessMethodTerminal,
+			BasePath:      r.URL.Path,
+			AgentNameOrID: chi.URLParam(r, "workspaceagent"),
+		},
+		AppPath:  r.URL.Path,
+		AppQuery: "",
 	})
 	if !ok {
 		return
@@ -567,12 +594,14 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	agentConn, release, err := s.WorkspaceConnCache.Acquire(appToken.AgentID)
 	if err != nil {
+		s.Logger.Debug(ctx, "dial workspace agent", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
 	defer release()
 	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
 	if err != nil {
+		s.Logger.Debug(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
 		return
 	}

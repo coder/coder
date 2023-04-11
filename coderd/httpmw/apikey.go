@@ -47,9 +47,9 @@ type userAuthKey struct{}
 
 type Authorization struct {
 	Actor rbac.Subject
-	// Username is required for logging and human friendly related
+	// ActorName is required for logging and human friendly related
 	// identification.
-	Username string
+	ActorName string
 }
 
 // UserAuthorizationOptional may return the roles and scope used for
@@ -99,6 +99,10 @@ type ExtractAPIKeyConfig struct {
 	// will be deleted and the request will continue. If the request is not a
 	// cookie-based request, the request will be rejected with a 401.
 	Optional bool
+
+	// TokenFunc is a custom function that can be used to extract the API key.
+	// If nil, the default behavior is used.
+	TokenFunc func(r *http.Request) string
 }
 
 // ExtractAPIKeyMW calls ExtractAPIKey with the given config on each request,
@@ -167,7 +171,11 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return nil, nil, false
 	}
 
-	token := ApiTokenFromRequest(r)
+	tokenFunc := APITokenFromRequest
+	if cfg.TokenFunc != nil {
+		tokenFunc = cfg.TokenFunc
+	}
+	token := tokenFunc(r)
 	if token == "" {
 		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 			Message: SignedOutErrorMessage,
@@ -364,7 +372,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 	// Actor is the user's authorization context.
 	authz := Authorization{
-		Username: roles.Username,
+		ActorName: roles.Username,
 		Actor: rbac.Subject{
 			ID:     key.UserID.String(),
 			Roles:  rbac.RoleNames(roles.Roles),
@@ -376,14 +384,14 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	return &key, &authz, true
 }
 
-// ApiTokenFromRequest returns the api token from the request.
+// APITokenFromRequest returns the api token from the request.
 // Find the session token from:
 // 1: The cookie
 // 1: The devurl cookie
 // 3: The old cookie
 // 4. The coder_session_token query parameter
 // 5. The custom auth header
-func ApiTokenFromRequest(r *http.Request) string {
+func APITokenFromRequest(r *http.Request) string {
 	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
@@ -447,5 +455,7 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, message string) {
 		RawQuery: q.Encode(),
 	}
 
-	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
+	// See other forces a GET request rather than keeping the current method
+	// (like temporary redirect does).
+	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
 }

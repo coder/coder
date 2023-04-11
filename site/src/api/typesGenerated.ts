@@ -135,6 +135,7 @@ export type AuthorizationResponse = Record<string, boolean>
 export interface BuildInfoResponse {
   readonly external_url: string
   readonly version: string
+  readonly workspace_proxy?: WorkspaceProxyBuildInfo
 }
 
 // From codersdk/parameters.go
@@ -260,6 +261,12 @@ export interface CreateWorkspaceProxyRequest {
   readonly icon: string
   readonly url: string
   readonly wildcard_hostname: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface CreateWorkspaceProxyResponse {
+  readonly proxy: WorkspaceProxy
+  readonly proxy_token: string
 }
 
 // From codersdk/organizations.go
@@ -1214,7 +1221,6 @@ export interface WorkspaceOptions {
 // From codersdk/workspaceproxy.go
 export interface WorkspaceProxy {
   readonly id: string
-  readonly organization_id: string
   readonly name: string
   readonly icon: string
   readonly url: string
@@ -1222,6 +1228,12 @@ export interface WorkspaceProxy {
   readonly created_at: string
   readonly updated_at: string
   readonly deleted: boolean
+}
+
+// From codersdk/deployment.go
+export interface WorkspaceProxyBuildInfo {
+  readonly is_workspace_proxy: boolean
+  readonly dashboard_url: string
 }
 
 // From codersdk/workspaces.go

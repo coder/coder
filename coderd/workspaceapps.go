@@ -139,5 +139,5 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	q := u.Query()
 	q.Set(workspaceapps.SubdomainProxyAPIKeyParam, encryptedAPIKey)
 	u.RawQuery = q.Encode()
-	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
+	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
 }

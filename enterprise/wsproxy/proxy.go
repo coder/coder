@@ -85,6 +85,9 @@ func (o *Options) Validate() error {
 // directly with a workspace. It requires a primary coderd to establish a said
 // connection.
 type Server struct {
+	Options *Options
+	Handler chi.Router
+
 	PrimaryAccessURL *url.URL
 	AppServer        *workspaceapps.Server
 
@@ -93,18 +96,14 @@ type Server struct {
 	TracerProvider     trace.TracerProvider
 	PrometheusRegistry *prometheus.Registry
 
-	Handler chi.Router
+	// SDKClient is a client to the primary coderd instance authenticated with
+	// the moon's token.
+	SDKClient *wsproxysdk.Client
 
 	// TODO: Missing:
 	//		- derpserver
 
-	Options *Options
-	// SDKClient is a client to the primary coderd instance.
-	// TODO: We really only need 'DialWorkspaceAgent', so maybe just pass that?
-	SDKClient *codersdk.Client
-
-	// Used for graceful shutdown.
-	// Required for the dialer.
+	// Used for graceful shutdown. Required for the dialer.
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -118,13 +117,8 @@ func New(opts *Options) (*Server, error) {
 		return nil, err
 	}
 
+	// TODO: implement some ping and registration logic
 	client := wsproxysdk.New(opts.PrimaryAccessURL)
-	// TODO: @emyrk we need to implement some form of authentication for the
-	// 		external proxy to the the primary. This allows us to make workspace
-	//		connections.
-	//		Ideally we reuse the same client as the cli, but this can be changed.
-	//		If the auth fails, we need some logic to retry and make sure this client
-	//		is always authenticated and usable.
 	err := client.SetSessionToken(opts.ProxySessionToken)
 	if err != nil {
 		return nil, xerrors.Errorf("set client token: %w", err)
@@ -134,11 +128,12 @@ func New(opts *Options) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		Options:            opts,
+		Handler:            r,
 		PrimaryAccessURL:   opts.PrimaryAccessURL,
 		Logger:             opts.Logger.Named("workspace-proxy"),
 		TracerProvider:     opts.Tracing,
 		PrometheusRegistry: opts.PrometheusRegistry,
-		Handler:            r,
+		SDKClient:          client,
 		ctx:                ctx,
 		cancel:             cancel,
 	}
@@ -152,6 +147,8 @@ func New(opts *Options) (*Server, error) {
 		RealIPConfig:  opts.RealIPConfig,
 		SignedTokenProvider: &ProxyTokenProvider{
 			DashboardURL: opts.PrimaryAccessURL,
+			AccessURL:    opts.AccessURL,
+			AppHostname:  opts.AppHostname,
 			Client:       client,
 			SecurityKey:  s.Options.AppSecurityKey,
 			Logger:       s.Logger.Named("proxy_token_provider"),
@@ -178,7 +175,7 @@ func New(opts *Options) (*Server, error) {
 
 		// SubdomainAppMW is a middleware that handles all requests to the
 		// subdomain based workspace apps.
-		s.AppServer.SubdomainAppMW(apiRateLimiter, ExtractSessionTokenMW()),
+		s.AppServer.SubdomainAppMW(apiRateLimiter),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -203,10 +200,7 @@ func New(opts *Options) (*Server, error) {
 
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
-		r.Use(
-			apiRateLimiter,
-			ExtractSessionTokenMW(),
-		)
+		r.Use(apiRateLimiter)
 		s.AppServer.Attach(r)
 	})
 
@@ -241,8 +235,8 @@ type optErrors []error
 func (e optErrors) Error() string {
 	var b strings.Builder
 	for _, err := range e {
-		b.WriteString(err.Error())
-		b.WriteString("\n")
+		_, _ = b.WriteString(err.Error())
+		_, _ = b.WriteString("\n")
 	}
 	return b.String()
 }
@@ -252,6 +246,7 @@ func (e *optErrors) Required(name string, v any) {
 		*e = append(*e, xerrors.Errorf("%s is required, got <nil>", name))
 	}
 }
+
 func (e *optErrors) NotEmpty(name string, v any) {
 	if reflect.ValueOf(v).IsZero() {
 		*e = append(*e, xerrors.Errorf("%s is required, got the zero value", name))

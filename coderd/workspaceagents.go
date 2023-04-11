@@ -1001,11 +1001,14 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// This route accepts user API key auth and moon auth. The moon actor has
+	// full permissions so should be able to pass this authz check.
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+
 	// This is used by Enterprise code to control the functionality of this route.
 	override := api.WorkspaceClientCoordinateOverride.Load()
 	if override != nil {

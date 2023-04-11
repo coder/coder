@@ -87,6 +87,10 @@ func TestWorkspaceApps(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 
+		if opts.DisableSubdomainApps {
+			opts.AppHost = ""
+		}
+
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:         deploymentValues,
 			AppHostname:              opts.AppHost,
@@ -105,10 +109,11 @@ func TestWorkspaceApps(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		return &apptest.Deployment{
-			Options:        opts,
-			Client:         client,
-			FirstUser:      user,
-			PathAppBaseURL: client.URL,
+			Options:          opts,
+			APIClient:        client,
+			FirstUser:        user,
+			PathAppBaseURL:   client.URL,
+			AppHostServesAPI: true,
 		}
 	})
 }

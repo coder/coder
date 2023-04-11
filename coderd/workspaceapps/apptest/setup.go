@@ -58,10 +58,14 @@ type DeploymentOptions struct {
 type Deployment struct {
 	Options *DeploymentOptions
 
-	// Client should be logged in as the admin user.
-	Client         *codersdk.Client
+	// APIClient should be logged in as the admin user.
+	APIClient      *codersdk.Client
 	FirstUser      codersdk.CreateFirstUserResponse
 	PathAppBaseURL *url.URL
+
+	// AppHostServesAPI is true if the app host is also the API server. This
+	// disables any tests that test API passthrough.
+	AppHostServesAPI bool
 }
 
 // DeploymentFactory generates a deployment with an API client, a path base URL,
@@ -103,6 +107,22 @@ type AppDetails struct {
 	PortApp          App
 }
 
+// AppClient returns a *codersdk.Client that will route all requests to the
+// app server. API requests will fail with this client. Any redirect responses
+// are not followed by default.
+//
+// The client is authenticated as the first user by default.
+func (d *AppDetails) AppClient(t *testing.T) *codersdk.Client {
+	client := codersdk.New(d.PathAppBaseURL)
+	client.SetSessionToken(d.APIClient.SessionToken())
+	forceURLTransport(t, client)
+	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	return client
+}
+
 // PathAppURL returns the URL for the given path app.
 func (d *AppDetails) PathAppURL(app App) *url.URL {
 	appPath := fmt.Sprintf("/@%s/%s/apps/%s", app.Username, app.WorkspaceName, app.AppSlugOrPort)
@@ -116,10 +136,6 @@ func (d *AppDetails) PathAppURL(app App) *url.URL {
 
 // SubdomainAppURL returns the URL for the given subdomain app.
 func (d *AppDetails) SubdomainAppURL(app App) *url.URL {
-	if d.Options.DisableSubdomainApps || d.Options.AppHost == "" {
-		panic("subdomain apps are disabled")
-	}
-
 	host := fmt.Sprintf("%s--%s--%s--%s", app.AppSlugOrPort, app.AgentName, app.WorkspaceName, app.Username)
 
 	u := *d.PathAppBaseURL
@@ -150,15 +166,15 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.
-	deployment.Client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	deployment.APIClient.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	forceURLTransport(t, deployment.Client)
+	forceURLTransport(t, deployment.APIClient)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	me, err := deployment.Client.User(ctx, codersdk.Me)
+	me, err := deployment.APIClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
 	if opts.noWorkspace {
@@ -171,7 +187,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	if opts.port == 0 {
 		opts.port = appServer(t)
 	}
-	workspace, agnt := createWorkspaceWithApps(t, deployment.Client, deployment.FirstUser.OrganizationID, me, opts.AppHost, opts.port)
+	workspace, agnt := createWorkspaceWithApps(t, deployment.APIClient, deployment.FirstUser.OrganizationID, me, opts.port)
 
 	return &AppDetails{
 		Deployment: deployment,
@@ -259,7 +275,7 @@ func appServer(t *testing.T) uint16 {
 	return uint16(tcpAddr.Port)
 }
 
-func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, me codersdk.User, appHost string, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (codersdk.Workspace, codersdk.WorkspaceAgent) {
+func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, me codersdk.User, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (codersdk.Workspace, codersdk.WorkspaceAgent) {
 	authToken := uuid.NewString()
 
 	appURL := fmt.Sprintf("http://127.0.0.1:%d?%s", port, proxyTestAppQuery)
@@ -318,7 +334,14 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
-	if appHost != "" {
+
+	// TODO (@dean): currently, the primary app host is used when generating
+	// this URL and we don't have any plans to change that until we let
+	// templates pick which proxy they want to use.
+	appHostCtx := testutil.Context(t, testutil.WaitLong)
+	primaryAppHost, err := client.AppHost(appHostCtx)
+	require.NoError(t, err)
+	if primaryAppHost.Host != "" {
 		manifest, err := agentClient.Manifest(context.Background())
 		require.NoError(t, err)
 		proxyURL := fmt.Sprintf(
@@ -326,11 +349,8 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			proxyTestAgentName,
 			workspace.Name,
 			me.Username,
-			strings.ReplaceAll(appHost, "*", ""),
+			strings.ReplaceAll(primaryAppHost.Host, "*", ""),
 		)
-		if client.URL.Port() != "" {
-			proxyURL += fmt.Sprintf(":%s", client.URL.Port())
-		}
 		require.Equal(t, proxyURL, manifest.VSCodePortProxyURI)
 	}
 	agentCloser := agent.New(agent.Options{
@@ -386,7 +406,7 @@ func requestWithRetries(ctx context.Context, t require.TestingT, client *codersd
 }
 
 // forceURLTransport forces the client to route all requests to the client's
-// configured URL host regardless of hostname.
+// configured URLs host regardless of hostname.
 func forceURLTransport(t *testing.T, client *codersdk.Client) {
 	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 	require.True(t, ok)

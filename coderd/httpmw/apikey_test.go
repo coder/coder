@@ -73,7 +73,7 @@ func TestAPIKey(t *testing.T) {
 		location, err := res.Location()
 		require.NoError(t, err)
 		require.NotEmpty(t, location.Query().Get("message"))
-		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+		require.Equal(t, http.StatusSeeOther, res.StatusCode)
 	})
 
 	t.Run("InvalidFormat", func(t *testing.T) {
@@ -526,7 +526,7 @@ func TestAPIKey(t *testing.T) {
 
 		res := rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+		require.Equal(t, http.StatusSeeOther, res.StatusCode)
 		u, err := res.Location()
 		require.NoError(t, err)
 		require.Equal(t, "/login", u.Path)

@@ -362,6 +362,14 @@ func New(options *Options) *API {
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
 	})
+	// Same as the first but it's optional.
+	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    true,
+	})
 
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
@@ -656,7 +664,15 @@ func New(options *Options) *API {
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
-					apiKeyMiddleware,
+					// Allow either API key or external proxy auth and require
+					// it.
+					apiKeyMiddlewareOptional,
+					httpmw.ExtractExternalProxy(httpmw.ExtractExternalProxyConfig{
+						DB:       options.Database,
+						Optional: true,
+					}),
+					httpmw.RequireAPIKeyOrExternalProxyAuth(),
+
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)

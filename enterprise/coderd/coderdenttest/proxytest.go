@@ -12,15 +12,17 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/coder/coder/codersdk"
 	"github.com/moby/moby/pkg/namesgenerator"
+
+	"github.com/coder/coder/codersdk"
 
 	"github.com/coder/coder/enterprise/coderd"
 
 	"github.com/coder/coder/enterprise/wsproxy"
 
-	"github.com/coder/coder/coderd/httpapi"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/httpapi"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -33,6 +35,7 @@ type ProxyOptions struct {
 
 	TLSCertificates []tls.Certificate
 	AppHostname     string
+	DisablePathApps bool
 
 	// ProxyURL is optional
 	ProxyURL *url.URL
@@ -42,7 +45,7 @@ type ProxyOptions struct {
 // The new wsproxy will register itself with the given coderd.API instance.
 // The first user owner client is required to create the wsproxy on the coderd
 // api server.
-func NewWorkspaceProxy(t *testing.T, coderd *coderd.API, owner *codersdk.Client, options *ProxyOptions) *wsproxy.Server {
+func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Client, options *ProxyOptions) *wsproxy.Server {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 
@@ -56,9 +59,11 @@ func NewWorkspaceProxy(t *testing.T, coderd *coderd.API, owner *codersdk.Client,
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mutex.RLock()
 		defer mutex.RUnlock()
-		if handler != nil {
-			handler.ServeHTTP(w, r)
+		if handler == nil {
+			http.Error(w, "handler not set", http.StatusServiceUnavailable)
 		}
+
+		handler.ServeHTTP(w, r)
 	}))
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
@@ -88,14 +93,14 @@ func NewWorkspaceProxy(t *testing.T, coderd *coderd.API, owner *codersdk.Client,
 	}
 
 	// TODO: Stun and derp stuff
-	//derpPort, err := strconv.Atoi(serverURL.Port())
-	//require.NoError(t, err)
+	// derpPort, err := strconv.Atoi(serverURL.Port())
+	// require.NoError(t, err)
 	//
-	//stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
-	//t.Cleanup(stunCleanup)
+	// stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+	// t.Cleanup(stunCleanup)
 	//
-	//derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
-	//derpServer.SetMeshKey("test-key")
+	// derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
+	// derpServer.SetMeshKey("test-key")
 
 	var appHostnameRegex *regexp.Regexp
 	if options.AppHostname != "" {
@@ -118,20 +123,26 @@ func NewWorkspaceProxy(t *testing.T, coderd *coderd.API, owner *codersdk.Client,
 
 	wssrv, err := wsproxy.New(&wsproxy.Options{
 		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		PrimaryAccessURL:  coderd.AccessURL,
+		PrimaryAccessURL:  coderdAPI.AccessURL,
 		AccessURL:         accessURL,
 		AppHostname:       options.AppHostname,
 		AppHostnameRegex:  appHostnameRegex,
-		RealIPConfig:      coderd.RealIPConfig,
-		AppSecurityKey:    coderd.AppSecurityKey,
-		Tracing:           coderd.TracerProvider,
-		APIRateLimit:      coderd.APIRateLimit,
-		SecureAuthCookie:  coderd.SecureAuthCookie,
+		RealIPConfig:      coderdAPI.RealIPConfig,
+		AppSecurityKey:    coderdAPI.AppSecurityKey,
+		Tracing:           coderdAPI.TracerProvider,
+		APIRateLimit:      coderdAPI.APIRateLimit,
+		SecureAuthCookie:  coderdAPI.SecureAuthCookie,
 		ProxySessionToken: proxyRes.ProxyToken,
+		DisablePathApps:   options.DisablePathApps,
 		// We need a new registry to not conflict with the coderd internal
 		// proxy metrics.
 		PrometheusRegistry: prometheus.NewRegistry(),
 	})
 	require.NoError(t, err)
+
+	mutex.Lock()
+	handler = wssrv.Handler
+	mutex.Unlock()
+
 	return wssrv
 }

@@ -28,10 +28,8 @@ func TestExternalProxyWorkspaceApps(t *testing.T) {
 
 		client, _, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues: deploymentValues,
-				// TODO: @emyrk This hostname should be for the external
-				//	 proxy, not the internal one.
-				AppHostname:              opts.AppHost,
+				DeploymentValues:         deploymentValues,
+				AppHostname:              "*.primary.test.coder.com",
 				IncludeProvisionerDaemon: true,
 				RealIPConfig: &httpmw.RealIPConfig{
 					TrustedOrigins: []*net.IPNet{{
@@ -53,17 +51,21 @@ func TestExternalProxyWorkspaceApps(t *testing.T) {
 		})
 
 		// Create the external proxy
+		if opts.DisableSubdomainApps {
+			opts.AppHost = ""
+		}
 		proxyAPI := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
-			Name:        "best-proxy",
-			AppHostname: opts.AppHost,
+			Name:            "best-proxy",
+			AppHostname:     opts.AppHost,
+			DisablePathApps: opts.DisablePathApps,
 		})
 
 		return &apptest.Deployment{
-			Options:   opts,
-			Client:    client,
-			FirstUser: user,
-			//PathAppBaseURL: api.AccessURL,
-			PathAppBaseURL: proxyAPI.AppServer.AccessURL,
+			Options:          opts,
+			APIClient:        client,
+			FirstUser:        user,
+			PathAppBaseURL:   proxyAPI.Options.AccessURL,
+			AppHostServesAPI: false,
 		}
 	})
 }

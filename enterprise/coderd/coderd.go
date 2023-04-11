@@ -100,7 +100,10 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		r.Route("/proxy-internal", func(r chi.Router) {
 			r.Use(
 				api.moonsEnabledMW,
-				requireExternalProxyAuth(api.Database),
+				httpmw.ExtractExternalProxy(httpmw.ExtractExternalProxyConfig{
+					DB:       options.Database,
+					Optional: false,
+				}),
 			)
 
 			r.Post("/issue-signed-app-token", api.issueSignedAppToken)

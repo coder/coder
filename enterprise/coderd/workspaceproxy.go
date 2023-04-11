@@ -2,20 +2,18 @@ package coderd
 
 import (
 	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
@@ -56,12 +54,14 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := httpapi.CompileHostnamePattern(req.WildcardHostname); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Wildcard URL is invalid.",
-			Detail:  err.Error(),
-		})
-		return
+	if req.WildcardHostname != "" {
+		if _, err := httpapi.CompileHostnamePattern(req.WildcardHostname); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Wildcard URL is invalid.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	id := uuid.New()
@@ -157,92 +157,14 @@ func convertProxy(p database.WorkspaceProxy) codersdk.WorkspaceProxy {
 	}
 }
 
-// TODO(@dean): move this somewhere
-func requireExternalProxyAuth(db database.Store) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
-
-			token := r.Header.Get(wsproxysdk.AuthTokenHeader)
-			if token == "" {
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-					Message: "Missing external proxy token",
-				})
-				return
-			}
-
-			// Split the token and lookup the corresponding workspace proxy.
-			parts := strings.Split(token, ":")
-			if len(parts) != 2 {
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid external proxy token",
-				})
-				return
-			}
-			proxyID, err := uuid.Parse(parts[0])
-			if err != nil {
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid external proxy token",
-				})
-				return
-			}
-			secret := parts[1]
-			if len(secret) != 64 {
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid external proxy token",
-				})
-				return
-			}
-
-			// Get the proxy.
-			// nolint:gocritic // Get proxy by ID to check auth token
-			proxy, err := db.GetWorkspaceProxyByID(dbauthz.AsSystemRestricted(ctx), proxyID)
-			if xerrors.Is(err, sql.ErrNoRows) {
-				// Proxy IDs are public so we don't care about leaking them via
-				// timing attacks.
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid external proxy token",
-					Detail:  "Proxy not found.",
-				})
-				return
-			}
-			if err != nil {
-				httpapi.InternalServerError(w, err)
-				return
-			}
-			if proxy.Deleted {
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid external proxy token",
-					Detail:  "Proxy has been deleted.",
-				})
-				return
-			}
-
-			// Do a subtle constant time comparison of the hash of the secret.
-			hashedSecret := sha256.Sum256([]byte(secret))
-			if subtle.ConstantTimeCompare(proxy.TokenHashedSecret, hashedSecret[:]) != 1 {
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid external proxy token",
-					Detail:  "Invalid proxy token secret.",
-				})
-				return
-			}
-
-			// TODO: set on context.
-
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 // @Summary Issue signed workspace app token
 // @ID issue-signed-workspace-app-token
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body proxysdk.IssueSignedAppTokenRequest true "Issue signed app token request"
-// @Success 201 {object} proxysdk.IssueSignedAppTokenResponse
+// @Param request body workspaceapps.IssueTokenRequest true "Issue signed app token request"
+// @Success 201 {object} wsproxysdk.IssueSignedAppTokenResponse
 // @Router /proxy-internal/issue-signed-app-token [post]
 // @x-apidocgen {"skip": true}
 func (api *API) issueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
@@ -252,7 +174,7 @@ func (api *API) issueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
 	// return a self-contained HTML error page on failure. The external proxy
 	// should forward any non-201 response to the client.
 
-	var req wsproxysdk.IssueSignedAppTokenRequest
+	var req workspaceapps.IssueTokenRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -273,7 +195,7 @@ func (api *API) issueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
 	userReq.Header.Set(codersdk.SessionTokenHeader, req.SessionToken)
 
 	// Exchange the token.
-	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.CreateToken(ctx, rw, userReq, req.AppRequest)
+	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.IssueToken(ctx, rw, userReq, req)
 	if !ok {
 		return
 	}
@@ -283,7 +205,6 @@ func (api *API) issueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.IssueSignedAppTokenResponse{
-		SignedToken:    *token,
 		SignedTokenStr: tokenStr,
 	})
 }

@@ -2,10 +2,12 @@ package coderd_test
 
 import (
 	"net/http/httptest"
+	"net/http/httputil"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -107,9 +109,9 @@ func TestIssueSignedAppToken(t *testing.T) {
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
-	defer func() {
+	t.Cleanup(func() {
 		_ = agentCloser.Close()
-	}()
+	})
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
@@ -125,12 +127,10 @@ func TestIssueSignedAppToken(t *testing.T) {
 	proxyClient := wsproxysdk.New(client.URL)
 	proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
-	// TODO: "OK" test, requires a workspace and apps
-
 	t.Run("BadAppRequest", func(t *testing.T) {
 		t.Parallel()
 
-		_, err = proxyClient.IssueSignedAppToken(ctx, wsproxysdk.IssueSignedAppTokenRequest{
+		_, err = proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
 			// Invalid request.
 			AppRequest:   workspaceapps.Request{},
 			SessionToken: client.SessionToken(),
@@ -138,23 +138,32 @@ func TestIssueSignedAppToken(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	goodRequest := wsproxysdk.IssueSignedAppTokenRequest{
+	goodRequest := workspaceapps.IssueTokenRequest{
 		AppRequest: workspaceapps.Request{
-			BasePath:          "/app",
-			AccessMethod:      workspaceapps.AccessMethodTerminal,
-			WorkspaceAndAgent: workspace.ID.String(),
-			AgentNameOrID:     build.Resources[0].Agents[0].ID.String(),
+			BasePath:      "/app",
+			AccessMethod:  workspaceapps.AccessMethodTerminal,
+			AgentNameOrID: build.Resources[0].Agents[0].ID.String(),
 		},
 		SessionToken: client.SessionToken(),
 	}
 	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
 		_, err = proxyClient.IssueSignedAppToken(ctx, goodRequest)
 		require.NoError(t, err)
 	})
 
 	t.Run("OKHTML", func(t *testing.T) {
+		t.Parallel()
+
 		rw := httptest.NewRecorder()
 		_, ok := proxyClient.IssueSignedAppTokenHTML(ctx, rw, goodRequest)
-		require.True(t, ok, "expected true")
+		if !assert.True(t, ok, "expected true") {
+			resp := rw.Result()
+			defer resp.Body.Close()
+			dump, err := httputil.DumpResponse(resp, true)
+			require.NoError(t, err)
+			t.Log(string(dump))
+		}
 	})
 }

@@ -1692,6 +1692,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1699,7 +1702,7 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "Issue signed workspace app token",
-                "operationId": "proxy-internal-issue-signed-workspace-app-ticket",
+                "operationId": "issue-signed-workspace-app-token",
                 "parameters": [
                     {
                         "description": "Issue signed app token request",
@@ -1707,7 +1710,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/proxysdk.IssueSignedAppTokenRequest"
+                            "$ref": "#/definitions/workspaceapps.IssueTokenRequest"
                         }
                     }
                 ],
@@ -1715,7 +1718,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/proxysdk.IssueSignedAppTokenResponse"
+                            "$ref": "#/definitions/wsproxysdk.IssueSignedAppTokenResponse"
                         }
                     }
                 },
@@ -6341,6 +6344,9 @@ const docTemplate = `{
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
+                },
+                "workspace_proxy": {
+                    "$ref": "#/definitions/codersdk.WorkspaceProxyBuildInfo"
                 }
             }
         },
@@ -9469,10 +9475,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -9484,6 +9486,19 @@ const docTemplate = `{
                 "wildcard_hostname": {
                     "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceProxyBuildInfo": {
+            "type": "object",
+            "properties": {
+                "dashboard_url": {
+                    "description": "DashboardURL is the URL of the coderd this proxy is connected to.",
+                    "type": "string"
+                },
+                "is_workspace_proxy": {
+                    "description": "TODO: @emyrk what should we include here?",
+                    "type": "boolean"
                 }
             }
         },
@@ -9894,30 +9909,6 @@ const docTemplate = `{
                 }
             }
         },
-        "proxysdk.IssueSignedAppTokenRequest": {
-            "type": "object",
-            "properties": {
-                "app_request": {
-                    "$ref": "#/definitions/workspaceapps.Request"
-                },
-                "session_token": {
-                    "description": "SessionToken is the session token provided by the user.",
-                    "type": "string"
-                }
-            }
-        },
-        "proxysdk.IssueSignedAppTokenResponse": {
-            "type": "object",
-            "properties": {
-                "signed_token": {
-                    "$ref": "#/definitions/workspaceapps.SignedToken"
-                },
-                "signed_token_str": {
-                    "description": "SignedTokenStr should be set as a cookie on the response.",
-                    "type": "string"
-                }
-            }
-        },
         "sql.NullTime": {
             "type": "object",
             "properties": {
@@ -10047,6 +10038,34 @@ const docTemplate = `{
                 "AccessMethodTerminal"
             ]
         },
+        "workspaceapps.IssueTokenRequest": {
+            "type": "object",
+            "properties": {
+                "app_path": {
+                    "description": "AppPath is the path of the user underneath the app base path.",
+                    "type": "string"
+                },
+                "app_query": {
+                    "description": "AppQuery is the query parameters the user provided in the app request.",
+                    "type": "string"
+                },
+                "app_request": {
+                    "$ref": "#/definitions/workspaceapps.Request"
+                },
+                "path_app_base_url": {
+                    "description": "PathAppBaseURL is required.",
+                    "type": "string"
+                },
+                "session_token": {
+                    "description": "SessionToken is the session token provided by the user.",
+                    "type": "string"
+                },
+                "subdomain_app_hostname": {
+                    "description": "AppHostname is the optional hostname for subdomain apps on the external\nproxy. It must start with an asterisk.",
+                    "type": "string"
+                }
+            }
+        },
         "workspaceapps.Request": {
             "type": "object",
             "properties": {
@@ -10073,31 +10092,11 @@ const docTemplate = `{
                 }
             }
         },
-        "workspaceapps.SignedToken": {
+        "wsproxysdk.IssueSignedAppTokenResponse": {
             "type": "object",
             "properties": {
-                "agent_id": {
-                    "type": "string"
-                },
-                "app_url": {
-                    "type": "string"
-                },
-                "expiry": {
-                    "description": "Trusted resolved details.",
-                    "type": "string"
-                },
-                "request": {
-                    "description": "Request details.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/workspaceapps.Request"
-                        }
-                    ]
-                },
-                "user_id": {
-                    "type": "string"
-                },
-                "workspace_id": {
+                "signed_token_str": {
+                    "description": "SignedTokenStr should be set as a cookie on the response.",
                     "type": "string"
                 }
             }

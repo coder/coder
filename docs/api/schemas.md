@@ -1138,16 +1138,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "external_url": "string",
-  "version": "string"
+  "version": "string",
+  "workspace_proxy": {
+    "dashboard_url": "string",
+    "is_workspace_proxy": true
+  }
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                                                                                                         |
-| -------------- | ------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `external_url` | string | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
-| `version`      | string | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| Name              | Type                                                                 | Required | Restrictions | Description                                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `external_url`    | string                                                               | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `version`         | string                                                               | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `workspace_proxy` | [codersdk.WorkspaceProxyBuildInfo](#codersdkworkspaceproxybuildinfo) | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
 
@@ -5121,7 +5126,6 @@ Parameter represents a set value for the scope.
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
   "wildcard_hostname": "string"
@@ -5137,10 +5141,25 @@ Parameter represents a set value for the scope.
 | `icon`              | string  | false    |              |                                                                                        |
 | `id`                | string  | false    |              |                                                                                        |
 | `name`              | string  | false    |              |                                                                                        |
-| `organization_id`   | string  | false    |              |                                                                                        |
 | `updated_at`        | string  | false    |              |                                                                                        |
 | `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
 | `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
+
+## codersdk.WorkspaceProxyBuildInfo
+
+```json
+{
+  "dashboard_url": "string",
+  "is_workspace_proxy": true
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                        |
+| -------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------ |
+| `dashboard_url`      | string  | false    |              | Dashboard URL is the URL of the coderd this proxy is connected to. |
+| `is_workspace_proxy` | boolean | false    |              | Is workspace proxy @emyrk what should we include here?             |
 
 ## codersdk.WorkspaceQuota
 
@@ -6071,59 +6090,6 @@ Parameter represents a set value for the scope.
 | `source_value`         | string                                                                     | false    |              |             |
 | `updated_at`           | string                                                                     | false    |              |             |
 
-## proxysdk.IssueSignedAppTokenRequest
-
-```json
-{
-  "app_request": {
-    "access_method": "path",
-    "agent_name_or_id": "string",
-    "app_slug_or_port": "string",
-    "base_path": "string",
-    "username_or_id": "string",
-    "workspace_name_or_id": "string"
-  },
-  "session_token": "string"
-}
-```
-
-### Properties
-
-| Name            | Type                                           | Required | Restrictions | Description                                              |
-| --------------- | ---------------------------------------------- | -------- | ------------ | -------------------------------------------------------- |
-| `app_request`   | [workspaceapps.Request](#workspaceappsrequest) | false    |              |                                                          |
-| `session_token` | string                                         | false    |              | Session token is the session token provided by the user. |
-
-## proxysdk.IssueSignedAppTokenResponse
-
-```json
-{
-  "signed_token": {
-    "agent_id": "string",
-    "app_url": "string",
-    "expiry": "string",
-    "request": {
-      "access_method": "path",
-      "agent_name_or_id": "string",
-      "app_slug_or_port": "string",
-      "base_path": "string",
-      "username_or_id": "string",
-      "workspace_name_or_id": "string"
-    },
-    "user_id": "string",
-    "workspace_id": "string"
-  },
-  "signed_token_str": "string"
-}
-```
-
-### Properties
-
-| Name               | Type                                                   | Required | Restrictions | Description                                                 |
-| ------------------ | ------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------- |
-| `signed_token`     | [workspaceapps.SignedToken](#workspaceappssignedtoken) | false    |              |                                                             |
-| `signed_token_str` | string                                                 | false    |              | Signed token str should be set as a cookie on the response. |
-
 ## sql.NullTime
 
 ```json
@@ -6315,6 +6281,37 @@ _None_
 | `subdomain` |
 | `terminal`  |
 
+## workspaceapps.IssueTokenRequest
+
+```json
+{
+  "app_path": "string",
+  "app_query": "string",
+  "app_request": {
+    "access_method": "path",
+    "agent_name_or_id": "string",
+    "app_slug_or_port": "string",
+    "base_path": "string",
+    "username_or_id": "string",
+    "workspace_name_or_id": "string"
+  },
+  "path_app_base_url": "string",
+  "session_token": "string",
+  "subdomain_app_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                     | Type                                           | Required | Restrictions | Description                                                                                                               |
+| ------------------------ | ---------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `app_path`               | string                                         | false    |              | App path is the path of the user underneath the app base path.                                                            |
+| `app_query`              | string                                         | false    |              | App query is the query parameters the user provided in the app request.                                                   |
+| `app_request`            | [workspaceapps.Request](#workspaceappsrequest) | false    |              |                                                                                                                           |
+| `path_app_base_url`      | string                                         | false    |              | Path app base URL is required.                                                                                            |
+| `session_token`          | string                                         | false    |              | Session token is the session token provided by the user.                                                                  |
+| `subdomain_app_hostname` | string                                         | false    |              | Subdomain app hostname is the optional hostname for subdomain apps on the external proxy. It must start with an asterisk. |
+
 ## workspaceapps.Request
 
 ```json
@@ -6339,33 +6336,16 @@ _None_
 | `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |
 | `workspace_name_or_id` | string                                                   | false    |              |                                                                                                                                                                                       |
 
-## workspaceapps.SignedToken
+## wsproxysdk.IssueSignedAppTokenResponse
 
 ```json
 {
-  "agent_id": "string",
-  "app_url": "string",
-  "expiry": "string",
-  "request": {
-    "access_method": "path",
-    "agent_name_or_id": "string",
-    "app_slug_or_port": "string",
-    "base_path": "string",
-    "username_or_id": "string",
-    "workspace_name_or_id": "string"
-  },
-  "user_id": "string",
-  "workspace_id": "string"
+  "signed_token_str": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type                                           | Required | Restrictions | Description               |
-| -------------- | ---------------------------------------------- | -------- | ------------ | ------------------------- |
-| `agent_id`     | string                                         | false    |              |                           |
-| `app_url`      | string                                         | false    |              |                           |
-| `expiry`       | string                                         | false    |              | Trusted resolved details. |
-| `request`      | [workspaceapps.Request](#workspaceappsrequest) | false    |              | Request details.          |
-| `user_id`      | string                                         | false    |              |                           |
-| `workspace_id` | string                                         | false    |              |                           |
+| Name               | Type   | Required | Restrictions | Description                                                 |
+| ------------------ | ------ | -------- | ------------ | ----------------------------------------------------------- |
+| `signed_token_str` | string | false    |              | Signed token str should be set as a cookie on the response. |
