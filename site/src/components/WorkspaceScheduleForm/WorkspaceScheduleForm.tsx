@@ -58,8 +58,6 @@ export const Language = {
   dayFridayLabel: "Fri",
   daySaturdayLabel: "Sat",
   startTimeLabel: "Start time",
-  startTimeHelperText: "Time the workspace will automatically start.",
-  noStartTimeHelperText: "Your workspace will not automatically start.",
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
   ttlCausesShutdownHelperText: "Your workspace will shut down",
@@ -301,12 +299,7 @@ export const WorkspaceScheduleForm: FC<
           />
           <Stack direction="row">
             <TextField
-              {...formHelpers(
-                "startTime",
-                form.values.autostartEnabled
-                  ? Language.startTimeHelperText
-                  : Language.noStartTimeHelperText,
-              )}
+              {...formHelpers("startTime")}
               disabled={isLoading || !form.values.autostartEnabled}
               InputLabelProps={{
                 shrink: true,
