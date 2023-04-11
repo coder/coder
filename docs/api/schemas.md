@@ -217,6 +217,7 @@
   "logs": [
     {
       "created_at": "string",
+      "level": "trace",
       "output": "string"
     }
   ]
@@ -302,16 +303,18 @@
 ```json
 {
   "created_at": "string",
+  "level": "trace",
   "output": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-| ------------ | ------ | -------- | ------------ | ----------- |
-| `created_at` | string | false    |              |             |
-| `output`     | string | false    |              |             |
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -384,33 +387,26 @@
 
 ```json
 {
-  "children": [
-    {
-      "children": [],
-      "description": "string",
-      "name": "string",
-      "parent": {}
-    }
-  ],
   "description": "string",
   "name": "string",
   "parent": {
-    "children": [{}],
     "description": "string",
     "name": "string",
-    "parent": {}
-  }
+    "parent": {},
+    "yaml": "string"
+  },
+  "yaml": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                    | Required | Restrictions | Description |
-| ------------- | --------------------------------------- | -------- | ------------ | ----------- |
-| `children`    | array of [clibase.Group](#clibasegroup) | false    |              |             |
-| `description` | string                                  | false    |              |             |
-| `name`        | string                                  | false    |              |             |
-| `parent`      | [clibase.Group](#clibasegroup)          | false    |              |             |
+| Name          | Type                           | Required | Restrictions | Description |
+| ------------- | ------------------------------ | -------- | ------------ | ----------- |
+| `description` | string                         | false    |              |             |
+| `name`        | string                         | false    |              |             |
+| `parent`      | [clibase.Group](#clibasegroup) | false    |              |             |
+| `yaml`        | string                         | false    |              |             |
 
 ## clibase.HostPort
 
@@ -442,22 +438,15 @@
   "flag": "string",
   "flag_shorthand": "string",
   "group": {
-    "children": [
-      {
-        "children": [],
-        "description": "string",
-        "name": "string",
-        "parent": {}
-      }
-    ],
     "description": "string",
     "name": "string",
     "parent": {
-      "children": [{}],
       "description": "string",
       "name": "string",
-      "parent": {}
-    }
+      "parent": {},
+      "yaml": "string"
+    },
+    "yaml": "string"
   },
   "hidden": true,
   "name": "string",
@@ -473,31 +462,26 @@
       "flag": "string",
       "flag_shorthand": "string",
       "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {}
-          }
-        ],
         "description": "string",
         "name": "string",
         "parent": {
-          "children": [{}],
           "description": "string",
           "name": "string",
-          "parent": {}
-        }
+          "parent": {},
+          "yaml": "string"
+        },
+        "yaml": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [],
       "value": null,
+      "value_source": "",
       "yaml": "string"
     }
   ],
   "value": null,
+  "value_source": "",
   "yaml": "string"
 }
 ```
@@ -517,6 +501,7 @@
 | `name`           | string                                     | false    |              |                                                                                                                                |
 | `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
 | `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                  |
+| `value_source`   | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                |
 | `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
 
 ## clibase.Struct-array_codersdk_GitAuthConfig
@@ -598,6 +583,24 @@
 | `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
 | `scheme`      | string                       | false    |              |                                                    |
 | `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
+
+## clibase.ValueSource
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| ``        |
+| `flag`    |
+| `env`     |
+| `yaml`    |
+| `default` |
 
 ## coderd.SCIMUser
 
@@ -1997,27 +2000,21 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "flag": "string",
       "flag_shorthand": "string",
       "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {}
-          }
-        ],
         "description": "string",
         "name": "string",
         "parent": {
-          "children": [{}],
           "description": "string",
           "name": "string",
-          "parent": {}
-        }
+          "parent": {},
+          "yaml": "string"
+        },
+        "yaml": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [{}],
       "value": null,
+      "value_source": "",
       "yaml": "string"
     }
   ]
@@ -4772,17 +4769,19 @@ Parameter represents a set value for the scope.
 {
   "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
+  "level": "trace",
   "output": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `created_at` | string  | false    |              |             |
-| `id`         | integer | false    |              |             |
-| `output`     | string  | false    |              |             |
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `id`         | integer                                | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
 
 ## codersdk.WorkspaceAgentStatus
 

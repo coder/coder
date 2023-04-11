@@ -5646,6 +5646,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
                 "output": {
                     "type": "string"
                 }
@@ -5721,12 +5724,6 @@ const docTemplate = `{
         "clibase.Group": {
             "type": "object",
             "properties": {
-                "children": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/clibase.Group"
-                    }
-                },
                 "description": {
                     "type": "string"
                 },
@@ -5735,6 +5732,9 @@ const docTemplate = `{
                 },
                 "parent": {
                     "$ref": "#/definitions/clibase.Group"
+                },
+                "yaml": {
+                    "type": "string"
                 }
             }
         },
@@ -5802,6 +5802,9 @@ const docTemplate = `{
                 },
                 "value": {
                     "description": "Value includes the types listed in values.go."
+                },
+                "value_source": {
+                    "$ref": "#/definitions/clibase.ValueSource"
                 },
                 "yaml": {
                     "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
@@ -5882,6 +5885,23 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "clibase.ValueSource": {
+            "type": "string",
+            "enum": [
+                "",
+                "flag",
+                "env",
+                "yaml",
+                "default"
+            ],
+            "x-enum-varnames": [
+                "ValueSourceNone",
+                "ValueSourceFlag",
+                "ValueSourceEnv",
+                "ValueSourceYAML",
+                "ValueSourceDefault"
+            ]
         },
         "coderd.SCIMUser": {
             "type": "object",
@@ -9140,6 +9160,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
                 },
                 "output": {
                     "type": "string"

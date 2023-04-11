@@ -107,20 +107,7 @@ ExtractCommandPathsLoop:
 				actual = bytes.ReplaceAll(actual, []byte(k), []byte(v))
 			}
 
-			// Replace any timestamps with a placeholder.
-			actual = timestampRegex.ReplaceAll(actual, []byte("[timestamp]"))
-
-			homeDir, err := os.UserHomeDir()
-			require.NoError(t, err)
-
-			configDir := config.DefaultDir()
-			actual = bytes.ReplaceAll(actual, []byte(configDir), []byte("~/.config/coderv2"))
-
-			actual = bytes.ReplaceAll(actual, []byte(codersdk.DefaultCacheDir()), []byte("[cache dir]"))
-
-			// The home directory changes depending on the test environment.
-			actual = bytes.ReplaceAll(actual, []byte(homeDir), []byte("~"))
-
+			actual = normalizeGoldenFile(t, actual)
 			goldenPath := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
 			if *updateGoldenFiles {
 				t.Logf("update golden file for: %q: %s", tt.name, goldenPath)
@@ -131,19 +118,7 @@ ExtractCommandPathsLoop:
 			expected, err := os.ReadFile(goldenPath)
 			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
 
-			// Normalize files to tolerate different operating systems.
-			for _, r := range []struct {
-				old string
-				new string
-			}{
-				{"\r\n", "\n"},
-				{`~\.cache\coder`, "~/.cache/coder"},
-				{`C:\Users\RUNNER~1\AppData\Local\Temp`, "/tmp"},
-				{os.TempDir(), "/tmp"},
-			} {
-				expected = bytes.ReplaceAll(expected, []byte(r.old), []byte(r.new))
-				actual = bytes.ReplaceAll(actual, []byte(r.old), []byte(r.new))
-			}
+			expected = normalizeGoldenFile(t, expected)
 			require.Equal(
 				t, string(expected), string(actual),
 				"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
@@ -151,6 +126,37 @@ ExtractCommandPathsLoop:
 			)
 		})
 	}
+}
+
+// normalizeGoldenFiles replaces any strings that are system or timing dependent
+// with a placeholder so that the golden files can be compared with a simple
+// equality check.
+func normalizeGoldenFile(t *testing.T, byt []byte) []byte {
+	// Replace any timestamps with a placeholder.
+	byt = timestampRegex.ReplaceAll(byt, []byte("[timestamp]"))
+
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	configDir := config.DefaultDir()
+	byt = bytes.ReplaceAll(byt, []byte(configDir), []byte("~/.config/coderv2"))
+
+	byt = bytes.ReplaceAll(byt, []byte(codersdk.DefaultCacheDir()), []byte("[cache dir]"))
+
+	// The home directory changes depending on the test environment.
+	byt = bytes.ReplaceAll(byt, []byte(homeDir), []byte("~"))
+	for _, r := range []struct {
+		old string
+		new string
+	}{
+		{"\r\n", "\n"},
+		{`~\.cache\coder`, "~/.cache/coder"},
+		{`C:\Users\RUNNER~1\AppData\Local\Temp`, "/tmp"},
+		{os.TempDir(), "/tmp"},
+	} {
+		byt = bytes.ReplaceAll(byt, []byte(r.old), []byte(r.new))
+	}
+	return byt
 }
 
 func extractVisibleCommandPaths(cmdPath []string, cmds []*clibase.Cmd) [][]string {

@@ -73,7 +73,7 @@ export const workspaceAgentLogsMachine = createMachine(
         API.getWorkspaceAgentStartupLogs(ctx.agentID).then((data) =>
           data.map((log) => ({
             id: log.id,
-            level: "info" as TypesGen.LogLevel,
+            level: log.level || "info",
             output: log.output,
             time: log.created_at,
           })),
