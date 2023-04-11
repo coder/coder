@@ -100,6 +100,9 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		Proxy:      convertProxy(proxy),
 		ProxyToken: fullToken,
 	})
+
+	// Force update the proxy cache to ensure the new proxy is available.
+	api.AGPL.ProxyCache.ForceUpdate()
 }
 
 // nolint:revive

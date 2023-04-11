@@ -83,7 +83,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 
 	// Ensure that the redirect URI is a subdomain of api.Hostname and is a
 	// valid app subdomain.
-	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, u.Host)
+	subdomain, ok := api.executeHostnamePattern(u.Host)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The redirect_uri query parameter must be a valid app subdomain.",
@@ -140,4 +140,15 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	q.Set(workspaceapps.SubdomainProxyAPIKeyParam, encryptedAPIKey)
 	u.RawQuery = q.Encode()
 	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
+}
+
+// executeHostnamePattern will check if a hostname is a valid subdomain based
+// app. First it checks the primary's hostname, then checks if the hostname
+// is valid for any workspace proxy domain.
+func (api *API) executeHostnamePattern(hostname string) (string, bool) {
+	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, hostname)
+	if ok {
+		return subdomain, true
+	}
+	return api.ProxyCache.ExecuteHostnamePattern(hostname)
 }
