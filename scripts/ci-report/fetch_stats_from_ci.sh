@@ -96,11 +96,14 @@ while read -r run; do
 			fi
 		fi
 
-		job_stats="$(
+		if ! job_stats="$(
 			grep "${job_name}.*${job_step_name}" "${job_log}" |
 				sed -E 's/.*[0-9-]{10}T[0-9:]{8}\.[0-9]*Z //' |
 				grep -E "^[{}\ ].*"
-		)"
+		)"; then
+			echo "Failed to find stats in job log: ${job_name} (${job_database_id}, ${job_url}), skipping..."
+			continue
+		fi
 
 		if ! jq -e . >/dev/null 2>&1 <<<"${job_stats}"; then
 			# Sometimes actions logs are partial when fetched via CLI :'(
@@ -109,6 +112,9 @@ while read -r run; do
 		fi
 
 		job_stats_file=run-"${database_id}"-job-"${job_database_id}"-"${job_name}"-stats.json
+		if [[ -f "${job_stats_file}" ]]; then
+			continue
+		fi
 		jq \
 			--arg event "${event}" \
 			--arg branch "${head_branch}" \
@@ -119,6 +125,10 @@ while read -r run; do
 			--arg url "${job_url}" \
 			'{event: $event, branch: $branch, sha: $sha, started_at: $started_at, completed_at: $completed_at, display_title: $display_title, url: $url, stats: .}' \
 			<<<"${job_stats}" \
-			>"${job_stats_file}"
+			>"${job_stats_file}" || {
+			echo "Failed to write stats for: ${job_name} (${job_database_id}, ${job_url}), skipping..."
+			rm -f "${job_stats_file}"
+			exit 1
+		}
 	done <<<"${jobs}"
 done <<<"${runs}"
