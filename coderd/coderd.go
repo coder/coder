@@ -38,6 +38,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/buildinfo"
+	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"

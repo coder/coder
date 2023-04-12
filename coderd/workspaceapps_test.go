@@ -223,10 +223,9 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 				if c.expectRedirect == "" {
 					require.Error(t, err)
 					return
-				} else {
-					require.NoError(t, err)
-					return
 				}
+				require.NoError(t, err)
+				return
 			}
 			if c.expectRedirect == "" {
 				t.Fatal("expected a failure but got a success")
