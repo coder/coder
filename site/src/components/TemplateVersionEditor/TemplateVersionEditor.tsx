@@ -9,6 +9,8 @@ import {
   ProvisionerJobLog,
   Template,
   TemplateVersion,
+  TemplateVersionVariable,
+  VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
@@ -37,6 +39,7 @@ import {
   RenameFileDialog,
 } from "./FileDialog"
 import { FileTreeView } from "./FileTreeView"
+import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog"
 import { MonacoEditor } from "./MonacoEditor"
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog"
 import {
@@ -59,7 +62,11 @@ export interface TemplateVersionEditorProps {
   onCancelPublish: () => void
   publishingError: unknown
   isAskingPublishParameters: boolean
+  isPromptingMissingVariables: boolean
   isPublishing: boolean
+  missingVariables?: TemplateVersionVariable[]
+  onSubmitMissingVariableValues: (values: VariableValue[]) => void
+  onCancelSubmitMissingVariableValues: () => void
 }
 
 const topbarHeight = 80
@@ -92,6 +99,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   isPublishing,
   buildLogs,
   resources,
+  isPromptingMissingVariables,
+  missingVariables,
+  onSubmitMissingVariableValues,
+  onCancelSubmitMissingVariableValues,
 }) => {
   const [selectedTab, setSelectedTab] = useState(() => {
     // If resources are provided, show them by default!
@@ -412,6 +423,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         onConfirm={onConfirmPublish}
         isPublishing={isPublishing}
         defaultName={templateVersion.name}
+      />
+
+      <MissingTemplateVariablesDialog
+        open={isPromptingMissingVariables}
+        onClose={onCancelSubmitMissingVariableValues}
+        onSubmit={onSubmitMissingVariableValues}
+        missingVariables={missingVariables}
       />
     </>
   )
