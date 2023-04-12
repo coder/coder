@@ -33,14 +33,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
@@ -169,44 +170,25 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		Short:   "Start a Coder server",
 		Options: opts,
 		Middleware: clibase.Chain(
-			writeConfigMW(cfg),
-			printDeprecatedOptions(),
+			WriteConfigMW(cfg),
+			PrintDeprecatedOptions(),
 			clibase.RequireNArgs(0),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			// Main command context for managing cancellation of running
-			// services.
-			ctx, cancel := context.WithCancel(inv.Context())
-			defer cancel()
+			// SetupServerCmd runs a lot of common daemon setup code that is shared between
+			// coderd and workspace proxies. If you are adding code that should be in both,
+			// include it in SetupServerCmd.
+			scd, err := SetupServerCmd(inv, cfg)
+			if err != nil {
+				return err
+			}
+			// Always close all common server resources.
+			defer scd.Close()
+			ctx := scd.Ctx
 
-			if cfg.Config != "" {
-				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
-			}
-
-			go dumpHandler(ctx)
-
-			// Validate bind addresses.
-			if cfg.Address.String() != "" {
-				if cfg.TLS.Enable {
-					cfg.HTTPAddress = ""
-					cfg.TLS.Address = cfg.Address
-				} else {
-					_ = cfg.HTTPAddress.Set(cfg.Address.String())
-					cfg.TLS.Address.Host = ""
-					cfg.TLS.Address.Port = ""
-				}
-			}
-			if cfg.TLS.Enable && cfg.TLS.Address.String() == "" {
-				return xerrors.Errorf("TLS address must be set if TLS is enabled")
-			}
-			if !cfg.TLS.Enable && cfg.HTTPAddress.String() == "" {
-				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
-			}
-
-			if cfg.AccessURL.String() != "" &&
-				!(cfg.AccessURL.Scheme == "http" || cfg.AccessURL.Scheme == "https") {
-				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
-			}
+			var (
+				logger = scd.Logger
+			)
 
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
 			// was specified.
@@ -218,30 +200,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				filesRateLimit = -1
 			}
 
-			printLogo(inv)
-			logger, logCloser, err := buildLogger(inv, cfg)
-			if err != nil {
-				return xerrors.Errorf("make logger: %w", err)
-			}
-			defer logCloser()
-
-			// This line is helpful in tests.
-			logger.Debug(ctx, "started debug logging")
-			logger.Sync()
-
-			// Register signals early on so that graceful shutdown can't
-			// be interrupted by additional signals. Note that we avoid
-			// shadowing cancel() (from above) here because notifyStop()
-			// restores default behavior for the signals. This protects
-			// the shutdown sequence from abruptly terminating things
-			// like: database migrations, provisioner work, workspace
-			// cleanup in dev-mode, etc.
-			//
-			// To get out of a graceful shutdown, the user can send
-			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := signal.NotifyContext(ctx, InterruptSignals...)
-			defer notifyStop()
-
 			// Ensure we have a unique cache directory for this process.
 			cacheDir := filepath.Join(cfg.CacheDir.String(), uuid.NewString())
 			err = os.MkdirAll(cacheDir, 0o700)
@@ -249,50 +207,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create cache directory: %w", err)
 			}
 			defer os.RemoveAll(cacheDir)
-
-			// Clean up idle connections at the end, e.g.
-			// embedded-postgres can leave an idle connection
-			// which is caught by goleaks.
-			defer http.DefaultClient.CloseIdleConnections()
-
-			var (
-				tracerProvider trace.TracerProvider
-				sqlDriver      = "postgres"
-			)
-
-			// Coder tracing should be disabled if telemetry is disabled unless
-			// --telemetry-trace was explicitly provided.
-			shouldCoderTrace := cfg.Telemetry.Enable.Value() && !isTest()
-			// Only override if telemetryTraceEnable was specifically set.
-			// By default we want it to be controlled by telemetryEnable.
-			if inv.ParsedFlags().Changed("telemetry-trace") {
-				shouldCoderTrace = cfg.Telemetry.Trace.Value()
-			}
-
-			if cfg.Trace.Enable.Value() || shouldCoderTrace || cfg.Trace.HoneycombAPIKey != "" {
-				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
-					Default:   cfg.Trace.Enable.Value(),
-					Coder:     shouldCoderTrace,
-					Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
-				})
-				if err != nil {
-					logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
-				} else {
-					// allow time for traces to flush even if command context is canceled
-					defer func() {
-						_ = shutdownWithTimeout(closeTracing, 5*time.Second)
-					}()
-
-					d, err := tracing.PostgresDriver(sdkTracerProvider, "coderd.database")
-					if err != nil {
-						logger.Warn(ctx, "start postgres tracing driver", slog.Error(err))
-					} else {
-						sqlDriver = d
-					}
-
-					tracerProvider = sdkTracerProvider
-				}
-			}
 
 			config := r.createConfig()
 
@@ -322,132 +236,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 			}
 
-			var (
-				httpListener net.Listener
-				httpURL      *url.URL
-			)
-			if cfg.HTTPAddress.String() != "" {
-				httpListener, err = net.Listen("tcp", cfg.HTTPAddress.String())
-				if err != nil {
-					return err
-				}
-				defer httpListener.Close()
-
-				listenAddrStr := httpListener.Addr().String()
-				// For some reason if 0.0.0.0:x is provided as the http address,
-				// httpListener.Addr().String() likes to return it as an ipv6
-				// address (i.e. [::]:x). If the input ip is 0.0.0.0, try to
-				// coerce the output back to ipv4 to make it less confusing.
-				if strings.Contains(cfg.HTTPAddress.String(), "0.0.0.0") {
-					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
-				}
-
-				// We want to print out the address the user supplied, not the
-				// loopback device.
-				_, _ = fmt.Fprintf(inv.Stdout, "Started HTTP listener at %s\n", (&url.URL{Scheme: "http", Host: listenAddrStr}).String())
-
-				// Set the http URL we want to use when connecting to ourselves.
-				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
-				if !tcpAddrValid {
-					return xerrors.Errorf("invalid TCP address type %T", httpListener.Addr())
-				}
-				if tcpAddr.IP.IsUnspecified() {
-					tcpAddr.IP = net.IPv4(127, 0, 0, 1)
-				}
-				httpURL = &url.URL{
-					Scheme: "http",
-					Host:   tcpAddr.String(),
-				}
-			}
-
-			var (
-				tlsConfig     *tls.Config
-				httpsListener net.Listener
-				httpsURL      *url.URL
-			)
-			if cfg.TLS.Enable {
-				if cfg.TLS.Address.String() == "" {
-					return xerrors.New("tls address must be set if tls is enabled")
-				}
-
-				// DEPRECATED: This redirect used to default to true.
-				// It made more sense to have the redirect be opt-in.
-				if inv.Environ.Get("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
-					cliui.Warn(inv.Stderr, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
-					cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
-				}
-
-				tlsConfig, err = configureTLS(
-					cfg.TLS.MinVersion.String(),
-					cfg.TLS.ClientAuth.String(),
-					cfg.TLS.CertFiles,
-					cfg.TLS.KeyFiles,
-					cfg.TLS.ClientCAFile.String(),
-				)
-				if err != nil {
-					return xerrors.Errorf("configure tls: %w", err)
-				}
-				httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.String())
-				if err != nil {
-					return err
-				}
-				defer httpsListenerInner.Close()
-
-				httpsListener = tls.NewListener(httpsListenerInner, tlsConfig)
-				defer httpsListener.Close()
-
-				listenAddrStr := httpsListener.Addr().String()
-				// For some reason if 0.0.0.0:x is provided as the https
-				// address, httpsListener.Addr().String() likes to return it as
-				// an ipv6 address (i.e. [::]:x). If the input ip is 0.0.0.0,
-				// try to coerce the output back to ipv4 to make it less
-				// confusing.
-				if strings.Contains(cfg.HTTPAddress.String(), "0.0.0.0") {
-					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
-				}
-
-				// We want to print out the address the user supplied, not the
-				// loopback device.
-				_, _ = fmt.Fprintf(inv.Stdout, "Started TLS/HTTPS listener at %s\n", (&url.URL{Scheme: "https", Host: listenAddrStr}).String())
-
-				// Set the https URL we want to use when connecting to
-				// ourselves.
-				tcpAddr, tcpAddrValid := httpsListener.Addr().(*net.TCPAddr)
-				if !tcpAddrValid {
-					return xerrors.Errorf("invalid TCP address type %T", httpsListener.Addr())
-				}
-				if tcpAddr.IP.IsUnspecified() {
-					tcpAddr.IP = net.IPv4(127, 0, 0, 1)
-				}
-				httpsURL = &url.URL{
-					Scheme: "https",
-					Host:   tcpAddr.String(),
-				}
-			}
-
-			// Sanity check that at least one listener was started.
-			if httpListener == nil && httpsListener == nil {
-				return xerrors.New("must listen on at least one address")
-			}
-
-			// Prefer HTTP because it's less prone to TLS errors over localhost.
-			localURL := httpsURL
-			if httpURL != nil {
-				localURL = httpURL
-			}
-
-			ctx, httpClient, err := configureHTTPClient(
-				ctx,
-				cfg.TLS.ClientCertFile.String(),
-				cfg.TLS.ClientKeyFile.String(),
-				cfg.TLS.ClientCAFile.String(),
-			)
-			if err != nil {
-				return xerrors.Errorf("configure http client: %w", err)
-			}
-
-			// If the access URL is empty, we attempt to run a reverse-proxy
-			// tunnel to make the initial setup really simple.
+			//If the access URL is empty, we attempt to run a reverse-proxy
+			//tunnel to make the initial setup really simple.
 			var (
 				tunnel     *tunnelsdk.Tunnel
 				tunnelDone <-chan struct{} = make(chan struct{}, 1)
@@ -485,23 +275,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse access URL port: %w", err)
 			}
 
-			// Warn the user if the access URL appears to be a loopback address.
-			isLocal, err := isLocalURL(ctx, cfg.AccessURL.Value())
-			if isLocal || err != nil {
-				reason := "could not be resolved"
-				if isLocal {
-					reason = "isn't externally reachable"
-				}
-				cliui.Warnf(
-					inv.Stderr,
-					"The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
-					cliui.Styles.Field.Render(cfg.AccessURL.String()), reason,
-				)
-			}
-
-			// A newline is added before for visibility in terminal output.
-			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", cfg.AccessURL.String())
-
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
 			if err != nil {
@@ -538,15 +311,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
-			appHostname := cfg.WildcardAccessURL.String()
-			var appHostnameRegex *regexp.Regexp
-			if appHostname != "" {
-				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
-				if err != nil {
-					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
-				}
-			}
-
 			gitAuthEnv, err := ReadGitAuthProvidersFromEnv(os.Environ())
 			if err != nil {
 				return xerrors.Errorf("read git auth providers from env: %w", err)
@@ -567,11 +331,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			realIPConfig, err := httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders, cfg.ProxyTrustedOrigins)
-			if err != nil {
-				return xerrors.Errorf("parse real ip config: %w", err)
-			}
-
 			configSSHOptions, err := cfg.SSHConfig.ParseOptions()
 			if err != nil {
 				return xerrors.Errorf("parse ssh config options %q: %w", cfg.SSHConfig.SSHConfigOptions.String(), err)
@@ -579,8 +338,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			options := &coderd.Options{
 				AccessURL:                   cfg.AccessURL.Value(),
-				AppHostname:                 appHostname,
-				AppHostnameRegex:            appHostnameRegex,
+				AppHostname:                 scd.AppHostname,
+				AppHostnameRegex:            scd.AppHostnameRegex,
 				Logger:                      logger.Named("coderd"),
 				Database:                    dbfake.New(),
 				DERPMap:                     derpMap,
@@ -588,10 +347,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				GitAuthConfigs:              gitAuthConfigs,
-				RealIPConfig:                realIPConfig,
+				RealIPConfig:                scd.RealIPConfig,
 				SecureAuthCookie:            cfg.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
-				TracerProvider:              tracerProvider,
+				TracerProvider:              scd.Tracer,
 				Telemetry:                   telemetry.NewNoop(),
 				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value(),
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value(),
@@ -600,15 +359,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				APIRateLimit:                int(cfg.RateLimit.API.Value()),
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
-				HTTPClient:                  httpClient,
+				HTTPClient:                  scd.HTTPClient,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				SSHConfig: codersdk.SSHConfigResponse{
 					HostnamePrefix:   cfg.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
 				},
 			}
-			if tlsConfig != nil {
-				options.TLSCertificates = tlsConfig.Certificates
+			if scd.HTTPServers.TLSConfig != nil {
+				options.TLSCertificates = scd.HTTPServers.TLSConfig.Certificates
 			}
 
 			if cfg.StrictTransportSecurity > 0 {
@@ -711,7 +470,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbfake.New()
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
-				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
+				sqlDB, err := connectToPostgres(ctx, logger, scd.SQLDriver, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -822,34 +581,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				defer options.Telemetry.Close()
 			}
 
-			// This prevents the pprof import from being accidentally deleted.
-			_ = pprof.Handler
-			if cfg.Pprof.Enable {
-				//nolint:revive
-				defer serveHandler(ctx, logger, nil, cfg.Pprof.Address.String(), "pprof")()
-			}
-			if cfg.Prometheus.Enable {
-				options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
-				options.PrometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-
-				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
-				if err != nil {
-					return xerrors.Errorf("register active users prometheus metric: %w", err)
-				}
-				defer closeUsersFunc()
-
-				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
-				if err != nil {
-					return xerrors.Errorf("register workspaces prometheus metric: %w", err)
-				}
-				defer closeWorkspacesFunc()
-
-				//nolint:revive
-				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
-					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
-				), cfg.Prometheus.Address.String(), "prometheus")()
-			}
-
 			if cfg.Swagger.Enable {
 				options.SwaggerEndpoint = cfg.Swagger.Enable.Value()
 			}
@@ -863,6 +594,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			if cfg.Prometheus.Enable {
+				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
+				if err != nil {
+					return xerrors.Errorf("register active users prometheus metric: %w", err)
+				}
+				defer closeUsersFunc()
+
+				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
+				if err != nil {
+					return xerrors.Errorf("register workspaces prometheus metric: %w", err)
+				}
+				defer closeWorkspacesFunc()
+
 				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.
 				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, options.DERPMap, coderAPI.Options.AgentInactiveDisconnectTimeout, 0)
 				if err != nil {
@@ -871,8 +614,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				defer closeAgentsFunc()
 			}
 
-			client := codersdk.New(localURL)
-			if localURL.Scheme == "https" && isLocalhost(localURL.Hostname()) {
+			client := codersdk.New(scd.LocalURL)
+			if scd.LocalURL.Scheme == "https" && isLocalhost(scd.LocalURL.Hostname()) {
 				// The certificate will likely be self-signed or for a different
 				// hostname, so we need to skip verification.
 				client.HTTPClient.Transport = &http.Transport{
@@ -882,7 +625,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					},
 				}
 			}
-			defer client.HTTPClient.CloseIdleConnections()
 
 			// This is helpful for tests, but can be silently ignored.
 			// Coder may be ran as users that don't have permission to write in the homedir,
@@ -932,7 +674,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
 			if cfg.RedirectToAccessURL {
-				handler = redirectToAccessURL(handler, cfg.AccessURL.Value(), tunnel != nil, appHostnameRegex)
+				handler = redirectToAccessURL(handler, cfg.AccessURL.Value(), tunnel != nil, scd.AppHostnameRegex)
 			}
 
 			// ReadHeaderTimeout is purposefully not enabled. It caused some
@@ -956,30 +698,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// We call this in the routine so we can kill the other listeners if
 			// one of them fails.
 			closeListenersNow := func() {
-				if httpListener != nil {
-					_ = httpListener.Close()
-				}
-				if httpsListener != nil {
-					_ = httpsListener.Close()
-				}
+				scd.HTTPServers.Close()
 				if tunnel != nil {
 					_ = tunnel.Listener.Close()
 				}
 			}
 
 			eg := errgroup.Group{}
-			if httpListener != nil {
-				eg.Go(func() error {
-					defer closeListenersNow()
-					return httpServer.Serve(httpListener)
-				})
-			}
-			if httpsListener != nil {
-				eg.Go(func() error {
-					defer closeListenersNow()
-					return httpServer.Serve(httpsListener)
-				})
-			}
+			eg.Go(func() error {
+				defer closeListenersNow()
+				return scd.HTTPServers.Serve(httpServer)
+			})
 			if tunnel != nil {
 				eg.Go(func() error {
 					defer closeListenersNow()
@@ -994,6 +723,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}()
 
+			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value())
+			defer autobuildPoller.Stop()
+			autobuildExecutor := executor.New(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildPoller.C)
+			autobuildExecutor.Run()
+
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
 			// Updates the systemd status from activating to activated.
@@ -1002,18 +736,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
-			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value())
-			defer autobuildPoller.Stop()
-			autobuildExecutor := executor.New(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildPoller.C)
-			autobuildExecutor.Run()
-
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
 			// exit of the server.
 			var exitErr error
 			select {
-			case <-notifyCtx.Done():
-				exitErr = notifyCtx.Err()
+			case <-scd.NotifyCtx.Done():
+				exitErr = scd.NotifyCtx.Err()
 				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
@@ -1065,7 +794,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
-						cliui.Errorf(inv.Stderr, "Failed to shutdown provisioner daemon %d: %s\n", id, err)
+						cliui.Errorf(inv.Stderr, "Failed to shut down provisioner daemon %d: %s\n", id, err)
 						return
 					}
 					err = provisionerDaemon.Close()
@@ -1096,7 +825,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.Telemetry.Close()
 
 			// Trigger context cancellation for any remaining services.
-			cancel()
+			scd.Close()
 
 			switch {
 			case xerrors.Is(exitErr, context.DeadlineExceeded):
@@ -1184,9 +913,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	return serverCmd
 }
 
-// printDeprecatedOptions loops through all command options, and prints
+// PrintDeprecatedOptions loops through all command options, and prints
 // a warning for usage of deprecated options.
-func printDeprecatedOptions() clibase.MiddlewareFunc {
+func PrintDeprecatedOptions() clibase.MiddlewareFunc {
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
 		return func(inv *clibase.Invocation) error {
 			opts := inv.Command.Options
@@ -1219,13 +948,17 @@ func printDeprecatedOptions() clibase.MiddlewareFunc {
 	}
 }
 
-// writeConfigMW will prevent the main command from running if the write-config
+// WriteConfigMW will prevent the main command from running if the write-config
 // flag is set. Instead, it will marshal the command options to YAML and write
 // them to stdout.
-func writeConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
+func WriteConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
 		return func(inv *clibase.Invocation) error {
 			if !cfg.WriteConfig {
+				if cfg.Config != "" {
+					cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
+				}
+
 				return next(inv)
 			}
 
@@ -1374,6 +1107,172 @@ func newProvisionerDaemon(
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil
+}
+
+// CommonServerCmd is the common elements of starting a server daemon.
+// This can be used by both workspace proxies and the primary coderd.
+type CommonServerCmd struct {
+	Ctx       context.Context
+	NotifyCtx context.Context
+
+	HTTPServers *HTTPServers
+	HTTPClient  *http.Client
+	LocalURL    *url.URL
+
+	Logger             slog.Logger
+	PrometheusRegistry *prometheus.Registry
+	Tracer             trace.TracerProvider
+	// SQLDriver is the driver that the tracer is active on.
+	SQLDriver string
+
+	AppHostname      string
+	AppHostnameRegex *regexp.Regexp
+	RealIPConfig     *httpmw.RealIPConfig
+
+	closeFuncs []func()
+}
+
+// Close closes all the resources associated with the CommonServerCmd.
+func (c *CommonServerCmd) Close() {
+	for _, f := range c.closeFuncs {
+		f()
+	}
+}
+
+func (c *CommonServerCmd) addClose(f func()) {
+	c.closeFuncs = append(c.closeFuncs, f)
+}
+
+// SetupServerCmd sets up the common elements of starting a server daemon.
+// This is used by both coderd and workspace proxies.
+func SetupServerCmd(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (_ *CommonServerCmd, err error) {
+	c := &CommonServerCmd{}
+
+	// Main command context for managing cancellation of running
+	// services.
+	ctx, cancel := context.WithCancel(inv.Context())
+	c.addClose(cancel)
+	c.Ctx = ctx
+	defer func() {
+		if err != nil {
+			c.Close()
+		}
+	}()
+
+	go dumpHandler(ctx)
+
+	printLogo(inv)
+	logger, logCloser, err := buildLogger(inv, cfg)
+	if err != nil {
+		return nil, xerrors.Errorf("make logger: %w", err)
+	}
+	c.Logger = logger
+	c.addClose(logCloser)
+
+	logger.Debug(ctx, "started debug logging")
+	logger.Sync()
+
+	// Register signals early on so that graceful shutdown can't
+	// be interrupted by additional signals. Note that we avoid
+	// shadowing cancel() (from above) here because notifyStop()
+	// restores default behavior for the signals. This protects
+	// the shutdown sequence from abruptly terminating things
+	// like: database migrations, provisioner work, workspace
+	// cleanup in dev-mode, etc.
+	//
+	// To get out of a graceful shutdown, the user can send
+	// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
+	notifyCtx, notifyStop := signal.NotifyContext(ctx, InterruptSignals...)
+	c.NotifyCtx = notifyCtx
+	c.addClose(notifyStop)
+
+	// Clean up idle connections at the end, e.g.
+	// embedded-postgres can leave an idle connection
+	// which is caught by goleaks.
+	c.addClose(http.DefaultClient.CloseIdleConnections)
+
+	c.Tracer, c.SQLDriver = configureTraceProvider(ctx, logger, inv, cfg)
+
+	c.HTTPServers, err = configureHTTPServers(inv, cfg)
+	if err != nil {
+		return nil, xerrors.Errorf("configure http(s): %w", err)
+	}
+	c.addClose(c.HTTPServers.Close)
+
+	// Prefer HTTP because it's less prone to TLS errors over localhost.
+	c.LocalURL = c.HTTPServers.TLSUrl
+	if c.HTTPServers.HTTPUrl != nil {
+		c.LocalURL = c.HTTPServers.HTTPUrl
+	}
+
+	// TODO: @emyrk I find this strange that we add this to the context
+	// at the root here.
+	ctx, httpClient, err := configureHTTPClient(
+		ctx,
+		cfg.TLS.ClientCertFile.String(),
+		cfg.TLS.ClientKeyFile.String(),
+		cfg.TLS.ClientCAFile.String(),
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("configure http client: %w", err)
+	}
+	c.Ctx = ctx
+	c.HTTPClient = httpClient
+
+	// Warn the user if the access URL appears to be a loopback address.
+	isLocal, err := isLocalURL(ctx, cfg.AccessURL.Value())
+	if isLocal || err != nil {
+		reason := "could not be resolved"
+		if isLocal {
+			reason = "isn't externally reachable"
+		}
+		cliui.Warnf(
+			inv.Stderr,
+			"The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
+			cliui.Styles.Field.Render(cfg.AccessURL.String()), reason,
+		)
+	}
+
+	// A newline is added before for visibility in terminal output.
+	cliui.Infof(inv.Stdout, "\nView the Web UI: %s", cfg.AccessURL.String())
+
+	c.AppHostname = cfg.WildcardAccessURL.String()
+	if c.AppHostname != "" {
+		c.AppHostnameRegex, err = httpapi.CompileHostnamePattern(c.AppHostname)
+		if err != nil {
+			return nil, xerrors.Errorf("parse wildcard access URL %q: %w", c.AppHostname, err)
+		}
+	}
+
+	c.RealIPConfig, err = httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders, cfg.ProxyTrustedOrigins)
+	if err != nil {
+		return nil, xerrors.Errorf("parse real ip config: %w", err)
+	}
+
+	if cfg.Pprof.Enable {
+		// This prevents the pprof import from being accidentally deleted.
+		// pprof has an init function that attaches itself to the default handler.
+		// By passing a nil handler to 'serverHandler', it will automatically use
+		// the default, which has pprof attached.
+		_ = pprof.Handler
+		//nolint:revive
+		closeFunc := serveHandler(ctx, logger, nil, cfg.Pprof.Address.String(), "pprof")
+		c.addClose(closeFunc)
+	}
+
+	c.PrometheusRegistry = prometheus.NewRegistry()
+	if cfg.Prometheus.Enable {
+		c.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
+		c.PrometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
+		//nolint:revive
+		closeFunc := serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+			c.PrometheusRegistry, promhttp.HandlerFor(c.PrometheusRegistry, promhttp.HandlerOpts{}),
+		), cfg.Prometheus.Address.String(), "prometheus")
+		c.addClose(closeFunc)
+	}
+
+	return c, nil
 }
 
 // nolint: revive
@@ -1915,4 +1814,208 @@ func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 	ok = true
 	return sqlDB, nil
+}
+
+func configureTraceProvider(ctx context.Context, logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (trace.TracerProvider, string) {
+	var (
+		tracerProvider trace.TracerProvider
+		sqlDriver      = "postgres"
+	)
+	// Coder tracing should be disabled if telemetry is disabled unless
+	// --telemetry-trace was explicitly provided.
+	shouldCoderTrace := cfg.Telemetry.Enable.Value() && !isTest()
+	// Only override if telemetryTraceEnable was specifically set.
+	// By default we want it to be controlled by telemetryEnable.
+	if inv.ParsedFlags().Changed("telemetry-trace") {
+		shouldCoderTrace = cfg.Telemetry.Trace.Value()
+	}
+
+	if cfg.Trace.Enable.Value() || shouldCoderTrace || cfg.Trace.HoneycombAPIKey != "" {
+		sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
+			Default:   cfg.Trace.Enable.Value(),
+			Coder:     shouldCoderTrace,
+			Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
+		})
+		if err != nil {
+			logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
+		} else {
+			// allow time for traces to flush even if command context is canceled
+			defer func() {
+				_ = shutdownWithTimeout(closeTracing, 5*time.Second)
+			}()
+
+			d, err := tracing.PostgresDriver(sdkTracerProvider, "coderd.database")
+			if err != nil {
+				logger.Warn(ctx, "start postgres tracing driver", slog.Error(err))
+			} else {
+				sqlDriver = d
+			}
+
+			tracerProvider = sdkTracerProvider
+		}
+	}
+	return tracerProvider, sqlDriver
+}
+
+type HTTPServers struct {
+	HTTPUrl      *url.URL
+	HTTPListener net.Listener
+
+	// TLS
+	TLSUrl      *url.URL
+	TLSListener net.Listener
+	TLSConfig   *tls.Config
+}
+
+// Serve acts just like http.Serve. It is a blocking call until the server
+// is closed, and an error is returned if any underlying Serve call fails.
+func (s *HTTPServers) Serve(srv *http.Server) error {
+	eg := errgroup.Group{}
+	if s.HTTPListener != nil {
+		eg.Go(func() error {
+			defer s.Close() // close all listeners on error
+			return srv.Serve(s.HTTPListener)
+		})
+	}
+	if s.TLSListener != nil {
+		eg.Go(func() error {
+			defer s.Close() // close all listeners on error
+			return srv.Serve(s.TLSListener)
+		})
+	}
+	return eg.Wait()
+}
+
+func (s *HTTPServers) Close() {
+	if s.HTTPListener != nil {
+		_ = s.HTTPListener.Close()
+	}
+	if s.TLSListener != nil {
+		_ = s.TLSListener.Close()
+	}
+}
+
+func configureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (_ *HTTPServers, err error) {
+	httpServers := &HTTPServers{}
+	defer func() {
+		if err != nil {
+			// Always close the listeners if we fail.
+			httpServers.Close()
+		}
+	}()
+	// Validate bind addresses.
+	if cfg.Address.String() != "" {
+		if cfg.TLS.Enable {
+			cfg.HTTPAddress = ""
+			cfg.TLS.Address = cfg.Address
+		} else {
+			_ = cfg.HTTPAddress.Set(cfg.Address.String())
+			cfg.TLS.Address.Host = ""
+			cfg.TLS.Address.Port = ""
+		}
+	}
+	if cfg.TLS.Enable && cfg.TLS.Address.String() == "" {
+		return nil, xerrors.Errorf("TLS address must be set if TLS is enabled")
+	}
+	if !cfg.TLS.Enable && cfg.HTTPAddress.String() == "" {
+		return nil, xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
+	}
+
+	if cfg.AccessURL.String() != "" &&
+		!(cfg.AccessURL.Scheme == "http" || cfg.AccessURL.Scheme == "https") {
+		return nil, xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
+	}
+
+	addrString := func(l net.Listener) string {
+		listenAddrStr := l.Addr().String()
+		// For some reason if 0.0.0.0:x is provided as the https
+		// address, httpsListener.Addr().String() likes to return it as
+		// an ipv6 address (i.e. [::]:x). If the input ip is 0.0.0.0,
+		// try to coerce the output back to ipv4 to make it less
+		// confusing.
+		if strings.Contains(cfg.HTTPAddress.String(), "0.0.0.0") {
+			listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
+		}
+		return listenAddrStr
+	}
+
+	if cfg.HTTPAddress.String() != "" {
+		httpServers.HTTPListener, err = net.Listen("tcp", cfg.HTTPAddress.String())
+		if err != nil {
+			return nil, err
+		}
+
+		// We want to print out the address the user supplied, not the
+		// loopback device.
+		_, _ = fmt.Fprintf(inv.Stdout, "Started HTTP listener at %s\n", (&url.URL{Scheme: "http", Host: addrString(httpServers.HTTPListener)}).String())
+
+		// Set the http URL we want to use when connecting to ourselves.
+		tcpAddr, tcpAddrValid := httpServers.HTTPListener.Addr().(*net.TCPAddr)
+		if !tcpAddrValid {
+			return nil, xerrors.Errorf("invalid TCP address type %T", httpServers.HTTPListener.Addr())
+		}
+		if tcpAddr.IP.IsUnspecified() {
+			tcpAddr.IP = net.IPv4(127, 0, 0, 1)
+		}
+		httpServers.HTTPUrl = &url.URL{
+			Scheme: "http",
+			Host:   tcpAddr.String(),
+		}
+	}
+
+	if cfg.TLS.Enable {
+		if cfg.TLS.Address.String() == "" {
+			return nil, xerrors.New("tls address must be set if tls is enabled")
+		}
+
+		// DEPRECATED: This redirect used to default to true.
+		// It made more sense to have the redirect be opt-in.
+		if inv.Environ.Get("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
+			cliui.Warn(inv.Stderr, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
+			cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
+		}
+
+		tlsConfig, err := configureTLS(
+			cfg.TLS.MinVersion.String(),
+			cfg.TLS.ClientAuth.String(),
+			cfg.TLS.CertFiles,
+			cfg.TLS.KeyFiles,
+			cfg.TLS.ClientCAFile.String(),
+		)
+		if err != nil {
+			return nil, xerrors.Errorf("configure tls: %w", err)
+		}
+		httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.String())
+		if err != nil {
+			return nil, err
+		}
+		defer httpsListenerInner.Close()
+
+		httpServers.TLSConfig = tlsConfig
+		httpServers.TLSListener = tls.NewListener(httpsListenerInner, tlsConfig)
+
+		// We want to print out the address the user supplied, not the
+		// loopback device.
+		_, _ = fmt.Fprintf(inv.Stdout, "Started TLS/HTTPS listener at %s\n", (&url.URL{Scheme: "https", Host: addrString(httpServers.TLSListener)}).String())
+
+		// Set the https URL we want to use when connecting to
+		// ourselves.
+		tcpAddr, tcpAddrValid := httpServers.TLSListener.Addr().(*net.TCPAddr)
+		if !tcpAddrValid {
+			return nil, xerrors.Errorf("invalid TCP address type %T", httpServers.TLSListener.Addr())
+		}
+		if tcpAddr.IP.IsUnspecified() {
+			tcpAddr.IP = net.IPv4(127, 0, 0, 1)
+		}
+		httpServers.TLSUrl = &url.URL{
+			Scheme: "https",
+			Host:   tcpAddr.String(),
+		}
+	}
+
+	if httpServers.HTTPListener == nil && httpServers.TLSListener == nil {
+		return nil, xerrors.New("must listen on at least one address")
+	}
+
+	return httpServers, nil
 }
