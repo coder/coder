@@ -155,7 +155,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       return
     }
     if (
-      previousVersion.current.job.status === "running" &&
+      ["running", "pending"].includes(previousVersion.current.job.status) &&
       templateVersion.job.status === "succeeded"
     ) {
       setSelectedTab(1)

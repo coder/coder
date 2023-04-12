@@ -39,7 +39,6 @@ export const TemplateVersionEditorPage: FC = () => {
       },
     },
   )
-  console.log(editorState.value)
 
   return (
     <>
