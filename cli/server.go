@@ -352,7 +352,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value(),
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value(),
 				DeploymentValues:            cfg,
-				PrometheusRegistry:          prometheus.NewRegistry(),
+				PrometheusRegistry:          scd.PrometheusRegistry,
 				APIRateLimit:                int(cfg.RateLimit.API.Value()),
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
