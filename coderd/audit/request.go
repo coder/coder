@@ -202,7 +202,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			return
 		}
 
-		var action database.AuditAction = p.Action
+		action := p.Action
 		if req.Action != "" {
 			action = req.Action
 		}
