@@ -384,7 +384,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 <strong>
                   Allow users to customize autostop duration for workspaces.
                 </strong>
-                <span className={styles.optionText}>
+                <span className={styles.optionHelperText}>
                   Workspaces will always use the default TTL if this is set.
                   Regardless of this setting, workspaces can only stay on for
                   the max TTL.
