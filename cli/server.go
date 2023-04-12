@@ -1367,7 +1367,7 @@ func newProvisionerDaemon(
 		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value(),
 		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value(),
 		JobPollDebounce:     debounce,
-		UpdateInterval:      500 * time.Millisecond,
+		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Provisioners:        provisioners,
 		WorkDirectory:       tempDir,
