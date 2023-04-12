@@ -11,6 +11,7 @@ import {
   TemplateVersion,
   WorkspaceResource,
 } from "api/typesGenerated"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
@@ -363,6 +364,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   selectedTab === 0 ? "" : "hidden"
                 }`}
               >
+                {templateVersion.job.error && (
+                  <AlertBanner
+                    severity="error"
+                    text={templateVersion.job.error}
+                  />
+                )}
+
                 {buildLogs && (
                   <WorkspaceBuildLogs
                     templateEditorPane
@@ -370,15 +378,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                     logs={buildLogs}
                   />
                 )}
-                {templateVersion.job.error && (
-                  <div className={styles.buildLogError}>
-                    {templateVersion.job.error}
-                  </div>
-                )}
               </div>
 
               <div
-                className={`${styles.panel} ${styles.resources} ${
+                className={`${styles.panel} ${
                   selectedTab === 1 ? "" : "hidden"
                 }`}
               >
@@ -570,13 +573,8 @@ const useStyles = makeStyles<
   },
   buildLogs: {
     display: "flex",
-    flexDirection: "column-reverse",
+    flexDirection: "column",
     overflowY: "auto",
-  },
-  buildLogError: {
-    whiteSpace: "pre-wrap",
-  },
-  resources: {
-    // padding: 16,
+    gap: theme.spacing(1),
   },
 }))
