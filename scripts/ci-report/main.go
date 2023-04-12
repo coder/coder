@@ -12,6 +12,8 @@ import (
 
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/scripts/ci-report/report"
 )
 
 func main() {
@@ -48,7 +50,7 @@ func parseGoTestJSON(name string) (GotestsumReport, error) {
 	defer f.Close()
 
 	dec := json.NewDecoder(f)
-	var report GotestsumReport
+	var rep GotestsumReport
 	for {
 		var e GotestsumReportEntry
 		err = dec.Decode(&e)
@@ -59,13 +61,13 @@ func parseGoTestJSON(name string) (GotestsumReport, error) {
 			return GotestsumReport{}, xerrors.Errorf("error decoding json: %w", err)
 		}
 		e.Package = strings.TrimPrefix(e.Package, "github.com/coder/coder/")
-		report = append(report, e)
+		rep = append(rep, e)
 	}
 
-	return report, nil
+	return rep, nil
 }
 
-func parseCIReport(report GotestsumReport) (CIReport, error) {
+func parseCIReport(gotestsumReport GotestsumReport) (report.CI, error) {
 	packagesSortedByName := []string{}
 	packageTimes := map[string]float64{}
 	packageFail := map[string]int{}
@@ -76,7 +78,7 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 	testSortedByName := []string{}
 	timeouts := map[string]string{}
 	timeoutRunningTests := map[string]bool{}
-	for i, e := range report {
+	for i, e := range gotestsumReport {
 		switch e.Action {
 		// A package/test may fail or pass.
 		case Fail:
@@ -128,7 +130,7 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 		case Pause:
 
 		default:
-			return CIReport{}, xerrors.Errorf("unknown action: %v in entry %d (%v)", e.Action, i, e)
+			return report.CI{}, xerrors.Errorf("unknown action: %v in entry %d (%v)", e.Action, i, e)
 		}
 	}
 
@@ -165,11 +167,11 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 	slices.SortFunc(packagesSortedByName, sortAZ)
 	slices.SortFunc(testSortedByName, sortAZ)
 
-	var rep CIReport
+	var rep report.CI
 
 	for _, pkg := range packagesSortedByName {
 		output, timeout := timeouts[pkg]
-		rep.Packages = append(rep.Packages, PackageReport{
+		rep.Packages = append(rep.Packages, report.Package{
 			Name:      pkg,
 			Time:      packageTimes[pkg],
 			Skip:      packageSkip[pkg],
@@ -184,7 +186,7 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 		names := strings.SplitN(test, ".", 2)
 		skip := testSkip[test]
 		out, fail := testOutput[test]
-		rep.Tests = append(rep.Tests, TestReport{
+		rep.Tests = append(rep.Tests, report.Test{
 			Package: names[0],
 			Name:    names[1],
 			Time:    testTimes[test],
@@ -198,7 +200,7 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 	return rep, nil
 }
 
-func printCIReport(dst io.Writer, rep CIReport) error {
+func printCIReport(dst io.Writer, rep report.CI) error {
 	enc := json.NewEncoder(dst)
 	enc.SetIndent("", "  ")
 	err := enc.Encode(rep)
@@ -206,31 +208,6 @@ func printCIReport(dst io.Writer, rep CIReport) error {
 		return xerrors.Errorf("error encoding json: %w", err)
 	}
 	return nil
-}
-
-type CIReport struct {
-	Packages []PackageReport `json:"packages"`
-	Tests    []TestReport    `json:"tests"`
-}
-
-type PackageReport struct {
-	Name      string  `json:"name"`
-	Time      float64 `json:"time"`
-	Skip      bool    `json:"skip,omitempty"`
-	Fail      bool    `json:"fail,omitempty"`
-	NumFailed int     `json:"num_failed,omitempty"`
-	Timeout   bool    `json:"timeout,omitempty"`
-	Output    string  `json:"output,omitempty"` // Output present e.g. for timeout.
-}
-
-type TestReport struct {
-	Package string  `json:"package"`
-	Name    string  `json:"name"`
-	Time    float64 `json:"time"`
-	Skip    bool    `json:"skip,omitempty"`
-	Fail    bool    `json:"fail,omitempty"`
-	Timeout bool    `json:"timeout,omitempty"`
-	Output  string  `json:"output,omitempty"`
 }
 
 type GotestsumReport []GotestsumReportEntry
