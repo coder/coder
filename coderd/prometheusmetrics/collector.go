@@ -6,6 +6,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// CachedGaugeVec is a wrapper for the prometheus.GaugeVec which allows
+// for staging changes in the metrics vector. Calling "WithLabelValues(...)"
+// will update the internal gauge value, but it will not be returned by
+// "Collect(...)" until the "Commit()" method is called. The "Commit()" method
+// resets the internal gauge and applies all staged changes to it.
+//
+// The Use of CachedGaugeVec is recommended for use cases when there is a risk
+// that the Prometheus collector receives incomplete metrics, collected
+// in the middle of metrics recalculation, between "Reset()" and the last
+// "WithLabelValues()" call.
 type CachedGaugeVec struct {
 	m sync.Mutex
 
@@ -35,9 +45,6 @@ func NewCachedGaugeVec(gaugeVec *prometheus.GaugeVec) *CachedGaugeVec {
 }
 
 func (v *CachedGaugeVec) Describe(desc chan<- *prometheus.Desc) {
-	v.m.Lock()
-	defer v.m.Unlock()
-
 	v.gaugeVec.Describe(desc)
 }
 
@@ -49,6 +56,12 @@ func (v *CachedGaugeVec) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (v *CachedGaugeVec) WithLabelValues(operation VectorOperation, value float64, labelValues ...string) {
+	switch operation {
+	case VectorOperationAdd, VectorOperationSet:
+	default:
+		panic("unsupported vector operation")
+	}
+
 	v.m.Lock()
 	defer v.m.Unlock()
 
@@ -59,6 +72,9 @@ func (v *CachedGaugeVec) WithLabelValues(operation VectorOperation, value float6
 	})
 }
 
+// Commit will set the internal value as the cached value to return from "Collect()".
+// The internal metric value is completely reset, so the caller should expect
+// the gauge to be empty for the next 'WithLabelValues' values.
 func (v *CachedGaugeVec) Commit() {
 	v.m.Lock()
 	defer v.m.Unlock()
@@ -71,8 +87,6 @@ func (v *CachedGaugeVec) Commit() {
 			g.Add(record.value)
 		case VectorOperationSet:
 			g.Set(record.value)
-		default:
-			panic("unsupported vector operation")
 		}
 	}
 

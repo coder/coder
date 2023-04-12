@@ -28,7 +28,7 @@ resource "coder_agent" "main" {
     # calculates CPU usage by summing the "us", "sy" and "id" columns of
     # vmstat.
     script = <<EOT
-        vmstat | awk 'FNR==3 {printf "%2.0f%%", $13+$14+$16}'
+        top -bn1 | awk 'FNR==3 {printf "%2.0f%%", $2+$3+$4}'
     EOT
     interval = 1
     timeout = 1
@@ -36,10 +36,8 @@ resource "coder_agent" "main" {
 
   metadata {
     display_name = "Disk Usage"
-    key  = "cpu"
-    script = <<EOT
-        df -h | awk -v mount="/" '$6 == mount { print $5 }'
-    EOT
+    key  = "disk"
+    script = "df -h | awk '$6 ~ /^\\/$/ { print $5 }'"
     interval = 1
     timeout = 1
   }
@@ -59,7 +57,7 @@ resource "coder_agent" "main" {
     key  = "load"
     script = <<EOT
         awk '{print $1,$2,$3}' /proc/loadavg
-    >>
+    EOT
     interval = 1
     timeout = 1
   }
@@ -67,6 +65,16 @@ resource "coder_agent" "main" {
 ```
 
 ## Utilities
+
+[top](https://linux.die.net/man/1/top) is available in most Linux
+distributions and provides virtual memory, CPU and IO statistics. Running `top`
+produces output that looks like:
+
+```
+%Cpu(s): 65.8 us,  4.4 sy,  0.0 ni, 29.3 id,  0.3 wa,  0.0 hi,  0.2 si,  0.0 st
+MiB Mem :  16009.0 total,    493.7 free,   4624.8 used,  10890.5 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.  11021.3 avail Mem
+```
 
 [vmstat](https://linux.die.net/man/8/vmstat) is available in most Linux
 distributions and provides virtual memory, CPU and IO statistics. Running `vmstat`

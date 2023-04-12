@@ -181,6 +181,11 @@ func (p ProvisionerDaemon) RBACObject() rbac.Object {
 	return rbac.ResourceProvisionerDaemon.WithID(p.ID)
 }
 
+func (w WorkspaceProxy) RBACObject() rbac.Object {
+	return rbac.ResourceWorkspaceProxy.
+		WithID(w.ID)
+}
+
 func (f File) RBACObject() rbac.Object {
 	return rbac.ResourceFile.
 		WithID(f.ID).

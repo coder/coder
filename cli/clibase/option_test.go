@@ -49,7 +49,7 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 			},
 		}
 
-		err := os.SetDefaults(nil)
+		err := os.SetDefaults()
 		require.NoError(t, err)
 
 		err = os.FlagSet().Parse([]string{"--name", "foo", "--name", "bar"})
@@ -111,7 +111,7 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 			},
 		}
 
-		err := os.SetDefaults(nil)
+		err := os.SetDefaults()
 		require.NoError(t, err)
 
 		err = os.ParseEnv(clibase.ParseEnviron([]string{"CODER_WORKSPACE_NAME="}, "CODER_"))
@@ -133,7 +133,7 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 			},
 		}
 
-		err := os.SetDefaults(nil)
+		err := os.SetDefaults()
 		require.NoError(t, err)
 
 		err = os.ParseEnv([]clibase.EnvVar{
@@ -157,7 +157,7 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 			},
 		}
 
-		err := os.SetDefaults(nil)
+		err := os.SetDefaults()
 		require.NoError(t, err)
 
 		err = os.ParseEnv([]clibase.EnvVar{

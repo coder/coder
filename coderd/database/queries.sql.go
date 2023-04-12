@@ -17,8 +17,7 @@ import (
 )
 
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
-DELETE
-FROM
+DELETE FROM
 	api_keys
 WHERE
 	id = $1
@@ -38,6 +37,19 @@ WHERE
 
 func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteAPIKeysByUserID, userID)
+	return err
+}
+
+const deleteApplicationConnectAPIKeysByUserID = `-- name: DeleteApplicationConnectAPIKeysByUserID :exec
+DELETE FROM
+	api_keys
+WHERE
+	user_id = $1 AND
+	scope = 'application_connect'::api_key_scope
+`
+
+func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteApplicationConnectAPIKeysByUserID, userID)
 	return err
 }
 
@@ -2803,6 +2815,198 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 	return err
 }
 
+const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
+SELECT
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+FROM
+	workspace_proxies
+WHERE
+	deleted = false
+`
+
+func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceProxies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceProxy
+	for rows.Next() {
+		var i WorkspaceProxy
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.DisplayName,
+			&i.Icon,
+			&i.Url,
+			&i.WildcardHostname,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
+SELECT
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+FROM
+	workspace_proxies
+WHERE
+	id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByID, id)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const insertWorkspaceProxy = `-- name: InsertWorkspaceProxy :one
+INSERT INTO
+	workspace_proxies (
+		id,
+		name,
+		display_name,
+		icon,
+		url,
+		wildcard_hostname,
+		created_at,
+		updated_at,
+		deleted
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+`
+
+type InsertWorkspaceProxyParams struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	Name             string    `db:"name" json:"name"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	Icon             string    `db:"icon" json:"icon"`
+	Url              string    `db:"url" json:"url"`
+	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceProxy,
+		arg.ID,
+		arg.Name,
+		arg.DisplayName,
+		arg.Icon,
+		arg.Url,
+		arg.WildcardHostname,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const updateWorkspaceProxy = `-- name: UpdateWorkspaceProxy :one
+UPDATE
+	workspace_proxies
+SET
+	name = $1,
+	display_name = $2,
+	url = $3,
+	wildcard_hostname = $4,
+	icon = $5,
+	updated_at = Now()
+WHERE
+	id = $6
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+`
+
+type UpdateWorkspaceProxyParams struct {
+	Name             string    `db:"name" json:"name"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	Url              string    `db:"url" json:"url"`
+	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	Icon             string    `db:"icon" json:"icon"`
+	ID               uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceProxy,
+		arg.Name,
+		arg.DisplayName,
+		arg.Url,
+		arg.WildcardHostname,
+		arg.Icon,
+		arg.ID,
+	)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const updateWorkspaceProxyDeleted = `-- name: UpdateWorkspaceProxyDeleted :exec
+UPDATE
+	workspace_proxies
+SET
+	updated_at = Now(),
+	deleted = $1
+WHERE
+	id = $2
+`
+
+type UpdateWorkspaceProxyDeletedParams struct {
+	Deleted bool      `db:"deleted" json:"deleted"`
+	ID      uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceProxyDeleted, arg.Deleted, arg.ID)
+	return err
+}
+
 const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
 SELECT
 	coalesce(SUM(quota_allowance), 0)::BIGINT
@@ -3010,12 +3214,12 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 	return i, err
 }
 
-const getAppSigningKey = `-- name: GetAppSigningKey :one
+const getAppSecurityKey = `-- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key'
 `
 
-func (q *sqlQuerier) GetAppSigningKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getAppSigningKey)
+func (q *sqlQuerier) GetAppSecurityKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getAppSecurityKey)
 	var value string
 	err := row.Scan(&value)
 	return value, err
@@ -3076,15 +3280,6 @@ func (q *sqlQuerier) GetServiceBanner(ctx context.Context) (string, error) {
 	return value, err
 }
 
-const insertAppSigningKey = `-- name: InsertAppSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
-`
-
-func (q *sqlQuerier) InsertAppSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, insertAppSigningKey, value)
-	return err
-}
-
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -3100,6 +3295,16 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
 
 func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
+	return err
+}
+
+const upsertAppSecurityKey = `-- name: UpsertAppSecurityKey :exec
+INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key'
+`
+
+func (q *sqlQuerier) UpsertAppSecurityKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertAppSecurityKey, value)
 	return err
 }
 
@@ -5369,7 +5574,7 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAge
 
 const getWorkspaceAgentStartupLogsAfter = `-- name: GetWorkspaceAgentStartupLogsAfter :many
 SELECT
-	agent_id, created_at, output, id
+	agent_id, created_at, output, id, level
 FROM
 	workspace_agent_startup_logs
 WHERE
@@ -5398,6 +5603,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg 
 			&i.CreatedAt,
 			&i.Output,
 			&i.ID,
+			&i.Level,
 		); err != nil {
 			return nil, err
 		}
@@ -5759,21 +5965,23 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 const insertWorkspaceAgentStartupLogs = `-- name: InsertWorkspaceAgentStartupLogs :many
 WITH new_length AS (
 	UPDATE workspace_agents SET
-	startup_logs_length = startup_logs_length + $4 WHERE workspace_agents.id = $1
+	startup_logs_length = startup_logs_length + $5 WHERE workspace_agents.id = $1
 )
 INSERT INTO
-		workspace_agent_startup_logs
+		workspace_agent_startup_logs (agent_id, created_at, output, level)
 	SELECT
 		$1 :: uuid AS agent_id,
 		unnest($2 :: timestamptz [ ]) AS created_at,
-		unnest($3 :: VARCHAR(1024) [ ]) AS output
-	RETURNING workspace_agent_startup_logs.agent_id, workspace_agent_startup_logs.created_at, workspace_agent_startup_logs.output, workspace_agent_startup_logs.id
+		unnest($3 :: VARCHAR(1024) [ ]) AS output,
+		unnest($4 :: log_level [ ]) AS level
+	RETURNING workspace_agent_startup_logs.agent_id, workspace_agent_startup_logs.created_at, workspace_agent_startup_logs.output, workspace_agent_startup_logs.id, workspace_agent_startup_logs.level
 `
 
 type InsertWorkspaceAgentStartupLogsParams struct {
 	AgentID      uuid.UUID   `db:"agent_id" json:"agent_id"`
 	CreatedAt    []time.Time `db:"created_at" json:"created_at"`
 	Output       []string    `db:"output" json:"output"`
+	Level        []LogLevel  `db:"level" json:"level"`
 	OutputLength int32       `db:"output_length" json:"output_length"`
 }
 
@@ -5782,6 +5990,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg In
 		arg.AgentID,
 		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Output),
+		pq.Array(arg.Level),
 		arg.OutputLength,
 	)
 	if err != nil {
@@ -5796,6 +6005,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg In
 			&i.CreatedAt,
 			&i.Output,
 			&i.ID,
+			&i.Level,
 		); err != nil {
 			return nil, err
 		}

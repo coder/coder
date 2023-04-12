@@ -217,6 +217,7 @@
   "logs": [
     {
       "created_at": "string",
+      "level": "trace",
       "output": "string"
     }
   ]
@@ -302,16 +303,18 @@
 ```json
 {
   "created_at": "string",
+  "level": "trace",
   "output": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-| ------------ | ------ | -------- | ------------ | ----------- |
-| `created_at` | string | false    |              |             |
-| `output`     | string | false    |              |             |
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -384,33 +387,26 @@
 
 ```json
 {
-  "children": [
-    {
-      "children": [],
-      "description": "string",
-      "name": "string",
-      "parent": {}
-    }
-  ],
   "description": "string",
   "name": "string",
   "parent": {
-    "children": [{}],
     "description": "string",
     "name": "string",
-    "parent": {}
-  }
+    "parent": {},
+    "yaml": "string"
+  },
+  "yaml": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                    | Required | Restrictions | Description |
-| ------------- | --------------------------------------- | -------- | ------------ | ----------- |
-| `children`    | array of [clibase.Group](#clibasegroup) | false    |              |             |
-| `description` | string                                  | false    |              |             |
-| `name`        | string                                  | false    |              |             |
-| `parent`      | [clibase.Group](#clibasegroup)          | false    |              |             |
+| Name          | Type                           | Required | Restrictions | Description |
+| ------------- | ------------------------------ | -------- | ------------ | ----------- |
+| `description` | string                         | false    |              |             |
+| `name`        | string                         | false    |              |             |
+| `parent`      | [clibase.Group](#clibasegroup) | false    |              |             |
+| `yaml`        | string                         | false    |              |             |
 
 ## clibase.HostPort
 
@@ -442,22 +438,15 @@
   "flag": "string",
   "flag_shorthand": "string",
   "group": {
-    "children": [
-      {
-        "children": [],
-        "description": "string",
-        "name": "string",
-        "parent": {}
-      }
-    ],
     "description": "string",
     "name": "string",
     "parent": {
-      "children": [{}],
       "description": "string",
       "name": "string",
-      "parent": {}
-    }
+      "parent": {},
+      "yaml": "string"
+    },
+    "yaml": "string"
   },
   "hidden": true,
   "name": "string",
@@ -473,31 +462,26 @@
       "flag": "string",
       "flag_shorthand": "string",
       "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {}
-          }
-        ],
         "description": "string",
         "name": "string",
         "parent": {
-          "children": [{}],
           "description": "string",
           "name": "string",
-          "parent": {}
-        }
+          "parent": {},
+          "yaml": "string"
+        },
+        "yaml": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [],
       "value": null,
+      "value_source": "",
       "yaml": "string"
     }
   ],
   "value": null,
+  "value_source": "",
   "yaml": "string"
 }
 ```
@@ -517,6 +501,7 @@
 | `name`           | string                                     | false    |              |                                                                                                                                |
 | `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
 | `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                  |
+| `value_source`   | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                |
 | `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
 
 ## clibase.Struct-array_codersdk_GitAuthConfig
@@ -598,6 +583,24 @@
 | `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
 | `scheme`      | string                       | false    |              |                                                    |
 | `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
+
+## clibase.ValueSource
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| ``        |
+| `flag`    |
+| `env`     |
+| `yaml`    |
+| `default` |
 
 ## coderd.SCIMUser
 
@@ -1039,7 +1042,7 @@
     "organization_id": "string",
     "owner_id": "string",
     "resource_id": "string",
-    "resource_type": "string"
+    "resource_type": "workspace"
   }
 }
 ```
@@ -1069,7 +1072,7 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
   "organization_id": "string",
   "owner_id": "string",
   "resource_id": "string",
-  "resource_type": "string"
+  "resource_type": "workspace"
 }
 ```
 
@@ -1077,12 +1080,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                          |
-| ----------------- | ------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `organization_id` | string | false    |              | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                   |
-| `owner_id`        | string | false    |              | Owner ID (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                  |
-| `resource_id`     | string | false    |              | Resource ID (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the owner ID and organization ID if possible. Be as specific as possible using all the fields relevant. |
-| `resource_type`   | string | false    |              | Resource type is the name of the resource. `./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                           |
+| Name              | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ---------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organization_id` | string                                         | false    |              | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                   |
+| `owner_id`        | string                                         | false    |              | Owner ID (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                  |
+| `resource_id`     | string                                         | false    |              | Resource ID (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the owner ID and organization ID if possible. Be as specific as possible using all the fields relevant. |
+| `resource_type`   | [codersdk.RBACResource](#codersdkrbacresource) | false    |              | Resource type is the name of the resource. `./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                           |
 
 ## codersdk.AuthorizationRequest
 
@@ -1095,7 +1098,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
-        "resource_type": "string"
+        "resource_type": "workspace"
       }
     },
     "property2": {
@@ -1104,7 +1107,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
-        "resource_type": "string"
+        "resource_type": "workspace"
       }
     }
   }
@@ -1543,6 +1546,28 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `transition` | `stop`   |
 | `transition` | `delete` |
 
+## codersdk.CreateWorkspaceProxyRequest
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+| ------------------- | ------ | -------- | ------------ | ----------- |
+| `display_name`      | string | false    |              |             |
+| `icon`              | string | false    |              |             |
+| `name`              | string | false    |              |             |
+| `url`               | string | false    |              |             |
+| `wildcard_hostname` | string | false    |              |             |
+
 ## codersdk.CreateWorkspaceRequest
 
 ```json
@@ -1754,7 +1779,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
-    "audit_logging": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
@@ -1793,6 +1817,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "stun_addresses": ["string"]
       }
     },
+    "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
@@ -1856,6 +1881,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "user": {}
       },
       "ignore_email_verified": true,
+      "ignore_user_info": true,
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
@@ -1975,27 +2001,21 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "flag": "string",
       "flag_shorthand": "string",
       "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {}
-          }
-        ],
         "description": "string",
         "name": "string",
         "parent": {
-          "children": [{}],
           "description": "string",
           "name": "string",
-          "parent": {}
-        }
+          "parent": {},
+          "yaml": "string"
+        },
+        "yaml": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [{}],
       "value": null,
+      "value_source": "",
       "yaml": "string"
     }
   ]
@@ -2102,7 +2122,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
-  "audit_logging": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
@@ -2141,6 +2160,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "stun_addresses": ["string"]
     }
   },
+  "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
   "disable_session_expiry_refresh": true,
@@ -2204,6 +2224,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "user": {}
     },
     "ignore_email_verified": true,
+    "ignore_user_info": true,
     "issuer_url": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
@@ -2321,7 +2342,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `address`                            | [clibase.HostPort](#clibasehostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
 | `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                    | false    |              |                                                                    |
-| `audit_logging`                      | boolean                                                                                    | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                    | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
@@ -2329,6 +2349,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                   | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
+| `disable_owner_workspace_exec`       | boolean                                                                                    | false    |              |                                                                    |
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
@@ -2433,6 +2454,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Value             |
 | ----------------- |
 | `template_editor` |
+| `moons`           |
 
 ## codersdk.Feature
 
@@ -2870,6 +2892,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "user": {}
   },
   "ignore_email_verified": true,
+  "ignore_user_info": true,
   "issuer_url": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
@@ -2891,6 +2914,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `groups_field`          | string                     | false    |              |             |
 | `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
 | `ignore_email_verified` | boolean                    | false    |              |             |
+| `ignore_user_info`      | boolean                    | false    |              |             |
 | `issuer_url`            | string                     | false    |              |             |
 | `scopes`                | array of string            | false    |              |             |
 | `sign_in_text`          | string                     | false    |              |             |
@@ -3337,6 +3361,41 @@ Parameter represents a set value for the scope.
 | Name       | Type   | Required | Restrictions | Description |
 | ---------- | ------ | -------- | ------------ | ----------- |
 | `deadline` | string | true     |              |             |
+
+## codersdk.RBACResource
+
+```json
+"workspace"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                 |
+| --------------------- |
+| `workspace`           |
+| `workspace_proxy`     |
+| `workspace_execution` |
+| `application_connect` |
+| `audit_log`           |
+| `template`            |
+| `group`               |
+| `file`                |
+| `provisioner_daemon`  |
+| `organization`        |
+| `assign_role`         |
+| `assign_org_role`     |
+| `api_key`             |
+| `user`                |
+| `user_data`           |
+| `organization_member` |
+| `license`             |
+| `deployment_config`   |
+| `deployment_stats`    |
+| `replicas`            |
+| `debug_info`          |
+| `system`              |
 
 ## codersdk.RateLimitConfig
 
@@ -4748,17 +4807,19 @@ Parameter represents a set value for the scope.
 {
   "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
+  "level": "trace",
   "output": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `created_at` | string  | false    |              |             |
-| `id`         | integer | false    |              |             |
-| `output`     | string  | false    |              |             |
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `id`         | integer                                | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -5087,6 +5148,36 @@ Parameter represents a set value for the scope.
 | `rx_bytes`              | integer                                                                        | false    |              |             |
 | `stopped`               | integer                                                                        | false    |              |             |
 | `tx_bytes`              | integer                                                                        | false    |              |             |
+
+## codersdk.WorkspaceProxy
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                            |
+| ------------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `created_at`        | string  | false    |              |                                                                                        |
+| `deleted`           | boolean | false    |              |                                                                                        |
+| `icon`              | string  | false    |              |                                                                                        |
+| `id`                | string  | false    |              |                                                                                        |
+| `name`              | string  | false    |              |                                                                                        |
+| `organization_id`   | string  | false    |              |                                                                                        |
+| `updated_at`        | string  | false    |              |                                                                                        |
+| `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
+| `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
 
 ## codersdk.WorkspaceQuota
 

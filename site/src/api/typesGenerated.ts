@@ -117,7 +117,7 @@ export interface AuthorizationCheck {
 
 // From codersdk/authorization.go
 export interface AuthorizationObject {
-  readonly resource_type: string
+  readonly resource_type: RBACResource
   readonly owner_id?: string
   readonly organization_id?: string
   readonly resource_id?: string
@@ -253,6 +253,15 @@ export interface CreateWorkspaceBuildRequest {
   readonly log_level?: ProvisionerLogLevel
 }
 
+// From codersdk/workspaceproxy.go
+export interface CreateWorkspaceProxyRequest {
+  readonly name: string
+  readonly display_name: string
+  readonly icon: string
+  readonly url: string
+  readonly wildcard_hostname: string
+}
+
 // From codersdk/organizations.go
 export interface CreateWorkspaceRequest {
   readonly template_id: string
@@ -349,7 +358,6 @@ export interface DeploymentValues {
   readonly metrics_cache_refresh_interval?: number
   readonly agent_stat_refresh_interval?: number
   readonly agent_fallback_troubleshooting_url?: string
-  readonly audit_logging?: boolean
   readonly browser_only?: boolean
   readonly scim_api_key?: string
   readonly provisioner?: ProvisionerConfig
@@ -371,6 +379,8 @@ export interface DeploymentValues {
   readonly git_auth?: any
   readonly config_ssh?: SSHConfig
   readonly wgtunnel_host?: string
+  readonly disable_owner_workspace_exec?: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.YAMLConfigPath")
   readonly config?: string
   readonly write_config?: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
@@ -523,6 +533,7 @@ export interface OIDCConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly auth_url_params: any
+  readonly ignore_user_info: boolean
   readonly groups_field: string
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
@@ -1121,6 +1132,7 @@ export interface WorkspaceAgentStartupLog {
   readonly id: number
   readonly created_at: string
   readonly output: string
+  readonly level: LogLevel
 }
 
 // From codersdk/workspaceapps.go
@@ -1202,6 +1214,19 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
+// From codersdk/workspaceproxy.go
+export interface WorkspaceProxy {
+  readonly id: string
+  readonly organization_id: string
+  readonly name: string
+  readonly icon: string
+  readonly url: string
+  readonly wildcard_hostname: string
+  readonly created_at: string
+  readonly updated_at: string
+  readonly deleted: boolean
+}
+
 // From codersdk/workspaces.go
 export interface WorkspaceQuota {
   readonly credits_consumed: number
@@ -1281,8 +1306,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "template_editor"
-export const Experiments: Experiment[] = ["template_editor"]
+export type Experiment = "moons" | "template_editor"
+export const Experiments: Experiment[] = ["moons", "template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1296,6 +1321,7 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
+  | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
   "appearance",
@@ -1307,6 +1333,7 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
+  "workspace_proxy",
 ]
 
 // From codersdk/workspaceagents.go
@@ -1394,6 +1421,55 @@ export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"]
 // From codersdk/organizations.go
 export type ProvisionerType = "echo" | "terraform"
 export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
+
+// From codersdk/rbacresources.go
+export type RBACResource =
+  | "api_key"
+  | "application_connect"
+  | "assign_org_role"
+  | "assign_role"
+  | "audit_log"
+  | "debug_info"
+  | "deployment_config"
+  | "deployment_stats"
+  | "file"
+  | "group"
+  | "license"
+  | "organization"
+  | "organization_member"
+  | "provisioner_daemon"
+  | "replicas"
+  | "system"
+  | "template"
+  | "user"
+  | "user_data"
+  | "workspace"
+  | "workspace_execution"
+  | "workspace_proxy"
+export const RBACResources: RBACResource[] = [
+  "api_key",
+  "application_connect",
+  "assign_org_role",
+  "assign_role",
+  "audit_log",
+  "debug_info",
+  "deployment_config",
+  "deployment_stats",
+  "file",
+  "group",
+  "license",
+  "organization",
+  "organization_member",
+  "provisioner_daemon",
+  "replicas",
+  "system",
+  "template",
+  "user",
+  "user_data",
+  "workspace",
+  "workspace_execution",
+  "workspace_proxy",
+]
 
 // From codersdk/audit.go
 export type ResourceType =

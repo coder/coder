@@ -137,7 +137,7 @@ data "coder_parameter" "dotfiles_url" {
 
 ## Mutability
 
-Immutable parameters can be only set before workspace creation. The idea is to prevent users from modifying fragile or persistent workspace resources like volumes, regions, etc.:
+Immutable parameters can be only set before workspace creation, or during update on the first usage to set the initial value for required parameters. The idea is to prevent users from modifying fragile or persistent workspace resources like volumes, regions, etc.:
 
 ```hcl
 data "coder_parameter" "region" {

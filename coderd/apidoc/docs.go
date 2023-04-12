@@ -587,44 +587,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/groups": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get groups",
-                "operationId": "get-groups",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Group"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/groups/{group}": {
             "get": {
                 "security": [
@@ -969,7 +931,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Enterprise"
                 ],
                 "summary": "Create group for organization",
                 "operationId": "create-group-for-organization",
@@ -4429,6 +4391,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -4990,6 +4955,71 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceproxies": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxies",
+                "operationId": "get-workspace-proxies",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create workspace proxy",
+                "operationId": "create-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Create workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
                     }
                 }
@@ -5616,6 +5646,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
                 "output": {
                     "type": "string"
                 }
@@ -5691,12 +5724,6 @@ const docTemplate = `{
         "clibase.Group": {
             "type": "object",
             "properties": {
-                "children": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/clibase.Group"
-                    }
-                },
                 "description": {
                     "type": "string"
                 },
@@ -5705,6 +5732,9 @@ const docTemplate = `{
                 },
                 "parent": {
                     "$ref": "#/definitions/clibase.Group"
+                },
+                "yaml": {
+                    "type": "string"
                 }
             }
         },
@@ -5772,6 +5802,9 @@ const docTemplate = `{
                 },
                 "value": {
                     "description": "Value includes the types listed in values.go."
+                },
+                "value_source": {
+                    "$ref": "#/definitions/clibase.ValueSource"
                 },
                 "yaml": {
                     "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
@@ -5852,6 +5885,23 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "clibase.ValueSource": {
+            "type": "string",
+            "enum": [
+                "",
+                "flag",
+                "env",
+                "yaml",
+                "default"
+            ],
+            "x-enum-varnames": [
+                "ValueSourceNone",
+                "ValueSourceFlag",
+                "ValueSourceEnv",
+                "ValueSourceYAML",
+                "ValueSourceDefault"
+            ]
         },
         "coderd.SCIMUser": {
             "type": "object",
@@ -6240,7 +6290,11 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "description": "ResourceType is the name of the resource.\n` + "`" + `./coderd/rbac/object.go` + "`" + ` has the list of valid resource types.",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.RBACResource"
+                        }
+                    ]
                 }
             }
         },
@@ -6706,6 +6760,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -6894,9 +6968,6 @@ const docTemplate = `{
                 "agent_stat_refresh_interval": {
                     "type": "integer"
                 },
-                "audit_logging": {
-                    "type": "boolean"
-                },
                 "autobuild_poll_interval": {
                     "type": "integer"
                 },
@@ -6917,6 +6988,9 @@ const docTemplate = `{
                 },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
+                },
+                "disable_owner_workspace_exec": {
+                    "type": "boolean"
                 },
                 "disable_password_auth": {
                     "type": "boolean"
@@ -7089,10 +7163,12 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "template_editor"
+                "template_editor",
+                "moons"
             ],
             "x-enum-varnames": [
-                "ExperimentTemplateEditor"
+                "ExperimentTemplateEditor",
+                "ExperimentMoons"
             ]
         },
         "codersdk.Feature": {
@@ -7467,6 +7543,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/clibase.URL"
                 },
                 "ignore_email_verified": {
+                    "type": "boolean"
+                },
+                "ignore_user_info": {
                     "type": "boolean"
                 },
                 "issuer_url": {
@@ -7950,6 +8029,57 @@ const docTemplate = `{
                     "format": "date-time"
                 }
             }
+        },
+        "codersdk.RBACResource": {
+            "type": "string",
+            "enum": [
+                "workspace",
+                "workspace_proxy",
+                "workspace_execution",
+                "application_connect",
+                "audit_log",
+                "template",
+                "group",
+                "file",
+                "provisioner_daemon",
+                "organization",
+                "assign_role",
+                "assign_org_role",
+                "api_key",
+                "user",
+                "user_data",
+                "organization_member",
+                "license",
+                "deployment_config",
+                "deployment_stats",
+                "replicas",
+                "debug_info",
+                "system"
+            ],
+            "x-enum-varnames": [
+                "ResourceWorkspace",
+                "ResourceWorkspaceProxy",
+                "ResourceWorkspaceExecution",
+                "ResourceWorkspaceApplicationConnect",
+                "ResourceAuditLog",
+                "ResourceTemplate",
+                "ResourceGroup",
+                "ResourceFile",
+                "ResourceProvisionerDaemon",
+                "ResourceOrganization",
+                "ResourceRoleAssignment",
+                "ResourceOrgRoleAssignment",
+                "ResourceAPIKey",
+                "ResourceUser",
+                "ResourceUserData",
+                "ResourceOrganizationMember",
+                "ResourceLicense",
+                "ResourceDeploymentValues",
+                "ResourceDeploymentStats",
+                "ResourceReplicas",
+                "ResourceDebugInfo",
+                "ResourceSystem"
+            ]
         },
         "codersdk.RateLimitConfig": {
             "type": "object",
@@ -9089,6 +9219,9 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
                 "output": {
                     "type": "string"
                 }
@@ -9355,6 +9488,44 @@ const docTemplate = `{
                 },
                 "tx_bytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkspaceProxy": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "deleted": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "description": "Full url including scheme of the proxy api url: https://us.example.com",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
+                    "type": "string"
                 }
             }
         },
