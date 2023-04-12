@@ -395,6 +395,12 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If a new user is authenticating for the first time
+	// the audit action is 'register', not 'login'
+	if user.ID == uuid.Nil {
+		aReq.Action = database.AuditActionRegister
+	}
+
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
 		User:         user,
 		Link:         link,
@@ -710,6 +716,12 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	// If a new user is authenticating for the first time
+	// the audit action is 'register', not 'login'
+	if user.ID == uuid.Nil {
+		aReq.Action = database.AuditActionRegister
 	}
 
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{

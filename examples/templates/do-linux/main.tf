@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     digitalocean = {
       source  = "digitalocean/digitalocean"
@@ -52,10 +52,12 @@ variable "step2_do_admin_ssh_key" {
 }
 
 data "coder_parameter" "droplet_image" {
-  name    = "Which Droplet image would you like to use for your workspace?"
-  default = "ubuntu-22-04-x64"
-  type    = "string"
-  mutable = false
+  name         = "droplet_image"
+  display_name = "Droplet Image"
+  description  = "Which Droplet image would you like to use?"
+  default      = "ubuntu-22-04-x64"
+  type         = "string"
+  mutable      = false
   option {
     name  = "Ubuntu 22.04"
     value = "ubuntu-22-04-x64"
@@ -109,11 +111,13 @@ data "coder_parameter" "droplet_image" {
 }
 
 data "coder_parameter" "droplet_size" {
-  name    = "Which Droplet configuration would you like to use?"
-  default = "s-1vcpu-1gb"
-  type    = "string"
-  icon    = "/icon/memory.svg"
-  mutable = false
+  name         = "droplet_size"
+  display_name = "Droplet Size"
+  description  = "Which Droplet configuration would you like to use?"
+  default      = "s-1vcpu-1gb"
+  type         = "string"
+  icon         = "/icon/memory.svg"
+  mutable      = false
   option {
     name  = "1 vCPU, 1 GB RAM"
     value = "s-1vcpu-1gb"
@@ -142,11 +146,12 @@ data "coder_parameter" "droplet_size" {
 
 
 data "coder_parameter" "home_volume_size" {
-  name        = "How large would you like your home volume to be (in GB)?"
-  description = "This volume will be mounted to /home/coder."
-  type        = "number"
-  default     = "20"
-  mutable     = false
+  name         = "home_volume_size"
+  display_name = "Home Volume Size"
+  description  = "How large would you like your home volume to be (in GB)?"
+  type         = "number"
+  default      = "20"
+  mutable      = false
   validation {
     min = 1
     max = 999999
@@ -154,12 +159,13 @@ data "coder_parameter" "home_volume_size" {
 }
 
 data "coder_parameter" "region" {
-  name        = "Which region would you like to use?"
-  description = "This is the region where your workspace will be created."
-  icon        = "/emojis/1f30e.png"
-  type        = "string"
-  default     = "ams3"
-  mutable     = false
+  name         = "region"
+  display_name = "Region"
+  description  = "This is the region where your workspace will be created."
+  icon         = "/emojis/1f30e.png"
+  type         = "string"
+  default      = "ams3"
+  mutable      = false
   option {
     name  = "New York 1"
     value = "nyc1"
@@ -240,6 +246,41 @@ resource "coder_agent" "main" {
   arch = "amd64"
 
   login_before_ready = false
+
+  metadata {
+    key          = "cpu"
+    display_name = "CPU Usage"
+    interval     = 5
+    timeout      = 5
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
+    EOT
+  }
+  metadata {
+    key          = "memory"
+    display_name = "Memory Usage"
+    interval     = 5
+    timeout      = 5
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      free -m | awk 'NR==2{printf "%.2f%%\t", $3*100/$2 }'
+    EOT
+  }
+  metadata {
+    key          = "disk"
+    display_name = "Disk Usage"
+    interval     = 600 # every 10 minutes
+    timeout      = 30  # df can take a while on large filesystems
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
+    EOT
+  }
+
 }
 
 resource "digitalocean_volume" "home_volume" {

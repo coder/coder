@@ -84,6 +84,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 			"CODER_GITAUTH_1_TOKEN_URL=google.com",
 			"CODER_GITAUTH_1_VALIDATE_URL=bing.com",
 			"CODER_GITAUTH_1_SCOPES=repo:read repo:write",
+			"CODER_GITAUTH_1_NO_REFRESH=true",
 		})
 		require.NoError(t, err)
 		require.Len(t, providers, 2)
@@ -99,6 +100,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "google.com", providers[1].TokenURL)
 		assert.Equal(t, "bing.com", providers[1].ValidateURL)
 		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
+		assert.Equal(t, true, providers[1].NoRefresh)
 	})
 }
 

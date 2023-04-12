@@ -74,7 +74,7 @@ export const WorkspaceSchedule: FC<
             <Link
               className={styles.scheduleAction}
               component={RouterLink}
-              to={`/@${workspace.owner_name}/${workspace.name}/schedule`}
+              to={`/@${workspace.owner_name}/${workspace.name}/settings/schedule`}
             >
               {Language.editScheduleLink}
             </Link>

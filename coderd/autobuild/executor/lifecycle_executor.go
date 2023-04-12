@@ -308,7 +308,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 			CreatedAt:         now,
 			UpdatedAt:         now,
 			WorkspaceID:       workspace.ID,
-			TemplateVersionID: template.ActiveVersionID,
+			TemplateVersionID: priorHistory.TemplateVersionID,
 			BuildNumber:       priorBuildNumber + 1,
 			ProvisionerState:  priorHistory.ProvisionerState,
 			InitiatorID:       workspace.OwnerID,

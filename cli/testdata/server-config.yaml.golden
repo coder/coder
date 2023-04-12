@@ -315,6 +315,12 @@ agentFallbackTroubleshootingURL: https://coder.com/docs/coder-oss/latest/templat
 # --wildcard-access-url is configured.
 # (default: <unset>, type: bool)
 disablePathApps: false
+# Remove the permission for the 'owner' role to have workspace execution on all
+# workspaces. This prevents the 'owner' from ssh, apps, and terminal access based
+# on the 'owner' role. They still have their user permissions to access their own
+# workspaces.
+# (default: <unset>, type: bool)
+disableOwnerWorkspaceAccess: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the coder cli, vs code extension, and the web UI.
 client:

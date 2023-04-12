@@ -12,11 +12,11 @@ coder server [flags]
 
 ## Subcommands
 
-| Name                                                                   | Purpose                                                                                                |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [<code>create-admin-user</code>](./server_create-admin-user)           | Create a new admin user with the given username, email and password and adds it to every organization. |
-| [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve) | Run the built-in PostgreSQL deployment.                                                                |
-| [<code>postgres-builtin-url</code>](./server_postgres-builtin-url)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
+| Name                                                                      | Purpose                                                                                                |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| [<code>create-admin-user</code>](./server_create-admin-user.md)           | Create a new admin user with the given username, email and password and adds it to every organization. |
+| [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve.md) | Run the built-in PostgreSQL deployment.                                                                |
+| [<code>postgres-builtin-url</code>](./server_postgres-builtin-url.md)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 
 ## Options
 
@@ -172,6 +172,16 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 | Default     | <code>stun.l.google.com:19302</code>           |
 
 Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.
+
+### --disable-owner-workspace-access
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>bool</code>                                  |
+| Environment | <code>$CODER_DISABLE_OWNER_WORKSPACE_ACCESS</code> |
+| YAML        | <code>disableOwnerWorkspaceAccess</code>           |
+
+Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.
 
 ### --disable-password-auth
 

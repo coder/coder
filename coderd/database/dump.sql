@@ -18,7 +18,8 @@ CREATE TYPE audit_action AS ENUM (
     'start',
     'stop',
     'login',
-    'logout'
+    'logout',
+    'register'
 );
 
 CREATE TYPE build_reason AS ENUM (
@@ -501,7 +502,8 @@ CREATE TABLE workspace_agent_startup_logs (
     agent_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     output character varying(1024) NOT NULL,
-    id bigint NOT NULL
+    id bigint NOT NULL,
+    level log_level DEFAULT 'info'::log_level NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
