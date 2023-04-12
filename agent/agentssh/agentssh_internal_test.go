@@ -141,6 +141,7 @@ func (s *testSession) Write(p []byte) (n int, err error) {
 func (testSSHContext) Lock() {
 	panic("not implemented")
 }
+
 func (testSSHContext) Unlock() {
 	panic("not implemented")
 }
