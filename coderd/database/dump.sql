@@ -125,7 +125,8 @@ CREATE TYPE workspace_app_health AS ENUM (
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
-    'delete'
+    'delete',
+    'restart'
 );
 
 CREATE TABLE api_keys (

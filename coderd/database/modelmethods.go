@@ -13,16 +13,18 @@ import (
 type WorkspaceStatus string
 
 const (
-	WorkspaceStatusPending   WorkspaceStatus = "pending"
-	WorkspaceStatusStarting  WorkspaceStatus = "starting"
-	WorkspaceStatusRunning   WorkspaceStatus = "running"
-	WorkspaceStatusStopping  WorkspaceStatus = "stopping"
-	WorkspaceStatusStopped   WorkspaceStatus = "stopped"
-	WorkspaceStatusFailed    WorkspaceStatus = "failed"
-	WorkspaceStatusCanceling WorkspaceStatus = "canceling"
-	WorkspaceStatusCanceled  WorkspaceStatus = "canceled"
-	WorkspaceStatusDeleting  WorkspaceStatus = "deleting"
-	WorkspaceStatusDeleted   WorkspaceStatus = "deleted"
+	WorkspaceStatusPending    WorkspaceStatus = "pending"
+	WorkspaceStatusStarting   WorkspaceStatus = "starting"
+	WorkspaceStatusRunning    WorkspaceStatus = "running"
+	WorkspaceStatusStopping   WorkspaceStatus = "stopping"
+	WorkspaceStatusStopped    WorkspaceStatus = "stopped"
+	WorkspaceStatusFailed     WorkspaceStatus = "failed"
+	WorkspaceStatusCanceling  WorkspaceStatus = "canceling"
+	WorkspaceStatusCanceled   WorkspaceStatus = "canceled"
+	WorkspaceStatusDeleting   WorkspaceStatus = "deleting"
+	WorkspaceStatusDeleted    WorkspaceStatus = "deleted"
+	WorkspaceStatusRestarting WorkspaceStatus = "restarting"
+	WorkspaceStatusRestarted  WorkspaceStatus = "restarted"
 )
 
 func (s WorkspaceStatus) Valid() bool {
@@ -30,7 +32,7 @@ func (s WorkspaceStatus) Valid() bool {
 	case WorkspaceStatusPending, WorkspaceStatusStarting, WorkspaceStatusRunning,
 		WorkspaceStatusStopping, WorkspaceStatusStopped, WorkspaceStatusFailed,
 		WorkspaceStatusCanceling, WorkspaceStatusCanceled, WorkspaceStatusDeleting,
-		WorkspaceStatusDeleted:
+		WorkspaceStatusDeleted, WorkspaceStatusRestarting, WorkspaceStatusRestarted:
 		return true
 	default:
 		return false

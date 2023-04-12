@@ -14,24 +14,27 @@ import (
 type WorkspaceTransition string
 
 const (
-	WorkspaceTransitionStart  WorkspaceTransition = "start"
-	WorkspaceTransitionStop   WorkspaceTransition = "stop"
-	WorkspaceTransitionDelete WorkspaceTransition = "delete"
+	WorkspaceTransitionStart   WorkspaceTransition = "start"
+	WorkspaceTransitionStop    WorkspaceTransition = "stop"
+	WorkspaceTransitionDelete  WorkspaceTransition = "delete"
+	WorkspaceTransitionRestart WorkspaceTransition = "restart"
 )
 
 type WorkspaceStatus string
 
 const (
-	WorkspaceStatusPending   WorkspaceStatus = "pending"
-	WorkspaceStatusStarting  WorkspaceStatus = "starting"
-	WorkspaceStatusRunning   WorkspaceStatus = "running"
-	WorkspaceStatusStopping  WorkspaceStatus = "stopping"
-	WorkspaceStatusStopped   WorkspaceStatus = "stopped"
-	WorkspaceStatusFailed    WorkspaceStatus = "failed"
-	WorkspaceStatusCanceling WorkspaceStatus = "canceling"
-	WorkspaceStatusCanceled  WorkspaceStatus = "canceled"
-	WorkspaceStatusDeleting  WorkspaceStatus = "deleting"
-	WorkspaceStatusDeleted   WorkspaceStatus = "deleted"
+	WorkspaceStatusPending    WorkspaceStatus = "pending"
+	WorkspaceStatusStarting   WorkspaceStatus = "starting"
+	WorkspaceStatusRunning    WorkspaceStatus = "running"
+	WorkspaceStatusStopping   WorkspaceStatus = "stopping"
+	WorkspaceStatusStopped    WorkspaceStatus = "stopped"
+	WorkspaceStatusFailed     WorkspaceStatus = "failed"
+	WorkspaceStatusCanceling  WorkspaceStatus = "canceling"
+	WorkspaceStatusCanceled   WorkspaceStatus = "canceled"
+	WorkspaceStatusDeleting   WorkspaceStatus = "deleting"
+	WorkspaceStatusDeleted    WorkspaceStatus = "deleted"
+	WorkspaceStatusRestarting WorkspaceStatus = "restarting"
+	WorkspaceStatusRestarted  WorkspaceStatus = "restarted"
 )
 
 type BuildReason string

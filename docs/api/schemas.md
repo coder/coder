@@ -1538,13 +1538,14 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Property     | Value    |
-| ------------ | -------- |
-| `log_level`  | `debug`  |
-| `transition` | `create` |
-| `transition` | `start`  |
-| `transition` | `stop`   |
-| `transition` | `delete` |
+| Property     | Value     |
+| ------------ | --------- |
+| `log_level`  | `debug`   |
+| `transition` | `create`  |
+| `transition` | `start`   |
+| `transition` | `stop`    |
+| `transition` | `delete`  |
+| `transition` | `restart` |
 
 ## codersdk.CreateWorkspaceProxyRequest
 
@@ -5294,18 +5295,20 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Value       |
-| ----------- |
-| `pending`   |
-| `starting`  |
-| `running`   |
-| `stopping`  |
-| `stopped`   |
-| `failed`    |
-| `canceling` |
-| `canceled`  |
-| `deleting`  |
-| `deleted`   |
+| Value        |
+| ------------ |
+| `pending`    |
+| `starting`   |
+| `running`    |
+| `stopping`   |
+| `stopped`    |
+| `failed`     |
+| `canceling`  |
+| `canceled`   |
+| `deleting`   |
+| `deleted`    |
+| `restarting` |
+| `restarted`  |
 
 ## codersdk.WorkspaceTransition
 
@@ -5317,11 +5320,12 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Value    |
-| -------- |
-| `start`  |
-| `stop`   |
-| `delete` |
+| Value     |
+| --------- |
+| `start`   |
+| `stop`    |
+| `delete`  |
+| `restart` |
 
 ## codersdk.WorkspacesResponse
 

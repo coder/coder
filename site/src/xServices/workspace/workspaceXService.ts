@@ -174,6 +174,9 @@ export const workspaceMachine = createMachine(
         stopWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
+        restartWorkspace: {
+          data: TypesGen.WorkspaceBuild
+        }
         deleteWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
@@ -435,7 +438,7 @@ export const workspaceMachine = createMachine(
                   id: "restartWorkspace",
                   onDone: [
                     {
-                      actions: ["assignBuild"],
+                      actions: ["assignBuild", "disableDebugMode"],
                       target: "idle",
                     },
                   ],

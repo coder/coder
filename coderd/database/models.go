@@ -1160,9 +1160,10 @@ func AllWorkspaceAppHealthValues() []WorkspaceAppHealth {
 type WorkspaceTransition string
 
 const (
-	WorkspaceTransitionStart  WorkspaceTransition = "start"
-	WorkspaceTransitionStop   WorkspaceTransition = "stop"
-	WorkspaceTransitionDelete WorkspaceTransition = "delete"
+	WorkspaceTransitionStart   WorkspaceTransition = "start"
+	WorkspaceTransitionStop    WorkspaceTransition = "stop"
+	WorkspaceTransitionDelete  WorkspaceTransition = "delete"
+	WorkspaceTransitionRestart WorkspaceTransition = "restart"
 )
 
 func (e *WorkspaceTransition) Scan(src interface{}) error {
@@ -1204,7 +1205,8 @@ func (e WorkspaceTransition) Valid() bool {
 	switch e {
 	case WorkspaceTransitionStart,
 		WorkspaceTransitionStop,
-		WorkspaceTransitionDelete:
+		WorkspaceTransitionDelete,
+		WorkspaceTransitionRestart:
 		return true
 	}
 	return false
@@ -1215,6 +1217,7 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 		WorkspaceTransitionStart,
 		WorkspaceTransitionStop,
 		WorkspaceTransitionDelete,
+		WorkspaceTransitionRestart,
 	}
 }
 

@@ -1532,6 +1532,8 @@ export type WorkspaceStatus =
   | "deleting"
   | "failed"
   | "pending"
+  | "restarted"
+  | "restarting"
   | "running"
   | "starting"
   | "stopped"
@@ -1543,6 +1545,8 @@ export const WorkspaceStatuses: WorkspaceStatus[] = [
   "deleting",
   "failed",
   "pending",
+  "restarted",
+  "restarting",
   "running",
   "starting",
   "stopped",
@@ -1550,9 +1554,10 @@ export const WorkspaceStatuses: WorkspaceStatus[] = [
 ]
 
 // From codersdk/workspacebuilds.go
-export type WorkspaceTransition = "delete" | "start" | "stop"
+export type WorkspaceTransition = "delete" | "restart" | "start" | "stop"
 export const WorkspaceTransitions: WorkspaceTransition[] = [
   "delete",
+  "restart",
   "start",
   "stop",
 ]

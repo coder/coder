@@ -1255,6 +1255,22 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
+			case database.WorkspaceStatusRestarted:
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid &&
+					build.Transition != database.WorkspaceTransitionRestart {
+					continue
+				}
+
+			case database.WorkspaceStatusRestarting:
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid &&
+					build.Transition != database.WorkspaceTransitionRestart {
+					continue
+				}
+
 			default:
 				return nil, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
 			}
