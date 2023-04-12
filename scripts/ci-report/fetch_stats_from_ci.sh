@@ -26,7 +26,7 @@ if [[ ! -f list-ci.yaml.json ]]; then
 fi
 
 runs="$(
-	jq -r '.[] | select(.status == "completed") | select(.conclusion == "success" or .conclusion == "failure") | [.databaseId, .event, .displayTitle, .headBranch, .headSha] | @tsv' \
+	jq -r '.[] | select(.status == "completed") | select(.conclusion == "success" or .conclusion == "failure") | [.databaseId, .event, .displayTitle, .headBranch, .headSha, .url] | @tsv' \
 		<list-ci.yaml.json
 )"
 
@@ -39,6 +39,7 @@ while read -r run; do
 	display_title="${parts[2]}"
 	head_branch="${parts[3]}"
 	head_sha="${parts[4]}"
+	run_url="${parts[5]}"
 
 	# Check if this run predates the stats PR, if yes, skip it:
 	# https://github.com/coder/coder/issues/6676
@@ -129,14 +130,18 @@ while read -r run; do
 			continue
 		fi
 		jq \
+			--argjson run_id "${database_id}" \
+			--arg run_url "${run_url}" \
 			--arg event "${event}" \
 			--arg branch "${head_branch}" \
 			--arg sha "${head_sha}" \
 			--arg started_at "${job_started_at}" \
 			--arg completed_at "${job_completed_at}" \
 			--arg display_title "${display_title}" \
-			--arg url "${job_url}" \
-			'{event: $event, branch: $branch, sha: $sha, started_at: $started_at, completed_at: $completed_at, display_title: $display_title, url: $url, stats: .}' \
+			--argjson job_id "${job_database_id}" \
+			--arg job "${job_name}" \
+			--arg job_url "${job_url}" \
+			'{run_id: $run_id, run_url: $run_url, event: $event, branch: $branch, sha: $sha, started_at: $started_at, completed_at: $completed_at, display_title: $display_title, job_id: $job_id, job: $job, job_url: $job_url, stats: .}' \
 			<<<"${job_stats}" \
 			>"${job_stats_file}" || {
 			echo "Failed to write stats for: ${job_name} (${job_database_id}, ${job_url}), skipping..."
