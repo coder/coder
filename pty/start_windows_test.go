@@ -26,11 +26,15 @@ func TestStart(t *testing.T) {
 		pty.ExpectMatch("test")
 		err := ps.Wait()
 		require.NoError(t, err)
+		err = pty.Close()
+		require.NoError(t, err)
 	})
 	t.Run("Resize", func(t *testing.T) {
 		t.Parallel()
 		pty, _ := ptytest.Start(t, exec.Command("cmd.exe"))
 		err := pty.Resize(100, 50)
+		require.NoError(t, err)
+		err = pty.Close()
 		require.NoError(t, err)
 	})
 	t.Run("Kill", func(t *testing.T) {
@@ -42,5 +46,7 @@ func TestStart(t *testing.T) {
 		var exitErr *exec.ExitError
 		require.True(t, xerrors.As(err, &exitErr))
 		assert.NotEqual(t, 0, exitErr.ExitCode())
+		err = pty.Close()
+		require.NoError(t, err)
 	})
 }

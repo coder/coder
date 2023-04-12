@@ -4,10 +4,13 @@ package pty
 
 import (
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"runtime"
 	"sync"
+
+	"golang.org/x/xerrors"
 
 	"github.com/creack/pty"
 	"github.com/u-root/u-root/pkg/termios"
@@ -103,13 +106,13 @@ func (p *otherPty) InputWriter() io.Writer {
 
 func (p *otherPty) Output() ReadWriter {
 	return ReadWriter{
-		Reader: p.pty,
+		Reader: &ptmReader{p.pty},
 		Writer: p.tty,
 	}
 }
 
 func (p *otherPty) OutputReader() io.Reader {
-	return p.pty
+	return &ptmReader{p.pty}
 }
 
 func (p *otherPty) Resize(height uint16, width uint16) error {
@@ -175,4 +178,22 @@ func (p *otherProcess) waitInternal() {
 	p.cmdErr = p.cmd.Wait()
 	runtime.KeepAlive(p.pty)
 	close(p.cmdDone)
+}
+
+// ptmReader wraps a reference to the ptm side of a pseudo-TTY for portability
+type ptmReader struct {
+	ptm io.Reader
+}
+
+func (r *ptmReader) Read(p []byte) (n int, err error) {
+	n, err = r.ptm.Read(p)
+	// output from the ptm will hit a PathErr when the process hangs up the
+	// other side (typically when the process exits, but could be earlier).  For
+	// portability, and to fit with our use of io.Copy() to copy from the PTY,
+	// we want to translate this error into io.EOF
+	pathErr := &fs.PathError{}
+	if xerrors.As(err, &pathErr) {
+		return n, io.EOF
+	}
+	return n, err
 }

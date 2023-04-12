@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net"
 	"os"
 	"os/exec"
@@ -330,12 +329,7 @@ func (s *Server) startPTYSession(session ptySession, cmd *exec.Cmd, sshPty ssh.P
 	//    kill the command's process.  This then has the same effect as (1).
 	n, err := io.Copy(session, ptty.OutputReader())
 	s.logger.Debug(ctx, "copy output done", slog.F("bytes", n), slog.Error(err))
-
-	// output from the ptty will hit a PathErr on the PTY when the process
-	// hangs up the other side (typically when the process exits, but could
-	// be earlier)
-	pathErr := &fs.PathError{}
-	if err != nil && !xerrors.As(err, &pathErr) {
+	if err != nil {
 		return xerrors.Errorf("copy error: %w", err, err, err)
 	}
 	// We've gotten all the output, but we need to wait for the process to

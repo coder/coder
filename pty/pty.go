@@ -3,7 +3,6 @@ package pty
 import (
 	"io"
 	"log"
-	"os"
 
 	"github.com/gliderlabs/ssh"
 	"golang.org/x/xerrors"
@@ -119,8 +118,8 @@ func New(opts ...Option) (PTY, error) {
 // underlying file descriptors, one for reading and one for writing, and allows
 // them to be accessed separately.
 type ReadWriter struct {
-	Reader *os.File
-	Writer *os.File
+	Reader io.Reader
+	Writer io.Writer
 }
 
 func (rw ReadWriter) Read(p []byte) (int, error) {

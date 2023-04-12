@@ -29,20 +29,21 @@ func New(t *testing.T, opts ...pty.Option) *PTY {
 
 	ptty, err := pty.New(opts...)
 	require.NoError(t, err)
-	// Ensure pty is cleaned up at the end of test.
-	t.Cleanup(func() {
-		_ = ptty.Close()
-	})
 
 	e := newExpecter(t, ptty.Output(), "cmd")
-	return &PTY{
+	r := &PTY{
 		outExpecter: *e,
 		PTY:         ptty,
 	}
+	// Ensure pty is cleaned up at the end of test.
+	t.Cleanup(func() {
+		_ = r.Close()
+	})
+	return r
 }
 
-// Start starts a new process asynchronously and returns a PTY and Process.
-// It kills the process upon cleanup.
+// Start starts a new process asynchronously and returns a PTYCmd and Process.
+// It kills the process and PTYCmd upon cleanup
 func Start(t *testing.T, cmd *exec.Cmd, opts ...pty.StartOption) (*PTYCmd, pty.Process) {
 	t.Helper()
 
@@ -54,10 +55,14 @@ func Start(t *testing.T, cmd *exec.Cmd, opts ...pty.StartOption) (*PTYCmd, pty.P
 	})
 	ex := newExpecter(t, ptty.OutputReader(), cmd.Args[0])
 
-	return &PTYCmd{
+	r := &PTYCmd{
 		outExpecter: *ex,
 		PTYCmd:      ptty,
-	}, ps
+	}
+	t.Cleanup(func() {
+		_ = r.Close()
+	})
+	return r, ps
 }
 
 func newExpecter(t *testing.T, r io.Reader, name string) *outExpecter {
