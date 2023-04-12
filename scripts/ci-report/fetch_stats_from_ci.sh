@@ -40,6 +40,8 @@ while read -r run; do
 	head_branch="${parts[3]}"
 	head_sha="${parts[4]}"
 
+	# Check if this run predates the stats PR, if yes, skip it:
+	# https://github.com/coder/coder/issues/6676
 	if [[ ${database_id} -le 4595490577 ]]; then
 		echo "Skipping ${database_id} (${display_title}), too old..."
 		continue
@@ -102,6 +104,12 @@ while read -r run; do
 		fi
 
 		if ! job_stats="$(
+			# Extract the stats job output (JSON) from the job log,
+			# discarding the timestamp and non-JSON header.
+			#
+			# Example variable values:
+			#   job_name="test-go (ubuntu-latest)"
+			#   job_step_name="Print test stats"
 			grep "${job_name}.*${job_step_name}" "${job_log}" |
 				sed -E 's/.*[0-9-]{10}T[0-9:]{8}\.[0-9]*Z //' |
 				grep -E "^[{}\ ].*"
