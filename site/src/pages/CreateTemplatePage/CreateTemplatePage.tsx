@@ -44,7 +44,7 @@ const CreateTemplatePage: FC = () => {
   } = state.context
   const shouldDisplayForm = !state.hasTag("loading")
   const { entitlements } = useDashboard()
-  const canSetMaxTTL =
+  const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled
 
   const onCancel = () => {
@@ -70,7 +70,7 @@ const CreateTemplatePage: FC = () => {
           {shouldDisplayForm && (
             <CreateTemplateForm
               copiedTemplate={state.context.copiedTemplate}
-              canSetMaxTTL={canSetMaxTTL}
+              allowAdvancedScheduling={allowAdvancedScheduling}
               error={error}
               starterTemplate={starterTemplate}
               isSubmitting={state.hasTag("submitting")}

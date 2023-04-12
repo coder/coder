@@ -44,6 +44,8 @@ export interface CreateTemplateData {
   icon: string
   default_ttl_hours: number
   max_ttl_hours: number
+  allow_user_autostart: boolean
+  allow_user_autostop: boolean
   allow_user_cancel_workspace_jobs: boolean
   parameter_values_by_name?: Record<string, string>
   user_variable_values?: VariableValue[]
