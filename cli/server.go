@@ -33,15 +33,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
@@ -236,8 +235,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 			}
 
-			//If the access URL is empty, we attempt to run a reverse-proxy
-			//tunnel to make the initial setup really simple.
+			// If the access URL is empty, we attempt to run a reverse-proxy
+			// tunnel to make the initial setup really simple.
 			var (
 				tunnel     *tunnelsdk.Tunnel
 				tunnelDone <-chan struct{} = make(chan struct{}, 1)
