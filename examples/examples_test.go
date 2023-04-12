@@ -36,7 +36,7 @@ func TestTemplate(t *testing.T) {
 
 func TestSubdirs(t *testing.T) {
 	t.Parallel()
-	tarData, err := examples.Archive("docker-image-builds")
+	tarData, err := examples.Archive("docker")
 	require.NoError(t, err)
 
 	tarReader := tar.NewReader(bytes.NewReader(tarData))
@@ -52,5 +52,5 @@ func TestSubdirs(t *testing.T) {
 	}
 
 	require.Subset(t, entryPaths[tar.TypeDir], []string{"images"})
-	require.Subset(t, entryPaths[tar.TypeReg], []string{"README.md", "main.tf", "images/base.Dockerfile"})
+	require.Subset(t, entryPaths[tar.TypeReg], []string{"README.md", "main.tf", "build/Dockerfile"})
 }
