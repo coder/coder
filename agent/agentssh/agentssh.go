@@ -235,11 +235,10 @@ func (s *Server) sessionStart(session ssh.Session) error {
 	if isPty {
 		return s.startPTYSession(session, cmd, sshPty, windowSize)
 	}
-
-	return s.startNonPTYSession(session, cmd)
+	return startNonPTYSession(session, cmd)
 }
 
-func (s *Server) startNonPTYSession(session ssh.Session, cmd *exec.Cmd) error {
+func startNonPTYSession(session ssh.Session, cmd *exec.Cmd) error {
 	cmd.Stdout = session
 	cmd.Stderr = session.Stderr()
 	// This blocks forever until stdin is received if we don't
@@ -330,7 +329,7 @@ func (s *Server) startPTYSession(session ptySession, cmd *exec.Cmd, sshPty ssh.P
 	n, err := io.Copy(session, ptty.OutputReader())
 	s.logger.Debug(ctx, "copy output done", slog.F("bytes", n), slog.Error(err))
 	if err != nil {
-		return xerrors.Errorf("copy error: %w", err, err, err)
+		return xerrors.Errorf("copy error: %w", err)
 	}
 	// We've gotten all the output, but we need to wait for the process to
 	// complete so that we can get the exit code.  This returns
@@ -347,11 +346,6 @@ func (s *Server) startPTYSession(session ptySession, cmd *exec.Cmd, sshPty ssh.P
 	}
 	return nil
 }
-
-type readNopCloser struct{ io.Reader }
-
-// Close implements io.Closer.
-func (readNopCloser) Close() error { return nil }
 
 func (s *Server) sftpHandler(session ssh.Session) {
 	ctx := session.Context()

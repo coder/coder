@@ -13,6 +13,7 @@ var ErrClosed = xerrors.New("pty: closed")
 
 // PTYCmd is an interface for interacting with a pseudo-TTY where we control
 // only one end, and the other end has been passed to a running os.Process.
+// nolint:revive
 type PTYCmd interface {
 	io.Closer
 

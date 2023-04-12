@@ -10,12 +10,13 @@ import (
 	"sync"
 	"testing"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
+
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/codersdk/agentsdk"
