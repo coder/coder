@@ -382,7 +382,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   />
                 )}
 
-                {buildLogs && (
+                {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
                     templateEditorPane
                     hideTimestamps

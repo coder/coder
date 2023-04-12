@@ -410,7 +410,7 @@ export const templateVersionEditorMachine = createMachine(
     },
     guards: {
       jobFailedWithMissingVariables: (_, { data }) => {
-        return data.job.error_code === "MISSING_TEMPLATE_PARAMETER"
+        return data.job.error_code === "REQUIRED_TEMPLATE_VARIABLES"
       },
     },
   },
