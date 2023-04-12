@@ -109,7 +109,7 @@ EOF
 
 data "coder_parameter" "docker-image" {
   name         = "docker-image"
-  display_name = "Docker Image"
+  display_name = "Docker image"
   description  = "The docker image to use for the workspace"
   default      = "codercom/code-server:latest"
   icon         = "https://raw.githubusercontent.com/matifali/logos/main/docker.svg"
@@ -131,7 +131,7 @@ data "coder_parameter" "cpu" {
 
 data "coder_parameter" "cputype" {
   name         = "cputype"
-  display_name = "CPU Type"
+  display_name = "CPU type"
   description  = "Which CPU type do you want?"
   default      = "shared"
   icon         = "https://raw.githubusercontent.com/matifali/logos/main/cpu-1.svg"
@@ -162,7 +162,7 @@ data "coder_parameter" "memory" {
 
 data "coder_parameter" "volume-size" {
   name         = "volume-size"
-  display_name = "Home Volume Size"
+  display_name = "Home volume size"
   description  = "The size of the volume to create for the workspace in GB (1-20)"
   type         = "number"
   default      = "1"

@@ -152,7 +152,7 @@ data "coder_parameter" "location" {
 
 data "coder_parameter" "instance_type" {
   name         = "instance_type"
-  display_name = "Instance Type"
+  display_name = "Instance type"
   description  = "What instance type should your workspace use?"
   default      = "Standard_B4ms"
   icon         = "/icon/azure.png"
@@ -205,7 +205,7 @@ data "coder_parameter" "instance_type" {
 
 data "coder_parameter" "home_size" {
   name         = "home_size"
-  display_name = "Home Volume Size"
+  display_name = "Home volume size"
   description  = "How large would you like your home volume to be (in GB)?"
   default      = 20
   type         = "number"

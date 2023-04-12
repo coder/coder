@@ -53,7 +53,7 @@ variable "step2_do_admin_ssh_key" {
 
 data "coder_parameter" "droplet_image" {
   name         = "droplet_image"
-  display_name = "Droplet Image"
+  display_name = "Droplet image"
   description  = "Which Droplet image would you like to use?"
   default      = "ubuntu-22-04-x64"
   type         = "string"
@@ -112,7 +112,7 @@ data "coder_parameter" "droplet_image" {
 
 data "coder_parameter" "droplet_size" {
   name         = "droplet_size"
-  display_name = "Droplet Size"
+  display_name = "Droplet size"
   description  = "Which Droplet configuration would you like to use?"
   default      = "s-1vcpu-1gb"
   type         = "string"
@@ -147,7 +147,7 @@ data "coder_parameter" "droplet_size" {
 
 data "coder_parameter" "home_volume_size" {
   name         = "home_volume_size"
-  display_name = "Home Volume Size"
+  display_name = "Home volume size"
   description  = "How large would you like your home volume to be (in GB)?"
   type         = "number"
   default      = "20"

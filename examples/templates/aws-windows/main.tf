@@ -108,7 +108,7 @@ data "coder_parameter" "region" {
 
 data "coder_parameter" "instance_type" {
   name         = "instance_type"
-  display_name = "Instance Type"
+  display_name = "Instance type"
   description  = "What instance type should your workspace use?"
   default      = "t3.micro"
   mutable      = false
