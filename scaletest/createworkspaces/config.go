@@ -26,11 +26,13 @@ func (c UserConfig) Validate() error {
 	if c.OrganizationID == uuid.Nil {
 		return xerrors.New("organization_id must not be a nil UUID")
 	}
-	if c.Username == "" {
-		return xerrors.New("username must be set")
-	}
-	if c.Email == "" {
-		return xerrors.New("email must be set")
+	if c.SessionToken == "" {
+		if c.Username == "" {
+			return xerrors.New("username must be set")
+		}
+		if c.Email == "" {
+			return xerrors.New("email must be set")
+		}
 	}
 
 	return nil
