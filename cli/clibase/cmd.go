@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+	"gopkg.in/yaml.v3"
 )
 
 // Cmd describes an executable command.
@@ -76,10 +77,8 @@ func (c *Cmd) PrepareAll() error {
 	}
 	var merr error
 
-	slices.SortFunc(c.Options, func(a, b Option) bool {
-		return a.Flag < b.Flag
-	})
-	for _, opt := range c.Options {
+	for i := range c.Options {
+		opt := &c.Options[i]
 		if opt.Name == "" {
 			switch {
 			case opt.Flag != "":
@@ -102,6 +101,10 @@ func (c *Cmd) PrepareAll() error {
 			}
 		}
 	}
+
+	slices.SortFunc(c.Options, func(a, b Option) bool {
+		return a.Name < b.Name
+	})
 	slices.SortFunc(c.Children, func(a, b *Cmd) bool {
 		return a.Name() < b.Name()
 	})
@@ -262,17 +265,38 @@ func (inv *Invocation) run(state *runState) error {
 		parsedArgs = inv.parsedFlags.Args()
 	}
 
-	// Set defaults for flags that weren't set by the user.
-	skipDefaults := make(map[int]struct{}, len(inv.Command.Options))
+	// Set value sources for flags.
 	for i, opt := range inv.Command.Options {
 		if fl := inv.parsedFlags.Lookup(opt.Flag); fl != nil && fl.Changed {
-			skipDefaults[i] = struct{}{}
-		}
-		if opt.envChanged {
-			skipDefaults[i] = struct{}{}
+			inv.Command.Options[i].ValueSource = ValueSourceFlag
 		}
 	}
-	err = inv.Command.Options.SetDefaults(skipDefaults)
+
+	// Read YAML configs, if any.
+	for _, opt := range inv.Command.Options {
+		path, ok := opt.Value.(*YAMLConfigPath)
+		if !ok || path.String() == "" {
+			continue
+		}
+
+		byt, err := os.ReadFile(path.String())
+		if err != nil {
+			return xerrors.Errorf("reading yaml: %w", err)
+		}
+
+		var n yaml.Node
+		err = yaml.Unmarshal(byt, &n)
+		if err != nil {
+			return xerrors.Errorf("decoding yaml: %w", err)
+		}
+
+		err = inv.Command.Options.UnmarshalYAML(&n)
+		if err != nil {
+			return xerrors.Errorf("applying yaml: %w", err)
+		}
+	}
+
+	err = inv.Command.Options.SetDefaults()
 	if err != nil {
 		return xerrors.Errorf("setting defaults: %w", err)
 	}

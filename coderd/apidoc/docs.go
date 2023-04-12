@@ -5646,6 +5646,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
                 "output": {
                     "type": "string"
                 }
@@ -5721,12 +5724,6 @@ const docTemplate = `{
         "clibase.Group": {
             "type": "object",
             "properties": {
-                "children": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/clibase.Group"
-                    }
-                },
                 "description": {
                     "type": "string"
                 },
@@ -5735,6 +5732,9 @@ const docTemplate = `{
                 },
                 "parent": {
                     "$ref": "#/definitions/clibase.Group"
+                },
+                "yaml": {
+                    "type": "string"
                 }
             }
         },
@@ -5802,6 +5802,9 @@ const docTemplate = `{
                 },
                 "value": {
                     "description": "Value includes the types listed in values.go."
+                },
+                "value_source": {
+                    "$ref": "#/definitions/clibase.ValueSource"
                 },
                 "yaml": {
                     "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
@@ -5882,6 +5885,23 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "clibase.ValueSource": {
+            "type": "string",
+            "enum": [
+                "",
+                "flag",
+                "env",
+                "yaml",
+                "default"
+            ],
+            "x-enum-varnames": [
+                "ValueSourceNone",
+                "ValueSourceFlag",
+                "ValueSourceEnv",
+                "ValueSourceYAML",
+                "ValueSourceDefault"
+            ]
         },
         "coderd.SCIMUser": {
             "type": "object",
@@ -6270,7 +6290,11 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "description": "ResourceType is the name of the resource.\n` + "`" + `./coderd/rbac/object.go` + "`" + ` has the list of valid resource types.",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.RBACResource"
+                        }
+                    ]
                 }
             }
         },
@@ -6964,6 +6988,9 @@ const docTemplate = `{
                 },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
+                },
+                "disable_owner_workspace_exec": {
+                    "type": "boolean"
                 },
                 "disable_password_auth": {
                     "type": "boolean"
@@ -8002,6 +8029,57 @@ const docTemplate = `{
                     "format": "date-time"
                 }
             }
+        },
+        "codersdk.RBACResource": {
+            "type": "string",
+            "enum": [
+                "workspace",
+                "workspace_proxy",
+                "workspace_execution",
+                "application_connect",
+                "audit_log",
+                "template",
+                "group",
+                "file",
+                "provisioner_daemon",
+                "organization",
+                "assign_role",
+                "assign_org_role",
+                "api_key",
+                "user",
+                "user_data",
+                "organization_member",
+                "license",
+                "deployment_config",
+                "deployment_stats",
+                "replicas",
+                "debug_info",
+                "system"
+            ],
+            "x-enum-varnames": [
+                "ResourceWorkspace",
+                "ResourceWorkspaceProxy",
+                "ResourceWorkspaceExecution",
+                "ResourceWorkspaceApplicationConnect",
+                "ResourceAuditLog",
+                "ResourceTemplate",
+                "ResourceGroup",
+                "ResourceFile",
+                "ResourceProvisionerDaemon",
+                "ResourceOrganization",
+                "ResourceRoleAssignment",
+                "ResourceOrgRoleAssignment",
+                "ResourceAPIKey",
+                "ResourceUser",
+                "ResourceUserData",
+                "ResourceOrganizationMember",
+                "ResourceLicense",
+                "ResourceDeploymentValues",
+                "ResourceDeploymentStats",
+                "ResourceReplicas",
+                "ResourceDebugInfo",
+                "ResourceSystem"
+            ]
         },
         "codersdk.RateLimitConfig": {
             "type": "object",
@@ -9140,6 +9218,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
                 },
                 "output": {
                     "type": "string"

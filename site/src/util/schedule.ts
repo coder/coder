@@ -10,8 +10,8 @@ import utc from "dayjs/plugin/utc"
 import { Workspace } from "../api/typesGenerated"
 import { isWorkspaceOn } from "./workspace"
 import { WorkspaceScheduleFormValues } from "components/WorkspaceScheduleForm/WorkspaceScheduleForm"
-import { Autostop } from "pages/WorkspaceSchedulePage/ttl"
-import { Autostart } from "pages/WorkspaceSchedulePage/schedule"
+import { Autostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
+import { Autostart } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.

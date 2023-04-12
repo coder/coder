@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -12,12 +13,14 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -29,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
@@ -80,6 +84,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 			"CODER_GITAUTH_1_TOKEN_URL=google.com",
 			"CODER_GITAUTH_1_VALIDATE_URL=bing.com",
 			"CODER_GITAUTH_1_SCOPES=repo:read repo:write",
+			"CODER_GITAUTH_1_NO_REFRESH=true",
 		})
 		require.NoError(t, err)
 		require.Len(t, providers, 2)
@@ -95,6 +100,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "google.com", providers[1].TokenURL)
 		assert.Equal(t, "bing.com", providers[1].ValidateURL)
 		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
+		assert.Equal(t, true, providers[1].NoRefresh)
 	})
 }
 
@@ -1411,6 +1417,80 @@ func TestServer(t *testing.T) {
 			waitFile(t, fi3, testutil.WaitSuperLong)
 		})
 	})
+
+	t.Run("YAML", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("WriteThenReadConfig", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			args := []string{
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--log-human", filepath.Join(t.TempDir(), "coder-logging-test-human"),
+				// We use ecdsa here because it's the fastest alternative algorithm.
+				"--ssh-keygen-algorithm", "ecdsa",
+				"--cache-dir", t.TempDir(),
+			}
+
+			// First, we get the base config as set via flags (like users before
+			// migrating).
+			inv, cfg := clitest.New(t,
+				args...,
+			)
+			ptytest.New(t).Attach(inv)
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
+			gotURL := waitAccessURL(t, cfg)
+			client := codersdk.New(gotURL)
+
+			_ = coderdtest.CreateFirstUser(t, client)
+			wantConfig, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err)
+			cancel()
+			w.RequireSuccess()
+
+			// Next, we instruct the same server to display the YAML config
+			// and then save it.
+			inv = inv.WithContext(testutil.Context(t, testutil.WaitMedium))
+			inv.Args = append(args, "--write-config")
+			fi, err := os.OpenFile(testutil.TempFile(t, "", "coder-config-test-*"), os.O_WRONLY|os.O_CREATE, 0o600)
+			require.NoError(t, err)
+			defer fi.Close()
+			var conf bytes.Buffer
+			inv.Stdout = io.MultiWriter(fi, &conf)
+			t.Logf("%+v", inv.Args)
+			err = inv.Run()
+			require.NoError(t, err)
+
+			// Reset the context.
+			ctx = testutil.Context(t, testutil.WaitMedium)
+			// Finally, we restart the server with just the config and no flags
+			// and ensure that the live configuration is equivalent.
+			inv, cfg = clitest.New(t, "server", "--config="+fi.Name())
+			w = clitest.StartWithWaiter(t, inv)
+			client = codersdk.New(waitAccessURL(t, cfg))
+			_ = coderdtest.CreateFirstUser(t, client)
+			gotConfig, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err, "config:\n%s\nargs: %+v", conf.String(), inv.Args)
+			gotConfig.Options.ByName("Config Path").Value.Set("")
+			// We check the options individually for better error messages.
+			for i := range wantConfig.Options {
+				assert.Equal(
+					t, wantConfig.Options[i],
+					gotConfig.Options[i],
+					"option %q",
+					wantConfig.Options[i].Name,
+				)
+			}
+			w.RequireSuccess()
+		})
+	})
 }
 
 func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {
@@ -1469,4 +1549,43 @@ func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
 	require.NoError(t, err, "failed to parse access URL")
 
 	return accessURL
+}
+
+func TestServerYAMLConfig(t *testing.T) {
+	t.Parallel()
+
+	var deployValues codersdk.DeploymentValues
+	opts := deployValues.Options()
+
+	err := opts.SetDefaults()
+	require.NoError(t, err)
+
+	n, err := opts.MarshalYAML()
+	require.NoError(t, err)
+
+	// Sanity-check that we can read the config back in.
+	err = opts.UnmarshalYAML(n.(*yaml.Node))
+	require.NoError(t, err)
+
+	var wantBuf bytes.Buffer
+	enc := yaml.NewEncoder(&wantBuf)
+	enc.SetIndent(2)
+	err = enc.Encode(n)
+	require.NoError(t, err)
+
+	wantByt := wantBuf.Bytes()
+
+	goldenPath := filepath.Join("testdata", "server-config.yaml.golden")
+
+	wantByt = normalizeGoldenFile(t, wantByt)
+	if *updateGoldenFiles {
+		require.NoError(t, os.WriteFile(goldenPath, wantByt, 0o600))
+		return
+	}
+
+	got, err := os.ReadFile(goldenPath)
+	require.NoError(t, err)
+	got = normalizeGoldenFile(t, got)
+
+	require.Equal(t, string(wantByt), string(got))
 }

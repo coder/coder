@@ -59,7 +59,7 @@ export const permissionsToCheck = {
   },
   [checks.viewDeploymentValues]: {
     object: {
-      resource_type: "deployment_flags",
+      resource_type: "deployment_config",
     },
     action: "read",
   },
@@ -71,7 +71,7 @@ export const permissionsToCheck = {
   },
   [checks.viewUpdateCheck]: {
     object: {
-      resource_type: "update_check",
+      resource_type: "deployment_config",
     },
     action: "read",
   },

@@ -2,6 +2,8 @@ package rbac
 
 import (
 	"errors"
+	"flag"
+	"fmt"
 
 	"github.com/open-policy-agent/opa/rego"
 )
@@ -10,7 +12,7 @@ const (
 	// errUnauthorized is the error message that should be returned to
 	// clients when an action is forbidden. It is intentionally vague to prevent
 	// disclosing information that a client should not have access to.
-	errUnauthorized = "forbidden"
+	errUnauthorized = "rbac: forbidden"
 )
 
 // UnauthorizedError is the error type for authorization errors
@@ -51,8 +53,18 @@ func (e UnauthorizedError) Unwrap() error {
 	return e.internal
 }
 
+func (e *UnauthorizedError) longError() string {
+	return fmt.Sprintf(
+		"%s: (subject: %v), (action: %v), (object: %v), (output: %v)",
+		errUnauthorized, e.subject, e.action, e.object, e.output,
+	)
+}
+
 // Error implements the error interface.
-func (UnauthorizedError) Error() string {
+func (e UnauthorizedError) Error() string {
+	if flag.Lookup("test.v") != nil {
+		return e.longError()
+	}
 	return errUnauthorized
 }
 

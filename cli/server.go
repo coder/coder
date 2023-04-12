@@ -145,7 +145,7 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 		case "REGEX":
 			provider.Regex = v.Value
 		case "NO_REFRESH":
-			b, err := strconv.ParseBool(key)
+			b, err := strconv.ParseBool(v.Value)
 			if err != nil {
 				return nil, xerrors.Errorf("parse bool: %s", v.Value)
 			}
@@ -165,56 +165,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		opts = cfg.Options()
 	)
 	serverCmd := &clibase.Cmd{
-		Use:        "server",
-		Short:      "Start a Coder server",
-		Options:    opts,
-		Middleware: clibase.RequireNArgs(0),
+		Use:     "server",
+		Short:   "Start a Coder server",
+		Options: opts,
+		Middleware: clibase.Chain(
+			writeConfigMW(cfg),
+			printDeprecatedOptions(),
+			clibase.RequireNArgs(0),
+		),
 		Handler: func(inv *clibase.Invocation) error {
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			if cfg.WriteConfig {
-				// TODO: this should output to a file.
-				n, err := opts.ToYAML()
-				if err != nil {
-					return xerrors.Errorf("generate yaml: %w", err)
-				}
-				enc := yaml.NewEncoder(inv.Stderr)
-				err = enc.Encode(n)
-				if err != nil {
-					return xerrors.Errorf("encode yaml: %w", err)
-				}
-				err = enc.Close()
-				if err != nil {
-					return xerrors.Errorf("close yaml encoder: %w", err)
-				}
-				return nil
-			}
-
-			// Print deprecation warnings.
-			for _, opt := range opts {
-				if opt.UseInstead == nil {
-					continue
-				}
-
-				if opt.Value.String() == opt.Default {
-					continue
-				}
-
-				warnStr := opt.Name + " is deprecated, please use "
-				for i, use := range opt.UseInstead {
-					warnStr += use.Name + " "
-					if i != len(opt.UseInstead)-1 {
-						warnStr += "and "
-					}
-				}
-				warnStr += "instead.\n"
-
-				cliui.Warn(inv.Stderr,
-					warnStr,
-				)
+			if cfg.Config != "" {
+				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
 			}
 
 			go dumpHandler(ctx)
@@ -896,6 +862,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create coder API: %w", err)
 			}
 
+			if cfg.Prometheus.Enable {
+				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.
+				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, options.DERPMap, coderAPI.Options.AgentInactiveDisconnectTimeout, 0)
+				if err != nil {
+					return xerrors.Errorf("register agents prometheus metric: %w", err)
+				}
+				defer closeAgentsFunc()
+			}
+
 			client := codersdk.New(localURL)
 			if localURL.Scheme == "https" && isLocalhost(localURL.Hostname()) {
 				// The certificate will likely be self-signed or for a different
@@ -1207,6 +1182,71 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	)
 
 	return serverCmd
+}
+
+// printDeprecatedOptions loops through all command options, and prints
+// a warning for usage of deprecated options.
+func printDeprecatedOptions() clibase.MiddlewareFunc {
+	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
+		return func(inv *clibase.Invocation) error {
+			opts := inv.Command.Options
+			// Print deprecation warnings.
+			for _, opt := range opts {
+				if opt.UseInstead == nil {
+					continue
+				}
+
+				if opt.Value.String() == opt.Default {
+					continue
+				}
+
+				warnStr := opt.Name + " is deprecated, please use "
+				for i, use := range opt.UseInstead {
+					warnStr += use.Name + " "
+					if i != len(opt.UseInstead)-1 {
+						warnStr += "and "
+					}
+				}
+				warnStr += "instead.\n"
+
+				cliui.Warn(inv.Stderr,
+					warnStr,
+				)
+			}
+
+			return next(inv)
+		}
+	}
+}
+
+// writeConfigMW will prevent the main command from running if the write-config
+// flag is set. Instead, it will marshal the command options to YAML and write
+// them to stdout.
+func writeConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
+	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
+		return func(inv *clibase.Invocation) error {
+			if !cfg.WriteConfig {
+				return next(inv)
+			}
+
+			opts := inv.Command.Options
+			n, err := opts.MarshalYAML()
+			if err != nil {
+				return xerrors.Errorf("generate yaml: %w", err)
+			}
+			enc := yaml.NewEncoder(inv.Stdout)
+			enc.SetIndent(2)
+			err = enc.Encode(n)
+			if err != nil {
+				return xerrors.Errorf("encode yaml: %w", err)
+			}
+			err = enc.Close()
+			if err != nil {
+				return xerrors.Errorf("close yaml encoder: %w", err)
+			}
+			return nil
+		}
+	}
 }
 
 // isLocalURL returns true if the hostname of the provided URL appears to

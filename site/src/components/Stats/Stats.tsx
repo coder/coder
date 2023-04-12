@@ -30,6 +30,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     color: theme.palette.text.secondary,
     margin: "0px",
+    flexWrap: "wrap",
 
     [theme.breakpoints.down("sm")]: {
       display: "block",

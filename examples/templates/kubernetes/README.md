@@ -9,25 +9,6 @@ icon: /icon/k8s.png
 
 This template creates a pod running the `codercom/enterprise-base:ubuntu` image.
 
-## RBAC
-
-The Coder provisioner requires permission to administer pods to use this template. The template
-creates workspaces in a single Kubernetes namespace, using the `workspaces_namespace` parameter set
-while creating the template.
-
-Create a role as follows and bind it to the user or service account that runs the coder host.
-
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: coder
-rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["*"]
-```
-
 ## Authentication
 
 This template can authenticate using in-cluster authentication, or using a kubeconfig local to the
@@ -74,6 +55,10 @@ roleRef:
 ```
 
 Then start the Coder host with `serviceAccountName: coder` in the pod spec.
+
+### Authenticate against external clusters
+
+You may want to deploy workspaces on a cluster outside of the Coder control plane. Refer to the [Coder docs](https://coder.com/docs/v2/latest/platforms/kubernetes/additional-clusters) to learn how to modify your template to authenticate against external clusters.
 
 ## Namespace
 

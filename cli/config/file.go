@@ -125,5 +125,9 @@ func read(path string) ([]byte, error) {
 }
 
 func DefaultDir() string {
-	return configdir.LocalConfig("coderv2")
+	configDir := configdir.LocalConfig("coderv2")
+	if dir := os.Getenv("CLIDOCGEN_CONFIG_DIRECTORY"); dir != "" {
+		configDir = dir
+	}
+	return configDir
 }

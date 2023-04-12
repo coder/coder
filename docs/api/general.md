@@ -188,6 +188,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "stun_addresses": ["string"]
       }
     },
+    "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
@@ -371,27 +372,21 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "flag": "string",
       "flag_shorthand": "string",
       "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {}
-          }
-        ],
         "description": "string",
         "name": "string",
         "parent": {
-          "children": [{}],
           "description": "string",
           "name": "string",
-          "parent": {}
-        }
+          "parent": {},
+          "yaml": "string"
+        },
+        "yaml": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [{}],
       "value": null,
+      "value_source": "",
       "yaml": "string"
     }
   ]
