@@ -9,7 +9,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -28,24 +28,26 @@ data "coder_workspace" "me" {
 }
 
 data "coder_parameter" "docker_image" {
-  name        = "What Docker image would you like to use for your workspace?"
-  description = "The Docker image will be used to build your workspace."
-  default     = "codercom/enterprise-base:ubuntu"
-  icon        = "/icon/docker.png"
-  type        = "string"
-  mutable     = false
+  name         = "docker_image"
+  display_name = "Docker Image"
+  description  = "The Docker image will be used to build your workspace."
+  default      = "codercom/enterprise-base:ubuntu"
+  icon         = "/icon/docker.png"
+  type         = "string"
+  mutable      = false
 }
 
 data "coder_parameter" "dotfiles_uri" {
-  name        = "What dotfiles repo would you like to use for your workspace?"
-  description = <<-EOF
+  name         = "dotfiles_uri"
+  display_name = "dotfiles URI"
+  description  = <<-EOF
   Dotfiles repo URI (optional)
 
   see https://dotfiles.github.io
   EOF
-  default     = ""
-  type        = "string"
-  mutable     = true
+  default      = ""
+  type         = "string"
+  mutable      = true
 }
 
 resource "coder_agent" "main" {
