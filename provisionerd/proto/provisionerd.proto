@@ -109,9 +109,6 @@ message UpdateJobRequest {
     repeated provisioner.TemplateVariable template_variables = 4;
 	repeated provisioner.VariableValue user_variable_values = 5;
     bytes readme = 6;
-	// Heartbeat is true when the request is a heartbeat indicating job
-	// liveness.
-	bool heartbeat = 7;
 }
 
 message UpdateJobResponse {
