@@ -1,10 +1,13 @@
 package coderd
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -48,13 +51,6 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 // @Router /applications/auth-redirect [get]
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if api.AppHostname == "" {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "The server does not accept subdomain-based application requests.",
-		})
-		return
-	}
-
 	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(r, rbac.ActionCreate, apiKey) {
 		httpapi.ResourceNotFound(rw)
@@ -81,22 +77,41 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	// security purposes.
 	u.Scheme = api.AccessURL.Scheme
 
+	ok := false
+	if api.AppHostnameRegex != nil {
+		_, ok = httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, u.Host)
+	}
+
 	// Ensure that the redirect URI is a subdomain of api.Hostname and is a
 	// valid app subdomain.
-	subdomain, ok := api.executeHostnamePattern(u.Host)
 	if !ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The redirect_uri query parameter must be a valid app subdomain.",
-		})
-		return
-	}
-	_, err = httpapi.ParseSubdomainAppURL(subdomain)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The redirect_uri query parameter must be a valid app subdomain.",
-			Detail:  err.Error(),
-		})
-		return
+		proxy, err := api.Database.GetWorkspaceProxyByHostname(ctx, u.Hostname())
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "The redirect_uri query parameter must be the primary wildcard app hostname, a workspace proxy access URL or a workspace proxy wildcard app hostname.",
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get workspace proxy by redirect_uri.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		proxyURL, err := url.Parse(proxy.Url)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to parse workspace proxy URL.",
+				Detail:  xerrors.Errorf("parse proxy URL %q: %w", proxy.Url, err).Error(),
+			})
+			return
+		}
+
+		// Force the redirect URI to use the same scheme as the proxy access URL
+		// for security purposes.
+		u.Scheme = proxyURL.Scheme
 	}
 
 	// Create the application_connect-scoped API key with the same lifetime as
@@ -140,15 +155,4 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	q.Set(workspaceapps.SubdomainProxyAPIKeyParam, encryptedAPIKey)
 	u.RawQuery = q.Encode()
 	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
-}
-
-// executeHostnamePattern will check if a hostname is a valid subdomain based
-// app. First it checks the primary's hostname, then checks if the hostname
-// is valid for any workspace proxy domain.
-func (api *API) executeHostnamePattern(hostname string) (string, bool) {
-	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, hostname)
-	if ok {
-		return subdomain, true
-	}
-	return api.ProxyCache.ExecuteHostnamePattern(hostname)
 }

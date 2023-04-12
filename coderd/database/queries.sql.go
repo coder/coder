@@ -2858,6 +2858,56 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 	return items, nil
 }
 
+const getWorkspaceProxyByHostname = `-- name: GetWorkspaceProxyByHostname :one
+SELECT
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+FROM
+	workspace_proxies
+WHERE
+	-- Validate that the @hostname has been sanitized and is not empty. This
+	-- doesn't prevent SQL injection (already prevented by using prepared
+	-- queries), but it does prevent carefully crafted hostnames from matching
+	-- when they shouldn't.
+	--
+	-- Periods don't need to be escaped because they're not special characters
+	-- in SQL matches unlike regular expressions.
+	$1 :: text SIMILAR TO '[a-zA-Z0-9.-]+' AND
+	deleted = false AND
+
+	-- Validate that the hostname matches either the wildcard hostname or the
+	-- access URL (ignoring scheme, port and path).
+	(
+		url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*' OR
+		$1 :: text LIKE replace(wildcard_hostname, '*', '%')
+	)
+LIMIT
+	1
+`
+
+// Finds a workspace proxy that has an access URL or app hostname that matches
+// the provided hostname. This is to check if a hostname matches any workspace
+// proxy.
+//
+// The hostname must be sanitized to only contain [a-zA-Z0-9.-] before calling
+// this query. The scheme, port and path should be stripped.
+func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, hostname string) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByHostname, hostname)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+		&i.TokenHashedSecret,
+	)
+	return i, err
+}
+
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
 	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret

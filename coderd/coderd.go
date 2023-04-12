@@ -51,7 +51,6 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
 	"github.com/coder/coder/coderd/provisionerdserver"
-	"github.com/coder/coder/coderd/proxycache"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
@@ -279,9 +278,6 @@ func New(options *Options) *API {
 		},
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	proxyCache := proxycache.New(ctx, options.Logger.Named("proxy_cache"), options.Database, time.Minute*5)
-
 	staticHandler := site.Handler(site.FS(), binFS, binHashes)
 	// Static file handler must be wrapped with HSTS handler if the
 	// StrictTransportSecurityAge is set. We only need to set this header on
@@ -293,6 +289,7 @@ func New(options *Options) *API {
 		OIDC:   options.OIDCConfig,
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
 	api := &API{
 		ctx:    ctx,
@@ -317,7 +314,6 @@ func New(options *Options) *API {
 			options.AppSecurityKey,
 		),
 		metricsCache:          metricsCache,
-		ProxyCache:            proxyCache,
 		Auditor:               atomic.Pointer[audit.Auditor]{},
 		TemplateScheduleStore: options.TemplateScheduleStore,
 		Experiments:           experiments,
@@ -826,8 +822,7 @@ type API struct {
 	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
 	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
-	workspaceAppServer *workspaceapps.Server
-	ProxyCache         *proxycache.Cache
+	workspaceAppServer    *workspaceapps.Server
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

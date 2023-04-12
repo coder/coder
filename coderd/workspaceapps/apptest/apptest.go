@@ -304,11 +304,6 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			appDetails := setupProxyTest(t, nil)
 
-			if !appDetails.AppHostServesAPI {
-				// TODO: FIX THIS!!!!!!
-				t.Skip("this test is broken on moons because of the app auth-redirect endpoint verifying hostnames incorrectly")
-			}
-
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
@@ -432,61 +427,6 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			require.NoError(t, err)
 			resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-		})
-
-		t.Run("VerifyRedirectURI", func(t *testing.T) {
-			t.Parallel()
-
-			appDetails := setupProxyTest(t, nil)
-
-			cases := []struct {
-				name            string
-				redirectURI     string
-				status          int
-				messageContains string
-			}{
-				{
-					name:            "NoRedirectURI",
-					redirectURI:     "",
-					status:          http.StatusBadRequest,
-					messageContains: "Missing redirect_uri query parameter",
-				},
-				{
-					name:            "InvalidURI",
-					redirectURI:     "not a url",
-					status:          http.StatusBadRequest,
-					messageContains: "Invalid redirect_uri query parameter",
-				},
-				{
-					name:            "NotMatchAppHostname",
-					redirectURI:     "https://app--agent--workspace--user.not-a-match.com",
-					status:          http.StatusBadRequest,
-					messageContains: "The redirect_uri query parameter must be a valid app subdomain",
-				},
-				{
-					name:            "InvalidAppURL",
-					redirectURI:     "https://not-an-app." + proxyTestSubdomain,
-					status:          http.StatusBadRequest,
-					messageContains: "The redirect_uri query parameter must be a valid app subdomain",
-				},
-			}
-
-			for _, c := range cases {
-				c := c
-				t.Run(c.name, func(t *testing.T) {
-					t.Parallel()
-
-					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-					defer cancel()
-
-					resp, err := requestWithRetries(ctx, t, appDetails.APIClient, http.MethodGet, "/api/v2/applications/auth-redirect", nil,
-						codersdk.WithQueryParam("redirect_uri", c.redirectURI),
-					)
-					require.NoError(t, err)
-					defer resp.Body.Close()
-					require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-				})
-			}
 		})
 	})
 

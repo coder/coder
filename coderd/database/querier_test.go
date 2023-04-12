@@ -4,6 +4,7 @@ package database_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -126,4 +127,99 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 		OutputLength: 1,
 	})
 	require.True(t, database.IsStartupLogsLimitError(err))
+}
+
+func TestProxyByHostname(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	// Insert a bunch of different proxies.
+	proxies := []struct {
+		name             string
+		accessURL        string
+		wildcardHostname string
+	}{
+		{
+			name:             "one",
+			accessURL:        "https://one.coder.com",
+			wildcardHostname: "*.wildcard.one.coder.com",
+		},
+		{
+			name:             "two",
+			accessURL:        "https://two.coder.com",
+			wildcardHostname: "*--suffix.two.coder.com",
+		},
+	}
+	for _, p := range proxies {
+		dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{
+			Name:             p.name,
+			Url:              p.accessURL,
+			WildcardHostname: p.wildcardHostname,
+		})
+	}
+
+	cases := []struct {
+		name           string
+		testHostname   string
+		matchProxyName string
+	}{
+		{
+			name:           "NoMatch",
+			testHostname:   "test.com",
+			matchProxyName: "",
+		},
+		{
+			name:           "MatchAccessURL",
+			testHostname:   "one.coder.com",
+			matchProxyName: "one",
+		},
+		{
+			name:           "MatchWildcard",
+			testHostname:   "something.wildcard.one.coder.com",
+			matchProxyName: "one",
+		},
+		{
+			name:           "MatchSuffix",
+			testHostname:   "something--suffix.two.coder.com",
+			matchProxyName: "two",
+		},
+		{
+			name:           "ValidateHostname/1",
+			testHostname:   ".*ne.coder.com",
+			matchProxyName: "",
+		},
+		{
+			name:           "ValidateHostname/2",
+			testHostname:   "https://one.coder.com",
+			matchProxyName: "",
+		},
+		{
+			name:           "ValidateHostname/3",
+			testHostname:   "one.coder.com:8080/hello",
+			matchProxyName: "",
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			proxy, err := db.GetWorkspaceProxyByHostname(context.Background(), c.testHostname)
+			if c.matchProxyName == "" {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+				require.Empty(t, proxy)
+			} else {
+				require.NoError(t, err)
+				require.NotEmpty(t, proxy)
+				require.Equal(t, c.matchProxyName, proxy.Name)
+			}
+		})
+	}
 }

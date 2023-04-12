@@ -49,6 +49,38 @@ WHERE
 LIMIT
 	1;
 
+-- Finds a workspace proxy that has an access URL or app hostname that matches
+-- the provided hostname. This is to check if a hostname matches any workspace
+-- proxy.
+--
+-- The hostname must be sanitized to only contain [a-zA-Z0-9.-] before calling
+-- this query. The scheme, port and path should be stripped.
+--
+-- name: GetWorkspaceProxyByHostname :one
+SELECT
+	*
+FROM
+	workspace_proxies
+WHERE
+	-- Validate that the @hostname has been sanitized and is not empty. This
+	-- doesn't prevent SQL injection (already prevented by using prepared
+	-- queries), but it does prevent carefully crafted hostnames from matching
+	-- when they shouldn't.
+	--
+	-- Periods don't need to be escaped because they're not special characters
+	-- in SQL matches unlike regular expressions.
+	@hostname :: text SIMILAR TO '[a-zA-Z0-9.-]+' AND
+	deleted = false AND
+
+	-- Validate that the hostname matches either the wildcard hostname or the
+	-- access URL (ignoring scheme, port and path).
+	(
+		url SIMILAR TO '[^:]*://' || @hostname :: text || '([:/]?%)*' OR
+		@hostname :: text LIKE replace(wildcard_hostname, '*', '%')
+	)
+LIMIT
+	1;
+
 -- name: GetWorkspaceProxies :many
 SELECT
 	*
