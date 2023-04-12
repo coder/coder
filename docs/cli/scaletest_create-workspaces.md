@@ -282,3 +282,13 @@ Enables trace exporting to Honeycomb.io using the provided API key.
 | Environment | <code>$CODER_SCALETEST_TRACE_PROPAGATE</code> |
 
 Enables trace propagation to the Coder backend, which will be used to correlate server-side spans with client-side spans. Only enable this if the server is configured with the exact same tracing configuration as the client.
+
+### --use-host-login
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_SCALETEST_USE_HOST_LOGIN</code> |
+| Default     | <code>false</code>                           |
+
+Use the use logged in on the host machine, instead of creating users.

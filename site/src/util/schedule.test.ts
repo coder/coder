@@ -1,7 +1,7 @@
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
-import { emptySchedule } from "pages/WorkspaceSchedulePage/schedule"
-import { emptyTTL } from "pages/WorkspaceSchedulePage/ttl"
+import { emptySchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
+import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
 import { Workspace } from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
 import {

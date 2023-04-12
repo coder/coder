@@ -94,6 +94,18 @@ resource "coder_agent" "dev" {
     # Run once to avoid unnecessary warning: "/" is not a shared mount
     podman ps
   EOF
+
+  metadata {
+    key          = "disk"
+    display_name = "Disk Usage"
+    interval     = 600 # every 10 minutes
+    timeout      = 30  # df can take a while on large filesystems
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      df /home/podman | awk '$NF=="/"{printf "%s", $5}'
+    EOT
+  }
 }
 
 # code-server

@@ -162,6 +162,7 @@ type DeploymentValues struct {
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
+	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1319,6 +1320,15 @@ when required by your organization's security policy.`,
 
 			Value: &c.DisablePathApps,
 			YAML:  "disablePathApps",
+		},
+		{
+			Name:        "Disable Owner Workspace Access",
+			Description: "Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.",
+			Flag:        "disable-owner-workspace-access",
+			Env:         "CODER_DISABLE_OWNER_WORKSPACE_ACCESS",
+
+			Value: &c.DisableOwnerWorkspaceExec,
+			YAML:  "disableOwnerWorkspaceAccess",
 		},
 		{
 			Name:        "Session Duration",

@@ -1,15 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import {
-  getWorkspaceByOwnerAndName,
   getWorkspaceBuildParameters,
   getTemplateVersionRichParameters,
   patchWorkspace,
   postWorkspaceBuild,
 } from "api/api"
-import { WorkspaceBuildParameter } from "api/typesGenerated"
+import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated"
 
-const getWorkspaceSettings = async (owner: string, name: string) => {
-  const workspace = await getWorkspaceByOwnerAndName(owner, name)
+const getWorkspaceSettings = async (workspace: Workspace) => {
   const latestBuild = workspace.latest_build
   const [templateVersionRichParameters, buildParameters] = await Promise.all([
     getTemplateVersionRichParameters(latestBuild.template_version_id),
@@ -22,10 +20,10 @@ const getWorkspaceSettings = async (owner: string, name: string) => {
   }
 }
 
-export const useWorkspaceSettings = (owner: string, workspace: string) => {
+export const useWorkspaceSettings = (workspace: Workspace) => {
   return useQuery({
-    queryKey: ["workspaceSettings", owner, workspace],
-    queryFn: () => getWorkspaceSettings(owner, workspace),
+    queryKey: ["workspaceSettings", workspace.id],
+    queryFn: () => getWorkspaceSettings(workspace),
   })
 }
 
