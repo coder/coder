@@ -316,10 +316,11 @@ func (r *Runner) sendHeartbeat(ctx context.Context) (*proto.UpdateJobResponse, e
 	defer span.End()
 
 	r.mutex.Lock()
-	defer r.mutex.Unlock()
 	if !r.okToSend {
+		r.mutex.Unlock()
 		return nil, errUpdateSkipped
 	}
+	r.mutex.Unlock()
 
 	// Skip sending a heartbeat if we've sent an update recently.
 	if lastUpdate := r.lastUpdate.Load(); lastUpdate != nil {
