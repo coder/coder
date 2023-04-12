@@ -185,9 +185,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer scd.Close()
 			ctx := scd.Ctx
 
-			var (
-				logger = scd.Logger
-			)
+			logger := scd.Logger
 
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
 			// was specified.
