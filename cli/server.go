@@ -1986,7 +1986,6 @@ func configureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValue
 		if err != nil {
 			return nil, err
 		}
-		defer httpsListenerInner.Close()
 
 		httpServers.TLSConfig = tlsConfig
 		httpServers.TLSListener = tls.NewListener(httpsListenerInner, tlsConfig)
