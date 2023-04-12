@@ -50,6 +50,17 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (retPTY *otherPty, proc Process
 		}
 		return nil, nil, xerrors.Errorf("start: %w", err)
 	}
+	// Now that we've started the command, and passed the TTY to it, close our
+	// file so that the other process has the only open file to the TTY.  Once
+	// the process closes the TTY (usually on exit), there will be no open
+	// references and the OS kernel returns an error when trying to read or
+	// write to our PTY end.  Without this, reading from the process output
+	// will block until we close our TTY.
+	if err := opty.tty.Close(); err != nil {
+		_ = cmd.Process.Kill()
+		return nil, nil, xerrors.Errorf("close tty: %w", err)
+	}
+	opty.tty = nil // remove so we don't attempt to close it again.
 	oProcess := &otherProcess{
 		pty:     opty.pty,
 		cmd:     cmd,

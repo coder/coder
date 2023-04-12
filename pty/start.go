@@ -20,6 +20,6 @@ func WithPTYOption(opts ...Option) StartOption {
 
 // Start the command in a TTY.  The calling code must not use cmd after passing it to the PTY, and
 // instead rely on the returned Process to manage the command/process.
-func Start(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
+func Start(cmd *exec.Cmd, opt ...StartOption) (PTYCmd, Process, error) {
 	return startPty(cmd, opt...)
 }

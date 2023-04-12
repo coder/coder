@@ -3,98 +3,17 @@ package agentssh
 import (
 	"bufio"
 	"context"
+	"io"
 	"net"
-	"strconv"
+	"os/exec"
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/codersdk/agentsdk"
+	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
-
-const countingScript = `
-i=0
-while [ $i -ne 20000 ]
-do
-        i=$(($i+1))
-        echo "$i"
-done
-`
-
-func TestServer_sessionStart_longoutput(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	logger := slogtest.Make(t, nil)
-	s, err := NewServer(ctx, logger, 0)
-	require.NoError(t, err)
-
-	// The assumption is that these are set before serving SSH connections.
-	s.AgentToken = func() string { return "" }
-	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		err := s.Serve(ln)
-		assert.Error(t, err) // Server is closed.
-	}()
-
-	c := SSHTestClient(t, ln.Addr().String())
-	sess, err := c.NewSession()
-	require.NoError(t, err)
-
-	stdout, err := sess.StdoutPipe()
-	require.NoError(t, err)
-	readDone := make(chan struct{})
-	go func() {
-		w := 0
-		defer close(readDone)
-		s := bufio.NewScanner(stdout)
-		for s.Scan() {
-			w++
-			ns := s.Text()
-			n, err := strconv.Atoi(ns)
-			require.NoError(t, err)
-			require.Equal(t, w, n, "output corrupted")
-		}
-		assert.Equal(t, w, 20000, "output truncated")
-		assert.NoError(t, s.Err())
-	}()
-
-	err = sess.Start(countingScript)
-	require.NoError(t, err)
-
-	select {
-	case <-readDone:
-		// OK
-	case <-ctx.Done():
-		t.Fatal("read timeout")
-	}
-
-	sessionDone := make(chan struct{})
-	go func() {
-		defer close(sessionDone)
-		err := sess.Wait()
-		assert.NoError(t, err)
-	}()
-
-	select {
-	case <-sessionDone:
-		// OK!
-	case <-ctx.Done():
-		t.Fatal("session timeout")
-	}
-}
 
 const longScript = `
 echo "started"
@@ -102,7 +21,11 @@ sleep 30
 echo "done"
 `
 
-func TestServer_sessionStart_orphan(t *testing.T) {
+// Test_sessionStart_orphan tests running a command that takes a long time to
+// exit normally, and terminate the SSH session context early to verify that we
+// return quickly and don't leave the command running as an "orphan" with no
+// active SSH session.
+func Test_sessionStart_orphan(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -111,97 +34,151 @@ func TestServer_sessionStart_orphan(t *testing.T) {
 	s, err := NewServer(ctx, logger, 0)
 	require.NoError(t, err)
 
-	// The assumption is that these are set before serving SSH connections.
-	s.AgentToken = func() string { return "" }
-	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+	// Here we're going to call the handler directly with a faked SSH session
+	// that just uses io.Pipes instead of a network socket.  There is a large
+	// variation in the time between closing the socket from the client side and
+	// the SSH server canceling the session Context, which would lead to a flaky
+	// test if we did it that way.  So instead, we directly cancel the context
+	// in this test.
+	sessionCtx, sessionCancel := context.WithCancel(ctx)
+	toClient, fromClient, sess := newTestSession(sessionCtx)
+	ptyInfo := gliderssh.Pty{}
+	windowSize := make(chan gliderssh.Window)
+	close(windowSize)
+	// the command gets the session context so that Go will terminate it when
+	// the session expires.
+	cmd := exec.CommandContext(sessionCtx, "sh", "-c", longScript)
 
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := s.Serve(ln)
-		assert.Error(t, err) // Server is closed.
+		// we don't really care what the error is here.  In the larger scenario,
+		// the client has disconnected, so we can't return any error information
+		// to them.
+		_ = s.startPTYSession(sess, cmd, ptyInfo, windowSize)
 	}()
 
-	c := SSHTestClient(t, ln.Addr().String())
-	sess, err := c.NewSession()
-	require.NoError(t, err)
-
-	stdout, err := sess.StdoutPipe()
-	require.NoError(t, err)
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
-		s := bufio.NewScanner(stdout)
+		s := bufio.NewScanner(toClient)
 		require.True(t, s.Scan())
 		txt := s.Text()
 		assert.Equal(t, "started", txt, "output corrupted")
 	}()
 
-	err = sess.Start(longScript)
-	require.NoError(t, err)
-
-	select {
-	case <-readDone:
-		// OK
-	case <-ctx.Done():
-		t.Fatal("read timeout")
-	}
-
+	waitForChan(t, readDone, ctx, "read timeout")
 	// process is started, and should be sleeping for ~30 seconds
-	// close the session
-	err = sess.Close()
-	require.NoError(t, err)
+
+	sessionCancel()
 
 	// now, we wait for the handler to complete.  If it does so before the
 	// main test timeout, we consider this a pass.  If not, it indicates
 	// that the server isn't properly shutting down sessions when they are
 	// disconnected client side, which could lead to processes hanging around
 	// indefinitely.
-	handlerDone := make(chan struct{})
-	go func() {
-		defer close(handlerDone)
-		for {
-			select {
-			case <-time.After(time.Millisecond * 10):
-				s.mu.Lock()
-				n := len(s.sessions)
-				s.mu.Unlock()
-				if n == 0 {
-					return
-				}
-			}
-		}
-	}()
+	waitForChan(t, done, ctx, "handler timeout")
 
+	err = fromClient.Close()
+	require.NoError(t, err)
+}
+
+func waitForChan(t *testing.T, c <-chan struct{}, ctx context.Context, msg string) {
+	t.Helper()
 	select {
-	case <-handlerDone:
+	case <-c:
 		// OK!
 	case <-ctx.Done():
-		t.Fatal("handler timeout")
+		t.Fatal(msg)
 	}
 }
 
-// SSHTestClient creates an ssh.Client for testing
-func SSHTestClient(t *testing.T, addr string) *ssh.Client {
-	conn, err := net.Dial("tcp", addr)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = conn.Close()
-	})
+type testSession struct {
+	ctx testSSHContext
 
-	sshConn, channels, requests, err := ssh.NewClientConn(conn, "localhost:22", &ssh.ClientConfig{
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // This is a test.
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = sshConn.Close()
-	})
-	c := ssh.NewClient(sshConn, channels, requests)
-	t.Cleanup(func() {
-		_ = c.Close()
-	})
-	return c
+	// c2p is the client -> pty buffer
+	toPty *io.PipeReader
+	// p2c is the pty -> client buffer
+	fromPty *io.PipeWriter
+}
+
+type testSSHContext struct {
+	context.Context
+}
+
+func newTestSession(ctx context.Context) (toClient *io.PipeReader, fromClient *io.PipeWriter, s ptySession) {
+	toClient, fromPty := io.Pipe()
+	toPty, fromClient := io.Pipe()
+
+	return toClient, fromClient, &testSession{
+		ctx:     testSSHContext{ctx},
+		toPty:   toPty,
+		fromPty: fromPty,
+	}
+}
+
+func (s *testSession) Context() gliderssh.Context {
+	return s.ctx
+}
+
+func (s *testSession) DisablePTYEmulation() {}
+
+// RawCommand returns "quiet logon" so that the PTY handler doesn't attempt to
+// write the message of the day, which will interfere with our tests.  It writes
+// the message of the day if it's a shell login (zero length RawCommand()).
+func (s *testSession) RawCommand() string { return "quiet logon" }
+
+func (s *testSession) Read(p []byte) (n int, err error) {
+	return s.toPty.Read(p)
+}
+
+func (s *testSession) Write(p []byte) (n int, err error) {
+	return s.fromPty.Write(p)
+}
+
+func (c testSSHContext) Lock() {
+	panic("not implemented")
+}
+func (c testSSHContext) Unlock() {
+	panic("not implemented")
+}
+
+// User returns the username used when establishing the SSH connection.
+func (c testSSHContext) User() string {
+	panic("not implemented")
+}
+
+// SessionID returns the session hash.
+func (c testSSHContext) SessionID() string {
+	panic("not implemented")
+}
+
+// ClientVersion returns the version reported by the client.
+func (c testSSHContext) ClientVersion() string {
+	panic("not implemented")
+}
+
+// ServerVersion returns the version reported by the server.
+func (c testSSHContext) ServerVersion() string {
+	panic("not implemented")
+}
+
+// RemoteAddr returns the remote address for this connection.
+func (c testSSHContext) RemoteAddr() net.Addr {
+	panic("not implemented")
+}
+
+// LocalAddr returns the local address for this connection.
+func (c testSSHContext) LocalAddr() net.Addr {
+	panic("not implemented")
+}
+
+// Permissions returns the Permissions object used for this connection.
+func (c testSSHContext) Permissions() *gliderssh.Permissions {
+	panic("not implemented")
+}
+
+// SetValue allows you to easily write new values into the underlying context.
+func (c testSSHContext) SetValue(key, value interface{}) {
+	panic("not implemented")
 }

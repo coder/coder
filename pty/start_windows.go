@@ -87,6 +87,22 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
 	}
 	defer windows.CloseHandle(processInfo.Thread)
 	defer windows.CloseHandle(processInfo.Process)
+	// Now that we've started the command, and passed the pseudoconsole to it,
+	// close the output write and input read files, so that the other process
+	// has the only handles to them.  Once the process closes the console, there
+	// will be no open references and the OS kernel returns an error when trying
+	// to read or write to our end.  Without this, reading from the process
+	// output will block until they are closed.
+	errO := winPty.outputWrite.Close()
+	winPty.outputWrite = nil
+	errI := winPty.inputRead.Close()
+	winPty.inputRead = nil
+	if errO != nil {
+		return nil, nil, errO
+	}
+	if errI != nil {
+		return nil, nil, errI
+	}
 
 	process, err := os.FindProcess(int(processInfo.ProcessId))
 	if err != nil {

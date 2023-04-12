@@ -3,6 +3,7 @@
 package pty
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"sync"
@@ -104,11 +105,19 @@ func (p *ptyWindows) Output() ReadWriter {
 	}
 }
 
+func (p *ptyWindows) OutputReader() io.Reader {
+	return p.outputRead
+}
+
 func (p *ptyWindows) Input() ReadWriter {
 	return ReadWriter{
 		Reader: p.inputRead,
 		Writer: p.inputWrite,
 	}
+}
+
+func (p *ptyWindows) InputWriter() io.Writer {
+	return p.inputWrite
 }
 
 func (p *ptyWindows) Resize(height uint16, width uint16) error {
@@ -121,10 +130,6 @@ func (p *ptyWindows) Resize(height uint16, width uint16) error {
 		return err
 	}
 	return nil
-}
-
-func (p *ptyWindows) Dup() (*os.File, error) {
-	return nil, xerrors.Errorf("not implemented")
 }
 
 func (p *ptyWindows) Close() error {
@@ -140,10 +145,16 @@ func (p *ptyWindows) Close() error {
 		return xerrors.Errorf("close pseudo console: %w", err)
 	}
 
-	_ = p.outputWrite.Close()
+	// We always have these files
 	_ = p.outputRead.Close()
 	_ = p.inputWrite.Close()
-	_ = p.inputRead.Close()
+	// These get closed & unset if we Start() a new process.
+	if p.outputWrite != nil {
+		_ = p.outputWrite.Close()
+	}
+	if p.inputRead.Close() != nil {
+		_ = p.inputRead.Close()
+	}
 	return nil
 }
 
