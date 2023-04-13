@@ -98,11 +98,31 @@ func (c *closers) Add(f func()) {
 
 func (r *RootCmd) proxyServer() *clibase.Cmd {
 	var (
-		// TODO: Remove options that we do not need
-		cfg  = new(codersdk.DeploymentValues)
-		opts = cfg.Options()
+		cfg = new(codersdk.DeploymentValues)
+		// Filter options for only relevant ones.
+		opts = cfg.Options().Filter(codersdk.IsExternalProxies)
+
+		externalProxyOptionGroup = clibase.Group{
+			Name: "External Workspace Proxy",
+			YAML: "externalWorkspaceProxy",
+		}
+		proxySessionToken clibase.String
 	)
-	var _ = opts
+	opts.Add(
+		// Options only for external workspace proxies
+
+		clibase.Option{
+			Name:        "Proxy Session Token",
+			Description: "Authentication token for the workspace proxy to communicate with coderd.",
+			Flag:        "proxy-session-token",
+			Env:         "CODER_PROXY_SESSION_TOKEN",
+			YAML:        "proxySessionToken",
+			Default:     "",
+			Value:       &proxySessionToken,
+			Group:       &externalProxyOptionGroup,
+			Hidden:      false,
+		},
+	)
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -250,10 +270,8 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 				PrometheusRegistry: prometheusRegistry,
 				APIRateLimit:       int(cfg.RateLimit.API.Value()),
 				SecureAuthCookie:   cfg.SecureAuthCookie.Value(),
-				// TODO: DisablePathApps
-				DisablePathApps: false,
-				// TODO: ProxySessionToken
-				ProxySessionToken: "",
+				DisablePathApps:    cfg.DisablePathApps.Value(),
+				ProxySessionToken:  proxySessionToken.Value(),
 			})
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
