@@ -24,6 +24,7 @@ Example.args = {
     },
     MockTemplateVersion,
   ],
+  onPromoteClick: undefined,
 }
 
 export const CanPromote = Template.bind({})

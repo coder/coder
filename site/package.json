@@ -17,7 +17,7 @@
     "lint:fix": "FIX=true yarn lint",
     "playwright:install": "playwright install --with-deps chromium",
     "playwright:test": "playwright test --config=e2e/playwright.config.ts",
-    "storybook": "storybook dev -p 6006",
+    "storybook": "STORYBOOK=true storybook dev -p 6006",
     "storybook:build": "storybook build",
     "test": "jest --selectProjects test",
     "test:ci": "jest --selectProjects test --silent",

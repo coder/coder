@@ -636,6 +636,7 @@ jobs:
         uses: chromaui/action@v1
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
+          STORYBOOK: true
         with:
           buildScriptName: "storybook:build"
           exitOnceUploaded: true
@@ -655,6 +656,7 @@ jobs:
         uses: chromaui/action@v1
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
+          STORYBOOK: true
         with:
           autoAcceptChanges: true
           buildScriptName: "storybook:build"

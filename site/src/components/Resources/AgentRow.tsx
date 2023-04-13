@@ -73,7 +73,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("agent")
-
   const [logsMachine, sendLogsEvent] = useMachine(workspaceAgentLogsMachine, {
     context: { agentID: agent.id },
     services: process.env.STORYBOOK

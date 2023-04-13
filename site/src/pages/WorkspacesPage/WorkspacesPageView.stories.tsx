@@ -58,10 +58,8 @@ const allWorkspaces = [
 export default {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
-  argTypes: {
-    limit: {
-      defaultValue: DEFAULT_RECORDS_PER_PAGE,
-    },
+  args: {
+    limit: DEFAULT_RECORDS_PER_PAGE,
   },
 } as ComponentMeta<typeof WorkspacesPageView>
 

@@ -5,8 +5,11 @@ export default {
   title: "components/LoadingButton",
   component: LoadingButton,
   argTypes: {
-    loading: { control: { type: "boolean" } },
-    children: { control: "text", defaultValue: "Create workspace" },
+    loading: { control: "boolean" },
+    children: { control: "text" },
+  },
+  args: {
+    children: "Create workspace",
   },
 }
 
