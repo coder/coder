@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/workspaceapps/apptest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
@@ -236,22 +236,11 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 			q := loc.Query()
 
 			// Verify the API key is set.
-			var (
-				encryptedAPIKeyQueryParam string
-				encryptedAPIKey           string
-			)
-			for k, v := range q {
-				// The query parameter may change dynamically in the future and is
-				// not exported, so we just use a fuzzy check instead.
-				if strings.Contains(k, "api_key") {
-					encryptedAPIKeyQueryParam = k
-					encryptedAPIKey = v[0]
-				}
-			}
+			encryptedAPIKey := loc.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam)
 			require.NotEmpty(t, encryptedAPIKey, "no API key was set in the query parameters")
 
 			// Strip the API key from the actual redirect URI and compare.
-			q.Del(encryptedAPIKeyQueryParam)
+			q.Del(workspaceapps.SubdomainProxyAPIKeyParam)
 			loc.RawQuery = q.Encode()
 			require.Equal(t, c.expectRedirect, loc.String())
 

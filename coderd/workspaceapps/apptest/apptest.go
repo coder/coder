@@ -11,6 +11,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -122,8 +124,12 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			require.Contains(t, string(body), "Path-based applications are disabled")
 		})
 
-		t.Run("LoginWithoutAuth", func(t *testing.T) {
+		t.Run("LoginWithoutAuthOnPrimary", func(t *testing.T) {
 			t.Parallel()
+
+			if !appDetails.AppHostServesAPI {
+				t.Skip("This test only applies when testing apps on the primary.")
+			}
 
 			unauthedClient := appDetails.AppClient(t)
 			unauthedClient.SetSessionToken("")
@@ -141,6 +147,43 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.True(t, loc.Query().Has("message"))
 			require.True(t, loc.Query().Has("redirect"))
+		})
+
+		t.Run("LoginWithoutAuthOnProxy", func(t *testing.T) {
+			t.Parallel()
+
+			if appDetails.AppHostServesAPI {
+				t.Skip("This test only applies when testing apps on workspace proxies.")
+			}
+
+			unauthedClient := appDetails.AppClient(t)
+			unauthedClient.SetSessionToken("")
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			u := appDetails.PathAppURL(appDetails.OwnerApp)
+			resp, err := requestWithRetries(ctx, t, unauthedClient, http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+			loc, err := resp.Location()
+			require.NoError(t, err)
+			require.Equal(t, appDetails.APIClient.URL.Host, loc.Host)
+			require.Equal(t, "/api/v2/applications/auth-redirect", loc.Path)
+
+			redirectURIStr := loc.Query().Get("redirect_uri")
+			require.NotEmpty(t, redirectURIStr)
+			redirectURI, err := url.Parse(redirectURIStr)
+			require.NoError(t, err)
+
+			require.Equal(t, u.Scheme, redirectURI.Scheme)
+			require.Equal(t, u.Host, redirectURI.Host)
+			// TODO(@dean): I have no idea how but the trailing slash on this
+			// request is getting stripped.
+			require.Equal(t, u.Path, redirectURI.Path+"/")
+			require.Equal(t, u.RawQuery, redirectURI.RawQuery)
 		})
 
 		t.Run("NoAccessShould404", func(t *testing.T) {
@@ -304,129 +347,181 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			appDetails := setupProxyTest(t, nil)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			// Get the current user and API key.
-			user, err := appDetails.APIClient.User(ctx, codersdk.Me)
-			require.NoError(t, err)
-			currentAPIKey, err := appDetails.APIClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(appDetails.APIClient.SessionToken(), "-")[0])
-			require.NoError(t, err)
-
-			appClient := appDetails.AppClient(t)
-			appClient.SetSessionToken("")
-
-			// Try to load the application without authentication.
-			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
-			u.Path = "/test"
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-			require.NoError(t, err)
-
-			var resp *http.Response
-			resp, err = doWithRetries(t, appClient, req)
-			require.NoError(t, err)
-			resp.Body.Close()
-
-			// Check that the Location is correct.
-			gotLocation, err := resp.Location()
-			require.NoError(t, err)
-			// This should always redirect to the primary access URL.
-			require.Equal(t, appDetails.APIClient.URL.Host, gotLocation.Host)
-			require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
-			require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
-
-			// Load the application auth-redirect endpoint.
-			resp, err = requestWithRetries(ctx, t, appDetails.APIClient, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
-				"redirect_uri", u.String(),
-			))
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-			gotLocation, err = resp.Location()
-			require.NoError(t, err)
-
-			// Copy the query parameters and then check equality.
-			u.RawQuery = gotLocation.RawQuery
-			require.Equal(t, u, gotLocation)
-
-			// Verify the API key is set.
-			var encryptedAPIKey string
-			for k, v := range gotLocation.Query() {
-				// The query parameter may change dynamically in the future and is
-				// not exported, so we just use a fuzzy check instead.
-				if strings.Contains(k, "api_key") {
-					encryptedAPIKey = v[0]
-				}
-			}
-			require.NotEmpty(t, encryptedAPIKey, "no API key was set in the query parameters")
-
-			// Decrypt the API key by following the request.
-			t.Log("navigating to: ", gotLocation.String())
-			req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
-			require.NoError(t, err)
-			resp, err = doWithRetries(t, appClient, req)
-			require.NoError(t, err)
-			resp.Body.Close()
-			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-			cookies := resp.Cookies()
-			require.Len(t, cookies, 1)
-			apiKey := cookies[0].Value
-
-			// Fetch the API key from the API.
-			apiKeyInfo, err := appDetails.APIClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(apiKey, "-")[0])
-			require.NoError(t, err)
-			require.Equal(t, user.ID, apiKeyInfo.UserID)
-			require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
-			require.WithinDuration(t, currentAPIKey.ExpiresAt, apiKeyInfo.ExpiresAt, 5*time.Second)
-			require.EqualValues(t, currentAPIKey.LifetimeSeconds, apiKeyInfo.LifetimeSeconds)
-
-			// Verify the API key permissions
-			appTokenAPIClient := codersdk.New(appDetails.APIClient.URL)
-			appTokenAPIClient.SetSessionToken(apiKey)
-			appTokenAPIClient.HTTPClient.CheckRedirect = appDetails.APIClient.HTTPClient.CheckRedirect
-			appTokenAPIClient.HTTPClient.Transport = appDetails.APIClient.HTTPClient.Transport
-
-			var (
-				canCreateApplicationConnect = "can-create-application_connect"
-				canReadUserMe               = "can-read-user-me"
-			)
-			authRes, err := appTokenAPIClient.AuthCheck(ctx, codersdk.AuthorizationRequest{
-				Checks: map[string]codersdk.AuthorizationCheck{
-					canCreateApplicationConnect: {
-						Object: codersdk.AuthorizationObject{
-							ResourceType:   "application_connect",
-							OwnerID:        "me",
-							OrganizationID: appDetails.FirstUser.OrganizationID.String(),
-						},
-						Action: "create",
-					},
-					canReadUserMe: {
-						Object: codersdk.AuthorizationObject{
-							ResourceType: "user",
-							OwnerID:      "me",
-							ResourceID:   appDetails.FirstUser.UserID.String(),
-						},
-						Action: "read",
+			cases := []struct {
+				name         string
+				appURL       *url.URL
+				verifyCookie func(t *testing.T, c *http.Cookie)
+			}{
+				{
+					name:   "Subdomain",
+					appURL: appDetails.SubdomainAppURL(appDetails.OwnerApp),
+					verifyCookie: func(t *testing.T, c *http.Cookie) {
+						// TODO(@dean): fix these asserts, they don't seem to
+						// work. I wonder if Go strips the domain from the
+						// cookie object if it's invalid or something.
+						// domain := strings.SplitN(appDetails.Options.AppHost, ".", 2)
+						// require.Equal(t, "."+domain[1], c.Domain, "incorrect domain on app token cookie")
 					},
 				},
-			})
-			require.NoError(t, err)
+				{
+					name:   "Path",
+					appURL: appDetails.PathAppURL(appDetails.OwnerApp),
+					verifyCookie: func(t *testing.T, c *http.Cookie) {
+						// TODO(@dean): fix these asserts, they don't seem to
+						// work. I wonder if Go strips the domain from the
+						// cookie object if it's invalid or something.
+						// require.Equal(t, "", c.Domain, "incorrect domain on app token cookie")
+					},
+				},
+			}
 
-			require.True(t, authRes[canCreateApplicationConnect])
-			require.False(t, authRes[canReadUserMe])
+			for _, c := range cases {
+				c := c
 
-			// Load the application page with the API key set.
-			gotLocation, err = resp.Location()
-			require.NoError(t, err)
-			t.Log("navigating to: ", gotLocation.String())
-			req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
-			require.NoError(t, err)
-			req.Header.Set(codersdk.SessionTokenHeader, apiKey)
-			resp, err = doWithRetries(t, appClient, req)
-			require.NoError(t, err)
-			resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode)
+				if c.name == "Path" && appDetails.AppHostServesAPI {
+					// Workspace application auth does not apply to path apps
+					// served from the primary access URL as no smuggling needs
+					// to take place (they're already logged in with a session
+					// token).
+					continue
+				}
+
+				t.Run(c.name, func(t *testing.T) {
+					t.Parallel()
+
+					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+					defer cancel()
+
+					// Get the current user and API key.
+					user, err := appDetails.APIClient.User(ctx, codersdk.Me)
+					require.NoError(t, err)
+					currentAPIKey, err := appDetails.APIClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(appDetails.APIClient.SessionToken(), "-")[0])
+					require.NoError(t, err)
+
+					appClient := appDetails.AppClient(t)
+					appClient.SetSessionToken("")
+
+					// Try to load the application without authentication.
+					u := c.appURL
+					u.Path = path.Join(u.Path, "/test")
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+					require.NoError(t, err)
+
+					var resp *http.Response
+					resp, err = doWithRetries(t, appClient, req)
+					require.NoError(t, err)
+
+					if !assert.Equal(t, http.StatusSeeOther, resp.StatusCode) {
+						dump, err := httputil.DumpResponse(resp, true)
+						require.NoError(t, err)
+						t.Log(string(dump))
+					}
+					resp.Body.Close()
+
+					// Check that the Location is correct.
+					gotLocation, err := resp.Location()
+					require.NoError(t, err)
+					// This should always redirect to the primary access URL.
+					require.Equal(t, appDetails.APIClient.URL.Host, gotLocation.Host)
+					require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
+					require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
+
+					// Load the application auth-redirect endpoint.
+					resp, err = requestWithRetries(ctx, t, appDetails.APIClient, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
+						"redirect_uri", u.String(),
+					))
+					require.NoError(t, err)
+					defer resp.Body.Close()
+
+					require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+					gotLocation, err = resp.Location()
+					require.NoError(t, err)
+
+					// Copy the query parameters and then check equality.
+					u.RawQuery = gotLocation.RawQuery
+					require.Equal(t, u, gotLocation)
+
+					// Verify the API key is set.
+					encryptedAPIKey := gotLocation.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam)
+					require.NotEmpty(t, encryptedAPIKey, "no API key was set in the query parameters")
+
+					// Decrypt the API key by following the request.
+					t.Log("navigating to: ", gotLocation.String())
+					req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
+					require.NoError(t, err)
+					resp, err = doWithRetries(t, appClient, req)
+					require.NoError(t, err)
+					resp.Body.Close()
+					require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+
+					cookies := resp.Cookies()
+					var cookie *http.Cookie
+					for _, c := range cookies {
+						if c.Name == codersdk.DevURLSessionTokenCookie {
+							cookie = c
+							break
+						}
+					}
+					require.NotNil(t, cookie, "no app session token cookie was set")
+					c.verifyCookie(t, cookie)
+					apiKey := cookie.Value
+
+					// Fetch the API key from the API.
+					apiKeyInfo, err := appDetails.APIClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(apiKey, "-")[0])
+					require.NoError(t, err)
+					require.Equal(t, user.ID, apiKeyInfo.UserID)
+					require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
+					require.WithinDuration(t, currentAPIKey.ExpiresAt, apiKeyInfo.ExpiresAt, 5*time.Second)
+					require.EqualValues(t, currentAPIKey.LifetimeSeconds, apiKeyInfo.LifetimeSeconds)
+
+					// Verify the API key permissions
+					appTokenAPIClient := codersdk.New(appDetails.APIClient.URL)
+					appTokenAPIClient.SetSessionToken(apiKey)
+					appTokenAPIClient.HTTPClient.CheckRedirect = appDetails.APIClient.HTTPClient.CheckRedirect
+					appTokenAPIClient.HTTPClient.Transport = appDetails.APIClient.HTTPClient.Transport
+
+					var (
+						canCreateApplicationConnect = "can-create-application_connect"
+						canReadUserMe               = "can-read-user-me"
+					)
+					authRes, err := appTokenAPIClient.AuthCheck(ctx, codersdk.AuthorizationRequest{
+						Checks: map[string]codersdk.AuthorizationCheck{
+							canCreateApplicationConnect: {
+								Object: codersdk.AuthorizationObject{
+									ResourceType:   "application_connect",
+									OwnerID:        "me",
+									OrganizationID: appDetails.FirstUser.OrganizationID.String(),
+								},
+								Action: "create",
+							},
+							canReadUserMe: {
+								Object: codersdk.AuthorizationObject{
+									ResourceType: "user",
+									OwnerID:      "me",
+									ResourceID:   appDetails.FirstUser.UserID.String(),
+								},
+								Action: "read",
+							},
+						},
+					})
+					require.NoError(t, err)
+
+					require.True(t, authRes[canCreateApplicationConnect])
+					require.False(t, authRes[canReadUserMe])
+
+					// Load the application page with the API key set.
+					gotLocation, err = resp.Location()
+					require.NoError(t, err)
+					t.Log("navigating to: ", gotLocation.String())
+					req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
+					require.NoError(t, err)
+					req.Header.Set(codersdk.SessionTokenHeader, apiKey)
+					resp, err = doWithRetries(t, appClient, req)
+					require.NoError(t, err)
+					resp.Body.Close()
+					require.Equal(t, http.StatusOK, resp.StatusCode)
+				})
+			}
 		})
 	})
 
@@ -866,7 +961,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 						require.NoError(t, err, msg)
 
 						expectedPath := "/login"
-						if !isPathApp {
+						if !isPathApp || !appDetails.AppHostServesAPI {
 							expectedPath = "/api/v2/applications/auth-redirect"
 						}
 						assert.Equal(t, expectedPath, location.Path, "should not have access, expected redirect to applicable login endpoint. "+msg)

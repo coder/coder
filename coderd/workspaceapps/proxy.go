@@ -119,6 +119,105 @@ func (s *Server) Attach(r chi.Router) {
 	r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", s.workspaceAgentPTY)
 }
 
+// handleAPIKeySmuggling is called by the proxy path and subdomain handlers to
+// process any "smuggled" API keys in the query parameters.
+//
+// If a smuggled key is found, it is decrypted and the cookie is set, and the
+// user is redirected to strip the query parameter.
+func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, accessMethod AccessMethod) bool {
+	ctx := r.Context()
+
+	encryptedAPIKey := r.URL.Query().Get(SubdomainProxyAPIKeyParam)
+	if encryptedAPIKey == "" {
+		return true
+	}
+
+	// API key smuggling is not permitted for path apps on the primary access
+	// URL. The user is already covered by their full session token.
+	if accessMethod == AccessMethodPath && s.AccessURL.Host == s.DashboardURL.Host {
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:      http.StatusBadRequest,
+			Title:       "Bad Request",
+			Description: "Could not decrypt API key. Workspace app API key smuggling is not permitted on the primary access URL. Please remove the query parameter and try again.",
+			// Retry is disabled because the user needs to remove the query
+			// parameter before they try again.
+			RetryEnabled: false,
+			DashboardURL: s.DashboardURL.String(),
+		})
+		return false
+	}
+
+	// Exchange the encoded API key for a real one.
+	token, err := s.AppSecurityKey.DecryptAPIKey(encryptedAPIKey)
+	if err != nil {
+		s.Logger.Debug(ctx, "could not decrypt smuggled workspace app API key", slog.Error(err))
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:      http.StatusBadRequest,
+			Title:       "Bad Request",
+			Description: "Could not decrypt API key. Please remove the query parameter and try again.",
+			// Retry is disabled because the user needs to remove the query
+			// parameter before they try again.
+			RetryEnabled: false,
+			DashboardURL: s.DashboardURL.String(),
+		})
+		return false
+	}
+
+	// Set the cookie. For subdomain apps, we set the cookie on the whole
+	// wildcard so users don't need to re-auth for every subdomain app they
+	// access. For path apps (only on proxies, see above) we just set it on the
+	// current domain.
+	domain := "" // use the current domain
+	if accessMethod == AccessMethodSubdomain {
+		hostSplit := strings.SplitN(s.Hostname, ".", 2)
+		if len(hostSplit) != 2 {
+			// This should be impossible as we verify the app hostname on
+			// startup, but we'll check anyways.
+			s.Logger.Error(r.Context(), "could not split invalid app hostname", slog.F("hostname", s.Hostname))
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:       http.StatusInternalServerError,
+				Title:        "Internal Server Error",
+				Description:  "The app is configured with an invalid app wildcard hostname. Please contact an administrator.",
+				RetryEnabled: false,
+				DashboardURL: s.DashboardURL.String(),
+			})
+			return false
+		}
+
+		// Set the cookie for all subdomains of s.Hostname.
+		domain = "." + hostSplit[1]
+	}
+
+	// We don't set an expiration because the key in the database already has an
+	// expiration, and expired tokens don't affect the user experience (they get
+	// auto-redirected to re-smuggle the API key).
+	http.SetCookie(rw, &http.Cookie{
+		Name:     codersdk.DevURLSessionTokenCookie,
+		Value:    token,
+		Domain:   domain,
+		Path:     "/",
+		MaxAge:   0,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   s.SecureAuthCookie,
+	})
+
+	// Strip the query parameter.
+	path := r.URL.Path
+	if path == "" {
+		path = "/"
+	}
+	q := r.URL.Query()
+	q.Del(SubdomainProxyAPIKeyParam)
+	rawQuery := q.Encode()
+	if rawQuery != "" {
+		path += "?" + q.Encode()
+	}
+
+	http.Redirect(rw, r, path, http.StatusSeeOther)
+	return false
+}
+
 // workspaceAppsProxyPath proxies requests to a workspace application
 // through a relative URL path.
 func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
@@ -143,6 +242,10 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 			RetryEnabled: false,
 			DashboardURL: s.DashboardURL.String(),
 		})
+		return
+	}
+
+	if !s.handleAPIKeySmuggling(rw, r, AccessMethodPath) {
 		return
 	}
 
@@ -252,40 +355,7 @@ func (s *Server) SubdomainAppMW(middlewares ...func(http.Handler) http.Handler) 
 				return
 			}
 
-			// If the request has the special query param then we need to set a
-			// cookie and strip that query parameter.
-			if encryptedAPIKey := r.URL.Query().Get(SubdomainProxyAPIKeyParam); encryptedAPIKey != "" {
-				// Exchange the encoded API key for a real one.
-				token, err := s.AppSecurityKey.DecryptAPIKey(encryptedAPIKey)
-				if err != nil {
-					s.Logger.Debug(ctx, "could not decrypt API key", slog.Error(err))
-					site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-						Status:      http.StatusBadRequest,
-						Title:       "Bad Request",
-						Description: "Could not decrypt API key. Please remove the query parameter and try again.",
-						// Retry is disabled because the user needs to remove
-						// the query parameter before they try again.
-						RetryEnabled: false,
-						DashboardURL: s.DashboardURL.String(),
-					})
-					return
-				}
-
-				s.setWorkspaceAppCookie(rw, r, token)
-
-				// Strip the query parameter.
-				path := r.URL.Path
-				if path == "" {
-					path = "/"
-				}
-				q := r.URL.Query()
-				q.Del(SubdomainProxyAPIKeyParam)
-				rawQuery := q.Encode()
-				if rawQuery != "" {
-					path += "?" + q.Encode()
-				}
-
-				http.Redirect(rw, r, path, http.StatusSeeOther)
+			if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
 				return
 			}
 
@@ -371,44 +441,6 @@ func (s *Server) parseHostname(rw http.ResponseWriter, r *http.Request, next htt
 	}
 
 	return app, true
-}
-
-// setWorkspaceAppCookie sets a cookie on the workspace app domain. If the app
-// hostname cannot be parsed properly, a static error page is rendered and false
-// is returned.
-func (s *Server) setWorkspaceAppCookie(rw http.ResponseWriter, r *http.Request, token string) bool {
-	hostSplit := strings.SplitN(s.Hostname, ".", 2)
-	if len(hostSplit) != 2 {
-		// This should be impossible as we verify the app hostname on
-		// startup, but we'll check anyways.
-		s.Logger.Error(r.Context(), "could not split invalid app hostname", slog.F("hostname", s.Hostname))
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusInternalServerError,
-			Title:        "Internal Server Error",
-			Description:  "The app is configured with an invalid app wildcard hostname. Please contact an administrator.",
-			RetryEnabled: false,
-			DashboardURL: s.DashboardURL.String(),
-		})
-		return false
-	}
-
-	// Set the app cookie for all subdomains of s.Hostname. We don't set an
-	// expiration because the key in the database already has an expiration, and
-	// expired tokens don't affect the user experience (they get auto-redirected
-	// to re-smuggle the API key).
-	cookieHost := "." + hostSplit[1]
-	http.SetCookie(rw, &http.Cookie{
-		Name:     codersdk.DevURLSessionTokenCookie,
-		Value:    token,
-		Domain:   cookieHost,
-		Path:     "/",
-		MaxAge:   0,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   s.SecureAuthCookie,
-	})
-
-	return true
 }
 
 func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appToken SignedToken, path string) {

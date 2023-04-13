@@ -115,8 +115,8 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+	createProxyCtx := testutil.Context(t, testutil.WaitLong)
+	proxyRes, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
 		Name:             namesgenerator.GetRandomName(1),
 		Icon:             "/emojis/flag.png",
 		URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
@@ -130,6 +130,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 	t.Run("BadAppRequest", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err = proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
 			// Invalid request.
 			AppRequest:   workspaceapps.Request{},
@@ -149,6 +150,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err = proxyClient.IssueSignedAppToken(ctx, goodRequest)
 		require.NoError(t, err)
 	})
@@ -157,6 +159,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		t.Parallel()
 
 		rw := httptest.NewRecorder()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, ok := proxyClient.IssueSignedAppTokenHTML(ctx, rw, goodRequest)
 		if !assert.True(t, ok, "expected true") {
 			resp := rw.Result()

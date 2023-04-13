@@ -53,6 +53,9 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 	switch r.AppRequest.AccessMethod {
 	case AccessMethodPath, AccessMethodTerminal:
 		u.Path = r.AppRequest.BasePath
+		if !strings.HasSuffix(u.Path, "/") {
+			u.Path += "/"
+		}
 		return u, nil
 	case AccessMethodSubdomain:
 		if r.AppHostname == "" {

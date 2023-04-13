@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -84,10 +85,9 @@ func (p *DBTokenProvider) IssueToken(ctx context.Context, rw http.ResponseWriter
 		OAuth2Configs:               p.OAuth2Configs,
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: p.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		// Optional is true to allow for public apps. If an authorization check
-		// fails and the user is not authenticated, they will be redirected to
-		// the login page using code below (not the redirect from the
-		// middleware itself).
+		// Optional is true to allow for public apps. If the authorization check
+		// (later on) fails and the user is not authenticated, they will be
+		// redirected to the login page or app auth endpoint using code below.
 		Optional: true,
 		TokenFunc: func(r *http.Request) string {
 			return issueReq.SessionToken
@@ -128,43 +128,57 @@ func (p *DBTokenProvider) IssueToken(ctx context.Context, rw http.ResponseWriter
 
 		// Redirect to login as they don't have permission to access the app
 		// and they aren't signed in.
-		switch appReq.AccessMethod {
-		case AccessMethodPath:
-			httpmw.RedirectToLogin(rw, r, p.DashboardURL, httpmw.SignedOutErrorMessage)
-		case AccessMethodSubdomain:
-			// Redirect to the app auth redirect endpoint with a valid redirect
-			// URI.
-			redirectURI, err := issueReq.AppBaseURL()
-			if err != nil {
-				WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app base URL")
-				return nil, "", false
-			}
-			if dbReq.AppURL != nil {
-				// Just use the user's current path and query if set.
-				if issueReq.AppPath == "" {
-					issueReq.AppPath = "/"
-				}
-				redirectURI.Path = path.Join(redirectURI.Path, issueReq.AppPath)
-				if issueReq.AppQuery != "" && dbReq.AppURL.RawQuery != "" {
-					issueReq.AppQuery = dbReq.AppURL.RawQuery
-				}
-				redirectURI.RawQuery = issueReq.AppQuery
-			}
 
-			// TODO(@deansheather): this endpoint does not accept redirect URIs
-			// from moons, so it will need to be updated to include all
-			// registered proxies when checking if the URL is allowed or not
-			u := *p.DashboardURL
-			u.Path = "/api/v2/applications/auth-redirect"
-			q := u.Query()
-			q.Add(RedirectURIQueryParam, redirectURI.String())
-			u.RawQuery = q.Encode()
-
-			http.Redirect(rw, r, u.String(), http.StatusSeeOther)
-		case AccessMethodTerminal:
-			// Return an error.
+		// We don't support login redirects for the terminal since it's a
+		// WebSocket endpoint and redirects won't work. The token must be
+		// specified as a query parameter.
+		if appReq.AccessMethod == AccessMethodTerminal {
 			httpapi.ResourceNotFound(rw)
+			return nil, "", false
 		}
+
+		appBaseURL, err := issueReq.AppBaseURL()
+		if err != nil {
+			WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app base URL")
+			return nil, "", false
+		}
+
+		// If the app is a path app and it's on the same host as the dashboard
+		// access URL, then we need to redirect to login using the standard
+		// login redirect function.
+		if appReq.AccessMethod == AccessMethodPath && appBaseURL.Host == p.DashboardURL.Host {
+			httpmw.RedirectToLogin(rw, r, p.DashboardURL, httpmw.SignedOutErrorMessage)
+			return nil, "", false
+		}
+
+		// Otherwise, we need to redirect to the app auth endpoint, which will
+		// redirect back to the app (with an encrypted API key) after the user
+		// has logged in.
+		redirectURI := *appBaseURL
+		if dbReq.AppURL != nil {
+			// Just use the user's current path and query if set.
+			if issueReq.AppPath != "" {
+				redirectURI.Path = path.Join(redirectURI.Path, issueReq.AppPath)
+			} else if !strings.HasSuffix(redirectURI.Path, "/") {
+				redirectURI.Path += "/"
+			}
+			q := issueReq.AppQuery
+			if q != "" && dbReq.AppURL.RawQuery != "" {
+				q = dbReq.AppURL.RawQuery
+			}
+			redirectURI.RawQuery = q
+		}
+
+		// This endpoint accepts redirect URIs from the primary app wildcard
+		// host, proxy access URLs and proxy wildcard app hosts. It does not
+		// accept redirect URIs from the primary access URL or any other host.
+		u := *p.DashboardURL
+		u.Path = "/api/v2/applications/auth-redirect"
+		q := u.Query()
+		q.Add(RedirectURIQueryParam, redirectURI.String())
+		u.RawQuery = q.Encode()
+
+		http.Redirect(rw, r, u.String(), http.StatusSeeOther)
 		return nil, "", false
 	}
 
