@@ -137,6 +137,9 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 			err := auth.Authorize(ctx, subject, action, o.RBACObject())
 			if err == nil {
 				filtered = append(filtered, o)
+			} else if ctx.Err() != nil {
+				// Exit early if the error comes from the context
+				return nil, ctx.Err()
 			}
 		}
 		return filtered, nil
@@ -155,6 +158,9 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		err := prepared.Authorize(ctx, rbacObj)
 		if err == nil {
 			filtered = append(filtered, object)
+		} else if ctx.Err() != nil {
+			// Exit early if the error comes from the context
+			return nil, ctx.Err()
 		}
 	}
 

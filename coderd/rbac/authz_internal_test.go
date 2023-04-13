@@ -170,7 +170,7 @@ func TestFilter(t *testing.T) {
 			localObjects := make([]fakeObject, len(objects))
 			copy(localObjects, objects)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 			defer cancel()
 			auth := NewAuthorizer(prometheus.NewRegistry())
 
