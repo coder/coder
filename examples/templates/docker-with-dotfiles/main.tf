@@ -29,7 +29,7 @@ data "coder_workspace" "me" {
 
 data "coder_parameter" "docker_image" {
   name         = "docker_image"
-  display_name = "Docker Image"
+  display_name = "Docker image"
   description  = "The Docker image will be used to build your workspace."
   default      = "codercom/enterprise-base:ubuntu"
   icon         = "/icon/docker.png"
