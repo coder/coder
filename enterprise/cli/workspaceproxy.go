@@ -107,6 +107,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 		}
 		proxySessionToken clibase.String
 		primaryAccessURL  clibase.URL
+		appSecuritYKey    clibase.String
 	)
 	opts.Add(
 		// Options only for external workspace proxies
@@ -134,6 +135,20 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			Group:       &externalProxyOptionGroup,
 			Hidden:      false,
 		},
+
+		// TODO: Make sure this is kept secret. Idk if a flag is the best option
+		clibase.Option{
+			Name:        "App Security Key",
+			Description: "App security key used for decrypting/verifying app tokens sent from coderd.",
+			Flag:        "app-security-key",
+			Env:         "CODER_APP_SECURITY_KEY",
+			YAML:        "appSecurityKey",
+			Default:     "",
+			Value:       &appSecuritYKey,
+			Group:       &externalProxyOptionGroup,
+			Hidden:      false,
+			Annotations: clibase.Annotations{}.Mark("secret", "true"),
+		},
 	)
 
 	client := new(codersdk.Client)
@@ -151,6 +166,11 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			if !(primaryAccessURL.Scheme == "http" || primaryAccessURL.Scheme == "https") {
 				return xerrors.Errorf("primary access URL must be http or https: url=%s", primaryAccessURL)
+			}
+
+			secKey, err := workspaceapps.KeyFromString(appSecuritYKey.Value())
+			if err != nil {
+				return xerrors.Errorf("app security key: %w", err)
 			}
 
 			var closers closers
@@ -272,15 +292,13 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			}
 
 			proxy, err := wsproxy.New(&wsproxy.Options{
-				Logger: logger,
-				// TODO: PrimaryAccessURL
-				PrimaryAccessURL: primaryAccessURL.Value(),
-				AccessURL:        cfg.AccessURL.Value(),
-				AppHostname:      appHostname,
-				AppHostnameRegex: appHostnameRegex,
-				RealIPConfig:     realIPConfig,
-				// TODO: AppSecurityKey
-				AppSecurityKey:     workspaceapps.SecurityKey{},
+				Logger:             logger,
+				PrimaryAccessURL:   primaryAccessURL.Value(),
+				AccessURL:          cfg.AccessURL.Value(),
+				AppHostname:        appHostname,
+				AppHostnameRegex:   appHostnameRegex,
+				RealIPConfig:       realIPConfig,
+				AppSecurityKey:     secKey,
 				Tracing:            tracer,
 				PrometheusRegistry: prometheusRegistry,
 				APIRateLimit:       int(cfg.RateLimit.API.Value()),
