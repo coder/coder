@@ -805,15 +805,16 @@
 
 #### Enumerated Values
 
-| Value    |
-| -------- |
-| `create` |
-| `write`  |
-| `delete` |
-| `start`  |
-| `stop`   |
-| `login`  |
-| `logout` |
+| Value      |
+| ---------- |
+| `create`   |
+| `write`    |
+| `delete`   |
+| `start`    |
+| `stop`     |
+| `login`    |
+| `logout`   |
+| `register` |
 
 ## codersdk.AuditDiff
 
