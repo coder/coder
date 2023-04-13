@@ -5,7 +5,7 @@ import PlayArrowOutlined from "@material-ui/icons/PlayArrowOutlined"
 import PauseOutlined from "@material-ui/icons/PauseOutlined"
 import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
 import { WorkspaceBuild, WorkspaceTransition } from "api/typesGenerated"
-import { getDisplayWorkspaceBuildStatus } from "util/workspace"
+import { getDisplayWorkspaceBuildStatus } from "utils/workspace"
 import { PaletteIndex } from "theme/palettes"
 import { Avatar, AvatarProps } from "components/Avatar/Avatar"
 

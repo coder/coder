@@ -9,7 +9,7 @@ import { Margins } from "components/Margins/Margins"
 import { useFormik } from "formik"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
 import * as Yup from "yup"
 
 type FormData = {

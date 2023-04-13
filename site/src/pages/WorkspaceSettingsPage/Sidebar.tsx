@@ -4,7 +4,7 @@ import { Workspace } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
 import { Link, NavLink } from "react-router-dom"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import GeneralIcon from "@material-ui/icons/SettingsOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 

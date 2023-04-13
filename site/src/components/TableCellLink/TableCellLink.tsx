@@ -2,7 +2,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import TableCell, { TableCellProps } from "@material-ui/core/TableCell"
 import { Link as RouterLink } from "react-router-dom"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 
 // TableCellLink wraps a TableCell filling the entirety with a Link.
 // This allows table rows to be clickable with browser-behavior like ctrl+click.

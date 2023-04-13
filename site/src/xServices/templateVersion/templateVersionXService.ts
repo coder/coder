@@ -8,7 +8,7 @@ import { Template, TemplateVersion } from "api/typesGenerated"
 import {
   getTemplateVersionFiles,
   TemplateVersionFiles,
-} from "util/templateVersion"
+} from "utils/templateVersion"
 import { assign, createMachine } from "xstate"
 
 export interface TemplateVersionMachineContext {

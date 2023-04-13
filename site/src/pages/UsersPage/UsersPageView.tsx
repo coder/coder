@@ -4,7 +4,7 @@ import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import * as TypesGen from "../../api/typesGenerated"
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
-import { userFilterQuery } from "../../util/filters"
+import { userFilterQuery } from "../../utils/filters"
 
 export const Language = {
   activeUsersFilterName: "Active users",

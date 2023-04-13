@@ -1,7 +1,7 @@
 import { FC, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { useNavigate } from "react-router-dom"
 import { useFormik } from "formik"

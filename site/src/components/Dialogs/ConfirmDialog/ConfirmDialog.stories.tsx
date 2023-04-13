@@ -6,21 +6,15 @@ export default {
   title: "Components/Dialogs/ConfirmDialog",
   component: ConfirmDialog,
   argTypes: {
-    onClose: {
-      action: "onClose",
-      defaultValue: action("onClose"),
-    },
-    onConfirm: {
-      action: "onConfirm",
-      defaultValue: action("onConfirm"),
-    },
     open: {
       control: "boolean",
-      defaultValue: true,
     },
-    title: {
-      defaultValue: "Confirm Dialog",
-    },
+  },
+  args: {
+    onClose: action("onClose"),
+    onConfirm: action("onConfirm"),
+    open: true,
+    title: "Confirm Dialog",
   },
 } as ComponentMeta<typeof ConfirmDialog>
 

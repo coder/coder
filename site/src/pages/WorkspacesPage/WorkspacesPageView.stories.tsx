@@ -8,7 +8,7 @@ import {
   WorkspaceStatuses,
 } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
-import { workspaceFilterQuery } from "../../util/filters"
+import { workspaceFilterQuery } from "../../utils/filters"
 import {
   WorkspacesPageView,
   WorkspacesPageViewProps,
@@ -58,10 +58,8 @@ const allWorkspaces = [
 export default {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
-  argTypes: {
-    limit: {
-      defaultValue: DEFAULT_RECORDS_PER_PAGE,
-    },
+  args: {
+    limit: DEFAULT_RECORDS_PER_PAGE,
   },
 } as ComponentMeta<typeof WorkspacesPageView>
 

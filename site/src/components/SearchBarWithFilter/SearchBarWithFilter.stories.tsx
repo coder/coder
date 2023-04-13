@@ -1,5 +1,5 @@
-import { ComponentMeta, Story } from "@storybook/react"
-import { userFilterQuery, workspaceFilterQuery } from "../../util/filters"
+import { Story } from "@storybook/react"
+import { userFilterQuery, workspaceFilterQuery } from "../../utils/filters"
 import {
   SearchBarWithFilter,
   SearchBarWithFilterProps,
@@ -8,12 +8,10 @@ import {
 export default {
   title: "components/SearchBarWithFilter",
   component: SearchBarWithFilter,
-  argTypes: {
-    filter: {
-      defaultValue: workspaceFilterQuery.me,
-    },
+  args: {
+    filter: workspaceFilterQuery.me,
   },
-} as ComponentMeta<typeof SearchBarWithFilter>
+}
 
 const Template: Story<SearchBarWithFilterProps> = (args) => (
   <SearchBarWithFilter {...args} />

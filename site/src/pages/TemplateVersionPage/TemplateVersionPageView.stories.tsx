@@ -37,12 +37,13 @@ You can add instructions here
 # This is a really long sentence to test that the code block wraps into a new line properly.
 \`\`\``
 
-const defaultArgs = {
+const defaultArgs: TemplateVersionPageViewProps = {
   tab,
   templateName: MockTemplate.name,
   versionName: MockTemplateVersion.name,
   canEdit: true,
   context: {
+    templateName: MockTemplate.name,
     orgId: MockOrganization.id,
     versionName: MockTemplateVersion.name,
     currentVersion: MockTemplateVersion,

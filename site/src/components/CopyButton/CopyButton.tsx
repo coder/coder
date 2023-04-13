@@ -3,7 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import Check from "@material-ui/icons/Check"
 import { useClipboard } from "hooks/useClipboard"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 import { FileCopyIcon } from "../Icons/FileCopyIcon"
 
 interface CopyButtonProps {

@@ -3,7 +3,7 @@ import { useOrganizationId } from "hooks/useOrganizationId"
 import { usePermissions } from "hooks/usePermissions"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { pageTitle } from "../../util/page"
+import { pageTitle } from "../../utils/page"
 import { templatesMachine } from "../../xServices/templates/templatesXService"
 import { TemplatesPageView } from "./TemplatesPageView"
 

@@ -11,26 +11,22 @@ import {
 export default {
   title: "pages/GeneralSettingsPageView",
   component: GeneralSettingsPageView,
-  argTypes: {
-    deploymentOptions: {
-      defaultValue: [
-        {
-          name: "Access URL",
-          usage:
-            "External URL to access your deployment. This must be accessible by all provisioned workspaces.",
-          value: "https://dev.coder.com",
-        },
-        {
-          name: "Wildcard Access URL",
-          usage:
-            'Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".',
-          value: "*--apps.dev.coder.com",
-        },
-      ],
-    },
-    deploymentDAUs: {
-      defaultValue: MockDeploymentDAUResponse,
-    },
+  args: {
+    deploymentOptions: [
+      {
+        name: "Access URL",
+        description:
+          "External URL to access your deployment. This must be accessible by all provisioned workspaces.",
+        value: "https://dev.coder.com",
+      },
+      {
+        name: "Wildcard Access URL",
+        description:
+          'Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".',
+        value: "*--apps.dev.coder.com",
+      },
+    ],
+    deploymentDAUs: MockDeploymentDAUResponse,
   },
 } as ComponentMeta<typeof GeneralSettingsPageView>
 

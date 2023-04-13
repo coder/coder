@@ -9,7 +9,7 @@ import {
 } from "testHelpers/entities"
 import { renderWithAuth } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
-import * as CreateDayString from "util/createDayString"
+import * as CreateDayString from "utils/createDayString"
 import { TemplateSummaryPage } from "./TemplateSummaryPage"
 
 jest.mock("remark-gfm", () => jest.fn())

@@ -5,19 +5,11 @@ import { createPaginationRef } from "./utils"
 export default {
   title: "components/PaginationWidget",
   component: PaginationWidget,
-  argTypes: {
-    prevLabel: {
-      defaultValue: "Previous",
-    },
-    nextLabel: {
-      defaultValue: "Next",
-    },
-    paginationRef: {
-      defaultValue: createPaginationRef({ page: 1, limit: 12 }),
-    },
-    numRecords: {
-      defaultValue: 200,
-    },
+  args: {
+    prevLabel: "Previous",
+    nextLabel: "Next",
+    paginationRef: createPaginationRef({ page: 1, limit: 12 }),
+    numRecords: 200,
   },
 }
 

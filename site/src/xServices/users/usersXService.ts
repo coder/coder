@@ -12,8 +12,8 @@ import {
   displayError,
   displaySuccess,
 } from "../../components/GlobalSnackbar/utils"
-import { queryToFilter } from "../../util/filters"
-import { generateRandomString } from "../../util/random"
+import { queryToFilter } from "../../utils/filters"
+import { generateRandomString } from "../../utils/random"
 
 const usersPaginationId = "usersPagination"
 

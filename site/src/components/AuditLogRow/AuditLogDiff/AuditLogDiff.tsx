@@ -2,7 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { AuditLog } from "api/typesGenerated"
 import { colors } from "theme/colors"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { FC } from "react"
 
 const getDiffValue = (value: unknown): string => {

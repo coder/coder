@@ -9,7 +9,7 @@ import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import { Stack } from "components/Stack/Stack"
 import { Welcome } from "components/Welcome/Welcome"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
 

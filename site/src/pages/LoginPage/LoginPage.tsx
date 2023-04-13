@@ -3,7 +3,7 @@ import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { Navigate, useLocation } from "react-router-dom"
-import { retrieveRedirect } from "../../util/redirect"
+import { retrieveRedirect } from "../../utils/redirect"
 import { LoginPageView } from "./LoginPageView"
 
 export const LoginPage: FC = () => {
