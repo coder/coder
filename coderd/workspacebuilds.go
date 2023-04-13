@@ -604,6 +604,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return xerrors.Errorf("marshal provision job: %w", err)
 			}
+
 			provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 				ID:             uuid.New(),
 				CreatedAt:      database.Now(),
@@ -634,6 +635,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				JobID:             provisionerJob.ID,
 				Reason:            database.BuildReasonInitiator,
 			})
+			if err != nil {
+				return xerrors.Errorf("insert workspace build: %w", err)
+			}
 
 			startBuildID = uuid.New()
 			input, err = json.Marshal(provisionerdserver.WorkspaceProvisionJob{
@@ -643,6 +647,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return xerrors.Errorf("marshal provision job: %w", err)
 			}
+
 			provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 				ID:             uuid.New(),
 				CreatedAt:      database.Now(),
@@ -666,14 +671,16 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				UpdatedAt:         database.Now(),
 				WorkspaceID:       workspace.ID,
 				TemplateVersionID: templateVersion.ID,
-				BuildNumber:       priorBuildNum + 1,
+				BuildNumber:       priorBuildNum + 2,
 				ProvisionerState:  state,
 				InitiatorID:       apiKey.UserID,
 				Transition:        database.WorkspaceTransitionStart,
 				JobID:             provisionerJob.ID,
 				Reason:            database.BuildReasonInitiator,
 			})
-
+			if err != nil {
+				return xerrors.Errorf("insert workspace build: %w", err)
+			}
 		} else {
 			workspaceBuildID = uuid.New()
 			input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
@@ -683,6 +690,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return xerrors.Errorf("marshal provision job: %w", err)
 			}
+
 			provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 				ID:             uuid.New(),
 				CreatedAt:      database.Now(),
@@ -713,10 +721,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				JobID:             provisionerJob.ID,
 				Reason:            database.BuildReasonInitiator,
 			})
-		}
-
-		if err != nil {
-			return xerrors.Errorf("insert workspace build: %w", err)
+			if err != nil {
+				return xerrors.Errorf("insert workspace build: %w", err)
+			}
 		}
 
 		names := make([]string, 0, len(parameters))
