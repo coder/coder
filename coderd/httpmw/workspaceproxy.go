@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -136,23 +135,22 @@ func ExtractExternalProxy(opts ExtractExternalProxyConfig) func(http.Handler) ht
 
 			ctx = r.Context()
 			ctx = context.WithValue(ctx, externalProxyContextKey{}, proxy)
-			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
-				Actor: rbac.Subject{
-					ID: "proxy:" + proxy.ID.String(),
-					// We don't have a system role currently so just use owner
-					// for now.
-					// TODO: add a system role
-					Roles:  rbac.RoleNames{rbac.RoleOwner()},
-					Groups: []string{},
-					Scope:  rbac.ScopeAll,
-				},
-				ActorName: "proxy_" + proxy.Name,
-			})
 			//nolint:gocritic // Workspace proxies have full permissions. The
 			// workspace proxy auth middleware is not mounted to every route, so
 			// they can still only access the routes that the middleware is
 			// mounted to.
 			ctx = dbauthz.AsSystemRestricted(ctx)
+			subj, ok := dbauthz.ActorFromContext(ctx)
+			if !ok {
+				// This should never happen
+				httpapi.InternalServerError(w, xerrors.New("developer error: ExtractExternalProxy missing rbac actor"))
+				return
+			}
+			// Use the same subject for the userAuthKey
+			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
+				Actor:     subj,
+				ActorName: "proxy_" + proxy.Name,
+			})
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
