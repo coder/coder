@@ -1215,6 +1215,7 @@ func SetupServerCmd(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (_ 
 	}
 	c.Ctx = ctx
 	c.HTTPClient = httpClient
+	c.addClose(c.HTTPClient.CloseIdleConnections)
 
 	// Warn the user if the access URL appears to be a loopback address.
 	isLocal, err := isLocalURL(ctx, cfg.AccessURL.Value())
