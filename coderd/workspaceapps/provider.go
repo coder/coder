@@ -29,6 +29,8 @@ type ResolveRequestOpts struct {
 	AppHostname    string
 
 	AppRequest Request
+	// TODO: Replace these 2 fields with a "BrowserURL" field which is used for
+	// redirecting the user back to their initial request after authenticating.
 	// AppPath is the path under the app that was hit.
 	AppPath string
 	// AppQuery is the raw query of the request.

@@ -154,6 +154,11 @@ func (p *DBTokenProvider) IssueToken(ctx context.Context, rw http.ResponseWriter
 		// Otherwise, we need to redirect to the app auth endpoint, which will
 		// redirect back to the app (with an encrypted API key) after the user
 		// has logged in.
+		//
+		// TODO: We should just make this a "BrowserURL" field on the issue struct. Then
+		// we can remove this logic and just defer to that. It can be set closer to the
+		// actual initial request that makes the IssueTokenRequest. Eg the external moon.
+		// This would replace RawQuery and AppPath fields.
 		redirectURI := *appBaseURL
 		if dbReq.AppURL != nil {
 			// Just use the user's current path and query if set.

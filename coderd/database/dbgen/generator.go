@@ -354,7 +354,7 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
 		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 	})
-	require.NoError(t, err, "insert app")
+	require.NoError(t, err, "insert proxy")
 	return secret, resource
 }
 
