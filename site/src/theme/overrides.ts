@@ -242,6 +242,15 @@ export const getOverrides = ({
         minWidth: 120,
       },
     },
+    MuiMenuItem: {
+      root: {
+        gap: 12,
+
+        "& .MuiSvgIcon-root": {
+          fontSize: 20,
+        },
+      },
+    },
     MuiSnackbar: {
       anchorOriginBottomRight: {
         bottom: `${24 + 36}px !important`, // 36 is the bottom bar height

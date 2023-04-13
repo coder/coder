@@ -1,19 +1,27 @@
-import { DropdownButton } from "components/DropdownButton/DropdownButton"
-import { FC, ReactNode, useMemo } from "react"
+import MenuItem from "@material-ui/core/MenuItem"
+import Button from "@material-ui/core/Button"
+import Menu from "@material-ui/core/Menu"
+import { makeStyles } from "@material-ui/core/styles"
+import MoreVertOutlined from "@material-ui/icons/MoreVertOutlined"
+import { FC, ReactNode, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { WorkspaceStatus } from "../../api/typesGenerated"
 import {
   ActionLoadingButton,
   CancelButton,
-  ChangeVersionButton,
-  DeleteButton,
   DisabledButton,
-  SettingsButton,
   StartButton,
   StopButton,
   UpdateButton,
-} from "../DropdownButton/ActionCtas"
-import { ButtonMapping, ButtonTypesEnum, buttonAbilities } from "./constants"
+} from "./Buttons"
+import {
+  ButtonMapping,
+  ButtonTypesEnum,
+  actionsByWorkspaceStatus,
+} from "./constants"
+import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
+import HistoryOutlined from "@material-ui/icons/HistoryOutlined"
+import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
 
 export interface WorkspaceActionsProps {
   workspaceStatus: WorkspaceStatus
@@ -43,24 +51,22 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isUpdating,
   canChangeVersions,
 }) => {
+  const styles = useStyles()
   const { t } = useTranslation("workspacePage")
-  const { canCancel, canAcceptJobs, primaryActions, secondaryActions } =
-    buttonAbilities(workspaceStatus)
+  const {
+    canCancel,
+    canAcceptJobs,
+    actions: actionsByStatus,
+  } = actionsByWorkspaceStatus(workspaceStatus)
   const canBeUpdated = isOutdated && canAcceptJobs
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
     [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
     [ButtonTypesEnum.updating]: (
       <ActionLoadingButton label={t("actionButton.updating")} />
-    ),
-    [ButtonTypesEnum.settings]: (
-      <SettingsButton handleAction={handleSettings} />
-    ),
-    [ButtonTypesEnum.changeVersion]: canChangeVersions ? (
-      <ChangeVersionButton handleAction={handleChangeVersion} />
-    ) : (
-      <></>
     ),
     [ButtonTypesEnum.start]: <StartButton handleAction={handleStart} />,
     [ButtonTypesEnum.starting]: (
@@ -70,7 +76,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.stopping]: (
       <ActionLoadingButton label={t("actionButton.stopping")} />
     ),
-    [ButtonTypesEnum.delete]: <DeleteButton handleAction={handleDelete} />,
     [ButtonTypesEnum.deleting]: (
       <ActionLoadingButton label={t("actionButton.deleting")} />
     ),
@@ -85,36 +90,61 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     ),
   }
 
+  // Returns a function that will execute the action and close the menu
+  const onMenuItemClick = (actionFn: () => void) => () => {
+    setIsMenuOpen(false)
+    actionFn()
+  }
+
   return (
-    <div>
+    <div className={styles.actions}>
       {canBeUpdated &&
         (isUpdating
           ? buttonMapping[ButtonTypesEnum.updating]
           : buttonMapping[ButtonTypesEnum.update])}
-      {primaryActions.map((primaryAction) => buttonMapping[primaryAction])}
+      {actionsByStatus.map((action) => buttonMapping[action])}
       {canCancel && <CancelButton handleAction={handleCancel} />}
+      <div>
+        <Button
+          aria-controls="workspace-options"
+          aria-haspopup="true"
+          variant="outlined"
+          disabled={!canAcceptJobs}
+          ref={menuTriggerRef}
+          onClick={() => setIsMenuOpen(true)}
+        >
+          <MoreVertOutlined />
+        </Button>
+        <Menu
+          id="workspace-options"
+          anchorEl={menuTriggerRef.current}
+          open={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+        >
+          <MenuItem onClick={onMenuItemClick(handleSettings)}>
+            <SettingsOutlined />
+            Settings
+          </MenuItem>
+          {canChangeVersions && (
+            <MenuItem onClick={onMenuItemClick(handleChangeVersion)}>
+              <HistoryOutlined />
+              Change version
+            </MenuItem>
+          )}
+          <MenuItem onClick={onMenuItemClick(handleDelete)}>
+            <DeleteOutlined />
+            Delete
+          </MenuItem>
+        </Menu>
+      </div>
     </div>
   )
-  // // memoize so this isn't recalculated every time we fetch the workspace
-  // const [primaryAction, ...secondaryActions] = useMemo(
-  //   () =>
-  //     isUpdating
-  //       ? [ButtonTypesEnum.updating, ...actions]
-  //       : canBeUpdated
-  //       ? [ButtonTypesEnum.update, ...actions]
-  //       : actions,
-  //   [actions, canBeUpdated, isUpdating],
-  // )
-
-  // return (
-  //   <DropdownButton
-  //     primaryAction={buttonMapping[primaryAction]}
-  //     canCancel={canCancel}
-  //     handleCancel={handleCancel}
-  //     secondaryActions={secondaryActions.map((action) => ({
-  //       action,
-  //       button: buttonMapping[action],
-  //     }))}
-  //   />
-  // )
 }
+
+const useStyles = makeStyles((theme) => ({
+  actions: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(2),
+  },
+}))

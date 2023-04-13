@@ -7,12 +7,9 @@ export enum ButtonTypesEnum {
   starting = "starting",
   stop = "stop",
   stopping = "stopping",
-  delete = "delete",
   deleting = "deleting",
   update = "update",
   updating = "updating",
-  settings = "settings",
-  changeVersion = "changeVersion",
   // disabled buttons
   canceling = "canceling",
   deleted = "deleted",
@@ -24,57 +21,46 @@ export type ButtonMapping = {
 }
 
 interface WorkspaceAbilities {
-  primaryActions: ButtonTypesEnum[]
-  secondaryActions?: ButtonTypesEnum[]
+  actions: ButtonTypesEnum[]
   canCancel: boolean
   canAcceptJobs: boolean
 }
 
-export const buttonAbilities = (
+export const actionsByWorkspaceStatus = (
   status: WorkspaceStatus,
 ): WorkspaceAbilities => {
-  return statusToAbilities[status]
+  return statusToActions[status]
 }
 
-const defaultSecondaryActions = [
-  ButtonTypesEnum.settings,
-  ButtonTypesEnum.changeVersion,
-  ButtonTypesEnum.delete,
-]
-
-const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
+const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
   starting: {
-    primaryActions: [ButtonTypesEnum.starting],
+    actions: [ButtonTypesEnum.starting],
     canCancel: true,
     canAcceptJobs: false,
   },
   running: {
-    primaryActions: [ButtonTypesEnum.stop],
-    secondaryActions: defaultSecondaryActions,
+    actions: [ButtonTypesEnum.stop],
     canCancel: false,
     canAcceptJobs: true,
   },
   stopping: {
-    primaryActions: [ButtonTypesEnum.stopping],
+    actions: [ButtonTypesEnum.stopping],
     canCancel: true,
     canAcceptJobs: false,
   },
   stopped: {
-    primaryActions: [ButtonTypesEnum.start],
-    secondaryActions: defaultSecondaryActions,
+    actions: [ButtonTypesEnum.start],
     canCancel: false,
     canAcceptJobs: true,
   },
   canceled: {
-    primaryActions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
-    secondaryActions: defaultSecondaryActions,
+    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
     canCancel: false,
     canAcceptJobs: true,
   },
   // in the case of an error
   failed: {
-    primaryActions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
-    secondaryActions: defaultSecondaryActions,
+    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
     canCancel: false,
     canAcceptJobs: true,
   },
@@ -82,22 +68,22 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
    * disabled states
    */
   canceling: {
-    primaryActions: [ButtonTypesEnum.canceling],
+    actions: [ButtonTypesEnum.canceling],
     canCancel: false,
     canAcceptJobs: false,
   },
   deleting: {
-    primaryActions: [ButtonTypesEnum.deleting],
+    actions: [ButtonTypesEnum.deleting],
     canCancel: true,
     canAcceptJobs: false,
   },
   deleted: {
-    primaryActions: [ButtonTypesEnum.deleted],
+    actions: [ButtonTypesEnum.deleted],
     canCancel: false,
-    canAcceptJobs: true,
+    canAcceptJobs: false,
   },
   pending: {
-    primaryActions: [ButtonTypesEnum.pending],
+    actions: [ButtonTypesEnum.pending],
     canCancel: false,
     canAcceptJobs: false,
   },

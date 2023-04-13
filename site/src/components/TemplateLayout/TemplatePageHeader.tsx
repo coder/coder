@@ -14,22 +14,17 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
-import { FC, useState } from "react"
-import { Link as RouterLink } from "react-router-dom"
+import { FC, useRef, useState } from "react"
+import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { useDeleteTemplate } from "./deleteTemplate"
 import { Margins } from "components/Margins/Margins"
 import MoreVertOutlined from "@material-ui/icons/MoreVertOutlined"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
-
-const Language = {
-  variablesButton: "Variables",
-  settingsButton: "Settings",
-  createButton: "Create workspace",
-  deleteButton: "Delete",
-  editFilesButton: "Edit files",
-  duplicateButton: "Duplicate",
-}
+import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
+import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
+import EditOutlined from "@material-ui/icons/EditOutlined"
+import FileCopyOutlined from "@material-ui/icons/FileCopyOutlined"
 
 const TemplateMenu: FC<{
   templateName: string
@@ -37,10 +32,15 @@ const TemplateMenu: FC<{
   canEditFiles: boolean
   onDelete: () => void
 }> = ({ templateName, templateVersion, canEditFiles, onDelete }) => {
-  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null)
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const navigate = useNavigate()
 
-  const handleClose = () => {
-    setAnchorEl(null)
+  // Returns a function that will execute the action and close the menu
+  const onMenuItemClick = (actionFn: () => void) => () => {
+    setIsMenuOpen(false)
+
+    actionFn()
   }
 
   return (
@@ -49,50 +49,51 @@ const TemplateMenu: FC<{
         variant="outlined"
         aria-controls="template-options"
         aria-haspopup="true"
-        onClick={(e) => setAnchorEl(e.currentTarget)}
+        onClick={() => setIsMenuOpen(true)}
+        ref={menuTriggerRef}
       >
         <MoreVertOutlined />
       </Button>
 
       <Menu
         id="template-options"
-        anchorEl={anchorEl}
-        keepMounted
-        open={Boolean(anchorEl)}
-        onClose={handleClose}
+        anchorEl={menuTriggerRef.current}
+        open={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
       >
         <MenuItem
-          onClick={handleClose}
-          component={RouterLink}
-          to={`/templates/${templateName}/settings`}
+          onClick={onMenuItemClick(() =>
+            navigate(`/templates/${templateName}/settings`),
+          )}
         >
-          {Language.settingsButton}
+          <SettingsOutlined />
+          Settings
         </MenuItem>
         {canEditFiles && (
           <MenuItem
-            onClick={handleClose}
-            component={RouterLink}
-            to={`/templates/new?fromTemplate=${templateName}`}
+            onClick={onMenuItemClick(() =>
+              navigate(`/templates/new?fromTemplate=${templateName}`),
+            )}
           >
-            {Language.duplicateButton}
+            <FileCopyOutlined />
+            Duplicate
           </MenuItem>
         )}
         {canEditFiles && (
           <MenuItem
-            component={RouterLink}
-            to={`/templates/${templateName}/versions/${templateVersion}/edit`}
-            onClick={handleClose}
+            onClick={onMenuItemClick(() =>
+              navigate(
+                `/templates/${templateName}/versions/${templateVersion}/edit`,
+              ),
+            )}
           >
-            {Language.editFilesButton}
+            <EditOutlined />
+            Edit files
           </MenuItem>
         )}
-        <MenuItem
-          onClick={() => {
-            onDelete()
-            handleClose()
-          }}
-        >
-          {Language.deleteButton}
+        <MenuItem onClick={onMenuItemClick(onDelete)}>
+          <DeleteOutlined />
+          Delete
         </MenuItem>
       </Menu>
     </div>
@@ -108,7 +109,7 @@ const CreateWorkspaceButton: FC<{
     component={RouterLink}
     to={`/templates/${templateName}/workspace`}
   >
-    {Language.createButton}
+    Create workspace
   </Button>
 )
 
