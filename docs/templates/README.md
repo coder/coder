@@ -195,7 +195,7 @@ the Coder server runs an additional [terraform apply](https://www.terraform.io/c
 informing the Coder provider that the workspace has a new transition state.
 
 This template sample has one persistent resource (docker volume) and one
-ephemeral resource (docker image).
+ephemeral resource (docker container).
 
 ```hcl
 data "coder_workspace" "me" {
