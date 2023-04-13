@@ -151,7 +151,7 @@ fatal() {
 
 	# If we have docker available and the "docker" template doesn't already
 	# exist, then let's try to create a template!
-	example_template="code-server"
+	example_template="docker"
 	template_name="docker"
 	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
 		# sometimes terraform isn't installed yet when we go to create the
