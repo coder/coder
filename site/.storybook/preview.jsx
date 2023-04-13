@@ -26,8 +26,7 @@ export const decorators = [
 
 export const parameters = {
   actions: {
-    argTypesRegex: "^on[A-Z].*",
-    argTypesRegex: "^handle[A-Z].*",
+    argTypesRegex: "^(on|handler)[A-Z].*",
   },
   controls: {
     expanded: true,

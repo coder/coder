@@ -7,7 +7,7 @@ import { createUserMachine } from "xServices/users/createUserXService"
 import * as TypesGen from "../../../api/typesGenerated"
 import { CreateUserForm } from "../../../components/CreateUserForm/CreateUserForm"
 import { Margins } from "../../../components/Margins/Margins"
-import { pageTitle } from "../../../util/page"
+import { pageTitle } from "../../../utils/page"
 
 export const Language = {
   unknownError: "Oops, an unknown error occurred.",

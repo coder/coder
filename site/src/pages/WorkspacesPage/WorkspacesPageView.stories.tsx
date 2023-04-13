@@ -8,7 +8,7 @@ import {
   WorkspaceStatuses,
 } from "../../api/typesGenerated"
 import { MockWorkspace } from "../../testHelpers/entities"
-import { workspaceFilterQuery } from "../../util/filters"
+import { workspaceFilterQuery } from "../../utils/filters"
 import {
   WorkspacesPageView,
   WorkspacesPageViewProps,

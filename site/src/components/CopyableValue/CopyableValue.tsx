@@ -3,7 +3,7 @@ import Tooltip from "@material-ui/core/Tooltip"
 import { useClickable } from "hooks/useClickable"
 import { useClipboard } from "hooks/useClipboard"
 import { FC, HTMLProps } from "react"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 interface CopyableValueProps extends HTMLProps<HTMLDivElement> {
   value: string

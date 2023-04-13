@@ -10,7 +10,7 @@ import { Stack } from "components/Stack/Stack"
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
-} from "util/deployOptions"
+} from "utils/deployOptions"
 
 export type NetworkSettingsPageViewProps = {
   options: DeploymentOption[]

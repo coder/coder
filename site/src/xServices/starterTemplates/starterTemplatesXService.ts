@@ -1,6 +1,9 @@
 import { getTemplateExamples } from "api/api"
 import { TemplateExample } from "api/typesGenerated"
-import { getTemplatesByTag, StarterTemplatesByTag } from "util/starterTemplates"
+import {
+  getTemplatesByTag,
+  StarterTemplatesByTag,
+} from "utils/starterTemplates"
 import { assign, createMachine } from "xstate"
 
 export interface StarterTemplatesContext {

@@ -2,7 +2,7 @@ import { useTheme } from "@material-ui/core/styles"
 import Editor from "@monaco-editor/react"
 import { FC, useLayoutEffect, useMemo, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import { hslToHex } from "util/colors"
+import { hslToHex } from "utils/colors"
 import type { editor } from "monaco-editor"
 
 export const MonacoEditor: FC<{

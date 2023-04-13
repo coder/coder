@@ -3,7 +3,7 @@ import { AppPreviewLink } from "components/AppLink/AppPreviewLink"
 import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { WorkspaceAgent } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
 

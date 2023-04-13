@@ -3,7 +3,7 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { WorkspaceBuild } from "../../api/typesGenerated"
-import { displayWorkspaceBuildDuration } from "../../util/workspace"
+import { displayWorkspaceBuildDuration } from "../../utils/workspace"
 
 export interface WorkspaceBuildStatsProps {
   build: WorkspaceBuild

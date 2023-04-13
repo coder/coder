@@ -4,7 +4,7 @@ import MuiDialog, {
 import { alpha, darken, makeStyles } from "@material-ui/core/styles"
 import * as React from "react"
 import { colors } from "theme/colors"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 import {
   LoadingButton,
   LoadingButtonProps,

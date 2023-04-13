@@ -7,7 +7,7 @@ import { Group, User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
 import { ChangeEvent, useState } from "react"
-import { getGroupSubtitle } from "util/groups"
+import { getGroupSubtitle } from "utils/groups"
 import { searchUsersAndGroupsMachine } from "xServices/template/searchUsersAndGroupsXService"
 
 export type UserOrGroupAutocompleteValue = User | Group | null

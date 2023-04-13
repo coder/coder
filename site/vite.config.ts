@@ -51,7 +51,7 @@ export default defineConfig({
       pages: path.resolve(__dirname, "./src/pages"),
       testHelpers: path.resolve(__dirname, "./src/testHelpers"),
       theme: path.resolve(__dirname, "./src/theme"),
-      util: path.resolve(__dirname, "./src/util"),
+      utils: path.resolve(__dirname, "./src/utils"),
       xServices: path.resolve(__dirname, "./src/xServices"),
     },
   },

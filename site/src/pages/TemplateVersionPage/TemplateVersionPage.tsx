@@ -6,7 +6,7 @@ import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { templateVersionMachine } from "xServices/templateVersion/templateVersionXService"
 import TemplateVersionPageView from "./TemplateVersionPageView"
 

@@ -1,7 +1,7 @@
 import { getGroups, getUsers } from "api/api"
 import { Group, User } from "api/typesGenerated"
-import { queryToFilter } from "util/filters"
-import { everyOneGroup } from "util/groups"
+import { queryToFilter } from "utils/filters"
+import { everyOneGroup } from "utils/groups"
 import { assign, createMachine } from "xstate"
 
 export type SearchUsersAndGroupsEvent =

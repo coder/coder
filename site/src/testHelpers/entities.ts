@@ -1,12 +1,12 @@
 import { withDefaultFeatures } from "./../api/api"
 import { FieldError } from "api/errors"
-import { everyOneGroup } from "util/groups"
+import { everyOneGroup } from "utils/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
-import { TemplateVersionFiles } from "util/templateVersion"
-import { FileTree } from "util/filetree"
+import { TemplateVersionFiles } from "utils/templateVersion"
+import { FileTree } from "utils/filetree"
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",

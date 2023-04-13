@@ -1,5 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { userFilterQuery, workspaceFilterQuery } from "../../util/filters"
+import { userFilterQuery, workspaceFilterQuery } from "../../utils/filters"
 import {
   SearchBarWithFilter,
   SearchBarWithFilterProps,

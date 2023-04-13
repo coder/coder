@@ -5,7 +5,7 @@ import Snackbar, {
 import { makeStyles } from "@material-ui/core/styles"
 import CloseIcon from "@material-ui/icons/Close"
 import { FC } from "react"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success"
 

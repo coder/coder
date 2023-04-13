@@ -11,7 +11,7 @@ import {
   TemplateVersionVariable,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
-import { delay } from "util/delay"
+import { delay } from "utils/delay"
 import { Message } from "api/types"
 
 type TemplateVariablesContext = {

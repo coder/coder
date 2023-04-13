@@ -3,7 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { HTMLProps, ReactNode, FC, PropsWithChildren } from "react"
 import { CardPadding } from "../../theme/constants"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 
 export interface WorkspaceSectionProps {
   /**

@@ -3,7 +3,7 @@ import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router-dom"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { createGroupMachine } from "xServices/groups/createGroupXService"
 import CreateGroupPageView from "./CreateGroupPageView"
 

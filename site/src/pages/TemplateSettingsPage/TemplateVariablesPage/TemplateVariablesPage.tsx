@@ -11,7 +11,7 @@ import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { templateVariablesMachine } from "xServices/template/templateVariablesXService"
-import { pageTitle } from "../../../util/page"
+import { pageTitle } from "../../../utils/page"
 import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView"
 

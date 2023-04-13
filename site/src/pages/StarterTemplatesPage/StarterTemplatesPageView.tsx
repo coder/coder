@@ -13,7 +13,7 @@ import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExam
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useSearchParams } from "react-router-dom"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { StarterTemplatesContext } from "xServices/starterTemplates/starterTemplatesXService"
 
 const getTagLabel = (tag: string, t: (key: string) => string) => {

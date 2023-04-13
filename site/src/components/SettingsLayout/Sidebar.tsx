@@ -6,7 +6,7 @@ import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import AccountIcon from "@material-ui/icons/Person"
 import SecurityIcon from "@material-ui/icons/LockOutlined"
 

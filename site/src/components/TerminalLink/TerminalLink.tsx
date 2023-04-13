@@ -4,8 +4,8 @@ import { makeStyles } from "@material-ui/core/styles"
 import ComputerIcon from "@material-ui/icons/Computer"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { combineClasses } from "../../util/combineClasses"
-import { generateRandomString } from "../../util/random"
+import { combineClasses } from "../../utils/combineClasses"
+import { generateRandomString } from "../../utils/random"
 
 export const Language = {
   linkText: "Terminal",
