@@ -1,6 +1,10 @@
-Usage: coder templates init [directory]
+Usage: coder templates init [flags] [directory]
 
 Get started with a templated template.
+
+[1mOptions[0m
+      --id string
+          Specify a given example template by ID.
 
 ---
 Run `coder --help` for a list of global options.
