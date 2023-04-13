@@ -33,8 +33,9 @@ type CreateWorkspaceProxyRequest struct {
 }
 
 type CreateWorkspaceProxyResponse struct {
-	Proxy      WorkspaceProxy `json:"proxy" table:"proxy,recursive,default_sort"`
-	ProxyToken string         `json:"proxy_token"`
+	Proxy WorkspaceProxy `json:"proxy" table:"proxy,recursive"`
+	// The recursive table sort is not working very well.
+	ProxyToken string `json:"proxy_token" table:"proxy token,default_sort"`
 }
 
 func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (CreateWorkspaceProxyResponse, error) {
