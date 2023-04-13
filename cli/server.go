@@ -255,44 +255,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// which is caught by goleaks.
 			defer http.DefaultClient.CloseIdleConnections()
 
-			var (
-				tracerProvider trace.TracerProvider
-				sqlDriver      = "postgres"
-			)
-
-			// Coder tracing should be disabled if telemetry is disabled unless
-			// --telemetry-trace was explicitly provided.
-			shouldCoderTrace := cfg.Telemetry.Enable.Value() && !isTest()
-			// Only override if telemetryTraceEnable was specifically set.
-			// By default we want it to be controlled by telemetryEnable.
-			if inv.ParsedFlags().Changed("telemetry-trace") {
-				shouldCoderTrace = cfg.Telemetry.Trace.Value()
+			tracerProvider, sqlDriver := ConfigureTraceProvider(ctx, logger, inv, cfg)
+			httpServers, err := ConfigureHTTPServers(inv, cfg)
+			if err != nil {
+				return xerrors.Errorf("configure http(s): %w", err)
 			}
-
-			if cfg.Trace.Enable.Value() || shouldCoderTrace || cfg.Trace.HoneycombAPIKey != "" {
-				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
-					Default:   cfg.Trace.Enable.Value(),
-					Coder:     shouldCoderTrace,
-					Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
-				})
-				if err != nil {
-					logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
-				} else {
-					// allow time for traces to flush even if command context is canceled
-					defer func() {
-						_ = shutdownWithTimeout(closeTracing, 5*time.Second)
-					}()
-
-					d, err := tracing.PostgresDriver(sdkTracerProvider, "coderd.database")
-					if err != nil {
-						logger.Warn(ctx, "start postgres tracing driver", slog.Error(err))
-					} else {
-						sqlDriver = d
-					}
-
-					tracerProvider = sdkTracerProvider
-				}
-			}
+			defer httpServers.Close()
 
 			config := r.createConfig()
 
@@ -322,118 +290,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 			}
 
-			var (
-				httpListener net.Listener
-				httpURL      *url.URL
-			)
-			if cfg.HTTPAddress.String() != "" {
-				httpListener, err = net.Listen("tcp", cfg.HTTPAddress.String())
-				if err != nil {
-					return err
-				}
-				defer httpListener.Close()
-
-				listenAddrStr := httpListener.Addr().String()
-				// For some reason if 0.0.0.0:x is provided as the http address,
-				// httpListener.Addr().String() likes to return it as an ipv6
-				// address (i.e. [::]:x). If the input ip is 0.0.0.0, try to
-				// coerce the output back to ipv4 to make it less confusing.
-				if strings.Contains(cfg.HTTPAddress.String(), "0.0.0.0") {
-					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
-				}
-
-				// We want to print out the address the user supplied, not the
-				// loopback device.
-				_, _ = fmt.Fprintf(inv.Stdout, "Started HTTP listener at %s\n", (&url.URL{Scheme: "http", Host: listenAddrStr}).String())
-
-				// Set the http URL we want to use when connecting to ourselves.
-				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
-				if !tcpAddrValid {
-					return xerrors.Errorf("invalid TCP address type %T", httpListener.Addr())
-				}
-				if tcpAddr.IP.IsUnspecified() {
-					tcpAddr.IP = net.IPv4(127, 0, 0, 1)
-				}
-				httpURL = &url.URL{
-					Scheme: "http",
-					Host:   tcpAddr.String(),
-				}
-			}
-
-			var (
-				tlsConfig     *tls.Config
-				httpsListener net.Listener
-				httpsURL      *url.URL
-			)
-			if cfg.TLS.Enable {
-				if cfg.TLS.Address.String() == "" {
-					return xerrors.New("tls address must be set if tls is enabled")
-				}
-
-				// DEPRECATED: This redirect used to default to true.
-				// It made more sense to have the redirect be opt-in.
-				if inv.Environ.Get("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
-					cliui.Warn(inv.Stderr, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
-					cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
-				}
-
-				tlsConfig, err = configureTLS(
-					cfg.TLS.MinVersion.String(),
-					cfg.TLS.ClientAuth.String(),
-					cfg.TLS.CertFiles,
-					cfg.TLS.KeyFiles,
-					cfg.TLS.ClientCAFile.String(),
-				)
-				if err != nil {
-					return xerrors.Errorf("configure tls: %w", err)
-				}
-				httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.String())
-				if err != nil {
-					return err
-				}
-				defer httpsListenerInner.Close()
-
-				httpsListener = tls.NewListener(httpsListenerInner, tlsConfig)
-				defer httpsListener.Close()
-
-				listenAddrStr := httpsListener.Addr().String()
-				// For some reason if 0.0.0.0:x is provided as the https
-				// address, httpsListener.Addr().String() likes to return it as
-				// an ipv6 address (i.e. [::]:x). If the input ip is 0.0.0.0,
-				// try to coerce the output back to ipv4 to make it less
-				// confusing.
-				if strings.Contains(cfg.HTTPAddress.String(), "0.0.0.0") {
-					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
-				}
-
-				// We want to print out the address the user supplied, not the
-				// loopback device.
-				_, _ = fmt.Fprintf(inv.Stdout, "Started TLS/HTTPS listener at %s\n", (&url.URL{Scheme: "https", Host: listenAddrStr}).String())
-
-				// Set the https URL we want to use when connecting to
-				// ourselves.
-				tcpAddr, tcpAddrValid := httpsListener.Addr().(*net.TCPAddr)
-				if !tcpAddrValid {
-					return xerrors.Errorf("invalid TCP address type %T", httpsListener.Addr())
-				}
-				if tcpAddr.IP.IsUnspecified() {
-					tcpAddr.IP = net.IPv4(127, 0, 0, 1)
-				}
-				httpsURL = &url.URL{
-					Scheme: "https",
-					Host:   tcpAddr.String(),
-				}
-			}
-
-			// Sanity check that at least one listener was started.
-			if httpListener == nil && httpsListener == nil {
-				return xerrors.New("must listen on at least one address")
-			}
-
 			// Prefer HTTP because it's less prone to TLS errors over localhost.
-			localURL := httpsURL
-			if httpURL != nil {
-				localURL = httpURL
+			localURL := httpServers.TLSUrl
+			if httpServers.HTTPUrl != nil {
+				localURL = httpServers.HTTPUrl
 			}
 
 			ctx, httpClient, err := ConfigureHTTPClient(
@@ -607,8 +467,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					SSHConfigOptions: configSSHOptions,
 				},
 			}
-			if tlsConfig != nil {
-				options.TLSCertificates = tlsConfig.Certificates
+			if httpServers.TLSConfig != nil {
+				options.TLSCertificates = httpServers.TLSConfig.Certificates
 			}
 
 			if cfg.StrictTransportSecurity > 0 {
@@ -956,30 +816,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// We call this in the routine so we can kill the other listeners if
 			// one of them fails.
 			closeListenersNow := func() {
-				if httpListener != nil {
-					_ = httpListener.Close()
-				}
-				if httpsListener != nil {
-					_ = httpsListener.Close()
-				}
+				httpServers.Close()
 				if tunnel != nil {
 					_ = tunnel.Listener.Close()
 				}
 			}
 
 			eg := errgroup.Group{}
-			if httpListener != nil {
-				eg.Go(func() error {
-					defer closeListenersNow()
-					return httpServer.Serve(httpListener)
-				})
-			}
-			if httpsListener != nil {
-				eg.Go(func() error {
-					defer closeListenersNow()
-					return httpServer.Serve(httpsListener)
-				})
-			}
+			eg.Go(func() error {
+				defer closeListenersNow()
+				return httpServers.Serve(httpServer)
+			})
 			if tunnel != nil {
 				eg.Go(func() error {
 					defer closeListenersNow()
@@ -1915,4 +1762,207 @@ func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 	ok = true
 	return sqlDB, nil
+}
+
+type HTTPServers struct {
+	HTTPUrl      *url.URL
+	HTTPListener net.Listener
+
+	// TLS
+	TLSUrl      *url.URL
+	TLSListener net.Listener
+	TLSConfig   *tls.Config
+}
+
+// Serve acts just like http.Serve. It is a blocking call until the server
+// is closed, and an error is returned if any underlying Serve call fails.
+func (s *HTTPServers) Serve(srv *http.Server) error {
+	eg := errgroup.Group{}
+	if s.HTTPListener != nil {
+		eg.Go(func() error {
+			defer s.Close() // close all listeners on error
+			return srv.Serve(s.HTTPListener)
+		})
+	}
+	if s.TLSListener != nil {
+		eg.Go(func() error {
+			defer s.Close() // close all listeners on error
+			return srv.Serve(s.TLSListener)
+		})
+	}
+	return eg.Wait()
+}
+
+func (s *HTTPServers) Close() {
+	if s.HTTPListener != nil {
+		_ = s.HTTPListener.Close()
+	}
+	if s.TLSListener != nil {
+		_ = s.TLSListener.Close()
+	}
+}
+
+func ConfigureTraceProvider(ctx context.Context, logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (trace.TracerProvider, string) {
+	var (
+		tracerProvider trace.TracerProvider
+		sqlDriver      = "postgres"
+	)
+	// Coder tracing should be disabled if telemetry is disabled unless
+	// --telemetry-trace was explicitly provided.
+	shouldCoderTrace := cfg.Telemetry.Enable.Value() && !isTest()
+	// Only override if telemetryTraceEnable was specifically set.
+	// By default we want it to be controlled by telemetryEnable.
+	if inv.ParsedFlags().Changed("telemetry-trace") {
+		shouldCoderTrace = cfg.Telemetry.Trace.Value()
+	}
+
+	if cfg.Trace.Enable.Value() || shouldCoderTrace || cfg.Trace.HoneycombAPIKey != "" {
+		sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
+			Default:   cfg.Trace.Enable.Value(),
+			Coder:     shouldCoderTrace,
+			Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
+		})
+		if err != nil {
+			logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
+		} else {
+			// allow time for traces to flush even if command context is canceled
+			defer func() {
+				_ = shutdownWithTimeout(closeTracing, 5*time.Second)
+			}()
+
+			d, err := tracing.PostgresDriver(sdkTracerProvider, "coderd.database")
+			if err != nil {
+				logger.Warn(ctx, "start postgres tracing driver", slog.Error(err))
+			} else {
+				sqlDriver = d
+			}
+
+			tracerProvider = sdkTracerProvider
+		}
+	}
+	return tracerProvider, sqlDriver
+}
+
+func ConfigureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (_ *HTTPServers, err error) {
+	httpServers := &HTTPServers{}
+	defer func() {
+		if err != nil {
+			// Always close the listeners if we fail.
+			httpServers.Close()
+		}
+	}()
+	// Validate bind addresses.
+	if cfg.Address.String() != "" {
+		if cfg.TLS.Enable {
+			cfg.HTTPAddress = ""
+			cfg.TLS.Address = cfg.Address
+		} else {
+			_ = cfg.HTTPAddress.Set(cfg.Address.String())
+			cfg.TLS.Address.Host = ""
+			cfg.TLS.Address.Port = ""
+		}
+	}
+	if cfg.TLS.Enable && cfg.TLS.Address.String() == "" {
+		return nil, xerrors.Errorf("TLS address must be set if TLS is enabled")
+	}
+	if !cfg.TLS.Enable && cfg.HTTPAddress.String() == "" {
+		return nil, xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
+	}
+
+	if cfg.AccessURL.String() != "" &&
+		!(cfg.AccessURL.Scheme == "http" || cfg.AccessURL.Scheme == "https") {
+		return nil, xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
+	}
+
+	addrString := func(l net.Listener) string {
+		listenAddrStr := l.Addr().String()
+		// For some reason if 0.0.0.0:x is provided as the https
+		// address, httpsListener.Addr().String() likes to return it as
+		// an ipv6 address (i.e. [::]:x). If the input ip is 0.0.0.0,
+		// try to coerce the output back to ipv4 to make it less
+		// confusing.
+		if strings.Contains(cfg.HTTPAddress.String(), "0.0.0.0") {
+			listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
+		}
+		return listenAddrStr
+	}
+
+	if cfg.HTTPAddress.String() != "" {
+		httpServers.HTTPListener, err = net.Listen("tcp", cfg.HTTPAddress.String())
+		if err != nil {
+			return nil, err
+		}
+
+		// We want to print out the address the user supplied, not the
+		// loopback device.
+		_, _ = fmt.Fprintf(inv.Stdout, "Started HTTP listener at %s\n", (&url.URL{Scheme: "http", Host: addrString(httpServers.HTTPListener)}).String())
+
+		// Set the http URL we want to use when connecting to ourselves.
+		tcpAddr, tcpAddrValid := httpServers.HTTPListener.Addr().(*net.TCPAddr)
+		if !tcpAddrValid {
+			return nil, xerrors.Errorf("invalid TCP address type %T", httpServers.HTTPListener.Addr())
+		}
+		if tcpAddr.IP.IsUnspecified() {
+			tcpAddr.IP = net.IPv4(127, 0, 0, 1)
+		}
+		httpServers.HTTPUrl = &url.URL{
+			Scheme: "http",
+			Host:   tcpAddr.String(),
+		}
+	}
+
+	if cfg.TLS.Enable {
+		if cfg.TLS.Address.String() == "" {
+			return nil, xerrors.New("tls address must be set if tls is enabled")
+		}
+
+		// DEPRECATED: This redirect used to default to true.
+		// It made more sense to have the redirect be opt-in.
+		if inv.Environ.Get("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
+			cliui.Warn(inv.Stderr, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
+			cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
+		}
+
+		tlsConfig, err := configureTLS(
+			cfg.TLS.MinVersion.String(),
+			cfg.TLS.ClientAuth.String(),
+			cfg.TLS.CertFiles,
+			cfg.TLS.KeyFiles,
+			cfg.TLS.ClientCAFile.String(),
+		)
+		if err != nil {
+			return nil, xerrors.Errorf("configure tls: %w", err)
+		}
+		httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.String())
+		if err != nil {
+			return nil, err
+		}
+
+		httpServers.TLSConfig = tlsConfig
+		httpServers.TLSListener = tls.NewListener(httpsListenerInner, tlsConfig)
+
+		// We want to print out the address the user supplied, not the
+		// loopback device.
+		_, _ = fmt.Fprintf(inv.Stdout, "Started TLS/HTTPS listener at %s\n", (&url.URL{Scheme: "https", Host: addrString(httpServers.TLSListener)}).String())
+
+		// Set the https URL we want to use when connecting to
+		// ourselves.
+		tcpAddr, tcpAddrValid := httpServers.TLSListener.Addr().(*net.TCPAddr)
+		if !tcpAddrValid {
+			return nil, xerrors.Errorf("invalid TCP address type %T", httpServers.TLSListener.Addr())
+		}
+		if tcpAddr.IP.IsUnspecified() {
+			tcpAddr.IP = net.IPv4(127, 0, 0, 1)
+		}
+		httpServers.TLSUrl = &url.URL{
+			Scheme: "https",
+			Host:   tcpAddr.String(),
+		}
+	}
+
+	if httpServers.HTTPListener == nil && httpServers.TLSListener == nil {
+		return nil, xerrors.New("must listen on at least one address")
+	}
+
+	return httpServers, nil
 }
