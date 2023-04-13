@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -71,4 +72,25 @@ func (c *Client) WorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
 
 	var proxies []WorkspaceProxy
 	return proxies, json.NewDecoder(res.Body).Decode(&proxies)
+}
+
+func (c *Client) DeleteWorkspaceProxyByName(ctx context.Context, name string) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/workspaceproxies/%s", name),
+		nil,
+	)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
+}
+
+func (c *Client) DeleteWorkspaceProxyByID(ctx context.Context, id uuid.UUID) error {
+	return c.DeleteWorkspaceProxyByName(ctx, id.String())
 }

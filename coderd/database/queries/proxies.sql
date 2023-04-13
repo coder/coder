@@ -49,6 +49,16 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetWorkspaceProxyByName :one
+SELECT
+	*
+FROM
+	workspace_proxies
+WHERE
+	name = $1
+LIMIT
+	1;
+
 -- Finds a workspace proxy that has an access URL or app hostname that matches
 -- the provided hostname. This is to check if a hostname matches any workspace
 -- proxy.

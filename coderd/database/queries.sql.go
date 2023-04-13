@@ -2937,6 +2937,35 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 	return i, err
 }
 
+const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
+SELECT
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+FROM
+	workspace_proxies
+WHERE
+	name = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByName, name)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+		&i.TokenHashedSecret,
+	)
+	return i, err
+}
+
 const insertWorkspaceProxy = `-- name: InsertWorkspaceProxy :one
 INSERT INTO
 	workspace_proxies (

@@ -15,8 +15,9 @@ set -euo pipefail
 
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
+use_proxy=0
 
-args="$(getopt -o "" -l agpl,password: -- "$@")"
+args="$(getopt -o "" -l use-proxy,agpl,password: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -28,6 +29,10 @@ while true; do
 		password="$2"
 		shift 2
 		;;
+  --use-proxy)
+  	use_proxy=1
+  	shift
+  	;;
 	--)
 		shift
 		break
@@ -37,6 +42,10 @@ while true; do
 		;;
 	esac
 done
+
+if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ] && [ "${use_proxy}" -gt "0" ]; then
+	echo '== ERROR: cannot use both external proxies and APGL build.' && exit 1
+fi
 
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
 dependencies curl git go make yarn
@@ -166,6 +175,13 @@ fatal() {
 			"${CODER_DEV_SHIM}" templates create "${template_name}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
 			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
 		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
+	fi
+
+	if [ "${use_proxy}" -gt "0" ]; then
+		# Create the proxy
+		"${CODER_DEV_SHIM}" proxy register --name=local-proxy --display-name="Local Proxy" --icon="/emojis/1f4bb.png" --access-url=http://localhost:3010 --only-token
+		# Start the proxy
+		start_cmd PROXY proxy "" "${CODER_DEV_SHIM}" proxy --listen-addr
 	fi
 
 	# Start the frontend once we have a template up and running

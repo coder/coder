@@ -46,6 +46,31 @@ func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 		Children: []*clibase.Cmd{
 			r.proxyServer(),
 			r.registerProxy(),
+			r.deleteProxy(),
+		},
+	}
+
+	return cmd
+}
+
+func (r *RootCmd) deleteProxy() *clibase.Cmd {
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
+		Use:   "delete",
+		Short: "Delete a workspace proxy",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
+			err := client.DeleteWorkspaceProxyByName(ctx, inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("delete workspace proxy %q: %w", inv.Args[0], err)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stdout, "Workspace proxy %q deleted successfully", inv.Args[0])
+			return nil
 		},
 	}
 

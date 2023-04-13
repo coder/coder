@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/coder/coder/coderd/httpmw"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -18,6 +20,49 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 )
+
+// @Summary Delete workspace proxy
+// @ID delete-workspace-proxy
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /workspaceproxies/{workspaceproxy} [delete]
+func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		proxy             = httpmw.WorkspaceProxy(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	aReq.Old = proxy
+	defer commitAudit()
+
+	err := api.Database.UpdateWorkspaceProxyDeleted(ctx, database.UpdateWorkspaceProxyDeletedParams{
+		ID:      proxy.ID,
+		Deleted: true,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = database.WorkspaceProxy{}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "Proxy has been deleted!",
+	})
+}
 
 // @Summary Create workspace proxy
 // @ID create-workspace-proxy
