@@ -413,7 +413,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 
 			checkpoint := time.Now()
 			stats, err := db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
-
 			if err != nil {
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
 				goto done
