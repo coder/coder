@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"net/url"
 	"os/signal"
 	"regexp"
 	rpprof "runtime/pprof"
@@ -107,6 +106,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			YAML: "externalWorkspaceProxy",
 		}
 		proxySessionToken clibase.String
+		primaryAccessURL  clibase.URL
 	)
 	opts.Add(
 		// Options only for external workspace proxies
@@ -119,6 +119,18 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			YAML:        "proxySessionToken",
 			Default:     "",
 			Value:       &proxySessionToken,
+			Group:       &externalProxyOptionGroup,
+			Hidden:      false,
+		},
+
+		clibase.Option{
+			Name:        "Coderd (Primary) Access URL",
+			Description: "URL to communicate with coderd. This should match the access URL of the Coder deployment.",
+			Flag:        "primary-access-url",
+			Env:         "CODER_PRIMARY_ACCESS_URL",
+			YAML:        "primaryAccessURL",
+			Default:     "",
+			Value:       &primaryAccessURL,
 			Group:       &externalProxyOptionGroup,
 			Hidden:      false,
 		},
@@ -137,6 +149,10 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			if !(primaryAccessURL.Scheme == "http" || primaryAccessURL.Scheme == "https") {
+				return xerrors.Errorf("primary access URL must be http or https: url=%s", primaryAccessURL)
+			}
+
 			var closers closers
 			// Main command context for managing cancellation of running
 			// services.
@@ -255,11 +271,10 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 				closers.Add(closeFunc)
 			}
 
-			pu, _ := url.Parse("http://localhost:3000")
 			proxy, err := wsproxy.New(&wsproxy.Options{
 				Logger: logger,
 				// TODO: PrimaryAccessURL
-				PrimaryAccessURL: pu,
+				PrimaryAccessURL: primaryAccessURL.Value(),
 				AccessURL:        cfg.AccessURL.Value(),
 				AppHostname:      appHostname,
 				AppHostnameRegex: appHostnameRegex,
