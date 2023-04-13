@@ -5,9 +5,9 @@ coderd_agents_apps{agent_name="main",app_name="code-server",health="healthy",use
 coderd_agents_apps{agent_name="main",app_name="code-server",health="healthy",username="admin",workspace_name="workspace-3"} 1
 # HELP coderd_agents_connection_latencies_seconds Agent connection latencies in seconds.
 # TYPE coderd_agents_connection_latencies_seconds gauge
-coderd_agents_connection_latencies_seconds{agent_id="main",derp_region="Coder Embedded Relay",preferred="true",username="admin",workspace_name="workspace-1"} 0.03018125
-coderd_agents_connection_latencies_seconds{agent_id="main",derp_region="Coder Embedded Relay",preferred="true",username="admin",workspace_name="workspace-2"} 0.028658416
-coderd_agents_connection_latencies_seconds{agent_id="main",derp_region="Coder Embedded Relay",preferred="true",username="admin",workspace_name="workspace-3"} 0.028041416
+coderd_agents_connection_latencies_seconds{agent_name="main",derp_region="Coder Embedded Relay",preferred="true",username="admin",workspace_name="workspace-1"} 0.03018125
+coderd_agents_connection_latencies_seconds{agent_name="main",derp_region="Coder Embedded Relay",preferred="true",username="admin",workspace_name="workspace-2"} 0.028658416
+coderd_agents_connection_latencies_seconds{agent_name="main",derp_region="Coder Embedded Relay",preferred="true",username="admin",workspace_name="workspace-3"} 0.028041416
 # HELP coderd_agents_connections Agent connections with statuses.
 # TYPE coderd_agents_connections gauge
 coderd_agents_connections{agent_name="main",lifecycle_state="ready",status="connected",tailnet_node="nodeid:16966f7df70d8cc5",username="admin",workspace_name="workspace-3"} 1
@@ -18,6 +18,30 @@ coderd_agents_connections{agent_name="main",lifecycle_state="start_timeout",stat
 coderd_agents_up{username="admin",workspace_name="workspace-1"} 1
 coderd_agents_up{username="admin",workspace_name="workspace-2"} 1
 coderd_agents_up{username="admin",workspace_name="workspace-3"} 1
+# HELP coderd_agentstats_connection_count The number of established connections by agent
+# TYPE coderd_agentstats_connection_count gauge
+coderd_agentstats_connection_count{agent_name="main",username="admin",workspace_name="workspace1"} 2
+# HELP coderd_agentstats_connection_median_latency The median agent connection latency
+# TYPE coderd_agentstats_connection_median_latency gauge
+coderd_agentstats_connection_median_latency{agent_name="main",username="admin",workspace_name="workspace1"} 0.001784
+# HELP coderd_agentstats_rx_bytes Agent Rx bytes
+# TYPE coderd_agentstats_rx_bytes gauge
+coderd_agentstats_rx_bytes{agent_name="main",username="admin",workspace_name="workspace1"} 7731
+# HELP coderd_agentstats_session_count_jetbrains The number of session established by JetBrains
+# TYPE coderd_agentstats_session_count_jetbrains gauge
+coderd_agentstats_session_count_jetbrains{agent_name="main",username="admin",workspace_name="workspace1"} 0
+# HELP coderd_agentstats_session_count_reconnecting_pty The number of session established by reconnecting PTY
+# TYPE coderd_agentstats_session_count_reconnecting_pty gauge
+coderd_agentstats_session_count_reconnecting_pty{agent_name="main",username="admin",workspace_name="workspace1"} 1
+# HELP coderd_agentstats_session_count_ssh The number of session established by SSH
+# TYPE coderd_agentstats_session_count_ssh gauge
+coderd_agentstats_session_count_ssh{agent_name="main",username="admin",workspace_name="workspace1"} 0
+# HELP coderd_agentstats_session_count_vscode The number of session established by VSCode
+# TYPE coderd_agentstats_session_count_vscode gauge
+coderd_agentstats_session_count_vscode{agent_name="main",username="admin",workspace_name="workspace1"} 0
+# HELP coderd_agentstats_tx_bytes Agent Tx bytes
+# TYPE coderd_agentstats_tx_bytes gauge
+coderd_agentstats_tx_bytes{agent_name="main",username="admin",workspace_name="workspace1"} 6643
 # HELP coderd_api_websocket_durations_seconds Websocket duration distribution of requests in seconds.
 # TYPE coderd_api_websocket_durations_seconds histogram
 coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/me/coordinate",le="0.001"} 0

@@ -330,7 +330,73 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		return nil, err
 	}
 
-	createdAfter := database.Now().Add(-duration)
+	agentStatsConnectionCountGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "connection_count",
+		Help:      "The number of established connections by agent",
+	}, []string{"agent_name", "username", "workspace_name"}))
+	err = registerer.Register(agentStatsConnectionCountGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	agentStatsConnectionMedianLatencyGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "connection_median_latency",
+		Help:      "The median agent connection latency",
+	}, []string{"agent_name", "username", "workspace_name"}))
+	err = registerer.Register(agentStatsConnectionMedianLatencyGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	agentStatsSessionCountJetBrainsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "session_count_jetbrains",
+		Help:      "The number of session established by JetBrains",
+	}, []string{"agent_name", "username", "workspace_name"}))
+	err = registerer.Register(agentStatsSessionCountJetBrainsGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	agentStatsSessionCountReconnectingPTYGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "session_count_reconnecting_pty",
+		Help:      "The number of session established by reconnecting PTY",
+	}, []string{"agent_name", "username", "workspace_name"}))
+	err = registerer.Register(agentStatsSessionCountReconnectingPTYGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	agentStatsSessionCountSSHGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "session_count_ssh",
+		Help:      "The number of session established by SSH",
+	}, []string{"agent_name", "username", "workspace_name"}))
+	err = registerer.Register(agentStatsSessionCountSSHGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	agentStatsSessionCountVSCodeGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "session_count_vscode",
+		Help:      "The number of session established by VSCode",
+	}, []string{"agent_name", "username", "workspace_name"}))
+	err = registerer.Register(agentStatsSessionCountVSCodeGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	createdAfter := time.Now()
 	ctx, cancelFunc := context.WithCancel(ctx)
 	ticker := time.NewTicker(duration)
 	go func() {
@@ -354,14 +420,32 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			for _, agentStat := range stats {
 				agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceTxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
 				agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceRxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+
+				agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+				agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+
+				agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountJetBrains), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+				agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+				agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+				agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
 			}
 
 			agentStatsRxBytesGauge.Commit()
 			agentStatsTxBytesGauge.Commit()
 
+			agentStatsConnectionCountGauge.Commit()
+			agentStatsConnectionMedianLatencyGauge.Commit()
+
+			agentStatsSessionCountJetBrainsGauge.Commit()
+			agentStatsSessionCountReconnectingPTYGauge.Commit()
+			agentStatsSessionCountSSHGauge.Commit()
+			agentStatsSessionCountVSCodeGauge.Commit()
+
 		done:
 			logger.Debug(ctx, "Agent metrics collection is done")
 			metricsCollectorAgentStats.Observe(timer.ObserveDuration().Seconds())
+
+			createdAfter = time.Now()
 		}
 	}()
 	return cancelFunc, nil
