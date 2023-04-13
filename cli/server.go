@@ -169,8 +169,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		Short:   "Start a Coder server",
 		Options: opts,
 		Middleware: clibase.Chain(
-			writeConfigMW(cfg),
-			printDeprecatedOptions(),
+			WriteConfigMW(cfg),
+			PrintDeprecatedOptions(),
 			clibase.RequireNArgs(0),
 		),
 		Handler: func(inv *clibase.Invocation) error {
@@ -183,7 +183,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
 			}
 
-			go dumpHandler(ctx)
+			go DumpHandler(ctx)
 
 			// Validate bind addresses.
 			if cfg.Address.String() != "" {
@@ -218,8 +218,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				filesRateLimit = -1
 			}
 
-			printLogo(inv)
-			logger, logCloser, err := buildLogger(inv, cfg)
+			PrintLogo(inv)
+			logger, logCloser, err := BuildLogger(inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)
 			}
@@ -436,7 +436,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				localURL = httpURL
 			}
 
-			ctx, httpClient, err := configureHTTPClient(
+			ctx, httpClient, err := ConfigureHTTPClient(
 				ctx,
 				cfg.TLS.ClientCertFile.String(),
 				cfg.TLS.ClientKeyFile.String(),
@@ -486,7 +486,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// Warn the user if the access URL appears to be a loopback address.
-			isLocal, err := isLocalURL(ctx, cfg.AccessURL.Value())
+			isLocal, err := IsLocalURL(ctx, cfg.AccessURL.Value())
 			if isLocal || err != nil {
 				reason := "could not be resolved"
 				if isLocal {
@@ -826,7 +826,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			_ = pprof.Handler
 			if cfg.Pprof.Enable {
 				//nolint:revive
-				defer serveHandler(ctx, logger, nil, cfg.Pprof.Address.String(), "pprof")()
+				defer ServeHandler(ctx, logger, nil, cfg.Pprof.Address.String(), "pprof")()
 			}
 			if cfg.Prometheus.Enable {
 				options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
@@ -845,7 +845,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				defer closeWorkspacesFunc()
 
 				//nolint:revive
-				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+				defer ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
 					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
 				), cfg.Prometheus.Address.String(), "prometheus")()
 			}
@@ -872,7 +872,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			client := codersdk.New(localURL)
-			if localURL.Scheme == "https" && isLocalhost(localURL.Hostname()) {
+			if localURL.Scheme == "https" && IsLocalhost(localURL.Hostname()) {
 				// The certificate will likely be self-signed or for a different
 				// hostname, so we need to skip verification.
 				client.HTTPClient.Transport = &http.Transport{
@@ -1186,7 +1186,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 // printDeprecatedOptions loops through all command options, and prints
 // a warning for usage of deprecated options.
-func printDeprecatedOptions() clibase.MiddlewareFunc {
+func PrintDeprecatedOptions() clibase.MiddlewareFunc {
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
 		return func(inv *clibase.Invocation) error {
 			opts := inv.Command.Options
@@ -1222,7 +1222,7 @@ func printDeprecatedOptions() clibase.MiddlewareFunc {
 // writeConfigMW will prevent the main command from running if the write-config
 // flag is set. Instead, it will marshal the command options to YAML and write
 // them to stdout.
-func writeConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
+func WriteConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
 		return func(inv *clibase.Invocation) error {
 			if !cfg.WriteConfig {
@@ -1251,7 +1251,7 @@ func writeConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
 
 // isLocalURL returns true if the hostname of the provided URL appears to
 // resolve to a loopback address.
-func isLocalURL(ctx context.Context, u *url.URL) (bool, error) {
+func IsLocalURL(ctx context.Context, u *url.URL) (bool, error) {
 	resolver := &net.Resolver{}
 	ips, err := resolver.LookupIPAddr(ctx, u.Hostname())
 	if err != nil {
@@ -1377,7 +1377,7 @@ func newProvisionerDaemon(
 }
 
 // nolint: revive
-func printLogo(inv *clibase.Invocation) {
+func PrintLogo(inv *clibase.Invocation) {
 	// Only print the logo in TTYs.
 	if !isTTYOut(inv) {
 		return
@@ -1723,7 +1723,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	return connectionURL, ep.Stop, nil
 }
 
-func configureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile string, tlsClientCAFile string) (context.Context, *http.Client, error) {
+func ConfigureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile string, tlsClientCAFile string) (context.Context, *http.Client, error) {
 	if clientCertFile != "" && clientKeyFile != "" {
 		certificates, err := loadCertificates([]string{clientCertFile}, []string{clientKeyFile})
 		if err != nil {
@@ -1783,13 +1783,13 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 	})
 }
 
-// isLocalhost returns true if the host points to the local machine. Intended to
+// IsLocalhost returns true if the host points to the local machine. Intended to
 // be called with `u.Hostname()`.
-func isLocalhost(host string) bool {
+func IsLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func buildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
+func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}
