@@ -2,8 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -37,7 +35,7 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			workspace, err := db.GetWorkspaceByID(ctx, workspaceID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
@@ -74,7 +72,7 @@ func ExtractWorkspaceAndAgentParam(db database.Store) func(http.Handler) http.Ha
 				Name:    workspaceParts[0],
 			})
 			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
+				if httpapi.Is404Error(err) {
 					httpapi.ResourceNotFound(rw)
 					return
 				}
