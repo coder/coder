@@ -335,5 +335,4 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		}
 	}()
 	return cancelFunc, nil
-
 }
