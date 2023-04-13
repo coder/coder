@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { WorkspaceStatus } from "../../api/typesGenerated"
 import {
   ActionLoadingButton,
+  CancelButton,
   ChangeVersionButton,
   DeleteButton,
   DisabledButton,
@@ -43,7 +44,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   canChangeVersions,
 }) => {
   const { t } = useTranslation("workspacePage")
-  const { canCancel, canAcceptJobs, actions } = buttonAbilities(workspaceStatus)
+  const { canCancel, canAcceptJobs, primaryActions, secondaryActions } =
+    buttonAbilities(workspaceStatus)
   const canBeUpdated = isOutdated && canAcceptJobs
 
   // A mapping of button type to the corresponding React component
@@ -83,26 +85,36 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     ),
   }
 
-  // memoize so this isn't recalculated every time we fetch the workspace
-  const [primaryAction, ...secondaryActions] = useMemo(
-    () =>
-      isUpdating
-        ? [ButtonTypesEnum.updating, ...actions]
-        : canBeUpdated
-        ? [ButtonTypesEnum.update, ...actions]
-        : actions,
-    [actions, canBeUpdated, isUpdating],
-  )
-
   return (
-    <DropdownButton
-      primaryAction={buttonMapping[primaryAction]}
-      canCancel={canCancel}
-      handleCancel={handleCancel}
-      secondaryActions={secondaryActions.map((action) => ({
-        action,
-        button: buttonMapping[action],
-      }))}
-    />
+    <div>
+      {canBeUpdated &&
+        (isUpdating
+          ? buttonMapping[ButtonTypesEnum.updating]
+          : buttonMapping[ButtonTypesEnum.update])}
+      {primaryActions.map((primaryAction) => buttonMapping[primaryAction])}
+      {canCancel && <CancelButton handleAction={handleCancel} />}
+    </div>
   )
+  // // memoize so this isn't recalculated every time we fetch the workspace
+  // const [primaryAction, ...secondaryActions] = useMemo(
+  //   () =>
+  //     isUpdating
+  //       ? [ButtonTypesEnum.updating, ...actions]
+  //       : canBeUpdated
+  //       ? [ButtonTypesEnum.update, ...actions]
+  //       : actions,
+  //   [actions, canBeUpdated, isUpdating],
+  // )
+
+  // return (
+  //   <DropdownButton
+  //     primaryAction={buttonMapping[primaryAction]}
+  //     canCancel={canCancel}
+  //     handleCancel={handleCancel}
+  //     secondaryActions={secondaryActions.map((action) => ({
+  //       action,
+  //       button: buttonMapping[action],
+  //     }))}
+  //   />
+  // )
 }
