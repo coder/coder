@@ -2,8 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -34,7 +32,7 @@ func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handl
 				return
 			}
 			workspaceBuild, err := db.GetWorkspaceBuildByID(ctx, workspaceBuildID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
