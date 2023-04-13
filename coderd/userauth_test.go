@@ -261,7 +261,7 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
 		t.Parallel()
@@ -305,7 +305,7 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeamInFirstOrganization", func(t *testing.T) {
 		t.Parallel()
@@ -357,7 +357,7 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeamInSecondOrganization", func(t *testing.T) {
 		t.Parallel()
@@ -409,7 +409,7 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupAllowEveryone", func(t *testing.T) {
 		t.Parallel()
@@ -447,7 +447,7 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("SignupFailedInactiveInOrg", func(t *testing.T) {
 		t.Parallel()
@@ -721,7 +721,7 @@ func TestUserOIDC(t *testing.T) {
 
 				require.Len(t, auditor.AuditLogs(), numLogs)
 				require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
-				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+				require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 			}
 
 			if tc.AvatarURL != "" {
@@ -731,7 +731,7 @@ func TestUserOIDC(t *testing.T) {
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
 
 				require.Len(t, auditor.AuditLogs(), numLogs)
-				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+				require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 			}
 		})
 	}
@@ -782,7 +782,7 @@ func TestUserOIDC(t *testing.T) {
 		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
 	t.Run("Disabled", func(t *testing.T) {

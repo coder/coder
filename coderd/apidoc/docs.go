@@ -6117,7 +6117,8 @@ const docTemplate = `{
                 "start",
                 "stop",
                 "login",
-                "logout"
+                "logout",
+                "register"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -6126,7 +6127,8 @@ const docTemplate = `{
                 "AuditActionStart",
                 "AuditActionStop",
                 "AuditActionLogin",
-                "AuditActionLogout"
+                "AuditActionLogout",
+                "AuditActionRegister"
             ]
         },
         "codersdk.AuditDiff": {
@@ -6290,7 +6292,11 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "description": "ResourceType is the name of the resource.\n` + "`" + `./coderd/rbac/object.go` + "`" + ` has the list of valid resource types.",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.RBACResource"
+                        }
+                    ]
                 }
             }
         },
@@ -6984,6 +6990,9 @@ const docTemplate = `{
                 },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
+                },
+                "disable_owner_workspace_exec": {
+                    "type": "boolean"
                 },
                 "disable_password_auth": {
                     "type": "boolean"
@@ -8022,6 +8031,57 @@ const docTemplate = `{
                     "format": "date-time"
                 }
             }
+        },
+        "codersdk.RBACResource": {
+            "type": "string",
+            "enum": [
+                "workspace",
+                "workspace_proxy",
+                "workspace_execution",
+                "application_connect",
+                "audit_log",
+                "template",
+                "group",
+                "file",
+                "provisioner_daemon",
+                "organization",
+                "assign_role",
+                "assign_org_role",
+                "api_key",
+                "user",
+                "user_data",
+                "organization_member",
+                "license",
+                "deployment_config",
+                "deployment_stats",
+                "replicas",
+                "debug_info",
+                "system"
+            ],
+            "x-enum-varnames": [
+                "ResourceWorkspace",
+                "ResourceWorkspaceProxy",
+                "ResourceWorkspaceExecution",
+                "ResourceWorkspaceApplicationConnect",
+                "ResourceAuditLog",
+                "ResourceTemplate",
+                "ResourceGroup",
+                "ResourceFile",
+                "ResourceProvisionerDaemon",
+                "ResourceOrganization",
+                "ResourceRoleAssignment",
+                "ResourceOrgRoleAssignment",
+                "ResourceAPIKey",
+                "ResourceUser",
+                "ResourceUserData",
+                "ResourceOrganizationMember",
+                "ResourceLicense",
+                "ResourceDeploymentValues",
+                "ResourceDeploymentStats",
+                "ResourceReplicas",
+                "ResourceDebugInfo",
+                "ResourceSystem"
+            ]
         },
         "codersdk.RateLimitConfig": {
             "type": "object",

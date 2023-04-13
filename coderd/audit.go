@@ -247,9 +247,9 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	)
 
 	// API Key resources (used for authentication) do not have targets and follow the below format:
-	// "User {logged in | logged out}"
+	// "User {logged in | logged out | registered}"
 	if alog.ResourceType == database.ResourceTypeApiKey &&
-		(alog.Action == database.AuditActionLogin || alog.Action == database.AuditActionLogout) {
+		(alog.Action == database.AuditActionLogin || alog.Action == database.AuditActionLogout || alog.Action == database.AuditActionRegister) {
 		return str
 	}
 

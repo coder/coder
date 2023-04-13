@@ -9,6 +9,7 @@ import { DashboardLayout } from "components/Dashboard/DashboardLayout"
 import { createMemoryHistory } from "history"
 import { i18n } from "i18n"
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout"
+import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout"
 import { FC, ReactElement } from "react"
 import { I18nextProvider } from "react-i18next"
 import {
@@ -105,6 +106,50 @@ export function renderWithTemplateSettingsLayout(
           children: [
             {
               element: <TemplateSettingsLayout />,
+              children: [{ path, element }, ...extraRoutes],
+            },
+          ],
+        },
+      ],
+    },
+    ...nonAuthenticatedRoutes,
+  ]
+
+  const router = createMemoryRouter(routes, { initialEntries: [route] })
+
+  const renderResult = wrappedRender(
+    <I18nextProvider i18n={i18n}>
+      <AppProviders>
+        <RouterProvider router={router} />
+      </AppProviders>
+    </I18nextProvider>,
+  )
+
+  return {
+    user: MockUser,
+    router,
+    ...renderResult,
+  }
+}
+
+export function renderWithWorkspaceSettingsLayout(
+  element: JSX.Element,
+  {
+    path = "/",
+    route = "/",
+    extraRoutes = [],
+    nonAuthenticatedRoutes = [],
+  }: RenderWithAuthOptions = {},
+) {
+  const routes: RouteObject[] = [
+    {
+      element: <RequireAuth />,
+      children: [
+        {
+          element: <DashboardLayout />,
+          children: [
+            {
+              element: <WorkspaceSettingsLayout />,
               children: [{ path, element }, ...extraRoutes],
             },
           ],

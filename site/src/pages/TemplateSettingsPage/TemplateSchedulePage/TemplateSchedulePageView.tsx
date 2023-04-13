@@ -11,7 +11,7 @@ export interface TemplateSchedulePageViewProps {
   isSubmitting: boolean
   submitError?: unknown
   initialTouched?: ComponentProps<typeof TemplateScheduleForm>["initialTouched"]
-  canSetMaxTTL: boolean
+  allowAdvancedScheduling: boolean
 }
 
 export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
@@ -19,7 +19,7 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
   onCancel,
   onSubmit,
   isSubmitting,
-  canSetMaxTTL,
+  allowAdvancedScheduling,
   submitError,
   initialTouched,
 }) => {
@@ -32,7 +32,7 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
       </PageHeader>
 
       <TemplateScheduleForm
-        canSetMaxTTL={canSetMaxTTL}
+        allowAdvancedScheduling={allowAdvancedScheduling}
         initialTouched={initialTouched}
         isSubmitting={isSubmitting}
         template={template}

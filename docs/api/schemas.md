@@ -805,15 +805,16 @@
 
 #### Enumerated Values
 
-| Value    |
-| -------- |
-| `create` |
-| `write`  |
-| `delete` |
-| `start`  |
-| `stop`   |
-| `login`  |
-| `logout` |
+| Value      |
+| ---------- |
+| `create`   |
+| `write`    |
+| `delete`   |
+| `start`    |
+| `stop`     |
+| `login`    |
+| `logout`   |
+| `register` |
 
 ## codersdk.AuditDiff
 
@@ -1042,7 +1043,7 @@
     "organization_id": "string",
     "owner_id": "string",
     "resource_id": "string",
-    "resource_type": "string"
+    "resource_type": "workspace"
   }
 }
 ```
@@ -1072,7 +1073,7 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
   "organization_id": "string",
   "owner_id": "string",
   "resource_id": "string",
-  "resource_type": "string"
+  "resource_type": "workspace"
 }
 ```
 
@@ -1080,12 +1081,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                          |
-| ----------------- | ------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `organization_id` | string | false    |              | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                   |
-| `owner_id`        | string | false    |              | Owner ID (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                  |
-| `resource_id`     | string | false    |              | Resource ID (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the owner ID and organization ID if possible. Be as specific as possible using all the fields relevant. |
-| `resource_type`   | string | false    |              | Resource type is the name of the resource. `./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                           |
+| Name              | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ---------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organization_id` | string                                         | false    |              | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                   |
+| `owner_id`        | string                                         | false    |              | Owner ID (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                  |
+| `resource_id`     | string                                         | false    |              | Resource ID (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the owner ID and organization ID if possible. Be as specific as possible using all the fields relevant. |
+| `resource_type`   | [codersdk.RBACResource](#codersdkrbacresource) | false    |              | Resource type is the name of the resource. `./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                           |
 
 ## codersdk.AuthorizationRequest
 
@@ -1098,7 +1099,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
-        "resource_type": "string"
+        "resource_type": "workspace"
       }
     },
     "property2": {
@@ -1107,7 +1108,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
-        "resource_type": "string"
+        "resource_type": "workspace"
       }
     }
   }
@@ -1817,6 +1818,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "stun_addresses": ["string"]
       }
     },
+    "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
@@ -2159,6 +2161,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "stun_addresses": ["string"]
     }
   },
+  "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
   "disable_session_expiry_refresh": true,
@@ -2347,6 +2350,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                   | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
+| `disable_owner_workspace_exec`       | boolean                                                                                    | false    |              |                                                                    |
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
@@ -3358,6 +3362,41 @@ Parameter represents a set value for the scope.
 | Name       | Type   | Required | Restrictions | Description |
 | ---------- | ------ | -------- | ------------ | ----------- |
 | `deadline` | string | true     |              |             |
+
+## codersdk.RBACResource
+
+```json
+"workspace"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                 |
+| --------------------- |
+| `workspace`           |
+| `workspace_proxy`     |
+| `workspace_execution` |
+| `application_connect` |
+| `audit_log`           |
+| `template`            |
+| `group`               |
+| `file`                |
+| `provisioner_daemon`  |
+| `organization`        |
+| `assign_role`         |
+| `assign_org_role`     |
+| `api_key`             |
+| `user`                |
+| `user_data`           |
+| `organization_member` |
+| `license`             |
+| `deployment_config`   |
+| `deployment_stats`    |
+| `replicas`            |
+| `debug_info`          |
+| `system`              |
 
 ## codersdk.RateLimitConfig
 

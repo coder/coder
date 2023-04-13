@@ -17,17 +17,22 @@ type UserConfig struct {
 	Username string `json:"username"`
 	// Email is the email of the new user.
 	Email string `json:"email"`
+	// SessionToken is the session token of an already existing user. If set, no
+	// user will be created.
+	SessionToken string `json:"session_token"`
 }
 
 func (c UserConfig) Validate() error {
 	if c.OrganizationID == uuid.Nil {
 		return xerrors.New("organization_id must not be a nil UUID")
 	}
-	if c.Username == "" {
-		return xerrors.New("username must be set")
-	}
-	if c.Email == "" {
-		return xerrors.New("email must be set")
+	if c.SessionToken == "" {
+		if c.Username == "" {
+			return xerrors.New("username must be set")
+		}
+		if c.Email == "" {
+			return xerrors.New("email must be set")
+		}
 	}
 
 	return nil
