@@ -397,7 +397,6 @@ func TestAgentStats(t *testing.T) {
 		SessionCountSSH:             10,
 		ConnectionMedianLatencyMS:   10000,
 	})
-	require.NoError(t, err)
 
 	// then
 	require.NoError(t, err)
