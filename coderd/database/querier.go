@@ -158,6 +158,7 @@ type sqlcQuerier interface {
 	//
 	GetWorkspaceProxyByHostname(ctx context.Context, hostname string) (WorkspaceProxy, error)
 	GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (WorkspaceProxy, error)
+	GetWorkspaceProxyByName(ctx context.Context, name string) (WorkspaceProxy, error)
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
 	GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResourceMetadatum, error)
 	GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResourceMetadatum, error)

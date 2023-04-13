@@ -163,6 +163,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	var (
 		cfg  = new(codersdk.DeploymentValues)
 		opts = cfg.Options()
+		// For the develop.sh script, it is helpful to make this key deterministic.
+		devAppSecurityKey string
+	)
+	opts.Add(
+		clibase.Option{
+			Name:        "App Security Key (Development Only)",
+			Description: "Used to override the app security key stored in the database. This should never be used in production.",
+			Flag:        "dangerous-dev-app-security-key",
+			Default:     "",
+			Value:       clibase.StringOf(&devAppSecurityKey),
+			Annotations: clibase.Annotations{}.Mark("secret", "true"),
+			Hidden:      true,
+		},
 	)
 	serverCmd := &clibase.Cmd{
 		Use:     "server",
@@ -618,6 +631,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					err = tx.InsertDeploymentID(ctx, deploymentID)
 					if err != nil {
 						return xerrors.Errorf("set deployment id: %w", err)
+					}
+				}
+
+				if devAppSecurityKey != "" {
+					_, err := workspaceapps.KeyFromString(devAppSecurityKey)
+					if err != nil {
+						return xerrors.Errorf("invalid dev app security key: %w", err)
+					}
+					err = tx.UpsertAppSecurityKey(ctx, devAppSecurityKey)
+					if err != nil {
+						return xerrors.Errorf("Insert dev app security key: %w", err)
 					}
 				}
 

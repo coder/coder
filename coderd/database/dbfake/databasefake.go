@@ -5097,6 +5097,18 @@ func (q *fakeQuerier) GetWorkspaceProxyByID(_ context.Context, id uuid.UUID) (da
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceProxyByName(_ context.Context, name string) (database.WorkspaceProxy, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, proxy := range q.workspaceProxies {
+		if proxy.Name == name {
+			return proxy, nil
+		}
+	}
+	return database.WorkspaceProxy{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetWorkspaceProxyByHostname(_ context.Context, hostname string) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

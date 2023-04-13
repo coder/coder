@@ -80,6 +80,16 @@ func (s *OptionSet) Add(opts ...Option) {
 	*s = append(*s, opts...)
 }
 
+func (s OptionSet) Filter(filter func(opt Option) bool) OptionSet {
+	cpy := make(OptionSet, 0)
+	for _, opt := range s {
+		if filter(opt) {
+			cpy = append(cpy, opt)
+		}
+	}
+	return cpy
+}
+
 // FlagSet returns a pflag.FlagSet for the OptionSet.
 func (s *OptionSet) FlagSet() *pflag.FlagSet {
 	if s == nil {

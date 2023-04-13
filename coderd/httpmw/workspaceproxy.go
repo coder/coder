@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -153,6 +154,56 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 			})
 
 			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+type workspaceProxyParamContextKey struct{}
+
+// WorkspaceProxyParam returns the worksace proxy from the ExtractWorkspaceProxyParam handler.
+func WorkspaceProxyParam(r *http.Request) database.WorkspaceProxy {
+	user, ok := r.Context().Value(workspaceProxyParamContextKey{}).(database.WorkspaceProxy)
+	if !ok {
+		panic("developer error: workspace proxy parameter middleware not provided")
+	}
+	return user
+}
+
+// ExtractWorkspaceProxyParam extracts a workspace proxy from an ID/name in the {workspaceproxy} URL
+// parameter.
+//
+//nolint:revive
+func ExtractWorkspaceProxyParam(db database.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			proxyQuery := chi.URLParam(r, "workspaceproxy")
+			if proxyQuery == "" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "\"workspaceproxy\" must be provided.",
+				})
+				return
+			}
+
+			var proxy database.WorkspaceProxy
+			var dbErr error
+			if proxyID, err := uuid.Parse(proxyQuery); err == nil {
+				proxy, dbErr = db.GetWorkspaceProxyByID(ctx, proxyID)
+			} else {
+				proxy, dbErr = db.GetWorkspaceProxyByName(ctx, proxyQuery)
+			}
+			if httpapi.Is404Error(dbErr) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			if dbErr != nil {
+				httpapi.InternalServerError(rw, dbErr)
+				return
+			}
+
+			ctx = context.WithValue(ctx, workspaceProxyParamContextKey{}, proxy)
+			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
 }

@@ -5067,6 +5067,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/{workspaceproxy}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete workspace proxy",
+                "operationId": "delete-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces": {
             "get": {
                 "security": [
@@ -6371,12 +6409,12 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "is_workspace_proxy": {
+                    "type": "boolean"
+                },
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
-                },
-                "workspace_proxy": {
-                    "type": "boolean"
                 }
             }
         },
@@ -7214,9 +7252,11 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
+                "template_editor",
                 "moons"
             ],
             "x-enum-varnames": [
+                "ExperimentTemplateEditor",
                 "ExperimentMoons"
             ]
         },

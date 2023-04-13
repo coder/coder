@@ -11,11 +11,11 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func (r *RootCmd) workspaceProxy() *clibase.Cmd {
+func (r *RootCmd) proxyServer() *clibase.Cmd {
 	root := &clibase.Cmd{
-		Use:     "workspace-proxy",
-		Short:   "Manage workspace proxies",
-		Aliases: []string{"proxy"},
+		Use:     "server",
+		Short:   "Start a workspace proxy server",
+		Aliases: []string{},
 		// We accept RawArgs so all commands and flags are accepted.
 		RawArgs: true,
 		Hidden:  true,
