@@ -291,7 +291,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	return cancelFunc, nil
 }
 
-func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (context.CancelFunc, error) {
+func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration) (context.CancelFunc, error) {
 	if duration == 0 {
 		duration = 1 * time.Minute
 	}
@@ -344,8 +344,8 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	agentStatsConnectionMedianLatencyGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
-		Name:      "connection_median_latency",
-		Help:      "The median agent connection latency",
+		Name:      "connection_median_latency_seconds",
+		Help:      "The median agent connection latency in seconds",
 	}, []string{"agent_name", "username", "workspace_name"}))
 	err = registerer.Register(agentStatsConnectionMedianLatencyGauge)
 	if err != nil {
@@ -396,7 +396,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		return nil, err
 	}
 
-	createdAfter := time.Now()
+	createdAfter := initialCreateAfter
 	ctx, cancelFunc := context.WithCancel(ctx)
 	ticker := time.NewTicker(duration)
 	go func() {
@@ -411,9 +411,15 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			logger.Debug(ctx, "Agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgentStats)
 
+			checkpoint := time.Now()
 			stats, err := db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+
 			if err != nil {
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
+				goto done
+			}
+
+			if len(stats) == 0 {
 				goto done
 			}
 
@@ -445,7 +451,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			logger.Debug(ctx, "Agent metrics collection is done")
 			metricsCollectorAgentStats.Observe(timer.ObserveDuration().Seconds())
 
-			createdAfter = time.Now()
+			createdAfter = checkpoint
 		}
 	}()
 	return cancelFunc, nil

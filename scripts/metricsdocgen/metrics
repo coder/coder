@@ -21,9 +21,9 @@ coderd_agents_up{username="admin",workspace_name="workspace-3"} 1
 # HELP coderd_agentstats_connection_count The number of established connections by agent
 # TYPE coderd_agentstats_connection_count gauge
 coderd_agentstats_connection_count{agent_name="main",username="admin",workspace_name="workspace1"} 2
-# HELP coderd_agentstats_connection_median_latency The median agent connection latency
-# TYPE coderd_agentstats_connection_median_latency gauge
-coderd_agentstats_connection_median_latency{agent_name="main",username="admin",workspace_name="workspace1"} 0.001784
+# HELP coderd_agentstats_connection_median_latency_seconds The median agent connection latency
+# TYPE coderd_agentstats_connection_median_latency_seconds gauge
+coderd_agentstats_connection_median_latency_seconds{agent_name="main",username="admin",workspace_name="workspace1"} 0.001784
 # HELP coderd_agentstats_rx_bytes Agent Rx bytes
 # TYPE coderd_agentstats_rx_bytes gauge
 coderd_agentstats_rx_bytes{agent_name="main",username="admin",workspace_name="workspace1"} 7731

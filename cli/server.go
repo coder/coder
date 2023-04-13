@@ -844,7 +844,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer closeWorkspacesFunc()
 
-				closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, 0)
+				closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0)
 				if err != nil {
 					return xerrors.Errorf("register agent stats prometheus metric: %w", err)
 				}
