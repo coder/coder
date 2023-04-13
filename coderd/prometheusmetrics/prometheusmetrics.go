@@ -329,8 +329,6 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				goto done
 			}
 
-			db.GetWorkspAgents
-
 		done:
 			logger.Debug(ctx, "Agent metrics collection is done")
 			metricsCollectorAgentStats.Observe(timer.ObserveDuration().Seconds())

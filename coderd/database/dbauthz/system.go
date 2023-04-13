@@ -302,6 +302,10 @@ func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.
 	return q.db.GetWorkspaceAgentStats(ctx, createdAfter)
 }
 
+func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+}
+
 func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
