@@ -40,7 +40,7 @@ func TestTemplateInit(t *testing.T) {
 		inv, _ := clitest.New(t, "templates", "init", "--id", "thistemplatedoesnotexist", tempDir)
 		ptytest.New(t).Attach(inv)
 		err := inv.Run()
-		require.ErrorContains(t, err, "does not exist!")
+		require.ErrorContains(t, err, "invalid choice: thistemplatedoesnotexist, should be one of")
 		files, err := os.ReadDir(tempDir)
 		require.NoError(t, err)
 		require.Empty(t, files)

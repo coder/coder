@@ -2,11 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 
+	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -17,49 +20,59 @@ import (
 )
 
 func (*RootCmd) templateInit() *clibase.Cmd {
-	var templateIDArg string
+	var templateID string
+	exampleList, err := examples.List()
+	if err != nil {
+		// This should not happen. If it does, something is very wrong.
+		panic(err)
+	}
+	var templateIDs []string
+	for _, ex := range exampleList {
+		templateIDs = append(templateIDs, ex.ID)
+	}
+	sort.Strings(templateIDs)
 	cmd := &clibase.Cmd{
 		Use:        "init [directory]",
 		Short:      "Get started with a templated template.",
 		Middleware: clibase.RequireRangeArgs(0, 1),
 		Handler: func(inv *clibase.Invocation) error {
-			exampleList, err := examples.List()
-			if err != nil {
-				return err
-			}
-
-			optsToID := map[string]string{}
-			for _, example := range exampleList {
-				name := fmt.Sprintf(
-					"%s\n%s\n%s\n",
-					cliui.Styles.Bold.Render(example.Name),
-					cliui.Styles.Wrap.Copy().PaddingLeft(6).Render(example.Description),
-					cliui.Styles.Keyword.Copy().PaddingLeft(6).Render(example.URL),
-				)
-				optsToID[name] = example.ID
-			}
-
 			// If the user didn't specify any template, prompt them to select one.
-			if templateIDArg == "" {
-				opts := keys(optsToID)
+			if templateID == "" {
+				optsToID := map[string]string{}
+				for _, example := range exampleList {
+					name := fmt.Sprintf(
+						"%s\n%s\n%s\n",
+						cliui.Styles.Bold.Render(example.Name),
+						cliui.Styles.Wrap.Copy().PaddingLeft(6).Render(example.Description),
+						cliui.Styles.Keyword.Copy().PaddingLeft(6).Render(example.URL),
+					)
+					optsToID[name] = example.ID
+				}
+				opts := maps.Keys(optsToID)
 				sort.Strings(opts)
 				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Wrap.Render(
 					"A template defines infrastructure as code to be provisioned "+
 						"for individual developer workspaces. Select an example to be copied to the active directory:\n"))
 				selected, err := cliui.Select(inv, cliui.SelectOptions{
-					Options: sort.StringSlice(keys(optsToID)),
+					Options: opts,
 				})
 				if err != nil {
+					if errors.Is(err, io.EOF) {
+						return xerrors.Errorf(
+							"Couldn't find a matching template!\n" +
+								"Tip: if you're trying to automate template creation, try\n" +
+								"coder templates init --id <template_id> instead!",
+						)
+					}
 					return err
 				}
-				templateIDArg = optsToID[selected]
+				templateID = optsToID[selected]
 			}
 
-			selectedTemplate, ok := templateByID(templateIDArg, exampleList)
+			selectedTemplate, ok := templateByID(templateID, exampleList)
 			if !ok {
-				ids := values(optsToID)
-				sort.Strings(ids)
-				return xerrors.Errorf("Template ID %q does not exist!\nValid options are: %q", templateIDArg, ids)
+				// clibase.EnumOf would normally handle this.
+				return xerrors.Errorf("template not found: %q", templateID)
 			}
 			archive, err := examples.Archive(selectedTemplate.ID)
 			if err != nil {
@@ -101,7 +114,7 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 		{
 			Flag:        "id",
 			Description: "Specify a given example template by ID.",
-			Value:       clibase.StringOf(&templateIDArg),
+			Value:       clibase.EnumOf(&templateID, templateIDs...),
 		},
 	}
 
@@ -115,20 +128,4 @@ func templateByID(templateID string, tes []codersdk.TemplateExample) (codersdk.T
 		}
 	}
 	return codersdk.TemplateExample{}, false
-}
-
-func keys[K comparable, V any](m map[K]V) []K {
-	l := make([]K, 0, len(m))
-	for k := range m {
-		l = append(l, k)
-	}
-	return l
-}
-
-func values[K comparable, V any](m map[K]V) []V {
-	l := make([]V, 0, len(m))
-	for _, v := range m {
-		l = append(l, v)
-	}
-	return l
 }
