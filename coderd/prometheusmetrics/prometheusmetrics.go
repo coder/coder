@@ -151,7 +151,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "connection_latencies_seconds",
 		Help:      "Agent connection latencies in seconds.",
-	}, []string{"agent_id", "username", "workspace_name", "derp_region", "preferred"}))
+	}, []string{"agent_name", "username", "workspace_name", "derp_region", "preferred"}))
 	err = registerer.Register(agentsConnectionLatenciesGauge)
 	if err != nil {
 		return nil, err
@@ -308,6 +308,28 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		return nil, err
 	}
 
+	agentStatsTxBytesGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "tx_bytes",
+		Help:      "Agent Tx bytes",
+	}, []string{"agent_name", "username", "workspace_name"}))
+	err = registerer.Register(agentStatsTxBytesGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	agentStatsRxBytesGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "rx_bytes",
+		Help:      "Agent Rx bytes",
+	}, []string{"agent_name", "username", "workspace_name"}))
+	err = registerer.Register(agentStatsRxBytesGauge)
+	if err != nil {
+		return nil, err
+	}
+
 	createdAfter := database.Now().Add(-duration)
 	ctx, cancelFunc := context.WithCancel(ctx)
 	ticker := time.NewTicker(duration)
@@ -323,11 +345,19 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			logger.Debug(ctx, "Agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgentStats)
 
-			_, err := db.GetWorkspaceAgentStats(ctx, createdAfter)
+			stats, err := db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
 			if err != nil {
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
 				goto done
 			}
+
+			for _, agentStat := range stats {
+				agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceTxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+				agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceRxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+			}
+
+			agentStatsRxBytesGauge.Commit()
+			agentStatsTxBytesGauge.Commit()
 
 		done:
 			logger.Debug(ctx, "Agent metrics collection is done")
