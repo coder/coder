@@ -12,16 +12,16 @@ import (
 )
 
 type WorkspaceProxy struct {
-	ID   uuid.UUID `db:"id" json:"id" format:"uuid"`
-	Name string    `db:"name" json:"name"`
-	Icon string    `db:"icon" json:"icon"`
+	ID   uuid.UUID `db:"id" json:"id" format:"uuid" table:"id"`
+	Name string    `db:"name" json:"name" table:"name,default_sort"`
+	Icon string    `db:"icon" json:"icon" table:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
-	URL string `db:"url" json:"url"`
+	URL string `db:"url" json:"url" table:"url"`
 	// WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com
-	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at" format:"date-time"`
-	Deleted          bool      `db:"deleted" json:"deleted"`
+	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname" table:"wildcard_hostname"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at" format:"date-time" table:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at" format:"date-time" table:"updated_at"`
+	Deleted          bool      `db:"deleted" json:"deleted" table:"deleted"`
 }
 
 type CreateWorkspaceProxyRequest struct {
@@ -33,7 +33,7 @@ type CreateWorkspaceProxyRequest struct {
 }
 
 type CreateWorkspaceProxyResponse struct {
-	Proxy      WorkspaceProxy `json:"proxy"`
+	Proxy      WorkspaceProxy `json:"proxy" table:"proxy,recursive,default_sort"`
 	ProxyToken string         `json:"proxy_token"`
 }
 
