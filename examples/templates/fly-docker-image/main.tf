@@ -6,7 +6,7 @@ terraform {
     }
     coder = {
       source  = "coder/coder"
-      version = "~>0.6.17"
+      version = "~>0.7.0"
     }
   }
 }
@@ -108,19 +108,21 @@ EOF
 }
 
 data "coder_parameter" "docker-image" {
-  name        = "Docker Image"
-  description = "The docker image to use for the workspace"
-  default     = "codercom/code-server:latest"
-  icon        = "https://raw.githubusercontent.com/matifali/logos/main/docker.svg"
+  name         = "docker-image"
+  display_name = "Docker image"
+  description  = "The docker image to use for the workspace"
+  default      = "codercom/code-server:latest"
+  icon         = "https://raw.githubusercontent.com/matifali/logos/main/docker.svg"
 }
 
 data "coder_parameter" "cpu" {
-  name        = "CPU"
-  description = "The number of CPUs to allocate to the workspace (1-8)"
-  type        = "number"
-  default     = "1"
-  icon        = "https://raw.githubusercontent.com/matifali/logos/main/cpu-3.svg"
-  mutable     = true
+  name         = "cpu"
+  display_name = "CPU"
+  description  = "The number of CPUs to allocate to the workspace (1-8)"
+  type         = "number"
+  default      = "1"
+  icon         = "https://raw.githubusercontent.com/matifali/logos/main/cpu-3.svg"
+  mutable      = true
   validation {
     min = 1
     max = 8
@@ -128,11 +130,12 @@ data "coder_parameter" "cpu" {
 }
 
 data "coder_parameter" "cputype" {
-  name        = "CPU Type"
-  description = "Which CPU type do you want?"
-  default     = "shared"
-  icon        = "https://raw.githubusercontent.com/matifali/logos/main/cpu-1.svg"
-  mutable     = true
+  name         = "cputype"
+  display_name = "CPU type"
+  description  = "Which CPU type do you want?"
+  default      = "shared"
+  icon         = "https://raw.githubusercontent.com/matifali/logos/main/cpu-1.svg"
+  mutable      = true
   option {
     name  = "Shared"
     value = "shared"
@@ -144,12 +147,13 @@ data "coder_parameter" "cputype" {
 }
 
 data "coder_parameter" "memory" {
-  name        = "Memory (GB)"
-  description = "The amount of memory to allocate to the workspace in GB (up to 16GB)"
-  type        = "number"
-  default     = "2"
-  icon        = "/icon/memory.svg"
-  mutable     = true
+  name         = "memory"
+  display_name = "Memory"
+  description  = "The amount of memory to allocate to the workspace in GB (up to 16GB)"
+  type         = "number"
+  default      = "2"
+  icon         = "/icon/memory.svg"
+  mutable      = true
   validation {
     min = data.coder_parameter.cputype.value == "performance" ? 2 : 1 # if the CPU type is performance, the minimum memory is 2GB
     max = 16
@@ -157,11 +161,12 @@ data "coder_parameter" "memory" {
 }
 
 data "coder_parameter" "volume-size" {
-  name        = "Volume Size"
-  description = "The size of the volume to create for the workspace in GB (1-20)"
-  type        = "number"
-  default     = "1"
-  icon        = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
+  name         = "volume-size"
+  display_name = "Home volume size"
+  description  = "The size of the volume to create for the workspace in GB (1-20)"
+  type         = "number"
+  default      = "1"
+  icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
   validation {
     min = 1
     max = 20
@@ -170,10 +175,11 @@ data "coder_parameter" "volume-size" {
 
 # You can see all available regions here: https://fly.io/docs/reference/regions/
 data "coder_parameter" "region" {
-  name        = "Region"
-  description = "The region to deploy the workspace in"
-  default     = "ams"
-  icon        = "/emojis/1f30e.png"
+  name         = "region"
+  display_name = "Region"
+  description  = "The region to deploy the workspace in"
+  default      = "ams"
+  icon         = "/emojis/1f30e.png"
   option {
     name  = "Amsterdam, Netherlands"
     value = "ams"
@@ -254,7 +260,7 @@ data "coder_parameter" "region" {
 resource "coder_app" "code-server" {
   count        = 1
   agent_id     = coder_agent.main.id
-  display_name = "Code Server"
+  display_name = "code-server"
   slug         = "code-server"
   url          = "http://localhost:8080?folder=/home/coder/"
   icon         = "/icon/code.svg"
@@ -284,6 +290,40 @@ resource "coder_agent" "main" {
     echo "export PATH=$PATH:/home/coder/.fly/bin" >> ~/.bashrc
     source ~/.bashrc
   EOT
+
+  metadata {
+    key          = "cpu"
+    display_name = "CPU Usage"
+    interval     = 5
+    timeout      = 5
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
+    EOT
+  }
+  metadata {
+    key          = "memory"
+    display_name = "Memory Usage"
+    interval     = 5
+    timeout      = 5
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      free -m | awk 'NR==2{printf "%.2f%%\t", $3*100/$2 }'
+    EOT
+  }
+  metadata {
+    key          = "disk"
+    display_name = "Disk Usage"
+    interval     = 600 # every 10 minutes
+    timeout      = 30  # df can take a while on large filesystems
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
+    EOT
+  }
 }
 
 resource "coder_metadata" "workspace" {

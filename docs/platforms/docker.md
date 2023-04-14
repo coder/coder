@@ -7,7 +7,7 @@ Coder with Docker has the following advantages:
 - Workspaces share resources for burst operations
 
 > Note that the below steps are only supported on a Linux distribution.
-> If on macOS, please [run Coder via the standalone binary](./binary.md).
+> If on macOS, please [run Coder via the standalone binary](../install//binary.md).
 
 ## Requirements
 

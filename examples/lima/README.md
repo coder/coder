@@ -22,7 +22,7 @@ This will:
 - Install Docker and Terraform from the official repos
 - Install Coder using the [installation script](https://coder.com/docs/coder-oss/latest/install#installsh)
 - Generates an initial user account `admin@coder.com` with a randomly generated password (stored in the VM under `/home/${USER}.linux/.config/coderv2/password`)
-- Initializes a [sample Docker template](https://github.com/coder/coder/tree/main/examples/templates/docker-code-server) for creating workspaces
+- Initializes a [sample Docker template](https://github.com/coder/coder/tree/main/examples/templates/docker) for creating workspaces
 
 Once this completes, you can visit `http://localhost:3000` and start creating workspaces!
 

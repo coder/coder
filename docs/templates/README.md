@@ -6,7 +6,7 @@ kubernetes_pod).
 
 In most cases, a small group of users (team leads or Coder administrators) [have
 permissions](./admin/users.md#roles) to create and manage templates. Then, other
-users provision their [workspaces](./workspaces.md) from templates using the UI
+users provision their [workspaces](../workspaces.md) from templates using the UI
 or CLI.
 
 ## Get the CLI
@@ -149,7 +149,7 @@ for the full list of supported arguments for the `coder_agent`.
 #### startup_script
 
 Use the Coder agent's `startup_script` to run additional commands like
-installing IDEs, [cloning dotfiles](./dotfiles.md#templates), and cloning
+installing IDEs, [cloning dotfiles](../dotfiles.md#templates), and cloning
 project repos.
 
 ```hcl
@@ -187,7 +187,7 @@ coder dotfiles -y ${var.dotfiles_uri}
 
 ### Start/stop
 
-[Learn about resource persistence in Coder](./templates/resource-persistence.md)
+[Learn about resource persistence in Coder](./resource-persistence.md)
 
 Coder workspaces can be started/stopped. This is often used to save on cloud
 costs or enforce ephemeral workflows. When a workspace is started or stopped,
@@ -246,7 +246,7 @@ resource "kubernetes_pod" "podName" {
 ### Edit templates
 
 You can edit a template using the coder CLI. Only [template admins and
-owners](./admin/users.md) can edit a template.
+owners](../admin/users.md) can edit a template.
 
 Using the CLI, login to Coder and run the following command to edit a single
 template:
@@ -283,7 +283,7 @@ prompt in the dashboard to update.
 ### Delete templates
 
 You can delete a template using both the coder CLI and UI. Only [template admins
-and owners](./admin/users.md) can delete a template, and the template must not
+and owners](../admin/users.md) can delete a template, and the template must not
 have any running workspaces associated to it.
 
 Using the CLI, login to Coder and run the following command to delete a
@@ -296,7 +296,7 @@ coder templates delete <template-name>
 In the UI, navigate to the template you want to delete, and select the dropdown
 in the right-hand corner of the page to delete the template.
 
-![delete-template](./images/delete-template.png)
+![delete-template](../images/delete-template.png)
 
 #### Delete workspaces
 
@@ -313,7 +313,7 @@ associated with the workspace.
 ### Coder apps
 
 By default, all templates allow developers to connect over SSH and a web
-terminal. See [Configuring Web IDEs](./ides/web-ides.md) to learn how to give
+terminal. See [Configuring Web IDEs](../ides/web-ides.md) to learn how to give
 users access to additional web applications.
 
 ### Data source
@@ -362,7 +362,7 @@ practices:
 
 - Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
 - Ensure the resource can `curl` your Coder [access
-  URL](./admin/configure.md#access-url)
+  URL](../admin/configure.md#access-url)
 - Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`
@@ -412,7 +412,7 @@ You can see a list of community templates by our users
 
 ## Next Steps
 
-- Learn about [Authentication & Secrets](templates/authentication.md)
-- Learn about [Change Management](templates/change-management.md)
-- Learn about [Resource Metadata](templates/resource-metadata.md)
-- Learn about [Workspaces](workspaces.md)
+- Learn about [Authentication & Secrets](./authentication.md)
+- Learn about [Change Management](./change-management.md)
+- Learn about [Resource Metadata](./resource-metadata.md)
+- Learn about [Workspaces](./workspaces.md)

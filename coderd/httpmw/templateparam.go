@@ -2,8 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -34,7 +32,7 @@ func ExtractTemplateParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			template, err := db.GetTemplateByID(r.Context(), templateID)
-			if errors.Is(err, sql.ErrNoRows) || (err == nil && template.Deleted) {
+			if httpapi.Is404Error(err) || (err == nil && template.Deleted) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}

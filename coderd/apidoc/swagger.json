@@ -5433,7 +5433,16 @@
     },
     "codersdk.AuditAction": {
       "type": "string",
-      "enum": ["create", "write", "delete", "start", "stop", "login", "logout"],
+      "enum": [
+        "create",
+        "write",
+        "delete",
+        "start",
+        "stop",
+        "login",
+        "logout",
+        "register"
+      ],
       "x-enum-varnames": [
         "AuditActionCreate",
         "AuditActionWrite",
@@ -5441,7 +5450,8 @@
         "AuditActionStart",
         "AuditActionStop",
         "AuditActionLogin",
-        "AuditActionLogout"
+        "AuditActionLogout",
+        "AuditActionRegister"
       ]
     },
     "codersdk.AuditDiff": {

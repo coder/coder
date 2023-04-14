@@ -6,7 +6,7 @@ import {
 } from "api/typesGenerated"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
-import { getFormHelpers } from "util/formUtils"
+import { getFormHelpers } from "utils/formUtils"
 import * as Yup from "yup"
 import { useTranslation } from "react-i18next"
 import {

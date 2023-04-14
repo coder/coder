@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -18,8 +18,10 @@ provider "kubernetes" {
 data "coder_workspace" "me" {}
 
 data "coder_parameter" "os" {
-  name    = "Operating system"
-  default = "ubuntu"
+  name         = "os"
+  display_name = "Operating system"
+  description  = "The operating system to use for your workspace."
+  default      = "ubuntu"
   option {
     name  = "Ubuntu"
     value = "ubuntu"
@@ -33,8 +35,10 @@ data "coder_parameter" "os" {
 }
 
 data "coder_parameter" "cpu" {
-  name    = "CPU (cores)"
-  default = "2"
+  name         = "cpu"
+  display_name = "CPU"
+  description  = "The number of CPU cores"
+  default      = "2"
   option {
     name  = "2 Cores"
     value = "2"
@@ -54,8 +58,10 @@ data "coder_parameter" "cpu" {
 }
 
 data "coder_parameter" "memory" {
-  name    = "Memory (GB)"
-  default = "2"
+  name         = "memory"
+  display_name = "Memory"
+  description  = "The amount of memory (in GB)"
+  default      = "2"
   option {
     name  = "2 GB"
     value = "2"
@@ -88,12 +94,24 @@ resource "coder_agent" "dev" {
     # Run once to avoid unnecessary warning: "/" is not a shared mount
     podman ps
   EOF
+
+  metadata {
+    key          = "disk"
+    display_name = "Disk Usage"
+    interval     = 600 # every 10 minutes
+    timeout      = 30  # df can take a while on large filesystems
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      df /home/podman | awk '$NF=="/"{printf "%s", $5}'
+    EOT
+  }
 }
 
 # code-server
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.dev.id
-  display_name = "Code Server"
+  display_name = "code-server"
   slug         = "code-server"
   icon         = "/icon/code.svg"
   url          = "http://localhost:13337"

@@ -88,9 +88,9 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ctx, stopNotify := signal.NotifyContext(ctx, InterruptSignals...)
 			defer stopNotify()
 
-			// dumpHandler does signal handling, so we call it after the
+			// DumpHandler does signal handling, so we call it after the
 			// reaper.
-			go dumpHandler(ctx)
+			go DumpHandler(ctx)
 
 			ljLogger := &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
@@ -119,7 +119,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			pprofSrvClose := serveHandler(ctx, logger, nil, pprofAddress, "pprof")
+			pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
 			defer pprofSrvClose()
 			// Do a best effort here. If this fails, it's not a big deal.
 			if port, err := urlPort(pprofAddress); err == nil {
@@ -262,7 +262,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	return cmd
 }
 
-func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
+func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
 	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
 
 	// ReadHeaderTimeout is purposefully not enabled. It caused some issues with

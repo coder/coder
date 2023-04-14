@@ -3,7 +3,7 @@ import Editor, { loader } from "@monaco-editor/react"
 import * as monaco from "monaco-editor"
 import { FC, useLayoutEffect, useMemo, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import { hslToHex } from "util/colors"
+import { hslToHex } from "utils/colors"
 import type { editor } from "monaco-editor"
 
 loader.config({ monaco })
