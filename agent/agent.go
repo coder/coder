@@ -1406,13 +1406,15 @@ func expandDirectory(dir string) (string, error) {
 			return "", err
 		}
 		dir = filepath.Join(home, dir[1:])
+		return os.ExpandEnv(dir), nil
 	}
+
 	if !filepath.IsAbs(dir) {
 		home, err := userHomeDir()
 		if err != nil {
 			return "", err
 		}
 		dir = filepath.Join(home, dir)
+		return dir, nil
 	}
-	return os.ExpandEnv(dir), nil
 }
