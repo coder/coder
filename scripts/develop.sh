@@ -31,10 +31,10 @@ while true; do
 		password="$2"
 		shift 2
 		;;
-  --use-proxy)
-  	use_proxy=1
-  	shift
-  	;;
+	--use-proxy)
+		use_proxy=1
+		shift
+		;;
 	--)
 		shift
 		break
