@@ -1391,22 +1391,6 @@ func TestAgent_Startup(t *testing.T) {
 		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
 	})
 
-	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
-		t.Parallel()
-
-		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
-			Directory:            "$HOME",
-		}, 0)
-		assert.Eventually(t, func() bool {
-			return client.getStartup().Version != ""
-		}, testutil.WaitShort, testutil.IntervalFast)
-		homeDir, err := os.UserHomeDir()
-		require.NoError(t, err)
-		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
-	})
-
 	t.Run("NotAbsoluteDirectory", func(t *testing.T) {
 		t.Parallel()
 
@@ -1421,6 +1405,22 @@ func TestAgent_Startup(t *testing.T) {
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(homeDir, "coder/coder"), client.getStartup().ExpandedDirectory)
+	})
+
+	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "$HOME",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
 	})
 }
 
