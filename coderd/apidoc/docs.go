@@ -1685,6 +1685,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/proxy-internal/issue-signed-app-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Issue signed workspace app token",
+                "operationId": "issue-signed-workspace-app-token",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workspaceapps.IssueTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.IssueSignedAppTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/replicas": {
             "get": {
                 "security": [
@@ -6371,12 +6413,12 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "is_workspace_proxy": {
+                    "type": "boolean"
+                },
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
-                },
-                "workspace_proxy": {
-                    "type": "boolean"
                 }
             }
         },
@@ -7214,9 +7256,11 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
+                "template_editor",
                 "moons"
             ],
             "x-enum-varnames": [
+                "ExperimentTemplateEditor",
                 "ExperimentMoons"
             ]
         },

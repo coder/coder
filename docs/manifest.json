@@ -463,6 +463,10 @@
           "path": "./api/users.md"
         },
         {
+          "title": "WorkspaceProxies",
+          "path": "./api/workspaceproxies.md"
+        },
+        {
           "title": "Workspaces",
           "path": "./api/workspaces.md"
         }
