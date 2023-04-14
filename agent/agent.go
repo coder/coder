@@ -1415,5 +1415,8 @@ func expandDirectory(dir string) (string, error) {
 		}
 		dir = filepath.Join(home, dir)
 	}
+	else {
+		return "", fmt.Errorf("not a valid directory"
+	}
 	return os.ExpandEnv(dir), nil
 }
