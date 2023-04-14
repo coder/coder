@@ -309,7 +309,9 @@ func TestAgents(t *testing.T) {
 	defer cancelFunc()
 
 	// when
-	closeFunc, err := prometheusmetrics.Agents(ctx, slogtest.Make(t, nil), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, time.Millisecond)
+	closeFunc, err := prometheusmetrics.Agents(ctx, slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	}), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
@@ -411,7 +413,9 @@ func TestAgentStats(t *testing.T) {
 	//
 	// Set initialCreateAfter to some time in the past, so that AgentStats would include all above PostStats,
 	// and it doesn't depend on the real time.
-	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, nil), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
+	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
 	require.NoError(t, err)
 
 	// then
