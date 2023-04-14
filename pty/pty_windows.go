@@ -89,6 +89,7 @@ type windowsProcess struct {
 	cmdDone chan any
 	cmdErr  error
 	proc    *os.Process
+	pw      *ptyWindows
 }
 
 // Name returns the TTY name on Windows.
@@ -140,9 +141,12 @@ func (p *ptyWindows) Close() error {
 	}
 	p.closed = true
 
-	ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
-	if ret < 0 {
-		return xerrors.Errorf("close pseudo console: %w", err)
+	if p.console != windows.InvalidHandle {
+		ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
+		if ret < 0 {
+			return xerrors.Errorf("close pseudo console: %w", err)
+		}
+		p.console = windows.InvalidHandle
 	}
 
 	// We always have these files
@@ -159,6 +163,19 @@ func (p *ptyWindows) Close() error {
 }
 
 func (p *windowsProcess) waitInternal() {
+	defer func() {
+		// close the pseudoconsole handle when the process exits, if it hasn't already been closed.
+		p.pw.closeMutex.Lock()
+		defer p.pw.closeMutex.Unlock()
+		if p.pw.console != windows.InvalidHandle {
+			ret, _, err := procClosePseudoConsole.Call(uintptr(p.pw.console))
+			if ret < 0 {
+				// not much we can do here...
+				panic(err)
+			}
+			p.pw.console = windows.InvalidHandle
+		}
+	}()
 	defer close(p.cmdDone)
 	state, err := p.proc.Wait()
 	if err != nil {

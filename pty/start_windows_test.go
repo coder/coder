@@ -6,8 +6,10 @@ package pty_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,7 +79,7 @@ func Test_Start_copy(t *testing.T) {
 	case <-ctx.Done():
 		t.Error("read timed out")
 	}
-	assert.Equal(t, "test", b.String())
+	assert.Contains(t, b.String(), "test")
 
 	cmdDone := make(chan error)
 	go func() {
@@ -89,5 +91,102 @@ func Test_Start_copy(t *testing.T) {
 		require.NoError(t, err)
 	case <-ctx.Done():
 		t.Error("cmd.Wait() timed out")
+	}
+}
+
+const countEnd = 1000
+
+func Test_Start_trucation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1000)
+	defer cancel()
+
+	pc, cmd, err := pty.Start(exec.CommandContext(ctx,
+		"cmd.exe", "/c",
+		fmt.Sprintf("for /L %%n in (1,1,%d) do @echo %%n", countEnd)))
+	require.NoError(t, err)
+	readDone := make(chan struct{})
+	go func() {
+		defer close(readDone)
+		// avoid buffered IO so that we can precisely control how many bytes to read.
+		n := 1
+		for n < countEnd-25 {
+			want := fmt.Sprintf("%d\r\n", n)
+			// the output also contains virtual terminal sequences
+			// so just read until we see the number we want.
+			err := readUntil(ctx, want, pc.OutputReader())
+			require.NoError(t, err, "want: %s", want)
+			n++
+		}
+	}()
+
+	select {
+	case <-readDone:
+		// OK!
+	case <-ctx.Done():
+		t.Error("read timed out")
+	}
+
+	cmdDone := make(chan error)
+	go func() {
+		cmdDone <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-cmdDone:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Error("cmd.Wait() timed out")
+	}
+
+	// do our final 25 reads, to make sure the output wasn't lost
+	readDone = make(chan struct{})
+	go func() {
+		defer close(readDone)
+		// avoid buffered IO so that we can precisely control how many bytes to read.
+		n := countEnd - 25
+		for n <= countEnd {
+			want := fmt.Sprintf("%d\r\n", n)
+			err := readUntil(ctx, want, pc.OutputReader())
+			if n < countEnd {
+				require.NoError(t, err, "want: %s", want)
+			} else {
+				require.ErrorIs(t, err, io.EOF)
+			}
+			n++
+		}
+	}()
+
+	select {
+	case <-readDone:
+		// OK!
+	case <-ctx.Done():
+		t.Error("read timed out")
+	}
+}
+
+// readUntil reads one byte at a time until we either see the string we want, or the context expires
+func readUntil(ctx context.Context, want string, r io.Reader) error {
+	got := ""
+	readErrs := make(chan error, 1)
+	for {
+		b := make([]byte, 1)
+		go func() {
+			_, err := r.Read(b)
+			readErrs <- err
+		}()
+		select {
+		case err := <-readErrs:
+			if err != nil {
+				return err
+			}
+			got = got + string(b)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		if strings.Contains(got, want) {
+			return nil
+		}
 	}
 }

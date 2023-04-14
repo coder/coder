@@ -111,6 +111,7 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
 	wp := &windowsProcess{
 		cmdDone: make(chan any),
 		proc:    process,
+		pw:      winPty,
 	}
 	go wp.waitInternal()
 	return pty, wp, nil
