@@ -38,7 +38,7 @@ To support any infrastructure and software stack, Coder provides a generic appro
      }
      ```
 
-     > Note: The `dir` attribute can be set to any of the following:
+     > Note: The `dir` attribute can be set in multiple ways, for example:
      >
      > - `~/coder`
      > - `/home/coder/coder`
