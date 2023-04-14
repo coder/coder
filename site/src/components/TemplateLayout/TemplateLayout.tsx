@@ -15,8 +15,11 @@ import {
 } from "api/api"
 import { useQuery } from "@tanstack/react-query"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { AuthorizationRequest } from "api/typesGenerated"
 
-const templatePermissions = (templateId: string) => ({
+const templatePermissions = (
+  templateId: string,
+): AuthorizationRequest["checks"] => ({
   canUpdateTemplate: {
     object: {
       resource_type: "template",
