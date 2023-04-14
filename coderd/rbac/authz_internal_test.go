@@ -30,18 +30,64 @@ func (w fakeObject) RBACObject() Object {
 	}
 }
 
+// objectBomb is a wrapper around an Objecter that calls a function when
+// RBACObject is called.
+type objectBomb struct {
+	Objecter
+	bomb func()
+}
+
+func (o *objectBomb) RBACObject() Object {
+	o.bomb()
+	return o.Objecter.RBACObject()
+}
+
 func TestFilterError(t *testing.T) {
 	t.Parallel()
-	auth := NewAuthorizer(prometheus.NewRegistry())
-	subject := Subject{
-		ID:     uuid.NewString(),
-		Roles:  RoleNames{},
-		Groups: []string{},
-		Scope:  ScopeAll,
-	}
 
-	_, err := Filter(context.Background(), auth, subject, ActionRead, []Object{ResourceUser, ResourceWorkspace})
-	require.ErrorContains(t, err, "object types must be uniform")
+	t.Run("DifferentResourceTypes", func(t *testing.T) {
+		t.Parallel()
+
+		auth := NewAuthorizer(prometheus.NewRegistry())
+		subject := Subject{
+			ID:     uuid.NewString(),
+			Roles:  RoleNames{},
+			Groups: []string{},
+			Scope:  ScopeAll,
+		}
+
+		_, err := Filter(context.Background(), auth, subject, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+		require.ErrorContains(t, err, "object types must be uniform")
+	})
+
+	t.Run("CancelledContext", func(t *testing.T) {
+		t.Parallel()
+
+		auth := NewAuthorizer(prometheus.NewRegistry())
+		subject := Subject{
+			ID: uuid.NewString(),
+			Roles: RoleNames{
+				RoleOwner(),
+			},
+			Groups: []string{},
+			Scope:  ScopeAll,
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		objects := []Objecter{
+			ResourceUser,
+			ResourceUser,
+			&objectBomb{
+				Objecter: ResourceUser,
+				bomb:     cancel,
+			},
+			ResourceUser,
+		}
+
+		_, err := Filter(ctx, auth, subject, ActionRead, objects)
+		require.ErrorIs(t, err, context.Canceled, "expected context cancellation error")
+	})
 }
 
 // TestFilter ensures the filter acts the same as an individual authorize.
