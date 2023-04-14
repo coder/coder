@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"fmt"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/migrations"
-	"golang.org/x/xerrors"
 )
 
 func (*RootCmd) appSecurityKey() *clibase.Cmd {
