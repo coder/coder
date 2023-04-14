@@ -4031,8 +4031,8 @@ func (q *fakeQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, creat
 	// Tx, Rx metrics
 	for _, agentStat := range agentStatsCreatedAfter {
 		stat := statByAgent[agentStat.AgentID]
-		stat.WorkspaceRxBytes += agentStat.RxBytes
-		stat.WorkspaceTxBytes += agentStat.TxBytes
+		stat.RxBytes += agentStat.RxBytes
+		stat.TxBytes += agentStat.TxBytes
 		statByAgent[agentStat.AgentID] = stat
 	}
 

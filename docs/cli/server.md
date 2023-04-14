@@ -563,7 +563,7 @@ The bind address to serve prometheus metrics.
 | Environment | <code>$CODER_PROMETHEUS_COLLECT_AGENT_STATS</code>        |
 | YAML        | <code>introspection.prometheus.collect_agent_stats</code> |
 
-Collect agent stats (may increase charges for metrics storage) .
+Collect agent stats (may increase charges for metrics storage).
 
 ### --prometheus-enable
 

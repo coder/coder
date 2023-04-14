@@ -419,8 +419,8 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
 			} else {
 				for _, agentStat := range stats {
-					agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceRxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceTxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.RxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.TxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
 
 					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
 					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)

@@ -6380,8 +6380,8 @@ WITH agent_stats AS (
 		user_id,
 		agent_id,
 		workspace_id,
-		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
-		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes
+		coalesce(SUM(rx_bytes), 0)::bigint AS rx_bytes,
+		coalesce(SUM(tx_bytes), 0)::bigint AS tx_bytes
 	 FROM workspace_agent_stats
 		WHERE workspace_agent_stats.created_at > $1
 		GROUP BY user_id, agent_id, workspace_id
@@ -6404,7 +6404,7 @@ WITH agent_stats AS (
 	GROUP BY a.user_id, a.agent_id, a.workspace_id
 )
 SELECT
-	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, workspace_rx_bytes, workspace_tx_bytes,
+	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
 	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
 	connection_count, connection_median_latency_ms
 FROM
@@ -6431,8 +6431,8 @@ type GetWorkspaceAgentStatsAndLabelsRow struct {
 	Username                    string  `db:"username" json:"username"`
 	AgentName                   string  `db:"agent_name" json:"agent_name"`
 	WorkspaceName               string  `db:"workspace_name" json:"workspace_name"`
-	WorkspaceRxBytes            int64   `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
-	WorkspaceTxBytes            int64   `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
+	RxBytes                     int64   `db:"rx_bytes" json:"rx_bytes"`
+	TxBytes                     int64   `db:"tx_bytes" json:"tx_bytes"`
 	SessionCountVSCode          int64   `db:"session_count_vscode" json:"session_count_vscode"`
 	SessionCountSSH             int64   `db:"session_count_ssh" json:"session_count_ssh"`
 	SessionCountJetBrains       int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
@@ -6454,8 +6454,8 @@ func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, create
 			&i.Username,
 			&i.AgentName,
 			&i.WorkspaceName,
-			&i.WorkspaceRxBytes,
-			&i.WorkspaceTxBytes,
+			&i.RxBytes,
+			&i.TxBytes,
 			&i.SessionCountVSCode,
 			&i.SessionCountSSH,
 			&i.SessionCountJetBrains,
