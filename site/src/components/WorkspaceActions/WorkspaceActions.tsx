@@ -97,7 +97,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   }
 
   return (
-    <div className={styles.actions}>
+    <div className={styles.actions} data-testid="workspace-actions">
       {canBeUpdated &&
         (isUpdating
           ? buttonMapping[ButtonTypesEnum.updating]
@@ -106,6 +106,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       {canCancel && <CancelButton handleAction={handleCancel} />}
       <div>
         <Button
+          data-testid="workspace-options-button"
           aria-controls="workspace-options"
           aria-haspopup="true"
           variant="outlined"
