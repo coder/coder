@@ -1,6 +1,7 @@
 package prometheusmetrics_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -415,6 +416,7 @@ func TestAgentStats(t *testing.T) {
 	// then
 	goldenFile, err := os.ReadFile("testdata/agent-stats.json")
 	require.NoError(t, err)
+	goldenFile = bytes.TrimSpace(goldenFile)
 
 	collected := map[string]int{}
 	var out []byte
@@ -448,7 +450,7 @@ func TestAgentStats(t *testing.T) {
 			}
 		}
 
-		out, err = json.MarshalIndent(collected, " ", " ")
+		out, err = json.MarshalIndent(collected, "", "  ")
 		require.NoError(t, err)
 
 		return executionSeconds && string(goldenFile) == string(out)
