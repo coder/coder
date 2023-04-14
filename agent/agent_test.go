@@ -1421,7 +1421,7 @@ func TestAgent_Startup(t *testing.T) {
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(homeDir, "coder/coder"), client.getStartup().ExpandedDirectory)
-	}
+	})
 }
 
 func TestAgent_ReconnectingPTY(t *testing.T) {
