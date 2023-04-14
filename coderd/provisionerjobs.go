@@ -224,7 +224,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	}
 
 	// nolint:gocritic // GetWorkspaceAppsByAgentIDs is a system function.
-	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, resourceAgentIDs)
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}

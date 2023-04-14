@@ -7,7 +7,7 @@ import {
   nameValidator,
   templateDisplayNameValidator,
   onChangeTrimmed,
-} from "util/formUtils"
+} from "utils/formUtils"
 import * as Yup from "yup"
 import i18next from "i18next"
 import { useTranslation } from "react-i18next"

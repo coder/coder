@@ -3,8 +3,6 @@ package coderd
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -167,7 +165,7 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 
 	keyID := chi.URLParam(r, "keyid")
 	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -202,7 +200,7 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 		TokenName: tokenName,
 		UserID:    user.ID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -323,7 +321,7 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	err = api.Database.DeleteAPIKeyByID(ctx, keyID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

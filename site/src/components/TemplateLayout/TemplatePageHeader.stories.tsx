@@ -8,17 +8,11 @@ import {
 export default {
   title: "Components/TemplatePageHeader",
   component: TemplatePageHeader,
-  argTypes: {
-    template: {
-      defaultValue: MockTemplate,
-    },
-    activeVersion: {
-      defaultValue: MockTemplateVersion,
-    },
+  args: {
+    template: MockTemplate,
+    activeVersion: MockTemplateVersion,
     permissions: {
-      defaultValue: {
-        canUpdateTemplate: true,
-      },
+      canUpdateTemplate: true,
     },
   },
 } as ComponentMeta<typeof TemplatePageHeader>

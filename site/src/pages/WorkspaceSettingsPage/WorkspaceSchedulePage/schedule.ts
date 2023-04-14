@@ -2,7 +2,7 @@ import * as cronParser from "cron-parser"
 import dayjs from "dayjs"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
-import { extractTimezone, stripTimezone } from "../../../util/schedule"
+import { extractTimezone, stripTimezone } from "../../../utils/schedule"
 
 // REMARK: timezone plugin depends on UTC
 //

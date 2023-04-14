@@ -67,30 +67,57 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
-    [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
+    [ButtonTypesEnum.update]: (
+      <UpdateButton handleAction={handleUpdate} key={ButtonTypesEnum.update} />
+    ),
     [ButtonTypesEnum.updating]: (
-      <ActionLoadingButton label={t("actionButton.updating")} />
+      <ActionLoadingButton
+        label={t("actionButton.updating")}
+        key={ButtonTypesEnum.updating}
+      />
     ),
-    [ButtonTypesEnum.start]: <StartButton handleAction={handleStart} />,
+    [ButtonTypesEnum.start]: (
+      <StartButton handleAction={handleStart} key={ButtonTypesEnum.start} />
+    ),
     [ButtonTypesEnum.starting]: (
-      <ActionLoadingButton label={t("actionButton.starting")} />
+      <ActionLoadingButton
+        label={t("actionButton.starting")}
+        key={ButtonTypesEnum.starting}
+      />
     ),
-    [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
+    [ButtonTypesEnum.stop]: (
+      <StopButton handleAction={handleStop} key={ButtonTypesEnum.stop} />
+    ),
     [ButtonTypesEnum.stopping]: (
-      <ActionLoadingButton label={t("actionButton.stopping")} />
+      <ActionLoadingButton
+        label={t("actionButton.stopping")}
+        key={ButtonTypesEnum.stopping}
+      />
     ),
     [ButtonTypesEnum.restart]: <RestartButton handleAction={handleRestart} />,
     [ButtonTypesEnum.deleting]: (
-      <ActionLoadingButton label={t("actionButton.deleting")} />
+      <ActionLoadingButton
+        label={t("actionButton.deleting")}
+        key={ButtonTypesEnum.deleting}
+      />
     ),
     [ButtonTypesEnum.canceling]: (
-      <DisabledButton label={t("disabledButton.canceling")} />
+      <DisabledButton
+        label={t("disabledButton.canceling")}
+        key={ButtonTypesEnum.canceling}
+      />
     ),
     [ButtonTypesEnum.deleted]: (
-      <DisabledButton label={t("disabledButton.deleted")} />
+      <DisabledButton
+        label={t("disabledButton.deleted")}
+        key={ButtonTypesEnum.deleted}
+      />
     ),
     [ButtonTypesEnum.pending]: (
-      <ActionLoadingButton label={t("disabledButton.pending")} />
+      <ActionLoadingButton
+        label={t("disabledButton.pending")}
+        key={ButtonTypesEnum.pending}
+      />
     ),
   }
 
@@ -101,7 +128,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   }
 
   return (
-    <div className={styles.actions}>
+    <div className={styles.actions} data-testid="workspace-actions">
       {canBeUpdated &&
         (isUpdating
           ? buttonMapping[ButtonTypesEnum.updating]
@@ -110,6 +137,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       {canCancel && <CancelButton handleAction={handleCancel} />}
       <div>
         <Button
+          data-testid="workspace-options-button"
           aria-controls="workspace-options"
           aria-haspopup="true"
           variant="outlined"

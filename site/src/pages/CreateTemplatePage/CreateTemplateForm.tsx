@@ -23,7 +23,7 @@ import {
   getFormHelpers,
   onChangeTrimmed,
   templateDisplayNameValidator,
-} from "util/formUtils"
+} from "utils/formUtils"
 import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService"
 import * as Yup from "yup"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"

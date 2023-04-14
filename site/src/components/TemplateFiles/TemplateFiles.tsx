@@ -5,8 +5,8 @@ import { TerraformIcon } from "components/Icons/TerraformIcon"
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
 import { UseTabResult } from "hooks/useTab"
 import { FC } from "react"
-import { combineClasses } from "util/combineClasses"
-import { TemplateVersionFiles } from "util/templateVersion"
+import { combineClasses } from "utils/combineClasses"
+import { TemplateVersionFiles } from "utils/templateVersion"
 
 const iconByExtension: Record<string, JSX.Element> = {
   tf: <TerraformIcon />,

@@ -23,7 +23,7 @@ import {
   VariableValue,
 } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
-import { delay } from "util/delay"
+import { delay } from "utils/delay"
 import { assign, createMachine } from "xstate"
 
 // for creating a new template:

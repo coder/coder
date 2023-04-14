@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { PropsWithChildren, FC } from "react"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 import { Stack } from "../Stack/Stack"
 
 export interface PageHeaderProps {

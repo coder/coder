@@ -7,7 +7,7 @@ import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
 import * as Yup from "yup"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
@@ -25,7 +25,7 @@ import {
   selectInitialRichParametersValues,
   useValidationSchemaForRichParameters,
   workspaceBuildParameterValue,
-} from "util/richParameters"
+} from "utils/richParameters"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",

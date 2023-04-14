@@ -6,28 +6,17 @@ export default {
   title: "Components/Dialogs/DeleteDialog",
   component: DeleteDialog,
   argTypes: {
-    onCancel: {
-      action: "onClose",
-      defaultValue: action("onClose"),
-    },
-    onConfirm: {
-      action: "onConfirm",
-      defaultValue: action("onConfirm"),
-    },
     open: {
       control: "boolean",
-      defaultValue: true,
     },
-    entity: {
-      defaultValue: "foo",
-    },
-    name: {
-      defaultValue: "MyFoo",
-    },
-    info: {
-      defaultValue:
-        "Here's some info about the foo so you know you're deleting the right one.",
-    },
+  },
+  args: {
+    onCancel: action("onClose"),
+    onConfirm: action("onConfirm"),
+    open: true,
+    entity: "foo",
+    name: "MyFoo",
+    info: "Here's some info about the foo so you know you're deleting the right one.",
   },
 } as ComponentMeta<typeof DeleteDialog>
 
