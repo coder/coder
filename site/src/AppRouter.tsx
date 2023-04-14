@@ -7,6 +7,7 @@ import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPage"
+import LicensesSettingsPage from "pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
@@ -244,6 +245,7 @@ export const AppRouter: FC = () => {
                 element={<DeploySettingsLayout />}
               >
                 <Route path="general" element={<GeneralSettingsPage />} />
+                <Route path="licenses" element={<LicensesSettingsPage />} />
                 <Route path="security" element={<SecuritySettingsPage />} />
                 <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />
