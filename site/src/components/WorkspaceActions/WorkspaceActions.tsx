@@ -12,6 +12,7 @@ import {
   DisabledButton,
   StartButton,
   StopButton,
+  RestartButton,
   UpdateButton,
 } from "./Buttons"
 import {
@@ -28,6 +29,7 @@ export interface WorkspaceActionsProps {
   isOutdated: boolean
   handleStart: () => void
   handleStop: () => void
+  handleRestart: () => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
@@ -43,6 +45,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isOutdated,
   handleStart,
   handleStop,
+  handleRestart,
   handleDelete,
   handleUpdate,
   handleCancel,
@@ -91,6 +94,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         key={ButtonTypesEnum.stopping}
       />
     ),
+    [ButtonTypesEnum.restart]: <RestartButton handleAction={handleRestart} />,
     [ButtonTypesEnum.deleting]: (
       <ActionLoadingButton
         label={t("actionButton.deleting")}
