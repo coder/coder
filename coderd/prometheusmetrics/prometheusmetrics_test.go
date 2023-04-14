@@ -90,9 +90,9 @@ func TestActiveUsers(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			cancel, err := prometheusmetrics.ActiveUsers(context.Background(), registry, tc.Database(t), time.Millisecond)
+			closeFunc, err := prometheusmetrics.ActiveUsers(context.Background(), registry, tc.Database(t), time.Millisecond)
 			require.NoError(t, err)
-			t.Cleanup(cancel)
+			t.Cleanup(closeFunc)
 
 			require.Eventually(t, func() bool {
 				metrics, err := registry.Gather()
@@ -222,9 +222,9 @@ func TestWorkspaces(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			cancel, err := prometheusmetrics.Workspaces(context.Background(), registry, tc.Database(), time.Millisecond)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), registry, tc.Database(), time.Millisecond)
 			require.NoError(t, err)
-			t.Cleanup(cancel)
+			t.Cleanup(closeFunc)
 
 			require.Eventually(t, func() bool {
 				metrics, err := registry.Gather()
@@ -306,8 +306,8 @@ func TestAgents(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	// when
-	cancel, err := prometheusmetrics.Agents(context.Background(), slogtest.Make(t, nil), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, time.Millisecond)
-	t.Cleanup(cancel)
+	closeFunc, err := prometheusmetrics.Agents(context.Background(), slogtest.Make(t, nil), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, time.Millisecond)
+	t.Cleanup(closeFunc)
 
 	// then
 	require.NoError(t, err)

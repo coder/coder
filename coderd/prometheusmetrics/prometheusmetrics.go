@@ -23,7 +23,7 @@ import (
 )
 
 // ActiveUsers tracks the number of users that have authenticated within the past hour.
-func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (context.CancelFunc, error) {
+func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = 5 * time.Minute
 	}
@@ -40,8 +40,10 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
+	done := make(chan struct{})
 	ticker := time.NewTicker(duration)
 	go func() {
+		defer close(done)
 		defer ticker.Stop()
 		for {
 			select {
@@ -61,11 +63,14 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 			gauge.Set(float64(len(distinctUsers)))
 		}
 	}()
-	return cancelFunc, nil
+	return func() {
+		cancelFunc()
+		<-done
+	}, nil
 }
 
 // Workspaces tracks the total number of workspaces with labels on status.
-func Workspaces(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (context.CancelFunc, error) {
+func Workspaces(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = 5 * time.Minute
 	}
@@ -85,8 +90,11 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 	gauge.WithLabelValues("pending").Set(0)
 
 	ctx, cancelFunc := context.WithCancel(ctx)
+	done := make(chan struct{})
+
 	ticker := time.NewTicker(duration)
 	go func() {
+		defer close(done)
 		defer ticker.Stop()
 		for {
 			select {
@@ -115,11 +123,14 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 			}
 		}
 	}()
-	return cancelFunc, nil
+	return func() {
+		cancelFunc()
+		<-done
+	}, nil
 }
 
 // Agents tracks the total number of workspaces with labels on status.
-func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMap *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (context.CancelFunc, error) {
+func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMap *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = 1 * time.Minute
 	}
@@ -182,8 +193,11 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 
 	// nolint:gocritic // Prometheus must collect metrics for all Coder users.
 	ctx, cancelFunc := context.WithCancel(dbauthz.AsSystemRestricted(ctx))
+	done := make(chan struct{})
+
 	ticker := time.NewTicker(duration)
 	go func() {
+		defer close(done)
 		defer ticker.Stop()
 		for {
 			select {
@@ -290,7 +304,10 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			ticker.Reset(duration)
 		}
 	}()
-	return cancelFunc, nil
+	return func() {
+		cancelFunc()
+		<-done
+	}, nil
 }
 
 func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration) (func(), error) {
