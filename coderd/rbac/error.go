@@ -101,12 +101,12 @@ func (*UnauthorizedError) As(target interface{}) bool {
 	return false
 }
 
-// correctCancelError will return the correct error for a cancelled context. This
+// correctCancelError will return the correct error for a canceled context. This
 // is because rego changes a canceled context to a topdown.CancelErr. This error
-// is not helpful if the code is "cancelled". To make the error conform with the
-// rest of our cancelled errors, we will convert the error to a context.Canceled
+// is not helpful if the code is "canceled". To make the error conform with the
+// rest of our canceled errors, we will convert the error to a context.Canceled
 // error. No good information is lost, as the topdown.CancelErr provides the
-// location of the query that was cancelled, which does not matter.
+// location of the query that was canceled, which does not matter.
 func correctCancelError(err error) error {
 	e := new(topdown.Error)
 	if xerrors.As(err, &e) || e.Code == topdown.CancelErr {

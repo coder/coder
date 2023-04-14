@@ -63,9 +63,9 @@ func TestFilterError(t *testing.T) {
 
 	t.Run("CancelledContext", func(t *testing.T) {
 		t.Parallel()
-		t.Skipf("This test is racy as rego eval checks the ctx cancelled in a go routine. " +
+		t.Skipf("This test is racy as rego eval checks the ctx canceled in a go routine. " +
 			"It is a coin flip if the query finishes before the 'cancel' is checked. " +
-			"So sometimes the 'Authorize' call succeeds even if ctx is cancelled.")
+			"So sometimes the 'Authorize' call succeeds even if ctx is canceled.")
 
 		auth := NewAuthorizer(prometheus.NewRegistry())
 		subject := Subject{
