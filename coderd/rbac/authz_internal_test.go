@@ -62,6 +62,9 @@ func TestFilterError(t *testing.T) {
 
 	t.Run("CancelledContext", func(t *testing.T) {
 		t.Parallel()
+		t.Skipf("This test is racy as rego eval checks the ctx cancelled in a go routine. " +
+			"It is a coin flip if the query finishes before the 'cancel' is checked. " +
+			"So sometimes the 'Authorize' call succeeds even if ctx is cancelled.")
 
 		auth := NewAuthorizer(prometheus.NewRegistry())
 		subject := Subject{
@@ -85,7 +88,7 @@ func TestFilterError(t *testing.T) {
 			ResourceUser,
 		}
 
-		_, err := Filter(ctx, auth, subject, ActionRead, objects)
+		resp, err := Filter(ctx, auth, subject, ActionRead, objects)
 		require.ErrorIs(t, err, context.Canceled)
 	})
 }
