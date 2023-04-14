@@ -307,11 +307,10 @@ func TestAgents(t *testing.T) {
 
 	// when
 	closeFunc, err := prometheusmetrics.Agents(context.Background(), slogtest.Make(t, nil), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, time.Millisecond)
+	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
 	// then
-	require.NoError(t, err)
-
 	var agentsUp bool
 	var agentsConnections bool
 	var agentsApps bool
