@@ -88,7 +88,7 @@ an PostgreSQL container and volume.
 
 ### Docker-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See [troubleshooting templates](../templates.md#creating-and-troubleshooting-templates) for more steps.
+Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See [troubleshooting templates](../templates/README.md#troubleshooting-templates) for more steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
 
