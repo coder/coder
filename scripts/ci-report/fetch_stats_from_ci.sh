@@ -128,6 +128,10 @@ while read -r run; do
 					fi
 					if [[ ${line} == *"##[group]"* ]]; then
 						log_buffer=("${line}")
+						continue
+					fi
+					if [[ ${#log_buffer[@]} -gt 0 ]]; then
+						log_buffer+=("${line}")
 					fi
 					if [[ ${line} == *"##[endgroup]"* ]]; then
 						if [[ ${found_step} -eq 1 ]]; then
@@ -138,9 +142,6 @@ while read -r run; do
 						fi
 						log_buffer=()
 						continue
-					fi
-					if [[ ${#log_buffer[@]} -gt 0 ]]; then
-						log_buffer+=("${line}")
 					fi
 					# If line contains go run ./scripts/ci-report/main.go gotests.json
 					if [[ ${line} == *"go run ./scripts/ci-report/main.go"* ]]; then
@@ -169,14 +170,17 @@ while read -r run; do
 					echo "Failed to fetch log for: ${job_name} (${job_database_id}, ${job_url}), skipping..."
 					continue
 				}
-				log_lines="$(wc -l "${job_log}" | awk '{print $1}')"
-				if [[ ${log_lines} -lt 2 ]]; then
-					# Sometimes gh returns nothing and gives no error :'(
-					rm -f "${job_log}"
-					echo "Log is empty for: ${job_name} (${job_database_id}, ${job_url}), skipping..."
-					continue
-				fi
 			fi
+		fi
+
+		log_lines="$(wc -l "${job_log}" | awk '{print $1}')"
+		if [[ ${log_lines} -lt 7 ]]; then
+			# Sanity check in case something went wrong, the ##[group]
+			# and ##[endgroup] header is 6 lines and start of JSON ("{")
+			# makes the 7th.
+			rm -f "${job_log}"
+			echo "Log is empty for: ${job_name} (${job_database_id}, ${job_url}), skipping..."
+			continue
 		fi
 
 		if ! job_stats="$(
