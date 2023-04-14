@@ -86,7 +86,7 @@ func TestFilterError(t *testing.T) {
 		}
 
 		_, err := Filter(ctx, auth, subject, ActionRead, objects)
-		require.ErrorIs(t, err, context.Canceled, "expected context cancellation error")
+		require.ErrorIs(t, err, context.Canceled)
 	})
 }
 

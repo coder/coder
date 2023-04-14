@@ -1,11 +1,14 @@
 package rbac
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/topdown"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -96,4 +99,18 @@ func (*UnauthorizedError) As(target interface{}) bool {
 		return true
 	}
 	return false
+}
+
+// correctCancelError will return the correct error for a cancelled context. This
+// is because rego changes a canceled context to a topdown.CancelErr. This error
+// is not helpful if the code is "cancelled". To make the error conform with the
+// rest of our cancelled errors, we will convert the error to a context.Canceled
+// error. No good information is lost, as the topdown.CancelErr provides the
+// location of the query that was cancelled, which does not matter.
+func correctCancelError(err error) error {
+	e := new(topdown.Error)
+	if xerrors.As(err, &e) || e.Code == topdown.CancelErr {
+		return context.Canceled
+	}
+	return err
 }
