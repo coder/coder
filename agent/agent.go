@@ -1415,7 +1415,7 @@ func expandDirectory(dir string) (string, error) {
 			return "", err
 		}
 		dir = filepath.Join(home, dir)
-		
+
 	} else {
 		// If the directory is absolute, we assume it is an absolute path.
 		// We do not check if the directory exists.
