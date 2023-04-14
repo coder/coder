@@ -1415,5 +1415,5 @@ func expandDirectory(dir string) (string, error) {
 		}
 		dir = filepath.Join(home, dir)
 	}
-	return filepath.Abs(os.ExpandEnv(dir)), nil
+	return filepath.Abs(os.ExpandEnv(dir))
 }
