@@ -8,7 +8,7 @@ import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
-} from "../../util/formUtils"
+} from "../../utils/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"

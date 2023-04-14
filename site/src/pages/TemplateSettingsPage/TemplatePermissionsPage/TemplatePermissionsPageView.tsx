@@ -29,7 +29,7 @@ import {
 import { FC, useState } from "react"
 import { Maybe } from "components/Conditionals/Maybe"
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
-import { getGroupSubtitle } from "util/groups"
+import { getGroupSubtitle } from "utils/groups"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 
 type AddTemplateUserOrGroupProps = {

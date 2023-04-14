@@ -135,6 +135,7 @@ RichParameters.args = {
     MockTemplateVersionParameter3,
     {
       name: "Region",
+      required: false,
       description: "",
       description_plaintext: "",
       type: "string",

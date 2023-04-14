@@ -225,7 +225,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 			Deleted: includeDeleted,
 		})
 	}
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

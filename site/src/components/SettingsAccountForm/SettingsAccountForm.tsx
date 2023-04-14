@@ -6,7 +6,7 @@ import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
-} from "../../util/formUtils"
+} from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
