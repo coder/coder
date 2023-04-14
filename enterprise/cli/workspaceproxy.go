@@ -15,23 +15,20 @@ import (
 	rpprof "runtime/pprof"
 	"time"
 
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/coreos/go-systemd/daemon"
-
-	"github.com/coder/coder/cli/cliui"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/enterprise/wsproxy"
-
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/wsproxy"
+	"github.com/coreos/go-systemd/daemon"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (r *RootCmd) workspaceProxy() *clibase.Cmd {
