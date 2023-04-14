@@ -309,7 +309,7 @@ func TestAgents(t *testing.T) {
 	defer cancelFunc()
 
 	// when
-	closeFunc, err := prometheusmetrics.Agents(ctx, slogtest.Make(t, nil), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, 50*time.Millisecond)
+	closeFunc, err := prometheusmetrics.Agents(ctx, slogtest.Make(t, nil), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
@@ -413,7 +413,6 @@ func TestAgentStats(t *testing.T) {
 	// and it doesn't depend on the real time.
 	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, nil), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
 	require.NoError(t, err)
-	t.Cleanup(closeFunc)
 
 	// then
 	goldenFile, err := os.ReadFile("testdata/agent-stats.json")
@@ -460,6 +459,8 @@ func TestAgentStats(t *testing.T) {
 
 	// Keep this assertion, so that "go test" can print differences instead of "Condition never satisfied"
 	assert.Equal(t, string(goldenFile), string(out))
+
+	closeFunc()
 }
 
 func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) *agentsdk.Client {
