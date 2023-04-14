@@ -69,7 +69,7 @@ func (r *RootCmd) deleteProxy() *clibase.Cmd {
 				return xerrors.Errorf("delete workspace proxy %q: %w", inv.Args[0], err)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stdout, "Workspace proxy %q deleted successfully", inv.Args[0])
+			_, _ = fmt.Fprintf(inv.Stdout, "Workspace proxy %q deleted successfully\n", inv.Args[0])
 			return nil
 		},
 	}
