@@ -3,6 +3,9 @@ package prometheusmetrics_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -357,24 +360,15 @@ func TestAgents(t *testing.T) {
 func TestAgentStats(t *testing.T) {
 	t.Parallel()
 
-	// Build a sample workspace with test agent and fake agent client
+	// Build sample workspaces with test agents and fake agent client
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	db := api.Database
 
 	user := coderdtest.CreateFirstUser(t, client)
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.ProvisionComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
-	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
+	agent1, _ := prepareWorkspaceAndAgent(t, client, user, 1)
+	agent2, _ := prepareWorkspaceAndAgent(t, client, user, 2)
+	agent3, _ := prepareWorkspaceAndAgent(t, client, user, 3)
 
 	registry := prometheus.NewRegistry()
 
@@ -384,24 +378,45 @@ func TestAgentStats(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// when
-	_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
-		ConnectionsByProto:          map[string]int64{"TCP": 1},
-		ConnectionCount:             2,
-		RxPackets:                   3,
-		RxBytes:                     4,
-		TxPackets:                   5,
-		TxBytes:                     6,
-		SessionCountVSCode:          7,
-		SessionCountJetBrains:       8,
-		SessionCountReconnectingPTY: 9,
-		SessionCountSSH:             10,
-		ConnectionMedianLatencyMS:   10000,
-	})
+	var i int64
+	for i = 0; i < 3; i++ {
+		_, err = agent1.PostStats(context.Background(), &agentsdk.Stats{
+			TxBytes: 1 + i, RxBytes: 2 + i,
+			SessionCountVSCode: 3 + i, SessionCountJetBrains: 4 + i, SessionCountReconnectingPTY: 5 + i, SessionCountSSH: 6 + i,
+			ConnectionCount: 7 + i, ConnectionMedianLatencyMS: 8000,
+			ConnectionsByProto: map[string]int64{"TCP": 1},
+		})
+		require.NoError(t, err)
+
+		_, err = agent2.PostStats(context.Background(), &agentsdk.Stats{
+			TxBytes: 2 + i, RxBytes: 4 + i,
+			SessionCountVSCode: 6 + i, SessionCountJetBrains: 8 + i, SessionCountReconnectingPTY: 10 + i, SessionCountSSH: 12 + i,
+			ConnectionCount: 8 + i, ConnectionMedianLatencyMS: 10000,
+			ConnectionsByProto: map[string]int64{"TCP": 1},
+		})
+		require.NoError(t, err)
+
+		_, err = agent3.PostStats(context.Background(), &agentsdk.Stats{
+			TxBytes: 3 + i, RxBytes: 6 + i,
+			SessionCountVSCode: 12 + i, SessionCountJetBrains: 14 + i, SessionCountReconnectingPTY: 16 + i, SessionCountSSH: 18 + i,
+			ConnectionCount: 9 + i, ConnectionMedianLatencyMS: 12000,
+			ConnectionsByProto: map[string]int64{"TCP": 1},
+		})
+		require.NoError(t, err)
+	}
 
 	// then
+	goldenFile, err := os.ReadFile("testdata/agent-stats.json")
 	require.NoError(t, err)
+	areMetricsValid := func(collected map[string]int) bool {
+		out, err := json.MarshalIndent(collected, " ", " ")
+		require.NoError(t, err)
+		os.WriteFile("testdata/agent-stats.json", out, 0644)
+		return string(goldenFile) == string(out)
+	}
 
-	collectedMetrics := map[string]struct{}{}
+	collected := map[string]int{}
+	var executionSeconds bool
 	require.Eventually(t, func() bool {
 		metrics, err := registry.Gather()
 		assert.NoError(t, err)
@@ -413,7 +428,7 @@ func TestAgentStats(t *testing.T) {
 		for _, metric := range metrics {
 			switch metric.GetName() {
 			case "coderd_prometheusmetrics_agentstats_execution_seconds":
-				collectedMetrics[metric.GetName()] = struct{}{}
+				executionSeconds = true
 			case "coderd_agentstats_connection_count",
 				"coderd_agentstats_connection_median_latency_seconds",
 				"coderd_agentstats_rx_bytes",
@@ -422,16 +437,35 @@ func TestAgentStats(t *testing.T) {
 				"coderd_agentstats_session_count_reconnecting_pty",
 				"coderd_agentstats_session_count_ssh",
 				"coderd_agentstats_session_count_vscode":
-				collectedMetrics[metric.GetName()] = struct{}{}
-				assert.Equal(t, "example", metric.Metric[0].Label[0].GetValue())            // Agent name
-				assert.Equal(t, "testuser", metric.Metric[0].Label[1].GetValue())           // Username
-				assert.Equal(t, workspace.Name, metric.Metric[0].Label[2].GetValue())       // Workspace name
-				assert.NotZero(t, int(metric.Metric[0].Gauge.GetValue()), metric.GetName()) // Metric value
+				for _, m := range metric.Metric {
+					// username:workspace:agent:metric = value
+					collected[m.Label[1].GetValue()+":"+m.Label[2].GetValue()+":"+m.Label[0].GetValue()+":"+metric.GetName()] = int(m.Gauge.GetValue())
+				}
 			default:
 				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
 			}
 		}
+		return executionSeconds && areMetricsValid(collected)
+	}, testutil.WaitLong, testutil.IntervalMedium)
+}
 
-		return len(collectedMetrics) == 9
-	}, testutil.WaitShort, testutil.IntervalFast, "collected metrics: %v", collectedMetrics)
+func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) (*agentsdk.Client, codersdk.Workspace) {
+	authToken := uuid.NewString()
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.Name = fmt.Sprintf("workspace-%d", workspaceNum)
+	})
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+
+	return agentClient, workspace
 }

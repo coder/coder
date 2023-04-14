@@ -417,38 +417,34 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			stats, err := db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
 			if err != nil {
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
-				goto done
+			} else {
+				for _, agentStat := range stats {
+					agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceRxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceTxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+
+					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+
+					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountJetBrains), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+				}
+
+				if len(stats) > 0 {
+					agentStatsRxBytesGauge.Commit()
+					agentStatsTxBytesGauge.Commit()
+
+					agentStatsConnectionCountGauge.Commit()
+					agentStatsConnectionMedianLatencyGauge.Commit()
+
+					agentStatsSessionCountJetBrainsGauge.Commit()
+					agentStatsSessionCountReconnectingPTYGauge.Commit()
+					agentStatsSessionCountSSHGauge.Commit()
+					agentStatsSessionCountVSCodeGauge.Commit()
+				}
 			}
 
-			if len(stats) == 0 {
-				goto done
-			}
-
-			for _, agentStat := range stats {
-				agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceTxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-				agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.WorkspaceRxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-
-				agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-				agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-
-				agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountJetBrains), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-				agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-				agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-				agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-			}
-
-			agentStatsRxBytesGauge.Commit()
-			agentStatsTxBytesGauge.Commit()
-
-			agentStatsConnectionCountGauge.Commit()
-			agentStatsConnectionMedianLatencyGauge.Commit()
-
-			agentStatsSessionCountJetBrainsGauge.Commit()
-			agentStatsSessionCountReconnectingPTYGauge.Commit()
-			agentStatsSessionCountSSHGauge.Commit()
-			agentStatsSessionCountVSCodeGauge.Commit()
-
-		done:
 			logger.Debug(ctx, "Agent metrics collection is done")
 			metricsCollectorAgentStats.Observe(timer.ObserveDuration().Seconds())
 
