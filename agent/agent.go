@@ -1406,14 +1406,20 @@ func expandDirectory(dir string) (string, error) {
 			return "", err
 		}
 		dir = filepath.Join(home, dir[1:])
-	} else if dir[0] != '/' {
+
+	} else if !filepath.IsAbs(dir) {
+		// If the directory is not absolute, we assume it is relative to the
+		// user's home directory.
 		home, err := userHomeDir()
 		if err != nil {
 			return "", err
 		}
 		dir = filepath.Join(home, dir)
+		
 	} else {
-		return "", fmt.Errorf("not a valid directory")
+		// If the directory is absolute, we assume it is an absolute path.
+		// We do not check if the directory exists.
+		return dir, nil
 	}
 	return os.ExpandEnv(dir), nil
 }
