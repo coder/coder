@@ -286,6 +286,8 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		done:
 			logger.Debug(ctx, "Agent metrics collection is done")
 			metricsCollectorAgents.Observe(timer.ObserveDuration().Seconds())
+
+			ticker.Reset(duration)
 		}
 	}()
 	return cancelFunc, nil
@@ -451,6 +453,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			metricsCollectorAgentStats.Observe(timer.ObserveDuration().Seconds())
 
 			createdAfter = checkpoint
+			ticker.Reset(duration)
 		}
 	}()
 	return cancelFunc, nil

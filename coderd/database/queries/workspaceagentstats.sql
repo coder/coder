@@ -133,8 +133,25 @@ WITH agent_stats AS (
 	WHERE a.rn = 1
 	GROUP BY a.user_id, a.agent_id, a.workspace_id
 )
-SELECT users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, workspace_rx_bytes, workspace_tx_bytes, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty, connection_count, connection_median_latency_ms
-FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
-JOIN users ON users.id = agent_stats.user_id
-JOIN workspace_agents ON workspace_agents.id = agent_stats.agent_id
-JOIN workspaces ON workspaces.id = agent_stats.workspace_id;
+SELECT
+	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, workspace_rx_bytes, workspace_tx_bytes,
+	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
+	connection_count, connection_median_latency_ms
+FROM
+	agent_stats
+JOIN
+	latest_agent_stats
+ON
+	agent_stats.agent_id = latest_agent_stats.agent_id
+JOIN
+	users
+ON
+	users.id = agent_stats.user_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.id = agent_stats.agent_id
+JOIN
+	workspaces
+ON
+	workspaces.id = agent_stats.workspace_id;
