@@ -183,7 +183,7 @@ fatal() {
 		log "Using external workspace proxy"
 		(
 			# Attempt to delete the proxy first, in case it already exists.
-			"${CODER_DEV_SHIM}" proxy delete name=local-proxy
+			"${CODER_DEV_SHIM}" proxy delete name=local-proxy || true
 			# Create the proxy
 			proxy_session_token=$("${CODER_DEV_SHIM}" proxy register --name=local-proxy --display-name="Local Proxy" --icon="/emojis/1f4bb.png" --access-url=http://localhost:3010 --only-token)
 			# Start the proxy

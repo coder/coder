@@ -258,7 +258,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			if !(primaryAccessURL.Scheme == "http" || primaryAccessURL.Scheme == "https") {
-				return xerrors.Errorf("primary access URL must be http or https: url=%s", primaryAccessURL)
+				return xerrors.Errorf("primary access URL must be http or https: url=%s", primaryAccessURL.String())
 			}
 
 			secKey, err := workspaceapps.KeyFromString(appSecuritYKey.Value())
