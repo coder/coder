@@ -1901,6 +1901,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "host": "string",
         "port": "string"
       },
+      "collect_agent_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -2244,6 +2245,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "host": "string",
       "port": "string"
     },
+    "collect_agent_stats": true,
     "enable": true
   },
   "provisioner": {
@@ -3155,16 +3157,18 @@ Parameter represents a set value for the scope.
     "host": "string",
     "port": "string"
   },
+  "collect_agent_stats": true,
   "enable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type                                 | Required | Restrictions | Description |
-| --------- | ------------------------------------ | -------- | ------------ | ----------- |
-| `address` | [clibase.HostPort](#clibasehostport) | false    |              |             |
-| `enable`  | boolean                              | false    |              |             |
+| Name                  | Type                                 | Required | Restrictions | Description |
+| --------------------- | ------------------------------------ | -------- | ------------ | ----------- |
+| `address`             | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `collect_agent_stats` | boolean                              | false    |              |             |
+| `enable`              | boolean                              | false    |              |             |
 
 ## codersdk.ProvisionerConfig
 

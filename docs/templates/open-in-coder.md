@@ -38,6 +38,12 @@ To support any infrastructure and software stack, Coder provides a generic appro
      }
      ```
 
+     > Note: The `dir` attribute can be set in multiple ways, for example:
+     >
+     > - `~/coder`
+     > - `/home/coder/coder`
+     > - `coder` (relative to the home directory)
+
    - If you want the template to support any repository via [parameters](./parameters.md)
 
      ```hcl
