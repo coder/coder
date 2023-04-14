@@ -88,7 +88,7 @@ func TestFilterError(t *testing.T) {
 			ResourceUser,
 		}
 
-		resp, err := Filter(ctx, auth, subject, ActionRead, objects)
+		_, err := Filter(ctx, auth, subject, ActionRead, objects)
 		require.ErrorIs(t, err, context.Canceled)
 	})
 }
