@@ -121,19 +121,19 @@ func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (e
 	// Sort files by name to ensure they're inserted in order of oldest first.
 	sort.Strings(files)
 
-	// tx, err := db.BeginTx(ctx, nil)
-	// if err != nil {
-	// 	return xerrors.Errorf("failed to begin transaction: %w", err)
-	// }
-	// defer func() {
-	// 	if err != nil {
-	// 		_ = tx.Rollback()
-	// 		// time.Sleep(time.Minute)
-	// 		return
-	// 	}
-	// 	err = tx.Commit()
-	// }()
-	tx := db
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return xerrors.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+			// time.Sleep(time.Minute)
+			return
+		}
+		err = tx.Commit()
+	}()
+	// tx := db
 
 	for _, name := range files {
 		var s statsJSON
@@ -141,7 +141,7 @@ func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (e
 		if err != nil {
 			return xerrors.Errorf("failed to parse stats file: %q: %w", name, err)
 		}
-		_, _ = fmt.Println(s.Job + " " + s.DisplayTitle)
+		logger.Info(ctx, "processing job", slog.F("run_id", s.RunID), slog.F("branch", s.Branch), slog.F("title", s.DisplayTitle), slog.F("job", s.Job))
 
 		var runID int64
 		err = tx.QueryRowContext(ctx, `
@@ -160,12 +160,18 @@ func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (e
 		err = tx.QueryRowContext(ctx, `
 			INSERT INTO jobs (run_id, job_id, name, ts)
 			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (run_id, job_id) DO UPDATE SET name = $3
+			ON CONFLICT (run_id, job_id) DO NOTHING
 			RETURNING id
 			`,
 			runID, s.JobID, s.Job, s.StartedAt,
 		).Scan(&jobID)
 		if err != nil {
+			// Fast-path, if the job already exists, skip it. Safe because we
+			// insert inside a transaction.
+			if xerrors.Is(err, sql.ErrNoRows) {
+				logger.Info(ctx, "job already exists, skipping", slog.F("run_id", s.RunID))
+				continue
+			}
 			return xerrors.Errorf("failed to insert job: %w", err)
 		}
 
