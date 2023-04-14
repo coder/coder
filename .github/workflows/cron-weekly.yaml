@@ -21,6 +21,7 @@ jobs:
           use-verbose-mode: "yes"
           config-file: ".github/workflows/mlc_config.json"
           folder-path: "docs/"
+          file-path: "./README.md"
 
       - name: Send Slack notification
         if: failure()
