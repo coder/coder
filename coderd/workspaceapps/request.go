@@ -32,7 +32,7 @@ type IssueTokenRequest struct {
 	PathAppBaseURL string `json:"path_app_base_url"`
 	// AppHostname is the optional hostname for subdomain apps on the external
 	// proxy. It must start with an asterisk.
-	AppHostname string `json:"subdomain_app_hostname"`
+	AppHostname string `json:"app_hostname"`
 	// AppPath is the path of the user underneath the app base path.
 	AppPath string `json:"app_path"`
 	// AppQuery is the query parameters the user provided in the app request.

@@ -85,6 +85,12 @@ type Server struct {
 	WorkspaceConnCache  *wsconncache.Cache
 	AppSecurityKey      SecurityKey
 
+	// DisablePathApps disables path-based apps. This is a security feature as path
+	// based apps share the same cookie as the dashboard, and are susceptible to XSS
+	// by a malicious workspace app.
+	//
+	// Subdomain apps are safer with their cookies scoped to the subdomain, and XSS
+	// calls to the dashboard are not possible due to CORs.
 	DisablePathApps  bool
 	SecureAuthCookie bool
 

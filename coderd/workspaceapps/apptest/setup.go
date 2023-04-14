@@ -58,8 +58,8 @@ type DeploymentOptions struct {
 type Deployment struct {
 	Options *DeploymentOptions
 
-	// APIClient should be logged in as the admin user.
-	APIClient      *codersdk.Client
+	// SDKClient should be logged in as the admin user.
+	SDKClient      *codersdk.Client
 	FirstUser      codersdk.CreateFirstUserResponse
 	PathAppBaseURL *url.URL
 
@@ -114,7 +114,7 @@ type AppDetails struct {
 // The client is authenticated as the first user by default.
 func (d *AppDetails) AppClient(t *testing.T) *codersdk.Client {
 	client := codersdk.New(d.PathAppBaseURL)
-	client.SetSessionToken(d.APIClient.SessionToken())
+	client.SetSessionToken(d.SDKClient.SessionToken())
 	forceURLTransport(t, client)
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
@@ -166,15 +166,15 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.
-	deployment.APIClient.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	deployment.SDKClient.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	forceURLTransport(t, deployment.APIClient)
+	forceURLTransport(t, deployment.SDKClient)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	me, err := deployment.APIClient.User(ctx, codersdk.Me)
+	me, err := deployment.SDKClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
 	if opts.noWorkspace {
@@ -187,7 +187,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	if opts.port == 0 {
 		opts.port = appServer(t)
 	}
-	workspace, agnt := createWorkspaceWithApps(t, deployment.APIClient, deployment.FirstUser.OrganizationID, me, opts.port)
+	workspace, agnt := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port)
 
 	return &AppDetails{
 		Deployment: deployment,

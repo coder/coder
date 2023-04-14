@@ -47,8 +47,9 @@ type userAuthKey struct{}
 
 type Authorization struct {
 	Actor rbac.Subject
-	// ActorName is required for logging and human friendly related
-	// identification.
+	// ActorName is required for logging and human friendly related identification.
+	// It is usually the "username" of the user, but it can be the name of the
+	// external workspace proxy or other service type actor.
 	ActorName string
 }
 

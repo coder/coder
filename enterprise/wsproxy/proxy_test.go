@@ -62,7 +62,7 @@ func TestExternalProxyWorkspaceApps(t *testing.T) {
 
 		return &apptest.Deployment{
 			Options:          opts,
-			APIClient:        client,
+			SDKClient:        client,
 			FirstUser:        user,
 			PathAppBaseURL:   proxyAPI.Options.AccessURL,
 			AppHostServesAPI: false,

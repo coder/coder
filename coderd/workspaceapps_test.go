@@ -281,7 +281,7 @@ func TestWorkspaceApps(t *testing.T) {
 
 		return &apptest.Deployment{
 			Options:          opts,
-			APIClient:        client,
+			SDKClient:        client,
 			FirstUser:        user,
 			PathAppBaseURL:   client.URL,
 			AppHostServesAPI: true,

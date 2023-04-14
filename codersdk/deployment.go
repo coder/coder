@@ -1576,7 +1576,12 @@ type BuildInfoResponse struct {
 	// Version returns the semantic version of the build.
 	Version string `json:"version"`
 
-	WorkspaceProxy *WorkspaceProxyBuildInfo `json:"workspace_proxy,omitempty"`
+	// DashboardURL is the URL to hit the deployment's dashboard.
+	// For external workspace proxies, this is the coderd they are connected
+	// to.
+	DashboardURL string `json:"dashboard_url"`
+
+	IsWorkspaceProxy bool `json:"is_workspace_proxy"`
 }
 
 type WorkspaceProxyBuildInfo struct {

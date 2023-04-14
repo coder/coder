@@ -170,7 +170,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 			loc, err := resp.Location()
 			require.NoError(t, err)
-			require.Equal(t, appDetails.APIClient.URL.Host, loc.Host)
+			require.Equal(t, appDetails.SDKClient.URL.Host, loc.Host)
 			require.Equal(t, "/api/v2/applications/auth-redirect", loc.Path)
 
 			redirectURIStr := loc.Query().Get("redirect_uri")
@@ -189,7 +189,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		t.Run("NoAccessShould404", func(t *testing.T) {
 			t.Parallel()
 
-			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.APIClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
 			userAppClient := appDetails.AppClient(t)
 			userAppClient.SetSessionToken(userClient.SessionToken())
 
@@ -393,9 +393,9 @@ func Run(t *testing.T, factory DeploymentFactory) {
 					defer cancel()
 
 					// Get the current user and API key.
-					user, err := appDetails.APIClient.User(ctx, codersdk.Me)
+					user, err := appDetails.SDKClient.User(ctx, codersdk.Me)
 					require.NoError(t, err)
-					currentAPIKey, err := appDetails.APIClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(appDetails.APIClient.SessionToken(), "-")[0])
+					currentAPIKey, err := appDetails.SDKClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(appDetails.SDKClient.SessionToken(), "-")[0])
 					require.NoError(t, err)
 
 					appClient := appDetails.AppClient(t)
@@ -422,12 +422,12 @@ func Run(t *testing.T, factory DeploymentFactory) {
 					gotLocation, err := resp.Location()
 					require.NoError(t, err)
 					// This should always redirect to the primary access URL.
-					require.Equal(t, appDetails.APIClient.URL.Host, gotLocation.Host)
+					require.Equal(t, appDetails.SDKClient.URL.Host, gotLocation.Host)
 					require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
 					require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
 
 					// Load the application auth-redirect endpoint.
-					resp, err = requestWithRetries(ctx, t, appDetails.APIClient, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
+					resp, err = requestWithRetries(ctx, t, appDetails.SDKClient, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
 						"redirect_uri", u.String(),
 					))
 					require.NoError(t, err)
@@ -467,7 +467,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 					apiKey := cookie.Value
 
 					// Fetch the API key from the API.
-					apiKeyInfo, err := appDetails.APIClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(apiKey, "-")[0])
+					apiKeyInfo, err := appDetails.SDKClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(apiKey, "-")[0])
 					require.NoError(t, err)
 					require.Equal(t, user.ID, apiKeyInfo.UserID)
 					require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
@@ -475,10 +475,10 @@ func Run(t *testing.T, factory DeploymentFactory) {
 					require.EqualValues(t, currentAPIKey.LifetimeSeconds, apiKeyInfo.LifetimeSeconds)
 
 					// Verify the API key permissions
-					appTokenAPIClient := codersdk.New(appDetails.APIClient.URL)
+					appTokenAPIClient := codersdk.New(appDetails.SDKClient.URL)
 					appTokenAPIClient.SetSessionToken(apiKey)
-					appTokenAPIClient.HTTPClient.CheckRedirect = appDetails.APIClient.HTTPClient.CheckRedirect
-					appTokenAPIClient.HTTPClient.Transport = appDetails.APIClient.HTTPClient.Transport
+					appTokenAPIClient.HTTPClient.CheckRedirect = appDetails.SDKClient.HTTPClient.CheckRedirect
+					appTokenAPIClient.HTTPClient.Transport = appDetails.SDKClient.HTTPClient.Transport
 
 					var (
 						canCreateApplicationConnect = "can-create-application_connect"
@@ -543,7 +543,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		u := *appDetails.APIClient.URL
+		u := *appDetails.SDKClient.URL
 		u.Host = "app--agent--workspace--username.test.coder.com"
 		u.Path = "/api/v2/users/me"
 		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
@@ -597,7 +597,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		t.Run("NoAccessShould401", func(t *testing.T) {
 			t.Parallel()
 
-			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.APIClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
 			userAppClient := appDetails.AppClient(t)
 			userAppClient.SetSessionToken(userClient.SessionToken())
 
@@ -827,7 +827,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			// Create a template-admin user in the same org. We don't use an owner
 			// since they have access to everything.
-			ownerClient = appDetails.APIClient
+			ownerClient = appDetails.SDKClient
 			user, err := ownerClient.CreateUser(ctx, codersdk.CreateUserRequest{
 				Email:          "user@coder.com",
 				Username:       "user",
@@ -1170,7 +1170,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 				// server.
 				secWebSocketKey := "test-dean-was-here"
 				req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
-				req.Header.Set(codersdk.SessionTokenHeader, appDetails.APIClient.SessionToken())
+				req.Header.Set(codersdk.SessionTokenHeader, appDetails.SDKClient.SessionToken())
 
 				resp, err := doWithRetries(t, appDetails.AppClient(t), req)
 				require.NoError(t, err)
