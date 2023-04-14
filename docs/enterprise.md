@@ -14,7 +14,7 @@ trial](https://coder.com/trial).
 | Cost Control    | [Quotas](./admin/quotas.md)                                                      |     ❌      |     ✅     |
 | Cost Control    | [Max Workspace Autostop](./templates/README.md#configure-max-workspace-autostop) |     ❌      |     ✅     |
 | Deployment      | [High Availability](./admin/high-availability.md)                                |     ❌      |     ✅     |
-| Deployment      | [Service Banners](./admin/service-banners.md)                                    |     ❌      |     ✅     |
+| Deployment      | [Appearance](./admin/appearance.md)                                              |     ❌      |     ✅     |
 | Deployment      | Isolated Terraform Runners                                                       |     ❌      |     ✅     |
 
 > Previous plans to restrict OIDC and Git Auth features in OSS have been removed
