@@ -22,7 +22,7 @@ Click `VS Code Desktop` in the dashboard to one-click enter a workspace. This au
 
 ![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
 
-> The `VS Code Desktop` button can be hidden by enabling [Browser-only connections](./networking.md#browser-only-connections-enterprise).
+> The `VS Code Desktop` button can be hidden by enabling [Browser-only connections](./networking/README.md#Browser-only).
 
 ### Manual Installation
 
