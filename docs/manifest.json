@@ -216,7 +216,7 @@
     {
       "title": "Networking",
       "description": "Learn about networking in Coder",
-      "path": "./networking.md",
+      "path": "./networking/README.md",
       "icon_path": "./images/icons/networking.svg",
       "children": [
         {
