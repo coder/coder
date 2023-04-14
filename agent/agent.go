@@ -1407,13 +1407,13 @@ func expandDirectory(dir string) (string, error) {
 		}
 		dir = filepath.Join(home, dir[1:])
 	}
-	// if the directory is not absolute, we make it absolute
-	// if !filepath.IsAbs(dir) {
-	// 	home, err := userHomeDir()
-	// 	if err != nil {
-	// 		return "", err
-	// 	}
-	// 	dir = filepath.Join(home, dir)
-	// }
+	//if the directory is not absolute, we make it absolute
+	if !filepath.IsAbs(dir) {
+		home, err := userHomeDir()
+		if err != nil {
+			return "", err
+		}
+		dir = filepath.Join(home, dir)
+	}
 	return os.ExpandEnv(dir), nil
 }
