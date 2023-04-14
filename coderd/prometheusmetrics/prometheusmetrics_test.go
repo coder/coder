@@ -1,12 +1,12 @@
 package prometheusmetrics_test
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -417,14 +417,16 @@ func TestAgentStats(t *testing.T) {
 		IgnoreErrors: true,
 	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
 	require.NoError(t, err)
+	t.Cleanup(closeFunc)
 
 	// then
 	goldenFile, err := os.ReadFile("testdata/agent-stats.json")
 	require.NoError(t, err)
-	goldenFile = bytes.TrimSpace(goldenFile)
+	golden := map[string]int{}
+	err = json.Unmarshal(goldenFile, &golden)
+	require.NoError(t, err)
 
 	collected := map[string]int{}
-	var out []byte
 	var executionSeconds bool
 	assert.Eventually(t, func() bool {
 		metrics, err := registry.Gather()
@@ -454,18 +456,11 @@ func TestAgentStats(t *testing.T) {
 				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
 			}
 		}
-
-		out, err = json.MarshalIndent(collected, "", "  ")
-		require.NoError(t, err)
-		out = bytes.ReplaceAll(out, []byte{'\r', '\n'}, []byte{'\n'}) // comparison fix for Windows
-
-		return executionSeconds && string(goldenFile) == string(out)
+		return executionSeconds && reflect.DeepEqual(golden, collected)
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Keep this assertion, so that "go test" can print differences instead of "Condition never satisfied"
-	assert.Equal(t, string(goldenFile), string(out))
-
-	closeFunc()
+	assert.EqualValues(t, golden, collected)
 }
 
 func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) *agentsdk.Client {
