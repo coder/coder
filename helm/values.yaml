@@ -38,13 +38,13 @@ coder:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
   labels: {}
 
-  # coder.podLabels -- The Coder pod labels. See:
-  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
-  podlabels: {}
-
   # coder.podAnnotations -- The Coder pod annotations. See:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
   podAnnotations: {}
+
+  # coder.podLabels -- The Coder pod labels. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  podlabels: {}
 
   # coder.serviceAccount -- Configuration for the automatically created service
   # account. Creation of the service account cannot be disabled.
