@@ -46,6 +46,7 @@ func main() {
 		}
 		os.Exit(1)
 	}
+	<-ctx.Done()
 }
 
 func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (err error) {
@@ -141,7 +142,7 @@ func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (e
 		if err != nil {
 			return xerrors.Errorf("failed to parse stats file: %q: %w", name, err)
 		}
-		logger.Info(ctx, "processing job", slog.F("run_id", s.RunID), slog.F("branch", s.Branch), slog.F("title", s.DisplayTitle), slog.F("job", s.Job))
+		logger.Info(ctx, "processing job", slog.F("run_id", s.RunID), slog.F("job_id", s.JobID), slog.F("job", s.Job), slog.F("branch", s.Branch), slog.F("title", s.DisplayTitle))
 
 		var runID int64
 		err = tx.QueryRowContext(ctx, `
@@ -257,8 +258,7 @@ func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (e
 		}
 	}
 
-	<-ctx.Done()
-	return ctx.Err()
+	return nil
 }
 
 // Output produced by `fetch_stats_from_ci.sh`.

@@ -17,7 +17,8 @@ with t1 as (
 	select
 		r.branch,
 		j.name AS platform,
-		date_trunc('day', j.ts) AS d
+		date_trunc('day', j.ts) AS d,
+		output
 	from job_results jr
 	join jobs j on jr.job_id = j.id
 	join runs r on j.run_id = r.id
@@ -25,9 +26,10 @@ with t1 as (
 	where
 		t.name = 'TestWorkspaceAgent_Metadata'
 		and jr.status = 'fail'
+		and jr.output not ilike '%duplicate migration%'
 )
 
-select branch, platform, d, count(*)
+select branch, platform, d, count(*) as fails, array_agg(output) AS outputs
 from t1
 group by branch, platform, d
 order by d, branch, platform;
