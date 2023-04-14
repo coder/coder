@@ -32,7 +32,7 @@ import {
   removeFile,
   traverse,
   updateFile,
-} from "util/filetree"
+} from "utils/filetree"
 import {
   CreateFileDialog,
   DeleteFileDialog,

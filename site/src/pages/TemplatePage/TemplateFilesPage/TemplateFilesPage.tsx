@@ -11,7 +11,7 @@ import { Helmet } from "react-helmet-async"
 import {
   getTemplateVersionFiles,
   TemplateVersionFiles,
-} from "util/templateVersion"
+} from "utils/templateVersion"
 import { getTemplatePageTitle } from "../utils"
 
 const fetchTemplateFiles = async (

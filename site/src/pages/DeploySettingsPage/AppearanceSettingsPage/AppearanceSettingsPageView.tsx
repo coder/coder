@@ -8,7 +8,7 @@ import {
 } from "components/DeploySettingsLayout/Badges"
 import InputAdornment from "@material-ui/core/InputAdornment"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
-import { getFormHelpers } from "util/formUtils"
+import { getFormHelpers } from "utils/formUtils"
 import Button from "@material-ui/core/Button"
 import FormControlLabel from "@material-ui/core/FormControlLabel"
 import FormHelperText from "@material-ui/core/FormHelperText"

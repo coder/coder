@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -12,11 +12,12 @@ terraform {
 }
 
 data "coder_parameter" "location" {
-  name        = "Location"
-  description = "What location should your workspace live in?"
-  default     = "eastus"
-  icon        = "/emojis/1f310.png"
-  mutable     = false
+  name         = "location"
+  display_name = "Location"
+  description  = "What location should your workspace live in?"
+  default      = "eastus"
+  icon         = "/emojis/1f310.png"
+  mutable      = false
   option {
     name  = "US (Virginia)"
     value = "eastus"
@@ -150,11 +151,12 @@ data "coder_parameter" "location" {
 }
 
 data "coder_parameter" "instance_type" {
-  name        = "Instance Type"
-  description = "What instance type should your workspace use?"
-  default     = "Standard_B4ms"
-  icon        = "/icon/azure.png"
-  mutable     = false
+  name         = "instance_type"
+  display_name = "Instance type"
+  description  = "What instance type should your workspace use?"
+  default      = "Standard_B4ms"
+  icon         = "/icon/azure.png"
+  mutable      = false
   option {
     name  = "Standard_B1ms (1 vCPU, 2 GiB RAM)"
     value = "Standard_B1ms"
@@ -202,12 +204,13 @@ data "coder_parameter" "instance_type" {
 }
 
 data "coder_parameter" "home_size" {
-  name        = "Home Volume Size"
-  description = "How large would you like your home volume to be (in GB)?"
-  default     = 20
-  type        = "number"
-  icon        = "/icon/azure.png"
-  mutable     = false
+  name         = "home_size"
+  display_name = "Home volume size"
+  description  = "How large would you like your home volume to be (in GB)?"
+  default      = 20
+  type         = "number"
+  icon         = "/icon/azure.png"
+  mutable      = false
   validation {
     min = 1
     max = 1024
@@ -226,6 +229,40 @@ resource "coder_agent" "main" {
   os                 = "linux"
   auth               = "azure-instance-identity"
   login_before_ready = false
+
+  metadata {
+    key          = "cpu"
+    display_name = "CPU Usage"
+    interval     = 5
+    timeout      = 5
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
+    EOT
+  }
+  metadata {
+    key          = "memory"
+    display_name = "Memory Usage"
+    interval     = 5
+    timeout      = 5
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      free -m | awk 'NR==2{printf "%.2f%%\t", $3*100/$2 }'
+    EOT
+  }
+  metadata {
+    key          = "disk"
+    display_name = "Disk Usage"
+    interval     = 600 # every 10 minutes
+    timeout      = 30  # df can take a while on large filesystems
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
+    EOT
+  }
 }
 
 locals {

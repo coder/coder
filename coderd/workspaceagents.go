@@ -397,15 +397,10 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		ctx            = r.Context()
 		actor, _       = dbauthz.ActorFromContext(ctx)
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
-		workspace      = httpmw.WorkspaceParam(r)
 		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
 		follow         = r.URL.Query().Has("follow")
 		afterRaw       = r.URL.Query().Get("after")
 	)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	var after int64
 	// Only fetch logs created after the time provided.

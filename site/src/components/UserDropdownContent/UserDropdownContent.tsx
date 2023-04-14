@@ -11,7 +11,7 @@ import { Link } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import DocsIcon from "@material-ui/icons/MenuBook"
 import LogoutIcon from "@material-ui/icons/ExitToAppOutlined"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 export const Language = {
   accountLabel: "Account",

@@ -11,7 +11,7 @@ import {
   FC,
   PropsWithChildren,
 } from "react"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { Stack } from "../../Stack/Stack"
 
 type Icon = typeof HelpIcon

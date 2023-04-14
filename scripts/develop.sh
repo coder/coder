@@ -122,7 +122,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" "$@"
+	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" --experiments "*" "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
@@ -151,7 +151,6 @@ fatal() {
 
 	# If we have docker available and the "docker" template doesn't already
 	# exist, then let's try to create a template!
-	example_template="code-server"
 	template_name="docker"
 	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
 		# sometimes terraform isn't installed yet when we go to create the
@@ -159,7 +158,7 @@ fatal() {
 		sleep 5
 
 		temp_template_dir="$(mktemp -d)"
-		echo "${example_template}" | "${CODER_DEV_SHIM}" templates init "${temp_template_dir}"
+		"${CODER_DEV_SHIM}" templates init --id "${template_name}" "${temp_template_dir}"
 
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"

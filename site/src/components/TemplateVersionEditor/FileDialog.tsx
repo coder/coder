@@ -3,8 +3,8 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
 import { ChangeEvent, FC, useState } from "react"
 import Typography from "@material-ui/core/Typography"
-import { allowedExtensions, isAllowedFile } from "util/templateVersion"
-import { FileTree, isFolder, validatePath } from "util/filetree"
+import { allowedExtensions, isAllowedFile } from "utils/templateVersion"
+import { FileTree, isFolder, validatePath } from "utils/filetree"
 
 export const CreateFileDialog: FC<{
   onClose: () => void

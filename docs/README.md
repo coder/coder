@@ -28,7 +28,7 @@ product.
 Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
 and whatever else Terraform lets you dream up.
 
-[Learn more about managing infrastructure.](./templates.md)
+[Learn more about managing infrastructure.](./templates/README.md)
 
 ## IDE Support
 

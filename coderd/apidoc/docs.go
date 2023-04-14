@@ -6117,7 +6117,8 @@ const docTemplate = `{
                 "start",
                 "stop",
                 "login",
-                "logout"
+                "logout",
+                "register"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -6126,7 +6127,8 @@ const docTemplate = `{
                 "AuditActionStart",
                 "AuditActionStop",
                 "AuditActionLogin",
-                "AuditActionLogout"
+                "AuditActionLogout",
+                "AuditActionRegister"
             ]
         },
         "codersdk.AuditDiff": {
@@ -7819,6 +7821,9 @@ const docTemplate = `{
             "properties": {
                 "address": {
                     "$ref": "#/definitions/clibase.HostPort"
+                },
+                "collect_agent_stats": {
+                    "type": "boolean"
                 },
                 "enable": {
                     "type": "boolean"

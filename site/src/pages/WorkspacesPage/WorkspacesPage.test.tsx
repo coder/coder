@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
 import { rest } from "msw"
-import * as CreateDayString from "util/createDayString"
+import * as CreateDayString from "utils/createDayString"
 import {
   MockWorkspace,
   MockWorkspacesResponse,

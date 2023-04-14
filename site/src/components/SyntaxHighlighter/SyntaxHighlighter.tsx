@@ -1,7 +1,10 @@
 import { FC } from "react"
-import Editor, { DiffEditor } from "@monaco-editor/react"
+import Editor, { DiffEditor, loader } from "@monaco-editor/react"
+import * as monaco from "monaco-editor"
 import { useCoderTheme } from "./coderTheme"
 import { makeStyles } from "@material-ui/core/styles"
+
+loader.config({ monaco })
 
 export const SyntaxHighlighter: FC<{
   value: string
