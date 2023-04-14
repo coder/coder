@@ -28,6 +28,65 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
+      sh: ${{ steps.filter.outputs.sh }}
+      go: ${{ steps.filter.outputs.go }}
+      ts: ${{ steps.filter.outputs.ts }}
+      k8s: ${{ steps.filter.outputs.k8s }}
+    steps:
+      - uses: actions/checkout@v3
+      # For pull requests it's not necessary to checkout the code
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            all:
+              - "**"
+            docs:
+              - "docs/**"
+              # For testing:
+              # - ".github/**"
+            sh:
+              - "**.sh"
+            go:
+              - "**.sql"
+              - "**.go"
+              - "**.golden"
+              - "go.mod"
+              - "go.sum"
+              # Other non-Go files that may affect Go code:
+              - "Makefile"
+              - "**.sh"
+              - "site/static/error.html"
+              # Main repo directories for completeness in case other files are
+              # touched:
+              - "agent/"
+              - "cli/"
+              - "cmd/"
+              - "coderd/"
+              - "enterprise/"
+              - "provisioner/"
+              - "provisionerd/"
+              - "provisionersdk/"
+              - "pty/"
+              - "scaletest/"
+              - "tailnet/"
+              - "testutil/"
+            ts:
+              - "site/**"
+              - "Makefile"
+            k8s:
+              - "helm/**"
+              - "scripts/Dockerfile"
+              - "scripts/Dockerfile.base"
+              - "scripts/helm.sh"
+      - id: debug
+        run: |
+          echo "${{ toJSON(steps.filter )}}"
+
   lint:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     steps:
@@ -95,44 +154,11 @@ jobs:
       - name: Check for AGPL code importing Enterprise...
         run: ./scripts/check_enterprise_imports.sh
 
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
-      sh: ${{ steps.filter.outputs.sh }}
-      ts: ${{ steps.filter.outputs.ts }}
-      k8s: ${{ steps.filter.outputs.k8s }}
-    steps:
-      - uses: actions/checkout@v3
-      # For pull requests it's not necessary to checkout the code
-      - uses: dorny/paths-filter@v2
-        id: filter
-        with:
-          filters: |
-            all:
-              - '**'
-            docs:
-              - 'docs/**'
-              # For testing:
-              # - '.github/**'
-            sh:
-              - "**.sh"
-            ts:
-              - 'site/**'
-            k8s:
-              - 'helm/**'
-              - scripts/Dockerfile
-              - scripts/Dockerfile.base
-              - scripts/helm.sh
-      - id: debug
-        run: |
-          echo "${{ toJSON(steps.filter )}}"
-
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.docs-only == 'false' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v3
 
@@ -240,6 +266,8 @@ jobs:
 
   test-go:
     runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     strategy:
       matrix:
@@ -329,6 +357,8 @@ jobs:
 
   test-go-psql:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -501,6 +531,8 @@ jobs:
 
   test-js:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.ts == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
@@ -523,7 +555,7 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - run: yarn test:ci --max-workers ${{ steps.cpu-cores.outputs.count }}
+      - run: yarn test:ci --max-workers $(nproc)
         working-directory: site
 
       - uses: codecov/codecov-action@v3
@@ -539,8 +571,7 @@ jobs:
           flags: unittest-js
 
   test-e2e:
-    needs:
-      - changes
+    needs: changes
     if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     timeout-minutes: 20
@@ -611,8 +642,7 @@ jobs:
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest
-    needs:
-      - changes
+    needs: changes
     if: needs.changes.outputs.ts == 'true'
     steps:
       - uses: actions/checkout@v3
