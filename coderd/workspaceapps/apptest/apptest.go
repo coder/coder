@@ -577,7 +577,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			host := strings.Replace(appDetails.Options.AppHost, "*", "not-an-app-subdomain", 1)
 			uri := fmt.Sprintf("http://%s/api/v2/users/me", host)
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, uri, nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, uri, nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -654,7 +654,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			defer cancel()
 
 			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
@@ -723,7 +723,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			app := appDetails.PortApp
 			app.AppSlugOrPort = strconv.Itoa(codersdk.WorkspaceAgentMinimumListeningPort - 1)
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, appDetails.SubdomainAppURL(app).String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.SubdomainAppURL(app).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
