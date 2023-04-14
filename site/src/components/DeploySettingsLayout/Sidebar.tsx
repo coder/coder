@@ -8,7 +8,7 @@ import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
 import { ElementType, PropsWithChildren, ReactNode, FC } from "react"
 import { NavLink } from "react-router-dom"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>

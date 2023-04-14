@@ -5,7 +5,7 @@ import {
   MockTemplateExample,
   MockTemplateExample2,
 } from "testHelpers/entities"
-import { getTemplatesByTag } from "util/starterTemplates"
+import { getTemplatesByTag } from "utils/starterTemplates"
 import {
   StarterTemplatesPageView,
   StarterTemplatesPageViewProps,

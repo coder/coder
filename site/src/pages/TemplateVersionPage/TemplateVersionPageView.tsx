@@ -16,7 +16,7 @@ import { UseTabResult } from "hooks/useTab"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Link as RouterLink } from "react-router-dom"
-import { createDayString } from "util/createDayString"
+import { createDayString } from "utils/createDayString"
 import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
 
 export interface TemplateVersionPageViewProps {

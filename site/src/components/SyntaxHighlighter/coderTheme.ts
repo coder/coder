@@ -1,7 +1,7 @@
 import { Theme, useTheme } from "@material-ui/core/styles"
 import { useMonaco } from "@monaco-editor/react"
 import { useEffect, useState } from "react"
-import { hslToHex } from "util/colors"
+import { hslToHex } from "utils/colors"
 import { editor } from "monaco-editor"
 
 // Theme based on https://github.com/brijeshb42/monaco-themes/blob/master/themes/Dracula.json

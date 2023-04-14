@@ -7,9 +7,9 @@ import {
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "api/api"
-import { FileTree, traverse } from "util/filetree"
-import { isAllowedFile } from "util/templateVersion"
-import { TarReader, TarWriter } from "util/tar"
+import { FileTree, traverse } from "utils/filetree"
+import { isAllowedFile } from "utils/templateVersion"
+import { TarReader, TarWriter } from "utils/tar"
 import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
 
 export interface CreateVersionData {

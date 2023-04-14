@@ -19,6 +19,7 @@ import {
   useRef,
   useState,
 } from "react"
+import { humanDuration } from "utils/duration"
 
 export const WatchAgentMetadataContext = createContext(watchAgentMetadata)
 
@@ -135,7 +136,6 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         <div
           className={styles.metadataLabel}
           onMouseEnter={() => setIsOpen(true)}
-          // onMouseLeave={() => setIsOpen(false)}
           role="presentation"
           ref={labelAnchorRef}
         >
@@ -165,17 +165,16 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         {status === "stale" ? (
           <HelpTooltipText>
             This item is now stale because the agent hasn{"'"}t reported a new
-            value in {dayjs.duration(item.result.age, "s").humanize()}.
+            value in {humanDuration(item.result.age, "s")}.
           </HelpTooltipText>
         ) : (
           <></>
         )}
         {status === "valid" ? (
           <HelpTooltipText>
-            The agent collected this value{" "}
-            {dayjs.duration(item.result.age, "s").humanize()} ago and will
-            update it in{" "}
-            {dayjs.duration(Math.min(updatesInSeconds, 0), "s").humanize()}.
+            The agent collected this value {humanDuration(item.result.age, "s")}{" "}
+            ago and will update it in{" "}
+            {humanDuration(Math.min(updatesInSeconds, 0), "s")}.
           </HelpTooltipText>
         ) : (
           <></>

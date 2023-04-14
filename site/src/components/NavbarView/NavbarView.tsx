@@ -10,7 +10,7 @@ import { NavLink, useLocation } from "react-router-dom"
 import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 import { UserDropdown } from "../UserDropdown/UsersDropdown"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`

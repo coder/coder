@@ -704,6 +704,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer closeWorkspacesFunc()
 
+				if cfg.Prometheus.CollectAgentStats {
+					closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0)
+					if err != nil {
+						return xerrors.Errorf("register agent stats prometheus metric: %w", err)
+					}
+					defer closeAgentStatsFunc()
+				}
+
 				//nolint:revive
 				defer ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
 					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
@@ -1214,7 +1222,7 @@ func newProvisionerDaemon(
 		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value(),
 		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value(),
 		JobPollDebounce:     debounce,
-		UpdateInterval:      500 * time.Millisecond,
+		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Provisioners:        provisioners,
 		WorkDirectory:       tempDir,
