@@ -293,7 +293,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	return cancelFunc, nil
 }
 
-func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration) (context.CancelFunc, error) {
+func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = 1 * time.Minute
 	}
@@ -398,10 +398,13 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		return nil, err
 	}
 
-	createdAfter := initialCreateAfter
 	ctx, cancelFunc := context.WithCancel(ctx)
+	done := make(chan struct{})
+
+	createdAfter := initialCreateAfter
 	ticker := time.NewTicker(duration)
 	go func() {
+		defer close(done)
 		defer ticker.Stop()
 		for {
 			select {
@@ -452,5 +455,8 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			ticker.Reset(duration)
 		}
 	}()
-	return cancelFunc, nil
+	return func() {
+		cancelFunc()
+		<-done
+	}, nil
 }

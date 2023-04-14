@@ -367,9 +367,9 @@ func TestAgentStats(t *testing.T) {
 
 	user := coderdtest.CreateFirstUser(t, client)
 
-	agent1, _ := prepareWorkspaceAndAgent(t, client, user, 1)
-	agent2, _ := prepareWorkspaceAndAgent(t, client, user, 2)
-	agent3, _ := prepareWorkspaceAndAgent(t, client, user, 3)
+	agent1 := prepareWorkspaceAndAgent(t, client, user, 1)
+	agent2 := prepareWorkspaceAndAgent(t, client, user, 2)
+	agent3 := prepareWorkspaceAndAgent(t, client, user, 3)
 
 	registry := prometheus.NewRegistry()
 
@@ -409,9 +409,9 @@ func TestAgentStats(t *testing.T) {
 	//
 	// Set initialCreateAfter to some time in the past, so that AgentStats would include all above PostStats,
 	// and it doesn't depend on the real time.
-	cancel, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, nil), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
+	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, nil), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
 	require.NoError(t, err)
-	t.Cleanup(cancel)
+	t.Cleanup(closeFunc)
 
 	// then
 	goldenFile, err := os.ReadFile("testdata/agent-stats.json")
@@ -460,7 +460,7 @@ func TestAgentStats(t *testing.T) {
 	assert.Equal(t, string(goldenFile), string(out))
 }
 
-func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) (*agentsdk.Client, codersdk.Workspace) {
+func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) *agentsdk.Client {
 	authToken := uuid.NewString()
 
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -477,6 +477,5 @@ func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user coders
 
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
-
-	return agentClient, workspace
+	return agentClient
 }
