@@ -457,6 +457,7 @@ func TestAgentStats(t *testing.T) {
 
 		out, err = json.MarshalIndent(collected, "", "  ")
 		require.NoError(t, err)
+		out = bytes.ReplaceAll(out, []byte("\r\n"), []byte("\n")) // comparison fix for Windows
 
 		return executionSeconds && string(goldenFile) == string(out)
 	}, testutil.WaitShort, testutil.IntervalFast)
