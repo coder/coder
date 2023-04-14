@@ -44,7 +44,7 @@ coder:
 
   # coder.podLabels -- The Coder pod labels. See:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
-  podlabels: {}
+  podLabels: {}
 
   # coder.serviceAccount -- Configuration for the automatically created service
   # account. Creation of the service account cannot be disabled.

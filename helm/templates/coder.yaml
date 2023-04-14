@@ -27,7 +27,7 @@ spec:
     metadata:
       labels:
         {{- include "coder.labels" . | nindent 8 }}
-        {{- with .Values.coder.labels }}
+        {{- with .Values.coder.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
