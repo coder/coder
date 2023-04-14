@@ -2,9 +2,7 @@ package healthcheck
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/netip"
 	"net/url"
@@ -390,9 +388,7 @@ func (*DERPNodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, e
 	for {
 		msg, err := client.Recv()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return derp.ReceivedPacket{}, nil
-			}
+			return derp.ReceivedPacket{}, err
 		}
 
 		switch msg := msg.(type) {

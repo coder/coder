@@ -5,7 +5,7 @@ import MuiAvatar, {
 } from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { firstLetter } from "./firstLetter"
 
 export type AvatarProps = MuiAvatarProps & {

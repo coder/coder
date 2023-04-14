@@ -235,7 +235,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = api.Database.DeleteLicense(ctx, int32(id))
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Unknown license ID",
 		})

@@ -4,7 +4,7 @@ import { useOrganizationId } from "hooks/useOrganizationId"
 import { usePermissions } from "hooks/usePermissions"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { groupsMachine } from "xServices/groups/groupsXService"
 import GroupsPageView from "./GroupsPageView"
 

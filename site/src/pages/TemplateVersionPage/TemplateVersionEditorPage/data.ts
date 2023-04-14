@@ -1,7 +1,7 @@
 import { useQuery, UseQueryOptions } from "@tanstack/react-query"
 import { getFile, getTemplateByName, getTemplateVersionByName } from "api/api"
-import { TarReader } from "util/tar"
-import { createTemplateVersionFileTree } from "util/templateVersion"
+import { TarReader } from "utils/tar"
+import { createTemplateVersionFileTree } from "utils/templateVersion"
 
 const getTemplateVersionData = async (
   orgId: string,

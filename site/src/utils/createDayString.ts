@@ -1,4 +1,7 @@
 import dayjs from "dayjs"
+import relativeTime from "dayjs/plugin/relativeTime"
+
+dayjs.extend(relativeTime)
 
 /**
  * Returns a human-readable string describing the passing of time

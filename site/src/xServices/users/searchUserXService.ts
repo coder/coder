@@ -1,6 +1,6 @@
 import { getUsers } from "api/api"
 import { User } from "api/typesGenerated"
-import { queryToFilter } from "util/filters"
+import { queryToFilter } from "utils/filters"
 import { assign, createMachine } from "xstate"
 
 export type AutocompleteEvent =

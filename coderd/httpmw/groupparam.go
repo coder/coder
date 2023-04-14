@@ -2,12 +2,9 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -45,7 +42,7 @@ func ExtractGroupByNameParam(db database.Store) func(http.Handler) http.Handler 
 				OrganizationID: org.ID,
 				Name:           name,
 			})
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
@@ -73,7 +70,7 @@ func ExtractGroupParam(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			group, err := db.GetGroupByID(r.Context(), groupID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}

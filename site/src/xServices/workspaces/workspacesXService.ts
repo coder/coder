@@ -13,7 +13,7 @@ import {
   displayMsg,
   displaySuccess,
 } from "../../components/GlobalSnackbar/utils"
-import { queryToFilter } from "../../util/filters"
+import { queryToFilter } from "../../utils/filters"
 
 export const workspacePaginationId = "workspacePagination"
 

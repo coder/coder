@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC, Fragment, ReactElement } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 
 export interface CodeBlockProps {
   lines: string[]

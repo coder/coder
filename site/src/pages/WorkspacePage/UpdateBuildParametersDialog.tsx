@@ -5,7 +5,7 @@ import DialogContentText from "@material-ui/core/DialogContentText"
 import DialogTitle from "@material-ui/core/DialogTitle"
 import { DialogProps } from "components/Dialogs/Dialog"
 import { FC } from "react"
-import { getFormHelpers } from "util/formUtils"
+import { getFormHelpers } from "utils/formUtils"
 import { FormFields, VerticalForm } from "components/Form/Form"
 import {
   TemplateVersionParameter,
@@ -16,7 +16,7 @@ import { useFormik } from "formik"
 import {
   selectInitialRichParametersValues,
   useValidationSchemaForRichParameters,
-} from "util/richParameters"
+} from "utils/richParameters"
 import * as Yup from "yup"
 import DialogActions from "@material-ui/core/DialogActions"
 import Button from "@material-ui/core/Button"

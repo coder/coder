@@ -7,7 +7,7 @@ import {
 import { PropsWithChildren, FC } from "react"
 import Collapse from "@material-ui/core/Collapse"
 import { useTranslation } from "react-i18next"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 export interface ExpanderProps {
   expanded: boolean

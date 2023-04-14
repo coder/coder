@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import TableRow, { TableRowProps } from "@material-ui/core/TableRow"
 import { PropsWithChildren } from "react"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 interface TimelineEntryProps {
   clickable?: boolean

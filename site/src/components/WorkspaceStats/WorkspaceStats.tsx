@@ -2,16 +2,16 @@ import Link from "@material-ui/core/Link"
 import { OutdatedHelpTooltip } from "components/Tooltips"
 import { FC, useRef, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
-import { createDayString } from "util/createDayString"
+import { createDayString } from "utils/createDayString"
 import {
   getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
-} from "util/workspace"
+} from "utils/workspace"
 import { Workspace } from "../../api/typesGenerated"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import upperFirst from "lodash/upperFirst"
-import { autostartDisplay, autostopDisplay } from "util/schedule"
+import { autostartDisplay, autostopDisplay } from "utils/schedule"
 import IconButton from "@material-ui/core/IconButton"
 import RemoveIcon from "@material-ui/icons/RemoveOutlined"
 import { makeStyles } from "@material-ui/core/styles"

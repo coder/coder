@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
 import { rest } from "msw"
-import * as CreateDayString from "util/createDayString"
+import * as CreateDayString from "utils/createDayString"
 import { MockTemplate } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"

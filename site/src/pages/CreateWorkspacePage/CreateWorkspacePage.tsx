@@ -5,7 +5,7 @@ import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService"
 import {
   CreateWorkspaceErrors,

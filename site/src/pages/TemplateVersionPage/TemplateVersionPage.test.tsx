@@ -3,9 +3,9 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
 import TemplateVersionPage from "./TemplateVersionPage"
-import * as templateVersionUtils from "util/templateVersion"
+import * as templateVersionUtils from "utils/templateVersion"
 import { screen } from "@testing-library/react"
-import * as CreateDayString from "util/createDayString"
+import * as CreateDayString from "utils/createDayString"
 
 const TEMPLATE_NAME = "coder-ts"
 const VERSION_NAME = "12345"

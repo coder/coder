@@ -11,7 +11,7 @@ import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
 
 interface WorkspaceAction {

@@ -1,6 +1,6 @@
 import { Stack } from "../Stack/Stack"
 import TextField from "@material-ui/core/TextField"
-import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers, onChangeTrimmed } from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Language } from "./SignInForm"
 import { FormikContextType, FormikTouched, useFormik } from "formik"

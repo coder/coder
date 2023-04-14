@@ -11,7 +11,7 @@ import {
   PropsWithChildren,
   useContext,
 } from "react"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 type FormContextValue = { direction?: "horizontal" | "vertical" }
 

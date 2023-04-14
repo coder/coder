@@ -13,7 +13,7 @@ import {
 } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 
-import * as CreateDayString from "util/createDayString"
+import * as CreateDayString from "utils/createDayString"
 import AuditPage from "./AuditPage"
 
 interface RenderPageOptions {

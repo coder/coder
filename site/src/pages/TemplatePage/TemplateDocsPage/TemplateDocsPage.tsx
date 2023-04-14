@@ -3,7 +3,7 @@ import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import frontMatter from "front-matter"
 import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 
 export default function TemplateDocsPage() {
   const { template, activeVersion } = useTemplateLayoutContext()

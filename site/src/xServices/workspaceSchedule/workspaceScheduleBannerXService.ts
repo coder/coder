@@ -6,7 +6,7 @@ import { getErrorMessage } from "api/errors"
 import { Workspace } from "api/typesGenerated"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
-import { getDeadline, getMaxDeadline, getMinDeadline } from "util/schedule"
+import { getDeadline, getMaxDeadline, getMinDeadline } from "utils/schedule"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import {

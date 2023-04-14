@@ -10,22 +10,12 @@ import { UsersPageView, UsersPageViewProps } from "./UsersPageView"
 export default {
   title: "pages/UsersPageView",
   component: UsersPageView,
-  argTypes: {
-    paginationRef: {
-      defaultValue: createPaginationRef({ page: 1, limit: 25 }),
-    },
-    isNonInitialPage: {
-      defaultValue: false,
-    },
-    users: {
-      defaultValue: [MockUser, MockUser2],
-    },
-    roles: {
-      defaultValue: MockAssignableSiteRoles,
-    },
-    canEditUsers: {
-      defaultValue: true,
-    },
+  args: {
+    paginationRef: createPaginationRef({ page: 1, limit: 25 }),
+    isNonInitialPage: false,
+    users: [MockUser, MockUser2],
+    roles: MockAssignableSiteRoles,
+    canEditUsers: true,
   },
 } as ComponentMeta<typeof UsersPageView>
 

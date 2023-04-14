@@ -2,7 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { TemplateExample } from "api/typesGenerated"
 import { FC } from "react"
 import { Link } from "react-router-dom"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 export interface TemplateExampleCardProps {
   example: TemplateExample

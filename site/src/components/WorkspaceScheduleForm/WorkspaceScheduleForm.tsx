@@ -28,7 +28,7 @@ import {
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
 import { ChangeEvent, FC } from "react"
 import * as Yup from "yup"
-import { getFormHelpers } from "../../util/formUtils"
+import { getFormHelpers } from "../../utils/formUtils"
 import { zones } from "./zones"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're

@@ -13,11 +13,13 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
@@ -25,6 +27,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
@@ -54,6 +57,7 @@ type Runner struct {
 	filesystem          afero.Fs
 	workDirectory       string
 	provisioner         sdkproto.DRPCProvisionerClient
+	lastUpdate          atomic.Pointer[time.Time]
 	updateInterval      time.Duration
 	forceCancelInterval time.Duration
 	logBufferInterval   time.Duration
@@ -203,7 +207,7 @@ func (r *Runner) Run() {
 	defer r.stop()
 
 	go r.doCleanFinish(ctx)
-	go r.heartbeat(ctx)
+	go r.heartbeatRoutine(ctx)
 	for r.failedJob == nil && r.completedJob == nil {
 		r.cond.Wait()
 	}
@@ -307,15 +311,51 @@ func (r *Runner) ForceStop() {
 	r.cond.Signal()
 }
 
+func (r *Runner) sendHeartbeat(ctx context.Context) (*proto.UpdateJobResponse, error) {
+	ctx, span := r.startTrace(ctx, "updateHeartbeat")
+	defer span.End()
+
+	r.mutex.Lock()
+	if !r.okToSend {
+		r.mutex.Unlock()
+		return nil, errUpdateSkipped
+	}
+	r.mutex.Unlock()
+
+	// Skip sending a heartbeat if we've sent an update recently.
+	if lastUpdate := r.lastUpdate.Load(); lastUpdate != nil {
+		if time.Since(*lastUpdate) < r.updateInterval {
+			span.SetAttributes(attribute.Bool("heartbeat_skipped", true))
+			return &proto.UpdateJobResponse{}, nil
+		}
+	}
+
+	return r.update(ctx, &proto.UpdateJobRequest{
+		JobId: r.job.JobId,
+	})
+}
+
 func (r *Runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
+	defer func() {
+		r.lastUpdate.Store(ptr.Ref(time.Now()))
+	}()
+
+	span.SetAttributes(
+		attribute.Int64("logs_len", int64(len(u.Logs))),
+		attribute.Int64("parameter_schemas_len", int64(len(u.ParameterSchemas))),
+		attribute.Int64("template_variables_len", int64(len(u.TemplateVariables))),
+		attribute.Int64("user_variable_values_len", int64(len(u.UserVariableValues))),
+		attribute.Int64("readme_len", int64(len(u.Readme))),
+	)
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if !r.okToSend {
 		return nil, errUpdateSkipped
 	}
+
 	return r.sender.UpdateJob(ctx, u)
 }
 
@@ -480,9 +520,13 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 	}
 }
 
-// heartbeat periodically sends updates on the job, which keeps coder server from assuming the job
-// is stalled, and allows the runner to learn if the job has been canceled by the user.
-func (r *Runner) heartbeat(ctx context.Context) {
+// heartbeatRoutine periodically sends updates on the job, which keeps coder server
+// from assuming the job is stalled, and allows the runner to learn if the job
+// has been canceled by the user.
+func (r *Runner) heartbeatRoutine(ctx context.Context) {
+	ctx, span := r.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	ticker := time.NewTicker(r.updateInterval)
 	defer ticker.Stop()
 
@@ -493,9 +537,7 @@ func (r *Runner) heartbeat(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		resp, err := r.update(ctx, &proto.UpdateJobRequest{
-			JobId: r.job.JobId,
-		})
+		resp, err := r.sendHeartbeat(ctx)
 		if err != nil {
 			err = r.Fail(ctx, r.failedJobf("send periodic update: %s", err))
 			if err != nil {
@@ -504,6 +546,7 @@ func (r *Runner) heartbeat(ctx context.Context) {
 			return
 		}
 		if !resp.Canceled {
+			ticker.Reset(r.updateInterval)
 			continue
 		}
 		r.logger.Info(ctx, "attempting graceful cancelation")
@@ -1079,6 +1122,7 @@ func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob
 func (r *Runner) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	return r.tracer.Start(ctx, name, append(opts, trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd"),
+		attribute.String("job_id", r.job.JobId),
 	))...)
 }
 
