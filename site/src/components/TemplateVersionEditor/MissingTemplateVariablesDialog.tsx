@@ -4,7 +4,7 @@ import DialogContent from "@material-ui/core/DialogContent"
 import DialogContentText from "@material-ui/core/DialogContentText"
 import DialogTitle from "@material-ui/core/DialogTitle"
 import { DialogProps } from "components/Dialogs/Dialog"
-import { FC, useState } from "react"
+import { FC, useEffect, useState } from "react"
 import { FormFields, VerticalForm } from "components/Form/Form"
 import { TemplateVersionVariable, VariableValue } from "api/typesGenerated"
 import DialogActions from "@material-ui/core/DialogActions"
@@ -26,6 +26,16 @@ export const MissingTemplateVariablesDialog: FC<
 > = ({ missingVariables, onSubmit, ...dialogProps }) => {
   const styles = useStyles()
   const [variableValues, setVariableValues] = useState<VariableValue[]>([])
+
+  // Pre-fill the form with the default values when missing variables are loaded
+  useEffect(() => {
+    if (!missingVariables) {
+      return
+    }
+    setVariableValues(
+      missingVariables.map((v) => ({ name: v.name, value: v.value })),
+    )
+  }, [missingVariables])
 
   return (
     <Dialog
