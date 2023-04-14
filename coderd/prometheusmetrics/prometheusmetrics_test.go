@@ -305,8 +305,11 @@ func TestAgents(t *testing.T) {
 	agentInactiveDisconnectTimeout := 1 * time.Hour // don't need to focus on this value in tests
 	registry := prometheus.NewRegistry()
 
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
 	// when
-	closeFunc, err := prometheusmetrics.Agents(context.Background(), slogtest.Make(t, nil), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, time.Millisecond)
+	closeFunc, err := prometheusmetrics.Agents(ctx, slogtest.Make(t, nil), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, 50*time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 

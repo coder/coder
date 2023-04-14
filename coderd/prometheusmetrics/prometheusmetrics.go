@@ -191,8 +191,9 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		return nil, err
 	}
 
+	ctx, cancelFunc := context.WithCancel(ctx)
 	// nolint:gocritic // Prometheus must collect metrics for all Coder users.
-	ctx, cancelFunc := context.WithCancel(dbauthz.AsSystemRestricted(ctx))
+	ctx = dbauthz.AsSystemRestricted(ctx)
 	done := make(chan struct{})
 
 	ticker := time.NewTicker(duration)
