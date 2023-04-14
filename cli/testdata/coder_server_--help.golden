@@ -91,7 +91,7 @@ Use a YAML configuration file when your server launch become unwieldy.
           The bind address to serve prometheus metrics.
 
       --prometheus-collect-agent-stats bool, $CODER_PROMETHEUS_COLLECT_AGENT_STATS
-          Collect agent stats (may increase charges for metrics storage) .
+          Collect agent stats (may increase charges for metrics storage).
 
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.

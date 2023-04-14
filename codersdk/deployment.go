@@ -725,7 +725,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Prometheus Collect Agent Stats",
-			Description: "Collect agent stats (may increase charges for metrics storage) .",
+			Description: "Collect agent stats (may increase charges for metrics storage).",
 			Flag:        "prometheus-collect-agent-stats",
 			Env:         "CODER_PROMETHEUS_COLLECT_AGENT_STATS",
 			Value:       &c.Prometheus.CollectAgentStats,
