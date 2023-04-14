@@ -15,11 +15,14 @@ const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
       isOutdated={props.isOutdated ?? false}
       handleStart={jest.fn()}
       handleStop={jest.fn()}
+      handleRestart={jest.fn()}
       handleDelete={jest.fn()}
       handleUpdate={jest.fn()}
       handleCancel={jest.fn()}
       handleSettings={jest.fn()}
+      handleChangeVersion={jest.fn()}
       isUpdating={false}
+      canChangeVersions={false}
     />,
   )
 }
@@ -33,11 +36,14 @@ const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
       isOutdated={props.isOutdated ?? false}
       handleStart={jest.fn()}
       handleStop={jest.fn()}
+      handleRestart={jest.fn()}
       handleDelete={jest.fn()}
       handleUpdate={jest.fn()}
       handleCancel={jest.fn()}
       handleSettings={jest.fn()}
+      handleChangeVersion={jest.fn()}
       isUpdating={false}
+      canChangeVersions={false}
     />,
   )
   const trigger = await screen.findByTestId("workspace-actions-button")
@@ -62,7 +68,7 @@ describe("WorkspaceActions", () => {
     })
   })
   describe("when the workspace is started", () => {
-    it("primary is stop; secondary is delete", async () => {
+    it("primary is stop; secondary are delete, restart", async () => {
       await renderAndClick({
         workspaceStatus: Mocks.MockWorkspace.latest_build.status,
       })
@@ -71,6 +77,9 @@ describe("WorkspaceActions", () => {
       )
       expect(screen.getByTestId("secondary-ctas")).toHaveTextContent(
         t("actionButton.delete", { ns: "workspacePage" }),
+      )
+      expect(screen.getByTestId("secondary-ctas")).toHaveTextContent(
+        t("actionButton.restart", { ns: "workspacePage" }),
       )
     })
   })
