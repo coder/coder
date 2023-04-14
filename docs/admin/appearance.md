@@ -7,7 +7,8 @@ Support links let admins adjust the user dropdown menu to include links referrin
 
 ![support links](../images/admin/support-links.png)
 
-Custom links can be set in the deployment configuration using the `server.yaml` file:
+Custom links can be set in the deployment configuration using the `-c <yamlFile>`
+flag to `coder server`.
 
 ```yaml
 supportLinks:
