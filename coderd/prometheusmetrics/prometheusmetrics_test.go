@@ -372,11 +372,14 @@ func TestAgentStats(t *testing.T) {
 
 	registry := prometheus.NewRegistry()
 
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
 	// given
 	var err error
 	var i int64
 	for i = 0; i < 3; i++ {
-		_, err = agent1.PostStats(context.Background(), &agentsdk.Stats{
+		_, err = agent1.PostStats(ctx, &agentsdk.Stats{
 			TxBytes: 1 + i, RxBytes: 2 + i,
 			SessionCountVSCode: 3 + i, SessionCountJetBrains: 4 + i, SessionCountReconnectingPTY: 5 + i, SessionCountSSH: 6 + i,
 			ConnectionCount: 7 + i, ConnectionMedianLatencyMS: 8000,
@@ -384,7 +387,7 @@ func TestAgentStats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = agent2.PostStats(context.Background(), &agentsdk.Stats{
+		_, err = agent2.PostStats(ctx, &agentsdk.Stats{
 			TxBytes: 2 + i, RxBytes: 4 + i,
 			SessionCountVSCode: 6 + i, SessionCountJetBrains: 8 + i, SessionCountReconnectingPTY: 10 + i, SessionCountSSH: 12 + i,
 			ConnectionCount: 8 + i, ConnectionMedianLatencyMS: 10000,
@@ -392,7 +395,7 @@ func TestAgentStats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = agent3.PostStats(context.Background(), &agentsdk.Stats{
+		_, err = agent3.PostStats(ctx, &agentsdk.Stats{
 			TxBytes: 3 + i, RxBytes: 6 + i,
 			SessionCountVSCode: 12 + i, SessionCountJetBrains: 14 + i, SessionCountReconnectingPTY: 16 + i, SessionCountSSH: 18 + i,
 			ConnectionCount: 9 + i, ConnectionMedianLatencyMS: 12000,
@@ -405,7 +408,7 @@ func TestAgentStats(t *testing.T) {
 	//
 	// Set initialCreateAfter to some time in the past, so that AgentStats would include all above PostStats,
 	// and it doesn't depend on the real time.
-	cancel, err := prometheusmetrics.AgentStats(context.Background(), slogtest.Make(t, nil), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
+	cancel, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, nil), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(cancel)
 
