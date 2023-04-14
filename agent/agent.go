@@ -1408,7 +1408,7 @@ func expandDirectory(dir string) (string, error) {
 		dir = filepath.Join(home, dir[1:])
 	}
 
-	if !filepath.IsAbs(dir)  && dir[0] != '$' {
+	if !filepath.IsAbs(dir) && dir[0] != '$' {
 		home, err := userHomeDir()
 		if err != nil {
 			return "", err
