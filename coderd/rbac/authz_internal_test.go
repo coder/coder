@@ -44,7 +44,7 @@ func (o *objectBomb) RBACObject() Object {
 
 func TestFilterError(t *testing.T) {
 	t.Parallel()
-	var _ = objectBomb{}
+	_ = objectBomb{}
 
 	t.Run("DifferentResourceTypes", func(t *testing.T) {
 		t.Parallel()
