@@ -103,3 +103,55 @@ WITH agent_stats AS (
 	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
 SELECT * FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id;
+
+-- name: GetWorkspaceAgentStatsAndLabels :many
+WITH agent_stats AS (
+	SELECT
+		user_id,
+		agent_id,
+		workspace_id,
+		coalesce(SUM(rx_bytes), 0)::bigint AS rx_bytes,
+		coalesce(SUM(tx_bytes), 0)::bigint AS tx_bytes
+	 FROM workspace_agent_stats
+		WHERE workspace_agent_stats.created_at > $1
+		GROUP BY user_id, agent_id, workspace_id
+), latest_agent_stats AS (
+	SELECT
+		a.agent_id,
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
+		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
+	 FROM (
+		SELECT *, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		FROM workspace_agent_stats
+		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+		WHERE created_at > $1 AND connection_median_latency_ms > 0
+	) AS a
+	WHERE a.rn = 1
+	GROUP BY a.user_id, a.agent_id, a.workspace_id
+)
+SELECT
+	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
+	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
+	connection_count, connection_median_latency_ms
+FROM
+	agent_stats
+JOIN
+	latest_agent_stats
+ON
+	agent_stats.agent_id = latest_agent_stats.agent_id
+JOIN
+	users
+ON
+	users.id = agent_stats.user_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.id = agent_stats.agent_id
+JOIN
+	workspaces
+ON
+	workspaces.id = agent_stats.workspace_id;

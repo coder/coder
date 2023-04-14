@@ -627,6 +627,7 @@ export interface PrometheusConfig {
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
+  readonly collect_agent_stats: boolean
 }
 
 // From codersdk/deployment.go
