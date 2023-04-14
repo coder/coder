@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"golang.org/x/exp/slices"
@@ -67,14 +66,7 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 				return xerrors.Errorf("create tokens: %w", err)
 			}
 
-			cliui.Infof(
-				inv.Stdout,
-				"Here is your token. 🪄\n\n",
-			)
-			cliui.Infof(inv.Stdout, cliui.Styles.Code.Render(strings.TrimSpace(res.Key))+"\n\n")
-			cliui.Infof(inv.Stdout,
-				"You can use this token by setting the --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionTokenHeader,
-			)
+			_, _ = fmt.Fprintln(inv.Stdout, res.Key)
 
 			return nil
 		},
