@@ -373,11 +373,7 @@ func TestAgentStats(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	// given
-	cancel, err := prometheusmetrics.AgentStats(context.Background(), slogtest.Make(t, nil), registry, db, time.Now(), time.Second)
-	require.NoError(t, err)
-	t.Cleanup(cancel)
-
-	// when
+	var err error
 	var i int64
 	for i = 0; i < 3; i++ {
 		_, err = agent1.PostStats(context.Background(), &agentsdk.Stats{
@@ -405,19 +401,22 @@ func TestAgentStats(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// when
+	//
+	// Set initialCreateAfter to some time in the past, so that AgentStats would include all above PostStats,
+	// and it doesn't depend on the real time.
+	cancel, err := prometheusmetrics.AgentStats(context.Background(), slogtest.Make(t, nil), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
+	require.NoError(t, err)
+	t.Cleanup(cancel)
+
 	// then
 	goldenFile, err := os.ReadFile("testdata/agent-stats.json")
 	require.NoError(t, err)
-	areMetricsValid := func(collected map[string]int) bool {
-		out, err := json.MarshalIndent(collected, " ", " ")
-		require.NoError(t, err)
-		os.WriteFile("testdata/agent-stats.json", out, 0644)
-		return string(goldenFile) == string(out)
-	}
 
 	collected := map[string]int{}
+	var out []byte
 	var executionSeconds bool
-	require.Eventually(t, func() bool {
+	assert.Eventually(t, func() bool {
 		metrics, err := registry.Gather()
 		assert.NoError(t, err)
 
@@ -445,8 +444,15 @@ func TestAgentStats(t *testing.T) {
 				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
 			}
 		}
-		return executionSeconds && areMetricsValid(collected)
-	}, testutil.WaitLong, testutil.IntervalMedium)
+
+		out, err = json.MarshalIndent(collected, " ", " ")
+		require.NoError(t, err)
+
+		return executionSeconds && string(goldenFile) == string(out)
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Keep this assertion, so that "go test" can print differences instead of "Condition never satisfied"
+	assert.Equal(t, string(goldenFile), string(out))
 }
 
 func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) (*agentsdk.Client, codersdk.Workspace) {
