@@ -90,6 +90,9 @@ Use a YAML configuration file when your server launch become unwieldy.
       --prometheus-address host:port, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
           The bind address to serve prometheus metrics.
 
+      --prometheus-collect-agent-stats bool, $CODER_PROMETHEUS_COLLECT_AGENT_STATS
+          Collect agent stats (may increase charges for metrics storage) .
+
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
 

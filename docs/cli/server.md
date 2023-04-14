@@ -555,6 +555,16 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 
 The bind address to serve prometheus metrics.
 
+### --prometheus-collect-agent-stats
+
+|             |                                                           |
+| ----------- | --------------------------------------------------------- |
+| Type        | <code>bool</code>                                         |
+| Environment | <code>$CODER_PROMETHEUS_COLLECT_AGENT_STATS</code>        |
+| YAML        | <code>introspection.prometheus.collect_agent_stats</code> |
+
+Collect agent stats (may increase charges for metrics storage) .
+
 ### --prometheus-enable
 
 |             |                                              |

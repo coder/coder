@@ -225,8 +225,9 @@ type DERPConfig struct {
 }
 
 type PrometheusConfig struct {
-	Enable  clibase.Bool     `json:"enable" typescript:",notnull"`
-	Address clibase.HostPort `json:"address" typescript:",notnull"`
+	Enable            clibase.Bool     `json:"enable" typescript:",notnull"`
+	Address           clibase.HostPort `json:"address" typescript:",notnull"`
+	CollectAgentStats clibase.Bool     `json:"collect_agent_stats" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -721,6 +722,15 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.Address,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "address",
+		},
+		{
+			Name:        "Prometheus Collect Agent Stats",
+			Description: "Collect agent stats (may increase charges for metrics storage) .",
+			Flag:        "prometheus-collect-agent-stats",
+			Env:         "CODER_PROMETHEUS_COLLECT_AGENT_STATS",
+			Value:       &c.Prometheus.CollectAgentStats,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "collect_agent_stats",
 		},
 		// Pprof settings
 		{

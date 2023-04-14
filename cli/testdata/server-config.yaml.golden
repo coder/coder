@@ -146,6 +146,9 @@ introspection:
     # The bind address to serve prometheus metrics.
     # (default: 127.0.0.1:2112, type: host:port)
     address: 127.0.0.1:2112
+    # Collect agent stats (may increase charges for metrics storage) .
+    # (default: <unset>, type: bool)
+    collect_agent_stats: false
   pprof:
     # Serve pprof metrics on the address defined by pprof address.
     # (default: <unset>, type: bool)

@@ -271,6 +271,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "host": "string",
         "port": "string"
       },
+      "collect_agent_stats": true,
       "enable": true
     },
     "provisioner": {
