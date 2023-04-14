@@ -1406,7 +1406,7 @@ func expandDirectory(dir string) (string, error) {
 			return "", err
 		}
 		dir = filepath.Join(home, dir[1:])
-		return os.ExpandEnv(dir), nil
+		dir = os.ExpandEnv(dir)
 	}
 
 	if !filepath.IsAbs(dir) {
@@ -1415,6 +1415,6 @@ func expandDirectory(dir string) (string, error) {
 			return "", err
 		}
 		dir = filepath.Join(home, dir)
-		return dir, nil
 	}
+	return dir, nil
 }
