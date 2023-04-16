@@ -116,4 +116,4 @@ For example, let's say you have
 You can expect `(10 * 6 * 2) / 4` or 30 writes per second.
 
 One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and
-the other the `NOTIFY` query that enables live stats streaming in the UI.
+the other to the `NOTIFY` query that enables live stats streaming in the UI.
