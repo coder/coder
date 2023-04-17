@@ -1583,7 +1583,13 @@ func TestServerYAMLConfig(t *testing.T) {
 		return
 	}
 
+	wd1, _ := os.Getwd()
 	got, err := os.ReadFile(goldenPath)
+	wd2, _ := os.Getwd()
+	// Debugging to figure out why this test fails.
+	if err != nil {
+		t.Errorf("failed to read golden file: %v, wd1=%s, wd2=%s", err, wd1, wd2)
+	}
 	require.NoError(t, err)
 	got = normalizeGoldenFile(t, got)
 
