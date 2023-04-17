@@ -2944,6 +2944,7 @@ FROM
 	workspace_proxies
 WHERE
 	name = $1
+	AND deleted = false
 LIMIT
 	1
 `

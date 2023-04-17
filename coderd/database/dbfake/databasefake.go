@@ -5102,6 +5102,9 @@ func (q *fakeQuerier) GetWorkspaceProxyByName(_ context.Context, name string) (d
 	defer q.mutex.Unlock()
 
 	for _, proxy := range q.workspaceProxies {
+		if proxy.Deleted {
+			continue
+		}
 		if proxy.Name == name {
 			return proxy, nil
 		}
