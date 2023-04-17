@@ -105,6 +105,8 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
+	t.Parallel()
+
 	t.Run("BuiltinPostgres", func(t *testing.T) {
 		t.Parallel()
 		if testing.Short() {
