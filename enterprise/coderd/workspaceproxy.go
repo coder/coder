@@ -22,8 +22,7 @@ import (
 
 // @Summary Delete workspace proxy
 // @ID delete-workspace-proxy
-// @Security CoderSessionTokeny
-
+// @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
