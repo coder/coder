@@ -21,8 +21,11 @@ import (
 	"github.com/coder/coder/tailnet"
 )
 
+//nolint:tparallel
 func TestDERP(t *testing.T) {
-	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping healthcheck test in short mode, they reach out over the network.")
+	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
