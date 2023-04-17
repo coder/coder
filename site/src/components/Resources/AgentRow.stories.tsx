@@ -20,6 +20,20 @@ import { AgentRow, AgentRowProps } from "./AgentRow"
 export default {
   title: "components/AgentRow",
   component: AgentRow,
+  args: {
+    storybookStartupLogs: [
+      "\x1b[91mCloning Git repository...",
+      "\x1b[2;37;41mStarting Docker Daemon...",
+      "\x1b[1;95mAdding some 🧙magic🧙...",
+      "Starting VS Code...",
+      "\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100  1475    0  1475    0     0   4231      0 --:--:-- --:--:-- --:--:--  4238",
+    ].map((line, index) => ({
+      id: index,
+      level: "info",
+      output: line,
+      time: "",
+    })),
+  },
 }
 
 const Template: Story<AgentRowProps> = (args) => <AgentRow {...args} />
@@ -107,18 +121,6 @@ export const Starting = Template.bind({})
 Starting.args = {
   ...Example.args,
   agent: MockWorkspaceAgentStarting,
-
-  storybookStartupLogs: [
-    "\x1b[91mCloning Git repository...",
-    "\x1b[2;37;41mStarting Docker Daemon...",
-    "\x1b[1;95mAdding some 🧙magic🧙...",
-    "Starting VS Code...",
-  ].map((line, index) => ({
-    id: index,
-    level: "info",
-    output: line,
-    time: "",
-  })),
 }
 
 export const Started = Template.bind({})
@@ -128,18 +130,6 @@ Started.args = {
     ...MockWorkspaceAgentReady,
     startup_logs_length: 1,
   },
-
-  storybookStartupLogs: [
-    "Cloning Git repository...",
-    "Starting Docker Daemon...",
-    "Adding some 🧙magic🧙...",
-    "Starting VS Code...",
-  ].map((line, index) => ({
-    id: index,
-    level: "info",
-    output: line,
-    time: "",
-  })),
 }
 
 export const StartedNoMetadata = Template.bind({})
