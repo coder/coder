@@ -338,7 +338,7 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 	return meta
 }
 
-func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) (string, database.WorkspaceProxy) {
+func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) (database.WorkspaceProxy, string) {
 	secret, err := cryptorand.HexString(64)
 	require.NoError(t, err, "generate secret")
 	hashedSecret := sha256.Sum256([]byte(secret))
@@ -355,7 +355,7 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 	})
 	require.NoError(t, err, "insert proxy")
-	return secret, resource
+	return resource, secret
 }
 
 func File(t testing.TB, db database.Store, orig database.File) database.File {

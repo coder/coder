@@ -135,7 +135,8 @@ export type AuthorizationResponse = Record<string, boolean>
 export interface BuildInfoResponse {
   readonly external_url: string
   readonly version: string
-  readonly workspace_proxy?: WorkspaceProxyBuildInfo
+  readonly dashboard_url: string
+  readonly is_workspace_proxy: boolean
 }
 
 // From codersdk/parameters.go

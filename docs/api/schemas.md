@@ -1141,22 +1141,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "dashboard_url": "string",
   "external_url": "string",
-  "version": "string",
-  "workspace_proxy": {
-    "dashboard_url": "string",
-    "is_workspace_proxy": true
-  }
+  "is_workspace_proxy": true,
+  "version": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                                 | Required | Restrictions | Description                                                                                                                                                         |
-| ----------------- | -------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `external_url`    | string                                                               | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
-| `version`         | string                                                               | false    |              | Version returns the semantic version of the build.                                                                                                                  |
-| `workspace_proxy` | [codersdk.WorkspaceProxyBuildInfo](#codersdkworkspaceproxybuildinfo) | false    |              |                                                                                                                                                                     |
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                         |
+| -------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dashboard_url`      | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
+| `external_url`       | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `is_workspace_proxy` | boolean | false    |              |                                                                                                                                                                     |
+| `version`            | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
 
 ## codersdk.BuildReason
 
@@ -5187,22 +5186,6 @@ Parameter represents a set value for the scope.
 | `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
 | `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
 
-## codersdk.WorkspaceProxyBuildInfo
-
-```json
-{
-  "dashboard_url": "string",
-  "is_workspace_proxy": true
-}
-```
-
-### Properties
-
-| Name                 | Type    | Required | Restrictions | Description                                                        |
-| -------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------ |
-| `dashboard_url`      | string  | false    |              | Dashboard URL is the URL of the coderd this proxy is connected to. |
-| `is_workspace_proxy` | boolean | false    |              | Is workspace proxy @emyrk what should we include here?             |
-
 ## codersdk.WorkspaceQuota
 
 ```json
@@ -6327,6 +6310,7 @@ _None_
 
 ```json
 {
+  "app_hostname": "string",
   "app_path": "string",
   "app_query": "string",
   "app_request": {
@@ -6338,21 +6322,20 @@ _None_
     "workspace_name_or_id": "string"
   },
   "path_app_base_url": "string",
-  "session_token": "string",
-  "subdomain_app_hostname": "string"
+  "session_token": "string"
 }
 ```
 
 ### Properties
 
-| Name                     | Type                                           | Required | Restrictions | Description                                                                                                               |
-| ------------------------ | ---------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `app_path`               | string                                         | false    |              | App path is the path of the user underneath the app base path.                                                            |
-| `app_query`              | string                                         | false    |              | App query is the query parameters the user provided in the app request.                                                   |
-| `app_request`            | [workspaceapps.Request](#workspaceappsrequest) | false    |              |                                                                                                                           |
-| `path_app_base_url`      | string                                         | false    |              | Path app base URL is required.                                                                                            |
-| `session_token`          | string                                         | false    |              | Session token is the session token provided by the user.                                                                  |
-| `subdomain_app_hostname` | string                                         | false    |              | Subdomain app hostname is the optional hostname for subdomain apps on the external proxy. It must start with an asterisk. |
+| Name                | Type                                           | Required | Restrictions | Description                                                                                                     |
+| ------------------- | ---------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------- |
+| `app_hostname`      | string                                         | false    |              | App hostname is the optional hostname for subdomain apps on the external proxy. It must start with an asterisk. |
+| `app_path`          | string                                         | false    |              | App path is the path of the user underneath the app base path.                                                  |
+| `app_query`         | string                                         | false    |              | App query is the query parameters the user provided in the app request.                                         |
+| `app_request`       | [workspaceapps.Request](#workspaceappsrequest) | false    |              |                                                                                                                 |
+| `path_app_base_url` | string                                         | false    |              | Path app base URL is required.                                                                                  |
+| `session_token`     | string                                         | false    |              | Session token is the session token provided by the user.                                                        |
 
 ## workspaceapps.Request
 
