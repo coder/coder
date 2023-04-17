@@ -7,14 +7,13 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/coder/coder/coderd/httpmw"
-
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
