@@ -35,4 +35,3 @@ func RequireAPIKeyOrWorkspaceProxyAuth() func(http.Handler) http.Handler {
 		})
 	}
 }
-
