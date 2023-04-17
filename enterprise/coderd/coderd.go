@@ -83,11 +83,15 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
 				api.moonsEnabledMW,
 			)
-			r.Post("/", api.postWorkspaceProxy)
-			r.Get("/", api.workspaceProxies)
+			r.Route("/", func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Post("/", api.postWorkspaceProxy)
+				r.Get("/", api.workspaceProxies)
+			})
 			r.Route("/me", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
