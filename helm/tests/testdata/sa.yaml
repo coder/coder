@@ -1,0 +1,8 @@
+coder:
+  image:
+    tag: latest
+  serviceAccount:
+    name: coder-service-account
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/coder-service-account
+    workspacePerms: true
