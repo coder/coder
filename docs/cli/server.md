@@ -171,7 +171,7 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 | YAML        | <code>networking.derp.stunAddresses</code>     |
 | Default     | <code>stun.l.google.com:19302</code>           |
 
-Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.
+Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.
 
 ### --disable-owner-workspace-access
 

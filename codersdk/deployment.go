@@ -666,7 +666,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
-			Description: "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
+			Description: "Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
 			Default:     "stun.l.google.com:19302",
