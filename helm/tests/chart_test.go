@@ -40,6 +40,10 @@ var TestCases = []TestCase{
 		name:          "sa",
 		expectedError: "",
 	},
+	{
+		name:          "labels_annotations",
+		expectedError: "",
+	},
 }
 
 type TestCase struct {
