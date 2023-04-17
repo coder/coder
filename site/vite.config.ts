@@ -25,6 +25,7 @@ export default defineConfig({
   define: {
     "process.env": {
       NODE_ENV: process.env.NODE_ENV,
+      STORYBOOK: process.env.STORYBOOK,
       INSPECT_XSTATE: process.env.INSPECT_XSTATE,
     },
   },
@@ -51,7 +52,7 @@ export default defineConfig({
       pages: path.resolve(__dirname, "./src/pages"),
       testHelpers: path.resolve(__dirname, "./src/testHelpers"),
       theme: path.resolve(__dirname, "./src/theme"),
-      util: path.resolve(__dirname, "./src/util"),
+      utils: path.resolve(__dirname, "./src/utils"),
       xServices: path.resolve(__dirname, "./src/xServices"),
     },
   },

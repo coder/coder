@@ -2,7 +2,6 @@ package dbauthz_test
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"reflect"
 	"sort"
@@ -219,7 +218,6 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		if err != nil || !hasEmptySliceResponse(resp) {
 			s.ErrorContainsf(err, "unauthorized", "error string should have a good message")
 			s.Errorf(err, "method should an error with disallow authz")
-			s.ErrorIsf(err, sql.ErrNoRows, "error should match sql.ErrNoRows")
 			s.ErrorAs(err, &dbauthz.NotAuthorizedError{}, "error should be NotAuthorizedError")
 		}
 	})

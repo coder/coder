@@ -3706,6 +3706,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg dat
 			ID:        id,
 			AgentID:   arg.AgentID,
 			CreatedAt: arg.CreatedAt[index],
+			Level:     arg.Level[index],
 			Output:    output,
 		})
 		outputLength += int32(len(output))
@@ -3991,6 +3992,77 @@ func (q *fakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 	}
 
 	stats := make([]database.GetWorkspaceAgentStatsRow, 0, len(statByAgent))
+	for _, agent := range statByAgent {
+		stats = append(stats, agent)
+	}
+	return stats, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	agentStatsCreatedAfter := make([]database.WorkspaceAgentStat, 0)
+	latestAgentStats := map[uuid.UUID]database.WorkspaceAgentStat{}
+
+	for _, agentStat := range q.workspaceAgentStats {
+		if agentStat.CreatedAt.After(createdAfter) {
+			agentStatsCreatedAfter = append(agentStatsCreatedAfter, agentStat)
+			latestAgentStats[agentStat.AgentID] = agentStat
+		}
+	}
+
+	statByAgent := map[uuid.UUID]database.GetWorkspaceAgentStatsAndLabelsRow{}
+
+	// Session and connection metrics
+	for _, agentStat := range latestAgentStats {
+		stat := statByAgent[agentStat.AgentID]
+		stat.SessionCountVSCode += agentStat.SessionCountVSCode
+		stat.SessionCountJetBrains += agentStat.SessionCountJetBrains
+		stat.SessionCountReconnectingPTY += agentStat.SessionCountReconnectingPTY
+		stat.SessionCountSSH += agentStat.SessionCountSSH
+		stat.ConnectionCount += agentStat.ConnectionCount
+		if agentStat.ConnectionMedianLatencyMS >= 0 && stat.ConnectionMedianLatencyMS < agentStat.ConnectionMedianLatencyMS {
+			stat.ConnectionMedianLatencyMS = agentStat.ConnectionMedianLatencyMS
+		}
+		statByAgent[agentStat.AgentID] = stat
+	}
+
+	// Tx, Rx metrics
+	for _, agentStat := range agentStatsCreatedAfter {
+		stat := statByAgent[agentStat.AgentID]
+		stat.RxBytes += agentStat.RxBytes
+		stat.TxBytes += agentStat.TxBytes
+		statByAgent[agentStat.AgentID] = stat
+	}
+
+	// Labels
+	for _, agentStat := range agentStatsCreatedAfter {
+		stat := statByAgent[agentStat.AgentID]
+
+		user, err := q.getUserByIDNoLock(agentStat.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		stat.Username = user.Username
+
+		workspace, err := q.GetWorkspaceByID(ctx, agentStat.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+		stat.WorkspaceName = workspace.Name
+
+		agent, err := q.GetWorkspaceAgentByID(ctx, agentStat.AgentID)
+		if err != nil {
+			return nil, err
+		}
+		stat.AgentName = agent.Name
+
+		statByAgent[agentStat.AgentID] = stat
+	}
+
+	stats := make([]database.GetWorkspaceAgentStatsAndLabelsRow, 0, len(statByAgent))
 	for _, agent := range statByAgent {
 		stats = append(stats, agent)
 	}

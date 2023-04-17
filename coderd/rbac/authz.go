@@ -137,6 +137,10 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 			err := auth.Authorize(ctx, subject, action, o.RBACObject())
 			if err == nil {
 				filtered = append(filtered, o)
+			} else if !IsUnauthorizedError(err) {
+				// If the error is not the expected "Unauthorized" error, then
+				// it is something unexpected.
+				return nil, err
 			}
 		}
 		return filtered, nil
@@ -155,6 +159,10 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		err := prepared.Authorize(ctx, rbacObj)
 		if err == nil {
 			filtered = append(filtered, object)
+		} else if !IsUnauthorizedError(err) {
+			// If the error is not the expected "Unauthorized" error, then
+			// it is something unexpected.
+			return nil, err
 		}
 	}
 
@@ -319,7 +327,8 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 
 	results, err := a.query.Eval(ctx, rego.EvalParsedInput(astV))
 	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), subject, action, object, results)
+		err = correctCancelError(err)
+		return xerrors.Errorf("evaluate rego: %w", err)
 	}
 
 	if !results.Allowed() {
@@ -430,7 +439,8 @@ EachQueryLoop:
 		// We need to eval each query with the newly known fields.
 		results, err := q.Eval(ctx, rego.EvalParsedInput(parsed))
 		if err != nil {
-			continue EachQueryLoop
+			err = correctCancelError(err)
+			return xerrors.Errorf("eval error: %w", err)
 		}
 
 		// If there are no results, then the query is false. This is because rego

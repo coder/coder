@@ -24,6 +24,6 @@ coder templates versions
 
 ## Subcommands
 
-| Name                                           | Purpose                                         |
-| ---------------------------------------------- | ----------------------------------------------- |
-| [<code>list</code>](./templates_versions_list) | List all the versions of the specified template |
+| Name                                              | Purpose                                         |
+| ------------------------------------------------- | ----------------------------------------------- |
+| [<code>list</code>](./templates_versions_list.md) | List all the versions of the specified template |

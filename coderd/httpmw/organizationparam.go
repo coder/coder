@@ -2,8 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/http"
 
 	"github.com/coder/coder/coderd/database"
@@ -47,7 +45,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 			}
 
 			organization, err := db.GetOrganizationByID(ctx, orgID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
@@ -77,7 +75,7 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 				OrganizationID: organization.ID,
 				UserID:         user.ID,
 			})
-			if errors.Is(err, sql.ErrNoRows) {
+			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}

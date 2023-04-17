@@ -2,14 +2,16 @@ import {
   ProvisionerJobLog,
   ProvisionerJobStatus,
   TemplateVersion,
+  TemplateVersionVariable,
   UploadResponse,
+  VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "api/api"
-import { FileTree, traverse } from "util/filetree"
-import { isAllowedFile } from "util/templateVersion"
-import { TarReader, TarWriter } from "util/tar"
+import { FileTree, traverse } from "utils/filetree"
+import { isAllowedFile } from "utils/templateVersion"
+import { TarReader, TarWriter } from "utils/tar"
 import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
 
 export interface CreateVersionData {
@@ -26,6 +28,8 @@ export interface TemplateVersionEditorMachineContext {
   buildLogs?: ProvisionerJobLog[]
   tarReader?: TarReader
   publishingError?: unknown
+  missingVariables?: TemplateVersionVariable[]
+  missingVariableValues?: VariableValue[]
 }
 
 export const templateVersionEditorMachine = createMachine(
@@ -42,6 +46,8 @@ export const templateVersionEditorMachine = createMachine(
             templateId: string
           }
         | { type: "CANCEL_VERSION" }
+        | { type: "SET_MISSING_VARIABLE_VALUES"; values: VariableValue[] }
+        | { type: "CANCEL_MISSING_VARIABLE_VALUES" }
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
         | { type: "PUBLISH" }
         | ({ type: "CONFIRM_PUBLISH" } & PublishVersionData)
@@ -65,6 +71,9 @@ export const templateVersionEditorMachine = createMachine(
         }
         publishingVersion: {
           data: void
+        }
+        loadMissingVariables: {
+          data: TemplateVersionVariable[]
         }
       },
     },
@@ -170,9 +179,41 @@ export const templateVersionEditorMachine = createMachine(
         invoke: {
           id: "fetchVersion",
           src: "fetchVersion",
-          onDone: {
-            actions: ["assignBuild"],
-            target: "fetchResources",
+          onDone: [
+            {
+              actions: ["assignBuild"],
+              target: "promptVariables",
+              cond: "jobFailedWithMissingVariables",
+            },
+            {
+              actions: ["assignBuild"],
+              target: "fetchResources",
+            },
+          ],
+        },
+      },
+      promptVariables: {
+        initial: "loadingMissingVariables",
+        states: {
+          loadingMissingVariables: {
+            invoke: {
+              src: "loadMissingVariables",
+              onDone: {
+                actions: "assignMissingVariables",
+                target: "idle",
+              },
+            },
+          },
+          idle: {
+            on: {
+              SET_MISSING_VARIABLE_VALUES: {
+                actions: "assignMissingVariableValues",
+                target: "#templateVersionEditor.creatingBuild",
+              },
+              CANCEL_MISSING_VARIABLE_VALUES: {
+                target: "#templateVersionEditor.idle",
+              },
+            },
           },
         },
       },
@@ -235,6 +276,12 @@ export const templateVersionEditorMachine = createMachine(
         publishingError: (_, event) => event.data,
       }),
       clearPublishingError: assign({ publishingError: (_) => undefined }),
+      assignMissingVariables: assign({
+        missingVariables: (_, event) => event.data,
+      }),
+      assignMissingVariableValues: assign({
+        missingVariableValues: (_, event) => event.values,
+      }),
     },
     services: {
       uploadTar: async ({ fileTree, tarReader }) => {
@@ -297,6 +344,7 @@ export const templateVersionEditorMachine = createMachine(
           tags: {},
           template_id: ctx.templateId,
           file_id: ctx.uploadResponse.hash,
+          user_variable_values: ctx.missingVariableValues,
         })
       },
       fetchVersion: (ctx) => {
@@ -351,6 +399,18 @@ export const templateVersionEditorMachine = createMachine(
               })
             : Promise.resolve(),
         ])
+      },
+      loadMissingVariables: ({ version }) => {
+        if (!version) {
+          throw new Error("Version is not set")
+        }
+        const variables = API.getTemplateVersionVariables(version.id)
+        return variables
+      },
+    },
+    guards: {
+      jobFailedWithMissingVariables: (_, { data }) => {
+        return data.job.error_code === "REQUIRED_TEMPLATE_VARIABLES"
       },
     },
   },

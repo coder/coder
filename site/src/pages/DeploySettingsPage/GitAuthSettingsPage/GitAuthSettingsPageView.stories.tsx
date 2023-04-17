@@ -7,18 +7,16 @@ import {
 export default {
   title: "pages/GitAuthSettingsPageView",
   component: GitAuthSettingsPageView,
-  argTypes: {
+  args: {
     config: {
-      defaultValue: {
-        git_auth: [
-          {
-            id: "0000-1111",
-            type: "GitHub",
-            client_id: "client_id",
-            regex: "regex",
-          },
-        ],
-      },
+      git_auth: [
+        {
+          id: "0000-1111",
+          type: "GitHub",
+          client_id: "client_id",
+          regex: "regex",
+        },
+      ],
     },
   },
 } as ComponentMeta<typeof GitAuthSettingsPageView>

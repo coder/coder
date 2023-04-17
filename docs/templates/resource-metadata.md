@@ -121,4 +121,4 @@ Read more [here](./agent-metadata.md).
 ## Up next
 
 - Learn about [secrets](../secrets.md)
-- Learn about [Agent Metadata](../agent-metadata.md)
+- Learn about [Agent Metadata](./agent-metadata.md)

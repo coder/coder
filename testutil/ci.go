@@ -12,5 +12,6 @@ func InCI() bool {
 
 func InRaceMode() bool {
 	fl := flag.Lookup("race")
-	return fl != nil && fl.Value.String() == "true"
+	//nolint:forcetypeassert
+	return fl != nil && fl.Value.(flag.Getter).Get().(bool)
 }

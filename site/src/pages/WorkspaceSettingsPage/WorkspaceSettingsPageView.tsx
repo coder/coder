@@ -1,6 +1,7 @@
+import { makeStyles } from "@material-ui/core/styles"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { Loader } from "components/Loader/Loader"
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { WorkspaceSettings, WorkspaceSettingsFormValue } from "./data"
@@ -26,22 +27,31 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
   loadingError,
 }) => {
   const { t } = useTranslation("workspaceSettingsPage")
+  const styles = useStyles()
 
   return (
-    <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
-      <>
-        {loadingError && <AlertBanner error={loadingError} severity="error" />}
-        {isLoading && <Loader />}
-        {settings && (
-          <WorkspaceSettingsForm
-            error={formError}
-            isSubmitting={isSubmitting}
-            settings={settings}
-            onCancel={onCancel}
-            onSubmit={onSubmit}
-          />
-        )}
-      </>
-    </FullPageHorizontalForm>
+    <>
+      <PageHeader className={styles.pageHeader}>
+        <PageHeaderTitle>{t("title")}</PageHeaderTitle>
+      </PageHeader>
+
+      {loadingError && <AlertBanner error={loadingError} severity="error" />}
+      {isLoading && <Loader />}
+      {settings && (
+        <WorkspaceSettingsForm
+          error={formError}
+          isSubmitting={isSubmitting}
+          settings={settings}
+          onCancel={onCancel}
+          onSubmit={onSubmit}
+        />
+      )}
+    </>
   )
 }
+
+const useStyles = makeStyles(() => ({
+  pageHeader: {
+    paddingTop: 0,
+  },
+}))

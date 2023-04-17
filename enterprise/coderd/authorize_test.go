@@ -58,7 +58,7 @@ func TestCheckACLPermissions(t *testing.T) {
 	params := map[string]codersdk.AuthorizationCheck{
 		updateSpecificTemplate: {
 			Object: codersdk.AuthorizationObject{
-				ResourceType: rbac.ResourceTemplate.Type,
+				ResourceType: codersdk.ResourceTemplate,
 				ResourceID:   template.ID.String(),
 			},
 			Action: "write",

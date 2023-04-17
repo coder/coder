@@ -139,13 +139,14 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 type AuditAction string
 
 const (
-	AuditActionCreate AuditAction = "create"
-	AuditActionWrite  AuditAction = "write"
-	AuditActionDelete AuditAction = "delete"
-	AuditActionStart  AuditAction = "start"
-	AuditActionStop   AuditAction = "stop"
-	AuditActionLogin  AuditAction = "login"
-	AuditActionLogout AuditAction = "logout"
+	AuditActionCreate   AuditAction = "create"
+	AuditActionWrite    AuditAction = "write"
+	AuditActionDelete   AuditAction = "delete"
+	AuditActionStart    AuditAction = "start"
+	AuditActionStop     AuditAction = "stop"
+	AuditActionLogin    AuditAction = "login"
+	AuditActionLogout   AuditAction = "logout"
+	AuditActionRegister AuditAction = "register"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -191,7 +192,8 @@ func (e AuditAction) Valid() bool {
 		AuditActionStart,
 		AuditActionStop,
 		AuditActionLogin,
-		AuditActionLogout:
+		AuditActionLogout,
+		AuditActionRegister:
 		return true
 	}
 	return false
@@ -206,6 +208,7 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionStop,
 		AuditActionLogin,
 		AuditActionLogout,
+		AuditActionRegister,
 	}
 }
 
@@ -1601,6 +1604,7 @@ type WorkspaceAgentStartupLog struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	Output    string    `db:"output" json:"output"`
 	ID        int64     `db:"id" json:"id"`
+	Level     LogLevel  `db:"level" json:"level"`
 }
 
 type WorkspaceAgentStat struct {

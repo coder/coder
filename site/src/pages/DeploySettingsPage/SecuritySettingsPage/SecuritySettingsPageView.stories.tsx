@@ -8,35 +8,34 @@ import {
 export default {
   title: "pages/SecuritySettingsPageView",
   component: SecuritySettingsPageView,
-  argTypes: {
-    options: {
-      defaultValue: [
-        {
-          name: "SSH Keygen Algorithm",
-          usage: "something",
-          value: "1234",
+  args: {
+    options: [
+      {
+        name: "SSH Keygen Algorithm",
+        description: "something",
+        value: "1234",
+      },
+      {
+        name: "Secure Auth Cookie",
+        description: "something",
+        value: "1234",
+      },
+      {
+        name: "Disable Owner Workspace Access",
+        description: "something",
+        value: false,
+      },
+      {
+        name: "TLS Version",
+        description: "something",
+        value: ["something"],
+        group: {
+          name: "TLS",
         },
-        {
-          name: "Secure Auth Cookie",
-          usage: "something",
-          value: "1234",
-        },
-        {
-          name: "TLS Version",
-          usage: "something",
-          value: ["something"],
-          group: {
-            name: "TLS",
-          },
-        },
-      ],
-    },
-    featureAuditLogEnabled: {
-      defaultValue: true,
-    },
-    featureBrowserOnlyEnabled: {
-      defaultValue: true,
-    },
+      },
+    ],
+    featureAuditLogEnabled: true,
+    featureBrowserOnlyEnabled: true,
   },
 } as ComponentMeta<typeof SecuritySettingsPageView>
 
@@ -51,6 +50,10 @@ NoTLS.args = {
     {
       name: "SSH Keygen Algorithm",
       value: "1234",
+    } as DeploymentOption,
+    {
+      name: "Disable Owner Workspace Access",
+      value: false,
     } as DeploymentOption,
     {
       name: "Secure Auth Cookie",

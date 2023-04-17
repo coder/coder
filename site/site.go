@@ -321,12 +321,11 @@ func cspHeaders(next http.Handler) http.Handler {
 			CSPDirectiveDefaultSrc: {"'self'"},
 			CSPDirectiveConnectSrc: {"'self'"},
 			CSPDirectiveChildSrc:   {"'self'"},
-			// https://cdn.jsdelivr.net is used by monaco editor on FE for Syntax Highlight
 			// https://github.com/suren-atoyan/monaco-react/issues/168
-			CSPDirectiveScriptSrc: {"'self' https://cdn.jsdelivr.net"},
-			CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline' https://cdn.jsdelivr.net"},
+			CSPDirectiveScriptSrc: {"'self'"},
+			CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline'"},
 			// data: is used by monaco editor on FE for Syntax Highlight
-			CSPDirectiveFontSrc:   {"'self' https://cdn.jsdelivr.net data:"},
+			CSPDirectiveFontSrc:   {"'self' data:"},
 			CSPDirectiveWorkerSrc: {"'self' blob:"},
 			// object-src is needed to support code-server
 			CSPDirectiveObjectSrc: {"'self'"},

@@ -256,16 +256,31 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	}
 	createdAt := make([]time.Time, 0)
 	output := make([]string, 0)
+	level := make([]database.LogLevel, 0)
 	outputLength := 0
 	for _, log := range req.Logs {
 		createdAt = append(createdAt, log.CreatedAt)
 		output = append(output, log.Output)
 		outputLength += len(log.Output)
+		if log.Level == "" {
+			// Default to "info" to support older agents that didn't have the level field.
+			log.Level = codersdk.LogLevelInfo
+		}
+		parsedLevel := database.LogLevel(log.Level)
+		if !parsedLevel.Valid() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid log level provided.",
+				Detail:  fmt.Sprintf("invalid log level: %q", log.Level),
+			})
+			return
+		}
+		level = append(level, parsedLevel)
 	}
 	logs, err := api.Database.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
 		AgentID:      workspaceAgent.ID,
 		CreatedAt:    createdAt,
 		Output:       output,
+		Level:        level,
 		OutputLength: int32(outputLength),
 	})
 	if err != nil {
@@ -382,15 +397,10 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		ctx            = r.Context()
 		actor, _       = dbauthz.ActorFromContext(ctx)
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
-		workspace      = httpmw.WorkspaceParam(r)
 		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
 		follow         = r.URL.Query().Has("follow")
 		afterRaw       = r.URL.Query().Get("after")
 	)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	var after int64
 	// Only fetch logs created after the time provided.
@@ -1971,5 +1981,6 @@ func convertWorkspaceAgentStartupLog(log database.WorkspaceAgentStartupLog) code
 		ID:        log.ID,
 		CreatedAt: log.CreatedAt,
 		Output:    log.Output,
+		Level:     codersdk.LogLevel(log.Level),
 	}
 }

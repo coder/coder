@@ -814,7 +814,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			// Create workspace.
 			port := appServer(t)
-			workspace, agnt = createWorkspaceWithApps(t, client, user.OrganizationIDs[0], user, proxyTestSubdomainRaw, port)
+			workspace, _ = createWorkspaceWithApps(t, client, user.OrganizationIDs[0], user, proxyTestSubdomainRaw, port)
 
 			// Verify that the apps have the correct sharing levels set.
 			workspaceBuild, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)

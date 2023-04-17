@@ -4,7 +4,7 @@ import { FC } from "react"
 import { useLocation } from "react-router-dom"
 import { AuthContext, UnauthenticatedData } from "xServices/auth/authXService"
 import { SignInForm } from "components/SignInForm/SignInForm"
-import { retrieveRedirect } from "util/redirect"
+import { retrieveRedirect } from "utils/redirect"
 import { CoderIcon } from "components/Icons/CoderIcon"
 
 export interface LoginPageViewProps {

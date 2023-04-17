@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,11 +40,7 @@ func TestTokens(t *testing.T) {
 	require.NoError(t, err)
 	res = buf.String()
 	require.NotEmpty(t, res)
-	// find API key in format "XXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXX"
-	r := regexp.MustCompile("[a-zA-Z0-9]{10}-[a-zA-Z0-9]{22}")
-	require.Regexp(t, r, res)
-	key := r.FindString(res)
-	id := key[:10]
+	id := res[:10]
 
 	inv, root = clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)

@@ -90,6 +90,7 @@ const VariableField: React.FC<VariableInputProps> = ({
 
   return (
     <TextField
+      autoComplete="off"
       id={variable.name}
       size="small"
       disabled={disabled}

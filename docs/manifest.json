@@ -76,15 +76,9 @@
     {
       "title": "Platforms",
       "description": "Platform-specific guides using Coder",
-      "path": "./platforms.md",
+      "path": "./platforms/README.md",
       "icon_path": "./images/icons/star.svg",
       "children": [
-        {
-          "title": "Docker",
-          "description": "Set up Coder with Docker",
-          "path": "./platforms/docker.md",
-          "icon_path": "./images/icons/docker.svg"
-        },
         {
           "title": "AWS",
           "description": "Set up Coder on an AWS EC2 VM",
@@ -116,6 +110,12 @@
           ]
         },
         {
+          "title": "Docker",
+          "description": "Set up Coder with Docker",
+          "path": "./platforms/docker.md",
+          "icon_path": "./images/icons/docker.svg"
+        },
+        {
           "title": "Other platforms",
           "description": "Set up Coder on an another provider",
           "path": "./platforms/other.md"
@@ -125,7 +125,7 @@
     {
       "title": "Templates",
       "description": "Learn about templates, which define the infrastructure underlying workspaces",
-      "path": "./templates.md",
+      "path": "./templates/README.md",
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
@@ -160,12 +160,6 @@
           "state": "alpha"
         },
         {
-          "title": "Docker in Docker",
-          "description": "Use docker inside containerized templates",
-          "path": "./templates/docker-in-docker.md",
-          "icon_path": "./images/icons/docker.svg"
-        },
-        {
           "title": "Parameters",
           "description": "Use parameters to customize templates",
           "path": "./templates/parameters.md",
@@ -176,6 +170,12 @@
           "description": "Learn how to add an \"Open in Coder\" button to your repos",
           "path": "./templates/open-in-coder.md",
           "icon_path": "./images/icons/key.svg"
+        },
+        {
+          "title": "Docker in Workspaces",
+          "description": "Use docker inside containerized templates",
+          "path": "./templates/docker-in-workspaces.md",
+          "icon_path": "./images/icons/docker.svg"
         }
       ]
     },
@@ -216,7 +216,7 @@
     {
       "title": "Networking",
       "description": "Learn about networking in Coder",
-      "path": "./networking.md",
+      "path": "./networking/README.md",
       "icon_path": "./images/icons/networking.svg",
       "children": [
         {
@@ -241,7 +241,7 @@
     {
       "title": "Administration",
       "description": "How to install and deploy Coder",
-      "path": "./admin/index.md",
+      "path": "./admin/README.md",
       "icon_path": "./images/icons/wrench.svg",
       "children": [
         {
@@ -335,9 +335,9 @@
           "icon_path": "./images/icons/speed.svg"
         },
         {
-          "title": "Service Banners",
-          "description": "Learn how to configure Service Banners",
-          "path": "./admin/service-banners.md",
+          "title": "Appearance",
+          "description": "Learn how to configure the appearance of Coder",
+          "path": "./admin/appearance.md",
           "icon_path": "./images/icons/info.svg",
           "state": "enterprise"
         },

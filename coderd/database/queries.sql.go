@@ -5574,7 +5574,7 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAge
 
 const getWorkspaceAgentStartupLogsAfter = `-- name: GetWorkspaceAgentStartupLogsAfter :many
 SELECT
-	agent_id, created_at, output, id
+	agent_id, created_at, output, id, level
 FROM
 	workspace_agent_startup_logs
 WHERE
@@ -5603,6 +5603,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg 
 			&i.CreatedAt,
 			&i.Output,
 			&i.ID,
+			&i.Level,
 		); err != nil {
 			return nil, err
 		}
@@ -5964,21 +5965,23 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 const insertWorkspaceAgentStartupLogs = `-- name: InsertWorkspaceAgentStartupLogs :many
 WITH new_length AS (
 	UPDATE workspace_agents SET
-	startup_logs_length = startup_logs_length + $4 WHERE workspace_agents.id = $1
+	startup_logs_length = startup_logs_length + $5 WHERE workspace_agents.id = $1
 )
 INSERT INTO
-		workspace_agent_startup_logs
+		workspace_agent_startup_logs (agent_id, created_at, output, level)
 	SELECT
 		$1 :: uuid AS agent_id,
 		unnest($2 :: timestamptz [ ]) AS created_at,
-		unnest($3 :: VARCHAR(1024) [ ]) AS output
-	RETURNING workspace_agent_startup_logs.agent_id, workspace_agent_startup_logs.created_at, workspace_agent_startup_logs.output, workspace_agent_startup_logs.id
+		unnest($3 :: VARCHAR(1024) [ ]) AS output,
+		unnest($4 :: log_level [ ]) AS level
+	RETURNING workspace_agent_startup_logs.agent_id, workspace_agent_startup_logs.created_at, workspace_agent_startup_logs.output, workspace_agent_startup_logs.id, workspace_agent_startup_logs.level
 `
 
 type InsertWorkspaceAgentStartupLogsParams struct {
 	AgentID      uuid.UUID   `db:"agent_id" json:"agent_id"`
 	CreatedAt    []time.Time `db:"created_at" json:"created_at"`
 	Output       []string    `db:"output" json:"output"`
+	Level        []LogLevel  `db:"level" json:"level"`
 	OutputLength int32       `db:"output_length" json:"output_length"`
 }
 
@@ -5987,6 +5990,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg In
 		arg.AgentID,
 		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Output),
+		pq.Array(arg.Level),
 		arg.OutputLength,
 	)
 	if err != nil {
@@ -6001,6 +6005,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg In
 			&i.CreatedAt,
 			&i.Output,
 			&i.ID,
+			&i.Level,
 		); err != nil {
 			return nil, err
 		}
@@ -6355,6 +6360,108 @@ func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.
 			&i.SessionCountSSH,
 			&i.SessionCountJetBrains,
 			&i.SessionCountReconnectingPTY,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAgentStatsAndLabels = `-- name: GetWorkspaceAgentStatsAndLabels :many
+WITH agent_stats AS (
+	SELECT
+		user_id,
+		agent_id,
+		workspace_id,
+		coalesce(SUM(rx_bytes), 0)::bigint AS rx_bytes,
+		coalesce(SUM(tx_bytes), 0)::bigint AS tx_bytes
+	 FROM workspace_agent_stats
+		WHERE workspace_agent_stats.created_at > $1
+		GROUP BY user_id, agent_id, workspace_id
+), latest_agent_stats AS (
+	SELECT
+		a.agent_id,
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
+		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
+	 FROM (
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		FROM workspace_agent_stats
+		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+		WHERE created_at > $1 AND connection_median_latency_ms > 0
+	) AS a
+	WHERE a.rn = 1
+	GROUP BY a.user_id, a.agent_id, a.workspace_id
+)
+SELECT
+	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
+	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
+	connection_count, connection_median_latency_ms
+FROM
+	agent_stats
+JOIN
+	latest_agent_stats
+ON
+	agent_stats.agent_id = latest_agent_stats.agent_id
+JOIN
+	users
+ON
+	users.id = agent_stats.user_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.id = agent_stats.agent_id
+JOIN
+	workspaces
+ON
+	workspaces.id = agent_stats.workspace_id
+`
+
+type GetWorkspaceAgentStatsAndLabelsRow struct {
+	Username                    string  `db:"username" json:"username"`
+	AgentName                   string  `db:"agent_name" json:"agent_name"`
+	WorkspaceName               string  `db:"workspace_name" json:"workspace_name"`
+	RxBytes                     int64   `db:"rx_bytes" json:"rx_bytes"`
+	TxBytes                     int64   `db:"tx_bytes" json:"tx_bytes"`
+	SessionCountVSCode          int64   `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH             int64   `db:"session_count_ssh" json:"session_count_ssh"`
+	SessionCountJetBrains       int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	ConnectionCount             int64   `db:"connection_count" json:"connection_count"`
+	ConnectionMedianLatencyMS   float64 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStatsAndLabels, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceAgentStatsAndLabelsRow
+	for rows.Next() {
+		var i GetWorkspaceAgentStatsAndLabelsRow
+		if err := rows.Scan(
+			&i.Username,
+			&i.AgentName,
+			&i.WorkspaceName,
+			&i.RxBytes,
+			&i.TxBytes,
+			&i.SessionCountVSCode,
+			&i.SessionCountSSH,
+			&i.SessionCountJetBrains,
+			&i.SessionCountReconnectingPTY,
+			&i.ConnectionCount,
+			&i.ConnectionMedianLatencyMS,
 		); err != nil {
 			return nil, err
 		}

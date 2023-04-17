@@ -5,8 +5,8 @@ import TreeView from "@material-ui/lab/TreeView"
 import TreeItem from "@material-ui/lab/TreeItem"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
-import { FC, useState } from "react"
-import { FileTree } from "util/filetree"
+import { CSSProperties, FC, useState } from "react"
+import { FileTree } from "utils/filetree"
 import { DockerIcon } from "components/Icons/DockerIcon"
 import { colors } from "theme/colors"
 
@@ -80,6 +80,11 @@ export const FileTreeView: FC<{
           )
         }}
         icon={icon}
+        style={
+          {
+            "--level": parentPath ? parentPath.split("/").length : 0,
+          } as CSSProperties
+        }
       >
         {typeof content === "object" ? (
           Object.keys(content)
@@ -200,7 +205,7 @@ const useStyles = makeStyles((theme) => ({
 
       // We need to find a better way to recursive padding here
       "& .MuiTreeItem-content": {
-        paddingLeft: theme.spacing(5),
+        paddingLeft: `calc(var(--level) * ${theme.spacing(5)}px)`,
       },
     },
   },

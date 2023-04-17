@@ -162,6 +162,7 @@ type DeploymentValues struct {
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
+	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -224,8 +225,9 @@ type DERPConfig struct {
 }
 
 type PrometheusConfig struct {
-	Enable  clibase.Bool     `json:"enable" typescript:",notnull"`
-	Address clibase.HostPort `json:"address" typescript:",notnull"`
+	Enable            clibase.Bool     `json:"enable" typescript:",notnull"`
+	Address           clibase.HostPort `json:"address" typescript:",notnull"`
+	CollectAgentStats clibase.Bool     `json:"collect_agent_stats" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -720,6 +722,15 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.Address,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "address",
+		},
+		{
+			Name:        "Prometheus Collect Agent Stats",
+			Description: "Collect agent stats (may increase charges for metrics storage).",
+			Flag:        "prometheus-collect-agent-stats",
+			Env:         "CODER_PROMETHEUS_COLLECT_AGENT_STATS",
+			Value:       &c.Prometheus.CollectAgentStats,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "collect_agent_stats",
 		},
 		// Pprof settings
 		{
@@ -1319,6 +1330,15 @@ when required by your organization's security policy.`,
 
 			Value: &c.DisablePathApps,
 			YAML:  "disablePathApps",
+		},
+		{
+			Name:        "Disable Owner Workspace Access",
+			Description: "Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.",
+			Flag:        "disable-owner-workspace-access",
+			Env:         "CODER_DISABLE_OWNER_WORKSPACE_ACCESS",
+
+			Value: &c.DisableOwnerWorkspaceExec,
+			YAML:  "disableOwnerWorkspaceAccess",
 		},
 		{
 			Name:        "Session Duration",

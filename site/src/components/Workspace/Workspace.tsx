@@ -25,7 +25,6 @@ import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
-import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
 export enum WorkspaceErrors {
@@ -33,7 +32,6 @@ export enum WorkspaceErrors {
   BUILD_ERROR = "buildError",
   CANCELLATION_ERROR = "cancellationError",
 }
-
 export interface WorkspaceProps {
   scheduleProps: {
     onDeadlinePlus: (hours: number) => void
@@ -43,6 +41,7 @@ export interface WorkspaceProps {
   }
   handleStart: () => void
   handleStop: () => void
+  handleRestart: () => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
@@ -74,6 +73,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   scheduleProps,
   handleStart,
   handleStop,
+  handleRestart,
   handleDelete,
   handleUpdate,
   handleCancel,
@@ -129,19 +129,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       <PageHeader
         actions={
           <Stack direction="row" spacing={1} className={styles.actions}>
-            <WorkspaceScheduleButton
-              workspace={workspace}
-              onDeadlineMinus={scheduleProps.onDeadlineMinus}
-              onDeadlinePlus={scheduleProps.onDeadlinePlus}
-              maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
-              maxDeadlineIncrease={scheduleProps.maxDeadlineIncrease}
-              canUpdateWorkspace={canUpdateWorkspace}
-            />
             <WorkspaceActions
               workspaceStatus={workspace.latest_build.status}
               isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
+              handleRestart={handleRestart}
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
@@ -194,6 +187,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           workspace={workspace}
           quota_budget={quota_budget}
           handleUpdate={handleUpdate}
+          canUpdateWorkspace={canUpdateWorkspace}
+          maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
+          maxDeadlineIncrease={scheduleProps.maxDeadlineIncrease}
+          onDeadlineMinus={scheduleProps.onDeadlineMinus}
+          onDeadlinePlus={scheduleProps.onDeadlinePlus}
         />
 
         {failedBuildLogs && (

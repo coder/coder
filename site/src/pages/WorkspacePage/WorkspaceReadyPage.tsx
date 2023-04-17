@@ -12,7 +12,7 @@ import {
   getMaxDeadline,
   getMaxDeadlineChange,
   getMinDeadline,
-} from "util/schedule"
+} from "utils/schedule"
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
@@ -20,8 +20,8 @@ import {
   Workspace,
   WorkspaceErrors,
 } from "../../components/Workspace/Workspace"
-import { pageTitle } from "../../util/page"
-import { getFaviconByStatus } from "../../util/workspace"
+import { pageTitle } from "../../utils/page"
+import { getFaviconByStatus } from "../../utils/workspace"
 import {
   WorkspaceEvent,
   workspaceMachine,
@@ -124,6 +124,7 @@ export const WorkspaceReadyPage = ({
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
+        handleRestart={() => workspaceSend({ type: "START" })}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
