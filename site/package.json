@@ -64,6 +64,7 @@
     "jest-location-mock": "1.0.9",
     "just-debounce-it": "3.1.1",
     "lodash": "4.17.21",
+    "material-ui-dropzone": "^3.5.0",
     "playwright": "1.29.2",
     "react": "18.2.0",
     "react-chartjs-2": "4.3.1",
