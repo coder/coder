@@ -5074,9 +5074,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -6409,12 +6406,12 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
-                "is_workspace_proxy": {
-                    "type": "boolean"
-                },
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
+                },
+                "workspace_proxy": {
+                    "type": "boolean"
                 }
             }
         },
@@ -7252,11 +7249,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "template_editor",
                 "moons"
             ],
             "x-enum-varnames": [
-                "ExperimentTemplateEditor",
                 "ExperimentMoons"
             ]
         },
