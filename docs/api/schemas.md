@@ -2447,17 +2447,16 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ## codersdk.Experiment
 
 ```json
-"template_editor"
+"moons"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value             |
-| ----------------- |
-| `template_editor` |
-| `moons`           |
+| Value   |
+| ------- |
+| `moons` |
 
 ## codersdk.Feature
 

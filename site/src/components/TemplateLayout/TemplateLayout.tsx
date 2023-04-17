@@ -14,7 +14,6 @@ import {
   getTemplateVersion,
 } from "api/api"
 import { useQuery } from "@tanstack/react-query"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { AuthorizationRequest } from "api/typesGenerated"
 
 const templatePermissions = (
@@ -72,7 +71,6 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
   })
-  const dashboard = useDashboard()
 
   if (error) {
     return (
@@ -92,7 +90,6 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
         template={data.template}
         activeVersion={data.activeVersion}
         permissions={data.permissions}
-        canEditFiles={dashboard.experiments.includes("template_editor")}
         onDeleteTemplate={() => {
           navigate("/templates")
         }}
