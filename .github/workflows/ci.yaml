@@ -32,7 +32,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
-      sh: ${{ steps.filter.outputs.sh }}
       go: ${{ steps.filter.outputs.go }}
       ts: ${{ steps.filter.outputs.ts }}
       k8s: ${{ steps.filter.outputs.k8s }}
@@ -47,10 +46,9 @@ jobs:
               - "**"
             docs:
               - "docs/**"
+              - "README.md"
               # For testing:
               # - ".github/**"
-            sh:
-              - "**.sh"
             go:
               - "**.sql"
               - "**.go"
@@ -58,23 +56,28 @@ jobs:
               - "go.mod"
               - "go.sum"
               # Other non-Go files that may affect Go code:
-              - "Makefile"
+              - "**.rego"
               - "**.sh"
+              - "**.tpl"
+              - "**.gotmpl"
+              - "**.gotpl"
+              - "Makefile"
               - "site/static/error.html"
               # Main repo directories for completeness in case other files are
               # touched:
-              - "agent/"
-              - "cli/"
-              - "cmd/"
-              - "coderd/"
-              - "enterprise/"
-              - "provisioner/"
-              - "provisionerd/"
-              - "provisionersdk/"
-              - "pty/"
-              - "scaletest/"
-              - "tailnet/"
-              - "testutil/"
+              - "agent/**"
+              - "cli/**"
+              - "cmd/**"
+              - "coderd/**"
+              - "enterprise/**"
+              - "examples/**"
+              - "provisioner/**"
+              - "provisionerd/**"
+              - "provisionersdk/**"
+              - "pty/**"
+              - "scaletest/**"
+              - "tailnet/**"
+              - "testutil/**"
             ts:
               - "site/**"
               - "Makefile"
