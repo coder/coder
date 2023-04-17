@@ -1,4 +1,3 @@
-
 // From codersdk/apikey.go
 export interface APIKey {
   readonly id: string

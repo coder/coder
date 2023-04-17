@@ -23,8 +23,8 @@ import (
 
 // @Summary Delete workspace proxy
 // @ID delete-workspace-proxy
-// @Security CoderSessionToken
-// @Accept json
+// @Security CoderSessionTokeny
+
 // @Produce json
 // @Tags Enterprise
 // @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
@@ -33,7 +33,7 @@ import (
 func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		proxy             = httpmw.WorkspaceProxy(r)
+		proxy             = httpmw.WorkspaceProxyParam(r)
 		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
 			Audit:   *auditor,

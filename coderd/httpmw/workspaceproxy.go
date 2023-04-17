@@ -161,8 +161,8 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 
 type workspaceProxyParamContextKey struct{}
 
-// WorkspaceProxy returns the worksace proxy from the ExtractWorkspaceProxyParam handler.
-func WorkspaceProxy(r *http.Request) database.WorkspaceProxy {
+// WorkspaceProxyParam returns the worksace proxy from the ExtractWorkspaceProxyParam handler.
+func WorkspaceProxyParam(r *http.Request) database.WorkspaceProxy {
 	user, ok := r.Context().Value(workspaceProxyParamContextKey{}).(database.WorkspaceProxy)
 	if !ok {
 		panic("developer error: workspace proxy parameter middleware not provided")
