@@ -36,13 +36,3 @@ func RequireAPIKeyOrWorkspaceProxyAuth() func(http.Handler) http.Handler {
 	}
 }
 
-// Actor is a function that returns the request authorization. If the request is
-// unauthenticated, the second return value is false.
-func Actor(r *http.Request) (Authorization, bool) {
-	userAuthz, ok := UserAuthorizationOptional(r)
-	if ok {
-		return userAuthz, true
-	}
-
-	return Authorization{}, false
-}

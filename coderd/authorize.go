@@ -64,13 +64,8 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 //		return
 //	}
 func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
-	authz, ok := httpmw.Actor(r)
-	if !ok {
-		// No authorization object.
-		return false
-	}
-
-	err := h.Authorizer.Authorize(r.Context(), authz.Actor, action, object.RBACObject())
+	roles := httpmw.UserAuthorization(r)
+	err := h.Authorizer.Authorize(r.Context(), roles.Actor, action, object.RBACObject())
 	if err != nil {
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
@@ -81,10 +76,10 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 		// Log information for debugging. This will be very helpful
 		// in the early days
 		logger.Warn(r.Context(), "unauthorized",
-			slog.F("roles", authz.Actor.SafeRoleNames()),
-			slog.F("actor_id", authz.Actor.ID),
-			slog.F("actor_name", authz.ActorName),
-			slog.F("scope", authz.Actor.SafeScopeName()),
+			slog.F("roles", roles.Actor.SafeRoleNames()),
+			slog.F("actor_id", roles.Actor.ID),
+			slog.F("actor_name", roles.ActorName),
+			slog.F("scope", roles.Actor.SafeScopeName()),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
 			slog.F("object", object),
