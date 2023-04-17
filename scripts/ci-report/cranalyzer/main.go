@@ -16,6 +16,7 @@ import (
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	_ "github.com/lib/pq"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -38,18 +39,21 @@ func main() {
 
 	statsDir := flag.String("stats-dir", "", "Path to ci-stats directory")
 	statsGlob := flag.String("glob", "*-stats.json", "Glob to match stats files")
+	onlyMain := flag.Bool("only-main", false, "Only import runs on the main branch")
+	serve := flag.Bool("serve", true, "Serve db after import")
+	dangerous := flag.Bool("dangerous", false, "Do not use transaction and do some imports in parallel")
 	flag.Parse()
 
-	if err := run(ctx, logger, *statsDir, *statsGlob); err != nil {
+	if err := run(ctx, logger, *statsDir, *statsGlob, *dangerous, *onlyMain, *serve); err != nil {
 		if ctx.Err() == nil {
 			logger.Error(ctx, "failed to run cranalyzer", slog.Error(err))
 		}
 		os.Exit(1)
 	}
-	<-ctx.Done()
 }
 
-func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (err error) {
+//nolint:revive // We don't care about control flags.
+func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string, dangerous, onlyMain, serve bool) (err error) {
 	_, err = os.Stat(statsDir)
 	if err != nil && os.IsNotExist(err) {
 		return xerrors.Errorf("stats directory does not exist: %w", err)
@@ -83,6 +87,9 @@ func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (e
 		return xerrors.Errorf("failed to start embedded postgres: %w", err)
 	}
 	defer func() {
+		if serve && err == nil {
+			<-ctx.Done()
+		}
 		err2 := ep.Stop()
 		if err2 != nil && err == nil {
 			err = xerrors.Errorf("failed to stop embedded postgres: %w", err2)
@@ -122,36 +129,68 @@ func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (e
 	// Sort files by name to ensure they're inserted in order of oldest first.
 	sort.Strings(files)
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return xerrors.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
+	// Try to speed up import via unlogged tables.
+	for _, table := range []string{"job_results", "jobs", "runs", "tests"} {
+		table := table
+		_, err = db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s SET UNLOGGED", table))
 		if err != nil {
-			_ = tx.Rollback()
-			// time.Sleep(time.Minute)
-			return
+			return err
 		}
-		err = tx.Commit()
-	}()
-	// tx := db
+		//nolint:revive // This defer is intentional.
+		defer func() {
+			_, err2 := db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s SET LOGGED", table))
+			if err2 != nil && err == nil {
+				err = err2
+			}
+		}()
+	}
+
+	db.SetMaxOpenConns(50)
+
+	var tx interface {
+		ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+		QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+	}
+	if !dangerous {
+		tx, err = db.BeginTx(ctx, nil)
+		if err != nil {
+			return xerrors.Errorf("failed to begin transaction: %w", err)
+		}
+		defer func() {
+			tx, _ := tx.(*sql.Tx)
+			if err != nil {
+				_ = tx.Rollback()
+				return
+			}
+			err = tx.Commit()
+		}()
+	} else {
+		tx = db
+	}
 
 	for _, name := range files {
+		name := name
 		var s statsJSON
 		err = parseJSONFile(name, &s)
 		if err != nil {
 			return xerrors.Errorf("failed to parse stats file: %q: %w", name, err)
 		}
+
+		if onlyMain && s.Branch != "main" {
+			logger.Info(ctx, "not main, skip job", slog.F("run_id", s.RunID), slog.F("job_id", s.JobID), slog.F("job", s.Job), slog.F("branch", s.Branch), slog.F("title", s.DisplayTitle))
+			continue
+		}
+
 		logger.Info(ctx, "processing job", slog.F("run_id", s.RunID), slog.F("job_id", s.JobID), slog.F("job", s.Job), slog.F("branch", s.Branch), slog.F("title", s.DisplayTitle))
 
 		var runID int64
 		err = tx.QueryRowContext(ctx, `
-			INSERT INTO runs (run_id, event, branch, commit, commit_message, author, ts)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			INSERT INTO runs (run_id, author_id, author_login, event, branch, commit, commit_message, ts)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			ON CONFLICT (run_id) DO UPDATE SET run_id = $1
 			RETURNING id
 			`,
-			s.RunID, s.Event, s.Branch, s.SHA, s.DisplayTitle, "" /* author */, s.StartedAt,
+			s.RunID, s.AuthorID, s.AuthorLogin, s.Event, s.Branch, s.SHA, s.DisplayTitle, s.StartedAt,
 		).Scan(&runID)
 		if err != nil {
 			return xerrors.Errorf("failed to insert run: %w", err)
@@ -176,85 +215,104 @@ func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (e
 			return xerrors.Errorf("failed to insert job: %w", err)
 		}
 
+		var eg errgroup.Group
+		parallel := 1
+		if dangerous {
+			parallel = 50
+		}
+		eg.SetLimit(parallel)
+
 		for _, pkg := range s.Stats.Packages {
 			pkg := pkg
-			var testID int64
-			err = tx.QueryRowContext(ctx, `
-				INSERT INTO tests (package, last_seen)
-				VALUES ($1, $2)
-				ON CONFLICT (package, name) DO UPDATE SET last_seen = $2
+			eg.Go(func() error {
+				var testID int64
+				err = tx.QueryRowContext(ctx, `
+				INSERT INTO tests (package, added, last_seen)
+				VALUES ($1, $2, $3)
+				ON CONFLICT (package) WHERE name IS NULL DO UPDATE SET last_seen = $3
 				RETURNING id
 				`,
-				pkg.Name, s.StartedAt,
-			).Scan(&testID)
-			if err != nil {
-				return xerrors.Errorf("failed to insert package: %w", err)
-			}
+					pkg.Name, s.StartedAt, s.StartedAt,
+				).Scan(&testID)
+				if err != nil {
+					return xerrors.Errorf("failed to insert package: %w", err)
+				}
 
-			if pkg.Skip {
-				continue
-			}
-			status := "fail"
-			var duration *float64
-			output := &pkg.Output
-			if !pkg.Fail {
-				status = "pass"
-				duration = &pkg.Time
-				output = nil
-			}
-			if pkg.Timeout {
-				duration = nil
-			}
-			_, err = tx.ExecContext(ctx, `
+				if pkg.Skip {
+					return nil
+				}
+				status := "fail"
+				var duration *float64
+				output := &pkg.Output
+				if !pkg.Fail {
+					status = "pass"
+					duration = &pkg.Time
+					output = nil
+				}
+				if pkg.Timeout {
+					duration = nil
+				}
+				_, err = tx.ExecContext(ctx, `
 				INSERT INTO job_results (job_id, test_id, status, timeout, execution_time, output)
 				VALUES ($1, $2, $3, $4, $5, $6)
 				ON CONFLICT DO NOTHING
 				`,
-				jobID, testID, status, pkg.Timeout, duration, output,
-			)
-			if err != nil {
-				return xerrors.Errorf("failed to insert job result: %w", err)
-			}
+					jobID, testID, status, pkg.Timeout, duration, output,
+				)
+				if err != nil {
+					return xerrors.Errorf("failed to insert job result: %w", err)
+				}
+
+				return nil
+			})
 		}
 		for _, test := range s.Stats.Tests {
 			test := test
-			var testID int64
-			err = tx.QueryRowContext(ctx, `
-				INSERT INTO tests (package, name, last_seen)
-				VALUES ($1, $2, $3)
-				ON CONFLICT (package, name) DO UPDATE SET last_seen = $3
+			eg.Go(func() error {
+				var testID int64
+				err = tx.QueryRowContext(ctx, `
+				INSERT INTO tests (package, name, added, last_seen)
+				VALUES ($1, $2, $3, $4)
+				ON CONFLICT (package, name) WHERE name IS NOT NULL DO UPDATE SET last_seen = $4
 				RETURNING id
 				`,
-				test.Package, test.Name, s.StartedAt,
-			).Scan(&testID)
-			if err != nil {
-				return xerrors.Errorf("failed to insert package: %w", err)
-			}
+					test.Package, test.Name, s.StartedAt, s.StartedAt,
+				).Scan(&testID)
+				if err != nil {
+					return xerrors.Errorf("failed to insert package: %w", err)
+				}
 
-			if test.Skip {
-				continue
-			}
-			status := "fail"
-			var duration *float64
-			output := &test.Output
-			if !test.Fail {
-				status = "pass"
-				duration = &test.Time
-				output = nil
-			}
-			if test.Timeout {
-				duration = nil
-			}
-			_, err = tx.ExecContext(ctx, `
+				if test.Skip {
+					return nil
+				}
+				status := "fail"
+				var duration *float64
+				output := &test.Output
+				if !test.Fail {
+					status = "pass"
+					duration = &test.Time
+					output = nil
+				}
+				if test.Timeout {
+					duration = nil
+				}
+				_, err = tx.ExecContext(ctx, `
 				INSERT INTO job_results (job_id, test_id, status, timeout, execution_time, output)
 				VALUES ($1, $2, $3, $4, $5, $6)
 				ON CONFLICT DO NOTHING
 				`,
-				jobID, testID, status, test.Timeout, duration, output,
-			)
-			if err != nil {
-				return xerrors.Errorf("failed to insert job result: %w", err)
-			}
+					jobID, testID, status, test.Timeout, duration, output,
+				)
+				if err != nil {
+					return xerrors.Errorf("failed to insert job result: %w", err)
+				}
+
+				return nil
+			})
+		}
+		err = eg.Wait()
+		if err != nil {
+			return err
 		}
 	}
 
@@ -263,6 +321,9 @@ func run(ctx context.Context, logger slog.Logger, statsDir, statsGlob string) (e
 
 // Output produced by `fetch_stats_from_ci.sh`.
 type statsJSON struct {
+	AuthorID     int64     `json:"author_id"`
+	AuthorLogin  string    `json:"author_login"`
+	AuthorEmail  string    `json:"author_email"`
 	RunID        int64     `json:"run_id"`
 	RunURL       string    `json:"run_url"`
 	Event        string    `json:"event"`

@@ -4,36 +4,42 @@ CREATE TABLE IF NOT EXISTS tests (
 	id BIGSERIAL PRIMARY KEY,
 	package TEXT NOT NULL,
 	name TEXT,
-	added TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-	last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-	UNIQUE(package, name)
+	added TIMESTAMPTZ NOT NULL,
+	last_seen TIMESTAMPTZ NOT NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS tests_package_idx ON tests (package) WHERE name IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS tests_package_name_idx ON tests (package, name) WHERE name IS NOT NULL;
 
 COMMENT ON TABLE tests IS 'List of all unique tests that have been run, including packages and package tests';
 COMMENT ON COLUMN tests.package IS 'The package that was tested or the package that the test belongs to';
 COMMENT ON COLUMN tests.name IS 'The name of the test, omitted if package';
-COMMENT ON COLUMN tests.added IS 'When the test was first seen';
+COMMENT ON COLUMN tests.added IS 'When the test was first seen (on main)';
 COMMENT ON COLUMN tests.last_seen IS 'When the test was last seen';
 
 CREATE TABLE IF NOT EXISTS runs (
 	id BIGSERIAL PRIMARY KEY,
 	run_id BIGINT NOT NULL,
+	author_id BIGINT NOT NULL,
+	author_login TEXT NOT NULL,
+	author_email TEXT,
 	event TEXT NOT NULL,
 	branch TEXT NOT NULL,
 	commit TEXT NOT NULL,
 	commit_message TEXT NOT NULL,
-	author TEXT NOT NULL,
 	ts TIMESTAMPTZ NOT NULL,
 	UNIQUE(run_id)
 );
 
 COMMENT ON TABLE runs IS 'List of all runs that have been run';
 COMMENT ON COLUMN runs.run_id IS 'The unique ID of the run (from CI)';
+COMMENT ON COLUMN runs.author_id IS 'The GitHub ID of the author that triggered the run';
+COMMENT ON COLUMN runs.author_login IS 'The GitHub login of the author that triggered the run';
+COMMENT ON COLUMN runs.author_email IS 'The head commit author email, skipped for now...';
 COMMENT ON COLUMN runs.event IS 'The type of event that triggered the run';
 COMMENT ON COLUMN runs.branch IS 'The branch that the run was triggered on';
 COMMENT ON COLUMN runs.commit IS 'The commit that the run was triggered on';
 COMMENT ON COLUMN runs.commit_message IS 'The commit message that the run was triggered on';
-COMMENT ON COLUMN runs.author IS 'The author of the commit that the run was triggered on';
 COMMENT ON COLUMN runs.ts IS 'The date/time that the workflow was run';
 
 CREATE TABLE IF NOT EXISTS jobs (

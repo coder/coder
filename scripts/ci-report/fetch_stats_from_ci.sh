@@ -51,6 +51,22 @@ while read -r run; do
 		continue
 	fi
 
+	run_info_file=run-"${database_id}"-"${event}"-info.json
+	if [[ ! -f "${run_info_file}" ]]; then
+		echo "Fetching info for run: ${display_title} (${database_id}, ${event}, ${head_branch})"
+		gh api /repos/coder/coder/actions/runs/"${database_id}" >"${run_info_file}" || {
+			rm -f "${run_info_file}"
+			exit 1
+		}
+	fi
+
+	author="$(jq -r '[.actor.id, .actor.login, .head_commit.author.email] | @tsv' <"${run_info_file}")"
+	mapfile -d $'\t' -t parts <<<"${author}"
+	parts[-1]="${parts[-1]%$'\n'}"
+	author_id="${parts[0]}"
+	author_login="${parts[1]}"
+	author_email="${parts[2]}"
+
 	run_jobs_file=run-"${database_id}"-"${event}"-jobs.json
 	if [[ ! -f "${run_jobs_file}" ]]; then
 		echo "Fetching jobs for run: ${display_title} (${database_id}, ${event}, ${head_branch})"
@@ -64,6 +80,11 @@ while read -r run; do
 		jq -r '.jobs[] | select(.name | startswith("test-go")) | select(.status == "completed") | select(.conclusion == "success" or .conclusion == "failure") | [.databaseId, .startedAt, .completedAt, .name, .url] | @tsv' \
 			<"${run_jobs_file}"
 	)"
+
+	if [[ -z "${jobs}" ]]; then
+		echo "No test-go jobs found for run: ${display_title} (${database_id}, ${event}, ${head_branch}), skipping..."
+		continue
+	fi
 
 	while read -r job; do
 		mapfile -d $'\t' -t parts <<<"${job}"
@@ -209,6 +230,9 @@ while read -r run; do
 			continue
 		fi
 		jq \
+			--argjson author_id "${author_id}" \
+			--arg author_login "${author_login}" \
+			--arg author_email "${author_email}" \
 			--argjson run_id "${database_id}" \
 			--arg run_url "${run_url}" \
 			--arg event "${event}" \
@@ -220,12 +244,14 @@ while read -r run; do
 			--argjson job_id "${job_database_id}" \
 			--arg job "${job_name}" \
 			--arg job_url "${job_url}" \
-			'{run_id: $run_id, run_url: $run_url, event: $event, branch: $branch, sha: $sha, started_at: $started_at, completed_at: $completed_at, display_title: $display_title, job_id: $job_id, job: $job, job_url: $job_url, stats: .}' \
+			'{author_id: $author_id, author_login: $author_login, author_email: $author_email, run_id: $run_id, run_url: $run_url, event: $event, branch: $branch, sha: $sha, started_at: $started_at, completed_at: $completed_at, display_title: $display_title, job_id: $job_id, job: $job, job_url: $job_url, stats: .}' \
 			<<<"${job_stats}" \
 			>"${job_stats_file}" || {
 			echo "Failed to write stats for: ${job_name} (${job_database_id}, ${job_url}), skipping..."
 			rm -f "${job_stats_file}"
 			exit 1
 		}
-	done <<<"${jobs}"
+	done <<<"${jobs}" &
 done <<<"${runs}"
+
+wait
