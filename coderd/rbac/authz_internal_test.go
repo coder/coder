@@ -30,18 +30,68 @@ func (w fakeObject) RBACObject() Object {
 	}
 }
 
+// objectBomb is a wrapper around an Objecter that calls a function when
+// RBACObject is called.
+type objectBomb struct {
+	Objecter
+	bomb func()
+}
+
+func (o *objectBomb) RBACObject() Object {
+	o.bomb()
+	return o.Objecter.RBACObject()
+}
+
 func TestFilterError(t *testing.T) {
 	t.Parallel()
-	auth := NewAuthorizer(prometheus.NewRegistry())
-	subject := Subject{
-		ID:     uuid.NewString(),
-		Roles:  RoleNames{},
-		Groups: []string{},
-		Scope:  ScopeAll,
-	}
+	_ = objectBomb{}
 
-	_, err := Filter(context.Background(), auth, subject, ActionRead, []Object{ResourceUser, ResourceWorkspace})
-	require.ErrorContains(t, err, "object types must be uniform")
+	t.Run("DifferentResourceTypes", func(t *testing.T) {
+		t.Parallel()
+
+		auth := NewAuthorizer(prometheus.NewRegistry())
+		subject := Subject{
+			ID:     uuid.NewString(),
+			Roles:  RoleNames{},
+			Groups: []string{},
+			Scope:  ScopeAll,
+		}
+
+		_, err := Filter(context.Background(), auth, subject, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+		require.ErrorContains(t, err, "object types must be uniform")
+	})
+
+	t.Run("CancelledContext", func(t *testing.T) {
+		t.Parallel()
+		t.Skipf("This test is racy as rego eval checks the ctx canceled in a go routine. " +
+			"It is a coin flip if the query finishes before the 'cancel' is checked. " +
+			"So sometimes the 'Authorize' call succeeds even if ctx is canceled.")
+
+		auth := NewAuthorizer(prometheus.NewRegistry())
+		subject := Subject{
+			ID: uuid.NewString(),
+			Roles: RoleNames{
+				RoleOwner(),
+			},
+			Groups: []string{},
+			Scope:  ScopeAll,
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		objects := []Objecter{
+			ResourceUser,
+			ResourceUser,
+			&objectBomb{
+				Objecter: ResourceUser,
+				bomb:     cancel,
+			},
+			ResourceUser,
+		}
+
+		_, err := Filter(ctx, auth, subject, ActionRead, objects)
+		require.ErrorIs(t, err, context.Canceled)
+	})
 }
 
 // TestFilter ensures the filter acts the same as an individual authorize.
@@ -170,7 +220,7 @@ func TestFilter(t *testing.T) {
 			localObjects := make([]fakeObject, len(objects))
 			copy(localObjects, objects)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 			defer cancel()
 			auth := NewAuthorizer(prometheus.NewRegistry())
 

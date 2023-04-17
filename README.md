@@ -84,7 +84,7 @@ coder server --postgres-url <url> --access-url <url>
 
 > <sup>1</sup> For production deployments, set up an external PostgreSQL instance for reliability.
 
-Use `coder --help` to get a list of flags and environment variables. Use our [install guides](https://coder.com/docs/v2/latest/guides) for a full walkthrough.
+Use `coder --help` to get a list of flags and environment variables. Use our [install guides](https://coder.com/docs/v2/latest/install) for a full walkthrough.
 
 ## Documentation
 
