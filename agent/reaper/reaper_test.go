@@ -18,7 +18,11 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-//nolint:paralleltest // Non-parallel subtest.
+// TestReap checks that's the reaper is successfully reaping
+// exited processes and passing the PIDs through the shared
+// channel.
+//
+//nolint:paralleltest
 func TestReap(t *testing.T) {
 	// Don't run the reaper test in CI. It does weird
 	// things like forkexecing which may have unintended
@@ -27,13 +31,6 @@ func TestReap(t *testing.T) {
 		t.Skip("Detected CI, skipping reaper tests")
 	}
 
-	// OK checks that's the reaper is successfully reaping
-	// exited processes and passing the PIDs through the shared
-	// channel.
-}
-
-//nolint:paralleltest // Signal handling.
-func TestReap_OK(t *testing.T) {
 	pids := make(reap.PidCh, 1)
 	err := reaper.ForkReap(
 		reaper.WithPIDCallback(pids),
