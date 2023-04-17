@@ -63,9 +63,10 @@ type Deployment struct {
 	FirstUser      codersdk.CreateFirstUserResponse
 	PathAppBaseURL *url.URL
 
-	// AppHostServesAPI is true if the app host is also the API server. This
-	// disables any tests that test API passthrough.
-	AppHostServesAPI bool
+	// AppHostIsPrimary is true if the app host is also the primary coder API
+	// server. This disables any tests that test API passthrough or rely on the
+	// app server not being the API server.
+	AppHostIsPrimary bool
 }
 
 // DeploymentFactory generates a deployment with an API client, a path base URL,
@@ -100,11 +101,13 @@ type Details struct {
 	Agent     *codersdk.WorkspaceAgent
 	AppPort   uint16
 
-	FakeApp          App
-	OwnerApp         App
-	AuthenticatedApp App
-	PublicApp        App
-	PortApp          App
+	Apps struct {
+		Fake          App
+		Owner         App
+		Authenticated App
+		Public        App
+		Port          App
+	}
 }
 
 // AppClient returns a *codersdk.Client that will route all requests to the
@@ -189,47 +192,49 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	}
 	workspace, agnt := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port)
 
-	return &Details{
+	details := &Details{
 		Deployment: deployment,
 		Me:         me,
 		Workspace:  &workspace,
 		Agent:      &agnt,
 		AppPort:    opts.port,
-
-		FakeApp: App{
-			Username:      me.Username,
-			WorkspaceName: workspace.Name,
-			AgentName:     agnt.Name,
-			AppSlugOrPort: proxyTestAppNameFake,
-		},
-		OwnerApp: App{
-			Username:      me.Username,
-			WorkspaceName: workspace.Name,
-			AgentName:     agnt.Name,
-			AppSlugOrPort: proxyTestAppNameOwner,
-			Query:         proxyTestAppQuery,
-		},
-		AuthenticatedApp: App{
-			Username:      me.Username,
-			WorkspaceName: workspace.Name,
-			AgentName:     agnt.Name,
-			AppSlugOrPort: proxyTestAppNameAuthenticated,
-			Query:         proxyTestAppQuery,
-		},
-		PublicApp: App{
-			Username:      me.Username,
-			WorkspaceName: workspace.Name,
-			AgentName:     agnt.Name,
-			AppSlugOrPort: proxyTestAppNamePublic,
-			Query:         proxyTestAppQuery,
-		},
-		PortApp: App{
-			Username:      me.Username,
-			WorkspaceName: workspace.Name,
-			AgentName:     agnt.Name,
-			AppSlugOrPort: strconv.Itoa(int(opts.port)),
-		},
 	}
+
+	details.Apps.Fake = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNameFake,
+	}
+	details.Apps.Owner = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNameOwner,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.Authenticated = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNameAuthenticated,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.Public = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNamePublic,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.Port = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: strconv.Itoa(int(opts.port)),
+	}
+
+	return details
 }
 
 func appServer(t *testing.T) uint16 {

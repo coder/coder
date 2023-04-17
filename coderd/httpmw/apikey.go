@@ -101,9 +101,9 @@ type ExtractAPIKeyConfig struct {
 	// cookie-based request, the request will be rejected with a 401.
 	Optional bool
 
-	// TokenFunc is a custom function that can be used to extract the API key.
-	// If nil, the default behavior is used.
-	TokenFunc func(r *http.Request) string
+	// SessionTokenFunc is a custom function that can be used to extract the API
+	// key. If nil, the default behavior is used.
+	SessionTokenFunc func(r *http.Request) string
 }
 
 // ExtractAPIKeyMW calls ExtractAPIKey with the given config on each request,
@@ -173,8 +173,8 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	}
 
 	tokenFunc := APITokenFromRequest
-	if cfg.TokenFunc != nil {
-		tokenFunc = cfg.TokenFunc
+	if cfg.SessionTokenFunc != nil {
+		tokenFunc = cfg.SessionTokenFunc
 	}
 	token := tokenFunc(r)
 	if token == "" {

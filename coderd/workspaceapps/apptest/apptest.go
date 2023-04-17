@@ -115,7 +115,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.OwnerApp).String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -127,7 +127,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		t.Run("LoginWithoutAuthOnPrimary", func(t *testing.T) {
 			t.Parallel()
 
-			if !appDetails.AppHostServesAPI {
+			if !appDetails.AppHostIsPrimary {
 				t.Skip("This test only applies when testing apps on the primary.")
 			}
 
@@ -137,7 +137,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.PathAppURL(appDetails.OwnerApp).String()
+			u := appDetails.PathAppURL(appDetails.Apps.Owner).String()
 			resp, err := requestWithRetries(ctx, t, unauthedClient, http.MethodGet, u, nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
@@ -152,7 +152,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		t.Run("LoginWithoutAuthOnProxy", func(t *testing.T) {
 			t.Parallel()
 
-			if appDetails.AppHostServesAPI {
+			if appDetails.AppHostIsPrimary {
 				t.Skip("This test only applies when testing apps on workspace proxies.")
 			}
 
@@ -162,7 +162,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.PathAppURL(appDetails.OwnerApp)
+			u := appDetails.PathAppURL(appDetails.Apps.Owner)
 			resp, err := requestWithRetries(ctx, t, unauthedClient, http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
@@ -196,7 +196,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.PathAppURL(appDetails.OwnerApp).String(), nil)
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -208,7 +208,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.PathAppURL(appDetails.OwnerApp)
+			u := appDetails.PathAppURL(appDetails.Apps.Owner)
 			u.Path = strings.TrimSuffix(u.Path, "/")
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
@@ -222,7 +222,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.PathAppURL(appDetails.OwnerApp)
+			u := appDetails.PathAppURL(appDetails.Apps.Owner)
 			u.RawQuery = ""
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
@@ -239,7 +239,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.PathAppURL(appDetails.OwnerApp)
+			u := appDetails.PathAppURL(appDetails.Apps.Owner)
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
@@ -280,7 +280,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			app := appDetails.OwnerApp
+			app := appDetails.Apps.Owner
 			app.Username = codersdk.Me
 
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(app).String(), nil)
@@ -299,7 +299,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.OwnerApp).String(), nil, func(r *http.Request) {
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil, func(r *http.Request) {
 				r.Header.Set("Cf-Connecting-IP", "1.1.1.1")
 			})
 			require.NoError(t, err)
@@ -317,7 +317,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, appDetails.PathAppURL(appDetails.FakeApp).String(), nil)
+			resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Fake).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusBadGateway, resp.StatusCode)
@@ -329,7 +329,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, appDetails.PathAppURL(appDetails.PortApp).String(), nil)
+			resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Port).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			// TODO(@deansheather): This should be 400. There's a todo in the
@@ -354,7 +354,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			}{
 				{
 					name:   "Subdomain",
-					appURL: appDetails.SubdomainAppURL(appDetails.OwnerApp),
+					appURL: appDetails.SubdomainAppURL(appDetails.Apps.Owner),
 					verifyCookie: func(t *testing.T, c *http.Cookie) {
 						// TODO(@dean): fix these asserts, they don't seem to
 						// work. I wonder if Go strips the domain from the
@@ -365,7 +365,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 				},
 				{
 					name:   "Path",
-					appURL: appDetails.PathAppURL(appDetails.OwnerApp),
+					appURL: appDetails.PathAppURL(appDetails.Apps.Owner),
 					verifyCookie: func(t *testing.T, c *http.Cookie) {
 						// TODO(@dean): fix these asserts, they don't seem to
 						// work. I wonder if Go strips the domain from the
@@ -378,7 +378,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			for _, c := range cases {
 				c := c
 
-				if c.name == "Path" && appDetails.AppHostServesAPI {
+				if c.name == "Path" && appDetails.AppHostIsPrimary {
 					// Workspace application auth does not apply to path apps
 					// served from the primary access URL as no smuggling needs
 					// to take place (they're already logged in with a session
@@ -536,7 +536,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			DisableSubdomainApps: true,
 			noWorkspace:          true,
 		})
-		if !appDetails.AppHostServesAPI {
+		if !appDetails.AppHostIsPrimary {
 			t.Skip("app hostname does not serve API")
 		}
 
@@ -604,7 +604,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.OwnerApp).String(), nil)
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Owner).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -616,7 +616,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 			u.Path = ""
 			u.RawQuery = ""
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
@@ -626,7 +626,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			loc, err := resp.Location()
 			require.NoError(t, err)
-			require.Equal(t, appDetails.SubdomainAppURL(appDetails.OwnerApp).Path, loc.Path)
+			require.Equal(t, appDetails.SubdomainAppURL(appDetails.Apps.Owner).Path, loc.Path)
 		})
 
 		t.Run("RedirectsWithQuery", func(t *testing.T) {
@@ -635,7 +635,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 			u.RawQuery = ""
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
@@ -644,7 +644,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			loc, err := resp.Location()
 			require.NoError(t, err)
-			require.Equal(t, appDetails.SubdomainAppURL(appDetails.OwnerApp).RawQuery, loc.RawQuery)
+			require.Equal(t, appDetails.SubdomainAppURL(appDetails.Apps.Owner).RawQuery, loc.RawQuery)
 		})
 
 		t.Run("Proxies", func(t *testing.T) {
@@ -653,7 +653,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
@@ -694,7 +694,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.SubdomainAppURL(appDetails.PortApp).String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
@@ -709,7 +709,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, appDetails.SubdomainAppURL(appDetails.FakeApp).String(), nil)
+			resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Fake).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusBadGateway, resp.StatusCode)
@@ -721,7 +721,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			app := appDetails.PortApp
+			app := appDetails.Apps.Port
 			app.AppSlugOrPort = strconv.Itoa(codersdk.WorkspaceAgentMinimumListeningPort - 1)
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.SubdomainAppURL(app).String(), nil)
 			require.NoError(t, err)
@@ -745,7 +745,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 			t.Logf("url: %s", u)
 
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
@@ -768,7 +768,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+				u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 				// Replace the -suffix with nothing.
 				u.Host = strings.Replace(u.Host, "-suffix", "", 1)
 				t.Logf("url: %s", u)
@@ -790,7 +790,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+				u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 				// Replace the -suffix with something else.
 				u.Host = strings.Replace(u.Host, "-suffix", "-not-suffix", 1)
 				t.Logf("url: %s", u)
@@ -961,7 +961,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 						require.NoError(t, err, msg)
 
 						expectedPath := "/login"
-						if !isPathApp || !appDetails.AppHostServesAPI {
+						if !isPathApp || !appDetails.AppHostIsPrimary {
 							expectedPath = "/api/v2/applications/auth-redirect"
 						}
 						assert.Equal(t, expectedPath, location.Path, "should not have access, expected redirect to applicable login endpoint. "+msg)
@@ -1141,11 +1141,11 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		}{
 			{
 				name: "ProxyPath",
-				u:    appDetails.PathAppURL(appDetails.OwnerApp),
+				u:    appDetails.PathAppURL(appDetails.Apps.Owner),
 			},
 			{
 				name: "ProxySubdomain",
-				u:    appDetails.SubdomainAppURL(appDetails.OwnerApp),
+				u:    appDetails.SubdomainAppURL(appDetails.Apps.Owner),
 			},
 		}
 

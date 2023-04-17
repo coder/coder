@@ -237,7 +237,7 @@ func Test_ResolveRequest(t *testing.T) {
 					r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
 					// Try resolving the request without a token.
-					token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+					token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 						Logger:              api.Logger,
 						SignedTokenProvider: api.WorkspaceAppsProvider,
 						DashboardURL:        api.AccessURL,
@@ -283,7 +283,7 @@ func Test_ResolveRequest(t *testing.T) {
 					r = httptest.NewRequest("GET", "/app", nil)
 					r.AddCookie(cookie)
 
-					secondToken, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+					secondToken, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 						Logger:              api.Logger,
 						SignedTokenProvider: api.WorkspaceAppsProvider,
 						DashboardURL:        api.AccessURL,
@@ -319,7 +319,7 @@ func Test_ResolveRequest(t *testing.T) {
 			r := httptest.NewRequest("GET", "/app", nil)
 			r.Header.Set(codersdk.SessionTokenHeader, secondUserClient.SessionToken())
 
-			token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+			token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
 				SignedTokenProvider: api.WorkspaceAppsProvider,
 				DashboardURL:        api.AccessURL,
@@ -358,7 +358,7 @@ func Test_ResolveRequest(t *testing.T) {
 			t.Log("app", app)
 			rw := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "/app", nil)
-			token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+			token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
 				SignedTokenProvider: api.WorkspaceAppsProvider,
 				DashboardURL:        api.AccessURL,
@@ -396,7 +396,7 @@ func Test_ResolveRequest(t *testing.T) {
 		}
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -477,7 +477,7 @@ func Test_ResolveRequest(t *testing.T) {
 				r := httptest.NewRequest("GET", "/app", nil)
 				r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-				token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+				token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 					Logger:              api.Logger,
 					SignedTokenProvider: api.WorkspaceAppsProvider,
 					DashboardURL:        api.AccessURL,
@@ -548,7 +548,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 		// Even though the token is invalid, we should still perform request
 		// resolution without failure since we'll just ignore the bad token.
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -589,7 +589,7 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -617,7 +617,7 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -643,7 +643,7 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -677,7 +677,7 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, secondUserClient.SessionToken())
 
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -704,7 +704,7 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -733,7 +733,7 @@ func Test_ResolveRequest(t *testing.T) {
 		// Should not be used as the hostname in the redirect URI.
 		r.Host = "app.com"
 
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -784,7 +784,7 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,
@@ -845,7 +845,7 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOpts{
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
 			Logger:              api.Logger,
 			SignedTokenProvider: api.WorkspaceAppsProvider,
 			DashboardURL:        api.AccessURL,

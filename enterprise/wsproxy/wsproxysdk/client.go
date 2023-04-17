@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
@@ -59,4 +61,10 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 // on the client that ignores redirects.
 func (c *Client) RequestIgnoreRedirects(ctx context.Context, method, path string, body interface{}, opts ...codersdk.RequestOption) (*http.Response, error) {
 	return c.CoderSDKClientIgnoreRedirects.Request(ctx, method, path, body, opts...)
+}
+
+// DialWorkspaceAgent calls the underlying codersdk.Client's DialWorkspaceAgent
+// method.
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *codersdk.DialWorkspaceAgentOptions) (agentConn *codersdk.WorkspaceAgentConn, err error) {
+	return c.CoderSDKClient.DialWorkspaceAgent(ctx, agentID, options)
 }

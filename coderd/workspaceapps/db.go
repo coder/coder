@@ -89,7 +89,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		// (later on) fails and the user is not authenticated, they will be
 		// redirected to the login page or app auth endpoint using code below.
 		Optional: true,
-		TokenFunc: func(r *http.Request) string {
+		SessionTokenFunc: func(r *http.Request) string {
 			return issueReq.SessionToken
 		},
 	})

@@ -30,9 +30,8 @@ import (
 type Options struct {
 	Logger slog.Logger
 
-	// PrimaryAccessURL is the URL of the primary coderd instance.
-	// This also serves as the DashboardURL.
-	PrimaryAccessURL *url.URL
+	// DashboardURL is the URL of the primary coderd instance.
+	DashboardURL *url.URL
 	// AccessURL is the URL of the WorkspaceProxy. This is the url to communicate
 	// with this server.
 	AccessURL *url.URL
@@ -68,7 +67,7 @@ func (o *Options) Validate() error {
 	var errs optErrors
 
 	errs.Required("Logger", o.Logger)
-	errs.Required("PrimaryAccessURL", o.PrimaryAccessURL)
+	errs.Required("DashboardURL", o.DashboardURL)
 	errs.Required("AccessURL", o.AccessURL)
 	errs.Required("RealIPConfig", o.RealIPConfig)
 	errs.Required("PrometheusRegistry", o.PrometheusRegistry)
@@ -88,8 +87,8 @@ type Server struct {
 	Options *Options
 	Handler chi.Router
 
-	PrimaryAccessURL *url.URL
-	AppServer        *workspaceapps.Server
+	DashboardURL *url.URL
+	AppServer    *workspaceapps.Server
 
 	// Logging/Metrics
 	Logger             slog.Logger
@@ -118,7 +117,7 @@ func New(opts *Options) (*Server, error) {
 	}
 
 	// TODO: implement some ping and registration logic
-	client := wsproxysdk.New(opts.PrimaryAccessURL)
+	client := wsproxysdk.New(opts.DashboardURL)
 	err := client.SetSessionToken(opts.ProxySessionToken)
 	if err != nil {
 		return nil, xerrors.Errorf("set client token: %w", err)
@@ -129,7 +128,7 @@ func New(opts *Options) (*Server, error) {
 	s := &Server{
 		Options:            opts,
 		Handler:            r,
-		PrimaryAccessURL:   opts.PrimaryAccessURL,
+		DashboardURL:       opts.DashboardURL,
 		Logger:             opts.Logger.Named("workspace-proxy"),
 		TracerProvider:     opts.Tracing,
 		PrometheusRegistry: opts.PrometheusRegistry,
@@ -140,13 +139,13 @@ func New(opts *Options) (*Server, error) {
 
 	s.AppServer = &workspaceapps.Server{
 		Logger:        opts.Logger.Named("workspaceapps"),
-		DashboardURL:  opts.PrimaryAccessURL,
+		DashboardURL:  opts.DashboardURL,
 		AccessURL:     opts.AccessURL,
 		Hostname:      opts.AppHostname,
 		HostnameRegex: opts.AppHostnameRegex,
 		RealIPConfig:  opts.RealIPConfig,
-		SignedTokenProvider: &ProxyTokenProvider{
-			DashboardURL: opts.PrimaryAccessURL,
+		SignedTokenProvider: &TokenProvider{
+			DashboardURL: opts.DashboardURL,
 			AccessURL:    opts.AccessURL,
 			AppHostname:  opts.AppHostname,
 			Client:       client,
@@ -173,9 +172,9 @@ func New(opts *Options) (*Server, error) {
 		httpmw.Logger(s.Logger),
 		httpmw.Prometheus(s.PrometheusRegistry),
 
-		// SubdomainAppMW is a middleware that handles all requests to the
-		// subdomain based workspace apps.
-		s.AppServer.SubdomainAppMW(apiRateLimiter),
+		// HandleSubdomain is a middleware that handles all requests to the
+		// subdomain-based workspace apps.
+		s.AppServer.HandleSubdomain(apiRateLimiter),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +222,7 @@ func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
 		ExternalURL:  buildinfo.ExternalURL(),
 		Version:      buildinfo.Version(),
-		DashboardURL: s.PrimaryAccessURL.String(),
+		DashboardURL: s.DashboardURL.String(),
 	})
 }
 

@@ -55,8 +55,8 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 {
   "dashboard_url": "string",
   "external_url": "string",
-  "is_workspace_proxy": true,
-  "version": "string"
+  "version": "string",
+  "workspace_proxy": true
 }
 ```
 

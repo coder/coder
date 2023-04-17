@@ -1581,12 +1581,12 @@ type BuildInfoResponse struct {
 	// to.
 	DashboardURL string `json:"dashboard_url"`
 
-	IsWorkspaceProxy bool `json:"is_workspace_proxy"`
+	WorkspaceProxy bool `json:"workspace_proxy"`
 }
 
 type WorkspaceProxyBuildInfo struct {
 	// TODO: @emyrk what should we include here?
-	IsWorkspaceProxy bool `json:"is_workspace_proxy"`
+	WorkspaceProxy bool `json:"workspace_proxy"`
 	// DashboardURL is the URL of the coderd this proxy is connected to.
 	DashboardURL string `json:"dashboard_url"`
 }

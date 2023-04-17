@@ -71,10 +71,10 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 func buildInfo(accessURL *url.URL) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-			ExternalURL:      buildinfo.ExternalURL(),
-			Version:          buildinfo.Version(),
-			DashboardURL:     accessURL.String(),
-			IsWorkspaceProxy: false,
+			ExternalURL:    buildinfo.ExternalURL(),
+			Version:        buildinfo.Version(),
+			DashboardURL:   accessURL.String(),
+			WorkspaceProxy: false,
 		})
 	}
 }

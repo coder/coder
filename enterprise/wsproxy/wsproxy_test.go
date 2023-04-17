@@ -65,7 +65,7 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			SDKClient:        client,
 			FirstUser:        user,
 			PathAppBaseURL:   proxyAPI.Options.AccessURL,
-			AppHostServesAPI: false,
+			AppHostIsPrimary: false,
 		}
 	})
 }

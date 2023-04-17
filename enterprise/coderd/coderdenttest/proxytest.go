@@ -117,7 +117,7 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 
 	wssrv, err := wsproxy.New(&wsproxy.Options{
 		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		PrimaryAccessURL:  coderdAPI.AccessURL,
+		DashboardURL:      coderdAPI.AccessURL,
 		AccessURL:         accessURL,
 		AppHostname:       options.AppHostname,
 		AppHostnameRegex:  appHostnameRegex,

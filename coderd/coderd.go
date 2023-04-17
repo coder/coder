@@ -399,7 +399,7 @@ func New(options *Options) *API {
 		//
 		// Workspace apps do their own auth and must be BEFORE the auth
 		// middleware.
-		api.workspaceAppServer.SubdomainAppMW(apiRateLimiter),
+		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

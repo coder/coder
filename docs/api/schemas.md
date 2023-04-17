@@ -1143,19 +1143,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "dashboard_url": "string",
   "external_url": "string",
-  "is_workspace_proxy": true,
-  "version": "string"
+  "version": "string",
+  "workspace_proxy": true
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                         |
-| -------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dashboard_url`      | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
-| `external_url`       | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
-| `is_workspace_proxy` | boolean | false    |              |                                                                                                                                                                     |
-| `version`            | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                         |
+| ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dashboard_url`   | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
+| `external_url`    | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `version`         | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `workspace_proxy` | boolean | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
 

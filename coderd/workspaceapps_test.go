@@ -284,7 +284,7 @@ func TestWorkspaceApps(t *testing.T) {
 			SDKClient:        client,
 			FirstUser:        user,
 			PathAppBaseURL:   client.URL,
-			AppHostServesAPI: true,
+			AppHostIsPrimary: true,
 		}
 	})
 }

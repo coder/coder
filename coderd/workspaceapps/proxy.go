@@ -265,7 +265,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 
 	// ResolveRequest will only return a new signed token if the actor has the RBAC
 	// permissions to connect to a workspace.
-	token, ok := ResolveRequest(rw, r, ResolveRequestOpts{
+	token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 		Logger:              s.Logger,
 		SignedTokenProvider: s.SignedTokenProvider,
 		DashboardURL:        s.DashboardURL,
@@ -290,7 +290,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 	s.proxyWorkspaceApp(rw, r, *token, chiPath)
 }
 
-// SubdomainAppMW handles subdomain-based application proxy requests (aka.
+// HandleSubdomain handles subdomain-based application proxy requests (aka.
 // DevURLs in Coder V1).
 //
 // There are a lot of paths here:
@@ -325,7 +325,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 //  6. We finally verify that the "rest" matches api.Hostname for security
 //     purposes regarding re-authentication and application proxy session
 //     tokens.
-func (s *Server) SubdomainAppMW(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -365,7 +365,7 @@ func (s *Server) SubdomainAppMW(middlewares ...func(http.Handler) http.Handler) 
 				return
 			}
 
-			token, ok := ResolveRequest(rw, r, ResolveRequestOpts{
+			token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 				Logger:              s.Logger,
 				SignedTokenProvider: s.SignedTokenProvider,
 				DashboardURL:        s.DashboardURL,
@@ -583,7 +583,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	s.websocketWaitMutex.Unlock()
 	defer s.websocketWaitGroup.Done()
 
-	appToken, ok := ResolveRequest(rw, r, ResolveRequestOpts{
+	appToken, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 		Logger:              s.Logger,
 		SignedTokenProvider: s.SignedTokenProvider,
 		DashboardURL:        s.DashboardURL,

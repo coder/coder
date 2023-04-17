@@ -11,9 +11,9 @@ import (
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 )
 
-var _ workspaceapps.SignedTokenProvider = (*ProxyTokenProvider)(nil)
+var _ workspaceapps.SignedTokenProvider = (*TokenProvider)(nil)
 
-type ProxyTokenProvider struct {
+type TokenProvider struct {
 	DashboardURL *url.URL
 	AccessURL    *url.URL
 	AppHostname  string
@@ -23,11 +23,11 @@ type ProxyTokenProvider struct {
 	Logger      slog.Logger
 }
 
-func (p *ProxyTokenProvider) FromRequest(r *http.Request) (*workspaceapps.SignedToken, bool) {
+func (p *TokenProvider) FromRequest(r *http.Request) (*workspaceapps.SignedToken, bool) {
 	return workspaceapps.FromRequest(r, p.SecurityKey)
 }
 
-func (p *ProxyTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
+func (p *TokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
 	appReq := issueReq.AppRequest.Normalize()
 	err := appReq.Validate()
 	if err != nil {

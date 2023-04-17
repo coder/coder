@@ -20,7 +20,7 @@ const (
 	RedirectURIQueryParam = "redirect_uri"
 )
 
-type ResolveRequestOpts struct {
+type ResolveRequestOptions struct {
 	Logger              slog.Logger
 	SignedTokenProvider SignedTokenProvider
 
@@ -37,7 +37,7 @@ type ResolveRequestOpts struct {
 	AppQuery string
 }
 
-func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequestOpts) (*SignedToken, bool) {
+func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequestOptions) (*SignedToken, bool) {
 	appReq := opts.AppRequest.Normalize()
 	err := appReq.Validate()
 	if err != nil {

@@ -136,7 +136,7 @@ export interface BuildInfoResponse {
   readonly external_url: string
   readonly version: string
   readonly dashboard_url: string
-  readonly is_workspace_proxy: boolean
+  readonly workspace_proxy: boolean
 }
 
 // From codersdk/parameters.go
@@ -1237,7 +1237,7 @@ export interface WorkspaceProxy {
 
 // From codersdk/deployment.go
 export interface WorkspaceProxyBuildInfo {
-  readonly is_workspace_proxy: boolean
+  readonly workspace_proxy: boolean
   readonly dashboard_url: string
 }
 
