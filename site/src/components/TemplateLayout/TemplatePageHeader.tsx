@@ -29,9 +29,8 @@ import FileCopyOutlined from "@material-ui/icons/FileCopyOutlined"
 const TemplateMenu: FC<{
   templateName: string
   templateVersion: string
-  canEditFiles: boolean
   onDelete: () => void
-}> = ({ templateName, templateVersion, canEditFiles, onDelete }) => {
+}> = ({ templateName, templateVersion, onDelete }) => {
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const navigate = useNavigate()
@@ -69,28 +68,24 @@ const TemplateMenu: FC<{
           <SettingsOutlined />
           Settings
         </MenuItem>
-        {canEditFiles && (
-          <MenuItem
-            onClick={onMenuItemClick(() =>
-              navigate(`/templates/new?fromTemplate=${templateName}`),
-            )}
-          >
-            <FileCopyOutlined />
-            Duplicate
-          </MenuItem>
-        )}
-        {canEditFiles && (
-          <MenuItem
-            onClick={onMenuItemClick(() =>
-              navigate(
-                `/templates/${templateName}/versions/${templateVersion}/edit`,
-              ),
-            )}
-          >
-            <EditOutlined />
-            Edit files
-          </MenuItem>
-        )}
+        <MenuItem
+          onClick={onMenuItemClick(() =>
+            navigate(`/templates/new?fromTemplate=${templateName}`),
+          )}
+        >
+          <FileCopyOutlined />
+          Duplicate
+        </MenuItem>
+        <MenuItem
+          onClick={onMenuItemClick(() =>
+            navigate(
+              `/templates/${templateName}/versions/${templateVersion}/edit`,
+            ),
+          )}
+        >
+          <EditOutlined />
+          Edit files
+        </MenuItem>
         <MenuItem onClick={onMenuItemClick(onDelete)}>
           <DeleteOutlined />
           Delete
@@ -117,7 +112,6 @@ export type TemplatePageHeaderProps = {
   template: Template
   activeVersion: TemplateVersion
   permissions: AuthorizationResponse
-  canEditFiles: boolean
   onDeleteTemplate: () => void
 }
 
@@ -125,7 +119,6 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   template,
   activeVersion,
   permissions,
-  canEditFiles,
   onDeleteTemplate,
 }) => {
   const hasIcon = template.icon && template.icon !== ""
@@ -142,7 +135,6 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 templateVersion={activeVersion.name}
                 templateName={template.name}
                 onDelete={deleteTemplate.openDeleteConfirmation}
-                canEditFiles={canEditFiles}
               />
             </Maybe>
           </>

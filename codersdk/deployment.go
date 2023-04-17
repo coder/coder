@@ -1605,10 +1605,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// ExperimentTemplateEditor is an internal experiment that enables the template editor
-	// for all users.
-	ExperimentTemplateEditor Experiment = "template_editor"
-
 	// ExperimentMoons enabled the workspace proxy endpoints and CRUD. This
 	// feature is not yet complete in functionality.
 	ExperimentMoons Experiment = "moons"
@@ -1621,7 +1617,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{ExperimentTemplateEditor}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

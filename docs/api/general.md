@@ -507,7 +507,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["template_editor"]
+["moons"]
 ```
 
 ### Responses
