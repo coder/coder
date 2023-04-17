@@ -170,8 +170,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"url":                 ActionTrack,
 		"wildcard_hostname":   ActionTrack,
 		"created_at":          ActionTrack,
-		"updated_at":          ActionTrack,
-		"deleted":             ActionTrack,
+		"updated_at":          ActionIgnore,
+		"deleted":             ActionIgnore,
 		"token_hashed_secret": ActionSecret,
 	},
 }
