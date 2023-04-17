@@ -104,5 +104,5 @@ Azure, Google Cloud, Kubernetes, and more.
 
 ## Up next
 
-- Learn about [Templates](./templates.md)
+- Learn about [Templates](./templates/README.md)
 - [Install Coder](./install/install.sh.md)
