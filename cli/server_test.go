@@ -1587,6 +1587,7 @@ func TestServerYAMLConfig(t *testing.T) {
 	got, err := os.ReadFile(goldenPath)
 	wd2, _ := os.Getwd()
 	// Debugging to figure out why this test fails.
+	// https://github.com/coder/coder/pull/7158
 	if err != nil {
 		t.Errorf("failed to read golden file: %v, wd1=%s, wd2=%s", err, wd1, wd2)
 	}
