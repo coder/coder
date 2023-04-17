@@ -62,6 +62,11 @@
           "path": "./install/offline.md"
         },
         {
+          "title": "Coder packages",
+          "description": "Deploy Coder with a single command",
+          "path": "../../../packages/blob/main/README.md"
+        },
+        {
           "title": "External database",
           "description": "Use external PostgreSQL database",
           "path": "./install/database.md"
