@@ -45,7 +45,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		return nil, false
 	}
 
-	token, ok := opts.SignedTokenProvider.TokenFromRequest(r)
+	token, ok := opts.SignedTokenProvider.FromRequest(r)
 	if ok && token.MatchesRequest(appReq) {
 		// The request has a valid signed app token and it matches the request.
 		return token, true
@@ -60,7 +60,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		AppQuery:       opts.AppQuery,
 	}
 
-	token, tokenStr, ok := opts.SignedTokenProvider.IssueToken(r.Context(), rw, r, issueReq)
+	token, tokenStr, ok := opts.SignedTokenProvider.Issue(r.Context(), rw, r, issueReq)
 	if !ok {
 		return nil, false
 	}
@@ -80,17 +80,17 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 
 // SignedTokenProvider provides signed workspace app tokens (aka. app tickets).
 type SignedTokenProvider interface {
-	// TokenFromRequest returns a parsed token from the request. If the request
-	// does not contain a signed app token or is is invalid (expired, invalid
+	// FromRequest returns a parsed token from the request. If the request does
+	// not contain a signed app token or is is invalid (expired, invalid
 	// signature, etc.), it returns false.
-	TokenFromRequest(r *http.Request) (*SignedToken, bool)
-	// IssueToken mints a new token for the given app request. It uses the
-	// long-lived session token in the HTTP request to authenticate and
-	// authorize the client for the given workspace app. The token is returned
-	// in struct and string form. The string form should be written as a cookie.
+	FromRequest(r *http.Request) (*SignedToken, bool)
+	// Issue mints a new token for the given app request. It uses the long-lived
+	// session token in the HTTP request to authenticate and authorize the
+	// client for the given workspace app. The token is returned in struct and
+	// string form. The string form should be written as a cookie.
 	//
 	// If the request is invalid or the user is not authorized to access the
 	// app, false is returned. An error page is written to the response writer
 	// in this case.
-	IssueToken(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq IssueTokenRequest) (*SignedToken, string, bool)
+	Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq IssueTokenRequest) (*SignedToken, string, bool)
 }

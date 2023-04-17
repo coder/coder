@@ -23,11 +23,11 @@ type ProxyTokenProvider struct {
 	Logger      slog.Logger
 }
 
-func (p *ProxyTokenProvider) TokenFromRequest(r *http.Request) (*workspaceapps.SignedToken, bool) {
-	return workspaceapps.TokenFromRequest(r, p.SecurityKey)
+func (p *ProxyTokenProvider) FromRequest(r *http.Request) (*workspaceapps.SignedToken, bool) {
+	return workspaceapps.FromRequest(r, p.SecurityKey)
 }
 
-func (p *ProxyTokenProvider) IssueToken(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
+func (p *ProxyTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
 	appReq := issueReq.AppRequest.Normalize()
 	err := appReq.Validate()
 	if err != nil {

@@ -55,11 +55,11 @@ func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authoriz
 	}
 }
 
-func (p *DBTokenProvider) TokenFromRequest(r *http.Request) (*SignedToken, bool) {
-	return TokenFromRequest(r, p.SigningKey)
+func (p *DBTokenProvider) FromRequest(r *http.Request) (*SignedToken, bool) {
+	return FromRequest(r, p.SigningKey)
 }
 
-func (p *DBTokenProvider) IssueToken(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq IssueTokenRequest) (*SignedToken, string, bool) {
+func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq IssueTokenRequest) (*SignedToken, string, bool) {
 	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
 	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
 	//                 // dangerousSystemCtx is only used for database calls. The actual authentication

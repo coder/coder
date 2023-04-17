@@ -33,7 +33,7 @@ import (
 // Run runs the entire workspace app test suite against deployments minted
 // by the provided factory.
 func Run(t *testing.T, factory DeploymentFactory) {
-	setupProxyTest := func(t *testing.T, opts *DeploymentOptions) *AppDetails {
+	setupProxyTest := func(t *testing.T, opts *DeploymentOptions) *Details {
 		return setupProxyTestWithFactory(t, factory, opts)
 	}
 
@@ -811,7 +811,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 	t.Run("AppSharing", func(t *testing.T) {
 		t.Parallel()
 
-		setup := func(t *testing.T, allowPathAppSharing, allowSiteOwnerAccess bool) (appDetails *AppDetails, workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, ownerClient *codersdk.Client, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
+		setup := func(t *testing.T, allowPathAppSharing, allowSiteOwnerAccess bool) (appDetails *Details, workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, ownerClient *codersdk.Client, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
 			//nolint:gosec
 			const password = "SomeSecurePassword!"
 
@@ -910,7 +910,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			return appDetails, workspace, agnt, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth
 		}
 
-		verifyAccess := func(t *testing.T, appDetails *AppDetails, isPathApp bool, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
+		verifyAccess := func(t *testing.T, appDetails *Details, isPathApp bool, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
 			t.Helper()
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

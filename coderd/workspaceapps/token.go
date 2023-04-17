@@ -220,7 +220,7 @@ func (k SecurityKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	return payload.APIKey, nil
 }
 
-func TokenFromRequest(r *http.Request, key SecurityKey) (*SignedToken, bool) {
+func FromRequest(r *http.Request, key SecurityKey) (*SignedToken, bool) {
 	// Get the existing token from the request.
 	tokenCookie, err := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
 	if err == nil {

@@ -195,7 +195,7 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 	userReq.Header.Set(codersdk.SessionTokenHeader, req.SessionToken)
 
 	// Exchange the token.
-	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.IssueToken(ctx, rw, userReq, req)
+	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.Issue(ctx, rw, userReq, req)
 	if !ok {
 		return
 	}

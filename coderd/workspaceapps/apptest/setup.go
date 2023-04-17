@@ -87,8 +87,8 @@ type App struct {
 	Query string
 }
 
-// AppDetails are the full test details returned from setupProxyTestWithFactory.
-type AppDetails struct {
+// Details are the full test details returned from setupProxyTestWithFactory.
+type Details struct {
 	*Deployment
 
 	Me codersdk.User
@@ -112,7 +112,7 @@ type AppDetails struct {
 // are not followed by default.
 //
 // The client is authenticated as the first user by default.
-func (d *AppDetails) AppClient(t *testing.T) *codersdk.Client {
+func (d *Details) AppClient(t *testing.T) *codersdk.Client {
 	client := codersdk.New(d.PathAppBaseURL)
 	client.SetSessionToken(d.SDKClient.SessionToken())
 	forceURLTransport(t, client)
@@ -124,7 +124,7 @@ func (d *AppDetails) AppClient(t *testing.T) *codersdk.Client {
 }
 
 // PathAppURL returns the URL for the given path app.
-func (d *AppDetails) PathAppURL(app App) *url.URL {
+func (d *Details) PathAppURL(app App) *url.URL {
 	appPath := fmt.Sprintf("/@%s/%s/apps/%s", app.Username, app.WorkspaceName, app.AppSlugOrPort)
 
 	u := *d.PathAppBaseURL
@@ -135,7 +135,7 @@ func (d *AppDetails) PathAppURL(app App) *url.URL {
 }
 
 // SubdomainAppURL returns the URL for the given subdomain app.
-func (d *AppDetails) SubdomainAppURL(app App) *url.URL {
+func (d *Details) SubdomainAppURL(app App) *url.URL {
 	host := fmt.Sprintf("%s--%s--%s--%s", app.AppSlugOrPort, app.AgentName, app.WorkspaceName, app.Username)
 
 	u := *d.PathAppBaseURL
@@ -151,7 +151,7 @@ func (d *AppDetails) SubdomainAppURL(app App) *url.URL {
 // 3. Create a template version, template and workspace with many apps.
 // 4. Start a workspace agent.
 // 5. Returns details about the deployment and its apps.
-func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *DeploymentOptions) *AppDetails {
+func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *DeploymentOptions) *Details {
 	if opts == nil {
 		opts = &DeploymentOptions{}
 	}
@@ -178,7 +178,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	require.NoError(t, err)
 
 	if opts.noWorkspace {
-		return &AppDetails{
+		return &Details{
 			Deployment: deployment,
 			Me:         me,
 		}
@@ -189,7 +189,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	}
 	workspace, agnt := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port)
 
-	return &AppDetails{
+	return &Details{
 		Deployment: deployment,
 		Me:         me,
 		Workspace:  &workspace,
@@ -336,8 +336,12 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	agentClient.SetSessionToken(authToken)
 
 	// TODO (@dean): currently, the primary app host is used when generating
-	// this URL and we don't have any plans to change that until we let
-	// templates pick which proxy they want to use.
+	// the port URL we tell the agent to use. We don't have any plans to change
+	// that until we let templates pick which proxy they want to use in the
+	// terraform.
+	//
+	// This means that all port URLs generated in code-server etc. will be sent
+	// to the primary.
 	appHostCtx := testutil.Context(t, testutil.WaitLong)
 	primaryAppHost, err := client.AppHost(appHostCtx)
 	require.NoError(t, err)
