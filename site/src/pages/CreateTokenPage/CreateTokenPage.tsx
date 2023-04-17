@@ -12,20 +12,26 @@ import { createToken, getTokenConfig } from "api/api"
 import { CreateTokenForm } from "./CreateTokenForm"
 import { NANO_HOUR, CreateTokenData } from "./utils"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import { CodeExample } from "components/CodeExample/CodeExample"
+import { makeStyles } from "@material-ui/core/styles"
 
 const initialValues: CreateTokenData = {
   name: "",
   lifetime: 30,
 }
 
-const CreateTokenPage: FC = () => {
+export const CreateTokenPage: FC = () => {
   const { t } = useTranslation("tokensPage")
+  const styles = useStyles()
   const navigate = useNavigate()
 
   const {
     mutate: saveToken,
     isLoading: isCreating,
     isError: creationFailed,
+    isSuccess: creationSuccessful,
+    data: newToken,
   } = useMutation(createToken)
   const {
     data: tokenConfig,
@@ -60,11 +66,17 @@ const CreateTokenPage: FC = () => {
         },
         {
           onError: onCreateError,
-          onSuccess: onCreateSuccess,
         },
       )
     },
   })
+
+  const tokenDescription = (
+    <>
+      <p>{t("createToken.successModal.description")}</p>
+      <CodeExample code={newToken?.key ?? ""} className={styles.codeExample} />
+    </>
+  )
 
   if (fetchingTokenConfig) {
     return <Loader />
@@ -90,9 +102,29 @@ const CreateTokenPage: FC = () => {
           isCreating={isCreating}
           creationFailed={creationFailed}
         />
+
+        <ConfirmDialog
+          type="info"
+          hideCancel
+          title={t("createToken.successModal.title")}
+          description={tokenDescription}
+          open={creationSuccessful && Boolean(newToken.key)}
+          confirmLoading={isCreating}
+          onConfirm={onCreateSuccess}
+          onClose={onCreateSuccess}
+        />
       </FullPageHorizontalForm>
     </>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  codeExample: {
+    minHeight: "auto",
+    userSelect: "all",
+    width: "100%",
+    marginTop: theme.spacing(3),
+  },
+}))
 
 export default CreateTokenPage

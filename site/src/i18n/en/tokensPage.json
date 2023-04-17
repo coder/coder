@@ -46,6 +46,10 @@
       "submit": "Create token"
     },
     "createSuccess": "Token has been created",
-    "createError": "Failed to create token"
+    "createError": "Failed to create token",
+    "successModal": {
+      "title": "Creation successful",
+      "description": "Make sure you copy the below token before proceeding:"
+    }
   }
 }
