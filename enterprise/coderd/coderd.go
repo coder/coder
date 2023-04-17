@@ -104,6 +104,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			// TODO: Add specific workspace proxy endpoints.
 			r.Route("/{workspaceproxy}", func(r chi.Router) {
 				r.Use(
+					apiKeyMiddleware,
 					httpmw.ExtractWorkspaceProxyParam(api.Database),
 				)
 
