@@ -5,8 +5,7 @@ for software development.
 
 ## Create workspaces
 
-Each Coder user has their own workspaces created from [shared
-templates](./templates.md):
+Each Coder user has their own workspaces created from [shared templates](./templates/README.md):
 
 ```console
 # create a workspace from the template; specify any variables
@@ -18,13 +17,12 @@ coder show <workspace-name>
 
 ## IDEs
 
-Coder [supports multiple IDEs](ides.md) for use with your workspaces.
+Coder [supports multiple IDEs](./ides.md) for use with your workspaces.
 
 ## Workspace lifecycle
 
 Workspaces in Coder are started and stopped, often based on whether there was
-any activity or if there was a [template
-update](./templates.md#start/stop) available.
+any activity or if there was a [template update](./templates/README.md#Start/stop) available.
 
 Resources are often destroyed and re-created when a workspace is restarted,
 though the exact behavior depends on the template. For more

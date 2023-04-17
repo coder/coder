@@ -7214,11 +7214,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "template_editor",
                 "moons"
             ],
             "x-enum-varnames": [
-                "ExperimentTemplateEditor",
                 "ExperimentMoons"
             ]
         },

@@ -16,7 +16,7 @@ All user <-> workspace connections are end-to-end encrypted.
 ## coder server
 
 Workspaces connect to the coder server via the server's external address,
-set via [`ACCESS_URL`](./admin/configure.md#access-url). There must not be a
+set via [`ACCESS_URL`](../admin/configure.md#access-url). There must not be a
 NAT between workspaces and coder server.
 
 Users connect to the coder server's dashboard and API through its `ACCESS_URL`
@@ -39,7 +39,7 @@ the Coder server.
 The coder servers relays dashboard-initiated connections between the user and
 the workspace. Web terminal <-> workspace connections are an exception and may be direct.
 
-In general, [port forwarded](./networking/port-forwarding.md) web apps are
+In general, [port forwarded](./port-forwarding.md) web apps are
 faster than dashboard-accessed web apps.
 
 ## 🌎 Geo-distribution
@@ -51,7 +51,7 @@ is no special geo-distribution configuration. To speed up direct connections,
 move the user and workspace closer together.
 
 If a direct connection is not available (e.g. client or server is behind NAT), Coder
-will use a relayed connection. By default, [Coder uses Google's public STUN server](../cli/server#--derp-server-stun-addresses), but
+will use a relayed connection. By default, [Coder uses Google's public STUN server](../cli/server.md#--derp-server-stun-addresses), but
 this can be disabled or changed for [offline deployments](../install/offline.md).
 
 ### Relayed connections

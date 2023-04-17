@@ -36,7 +36,7 @@ export const SecuritySettingsPageView = ({
             options,
             "SSH Keygen Algorithm",
             "Secure Auth Cookie",
-            "Disable Owner Workspace Execution",
+            "Disable Owner Workspace Access",
           )}
         />
       </div>

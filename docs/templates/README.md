@@ -4,8 +4,7 @@ Templates are written in [Terraform](https://www.terraform.io/) and describe the
 infrastructure for workspaces (e.g., docker_container, aws_instance,
 kubernetes_pod).
 
-In most cases, a small group of users (team leads or Coder administrators) [have
-permissions](./admin/users.md#roles) to create and manage templates. Then, other
+In most cases, a small group of users (team leads or Coder administrators) [have permissions](../admin/users.md#roles) to create and manage templates. Then, other
 users provision their [workspaces](../workspaces.md) from templates using the UI
 or CLI.
 
@@ -195,7 +194,7 @@ the Coder server runs an additional [terraform apply](https://www.terraform.io/c
 informing the Coder provider that the workspace has a new transition state.
 
 This template sample has one persistent resource (docker volume) and one
-ephemeral resource (docker image).
+ephemeral resource (docker container).
 
 ```hcl
 data "coder_workspace" "me" {
@@ -403,7 +402,7 @@ resource "coder_agent" "main" {
 ## Template permissions (enterprise)
 
 Template permissions can be used to give users and groups access to specific
-templates. [Learn more about RBAC](./admin/rbac.md).
+templates. [Learn more about RBAC](../admin/rbac.md) to learn how to manage
 
 ## Community Templates
 
@@ -415,4 +414,4 @@ You can see a list of community templates by our users
 - Learn about [Authentication & Secrets](./authentication.md)
 - Learn about [Change Management](./change-management.md)
 - Learn about [Resource Metadata](./resource-metadata.md)
-- Learn about [Workspaces](./workspaces.md)
+- Learn about [Workspaces](../workspaces.md)

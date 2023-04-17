@@ -32,6 +32,17 @@ func (pf *templateUploadFlags) option() clibase.Option {
 	}
 }
 
+func (pf *templateUploadFlags) setWorkdir(wd string) {
+	if wd == "" {
+		return
+	}
+	if pf.directory == "" || pf.directory == "." {
+		pf.directory = wd
+	} else if !filepath.IsAbs(pf.directory) {
+		pf.directory = filepath.Join(wd, pf.directory)
+	}
+}
+
 func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
@@ -98,6 +109,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 	var (
 		versionName     string
 		provisioner     string
+		workdir         string
 		parameterFile   string
 		variablesFile   string
 		variables       []string
@@ -114,6 +126,8 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			uploadFlags.setWorkdir(workdir)
+
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
@@ -174,11 +188,18 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 
 	cmd.Options = clibase.OptionSet{
 		{
-			Flag:          "test.provisioner",
-			FlagShorthand: "p",
-			Description:   "Customize the provisioner backend.",
-			Default:       "terraform",
-			Value:         clibase.StringOf(&provisioner),
+			Flag:        "test.provisioner",
+			Description: "Customize the provisioner backend.",
+			Default:     "terraform",
+			Value:       clibase.StringOf(&provisioner),
+			// This is for testing!
+			Hidden: true,
+		},
+		{
+			Flag:        "test.workdir",
+			Description: "Customize the working directory.",
+			Default:     "",
+			Value:       clibase.StringOf(&workdir),
 			// This is for testing!
 			Hidden: true,
 		},

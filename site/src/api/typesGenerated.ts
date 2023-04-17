@@ -1322,8 +1322,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons" | "template_editor"
-export const Experiments: Experiment[] = ["moons", "template_editor"]
+export type Experiment = "moons"
+export const Experiments: Experiment[] = ["moons"]
 
 // From codersdk/deployment.go
 export type FeatureName =

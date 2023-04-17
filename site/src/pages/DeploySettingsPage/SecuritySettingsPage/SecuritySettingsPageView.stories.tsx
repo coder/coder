@@ -21,7 +21,7 @@ export default {
         value: "1234",
       },
       {
-        name: "Disable Owner Workspace Execution",
+        name: "Disable Owner Workspace Access",
         description: "something",
         value: false,
       },
@@ -52,7 +52,7 @@ NoTLS.args = {
       value: "1234",
     } as DeploymentOption,
     {
-      name: "Disable Owner Workspace Execution",
+      name: "Disable Owner Workspace Access",
       value: false,
     } as DeploymentOption,
     {

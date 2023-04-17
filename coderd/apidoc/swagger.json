@@ -6463,8 +6463,8 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["template_editor", "moons"],
-      "x-enum-varnames": ["ExperimentTemplateEditor", "ExperimentMoons"]
+      "enum": ["moons"],
+      "x-enum-varnames": ["ExperimentMoons"]
     },
     "codersdk.Feature": {
       "type": "object",

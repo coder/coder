@@ -666,7 +666,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
-			Description: "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
+			Description: "Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
 			Default:     "stun.l.google.com:19302",
@@ -1619,10 +1619,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// ExperimentTemplateEditor is an internal experiment that enables the template editor
-	// for all users.
-	ExperimentTemplateEditor Experiment = "template_editor"
-
 	// ExperimentMoons enabled the workspace proxy endpoints and CRUD. This
 	// feature is not yet complete in functionality.
 	ExperimentMoons Experiment = "moons"
@@ -1635,7 +1631,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{ExperimentTemplateEditor}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

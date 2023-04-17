@@ -105,8 +105,8 @@ networking:
     # Region name that for the embedded DERP server.
     # (default: Coder Embedded Relay, type: string)
     regionName: Coder Embedded Relay
-    # Addresses for STUN servers to establish P2P connections. Set empty to disable
-    # P2P connections.
+    # Addresses for STUN servers to establish P2P connections. Use special value
+    # 'disable' to turn off STUN.
     # (default: stun.l.google.com:19302, type: string-array)
     stunAddresses:
       - stun.l.google.com:19302

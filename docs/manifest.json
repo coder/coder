@@ -216,7 +216,7 @@
     {
       "title": "Networking",
       "description": "Learn about networking in Coder",
-      "path": "./networking.md",
+      "path": "./networking/README.md",
       "icon_path": "./images/icons/networking.svg",
       "children": [
         {
@@ -335,9 +335,9 @@
           "icon_path": "./images/icons/speed.svg"
         },
         {
-          "title": "Service Banners",
-          "description": "Learn how to configure Service Banners",
-          "path": "./admin/service-banners.md",
+          "title": "Appearance",
+          "description": "Learn how to configure the appearance of Coder",
+          "path": "./admin/appearance.md",
           "icon_path": "./images/icons/info.svg",
           "state": "enterprise"
         },
