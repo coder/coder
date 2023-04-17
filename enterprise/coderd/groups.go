@@ -231,7 +231,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to add or remove non-existent group member",
 			Detail:  err.Error(),

@@ -5,7 +5,7 @@ import { TokensPageView, TokensPageViewProps } from "./TokensPageView"
 export default {
   title: "components/TokensPageView",
   component: TokensPageView,
-  argTypes: {
+  args: {
     onRegenerateClick: { action: "Submit" },
   },
 }

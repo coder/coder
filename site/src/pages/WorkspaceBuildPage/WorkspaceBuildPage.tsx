@@ -2,7 +2,7 @@ import { useMachine } from "@xstate/react"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useParams } from "react-router-dom"
-import { pageTitle } from "../../util/page"
+import { pageTitle } from "../../utils/page"
 import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceBuildXService"
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView"
 

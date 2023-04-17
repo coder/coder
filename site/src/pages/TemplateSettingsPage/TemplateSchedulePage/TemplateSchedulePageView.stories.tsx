@@ -10,7 +10,7 @@ export default {
   title: "pages/TemplateSchedulePageView",
   component: TemplateSchedulePageView,
   args: {
-    canSetMaxTTL: true,
+    allowAdvancedScheduling: true,
     template: MockTemplate,
     onSubmit: action("onSubmit"),
     onCancel: action("cancel"),
@@ -26,5 +26,5 @@ Example.args = {}
 
 export const CantSetMaxTTL = Template.bind({})
 CantSetMaxTTL.args = {
-  canSetMaxTTL: false,
+  allowAdvancedScheduling: false,
 }

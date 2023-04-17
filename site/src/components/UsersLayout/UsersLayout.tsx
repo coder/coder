@@ -15,7 +15,7 @@ import {
   Outlet,
   useNavigate,
 } from "react-router-dom"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { authMethodsXService } from "xServices/auth/authMethodsXService"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"

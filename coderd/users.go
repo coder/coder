@@ -314,7 +314,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = api.Database.GetOrganizationByID(ctx, req.OrganizationID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Organization does not exist with the provided id %q.", req.OrganizationID),
 		})
@@ -938,7 +938,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(ctx, organizationName)
-	if errors.Is(err, sql.ErrNoRows) || rbac.IsUnauthorizedError(err) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

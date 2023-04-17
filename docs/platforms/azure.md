@@ -105,5 +105,5 @@ Congrats! You can now navigate to your Coder dashboard and use this Linux on Azu
 ## Next Steps
 
 - [Port-forward](../networking/port-forwarding.md)
-- [Learn more about template configuration](../templates.md)
+- [Learn more about template configuration](../templates/README.md)
 - [Configure more IDEs](../ides/web-ides.md)

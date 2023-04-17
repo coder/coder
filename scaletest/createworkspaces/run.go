@@ -72,7 +72,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 		_, _ = fmt.Fprintln(logs, "Creating user:")
 
-		user, err := r.client.CreateUser(ctx, codersdk.CreateUserRequest{
+		user, err = r.client.CreateUser(ctx, codersdk.CreateUserRequest{
 			OrganizationID: r.cfg.User.OrganizationID,
 			Username:       r.cfg.User.Username,
 			Email:          r.cfg.User.Email,

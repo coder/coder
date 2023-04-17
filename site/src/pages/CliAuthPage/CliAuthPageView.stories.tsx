@@ -5,7 +5,10 @@ export default {
   title: "pages/CliAuthPageView",
   component: CliAuthPageView,
   argTypes: {
-    sessionToken: { control: "text", defaultValue: "some-session-token" },
+    sessionToken: { control: "text" },
+  },
+  args: {
+    sessionToken: "some-session-token",
   },
 }
 

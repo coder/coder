@@ -3,7 +3,7 @@ import { LogLevel } from "api/typesGenerated"
 import dayjs from "dayjs"
 import { FC, useMemo } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 import AnsiToHTML from "ansi-to-html"
 
 export interface Line {

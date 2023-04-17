@@ -2,7 +2,7 @@ import { UpdateAppearanceConfig } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView"
 
 // ServiceBanner is unlike the other Deployment Settings pages because it

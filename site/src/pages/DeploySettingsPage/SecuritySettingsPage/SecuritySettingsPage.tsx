@@ -2,7 +2,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView"
 
 const SecuritySettingsPage: FC = () => {

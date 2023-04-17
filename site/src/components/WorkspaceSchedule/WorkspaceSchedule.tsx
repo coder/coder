@@ -15,7 +15,7 @@ import {
   autostopDisplay,
   extractTimezone,
   Language as ScheduleLanguage,
-} from "../../util/schedule"
+} from "../../utils/schedule"
 import { Stack } from "../Stack/Stack"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're

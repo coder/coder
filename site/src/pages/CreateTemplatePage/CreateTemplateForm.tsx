@@ -23,7 +23,7 @@ import {
   getFormHelpers,
   onChangeTrimmed,
   templateDisplayNameValidator,
-} from "util/formUtils"
+} from "utils/formUtils"
 import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService"
 import * as Yup from "yup"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -105,6 +105,8 @@ const defaultInitialValues: CreateTemplateData = {
   // you are not licensed. We hide the form value based on entitlements.
   max_ttl_hours: 24 * 7,
   allow_user_cancel_workspace_jobs: false,
+  allow_user_autostart: false,
+  allow_user_autostop: false,
 }
 
 type GetInitialValuesParams = {
@@ -112,19 +114,19 @@ type GetInitialValuesParams = {
   fromCopy?: Template
   parameters?: ParameterSchema[]
   variables?: TemplateVersionVariable[]
-  canSetMaxTTL: boolean
+  allowAdvancedScheduling: boolean
 }
 
 const getInitialValues = ({
   fromExample,
   fromCopy,
-  canSetMaxTTL,
+  allowAdvancedScheduling,
   variables,
   parameters,
 }: GetInitialValuesParams) => {
   let initialValues = defaultInitialValues
 
-  if (!canSetMaxTTL) {
+  if (!allowAdvancedScheduling) {
     initialValues = {
       ...initialValues,
       max_ttl_hours: 0,
@@ -188,7 +190,7 @@ export interface CreateTemplateFormProps {
   error?: unknown
   jobError?: string
   logs?: ProvisionerJobLog[]
-  canSetMaxTTL: boolean
+  allowAdvancedScheduling: boolean
   copiedTemplate?: Template
 }
 
@@ -204,12 +206,12 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   error,
   jobError,
   logs,
-  canSetMaxTTL,
+  allowAdvancedScheduling,
 }) => {
   const styles = useStyles()
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
-      canSetMaxTTL,
+      allowAdvancedScheduling,
       fromExample: starterTemplate,
       fromCopy: copiedTemplate,
       variables,
@@ -319,7 +321,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             <TextField
               {...getFieldHelpers(
                 "max_ttl_hours",
-                canSetMaxTTL ? (
+                allowAdvancedScheduling ? (
                   <TTLHelperText
                     translationName="form.helperText.maxTTLHelperText"
                     ttl={form.values.max_ttl_hours}
@@ -334,12 +336,61 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   </>
                 ),
               )}
-              disabled={isSubmitting || !canSetMaxTTL}
+              disabled={isSubmitting || !allowAdvancedScheduling}
               fullWidth
               label={t("form.fields.maxTTL")}
               variant="outlined"
               type="number"
             />
+          </Stack>
+          <Stack direction="column">
+            <Stack direction="row" alignItems="center">
+              <Checkbox
+                id="allow_user_autostart"
+                size="small"
+                color="primary"
+                disabled={isSubmitting || !allowAdvancedScheduling}
+                onChange={async () => {
+                  await form.setFieldValue(
+                    "allow_user_autostart",
+                    !form.values.allow_user_autostart,
+                  )
+                }}
+                name="allow_user_autostart"
+                checked={form.values.allow_user_autostart}
+              />
+              <Stack spacing={0.5}>
+                <strong>
+                  Allow users to autostart workspaces on a schedule.
+                </strong>
+              </Stack>
+            </Stack>
+            <Stack direction="row" alignItems="center">
+              <Checkbox
+                id="allow-user-autostop"
+                size="small"
+                color="primary"
+                disabled={isSubmitting || !allowAdvancedScheduling}
+                onChange={async () => {
+                  await form.setFieldValue(
+                    "allow_user_autostop",
+                    !form.values.allow_user_autostop,
+                  )
+                }}
+                name="allow-user-autostop"
+                checked={form.values.allow_user_autostop}
+              />
+              <Stack spacing={0.5}>
+                <strong>
+                  Allow users to customize autostop duration for workspaces.
+                </strong>
+                <span className={styles.optionHelperText}>
+                  Workspaces will always use the default TTL if this is set.
+                  Regardless of this setting, workspaces can only stay on for
+                  the max TTL.
+                </span>
+              </Stack>
+            </Stack>
           </Stack>
         </FormFields>
       </FormSection>

@@ -2,7 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { Stack } from "components/Stack/Stack"
 import { PropsWithChildren, FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 export const EnabledBadge: FC = () => {
   const styles = useStyles()

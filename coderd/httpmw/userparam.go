@@ -2,10 +2,7 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
-
-	"golang.org/x/xerrors"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -71,7 +68,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 				}
 				//nolint:gocritic // System needs to be able to get user from param.
 				user, err = db.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
-				if xerrors.Is(err, sql.ErrNoRows) {
+				if httpapi.Is404Error(err) {
 					httpapi.ResourceNotFound(rw)
 					return
 				}

@@ -126,7 +126,7 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	file, err := api.Database.GetFileByID(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

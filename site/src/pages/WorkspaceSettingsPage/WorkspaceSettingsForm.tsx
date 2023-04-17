@@ -11,10 +11,10 @@ import { useTranslation } from "react-i18next"
 import {
   useValidationSchemaForRichParameters,
   workspaceBuildParameterValue,
-} from "util/richParameters"
+} from "utils/richParameters"
 import { WorkspaceSettings, WorkspaceSettingsFormValue } from "./data"
 import * as Yup from "yup"
-import { nameValidator, getFormHelpers, onChangeTrimmed } from "util/formUtils"
+import { nameValidator, getFormHelpers, onChangeTrimmed } from "utils/formUtils"
 import TextField from "@material-ui/core/TextField"
 
 export const WorkspaceSettingsForm: FC<{

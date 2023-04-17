@@ -7,24 +7,18 @@ import {
 export default {
   title: "pages/AppearanceSettingsPageView",
   component: AppearanceSettingsPageView,
-  argTypes: {
+  args: {
     appearance: {
-      defaultValue: {
-        logo_url: "https://github.com/coder.png",
-        service_banner: {
-          enabled: true,
-          message: "hello world",
-          background_color: "white",
-        },
+      logo_url: "https://github.com/coder.png",
+      service_banner: {
+        enabled: true,
+        message: "hello world",
+        background_color: "white",
       },
     },
-    isEntitled: {
-      defaultValue: false,
-    },
-    updateAppearance: {
-      defaultValue: () => {
-        return undefined
-      },
+    isEntitled: false,
+    updateAppearance: () => {
+      return undefined
     },
   },
 } as ComponentMeta<typeof AppearanceSettingsPageView>

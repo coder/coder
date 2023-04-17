@@ -6,7 +6,7 @@ import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams } from "react-router-dom"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView"
 
@@ -15,7 +15,7 @@ const TemplateSchedulePage: FC = () => {
   const navigate = useNavigate()
   const { template } = useTemplateSettingsContext()
   const { entitlements } = useDashboard()
-  const canSetMaxTTL =
+  const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled
   const {
     mutate: updateTemplate,
@@ -36,7 +36,7 @@ const TemplateSchedulePage: FC = () => {
         <title>{pageTitle([template.name, "Schedule"])}</title>
       </Helmet>
       <TemplateSchedulePageView
-        canSetMaxTTL={canSetMaxTTL}
+        allowAdvancedScheduling={allowAdvancedScheduling}
         isSubmitting={isSubmitting}
         template={template}
         submitError={submitError}
