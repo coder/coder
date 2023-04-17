@@ -36,6 +36,10 @@ var TestCases = []TestCase{
 		name:          "tls",
 		expectedError: "",
 	},
+	{
+		name:          "sa",
+		expectedError: "",
+	},
 }
 
 type TestCase struct {
