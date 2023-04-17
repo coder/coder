@@ -18,36 +18,36 @@ import (
 )
 
 const (
-	// ExternalProxyAuthTokenHeader is the auth header used for requests from
+	// WorkspaceProxyAuthTokenHeader is the auth header used for requests from
 	// external workspace proxies.
 	//
 	// The format of an external proxy token is:
 	//     <proxy id>:<proxy secret>
 	//
 	//nolint:gosec
-	ExternalProxyAuthTokenHeader = "Coder-External-Proxy-Token"
+	WorkspaceProxyAuthTokenHeader = "Coder-External-Proxy-Token"
 )
 
-type externalProxyContextKey struct{}
+type workspaceProxyContextKey struct{}
 
-// ExternalProxy may return the workspace proxy from the ExtractExternalProxy
+// WorkspaceProxyOptional may return the workspace proxy from the ExtractWorkspaceProxy
 // middleware.
-func ExternalProxyOptional(r *http.Request) (database.WorkspaceProxy, bool) {
-	proxy, ok := r.Context().Value(externalProxyContextKey{}).(database.WorkspaceProxy)
+func WorkspaceProxyOptional(r *http.Request) (database.WorkspaceProxy, bool) {
+	proxy, ok := r.Context().Value(workspaceProxyContextKey{}).(database.WorkspaceProxy)
 	return proxy, ok
 }
 
-// ExternalProxy returns the workspace proxy from the ExtractExternalProxy
+// WorkspaceProxy returns the workspace proxy from the ExtractWorkspaceProxy
 // middleware.
-func ExternalProxy(r *http.Request) database.WorkspaceProxy {
-	proxy, ok := ExternalProxyOptional(r)
+func WorkspaceProxy(r *http.Request) database.WorkspaceProxy {
+	proxy, ok := WorkspaceProxyOptional(r)
 	if !ok {
-		panic("developer error: ExtractExternalProxy middleware not provided")
+		panic("developer error: ExtractWorkspaceProxy middleware not provided")
 	}
 	return proxy
 }
 
-type ExtractExternalProxyConfig struct {
+type ExtractWorkspaceProxyConfig struct {
 	DB database.Store
 	// Optional indicates whether the middleware should be optional. If true,
 	// any requests without the external proxy auth token header will be
@@ -56,14 +56,14 @@ type ExtractExternalProxyConfig struct {
 	Optional bool
 }
 
-// ExtractExternalProxy extracts the external workspace proxy from the request
+// ExtractWorkspaceProxy extracts the external workspace proxy from the request
 // using the external proxy auth token header.
-func ExtractExternalProxy(opts ExtractExternalProxyConfig) func(http.Handler) http.Handler {
+func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			token := r.Header.Get(ExternalProxyAuthTokenHeader)
+			token := r.Header.Get(WorkspaceProxyAuthTokenHeader)
 			if token == "" {
 				if opts.Optional {
 					next.ServeHTTP(w, r)
@@ -134,7 +134,7 @@ func ExtractExternalProxy(opts ExtractExternalProxyConfig) func(http.Handler) ht
 			}
 
 			ctx = r.Context()
-			ctx = context.WithValue(ctx, externalProxyContextKey{}, proxy)
+			ctx = context.WithValue(ctx, workspaceProxyContextKey{}, proxy)
 			//nolint:gocritic // Workspace proxies have full permissions. The
 			// workspace proxy auth middleware is not mounted to every route, so
 			// they can still only access the routes that the middleware is
@@ -143,7 +143,7 @@ func ExtractExternalProxy(opts ExtractExternalProxyConfig) func(http.Handler) ht
 			subj, ok := dbauthz.ActorFromContext(ctx)
 			if !ok {
 				// This should never happen
-				httpapi.InternalServerError(w, xerrors.New("developer error: ExtractExternalProxy missing rbac actor"))
+				httpapi.InternalServerError(w, xerrors.New("developer error: ExtractWorkspaceProxy missing rbac actor"))
 				return
 			}
 			// Use the same subject for the userAuthKey

@@ -43,7 +43,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 
 			assert.Equal(t, r.Method, http.MethodPost)
 			assert.Equal(t, r.URL.Path, "/api/v2/workspaceproxies/me/issue-signed-app-token")
-			assert.Equal(t, r.Header.Get(httpmw.ExternalProxyAuthTokenHeader), expectedProxyToken)
+			assert.Equal(t, r.Header.Get(httpmw.WorkspaceProxyAuthTokenHeader), expectedProxyToken)
 
 			var req workspaceapps.IssueTokenRequest
 			err := json.NewDecoder(r.Body).Decode(&req)
@@ -103,7 +103,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 
 			assert.Equal(t, r.Method, http.MethodPost)
 			assert.Equal(t, r.URL.Path, "/api/v2/workspaceproxies/me/issue-signed-app-token")
-			assert.Equal(t, r.Header.Get(httpmw.ExternalProxyAuthTokenHeader), expectedProxyToken)
+			assert.Equal(t, r.Header.Get(httpmw.WorkspaceProxyAuthTokenHeader), expectedProxyToken)
 
 			rw.WriteHeader(expectedResponseStatus)
 			_, _ = rw.Write([]byte(expectedResponseBody))

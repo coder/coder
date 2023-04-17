@@ -90,7 +90,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.workspaceProxies)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractExternalProxy(httpmw.ExtractExternalProxyConfig{
+					httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
 						DB:       options.Database,
 						Optional: false,
 					}),

@@ -671,14 +671,13 @@ func New(options *Options) *API {
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
-					// Allow either API key or external proxy auth and require
-					// it.
+					// Allow either API key or external workspace proxy auth and require it.
 					apiKeyMiddlewareOptional,
-					httpmw.ExtractExternalProxy(httpmw.ExtractExternalProxyConfig{
+					httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
 						DB:       options.Database,
 						Optional: true,
 					}),
-					httpmw.RequireAPIKeyOrExternalProxyAuth(),
+					httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
 					httpmw.ExtractWorkspaceParam(options.Database),

@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/enterprise/coderd/license"
 )
 
-func TestExternalProxyWorkspaceApps(t *testing.T) {
+func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 	t.Parallel()
 
 	apptest.Run(t, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
