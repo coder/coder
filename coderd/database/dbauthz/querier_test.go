@@ -445,25 +445,25 @@ func (s *MethodTestSuite) TestWorkspaceProxy() {
 		}).Asserts(rbac.ResourceWorkspaceProxy, rbac.ActionCreate)
 	}))
 	s.Run("UpdateWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
-		_, p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
 		check.Args(database.UpdateWorkspaceProxyParams{
 			ID: p.ID,
 		}).Asserts(p, rbac.ActionUpdate)
 	}))
 	s.Run("GetWorkspaceProxyByID", s.Subtest(func(db database.Store, check *expects) {
-		_, p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
 		check.Args(p.ID).Asserts(p, rbac.ActionRead).Returns(p)
 	}))
 	s.Run("UpdateWorkspaceProxyDeleted", s.Subtest(func(db database.Store, check *expects) {
-		_, p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
 		check.Args(database.UpdateWorkspaceProxyDeletedParams{
 			ID:      p.ID,
 			Deleted: true,
 		}).Asserts(p, rbac.ActionDelete)
 	}))
 	s.Run("GetWorkspaceProxies", s.Subtest(func(db database.Store, check *expects) {
-		_, p1 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
-		_, p2 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		p1, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		p2, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
 		check.Args().Asserts(p1, rbac.ActionRead, p2, rbac.ActionRead).Returns(slice.New(p1, p2))
 	}))
 }
