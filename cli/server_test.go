@@ -1433,7 +1433,7 @@ func TestServer(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest // This test spawns or connects to an existing PostgreSQL instance.
+//nolint:tparallel,paralleltest // This test spawns or connects to an existing PostgreSQL instance.
 func TestServer_Production(t *testing.T) {
 	if runtime.GOOS != "linux" || testing.Short() {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
@@ -1461,7 +1461,7 @@ func TestServer_Production(t *testing.T) {
 	require.NoError(t, err)
 }
 
-//nolint:paralleltest // This test cannot be run in parallel due to signal handling.
+//nolint:tparallel,paralleltest // This test cannot be run in parallel due to signal handling.
 func TestServer_Shutdown(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// Sending interrupt signal isn't supported on Windows!
