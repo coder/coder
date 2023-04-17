@@ -85,7 +85,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Use(
 				api.moonsEnabledMW,
 			)
-			r.Route("/", func(r chi.Router) {
+			r.Group(func(r chi.Router) {
 				r.Use(
 					apiKeyMiddleware,
 				)
