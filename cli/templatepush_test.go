@@ -156,8 +156,6 @@ func TestTemplatePush(t *testing.T) {
 		require.Equal(t, "example", templateVersions[1].Name)
 	})
 
-	// This test modifies the working directory.
-	//nolint:paralleltest
 	t.Run("UseWorkingDir", func(t *testing.T) {
 		t.Parallel()
 

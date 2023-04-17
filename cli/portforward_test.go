@@ -21,10 +21,8 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+//nolint:paralleltest // Non-parallel subtests.
 func TestPortForward(t *testing.T) {
-	t.Parallel()
-	t.Skip("These tests flake... a lot. It seems related to the Tailscale change, but all other tests pass...")
-
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 
@@ -116,7 +114,7 @@ func TestPortForward(t *testing.T) {
 		workspace = runAgent(t, client, user.UserID)
 	)
 
-	for _, c := range cases { //nolint:paralleltest // the `c := c` confuses the linter
+	for _, c := range cases {
 		c := c
 		// Delay parallel tests here because setupLocal reserves
 		// a free open port which is not guaranteed to be free
@@ -164,7 +162,6 @@ func TestPortForward(t *testing.T) {
 				require.ErrorIs(t, err, context.Canceled)
 			})
 
-			//nolint:paralleltest
 			t.Run("TwoPorts", func(t *testing.T) {
 				var (
 					p1 = setupTestListener(t, c.setupRemote(t))
@@ -215,7 +212,6 @@ func TestPortForward(t *testing.T) {
 	}
 
 	// Test doing TCP and UDP at the same time.
-	//nolint:paralleltest
 	t.Run("All", func(t *testing.T) {
 		var (
 			dials = []addr{}
