@@ -24,7 +24,7 @@ import (
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Tags Templates
+// @Tags Enterprise
 // @Param request body codersdk.CreateWorkspaceProxyRequest true "Create workspace proxy request"
 // @Success 201 {object} codersdk.WorkspaceProxy
 // @Router /workspaceproxies [post]
@@ -165,9 +165,9 @@ func convertProxy(p database.WorkspaceProxy) codersdk.WorkspaceProxy {
 // @Tags Enterprise
 // @Param request body workspaceapps.IssueTokenRequest true "Issue signed app token request"
 // @Success 201 {object} wsproxysdk.IssueSignedAppTokenResponse
-// @Router /proxy-internal/issue-signed-app-token [post]
+// @Router /workspaceproxies/me/issue-signed-app-token [post]
 // @x-apidocgen {"skip": true}
-func (api *API) issueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// NOTE: this endpoint will return JSON on success, but will (usually)

@@ -202,8 +202,8 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	}
 	coordinateHeaders := make(http.Header)
 	tokenHeader := SessionTokenHeader
-	if c.TokenHeader != "" {
-		tokenHeader = c.TokenHeader
+	if c.SessionTokenHeader != "" {
+		tokenHeader = c.SessionTokenHeader
 	}
 	coordinateHeaders.Set(tokenHeader, c.SessionToken())
 	ctx, cancel := context.WithCancel(ctx)

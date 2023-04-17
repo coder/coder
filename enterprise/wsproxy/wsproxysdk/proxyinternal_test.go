@@ -42,7 +42,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 			atomic.AddInt64(&called, 1)
 
 			assert.Equal(t, r.Method, http.MethodPost)
-			assert.Equal(t, r.URL.Path, "/api/v2/proxy-internal/issue-signed-app-token")
+			assert.Equal(t, r.URL.Path, "/api/v2/workspaceproxies/me/issue-signed-app-token")
 			assert.Equal(t, r.Header.Get(httpmw.ExternalProxyAuthTokenHeader), expectedProxyToken)
 
 			var req workspaceapps.IssueTokenRequest
@@ -102,7 +102,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 			atomic.AddInt64(&called, 1)
 
 			assert.Equal(t, r.Method, http.MethodPost)
-			assert.Equal(t, r.URL.Path, "/api/v2/proxy-internal/issue-signed-app-token")
+			assert.Equal(t, r.URL.Path, "/api/v2/workspaceproxies/me/issue-signed-app-token")
 			assert.Equal(t, r.Header.Get(httpmw.ExternalProxyAuthTokenHeader), expectedProxyToken)
 
 			rw.WriteHeader(expectedResponseStatus)

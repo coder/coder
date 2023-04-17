@@ -23,13 +23,13 @@ type Client struct {
 // URL.
 func New(serverURL *url.URL) *Client {
 	coderSDKClient := codersdk.New(serverURL)
-	coderSDKClient.TokenHeader = httpmw.ExternalProxyAuthTokenHeader
+	coderSDKClient.SessionTokenHeader = httpmw.ExternalProxyAuthTokenHeader
 
 	coderSDKClientIgnoreRedirects := codersdk.New(serverURL)
 	coderSDKClientIgnoreRedirects.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	coderSDKClientIgnoreRedirects.TokenHeader = httpmw.ExternalProxyAuthTokenHeader
+	coderSDKClientIgnoreRedirects.SessionTokenHeader = httpmw.ExternalProxyAuthTokenHeader
 
 	return &Client{
 		CoderSDKClient:                coderSDKClient,

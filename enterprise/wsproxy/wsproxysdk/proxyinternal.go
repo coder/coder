@@ -21,7 +21,7 @@ type IssueSignedAppTokenResponse struct {
 // request. The error page will be returned as JSON. For use in external
 // proxies, use IssueSignedAppTokenHTML instead.
 func (c *Client) IssueSignedAppToken(ctx context.Context, req workspaceapps.IssueTokenRequest) (IssueSignedAppTokenResponse, error) {
-	resp, err := c.RequestIgnoreRedirects(ctx, http.MethodPost, "/api/v2/proxy-internal/issue-signed-app-token", req, func(r *http.Request) {
+	resp, err := c.RequestIgnoreRedirects(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/issue-signed-app-token", req, func(r *http.Request) {
 		// This forces any HTML error pages to be returned as JSON instead.
 		r.Header.Set("Accept", "application/json")
 	})
@@ -51,7 +51,7 @@ func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWr
 		_ = json.NewEncoder(rw).Encode(res)
 	}
 
-	resp, err := c.RequestIgnoreRedirects(ctx, http.MethodPost, "/api/v2/proxy-internal/issue-signed-app-token", req, func(r *http.Request) {
+	resp, err := c.RequestIgnoreRedirects(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/issue-signed-app-token", req, func(r *http.Request) {
 		r.Header.Set("Accept", "text/html")
 	})
 	if err != nil {

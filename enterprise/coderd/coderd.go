@@ -88,6 +88,15 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			)
 			r.Post("/", api.postWorkspaceProxy)
 			r.Get("/", api.workspaceProxies)
+			r.Route("/me", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractExternalProxy(httpmw.ExtractExternalProxyConfig{
+						DB:       options.Database,
+						Optional: false,
+					}),
+				)
+				r.Post("/issue-signed-app-token", api.workspaceProxyIssueSignedAppToken)
+			})
 			// TODO: Add specific workspace proxy endpoints.
 			// r.Route("/{proxyName}", func(r chi.Router) {
 			//	r.Use(
@@ -96,17 +105,6 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			//
 			//	r.Get("/", api.workspaceProxyByName)
 			// })
-		})
-		r.Route("/proxy-internal", func(r chi.Router) {
-			r.Use(
-				api.moonsEnabledMW,
-				httpmw.ExtractExternalProxy(httpmw.ExtractExternalProxyConfig{
-					DB:       options.Database,
-					Optional: false,
-				}),
-			)
-
-			r.Post("/issue-signed-app-token", api.issueSignedAppToken)
 		})
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(

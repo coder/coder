@@ -13,21 +13,15 @@ import (
 	"testing"
 
 	"github.com/moby/moby/pkg/namesgenerator"
-
-	"github.com/coder/coder/codersdk"
-
-	"github.com/coder/coder/enterprise/coderd"
-
-	"github.com/coder/coder/enterprise/wsproxy"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/coderd/httpapi"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/enterprise/wsproxy"
 )
 
 type ProxyOptions struct {
