@@ -79,7 +79,6 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.portForward(),
 		r.publickey(),
 		r.resetPassword(),
-		r.appSecurityKey(),
 		r.state(),
 		r.templates(),
 		r.users(),
