@@ -168,8 +168,8 @@ backed by Tailscale and WireGuard.
           Region name that for the embedded DERP server.
 
       --derp-server-stun-addresses string-array, $CODER_DERP_SERVER_STUN_ADDRESSES (default: stun.l.google.com:19302)
-          Addresses for STUN servers to establish P2P connections. Set empty to
-          disable P2P connections.
+          Addresses for STUN servers to establish P2P connections. Use special
+          value 'disable' to turn off STUN.
 
 [1mNetworking / HTTP Options[0m 
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
