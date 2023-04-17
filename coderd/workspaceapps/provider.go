@@ -41,6 +41,9 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 	appReq := opts.AppRequest.Normalize()
 	err := appReq.Validate()
 	if err != nil {
+		// This is a 500 since it's a coder server or proxy that's making this
+		// request struct based on details from the request. The values should
+		// already be validated before they are put into the struct.
 		WriteWorkspaceApp500(opts.Logger, opts.DashboardURL, rw, r, &appReq, err, "invalid app request")
 		return nil, false
 	}
