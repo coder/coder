@@ -14,57 +14,57 @@ import (
 // Client is a HTTP client for a subset of Coder API routes that external
 // proxies need.
 type Client struct {
-	CoderSDKClient *codersdk.Client
+	SDKClient *codersdk.Client
 	// HACK: the issue-signed-app-token requests may issue redirect responses
 	// (which need to be forwarded to the client), so the client we use to make
 	// those requests must ignore redirects.
-	CoderSDKClientIgnoreRedirects *codersdk.Client
+	sdkClientIgnoreRedirects *codersdk.Client
 }
 
 // New creates a external proxy client for the provided primary coder server
 // URL.
 func New(serverURL *url.URL) *Client {
-	coderSDKClient := codersdk.New(serverURL)
-	coderSDKClient.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
+	sdkClient := codersdk.New(serverURL)
+	sdkClient.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
 
-	coderSDKClientIgnoreRedirects := codersdk.New(serverURL)
-	coderSDKClientIgnoreRedirects.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	sdkClientIgnoreRedirects := codersdk.New(serverURL)
+	sdkClientIgnoreRedirects.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	coderSDKClientIgnoreRedirects.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
+	sdkClientIgnoreRedirects.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
 
 	return &Client{
-		CoderSDKClient:                coderSDKClient,
-		CoderSDKClientIgnoreRedirects: coderSDKClientIgnoreRedirects,
+		SDKClient:                sdkClient,
+		sdkClientIgnoreRedirects: sdkClientIgnoreRedirects,
 	}
 }
 
 // SetSessionToken sets the session token for the client. An error is returned
 // if the session token is not in the correct format for external proxies.
 func (c *Client) SetSessionToken(token string) error {
-	c.CoderSDKClient.SetSessionToken(token)
-	c.CoderSDKClientIgnoreRedirects.SetSessionToken(token)
+	c.SDKClient.SetSessionToken(token)
+	c.sdkClientIgnoreRedirects.SetSessionToken(token)
 	return nil
 }
 
 // SessionToken returns the currently set token for the client.
 func (c *Client) SessionToken() string {
-	return c.CoderSDKClient.SessionToken()
+	return c.SDKClient.SessionToken()
 }
 
 // Request wraps the underlying codersdk.Client's Request method.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...codersdk.RequestOption) (*http.Response, error) {
-	return c.CoderSDKClient.Request(ctx, method, path, body, opts...)
+	return c.SDKClient.Request(ctx, method, path, body, opts...)
 }
 
 // RequestIgnoreRedirects wraps the underlying codersdk.Client's Request method
 // on the client that ignores redirects.
 func (c *Client) RequestIgnoreRedirects(ctx context.Context, method, path string, body interface{}, opts ...codersdk.RequestOption) (*http.Response, error) {
-	return c.CoderSDKClientIgnoreRedirects.Request(ctx, method, path, body, opts...)
+	return c.sdkClientIgnoreRedirects.Request(ctx, method, path, body, opts...)
 }
 
 // DialWorkspaceAgent calls the underlying codersdk.Client's DialWorkspaceAgent
 // method.
 func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *codersdk.DialWorkspaceAgentOptions) (agentConn *codersdk.WorkspaceAgentConn, err error) {
-	return c.CoderSDKClient.DialWorkspaceAgent(ctx, agentID, options)
+	return c.SDKClient.DialWorkspaceAgent(ctx, agentID, options)
 }
