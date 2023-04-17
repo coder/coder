@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
@@ -25,8 +26,8 @@ import (
 type DBTokenProvider struct {
 	Logger slog.Logger
 
-	// AccessURL is the main dashboard access URL for error pages.
-	AccessURL                     *url.URL
+	// DashboardURL is the main dashboard access URL for error pages.
+	DashboardURL                  *url.URL
 	Authorizer                    rbac.Authorizer
 	Database                      database.Store
 	DeploymentValues              *codersdk.DeploymentValues
@@ -44,7 +45,7 @@ func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authoriz
 
 	return &DBTokenProvider{
 		Logger:                        log,
-		AccessURL:                     accessURL,
+		DashboardURL:                  accessURL,
 		Authorizer:                    authz,
 		Database:                      db,
 		DeploymentValues:              cfg,
@@ -54,29 +55,11 @@ func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authoriz
 	}
 }
 
-func (p *DBTokenProvider) TokenFromRequest(r *http.Request) (*SignedToken, bool) {
-	// Get the existing token from the request.
-	tokenCookie, err := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
-	if err == nil {
-		token, err := p.SigningKey.VerifySignedToken(tokenCookie.Value)
-		if err == nil {
-			req := token.Request.Normalize()
-			err := req.Validate()
-			if err == nil {
-				// The request has a valid signed app token, which is a valid
-				// token signed by us. The caller must check that it matches
-				// the request.
-				return &token, true
-			}
-		}
-	}
-
-	return nil, false
+func (p *DBTokenProvider) FromRequest(r *http.Request) (*SignedToken, bool) {
+	return FromRequest(r, p.SigningKey)
 }
 
-// ResolveRequest takes an app request, checks if it's valid and authenticated,
-// and returns a token with details about the app.
-func (p *DBTokenProvider) CreateToken(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq Request) (*SignedToken, string, bool) {
+func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq IssueTokenRequest) (*SignedToken, string, bool) {
 	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
 	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
 	//                 // dangerousSystemCtx is only used for database calls. The actual authentication
@@ -84,10 +67,10 @@ func (p *DBTokenProvider) CreateToken(ctx context.Context, rw http.ResponseWrite
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
-	appReq = appReq.Normalize()
+	appReq := issueReq.AppRequest.Normalize()
 	err := appReq.Validate()
 	if err != nil {
-		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "invalid app request")
+		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "invalid app request")
 		return nil, "", false
 	}
 
@@ -102,11 +85,13 @@ func (p *DBTokenProvider) CreateToken(ctx context.Context, rw http.ResponseWrite
 		OAuth2Configs:               p.OAuth2Configs,
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: p.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		// Optional is true to allow for public apps. If an authorization check
-		// fails and the user is not authenticated, they will be redirected to
-		// the login page using code below (not the redirect from the
-		// middleware itself).
+		// Optional is true to allow for public apps. If the authorization check
+		// (later on) fails and the user is not authenticated, they will be
+		// redirected to the login page or app auth endpoint using code below.
 		Optional: true,
+		SessionTokenFunc: func(r *http.Request) string {
+			return issueReq.SessionToken
+		},
 	})
 	if !ok {
 		return nil, "", false
@@ -115,75 +100,110 @@ func (p *DBTokenProvider) CreateToken(ctx context.Context, rw http.ResponseWrite
 	// Lookup workspace app details from DB.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
 	if xerrors.Is(err, sql.ErrNoRows) {
-		WriteWorkspaceApp404(p.Logger, p.AccessURL, rw, r, &appReq, err.Error())
+		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, err.Error())
 		return nil, "", false
 	} else if err != nil {
-		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "get app details from database")
+		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app details from database")
 		return nil, "", false
 	}
 	token.UserID = dbReq.User.ID
 	token.WorkspaceID = dbReq.Workspace.ID
 	token.AgentID = dbReq.Agent.ID
-	token.AppURL = dbReq.AppURL
+	if dbReq.AppURL != nil {
+		token.AppURL = dbReq.AppURL.String()
+	}
 
 	// Verify the user has access to the app.
 	authed, err := p.authorizeRequest(r.Context(), authz, dbReq)
 	if err != nil {
-		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "verify authz")
+		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "verify authz")
 		return nil, "", false
 	}
 	if !authed {
 		if apiKey != nil {
 			// The request has a valid API key but insufficient permissions.
-			WriteWorkspaceApp404(p.Logger, p.AccessURL, rw, r, &appReq, "insufficient permissions")
+			WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, "insufficient permissions")
 			return nil, "", false
 		}
 
 		// Redirect to login as they don't have permission to access the app
 		// and they aren't signed in.
-		switch appReq.AccessMethod {
-		case AccessMethodPath:
-			// TODO(@deansheather): this doesn't work on moons so will need to
-			// be updated to include the access URL as a param
-			httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
-		case AccessMethodSubdomain:
-			// Redirect to the app auth redirect endpoint with a valid redirect
-			// URI.
-			redirectURI := *r.URL
-			redirectURI.Scheme = p.AccessURL.Scheme
-			redirectURI.Host = httpapi.RequestHost(r)
 
-			u := *p.AccessURL
-			u.Path = "/api/v2/applications/auth-redirect"
-			q := u.Query()
-			q.Add(RedirectURIQueryParam, redirectURI.String())
-			u.RawQuery = q.Encode()
-
-			http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
-		case AccessMethodTerminal:
-			// Return an error.
+		// We don't support login redirects for the terminal since it's a
+		// WebSocket endpoint and redirects won't work. The token must be
+		// specified as a query parameter.
+		if appReq.AccessMethod == AccessMethodTerminal {
 			httpapi.ResourceNotFound(rw)
+			return nil, "", false
 		}
+
+		appBaseURL, err := issueReq.AppBaseURL()
+		if err != nil {
+			WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app base URL")
+			return nil, "", false
+		}
+
+		// If the app is a path app and it's on the same host as the dashboard
+		// access URL, then we need to redirect to login using the standard
+		// login redirect function.
+		if appReq.AccessMethod == AccessMethodPath && appBaseURL.Host == p.DashboardURL.Host {
+			httpmw.RedirectToLogin(rw, r, p.DashboardURL, httpmw.SignedOutErrorMessage)
+			return nil, "", false
+		}
+
+		// Otherwise, we need to redirect to the app auth endpoint, which will
+		// redirect back to the app (with an encrypted API key) after the user
+		// has logged in.
+		//
+		// TODO: We should just make this a "BrowserURL" field on the issue struct. Then
+		// we can remove this logic and just defer to that. It can be set closer to the
+		// actual initial request that makes the IssueTokenRequest. Eg the external moon.
+		// This would replace RawQuery and AppPath fields.
+		redirectURI := *appBaseURL
+		if dbReq.AppURL != nil {
+			// Just use the user's current path and query if set.
+			if issueReq.AppPath != "" {
+				redirectURI.Path = path.Join(redirectURI.Path, issueReq.AppPath)
+			} else if !strings.HasSuffix(redirectURI.Path, "/") {
+				redirectURI.Path += "/"
+			}
+			q := issueReq.AppQuery
+			if q != "" && dbReq.AppURL.RawQuery != "" {
+				q = dbReq.AppURL.RawQuery
+			}
+			redirectURI.RawQuery = q
+		}
+
+		// This endpoint accepts redirect URIs from the primary app wildcard
+		// host, proxy access URLs and proxy wildcard app hosts. It does not
+		// accept redirect URIs from the primary access URL or any other host.
+		u := *p.DashboardURL
+		u.Path = "/api/v2/applications/auth-redirect"
+		q := u.Query()
+		q.Add(RedirectURIQueryParam, redirectURI.String())
+		u.RawQuery = q.Encode()
+
+		http.Redirect(rw, r, u.String(), http.StatusSeeOther)
 		return nil, "", false
 	}
 
 	// Check that the agent is online.
 	agentStatus := dbReq.Agent.Status(p.WorkspaceAgentInactiveTimeout)
 	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
-		WriteWorkspaceAppOffline(p.Logger, p.AccessURL, rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
+		WriteWorkspaceAppOffline(p.Logger, p.DashboardURL, rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
 		return nil, "", false
 	}
 
 	// Check that the app is healthy.
 	if dbReq.AppHealth != "" && dbReq.AppHealth != database.WorkspaceAppHealthDisabled && dbReq.AppHealth != database.WorkspaceAppHealthHealthy {
-		WriteWorkspaceAppOffline(p.Logger, p.AccessURL, rw, r, &appReq, fmt.Sprintf("App health is %q, not %q", dbReq.AppHealth, database.WorkspaceAppHealthHealthy))
+		WriteWorkspaceAppOffline(p.Logger, p.DashboardURL, rw, r, &appReq, fmt.Sprintf("App health is %q, not %q", dbReq.AppHealth, database.WorkspaceAppHealthHealthy))
 		return nil, "", false
 	}
 
 	// As a sanity check, ensure the token we just made is valid for this
 	// request.
 	if !token.MatchesRequest(appReq) {
-		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, nil, "fresh token does not match request")
+		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, nil, "fresh token does not match request")
 		return nil, "", false
 	}
 
@@ -191,7 +211,7 @@ func (p *DBTokenProvider) CreateToken(ctx context.Context, rw http.ResponseWrite
 	token.Expiry = time.Now().Add(DefaultTokenExpiry)
 	tokenStr, err := p.SigningKey.SignToken(token)
 	if err != nil {
-		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "generate token")
+		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "generate token")
 		return nil, "", false
 	}
 

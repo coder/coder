@@ -36,9 +36,9 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
 
-	// Used to serve the Swagger endpoint
+	"github.com/coder/coder/buildinfo"
+	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
@@ -290,8 +290,8 @@ func New(options *Options) *API {
 		OIDC:   options.OIDCConfig,
 	}
 
-	r := chi.NewRouter()
 	ctx, cancel := context.WithCancel(context.Background())
+	r := chi.NewRouter()
 	api := &API{
 		ctx:    ctx,
 		cancel: cancel,
@@ -340,16 +340,18 @@ func New(options *Options) *API {
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: options.Logger.Named("workspaceapps"),
 
-		DashboardURL:     api.AccessURL,
-		AccessURL:        api.AccessURL,
-		Hostname:         api.AppHostname,
-		HostnameRegex:    api.AppHostnameRegex,
-		DeploymentValues: options.DeploymentValues,
-		RealIPConfig:     options.RealIPConfig,
+		DashboardURL:  api.AccessURL,
+		AccessURL:     api.AccessURL,
+		Hostname:      api.AppHostname,
+		HostnameRegex: api.AppHostnameRegex,
+		RealIPConfig:  options.RealIPConfig,
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		WorkspaceConnCache:  api.workspaceAgentCache,
 		AppSecurityKey:      options.AppSecurityKey,
+
+		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -366,6 +368,14 @@ func New(options *Options) *API {
 		RedirectToLogin:             true,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+	})
+	// Same as the first but it's optional.
+	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    true,
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -389,7 +399,7 @@ func New(options *Options) *API {
 		//
 		// Workspace apps do their own auth and must be BEFORE the auth
 		// middleware.
-		api.workspaceAppServer.SubdomainAppMW(apiRateLimiter),
+		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -450,7 +460,7 @@ func New(options *Options) *API {
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
-		r.Get("/buildinfo", buildInfo)
+		r.Get("/buildinfo", buildInfo(api.AccessURL))
 		r.Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
@@ -661,7 +671,14 @@ func New(options *Options) *API {
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
-					apiKeyMiddleware,
+					// Allow either API key or external workspace proxy auth and require it.
+					apiKeyMiddlewareOptional,
+					httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
+						DB:       options.Database,
+						Optional: true,
+					}),
+					httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
+
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)

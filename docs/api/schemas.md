@@ -1141,17 +1141,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "dashboard_url": "string",
   "external_url": "string",
-  "version": "string"
+  "version": "string",
+  "workspace_proxy": true
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                                                                                                         |
-| -------------- | ------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `external_url` | string | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
-| `version`      | string | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                         |
+| ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dashboard_url`   | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
+| `external_url`    | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `version`         | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `workspace_proxy` | boolean | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
 
@@ -5162,7 +5166,6 @@ Parameter represents a set value for the scope.
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
   "wildcard_hostname": "string"
@@ -5178,7 +5181,6 @@ Parameter represents a set value for the scope.
 | `icon`              | string  | false    |              |                                                                                        |
 | `id`                | string  | false    |              |                                                                                        |
 | `name`              | string  | false    |              |                                                                                        |
-| `organization_id`   | string  | false    |              |                                                                                        |
 | `updated_at`        | string  | false    |              |                                                                                        |
 | `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
 | `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
@@ -6286,3 +6288,88 @@ RegionIDs in range 900-999 are reserved for end users to run their own DERP node
 ### Properties
 
 _None_
+
+## workspaceapps.AccessMethod
+
+```json
+"path"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value       |
+| ----------- |
+| `path`      |
+| `subdomain` |
+| `terminal`  |
+
+## workspaceapps.IssueTokenRequest
+
+```json
+{
+  "app_hostname": "string",
+  "app_path": "string",
+  "app_query": "string",
+  "app_request": {
+    "access_method": "path",
+    "agent_name_or_id": "string",
+    "app_slug_or_port": "string",
+    "base_path": "string",
+    "username_or_id": "string",
+    "workspace_name_or_id": "string"
+  },
+  "path_app_base_url": "string",
+  "session_token": "string"
+}
+```
+
+### Properties
+
+| Name                | Type                                           | Required | Restrictions | Description                                                                                                     |
+| ------------------- | ---------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------- |
+| `app_hostname`      | string                                         | false    |              | App hostname is the optional hostname for subdomain apps on the external proxy. It must start with an asterisk. |
+| `app_path`          | string                                         | false    |              | App path is the path of the user underneath the app base path.                                                  |
+| `app_query`         | string                                         | false    |              | App query is the query parameters the user provided in the app request.                                         |
+| `app_request`       | [workspaceapps.Request](#workspaceappsrequest) | false    |              |                                                                                                                 |
+| `path_app_base_url` | string                                         | false    |              | Path app base URL is required.                                                                                  |
+| `session_token`     | string                                         | false    |              | Session token is the session token provided by the user.                                                        |
+
+## workspaceapps.Request
+
+```json
+{
+  "access_method": "path",
+  "agent_name_or_id": "string",
+  "app_slug_or_port": "string",
+  "base_path": "string",
+  "username_or_id": "string",
+  "workspace_name_or_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                     | Required | Restrictions | Description                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_method`        | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |                                                                                                                                                                                       |
+| `agent_name_or_id`     | string                                                   | false    |              | Agent name or ID is not required if the workspace has only one agent.                                                                                                                 |
+| `app_slug_or_port`     | string                                                   | false    |              |                                                                                                                                                                                       |
+| `base_path`            | string                                                   | false    |              | Base path of the app. For path apps, this is the path prefix in the router for this particular app. For subdomain apps, this should be "/". This is used for setting the cookie path. |
+| `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |
+| `workspace_name_or_id` | string                                                   | false    |              |                                                                                                                                                                                       |
+
+## wsproxysdk.IssueSignedAppTokenResponse
+
+```json
+{
+  "signed_token_str": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                                 |
+| ------------------ | ------ | -------- | ------------ | ----------------------------------------------------------- |
+| `signed_token_str` | string | false    |              | Signed token str should be set as a cookie on the response. |

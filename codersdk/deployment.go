@@ -1575,6 +1575,20 @@ type BuildInfoResponse struct {
 	ExternalURL string `json:"external_url"`
 	// Version returns the semantic version of the build.
 	Version string `json:"version"`
+
+	// DashboardURL is the URL to hit the deployment's dashboard.
+	// For external workspace proxies, this is the coderd they are connected
+	// to.
+	DashboardURL string `json:"dashboard_url"`
+
+	WorkspaceProxy bool `json:"workspace_proxy"`
+}
+
+type WorkspaceProxyBuildInfo struct {
+	// TODO: @emyrk what should we include here?
+	WorkspaceProxy bool `json:"workspace_proxy"`
+	// DashboardURL is the URL of the coderd this proxy is connected to.
+	DashboardURL string `json:"dashboard_url"`
 }
 
 // CanonicalVersion trims build information from the version.

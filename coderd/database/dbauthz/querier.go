@@ -1697,6 +1697,10 @@ func (q *querier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (data
 	return fetch(q.log, q.auth, q.db.GetWorkspaceProxyByID)(ctx, id)
 }
 
+func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, hostname string) (database.WorkspaceProxy, error) {
+	return fetch(q.log, q.auth, q.db.GetWorkspaceProxyByHostname)(ctx, hostname)
+}
+
 func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	return insert(q.log, q.auth, rbac.ResourceWorkspaceProxy, q.db.InsertWorkspaceProxy)(ctx, arg)
 }

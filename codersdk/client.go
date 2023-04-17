@@ -79,6 +79,10 @@ type Client struct {
 	HTTPClient *http.Client
 	URL        *url.URL
 
+	// SessionTokenHeader is an optional custom header to use for setting tokens. By
+	// default 'Coder-Session-Token' is used.
+	SessionTokenHeader string
+
 	// Logger is optionally provided to log requests.
 	// Method, URL, and response code will be logged by default.
 	Logger slog.Logger
@@ -150,7 +154,12 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
-	req.Header.Set(SessionTokenHeader, c.SessionToken())
+
+	tokenHeader := c.SessionTokenHeader
+	if tokenHeader == "" {
+		tokenHeader = SessionTokenHeader
+	}
+	req.Header.Set(tokenHeader, c.SessionToken())
 
 	if r != nil {
 		req.Header.Set("Content-Type", "application/json")

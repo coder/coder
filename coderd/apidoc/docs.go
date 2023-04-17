@@ -5000,7 +5000,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Enterprise"
                 ],
                 "summary": "Create workspace proxy",
                 "operationId": "create-workspace-proxy",
@@ -5022,6 +5022,48 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
                     }
+                }
+            }
+        },
+        "/workspaceproxies/me/issue-signed-app-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Issue signed workspace app token",
+                "operationId": "issue-signed-workspace-app-token",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workspaceapps.IssueTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.IssueSignedAppTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -6321,6 +6363,10 @@ const docTemplate = `{
         "codersdk.BuildInfoResponse": {
             "type": "object",
             "properties": {
+                "dashboard_url": {
+                    "description": "DashboardURL is the URL to hit the deployment's dashboard.\nFor external workspace proxies, this is the coderd they are connected\nto.",
+                    "type": "string"
+                },
                 "external_url": {
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
@@ -6328,6 +6374,9 @@ const docTemplate = `{
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
+                },
+                "workspace_proxy": {
+                    "type": "boolean"
                 }
             }
         },
@@ -9514,10 +9563,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -10054,6 +10099,82 @@ const docTemplate = `{
         },
         "url.Userinfo": {
             "type": "object"
+        },
+        "workspaceapps.AccessMethod": {
+            "type": "string",
+            "enum": [
+                "path",
+                "subdomain",
+                "terminal"
+            ],
+            "x-enum-varnames": [
+                "AccessMethodPath",
+                "AccessMethodSubdomain",
+                "AccessMethodTerminal"
+            ]
+        },
+        "workspaceapps.IssueTokenRequest": {
+            "type": "object",
+            "properties": {
+                "app_hostname": {
+                    "description": "AppHostname is the optional hostname for subdomain apps on the external\nproxy. It must start with an asterisk.",
+                    "type": "string"
+                },
+                "app_path": {
+                    "description": "AppPath is the path of the user underneath the app base path.",
+                    "type": "string"
+                },
+                "app_query": {
+                    "description": "AppQuery is the query parameters the user provided in the app request.",
+                    "type": "string"
+                },
+                "app_request": {
+                    "$ref": "#/definitions/workspaceapps.Request"
+                },
+                "path_app_base_url": {
+                    "description": "PathAppBaseURL is required.",
+                    "type": "string"
+                },
+                "session_token": {
+                    "description": "SessionToken is the session token provided by the user.",
+                    "type": "string"
+                }
+            }
+        },
+        "workspaceapps.Request": {
+            "type": "object",
+            "properties": {
+                "access_method": {
+                    "$ref": "#/definitions/workspaceapps.AccessMethod"
+                },
+                "agent_name_or_id": {
+                    "description": "AgentNameOrID is not required if the workspace has only one agent.",
+                    "type": "string"
+                },
+                "app_slug_or_port": {
+                    "type": "string"
+                },
+                "base_path": {
+                    "description": "BasePath of the app. For path apps, this is the path prefix in the router\nfor this particular app. For subdomain apps, this should be \"/\". This is\nused for setting the cookie path.",
+                    "type": "string"
+                },
+                "username_or_id": {
+                    "description": "For the following fields, if the AccessMethod is AccessMethodTerminal,\nthen only AgentNameOrID may be set and it must be a UUID. The other\nfields must be left blank.",
+                    "type": "string"
+                },
+                "workspace_name_or_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.IssueSignedAppTokenResponse": {
+            "type": "object",
+            "properties": {
+                "signed_token_str": {
+                    "description": "SignedTokenStr should be set as a cookie on the response.",
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {

@@ -83,11 +83,24 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
 				api.moonsEnabledMW,
 			)
-			r.Post("/", api.postWorkspaceProxy)
-			r.Get("/", api.workspaceProxies)
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Post("/", api.postWorkspaceProxy)
+				r.Get("/", api.workspaceProxies)
+			})
+			r.Route("/me", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
+						DB:       options.Database,
+						Optional: false,
+					}),
+				)
+				r.Post("/issue-signed-app-token", api.workspaceProxyIssueSignedAppToken)
+			})
 			// TODO: Add specific workspace proxy endpoints.
 			// r.Route("/{proxyName}", func(r chi.Router) {
 			//	r.Use(

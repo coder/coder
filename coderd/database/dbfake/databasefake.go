@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -18,9 +19,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/slice"
 )
+
+var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9.-]+$`)
 
 // FakeDatabase is helpful for knowing if the underlying db is an in memory fake
 // database. This is only in the databasefake package, so will only be used
@@ -5093,6 +5097,40 @@ func (q *fakeQuerier) GetWorkspaceProxyByID(_ context.Context, id uuid.UUID) (da
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceProxyByHostname(_ context.Context, hostname string) (database.WorkspaceProxy, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// Return zero rows if this is called with a non-sanitized hostname. The SQL
+	// version of this query does the same thing.
+	if !validProxyByHostnameRegex.MatchString(hostname) {
+		return database.WorkspaceProxy{}, sql.ErrNoRows
+	}
+
+	// This regex matches the SQL version.
+	accessURLRegex := regexp.MustCompile(`[^:]*://` + regexp.QuoteMeta(hostname) + `([:/]?.)*`)
+
+	for _, proxy := range q.workspaceProxies {
+		if proxy.Deleted {
+			continue
+		}
+		if accessURLRegex.MatchString(proxy.Url) {
+			return proxy, nil
+		}
+
+		// Compile the app hostname regex. This is slow sadly.
+		wildcardRegexp, err := httpapi.CompileHostnamePattern(proxy.WildcardHostname)
+		if err != nil {
+			return database.WorkspaceProxy{}, xerrors.Errorf("compile hostname pattern %q for proxy %q (%s): %w", proxy.WildcardHostname, proxy.Name, proxy.ID.String(), err)
+		}
+		if _, ok := httpapi.ExecuteHostnamePattern(wildcardRegexp, hostname); ok {
+			return proxy, nil
+		}
+	}
+
+	return database.WorkspaceProxy{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -5104,14 +5142,16 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	}
 
 	p := database.WorkspaceProxy{
-		ID:               arg.ID,
-		Name:             arg.Name,
-		Icon:             arg.Icon,
-		Url:              arg.Url,
-		WildcardHostname: arg.WildcardHostname,
-		CreatedAt:        arg.CreatedAt,
-		UpdatedAt:        arg.UpdatedAt,
-		Deleted:          false,
+		ID:                arg.ID,
+		Name:              arg.Name,
+		DisplayName:       arg.DisplayName,
+		Icon:              arg.Icon,
+		Url:               arg.Url,
+		WildcardHostname:  arg.WildcardHostname,
+		TokenHashedSecret: arg.TokenHashedSecret,
+		CreatedAt:         arg.CreatedAt,
+		UpdatedAt:         arg.UpdatedAt,
+		Deleted:           false,
 	}
 	q.workspaceProxies = append(q.workspaceProxies, p)
 	return p, nil
