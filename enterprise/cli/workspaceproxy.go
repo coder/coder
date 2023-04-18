@@ -85,8 +85,8 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "register",
-		Short: "Register a workspace proxy",
+		Use:   "create",
+		Short: "Create a workspace proxy",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(0),
 			r.InitClient(client),
