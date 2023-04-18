@@ -19,7 +19,7 @@ import (
 )
 
 func TestScaleTest(t *testing.T) {
-	t.Skipf("This test is flakey. See https://github.com/coder/coder/issues/4942")
+	// t.Skipf("This test is flakey. See https://github.com/coder/coder/issues/4942")
 	t.Parallel()
 
 	// This test does a create-workspaces scale test with --no-cleanup, checks
