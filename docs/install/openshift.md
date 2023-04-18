@@ -85,13 +85,13 @@ coder:
     runAsGroup: <project-specific GID>
     readOnlyRootFilesystem: true
   volumes:
-  - name: "cache"
-    emptyDir:
-      sizeLimit: 500Mi
+    - name: "cache"
+      emptyDir:
+        sizeLimit: 500Mi
   volumeMounts:
-  - name: "cache"
-    mountPath: "/cache"
-    readOnly: false
+    - name: "cache"
+      mountPath: "/cache"
+      readOnly: false
 ```
 
 > Note: OpenShift provides a Developer Catalog offering you can use to
