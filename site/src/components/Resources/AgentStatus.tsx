@@ -391,6 +391,7 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(1),
     height: theme.spacing(1),
     borderRadius: "100%",
+    flexShrink: 0,
   },
 
   connected: {
@@ -424,7 +425,6 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(2.5),
     height: theme.spacing(2.5),
     position: "relative",
-    top: theme.spacing(1),
   },
 
   errorWarning: {
@@ -432,6 +432,5 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(2.5),
     height: theme.spacing(2.5),
     position: "relative",
-    top: theme.spacing(1),
   },
 }))

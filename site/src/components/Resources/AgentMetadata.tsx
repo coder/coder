@@ -202,25 +202,17 @@ export interface AgentMetadataViewProps {
 }
 
 export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
-  const styles = useStyles()
   if (metadata.length === 0) {
     return <></>
   }
   return (
-    <Stack
-      alignItems="flex-start"
-      direction="row"
-      spacing={5}
-      className={styles.metadataStack}
-    >
-      <div className={styles.metadataHeader}>
-        {metadata.map((m) => {
-          if (m.description === undefined) {
-            throw new Error("Metadata item description is undefined")
-          }
-          return <MetadataItem key={m.description.key} item={m} />
-        })}
-      </div>
+    <Stack alignItems="baseline" direction="row" spacing={6}>
+      {metadata.map((m) => {
+        if (m.description === undefined) {
+          throw new Error("Metadata item description is undefined")
+        }
+        return <MetadataItem key={m.description.key} item={m} />
+      })}
     </Stack>
   )
 }
@@ -289,31 +281,16 @@ export const AgentMetadata: FC<{
 // These are more or less copied from
 // site/src/components/Resources/ResourceCard.tsx
 const useStyles = makeStyles((theme) => ({
-  metadataStack: {
-    border: `2px dashed ${theme.palette.divider}`,
-    borderRadius: theme.shape.borderRadius,
-    width: "100%",
-    marginTop: theme.spacing(2),
-    marginBottom: theme.spacing(2),
-  },
-  metadataHeader: {
-    padding: "8px",
-    display: "flex",
-    gap: theme.spacing(5),
-    rowGap: theme.spacing(3),
-  },
-
   metadata: {
-    fontSize: 16,
+    fontSize: 12,
   },
 
   metadataLabel: {
-    fontSize: 12,
     color: theme.palette.text.secondary,
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
-    fontWeight: "bold",
+    fontWeight: 500,
   },
 
   metadataValue: {
@@ -324,8 +301,9 @@ const useStyles = makeStyles((theme) => ({
   },
 
   metadataValueSuccess: {
-    color: theme.palette.success.light,
+    color: theme.palette.text.primary,
   },
+
   metadataValueError: {
     color: theme.palette.error.main,
   },
