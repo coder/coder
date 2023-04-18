@@ -5563,6 +5563,28 @@ Parameter represents a set value for the scope.
 | `none` |
 | `data` |
 
+## healthcheck.AccessURLReport
+
+```json
+{
+  "err": null,
+  "healthy": true,
+  "healthzResponse": "string",
+  "reachable": true,
+  "statusCode": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description |
+| ----------------- | ------- | -------- | ------------ | ----------- |
+| `err`             | any     | false    |              |             |
+| `healthy`         | boolean | false    |              |             |
+| `healthzResponse` | string  | false    |              |             |
+| `reachable`       | boolean | false    |              |             |
+| `statusCode`      | integer | false    |              |             |
+
 ## healthcheck.DERPNodeReport
 
 ```json
@@ -5711,6 +5733,7 @@ Parameter represents a set value for the scope.
     "udp": true,
     "upnP": "string"
   },
+  "netcheck_err": null,
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
@@ -5833,6 +5856,7 @@ Parameter represents a set value for the scope.
 | ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
 | `healthy`          | boolean                                                      | false    |              |             |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
+| `netcheck_err`     | any                                                          | false    |              |             |
 | `netcheck_logs`    | array of string                                              | false    |              |             |
 | `regions`          | object                                                       | false    |              |             |
 | » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
@@ -5859,6 +5883,13 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "access_url": {
+    "err": null,
+    "healthy": true,
+    "healthzResponse": "string",
+    "reachable": true,
+    "statusCode": 0
+  },
   "derp": {
     "healthy": true,
     "netcheck": {
@@ -5891,6 +5922,7 @@ Parameter represents a set value for the scope.
       "udp": true,
       "upnP": "string"
     },
+    "netcheck_err": null,
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
@@ -6012,11 +6044,12 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name   | Type                                             | Required | Restrictions | Description                                      |
-| ------ | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------ |
-| `derp` | [healthcheck.DERPReport](#healthcheckderpreport) | false    |              |                                                  |
-| `pass` | boolean                                          | false    |              | Healthy is true if the report returns no errors. |
-| `time` | string                                           | false    |              | Time is the time the report was generated at.    |
+| Name         | Type                                                       | Required | Restrictions | Description                                      |
+| ------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
+| `access_url` | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
+| `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
+| `pass`       | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
+| `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
 
 ## netcheck.Report
 

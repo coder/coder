@@ -30,6 +30,7 @@ type DERPReport struct {
 	Regions map[int]*DERPRegionReport `json:"regions"`
 
 	Netcheck     *netcheck.Report `json:"netcheck"`
+	NetcheckErr  error            `json:"netcheck_err"`
 	NetcheckLogs []string         `json:"netcheck_logs"`
 }
 
@@ -66,23 +67,22 @@ type DERPReportOptions struct {
 	DERPMap *tailcfg.DERPMap
 }
 
-func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) error {
+func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 	r.Healthy = true
 	r.Regions = map[int]*DERPRegionReport{}
 
-	eg, ctx := errgroup.WithContext(ctx)
+	wg := &sync.WaitGroup{}
 
+	wg.Add(len(opts.DERPMap.Regions))
 	for _, region := range opts.DERPMap.Regions {
 		region := region
-		eg.Go(func() error {
+		go func() {
+			defer wg.Done()
 			regionReport := DERPRegionReport{
 				Region: region,
 			}
 
-			err := regionReport.Run(ctx)
-			if err != nil {
-				return xerrors.Errorf("run region report: %w", err)
-			}
+			regionReport.Run(ctx)
 
 			r.mu.Lock()
 			r.Regions[region.RegionID] = &regionReport
@@ -90,8 +90,7 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) error {
 				r.Healthy = false
 			}
 			r.mu.Unlock()
-			return nil
-		})
+		}()
 	}
 
 	ncLogf := func(format string, args ...interface{}) {
@@ -103,32 +102,29 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) error {
 		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil),
 		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
 	}
-	ncReport, err := nc.GetReport(ctx, opts.DERPMap)
-	if err != nil {
-		return xerrors.Errorf("run netcheck: %w", err)
-	}
-	r.Netcheck = ncReport
+	r.Netcheck, r.NetcheckErr = nc.GetReport(ctx, opts.DERPMap)
 
-	return eg.Wait()
+	wg.Wait()
 }
 
-func (r *DERPRegionReport) Run(ctx context.Context) error {
+func (r *DERPRegionReport) Run(ctx context.Context) {
 	r.Healthy = true
 	r.NodeReports = []*DERPNodeReport{}
-	eg, ctx := errgroup.WithContext(ctx)
 
+	wg := &sync.WaitGroup{}
+
+	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
 		node := node
-		eg.Go(func() error {
+		go func() {
+			defer wg.Done()
+
 			nodeReport := DERPNodeReport{
 				Node:    node,
 				Healthy: true,
 			}
 
-			err := nodeReport.Run(ctx)
-			if err != nil {
-				return xerrors.Errorf("run node report: %w", err)
-			}
+			nodeReport.Run(ctx)
 
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport)
@@ -136,11 +132,10 @@ func (r *DERPRegionReport) Run(ctx context.Context) error {
 				r.Healthy = false
 			}
 			r.mu.Unlock()
-			return nil
-		})
+		}()
 	}
 
-	return eg.Wait()
+	wg.Wait()
 }
 
 func (r *DERPNodeReport) derpURL() *url.URL {
@@ -159,7 +154,7 @@ func (r *DERPNodeReport) derpURL() *url.URL {
 	return derpURL
 }
 
-func (r *DERPNodeReport) Run(ctx context.Context) error {
+func (r *DERPNodeReport) Run(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -179,7 +174,6 @@ func (r *DERPNodeReport) Run(ctx context.Context) error {
 		r.STUN.Error != nil {
 		r.Healthy = false
 	}
-	return nil
 }
 
 func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {

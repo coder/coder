@@ -39,6 +39,13 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 ```json
 {
+  "access_url": {
+    "err": null,
+    "healthy": true,
+    "healthzResponse": "string",
+    "reachable": true,
+    "statusCode": 0
+  },
   "derp": {
     "healthy": true,
     "netcheck": {
@@ -71,6 +78,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
       "udp": true,
       "upnP": "string"
     },
+    "netcheck_err": null,
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {

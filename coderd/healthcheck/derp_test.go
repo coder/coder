@@ -58,8 +58,7 @@ func TestDERP(t *testing.T) {
 			}
 		)
 
-		err := report.Run(ctx, opts)
-		require.NoError(t, err)
+		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
 		for _, region := range report.Regions {
@@ -100,8 +99,7 @@ func TestDERP(t *testing.T) {
 		// Only include the Dallas region
 		opts.DERPMap.Regions = map[int]*tailcfg.DERPRegion{9: opts.DERPMap.Regions[9]}
 
-		err := report.Run(ctx, opts)
-		require.NoError(t, err)
+		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
 		for _, region := range report.Regions {
@@ -215,8 +213,7 @@ func TestDERP(t *testing.T) {
 			}
 		)
 
-		err := report.Run(ctx, opts)
-		require.NoError(t, err)
+		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
 		for _, region := range report.Regions {

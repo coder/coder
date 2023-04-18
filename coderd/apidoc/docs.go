@@ -9749,6 +9749,24 @@ const docTemplate = `{
                 "ParameterSourceSchemeData"
             ]
         },
+        "healthcheck.AccessURLReport": {
+            "type": "object",
+            "properties": {
+                "err": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "healthzResponse": {
+                    "type": "string"
+                },
+                "reachable": {
+                    "type": "boolean"
+                },
+                "statusCode": {
+                    "type": "integer"
+                }
+            }
+        },
         "healthcheck.DERPNodeReport": {
             "type": "object",
             "properties": {
@@ -9814,6 +9832,7 @@ const docTemplate = `{
                 "netcheck": {
                     "$ref": "#/definitions/netcheck.Report"
                 },
+                "netcheck_err": {},
                 "netcheck_logs": {
                     "type": "array",
                     "items": {
@@ -9843,6 +9862,9 @@ const docTemplate = `{
         "healthcheck.Report": {
             "type": "object",
             "properties": {
+                "access_url": {
+                    "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
