@@ -66,7 +66,7 @@ func TestFilterError(t *testing.T) {
 	t.Run("CancelledContext", func(t *testing.T) {
 		t.Parallel()
 
-		auth := &FakeAuthorizer{
+		auth := &MockAuthorizer{
 			AuthorizeFunc: func(ctx context.Context, subject Subject, action Action, object Object) error {
 				// Authorize func always returns nil, unless the context is cancelled.
 				return ctx.Err()
