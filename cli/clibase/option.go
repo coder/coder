@@ -80,6 +80,7 @@ func (s *OptionSet) Add(opts ...Option) {
 	*s = append(*s, opts...)
 }
 
+// Filter will only return options that match the given filter. (return true)
 func (s OptionSet) Filter(filter func(opt Option) bool) OptionSet {
 	cpy := make(OptionSet, 0)
 	for _, opt := range s {

@@ -193,6 +193,11 @@ func (textFormat) Format(_ context.Context, data any) (string, error) {
 	return fmt.Sprintf("%s", data), nil
 }
 
+// DataChangeFormat allows manipulating the data passed to an output format.
+// This is because sometimes the data needs to be manipulated before it can be
+// passed to the output format.
+// For example, you may want to pass something different to the text formatter
+// than what you pass to the json formatter.
 type DataChangeFormat struct {
 	format OutputFormat
 	change func(data any) (any, error)
