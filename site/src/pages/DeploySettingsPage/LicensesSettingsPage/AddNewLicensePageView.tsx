@@ -1,56 +1,114 @@
 
-import { Stack } from "components/Stack/Stack"
-import { FC, PropsWithChildren, useState } from "react"
-import { Header } from "components/DeploySettingsLayout/Header"
-import { FormSection, HorizontalForm } from "components/Form/Form"
+import { TextField, makeStyles, useTheme } from "@material-ui/core"
 import Button from "@material-ui/core/Button"
-import { DropzoneDialog } from "material-ui-dropzone"
-import { Divider, Input, TextareaAutosize, makeStyles } from "@material-ui/core"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
+import { Header } from "components/DeploySettingsLayout/Header"
+import { FormFields, FormSection } from "components/Form/Form"
+import { Stack } from "components/Stack/Stack"
+import { DropzoneDialog } from "material-ui-dropzone"
+import { FC, PropsWithChildren, useState } from "react"
+import Confetti from 'react-confetti'
+import { useToggle } from 'react-use'
+import useWindowSize from 'react-use/lib/useWindowSize'
 
 const AddNewLicense: FC = () => {
+  const styles = useStyles()
+  const { width, height } = useWindowSize()
+  const [confettiOn, toggleConfettiOn] = useToggle(false)
+  const [isDialogOpen, toggleDialogOpen] = useToggle(false)
+  const [files, setFiles] = useState<File[]>([]);
+  const theme = useTheme()
+
+  function handleSave(files: File[]) {
+    setFiles(files);
+    console.log(files)
+    toggleDialogOpen()
+    toggleConfettiOn()
+    setTimeout(() => {
+      toggleConfettiOn(false)
+    }, 2000 )
+  }
 
   return (
     <>
+      <Confetti
+        width={width}
+        height={height}
+        run={confettiOn}
+        colors={[theme.palette.primary.main, theme.palette.secondary.main]}
+      />
       <Stack alignItems="baseline" direction="row" justifyContent="space-between">
         <Header
           title="Add your license"
           description="Add a license to your account to unlock more features."
         />
+        <Button variant="outlined" color="primary" href="/deploy-settings/licenses">Back to licenses</Button>
       </Stack>
 
-
-      <HorizontalForm
-        onSubmit={(data: unknown) => {
-          console.log(data)
-        }}
+      <Stack
+        spacing={4}
       >
         <FormSection
           title="Upload license file"
           description="please upload the license file you received when you purchased your license."
+          classes={{
+            root: styles.formSectionRoot
+          }}
         >
 
 
-        <DropzoneDialogExample />
+          <Stack style={{
+            height: "100%",
+          }}>
+            <div>
+              <Button onClick={() => toggleDialogOpen()}>
+                Upload file
+              </Button>
+              <DropzoneDialog
+                open={isDialogOpen}
+                onSave={handleSave}
+                // acceptedFiles={['image/jpeg', 'image/png', 'image/bmp']}
+                showPreviews={false}
+                maxFileSize={1000000}
+                onClose={() => toggleDialogOpen(false)}
+              />
+            </div>
+          </Stack>
 
         </FormSection>
+        <FormFields>
 
-        <DividerWithText>or</DividerWithText>
+          <DividerWithText>or</DividerWithText>
+        </FormFields>
 
         <Fieldset
           title="Paste your license key"
           onSubmit={(data: unknown) => { console.log(data) }}
         >
+          <TextField placeholder="Paste your license key here" multiline rows={4} fullWidth />
 
-          </Fieldset>
-      </HorizontalForm>
+        </Fieldset>
+      </Stack>
     </>
   )
 }
 
 export default AddNewLicense
 
+
 const useStyles = makeStyles(theme => ({
+  formSectionRoot: {
+    alignItems: "center",
+  },
+  description: {
+    color: theme.palette.text.secondary,
+    lineHeight: "160%",
+  },
+  title: {
+    ...theme.typography.h5,
+    fontWeight: 600,
+    marging: theme.spacing(1)
+  },
   container: {
     display: "flex",
     alignItems: "center"
@@ -65,8 +123,8 @@ const useStyles = makeStyles(theme => ({
     paddingRight: theme.spacing(2),
     paddingLeft: theme.spacing(2),
     fontWeight: 500,
-    fontSize:  theme.typography.h5.fontSize,
-    color:  theme.palette.text.secondary
+    fontSize: theme.typography.h5.fontSize,
+    color: theme.palette.text.secondary
   }
 }));
 
@@ -80,37 +138,3 @@ const DividerWithText: FC<PropsWithChildren> = ({ children }) => {
     </div>
   );
 };
-
-const DropzoneDialogExample = (props) => {
-  const [open, setOpen] = useState(false);
-  const [files, setFiles] = useState([]);
-
-  function handleClose() {
-    setOpen(false);
-  }
-
-  function handleSave(files) {
-    setFiles(files);
-    setOpen(false);
-  }
-
-  function handleOpen() {
-    setOpen(true)
-  }
-
-  return (
-    <div>
-      <Button onClick={handleOpen}>
-        Add Image
-      </Button>
-      <DropzoneDialog
-        open={open}
-        onSave={handleSave}
-        acceptedFiles={['image/jpeg', 'image/png', 'image/bmp']}
-        showPreviews={true}
-        maxFileSize={5000000}
-        onClose={handleClose}
-      />
-    </div>
-  );
-}
