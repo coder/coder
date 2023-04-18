@@ -156,7 +156,7 @@ type sqlcQuerier interface {
 	// The hostname must be sanitized to only contain [a-zA-Z0-9.-] before calling
 	// this query. The scheme, port and path should be stripped.
 	//
-	GetWorkspaceProxyByHostname(ctx context.Context, hostname string) (WorkspaceProxy, error)
+	GetWorkspaceProxyByHostname(ctx context.Context, arg GetWorkspaceProxyByHostnameParams) (WorkspaceProxy, error)
 	GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (WorkspaceProxy, error)
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
 	GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResourceMetadatum, error)

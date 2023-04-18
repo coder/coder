@@ -466,6 +466,17 @@ export interface Healthcheck {
   readonly threshold: number
 }
 
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenRequest {
+  readonly url: string
+  readonly agentID: string
+}
+
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenResponse {
+  readonly signed_token: string
+}
+
 // From codersdk/licenses.go
 export interface License {
   readonly id: number

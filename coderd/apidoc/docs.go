@@ -159,6 +159,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/reconnecting-pty-signed-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Applications Enterprise"
+                ],
+                "summary": "Issue signed app token for reconnecting PTY",
+                "operationId": "issue-signed-app-token-for-reconnecting-pty",
+                "parameters": [
+                    {
+                        "description": "Issue reconnecting PTY signed token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/audit": {
             "get": {
                 "security": [
@@ -7370,6 +7412,31 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "URL specifies the endpoint to check for the app health.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenRequest": {
+            "type": "object",
+            "required": [
+                "agentID",
+                "url"
+            ],
+            "properties": {
+                "agentID": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "url": {
+                    "description": "URL is the URL of the reconnecting-pty endpoint you are connecting to.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenResponse": {
+            "type": "object",
+            "properties": {
+                "signed_token": {
                     "type": "string"
                 }
             }

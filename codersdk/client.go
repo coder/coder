@@ -256,8 +256,8 @@ func ReadBodyAsError(res *http.Response) error {
 
 	mimeType := parseMimeType(contentType)
 	if mimeType != "application/json" {
-		if len(resp) > 1024 {
-			resp = append(resp[:1024], []byte("...")...)
+		if len(resp) > 2048 {
+			resp = append(resp[:2048], []byte("...")...)
 		}
 		if len(resp) == 0 {
 			resp = []byte("no response body")
