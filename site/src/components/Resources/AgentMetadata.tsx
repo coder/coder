@@ -1,9 +1,7 @@
 import Popover from "@material-ui/core/Popover"
-import CircularProgress from "@material-ui/core/CircularProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
-import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"
 import {
   HelpTooltipText,
@@ -20,15 +18,21 @@ import {
   useState,
 } from "react"
 import { humanDuration } from "utils/duration"
+import { Skeleton } from "@material-ui/lab"
+import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+
+type ItemStatus = "stale" | "valid" | "loading"
 
 export const WatchAgentMetadataContext = createContext(watchAgentMetadata)
 
 const MetadataItemValue: FC<
-  PropsWithChildren<{ item: WorkspaceAgentMetadata }>
-> = ({ item, children }) => {
+  PropsWithChildren<{ item: WorkspaceAgentMetadata; status: ItemStatus }>
+> = ({ item, children, status }) => {
   const [isOpen, setIsOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
   const styles = useStyles()
+  const updatesInSeconds = -(item.description.interval - item.result.age)
+
   return (
     <>
       <div
@@ -38,6 +42,7 @@ const MetadataItemValue: FC<
       >
         {children}
       </div>
+
       <Popover
         anchorOrigin={{
           vertical: "bottom",
@@ -56,21 +61,57 @@ const MetadataItemValue: FC<
         }}
         classes={{ paper: styles.metadataPopover }}
       >
-        <HelpTooltipTitle>{item.description.display_name}</HelpTooltipTitle>
-        {item.result.value.length > 0 && (
+        {item.result.error.length > 0 ? (
           <>
-            <HelpTooltipText>Last result:</HelpTooltipText>
-            <HelpTooltipText>
-              <CodeExample code={item.result.value} />
-            </HelpTooltipText>
+            <div className={styles.metadataPopoverContent}>
+              <HelpTooltipTitle>
+                {item.description.display_name}
+              </HelpTooltipTitle>
+              <HelpTooltipText>
+                An error happened while executing the command{" "}
+                <pre className={styles.inlineCommand}>
+                  `{item.description.script}`
+                </pre>
+              </HelpTooltipText>
+            </div>
+            <div className={styles.metadataPopoverCode}>
+              <pre>{item.result.error}</pre>
+            </div>
           </>
-        )}
-        {item.result.error.length > 0 && (
+        ) : (
           <>
-            <HelpTooltipText>Last error:</HelpTooltipText>
-            <HelpTooltipText>
-              <CodeExample code={item.result.error} />
-            </HelpTooltipText>
+            <div className={styles.metadataPopoverContent}>
+              <HelpTooltipTitle>
+                {item.description.display_name}
+              </HelpTooltipTitle>
+              {status === "stale" ? (
+                <HelpTooltipText>
+                  This item is now stale because the agent hasn{"'"}t reported a
+                  new value in {humanDuration(item.result.age, "s")}.
+                </HelpTooltipText>
+              ) : (
+                <></>
+              )}
+              {status === "valid" ? (
+                <HelpTooltipText>
+                  The agent collected this value{" "}
+                  {humanDuration(item.result.age, "s")} ago and will update it
+                  in {humanDuration(Math.min(updatesInSeconds, 0), "s")}.
+                </HelpTooltipText>
+              ) : (
+                <></>
+              )}
+              {status === "loading" ? (
+                <HelpTooltipText>
+                  This value is loading for the first time...
+                </HelpTooltipText>
+              ) : (
+                <></>
+              )}
+            </div>
+            <div className={styles.metadataPopoverCode}>
+              <pre>{item.description.script}</pre>
+            </div>
           </>
         )}
       </Popover>
@@ -80,10 +121,6 @@ const MetadataItemValue: FC<
 
 const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   const styles = useStyles()
-
-  const [isOpen, setIsOpen] = useState(false)
-
-  const labelAnchorRef = useRef<HTMLDivElement>(null)
 
   if (item.result === undefined) {
     throw new Error("Metadata item result is undefined")
@@ -97,7 +134,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
     5,
   )
 
-  const status: "stale" | "valid" | "loading" = (() => {
+  const status: ItemStatus = (() => {
     const year = dayjs(item.result.collected_at).year()
     if (year <= 1970 || isNaN(year)) {
       return "loading"
@@ -113,7 +150,12 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   // could be buggy. But, how common is that anyways?
   const value =
     status === "stale" || status === "loading" ? (
-      <CircularProgress size={12} />
+      <Skeleton
+        width={65}
+        height={12}
+        variant="text"
+        className={styles.skeleton}
+      />
     ) : (
       <div
         className={
@@ -128,72 +170,15 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       </div>
     )
 
-  const updatesInSeconds = -(item.description.interval - item.result.age)
-
   return (
-    <>
-      <div className={styles.metadata}>
-        <div
-          className={styles.metadataLabel}
-          onMouseEnter={() => setIsOpen(true)}
-          role="presentation"
-          ref={labelAnchorRef}
-        >
-          {item.description.display_name}
-        </div>
-        <MetadataItemValue item={item}>{value}</MetadataItemValue>
+    <div className={styles.metadata}>
+      <div className={styles.metadataLabel} role="presentation">
+        {item.description.display_name}
       </div>
-      <Popover
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "left",
-        }}
-        open={isOpen}
-        anchorEl={labelAnchorRef.current}
-        onClose={() => setIsOpen(false)}
-        PaperProps={{
-          onMouseEnter: () => setIsOpen(true),
-          onMouseLeave: () => setIsOpen(false),
-        }}
-        classes={{ paper: styles.metadataPopover }}
-      >
-        <HelpTooltipTitle>{item.description.display_name}</HelpTooltipTitle>
-        {status === "stale" ? (
-          <HelpTooltipText>
-            This item is now stale because the agent hasn{"'"}t reported a new
-            value in {humanDuration(item.result.age, "s")}.
-          </HelpTooltipText>
-        ) : (
-          <></>
-        )}
-        {status === "valid" ? (
-          <HelpTooltipText>
-            The agent collected this value {humanDuration(item.result.age, "s")}{" "}
-            ago and will update it in{" "}
-            {humanDuration(Math.min(updatesInSeconds, 0), "s")}.
-          </HelpTooltipText>
-        ) : (
-          <></>
-        )}
-        {status === "loading" ? (
-          <HelpTooltipText>
-            This value is loading for the first time...
-          </HelpTooltipText>
-        ) : (
-          <></>
-        )}
-        <HelpTooltipText>
-          This value is produced by the following script:
-        </HelpTooltipText>
-        <HelpTooltipText>
-          <CodeExample code={item.description.script}></CodeExample>
-        </HelpTooltipText>
-      </Popover>
-    </>
+      <MetadataItemValue item={item} status={status}>
+        {value}
+      </MetadataItemValue>
+    </div>
   )
 }
 
@@ -224,7 +209,7 @@ export const AgentMetadata: FC<{
   const [metadata, setMetadata] = useState<
     WorkspaceAgentMetadata[] | undefined
   >(undefined)
-
+  const styles = useStyles()
   const watchAgentMetadata = useContext(WatchAgentMetadataContext)
 
   useEffect(() => {
@@ -264,14 +249,12 @@ export const AgentMetadata: FC<{
 
   if (metadata === undefined) {
     return (
-      <div
-        style={{
-          marginTop: 16,
-          marginBottom: 16,
-        }}
-      >
-        <CircularProgress size={16} />
-      </div>
+      <Skeleton
+        width={65}
+        height={12}
+        variant="text"
+        className={styles.skeleton}
+      />
     )
   }
 
@@ -310,10 +293,11 @@ const useStyles = makeStyles((theme) => ({
 
   metadataPopover: {
     marginTop: theme.spacing(0.5),
-    padding: theme.spacing(2.5),
+
     color: theme.palette.text.secondary,
     pointerEvents: "auto",
-    maxWidth: "480px",
+    width: "320px",
+    borderRadius: 4,
 
     "& .MuiButton-root": {
       padding: theme.spacing(1, 2),
@@ -324,5 +308,34 @@ const useStyles = makeStyles((theme) => ({
         background: theme.palette.action.hover,
       },
     },
+  },
+
+  metadataPopoverContent: {
+    padding: theme.spacing(2.5),
+  },
+
+  metadataPopoverCode: {
+    padding: theme.spacing(2.5),
+    fontFamily: MONOSPACE_FONT_FAMILY,
+    background: theme.palette.background.default,
+    color: theme.palette.text.primary,
+
+    "& pre": {
+      padding: 0,
+      margin: 0,
+    },
+  },
+
+  skeleton: {
+    marginTop: theme.spacing(0.5),
+  },
+
+  inlineCommand: {
+    fontFamily: MONOSPACE_FONT_FAMILY,
+    display: "inline-block",
+    fontWeight: 600,
+    margin: 0,
+    borderRadius: 4,
+    color: theme.palette.text.primary,
   },
 }))
