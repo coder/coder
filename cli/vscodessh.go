@@ -27,7 +27,7 @@ import (
 // This command needs to remain stable for compatibility with
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
-func (*RootCmd) vscodeSSH() *clibase.Cmd {
+func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 	var (
 		sessionTokenFile    string
 		urlFile             string
@@ -81,6 +81,12 @@ func (*RootCmd) vscodeSSH() *clibase.Cmd {
 
 			client := codersdk.New(serverURL)
 			client.SetSessionToken(string(sessionToken))
+
+			// This adds custom headers to the request!
+			err = r.setClient(client, serverURL)
+			if err != nil {
+				return xerrors.Errorf("set client: %w", err)
+			}
 
 			parts := strings.Split(inv.Args[0], "--")
 			if len(parts) < 3 {
