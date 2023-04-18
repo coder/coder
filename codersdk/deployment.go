@@ -339,7 +339,8 @@ const (
 	flagExternalProxies = "external_workspace_proxies"
 )
 
-func IsExternalProxies(opt clibase.Option) bool {
+// IsWorkspaceProxies returns true if the cli option is used by workspace proxies.
+func IsWorkspaceProxies(opt clibase.Option) bool {
 	// If it is a bool, use the bool value.
 	b, _ := strconv.ParseBool(opt.Annotations[flagExternalProxies])
 	return b

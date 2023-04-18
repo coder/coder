@@ -47,7 +47,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 	var (
 		cfg = new(codersdk.DeploymentValues)
 		// Filter options for only relevant ones.
-		opts = cfg.Options().Filter(codersdk.IsExternalProxies)
+		opts = cfg.Options().Filter(codersdk.IsWorkspaceProxies)
 
 		externalProxyOptionGroup = clibase.Group{
 			Name: "External Workspace Proxy",
@@ -84,7 +84,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			Hidden:      false,
 		},
 
-		// TODO: Make sure this is kept secret. Idk if a flag is the best option
+		// TODO: This will eventually be pulled over an authenticated api endpoint.
 		clibase.Option{
 			Name:        "App Security Key",
 			Description: "App security key used for decrypting/verifying app tokens sent from coderd.",

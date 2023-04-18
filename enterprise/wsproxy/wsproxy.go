@@ -220,9 +220,10 @@ func (s *Server) DialWorkspaceAgent(id uuid.UUID) (*codersdk.WorkspaceAgentConn,
 
 func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-		ExternalURL:  buildinfo.ExternalURL(),
-		Version:      buildinfo.Version(),
-		DashboardURL: s.DashboardURL.String(),
+		ExternalURL:    buildinfo.ExternalURL(),
+		Version:        buildinfo.Version(),
+		DashboardURL:   s.DashboardURL.String(),
+		WorkspaceProxy: true,
 	})
 }
 

@@ -319,6 +319,7 @@ export interface DERPServerConfig {
 export interface DangerousConfig {
   readonly allow_path_app_sharing: boolean
   readonly allow_path_app_site_owner_access: boolean
+  readonly dev_app_security_key: string
 }
 
 // From codersdk/deployment.go

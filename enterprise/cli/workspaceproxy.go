@@ -32,7 +32,7 @@ func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 func (r *RootCmd) deleteProxy() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "delete",
+		Use:   "delete <name|id>",
 		Short: "Delete a workspace proxy",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
