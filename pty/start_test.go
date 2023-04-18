@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hinshun/vt10x"
 	"github.com/stretchr/testify/assert"
@@ -60,7 +61,7 @@ func Test_Start_copy(t *testing.T) {
 func Test_Start_trucation(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 
 	pc, cmd, err := pty.Start(exec.CommandContext(ctx, cmdCount, argCount...))
@@ -71,7 +72,7 @@ func Test_Start_trucation(t *testing.T) {
 		defer close(readDone)
 		// avoid buffered IO so that we can precisely control how many bytes to read.
 		n := 1
-		for n < countEnd-25 {
+		for n <= countEnd {
 			want := fmt.Sprintf("%d", n)
 			err := readUntil(ctx, t, want, pc.OutputReader())
 			assert.NoError(t, err, "want: %s", want)
@@ -79,15 +80,19 @@ func Test_Start_trucation(t *testing.T) {
 				return
 			}
 			n++
+			if (countEnd - n) < 100 {
+				// If the OS buffers the output, the process can exit even if
+				// we're not done reading.  We want to slow our reads so that
+				// if there is a race between reading the data and it being
+				// truncated, we will lose and fail the test.
+				time.Sleep(testutil.IntervalFast)
+			}
 		}
+		// ensure we still get to EOF
+		endB := &bytes.Buffer{}
+		_, err := io.Copy(endB, pc.OutputReader())
+		assert.NoError(t, err)
 	}()
-
-	select {
-	case <-readDone:
-		// OK!
-	case <-ctx.Done():
-		t.Error("read timed out")
-	}
 
 	cmdDone := make(chan error)
 	go func() {
@@ -100,27 +105,6 @@ func Test_Start_trucation(t *testing.T) {
 	case <-ctx.Done():
 		t.Error("cmd.Wait() timed out")
 	}
-
-	// do our final 25 reads, to make sure the output wasn't lost
-	readDone = make(chan struct{})
-	go func() {
-		defer close(readDone)
-		// avoid buffered IO so that we can precisely control how many bytes to read.
-		n := countEnd - 25
-		for n <= countEnd {
-			want := fmt.Sprintf("%d", n)
-			err := readUntil(ctx, t, want, pc.OutputReader())
-			assert.NoError(t, err, "want: %s", want)
-			if err != nil {
-				return
-			}
-			n++
-		}
-		// ensure we still get to EOF
-		endB := &bytes.Buffer{}
-		_, err := io.Copy(endB, pc.OutputReader())
-		assert.NoError(t, err)
-	}()
 
 	select {
 	case <-readDone:
