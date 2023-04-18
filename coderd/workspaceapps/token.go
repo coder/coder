@@ -220,13 +220,30 @@ func (k SecurityKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	return payload.APIKey, nil
 }
 
+// FromRequest returns the signed token from the request, if it exists and is
+// valid. The caller must check that the token matches the request.
 func FromRequest(r *http.Request, key SecurityKey) (*SignedToken, bool) {
-	// Get the existing token from the request.
-	tokenCookie, err := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
-	if err == nil {
-		token, err := key.VerifySignedToken(tokenCookie.Value)
+	// Get the token string from the request. We usually use a cookie for this,
+	// but for web terminal we also support a query parameter to support
+	// cross-domain terminal access.
+	tokenStr := ""
+	tokenCookie, cookieErr := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
+	if cookieErr == nil {
+		tokenStr = tokenCookie.Value
+	} else {
+		tokenStr = r.URL.Query().Get(codersdk.SignedAppTokenQueryParameter)
+	}
+
+	if tokenStr != "" {
+		token, err := key.VerifySignedToken(tokenStr)
 		if err == nil {
 			req := token.Request.Normalize()
+			if cookieErr != nil && req.AccessMethod != AccessMethodTerminal {
+				// The request must be a terminal request if we're using a
+				// query parameter.
+				return nil, false
+			}
+
 			err := req.Validate()
 			if err == nil {
 				// The request has a valid signed app token, which is a valid

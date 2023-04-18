@@ -46,6 +46,15 @@ const (
 	// token.
 	//nolint:gosec
 	DevURLSignedAppTokenCookie = "coder_devurl_signed_app_token"
+	// SignedAppTokenQueryParameter is the name of the query parameter that
+	// stores a temporary JWT that can be used to authenticate instead of the
+	// session token. This is only acceptable on reconnecting-pty requests, not
+	// apps.
+	//
+	// It has a random suffix to avoid conflict with user query parameters on
+	// apps.
+	//nolint:gosec
+	SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde"
 
 	// BypassRatelimitHeader is the custom header to use to bypass ratelimits.
 	// Only owners can bypass rate limits. This is typically used for scale testing.

@@ -359,6 +359,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, res.SignedToken)
 
-		// Verify the token is valid for connecting to the terminal.
+		// The token is validated in the apptest suite, so we don't need to
+		// validate it here.
 	})
 }
