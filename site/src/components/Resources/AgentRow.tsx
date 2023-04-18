@@ -432,27 +432,6 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: "auto",
   },
 
-  startupLinks: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(2),
-    marginTop: theme.spacing(0.5),
-  },
-
-  startupLink: {
-    cursor: "pointer",
-    display: "flex",
-    gap: 4,
-    alignItems: "center",
-    userSelect: "none",
-    whiteSpace: "nowrap",
-
-    "& svg": {
-      width: 12,
-      height: 12,
-    },
-  },
-
   startupLogs: {
     maxHeight: 256,
     borderBottom: `1px solid ${theme.palette.divider}`,
@@ -467,12 +446,6 @@ const useStyles = makeStyles((theme) => ({
 
   startupScriptPopover: {
     backgroundColor: theme.palette.background.default,
-  },
-
-  agentStatusWrapper: {
-    width: theme.spacing(4.5),
-    display: "flex",
-    justifyContent: "center",
   },
 
   agentNameAndStatus: {
@@ -490,10 +463,6 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: 260,
   },
 
-  agentOS: {
-    textTransform: "capitalize",
-  },
-
   agentDataGroup: {
     display: "flex",
     alignItems: "baseline",
@@ -509,12 +478,6 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 500,
       color: theme.palette.text.secondary,
     },
-  },
-
-  agentStartupLogs: {
-    maxHeight: 200,
-    display: "flex",
-    flexDirection: "column-reverse",
   },
 
   apps: {
