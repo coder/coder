@@ -1,5 +1,5 @@
 
-import { TextField, makeStyles, useTheme } from "@material-ui/core"
+import { makeStyles, useTheme } from "@material-ui/core/styles"
 import Button from "@material-ui/core/Button"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
@@ -8,8 +8,12 @@ import { Stack } from "components/Stack/Stack"
 import { DropzoneDialog } from "material-ui-dropzone"
 import { FC, PropsWithChildren, useState } from "react"
 import Confetti from 'react-confetti'
+import { NavLink, Link as RouterLink } from "react-router-dom"
 import { useToggle } from 'react-use'
 import useWindowSize from 'react-use/lib/useWindowSize'
+import TextField from "@material-ui/core/TextField"
+import PlusOneOutlined from "@material-ui/icons/PlusOneOutlined"
+import { CloudUploadOutlined } from "@material-ui/icons"
 
 const AddNewLicense: FC = () => {
   const styles = useStyles()
@@ -26,7 +30,7 @@ const AddNewLicense: FC = () => {
     toggleConfettiOn()
     setTimeout(() => {
       toggleConfettiOn(false)
-    }, 2000 )
+    }, 2000)
   }
 
   return (
@@ -42,7 +46,13 @@ const AddNewLicense: FC = () => {
           title="Add your license"
           description="Add a license to your account to unlock more features."
         />
-        <Button variant="outlined" color="primary" href="/deploy-settings/licenses">Back to licenses</Button>
+        <Button
+          component={RouterLink}
+          to="/settings/deployment/licenses"
+          variant="outlined"
+        >
+          Back to licenses
+        </Button>
       </Stack>
 
       <Stack
@@ -61,8 +71,12 @@ const AddNewLicense: FC = () => {
             height: "100%",
           }}>
             <div>
-              <Button onClick={() => toggleDialogOpen()}>
-                Upload file
+              <Button
+              startIcon={<CloudUploadOutlined />}
+              size="large"
+              variant="contained"
+                onClick={() => toggleDialogOpen()}>
+                Upload license file
               </Button>
               <DropzoneDialog
                 open={isDialogOpen}
@@ -83,7 +97,9 @@ const AddNewLicense: FC = () => {
 
         <Fieldset
           title="Paste your license key"
-          onSubmit={(data: unknown) => { console.log(data) }}
+          onSubmit={(data: unknown) => {
+            console.log(data)
+          }}
         >
           <TextField placeholder="Paste your license key here" multiline rows={4} fullWidth />
 

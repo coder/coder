@@ -10,6 +10,7 @@ import { Button, Card, CardContent, Typography } from "@material-ui/core"
 import dayjs from "dayjs"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { PlusOneOutlined } from "@material-ui/icons"
+import { Link, NavLink } from "react-router-dom"
 
 const LicensesSettingsPage: FC = () => {
   const { data: licenses, isLoading } = useQuery({
@@ -32,10 +33,11 @@ const LicensesSettingsPage: FC = () => {
         />
 
         <Button
-          component="a"
-          target="_blank"
+          variant="outlined"
+          component={Link}
+          to="/settings/deployment/licenses/add"
         >
-          Add a license
+          Add new license
         </Button>
 
       </Stack>

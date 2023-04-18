@@ -7,7 +7,6 @@ import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPage"
-import LicensesSettingsPage from "pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
@@ -157,6 +156,9 @@ const TemplateSchedulePage = lazy(
     ),
 )
 
+const LicensesSettingsPage = lazy(() => import("./pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"))
+const AddNewLicensePageView = lazy(() => import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePageView"))
+
 export const AppRouter: FC = () => {
   return (
     <Suspense fallback={<FullScreenLoader />}>
@@ -246,6 +248,7 @@ export const AppRouter: FC = () => {
               >
                 <Route path="general" element={<GeneralSettingsPage />} />
                 <Route path="licenses" element={<LicensesSettingsPage />} />
+                <Route path="licenses/add" element={<AddNewLicensePageView />} />
                 <Route path="security" element={<SecuritySettingsPage />} />
                 <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />
