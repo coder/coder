@@ -71,6 +71,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 				return fmt.Sprintf("Workspace Proxy %q registered successfully\nToken: %s", response.Proxy.Name, response.ProxyToken), nil
 			}),
 			cliui.JSONFormat(),
+			// Table formatter expects a slice, make a slice of one.
 			cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.CreateWorkspaceProxyResponse{}, []string{"proxy name", "proxy url", "proxy token"}),
 				func(data any) (any, error) {
 					response, ok := data.(codersdk.CreateWorkspaceProxyResponse)

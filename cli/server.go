@@ -167,6 +167,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		devAppSecurityKey string
 	)
 	opts.Add(
+		// This should be temporary until we support sending this over to the
+		// proxy via some authenticated api call.
 		clibase.Option{
 			Name:        "App Security Key (Development Only)",
 			Description: "Used to override the app security key stored in the database. This should never be used in production.",
