@@ -71,8 +71,10 @@ var argEcho = []string{"test"}
 
 // these constants/vars are used by Test_Start_truncate
 
-const countEnd = 1000
-const cmdCount = "sh"
+const (
+	countEnd = 1000
+	cmdCount = "sh"
+)
 
 var argCount = []string{"-c", `
 i=0

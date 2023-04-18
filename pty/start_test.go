@@ -8,12 +8,13 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/coder/coder/pty"
 	"github.com/hinshun/vt10x"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/pty"
+	"github.com/coder/coder/testutil"
 )
 
 // Test_Start_copy tests that we can use io.Copy() on command output
@@ -21,7 +22,7 @@ import (
 func Test_Start_copy(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
 	pc, cmd, err := pty.Start(exec.CommandContext(ctx, cmdEcho, argEcho...))
@@ -54,12 +55,12 @@ func Test_Start_copy(t *testing.T) {
 	}
 }
 
-// Test_Start_truncation tests that we can read command ouput without truncation
+// Test_Start_truncation tests that we can read command output without truncation
 // even after the command has exited.
 func Test_Start_trucation(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1000)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	pc, cmd, err := pty.Start(exec.CommandContext(ctx, cmdCount, argCount...))
@@ -73,7 +74,10 @@ func Test_Start_trucation(t *testing.T) {
 		for n < countEnd-25 {
 			want := fmt.Sprintf("%d", n)
 			err := readUntil(ctx, t, want, pc.OutputReader())
-			require.NoError(t, err, "want: %s", want)
+			assert.NoError(t, err, "want: %s", want)
+			if err != nil {
+				return
+			}
 			n++
 		}
 	}()
@@ -106,14 +110,16 @@ func Test_Start_trucation(t *testing.T) {
 		for n <= countEnd {
 			want := fmt.Sprintf("%d", n)
 			err := readUntil(ctx, t, want, pc.OutputReader())
-			require.NoError(t, err, "want: %s", want)
+			assert.NoError(t, err, "want: %s", want)
+			if err != nil {
+				return
+			}
 			n++
 		}
 		// ensure we still get to EOF
 		endB := &bytes.Buffer{}
 		_, err := io.Copy(endB, pc.OutputReader())
-		require.NoError(t, err)
-
+		assert.NoError(t, err)
 	}()
 
 	select {

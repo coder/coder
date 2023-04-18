@@ -60,7 +60,9 @@ var argEcho = []string{"/c", "echo", "test"}
 
 // these constants/vars are used by Test_Start_truncate
 
-const countEnd = 1000
-const cmdCount = "cmd.exe"
+const (
+	countEnd = 1000
+	cmdCount = "cmd.exe"
+)
 
 var argCount = []string{"/c", fmt.Sprintf("for /L %%n in (1,1,%d) do @echo %%n", countEnd)}
