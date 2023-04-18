@@ -1737,7 +1737,8 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "allow_path_app_sharing": true,
-  "allow_path_app_site_owner_access": true
+  "allow_path_app_site_owner_access": true,
+  "dev_app_security_key": "string"
 }
 ```
 
@@ -1747,6 +1748,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ---------------------------------- | ------- | -------- | ------------ | ----------- |
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
+| `dev_app_security_key`             | string  | false    |              |             |
 
 ## codersdk.DeploymentConfig
 
@@ -1794,7 +1796,8 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     },
     "dangerous": {
       "allow_path_app_sharing": true,
-      "allow_path_app_site_owner_access": true
+      "allow_path_app_site_owner_access": true,
+      "dev_app_security_key": "string"
     },
     "derp": {
       "config": {
@@ -2138,7 +2141,8 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   },
   "dangerous": {
     "allow_path_app_sharing": true,
-    "allow_path_app_site_owner_access": true
+    "allow_path_app_site_owner_access": true,
+    "dev_app_security_key": "string"
   },
   "derp": {
     "config": {

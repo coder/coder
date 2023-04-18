@@ -6980,6 +6980,9 @@ const docTemplate = `{
                 },
                 "allow_path_app_site_owner_access": {
                     "type": "boolean"
+                },
+                "dev_app_security_key": {
+                    "type": "string"
                 }
             }
         },
