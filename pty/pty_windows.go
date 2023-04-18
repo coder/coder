@@ -176,7 +176,7 @@ func (p *windowsProcess) waitInternal() {
 			if ret < 0 && p.cmdErr == nil {
 				// if we already have an error from the command, prefer that error
 				// but if the command succeeded and closing the PseudoConsole fails
-				// then record that errror so that we have a chance to see it
+				// then record that error so that we have a chance to see it
 				p.cmdErr = err
 			}
 			p.pw.console = windows.InvalidHandle
