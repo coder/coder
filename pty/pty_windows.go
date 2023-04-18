@@ -141,6 +141,10 @@ func (p *ptyWindows) Close() error {
 	}
 	p.closed = true
 
+	// if we are running a command in the PTY, the corresponding *windowsProcess
+	// may have already closed the PseudoConsole when the command exited, so that
+	// output reads can get to EOF.  In that case, we don't need to close it
+	// again here.
 	if p.console != windows.InvalidHandle {
 		ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
 		if ret < 0 {
@@ -169,9 +173,11 @@ func (p *windowsProcess) waitInternal() {
 		defer p.pw.closeMutex.Unlock()
 		if p.pw.console != windows.InvalidHandle {
 			ret, _, err := procClosePseudoConsole.Call(uintptr(p.pw.console))
-			if ret < 0 {
-				// not much we can do here...
-				panic(err)
+			if ret < 0 && p.cmdErr == nil {
+				// if we already have an error from the command, prefer that error
+				// but if the command succeeded and closing the PseudoConsole fails
+				// then record that errror so that we have a chance to see it
+				p.cmdErr = err
 			}
 			p.pw.console = windows.InvalidHandle
 		}

@@ -174,6 +174,8 @@ require (
 	tailscale.com v1.32.2
 )
 
+require github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02 // indirect
+
 require (
 	cloud.google.com/go/compute v1.18.0 // indirect
 	cloud.google.com/go/logging v1.6.1 // indirect

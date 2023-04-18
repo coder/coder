@@ -62,3 +62,23 @@ func TestStart(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+// these constants/vars are used by Test_Start_copy
+
+const cmdEcho = "echo"
+
+var argEcho = []string{"test"}
+
+// these constants/vars are used by Test_Start_truncate
+
+const countEnd = 1000
+const cmdCount = "sh"
+
+var argCount = []string{"-c", `
+i=0
+while [ $i -ne 1000 ]
+do
+        i=$(($i+1))
+        echo "$i"
+done
+`}
