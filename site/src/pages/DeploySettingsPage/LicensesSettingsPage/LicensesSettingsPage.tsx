@@ -1,12 +1,12 @@
 import { makeStyles, useTheme } from "@material-ui/core/styles"
 import RemoveCircleOutlineSharp from "@material-ui/icons/RemoveCircleOutlineSharp"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { useMachine } from "@xstate/react"
-import { getLicenses } from "api/api"
+import { getLicenses, removeLicense } from "api/api"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { Stack } from "components/Stack/Stack"
 import dayjs from "dayjs"
-import { FC, useEffect } from "react"
+import { FC, useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { Link, useSearchParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
@@ -19,6 +19,8 @@ import Card from "@material-ui/core/Card"
 import CardContent from "@material-ui/core/CardContent"
 import Box from "@material-ui/core/Box"
 import Skeleton from "@material-ui/lab/Skeleton"
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils"
 
 const LicensesSettingsPage: FC = () => {
   const [entitlementsState] = useMachine(entitlementsMachine)
@@ -27,11 +29,21 @@ const LicensesSettingsPage: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const success = searchParams.get("success")
   const [confettiOn, toggleConfettiOn] = useToggle(false)
+  const [licenseIDMarkedForRemoval, setLicenseIDMarkedForRemoval] = useState<
+    number | undefined
+  >(undefined)
   const { width, height } = useWindowSize()
+
+  const { mutate: removeLicenseApi, isLoading: isRemovingLicense } =
+    useMutation(removeLicense)
 
   const theme = useTheme()
 
-  const { data: licenses, isLoading } = useQuery({
+  const {
+    data: licenses,
+    isLoading,
+    refetch: refetchGetLicenses,
+  } = useQuery({
     queryKey: ["licenses"],
     queryFn: () => getLicenses(),
   })
@@ -49,13 +61,39 @@ const LicensesSettingsPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle("General Settings")}</title>
+        <title>{pageTitle("License Settings")}</title>
       </Helmet>
       <Confetti
         width={width}
         height={height}
         numberOfPieces={confettiOn ? 200 : 0}
         colors={[theme.palette.primary.main, theme.palette.secondary.main]}
+      />
+      <ConfirmDialog
+        type="info"
+        hideCancel={false}
+        open={licenseIDMarkedForRemoval !== undefined}
+        onConfirm={() => {
+          if (!licenseIDMarkedForRemoval) {
+            return
+          }
+          removeLicenseApi(licenseIDMarkedForRemoval, {
+            onSuccess: () => {
+              displaySuccess("Successfully removed license")
+              void refetchGetLicenses()
+            },
+            onError: () => {
+              displayError("Failed to remove license")
+              void refetchGetLicenses()
+            },
+          })
+          setLicenseIDMarkedForRemoval(undefined)
+        }}
+        onClose={() => setLicenseIDMarkedForRemoval(undefined)}
+        title="Confirm removal"
+        confirmLoading={isRemovingLicense}
+        confirmText="Remove"
+        description="Are you sure you want to remove this license?"
       />
       <Stack
         alignItems="baseline"
@@ -72,7 +110,7 @@ const LicensesSettingsPage: FC = () => {
           component={Link}
           to="/settings/deployment/licenses/add"
         >
-          Add new License
+          Add new License key
         </Button>
       </Stack>
 
@@ -117,7 +155,9 @@ const LicensesSettingsPage: FC = () => {
 
                     <Stack direction="column" spacing={0} alignItems="center">
                       <span className={styles.expirationDate}>
-                        {dayjs(license.expires_at).format("MMMM D, YYYY")}
+                        {dayjs
+                          .unix(license.claims.license_expires)
+                          .format("MMMM D, YYYY")}
                       </span>
                       <span className={styles.expirationDateLabel}>
                         Valid until
@@ -128,6 +168,7 @@ const LicensesSettingsPage: FC = () => {
                         startIcon={<RemoveCircleOutlineSharp />}
                         variant="text"
                         size="small"
+                        onClick={() => setLicenseIDMarkedForRemoval(license.id)}
                       >
                         Remove
                       </Button>
@@ -143,7 +184,7 @@ const LicensesSettingsPage: FC = () => {
       {!isLoading && licenses && licenses.length === 0 && (
         <Stack spacing={4} justifyContent="center" alignItems="center">
           <Button className={styles.ctaButton} size="large">
-            Add your license
+            Add your license key
           </Button>
         </Stack>
       )}

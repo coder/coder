@@ -986,6 +986,17 @@ export const getLicenses = async (): Promise<GetLicensesResponse[]> => {
   return response.data
 }
 
+export const createLicense = async (
+  data: TypesGen.AddLicenseRequest,
+): Promise<TypesGen.AddLicenseRequest> => {
+  const response = await axios.post(`/api/v2/licenses`, data)
+  return response.data
+}
+
+export const removeLicense = async (licenseId: number): Promise<void> => {
+  await axios.delete(`/api/v2/licenses/${licenseId}`)
+}
+
 export class MissingBuildParameters extends Error {
   parameters: TypesGen.TemplateVersionParameter[] = []
 

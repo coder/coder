@@ -2,24 +2,54 @@ import Button from "@material-ui/core/Button"
 import TextField from "@material-ui/core/TextField"
 import { makeStyles } from "@material-ui/core/styles"
 import CloudUploadOutlined from "@material-ui/icons/CloudUploadOutlined"
+import { useMutation } from "@tanstack/react-query"
+import { createLicense } from "api/api"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils"
 import { Stack } from "components/Stack/Stack"
 import { DropzoneDialog } from "material-ui-dropzone"
-import { FC, PropsWithChildren, useState } from "react"
+import { FC, PropsWithChildren } from "react"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { useToggle } from "react-use"
 
 const AddNewLicense: FC = () => {
   const styles = useStyles()
   const [isDialogOpen, toggleDialogOpen] = useToggle(false)
-  const [files, setFiles] = useState<File[]>([])
   const navigate = useNavigate()
 
-  function handleSave(files: File[]) {
-    setFiles(files)
-    toggleDialogOpen()
-    navigate("/settings/deployment/licenses#success=true")
+  const {
+    mutate: saveLicenseKeyApi,
+    isLoading: isCreating,
+    isError: creationFailed,
+  } = useMutation(createLicense)
+
+  function handleFileUploaded(files: File[]) {
+    const fileReader = new FileReader()
+    fileReader.onload = () => {
+      const licenseKey = fileReader.result as string
+
+      saveLicenseKey(licenseKey)
+
+      fileReader.onerror = () => {
+        displayError("Failed to read file")
+      }
+    }
+
+    fileReader.readAsText(files[0])
+  }
+
+  function saveLicenseKey(licenseKey: string) {
+    saveLicenseKeyApi(
+      { license: licenseKey },
+      {
+        onSuccess: () => {
+          displaySuccess("License key saved")
+          navigate("/settings/deployment/licenses?success=true")
+        },
+        onError: () => displayError("Failed to save license key"),
+      },
+    )
   }
 
   return (
@@ -50,13 +80,12 @@ const AddNewLicense: FC = () => {
             size="large"
             onClick={() => toggleDialogOpen()}
           >
-            Upload License File
+            Upload License Key
           </Button>
         </Stack>
         <DropzoneDialog
           open={isDialogOpen}
-          onSave={handleSave}
-          // acceptedFiles={['image/jpeg', 'image/png', 'image/bmp']}
+          onSave={handleFileUploaded}
           showPreviews
           maxFileSize={1000000}
           onClose={() => toggleDialogOpen(false)}
@@ -66,11 +95,25 @@ const AddNewLicense: FC = () => {
 
         <Fieldset
           title="Paste your license key"
-          onSubmit={(data: unknown) => {
-            console.log(data)
+          validation={creationFailed ? "License key is invalid" : undefined}
+          onSubmit={(e) => {
+            e.preventDefault()
+
+            const form = e.target
+            const formData = new FormData(form as HTMLFormElement)
+
+            const licenseKey = formData.get("licenseKey")
+
+            saveLicenseKey(licenseKey?.toString() || "")
           }}
+          button={
+            <Button type="submit" disabled={isCreating}>
+              Save License
+            </Button>
+          }
         >
           <TextField
+            name="licenseKey"
             placeholder="Paste your license key here"
             multiline
             rows={4}
