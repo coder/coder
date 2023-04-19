@@ -100,17 +100,62 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
+			// Enure connection is closed if the context is canceled or
+			// the workspace reaches the stopped state.
+			//
+			// Watching the stopped state is a work-around for cases
+			// where the agent is not gracefully shut down and the
+			// connection is left open. If, for instance, the networking
+			// is stopped before the agent is shut down, the disconnect
+			// will usually not propagate.
+			//
+			// See: https://github.com/coder/coder/issues/6180
+			wsWatch, err := client.WatchWorkspace(ctx, workspace.ID)
+			if err != nil {
+				return err
+			}
+			watchAndClose := func(c io.Closer) {
+				// Ensure session is ended on both context cancellation
+				// and workspace stop.
+				defer c.Close()
+
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case w, ok := <-wsWatch:
+						if !ok {
+							return
+						}
+
+						// Note, we only react to the stopped state here because we
+						// want to give the agent a chance to gracefully shut down
+						// during "stopping".
+						if w.LatestBuild.Status == codersdk.WorkspaceStatusStopped {
+							_, _ = fmt.Fprintf(inv.Stderr, "Workspace %q has stopped. Closing connection.\r\n", workspace.Name)
+							return
+						}
+					}
+				}
+			}
+
 			if stdio {
 				rawSSH, err := conn.SSH(ctx)
 				if err != nil {
 					return err
 				}
 				defer rawSSH.Close()
+				go watchAndClose(rawSSH)
 
 				go func() {
-					_, _ = io.Copy(inv.Stdout, rawSSH)
+					// Ensure stdout copy closes incase stdin is closed
+					// unexpectedly. Typically we wouldn't worry about
+					// this since OpenSSH should kill the proxy command.
+					defer rawSSH.Close()
+
+					_, _ = io.Copy(rawSSH, inv.Stdin)
 				}()
-				_, _ = io.Copy(rawSSH, inv.Stdin)
+				_, _ = io.Copy(inv.Stdout, rawSSH)
 				return nil
 			}
 
@@ -125,13 +170,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				return err
 			}
 			defer sshSession.Close()
-
-			// Ensure context cancellation is propagated to the
-			// SSH session, e.g. to cancel `Wait()` at the end.
-			go func() {
-				<-ctx.Done()
-				_ = sshSession.Close()
-			}()
+			go watchAndClose(sshSession)
 
 			if identityAgent == "" {
 				identityAgent = os.Getenv("SSH_AUTH_SOCK")
