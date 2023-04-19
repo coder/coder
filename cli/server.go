@@ -1755,7 +1755,7 @@ func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	_ = version.Close()
 
 	if versionNum < 130000 {
-		return nil, xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
+		return nil, xerrors.Errorf("PostgreSQL version must be v13.0.0 or higher! Got: %d", versionNum)
 	}
 	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionNum))
 
