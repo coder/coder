@@ -16,8 +16,6 @@ set -euo pipefail
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
-# Hard coded app security key for the proxy to also use.
-app_security_key=bea458bcfb31990fb70f14a7003c0aad4f371f19653f3a632bc9d3492004cd95e0e542c30e5f158f26728373190bfc802b1c1549f52c149af8ad7f5b12ea1ee0995b95de3b86ae78f021c17437649224cd2dcf1b298d180811cf36f4dcb8f33e
 
 args="$(getopt -o "" -l use-proxy,agpl,password: -- "$@")"
 eval set -- "$args"
@@ -133,7 +131,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" --dangerous-dev-app-security-key ${app_security_key} --experiments "*" "$@"
+	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" --experiments "*" "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
@@ -187,7 +185,7 @@ fatal() {
 			# Create the proxy
 			proxy_session_token=$("${CODER_DEV_SHIM}" proxy create --name=local-proxy --display-name="Local Proxy" --icon="/emojis/1f4bb.png" --access-url=http://localhost:3010 --only-token)
 			# Start the proxy
-			start_cmd PROXY "" "${CODER_DEV_SHIM}" proxy server --http-address=localhost:3010 --proxy-session-token="${proxy_session_token}" --primary-access-url=http://localhost:3000 --app-security-key="${app_security_key}"
+			start_cmd PROXY "" "${CODER_DEV_SHIM}" proxy server --http-address=localhost:3010 --proxy-session-token="${proxy_session_token}" --primary-access-url=http://localhost:3000
 		) || echo "Failed to create workspace proxy. No workspace proxy created."
 	fi
 
