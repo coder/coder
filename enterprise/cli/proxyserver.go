@@ -99,7 +99,6 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 		},
 	)
 
-	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:     "server",
 		Short:   "Start a workspace proxy server",
@@ -108,8 +107,6 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			cli.WriteConfigMW(cfg),
 			cli.PrintDeprecatedOptions(),
 			clibase.RequireNArgs(0),
-			// We need a client to connect with the primary coderd instance.
-			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			if !(primaryAccessURL.Scheme == "http" || primaryAccessURL.Scheme == "https") {
