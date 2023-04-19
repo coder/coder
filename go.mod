@@ -168,7 +168,6 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20221203005347-703fd9b7fbc0
-	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.33-0.20220622181519-9206537a4db7
 	tailscale.com v1.32.2
