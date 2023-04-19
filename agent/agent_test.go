@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/pty"
+
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
@@ -481,17 +483,10 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	pty := ptytest.New(t)
-
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "5"})
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
-	cmd.Stderr = pty.Output()
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "5"})
 
 	go func() {
-		err := cmd.Wait()
+		err := proc.Wait()
 		select {
 		case <-done:
 		default:
@@ -523,7 +518,7 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 //nolint:paralleltest // This test reserves a port.
@@ -562,17 +557,10 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	pty := ptytest.New(t)
-
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "5"})
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
-	cmd.Stderr = pty.Output()
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "5"})
 
 	go func() {
-		err := cmd.Wait()
+		err := proc.Wait()
 		select {
 		case <-done:
 		default:
@@ -604,7 +592,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 func TestAgent_UnixLocalForwarding(t *testing.T) {
@@ -641,17 +629,10 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	pty := ptytest.New(t)
-
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "5"})
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
-	cmd.Stderr = pty.Output()
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "5"})
 
 	go func() {
-		err := cmd.Wait()
+		err := proc.Wait()
 		select {
 		case <-done:
 		default:
@@ -676,7 +657,7 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 	_ = conn.Close()
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 func TestAgent_UnixRemoteForwarding(t *testing.T) {
@@ -713,17 +694,10 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	pty := ptytest.New(t)
-
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "5"})
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
-	cmd.Stderr = pty.Output()
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "5"})
 
 	go func() {
-		err := cmd.Wait()
+		err := proc.Wait()
 		select {
 		case <-done:
 		default:
@@ -750,7 +724,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 func TestAgent_SFTP(t *testing.T) {
@@ -1629,7 +1603,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
+func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) (*ptytest.PTYCmd, pty.Process) {
 	//nolint:dogsled
 	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -1671,7 +1645,8 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 		"host",
 	)
 	args = append(args, afterArgs...)
-	return exec.Command("ssh", args...)
+	cmd := exec.Command("ssh", args...)
+	return ptytest.Start(t, cmd)
 }
 
 func setupSSHSession(t *testing.T, options agentsdk.Manifest) *ssh.Session {
