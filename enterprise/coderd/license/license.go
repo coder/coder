@@ -52,6 +52,13 @@ func Entitlements(
 		return entitlements, xerrors.Errorf("query active user count: %w", err)
 	}
 
+	// always shows active user count regardless of license
+	entitlements.Features[codersdk.FeatureUserLimit] = codersdk.Feature{
+		Entitlement: codersdk.EntitlementNotEntitled,
+		Enabled:     enablements[codersdk.FeatureUserLimit],
+		Actual:      &activeUserCount,
+	}
+
 	allFeatures := false
 
 	// Here we loop through licenses to detect enabled features.
@@ -79,6 +86,7 @@ func Entitlements(
 			switch featureName {
 			// User limit has special treatment as our only non-boolean feature.
 			case codersdk.FeatureUserLimit:
+				fmt.Println("user limit-------------", featureValue)
 				limit := featureValue
 				priorLimit := entitlements.Features[codersdk.FeatureUserLimit]
 				if priorLimit.Limit != nil && *priorLimit.Limit > limit {

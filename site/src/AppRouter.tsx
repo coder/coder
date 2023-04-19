@@ -156,8 +156,18 @@ const TemplateSchedulePage = lazy(
     ),
 )
 
-const LicensesSettingsPage = lazy(() => import("./pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"))
-const AddNewLicensePageView = lazy(() => import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePageView"))
+const LicensesSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"
+    ),
+)
+const AddNewLicensePageView = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePageView"
+    ),
+)
 
 export const AppRouter: FC = () => {
   return (
@@ -248,7 +258,10 @@ export const AppRouter: FC = () => {
               >
                 <Route path="general" element={<GeneralSettingsPage />} />
                 <Route path="licenses" element={<LicensesSettingsPage />} />
-                <Route path="licenses/add" element={<AddNewLicensePageView />} />
+                <Route
+                  path="licenses/add"
+                  element={<AddNewLicensePageView />}
+                />
                 <Route path="security" element={<SecuritySettingsPage />} />
                 <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />

@@ -966,24 +966,23 @@ export const getWorkspaceBuildParameters = async (
   return response.data
 }
 type Claims = {
-  license_expires?: jwt.NumericDate;
-  account_type?: string;
-  account_id?: string;
-  trial: boolean;
-  all_features: boolean;
-  version: number;
-  features: Record<string, number>;
-  require_telemetry?: boolean;
+  license_expires?: jwt.NumericDate
+  account_type?: string
+  account_id?: string
+  trial: boolean
+  all_features: boolean
+  version: number
+  features: Record<string, number>
+  require_telemetry?: boolean
 }
 
 type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
   claims: Claims
+  expires_at: string
 }
 
 export const getLicenses = async (): Promise<GetLicensesResponse[]> => {
-  const response = await axios.get(
-    `/api/v2/licenses`,
-  )
+  const response = await axios.get(`/api/v2/licenses`)
   return response.data
 }
 

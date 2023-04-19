@@ -1,47 +1,34 @@
-
-import { makeStyles, useTheme } from "@material-ui/core/styles"
 import Button from "@material-ui/core/Button"
+import TextField from "@material-ui/core/TextField"
+import { makeStyles } from "@material-ui/core/styles"
+import CloudUploadOutlined from "@material-ui/icons/CloudUploadOutlined"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
-import { FormFields, FormSection } from "components/Form/Form"
 import { Stack } from "components/Stack/Stack"
 import { DropzoneDialog } from "material-ui-dropzone"
 import { FC, PropsWithChildren, useState } from "react"
-import Confetti from 'react-confetti'
-import { NavLink, Link as RouterLink } from "react-router-dom"
-import { useToggle } from 'react-use'
-import useWindowSize from 'react-use/lib/useWindowSize'
-import TextField from "@material-ui/core/TextField"
-import PlusOneOutlined from "@material-ui/icons/PlusOneOutlined"
-import { CloudUploadOutlined } from "@material-ui/icons"
+import { Link as RouterLink, useNavigate } from "react-router-dom"
+import { useToggle } from "react-use"
 
 const AddNewLicense: FC = () => {
   const styles = useStyles()
-  const { width, height } = useWindowSize()
-  const [confettiOn, toggleConfettiOn] = useToggle(false)
   const [isDialogOpen, toggleDialogOpen] = useToggle(false)
-  const [files, setFiles] = useState<File[]>([]);
-  const theme = useTheme()
+  const [files, setFiles] = useState<File[]>([])
+  const navigate = useNavigate()
 
   function handleSave(files: File[]) {
-    setFiles(files);
-    console.log(files)
+    setFiles(files)
     toggleDialogOpen()
-    toggleConfettiOn()
-    setTimeout(() => {
-      toggleConfettiOn(false)
-    }, 2000)
+    navigate("/settings/deployment/licenses#success=true")
   }
 
   return (
     <>
-      <Confetti
-        width={width}
-        height={height}
-        run={confettiOn}
-        colors={[theme.palette.primary.main, theme.palette.secondary.main]}
-      />
-      <Stack alignItems="baseline" direction="row" justifyContent="space-between">
+      <Stack
+        alignItems="baseline"
+        direction="row"
+        justifyContent="space-between"
+      >
         <Header
           title="Add your license"
           description="Add a license to your account to unlock more features."
@@ -55,45 +42,27 @@ const AddNewLicense: FC = () => {
         </Button>
       </Stack>
 
-      <Stack
-        spacing={4}
-      >
-        <FormSection
-          title="Upload license file"
-          description="please upload the license file you received when you purchased your license."
-          classes={{
-            root: styles.formSectionRoot
-          }}
-        >
+      <Stack className={styles.main}>
+        <Stack alignItems="center">
+          <Button
+            className={styles.ctaButton}
+            startIcon={<CloudUploadOutlined />}
+            size="large"
+            onClick={() => toggleDialogOpen()}
+          >
+            Upload License File
+          </Button>
+        </Stack>
+        <DropzoneDialog
+          open={isDialogOpen}
+          onSave={handleSave}
+          // acceptedFiles={['image/jpeg', 'image/png', 'image/bmp']}
+          showPreviews
+          maxFileSize={1000000}
+          onClose={() => toggleDialogOpen(false)}
+        />
 
-
-          <Stack style={{
-            height: "100%",
-          }}>
-            <div>
-              <Button
-              startIcon={<CloudUploadOutlined />}
-              size="large"
-              variant="contained"
-                onClick={() => toggleDialogOpen()}>
-                Upload license file
-              </Button>
-              <DropzoneDialog
-                open={isDialogOpen}
-                onSave={handleSave}
-                // acceptedFiles={['image/jpeg', 'image/png', 'image/bmp']}
-                showPreviews={false}
-                maxFileSize={1000000}
-                onClose={() => toggleDialogOpen(false)}
-              />
-            </div>
-          </Stack>
-
-        </FormSection>
-        <FormFields>
-
-          <DividerWithText>or</DividerWithText>
-        </FormFields>
+        <DividerWithText>or</DividerWithText>
 
         <Fieldset
           title="Paste your license key"
@@ -101,8 +70,12 @@ const AddNewLicense: FC = () => {
             console.log(data)
           }}
         >
-          <TextField placeholder="Paste your license key here" multiline rows={4} fullWidth />
-
+          <TextField
+            placeholder="Paste your license key here"
+            multiline
+            rows={4}
+            fullWidth
+          />
         </Fieldset>
       </Stack>
     </>
@@ -111,8 +84,15 @@ const AddNewLicense: FC = () => {
 
 export default AddNewLicense
 
-
-const useStyles = makeStyles(theme => ({
+const useStyles = makeStyles((theme) => ({
+  main: {
+    paddingTop: theme.spacing(5),
+  },
+  ctaButton: {
+    backgroundImage: `linear-gradient(90deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+    width: theme.spacing(30),
+    marginBottom: theme.spacing(4),
+  },
   formSectionRoot: {
     alignItems: "center",
   },
@@ -123,15 +103,15 @@ const useStyles = makeStyles(theme => ({
   title: {
     ...theme.typography.h5,
     fontWeight: 600,
-    marging: theme.spacing(1)
+    marging: theme.spacing(1),
   },
   container: {
     display: "flex",
-    alignItems: "center"
+    alignItems: "center",
   },
   border: {
     borderBottom: `2px solid ${theme.palette.divider}`,
-    width: "100%"
+    width: "100%",
   },
   content: {
     paddingTop: theme.spacing(0.5),
@@ -140,17 +120,17 @@ const useStyles = makeStyles(theme => ({
     paddingLeft: theme.spacing(2),
     fontWeight: 500,
     fontSize: theme.typography.h5.fontSize,
-    color: theme.palette.text.secondary
-  }
-}));
+    color: theme.palette.text.secondary,
+  },
+}))
 
 const DividerWithText: FC<PropsWithChildren> = ({ children }) => {
-  const classes = useStyles();
+  const classes = useStyles()
   return (
     <div className={classes.container}>
       <div className={classes.border} />
       <span className={classes.content}>{children}</span>
       <div className={classes.border} />
     </div>
-  );
-};
+  )
+}
