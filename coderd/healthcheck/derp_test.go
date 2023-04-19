@@ -67,8 +67,7 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
-				// TODO: test this without serializing time.Time over the wire.
-				// assert.Positive(t, node.RoundTripPing)
+				assert.Positive(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 1)
 				assert.Len(t, node.ClientErrs[0], 0)
@@ -112,8 +111,7 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
-				// TODO: test this without serializing time.Time over the wire.
-				// assert.Positive(t, node.RoundTripPing)
+				assert.Positive(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 1)
 				assert.Len(t, node.ClientErrs[0], 0)
@@ -176,8 +174,7 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.False(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
-				// TODO: test this without serializing time.Time over the wire.
-				// assert.Positive(t, node.RoundTripPing)
+				assert.Positive(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 3)
 				assert.Len(t, node.ClientLogs[1], 3)

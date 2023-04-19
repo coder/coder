@@ -163,8 +163,19 @@ func (r *DERPNodeReport) Run(ctx context.Context) {
 	r.ClientLogs = [][]string{}
 	r.ClientErrs = [][]error{}
 
-	r.doExchangeMessage(ctx)
-	r.doSTUNTest(ctx)
+	wg := &sync.WaitGroup{}
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		r.doExchangeMessage(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.doSTUNTest(ctx)
+	}()
+
+	wg.Wait()
 
 	// We can't exchange messages with the node,
 	if (!r.CanExchangeMessages && !r.Node.STUNOnly) ||
