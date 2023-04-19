@@ -127,7 +127,7 @@ Some drawbacks include:
 - The outer container must be run as privileged
   - Note: the inner container is _not_ privileged. For more information on the security of sysbox
     containers see sysbox's [official documentation](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/security.md).
-- Inital workspace startup is slower than running `sysbox-runc` directly on the nodes. This is due
+- Initial workspace startup is slower than running `sysbox-runc` directly on the nodes. This is due
   to `envbox` having to pull the image to its own Docker cache on its initial startup. Once the image
   is cached in `envbox`, startup performance is similar.
 

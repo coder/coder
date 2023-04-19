@@ -63,7 +63,7 @@ variable "max_cpus" {
 variable "min_cpus" {
   type        = string
   sensitive   = true
-  description = "Mininum number of CPUs the workspace may use (e.g. .1)."
+  description = "Minimum number of CPUs the workspace may use (e.g. .1)."
 }
 
 variable "max_memory" {
