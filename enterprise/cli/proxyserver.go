@@ -42,7 +42,7 @@ func (c *closers) Add(f func()) {
 	*c = append(*c, f)
 }
 
-func (r *RootCmd) proxyServer() *clibase.Cmd {
+func (*RootCmd) proxyServer() *clibase.Cmd {
 	var (
 		cfg = new(codersdk.DeploymentValues)
 		// Filter options for only relevant ones.
@@ -144,6 +144,16 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			}
 			defer httpServers.Close()
 			closers.Add(httpServers.Close)
+
+			// If no access url given, use the local address.
+			if cfg.AccessURL.String() == "" {
+				// Prefer TLS
+				if httpServers.TLSUrl != nil {
+					cfg.AccessURL = clibase.URL(*httpServers.TLSUrl)
+				} else if httpServers.HTTPUrl != nil {
+					cfg.AccessURL = clibase.URL(*httpServers.HTTPUrl)
+				}
+			}
 
 			// TODO: @emyrk I find this strange that we add this to the context
 			// at the root here.

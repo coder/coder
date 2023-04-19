@@ -32,8 +32,7 @@ type Options struct {
 
 	// DashboardURL is the URL of the primary coderd instance.
 	DashboardURL *url.URL
-	// AccessURL is the URL of the WorkspaceProxy. This is the url to communicate
-	// with this server.
+	// AccessURL is the URL of the WorkspaceProxy.
 	AccessURL *url.URL
 
 	// TODO: @emyrk We use these two fields in many places with this comment.
