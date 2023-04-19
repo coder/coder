@@ -114,10 +114,12 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			watchAndClose := func(c io.Closer) {
+			watchAndClose := func(closer func() error) {
 				// Ensure session is ended on both context cancellation
 				// and workspace stop.
-				defer c.Close()
+				defer func() {
+					_ = closer()
+				}()
 
 				for {
 					select {
@@ -145,7 +147,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 					return err
 				}
 				defer rawSSH.Close()
-				go watchAndClose(rawSSH)
+				go watchAndClose(rawSSH.Close)
 
 				go func() {
 					// Ensure stdout copy closes incase stdin is closed
@@ -170,7 +172,11 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				return err
 			}
 			defer sshSession.Close()
-			go watchAndClose(sshSession)
+			go watchAndClose(func() error {
+				_ = sshSession.Close()
+				_ = sshClient.Close()
+				return nil
+			})
 
 			if identityAgent == "" {
 				identityAgent = os.Getenv("SSH_AUTH_SOCK")
