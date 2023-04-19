@@ -16,6 +16,7 @@ export interface FormFooterProps {
   styles?: FormFooterStyles
   submitLabel?: string
   submitDisabled?: boolean
+  submitTestId?: string
 }
 
 export const FormFooter: FC<FormFooterProps> = ({
@@ -23,6 +24,7 @@ export const FormFooter: FC<FormFooterProps> = ({
   isLoading,
   submitDisabled,
   submitLabel = Language.defaultSubmitLabel,
+  submitTestId,
   styles = defaultStyles(),
 }) => {
   return (
@@ -35,6 +37,7 @@ export const FormFooter: FC<FormFooterProps> = ({
         color="primary"
         type="submit"
         disabled={submitDisabled}
+        data-testid={submitTestId}
       >
         {submitLabel}
       </LoadingButton>

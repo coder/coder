@@ -225,7 +225,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   const { t: commonT } = useTranslation("common")
 
   return (
-    <HorizontalForm onSubmit={form.handleSubmit}>
+    <HorizontalForm
+      onSubmit={form.handleSubmit}
+      data-testid="form-create-template"
+    >
       {/* General info */}
       <FormSection
         title={t("form.generalInfo.title")}
@@ -505,6 +508,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         onCancel={onCancel}
         isLoading={isSubmitting}
         submitLabel={jobError ? "Retry" : "Create template"}
+        submitTestId="button-create-template"
       />
     </HorizontalForm>
   )

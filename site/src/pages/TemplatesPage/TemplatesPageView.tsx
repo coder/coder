@@ -158,7 +158,12 @@ export const TemplatesPageView: FC<
             >
               Starter templates
             </Button>
-            <Button startIcon={<AddIcon />} component={RouterLink} to="new">
+            <Button
+              startIcon={<AddIcon />}
+              component={RouterLink}
+              to="new"
+              data-testid="button-add-template"
+            >
               Add template
             </Button>
           </Maybe>
