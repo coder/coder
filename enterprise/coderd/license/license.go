@@ -86,7 +86,6 @@ func Entitlements(
 			switch featureName {
 			// User limit has special treatment as our only non-boolean feature.
 			case codersdk.FeatureUserLimit:
-				fmt.Println("user limit-------------", featureValue)
 				limit := featureValue
 				priorLimit := entitlements.Features[codersdk.FeatureUserLimit]
 				if priorLimit.Limit != nil && *priorLimit.Limit > limit {
