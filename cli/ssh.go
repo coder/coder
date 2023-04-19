@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/retry"
 )
 
 var (
@@ -110,10 +111,6 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			// will usually not propagate.
 			//
 			// See: https://github.com/coder/coder/issues/6180
-			wsWatch, err := client.WatchWorkspace(ctx, workspace.ID)
-			if err != nil {
-				return err
-			}
 			watchAndClose := func(closer func() error) {
 				// Ensure session is ended on both context cancellation
 				// and workspace stop.
@@ -121,21 +118,42 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 					_ = closer()
 				}()
 
+			startWatchLoop:
 				for {
-					select {
-					case <-ctx.Done():
-						return
-					case w, ok := <-wsWatch:
-						if !ok {
+					// (Re)connect to the coder server and watch workspace events.
+					var wsWatch <-chan codersdk.Workspace
+					for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
+						wsWatch, err = client.WatchWorkspace(ctx, workspace.ID)
+						if err == nil {
+							break
+						}
+						if ctx.Err() != nil {
 							return
 						}
+					}
 
-						// Note, we only react to the stopped state here because we
-						// want to give the agent a chance to gracefully shut down
-						// during "stopping".
-						if w.LatestBuild.Status == codersdk.WorkspaceStatusStopped {
-							_, _ = fmt.Fprintf(inv.Stderr, "Workspace %q has stopped. Closing connection.\r\n", workspace.Name)
+					for {
+						select {
+						case <-ctx.Done():
 							return
+						case w, ok := <-wsWatch:
+							if !ok {
+								continue startWatchLoop
+							}
+
+							// Transitioning to stop or delete could mean that
+							// the agent will still gracefully stop. If a new
+							// build is starting, there's no reason to wait for
+							// the agent, it should be long gone.
+							if workspace.LatestBuild.ID != w.LatestBuild.ID && w.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
+								return
+							}
+							// Note, we only react to the stopped state here because we
+							// want to give the agent a chance to gracefully shut down
+							// during "stopping".
+							if w.LatestBuild.Status == codersdk.WorkspaceStatusStopped {
+								return
+							}
 						}
 					}
 				}
