@@ -147,6 +147,9 @@ func TestSSH(t *testing.T) {
 
 	t.Run("ExitOnStop", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows doesn't seem to clean up the process, maybe #7100 will fix it")
+		}
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		inv, root := clitest.New(t, "ssh", workspace.Name)
@@ -252,6 +255,9 @@ func TestSSH(t *testing.T) {
 
 	t.Run("StdioExitOnStop", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows doesn't seem to clean up the process, maybe #7100 will fix it")
+		}
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
