@@ -122,6 +122,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				for {
 					// (Re)connect to the coder server and watch workspace events.
 					var wsWatch <-chan codersdk.Workspace
+					var err error
 					for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
 						wsWatch, err = client.WatchWorkspace(ctx, workspace.ID)
 						if err == nil {
