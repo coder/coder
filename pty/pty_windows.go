@@ -169,6 +169,10 @@ func (p *ptyWindows) Close() error {
 func (p *windowsProcess) waitInternal() {
 	defer func() {
 		// close the pseudoconsole handle when the process exits, if it hasn't already been closed.
+		// this is important because the PseudoConsole (conhost.exe) holds the write-end
+		// of the output pipe.  If it is not closed, reads on that pipe will block, even though
+		// the command has exited.
+		// c.f. https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/
 		p.pw.closeMutex.Lock()
 		defer p.pw.closeMutex.Unlock()
 		if p.pw.console != windows.InvalidHandle {
