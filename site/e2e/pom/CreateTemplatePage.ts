@@ -27,6 +27,9 @@ export class CreateTemplatePage extends BasePom {
     await this.createTemplateForm
       .getByLabel("Description")
       .fill("This is my first template.")
+    await this.createTemplateForm
+      .getByTestId("form-template-upload")
+      .setInputFiles("./e2e/testdata/docker.tar")
 
     await this.createTemplateButton.click()
   }

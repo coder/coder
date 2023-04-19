@@ -127,6 +127,7 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
         ref={inputRef}
         className={styles.input}
         accept=".tar"
+        data-testid="form-template-upload"
         onChange={(event) => {
           const file = event.currentTarget.files?.[0]
           if (file) {
