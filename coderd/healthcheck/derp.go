@@ -247,10 +247,10 @@ func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 
-		iter := 0
+		var iter uint8
 		for {
 			lastSent.Store(ptr.Ref(time.Now()))
-			err = send.Send(receive.SelfPublicKey(), []byte(fmt.Sprintf("%d", iter)))
+			err = send.Send(receive.SelfPublicKey(), []byte{iter})
 			if err != nil {
 				r.writeClientErr(sendID, xerrors.Errorf("send derp message: %w", err))
 				return
