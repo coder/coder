@@ -365,6 +365,13 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:         globalGroup,
 		},
 		{
+			Flag:        "debug-http",
+			Description: "Debug codersdk HTTP requests.",
+			Value:       clibase.BoolOf(&r.debugHTTP),
+			Group:       globalGroup,
+			Hidden:      true,
+		},
+		{
 			Flag:        config.FlagName,
 			Env:         "CODER_CONFIG_DIR",
 			Description: "Path to the global `coder` config directory.",
@@ -412,6 +419,7 @@ type RootCmd struct {
 	forceTTY     bool
 	noOpen       bool
 	verbose      bool
+	debugHTTP    bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
@@ -463,6 +471,11 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 			}
 
 			client.SetSessionToken(r.token)
+
+			if r.debugHTTP {
+				client.PlainLogger = os.Stderr
+				client.LogBodies = true
+			}
 
 			// We send these requests in parallel to minimize latency.
 			var (
