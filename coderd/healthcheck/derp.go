@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
@@ -21,6 +20,8 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
+
+	"github.com/coder/coder/coderd/util/ptr"
 )
 
 type DERPReport struct {
@@ -48,11 +49,12 @@ type DERPNodeReport struct {
 	Healthy bool              `json:"healthy"`
 	Node    *tailcfg.DERPNode `json:"node"`
 
-	CanExchangeMessages bool          `json:"can_exchange_messages"`
-	RoundTripPing       time.Duration `json:"round_trip_ping"`
-	UsesWebsocket       bool          `json:"uses_websocket"`
-	ClientLogs          [][]string    `json:"client_logs"`
-	ClientErrs          [][]error     `json:"client_errs"`
+	ServerInfo          derp.ServerInfoMessage `json:"node_info"`
+	CanExchangeMessages bool                   `json:"can_exchange_messages"`
+	RoundTripPing       time.Duration          `json:"round_trip_ping"`
+	UsesWebsocket       bool                   `json:"uses_websocket"`
+	ClientLogs          [][]string             `json:"client_logs"`
+	ClientErrs          [][]error              `json:"client_errs"`
 
 	STUN DERPStunReport `json:"stun"`
 }
@@ -181,8 +183,13 @@ func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
 		return
 	}
 
-	var peerKey atomic.Pointer[key.NodePublic]
-	eg, ctx := errgroup.WithContext(ctx)
+	var (
+		peerKey  atomic.Pointer[key.NodePublic]
+		lastSent atomic.Pointer[time.Time]
+	)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	wg := &sync.WaitGroup{}
 
 	receive, receiveID, err := r.derpClient(ctx, r.derpURL())
 	if err != nil {
@@ -190,51 +197,64 @@ func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
 	}
 	defer receive.Close()
 
-	eg.Go(func() error {
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
 		defer receive.Close()
 
 		pkt, err := r.recvData(receive)
 		if err != nil {
 			r.writeClientErr(receiveID, xerrors.Errorf("recv derp message: %w", err))
-			return err
+			return
 		}
 
 		if *peerKey.Load() != pkt.Source {
 			r.writeClientErr(receiveID, xerrors.Errorf("received pkt from unknown peer: %s", pkt.Source.ShortString()))
-			return err
+			return
 		}
 
-		t, err := time.Parse(time.RFC3339Nano, string(pkt.Data))
-		if err != nil {
-			r.writeClientErr(receiveID, xerrors.Errorf("parse time from peer: %w", err))
-			return err
-		}
+		t := lastSent.Load()
 
 		r.mu.Lock()
 		r.CanExchangeMessages = true
-		r.RoundTripPing = time.Since(t)
+		r.RoundTripPing = time.Since(*t)
 		r.mu.Unlock()
-		return nil
-	})
-	eg.Go(func() error {
+
+		cancel()
+	}()
+	go func() {
+		defer wg.Done()
 		send, sendID, err := r.derpClient(ctx, r.derpURL())
 		if err != nil {
-			return err
+			return
 		}
 		defer send.Close()
 
 		key := send.SelfPublicKey()
 		peerKey.Store(&key)
 
-		err = send.Send(receive.SelfPublicKey(), []byte(time.Now().Format(time.RFC3339Nano)))
-		if err != nil {
-			r.writeClientErr(sendID, xerrors.Errorf("send derp message: %w", err))
-			return err
-		}
-		return nil
-	})
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 
-	_ = eg.Wait()
+		iter := 0
+		for {
+			lastSent.Store(ptr.Ref(time.Now()))
+			err = send.Send(receive.SelfPublicKey(), []byte(fmt.Sprintf("%d", iter)))
+			if err != nil {
+				r.writeClientErr(sendID, xerrors.Errorf("send derp message: %w", err))
+				return
+			}
+			iter++
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+
+	wg.Wait()
 }
 
 func (r *DERPNodeReport) doSTUNTest(ctx context.Context) {
@@ -378,7 +398,7 @@ func (r *DERPNodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*der
 	return client, id, nil
 }
 
-func (*DERPNodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, error) {
+func (r *DERPNodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, error) {
 	for {
 		msg, err := client.Recv()
 		if err != nil {
@@ -388,6 +408,10 @@ func (*DERPNodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, e
 		switch msg := msg.(type) {
 		case derp.ReceivedPacket:
 			return msg, nil
+		case derp.ServerInfoMessage:
+			r.mu.Lock()
+			r.ServerInfo = msg
+			r.mu.Unlock()
 		default:
 			// Drop all others!
 		}
