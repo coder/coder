@@ -621,17 +621,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 				}
 
-				if cfg.Dangerous.DevAppSecurityKey.Value() != "" {
-					_, err := workspaceapps.KeyFromString(cfg.Dangerous.DevAppSecurityKey.Value())
-					if err != nil {
-						return xerrors.Errorf("invalid dev app security key: %w", err)
-					}
-					err = tx.UpsertAppSecurityKey(ctx, cfg.Dangerous.DevAppSecurityKey.Value())
-					if err != nil {
-						return xerrors.Errorf("Insert dev app security key: %w", err)
-					}
-				}
-
 				// Read the app signing key from the DB. We store it hex encoded
 				// since the config table uses strings for the value and we
 				// don't want to deal with automatic encoding issues.

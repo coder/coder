@@ -49,9 +49,6 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 
 	RealIPConfig *httpmw.RealIPConfig
-	// TODO: @emyrk this key needs to be provided via a file or something?
-	//		Maybe we should curl it from the primary over some secure connection?
-	AppSecurityKey workspaceapps.SecurityKey
 
 	Tracing            trace.TracerProvider
 	PrometheusRegistry *prometheus.Registry
@@ -72,7 +69,6 @@ func (o *Options) Validate() error {
 	errs.Required("RealIPConfig", o.RealIPConfig)
 	errs.Required("PrometheusRegistry", o.PrometheusRegistry)
 	errs.NotEmpty("ProxySessionToken", o.ProxySessionToken)
-	errs.NotEmpty("AppSecurityKey", o.AppSecurityKey)
 
 	if len(errs) > 0 {
 		return errs
@@ -107,7 +103,7 @@ type Server struct {
 	cancel context.CancelFunc
 }
 
-func New(opts *Options) (*Server, error) {
+func New(ctx context.Context, opts *Options) (*Server, error) {
 	if opts.PrometheusRegistry == nil {
 		opts.PrometheusRegistry = prometheus.NewRegistry()
 	}
@@ -116,11 +112,32 @@ func New(opts *Options) (*Server, error) {
 		return nil, err
 	}
 
-	// TODO: implement some ping and registration logic
 	client := wsproxysdk.New(opts.DashboardURL)
 	err := client.SetSessionToken(opts.ProxySessionToken)
 	if err != nil {
 		return nil, xerrors.Errorf("set client token: %w", err)
+	}
+
+	// TODO: Probably do some version checking here
+	info, err := client.SDKClient.BuildInfo(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to fetch build info from %q: %w", opts.DashboardURL, err)
+	}
+	if info.WorkspaceProxy {
+		return nil, xerrors.Errorf("%q is a workspace proxy, not a primary coderd instance", opts.DashboardURL)
+	}
+
+	regResp, err := client.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+		AccessURL:        opts.AccessURL.String(),
+		WildcardHostname: opts.AppHostname,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("register proxy: %w", err)
+	}
+
+	secKey, err := workspaceapps.KeyFromString(regResp.AppSecurityKey)
+	if err != nil {
+		return nil, xerrors.Errorf("parse app security key: %w", err)
 	}
 
 	r := chi.NewRouter()
@@ -149,11 +166,11 @@ func New(opts *Options) (*Server, error) {
 			AccessURL:    opts.AccessURL,
 			AppHostname:  opts.AppHostname,
 			Client:       client,
-			SecurityKey:  s.Options.AppSecurityKey,
+			SecurityKey:  secKey,
 			Logger:       s.Logger.Named("proxy_token_provider"),
 		},
 		WorkspaceConnCache: wsconncache.New(s.DialWorkspaceAgent, 0),
-		AppSecurityKey:     opts.AppSecurityKey,
+		AppSecurityKey:     secKey,
 
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,

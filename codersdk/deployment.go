@@ -328,9 +328,8 @@ type LoggingConfig struct {
 }
 
 type DangerousConfig struct {
-	AllowPathAppSharing         clibase.Bool   `json:"allow_path_app_sharing" typescript:",notnull"`
-	AllowPathAppSiteOwnerAccess clibase.Bool   `json:"allow_path_app_site_owner_access" typescript:",notnull"`
-	DevAppSecurityKey           clibase.String `json:"dev_app_security_key" typescript:",notnull"`
+	AllowPathAppSharing         clibase.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSiteOwnerAccess clibase.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
 }
 
 const (
@@ -1185,15 +1184,6 @@ when required by your organization's security policy.`,
 
 			Value: &c.Dangerous.AllowPathAppSiteOwnerAccess,
 			Group: &deploymentGroupDangerous,
-		},
-		{
-			Name:        "App Security Key (Development Only)",
-			Description: "Used to override the app security key stored in the database. This should never be used in production.",
-			Flag:        "dangerous-dev-app-security-key",
-			Default:     "",
-			Value:       &c.Dangerous.DevAppSecurityKey,
-			Annotations: clibase.Annotations{}.Mark("secret", "true"),
-			Hidden:      true,
 		},
 		// Misc. settings
 		{
