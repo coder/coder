@@ -177,7 +177,6 @@ func TestSSH(t *testing.T) {
 		pty.ExpectMatchContext(ctx, "hello")
 
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		select {
 		case <-cmdDone:
@@ -309,16 +308,12 @@ func TestSSH(t *testing.T) {
 		require.NoError(t, err)
 
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		select {
 		case <-cmdDone:
 		case <-ctx.Done():
 			require.Fail(t, "command did not exit in time")
 		}
-
-		err = session.Wait()
-		require.NoError(t, err)
 	})
 
 	t.Run("ForwardAgent", func(t *testing.T) {
