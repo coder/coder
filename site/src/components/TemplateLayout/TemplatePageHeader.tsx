@@ -103,6 +103,7 @@ const CreateWorkspaceButton: FC<{
     startIcon={<AddCircleOutline />}
     component={RouterLink}
     to={`/templates/${templateName}/workspace`}
+    data-testid="button-create-workspace"
   >
     Create workspace
   </Button>

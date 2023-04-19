@@ -15,9 +15,9 @@ export class TemplatesPage extends BasePom {
   }
 
   async loaded() {
-    await expect(this.page).toHaveTitle("Templates - Coder")
-
     await this.addTemplateButton.waitFor({ state: "visible" })
+
+    await expect(this.page).toHaveTitle("Templates - Coder")
   }
 
   async addTemplate() {

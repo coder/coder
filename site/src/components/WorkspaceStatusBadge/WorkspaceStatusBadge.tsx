@@ -100,5 +100,6 @@ export const WorkspaceStatusBadge: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ build, className }) => {
   const { text, icon, type } = getStatus(build.status)
-  return <Pill className={className} icon={icon} text={text} type={type} />
+  return <Pill className={className} icon={icon} text={text} type={type} data-testid={"workspace-status-" + type }
+  />
 }
