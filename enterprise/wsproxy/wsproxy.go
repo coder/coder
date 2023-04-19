@@ -103,6 +103,9 @@ type Server struct {
 	cancel context.CancelFunc
 }
 
+// New creates a new workspace proxy server. This requires a primary coderd
+// instance to be reachable and the correct authorization access token to be
+// provided. If the proxy cannot authenticate with the primary, this will fail.
 func New(ctx context.Context, opts *Options) (*Server, error) {
 	if opts.PrometheusRegistry == nil {
 		opts.PrometheusRegistry = prometheus.NewRegistry()
