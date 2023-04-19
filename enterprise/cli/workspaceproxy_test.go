@@ -6,6 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -13,7 +15,6 @@ import (
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_ProxyCRUD(t *testing.T) {

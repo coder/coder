@@ -162,8 +162,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "dangerous": {
       "allow_path_app_sharing": true,
-      "allow_path_app_site_owner_access": true,
-      "dev_app_security_key": "string"
+      "allow_path_app_site_owner_access": true
     },
     "derp": {
       "config": {

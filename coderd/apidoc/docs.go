@@ -5067,6 +5067,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/register": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Register workspace proxy",
+                "operationId": "register-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceproxies/{workspaceproxy}": {
             "delete": {
                 "security": [
@@ -6980,9 +7022,6 @@ const docTemplate = `{
                 },
                 "allow_path_app_site_owner_access": {
                     "type": "boolean"
-                },
-                "dev_app_security_key": {
-                    "type": "string"
                 }
             }
         },
@@ -10210,6 +10249,27 @@ const docTemplate = `{
             "properties": {
                 "signed_token_str": {
                     "description": "SignedTokenStr should be set as a cookie on the response.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "description": "AccessURL that hits the workspace proxy api.",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname that the workspace proxy api is serving for subdomain apps.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyResponse": {
+            "type": "object",
+            "properties": {
+                "app_security_key": {
                     "type": "string"
                 }
             }

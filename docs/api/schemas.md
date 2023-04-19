@@ -1737,8 +1737,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "allow_path_app_sharing": true,
-  "allow_path_app_site_owner_access": true,
-  "dev_app_security_key": "string"
+  "allow_path_app_site_owner_access": true
 }
 ```
 
@@ -1748,7 +1747,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ---------------------------------- | ------- | -------- | ------------ | ----------- |
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
-| `dev_app_security_key`             | string  | false    |              |             |
 
 ## codersdk.DeploymentConfig
 
@@ -1796,8 +1794,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     },
     "dangerous": {
       "allow_path_app_sharing": true,
-      "allow_path_app_site_owner_access": true,
-      "dev_app_security_key": "string"
+      "allow_path_app_site_owner_access": true
     },
     "derp": {
       "config": {
@@ -2141,8 +2138,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   },
   "dangerous": {
     "allow_path_app_sharing": true,
-    "allow_path_app_site_owner_access": true,
-    "dev_app_security_key": "string"
+    "allow_path_app_site_owner_access": true
   },
   "derp": {
     "config": {
@@ -6377,3 +6373,33 @@ _None_
 | Name               | Type   | Required | Restrictions | Description                                                 |
 | ------------------ | ------ | -------- | ------------ | ----------------------------------------------------------- |
 | `signed_token_str` | string | false    |              | Signed token str should be set as a cookie on the response. |
+
+## wsproxysdk.RegisterWorkspaceProxyRequest
+
+```json
+{
+  "access_url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description                                                                   |
+| ------------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------- |
+| `access_url`        | string | false    |              | Access URL that hits the workspace proxy api.                                 |
+| `wildcard_hostname` | string | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps. |
+
+## wsproxysdk.RegisterWorkspaceProxyResponse
+
+```json
+{
+  "app_security_key": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `app_security_key` | string | false    |              |             |
