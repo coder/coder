@@ -210,6 +210,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
 	ParameterValue(ctx context.Context, id uuid.UUID) (ParameterValue, error)
 	ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error)
+	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -254,7 +255,6 @@ type sqlcQuerier interface {
 	UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) (WorkspaceBuild, error)
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 	UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error
-	UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error)
 	UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error

@@ -100,6 +100,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 					}),
 				)
 				r.Post("/issue-signed-app-token", api.workspaceProxyIssueSignedAppToken)
+				r.Post("/register", api.workspaceProxyRegister)
 			})
 			r.Route("/{workspaceproxy}", func(r chi.Router) {
 				r.Use(

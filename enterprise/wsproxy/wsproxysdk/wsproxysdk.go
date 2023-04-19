@@ -142,3 +142,31 @@ func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWr
 	}
 	return res, true
 }
+
+type RegisterWorkspaceProxyRequest struct {
+	// AccessURL that hits the workspace proxy api.
+	AccessURL string `json:"access_url"`
+	// WildcardHostname that the workspace proxy api is serving for subdomain apps.
+	WildcardHostname string `json:"wildcard_hostname"`
+}
+
+type RegisterWorkspaceProxyResponse struct {
+	AppSecurityKey string `json:"app_security_key"`
+}
+
+func (c *Client) RegisterWorkspaceProxy(ctx context.Context, req RegisterWorkspaceProxyRequest) (RegisterWorkspaceProxyResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		"/api/v2/workspaceproxies/me/register",
+		req,
+	)
+	if err != nil {
+		return RegisterWorkspaceProxyResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return RegisterWorkspaceProxyResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp RegisterWorkspaceProxyResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}

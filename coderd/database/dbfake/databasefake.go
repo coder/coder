@@ -5172,14 +5172,12 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	return p, nil
 }
 
-func (q *fakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+func (q *fakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	for i, p := range q.workspaceProxies {
 		if p.ID == arg.ID {
-			p.Name = arg.Name
-			p.Icon = arg.Icon
 			p.Url = arg.Url
 			p.WildcardHostname = arg.WildcardHostname
 			p.UpdatedAt = database.Now()
