@@ -371,8 +371,8 @@ func (m *Manager) Close() error {
 	}
 	close(m.closed)
 	m.closeCancel()
-	m.closeWait.Wait()
 	m.closeMutex.Unlock()
+	m.closeWait.Wait()
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
