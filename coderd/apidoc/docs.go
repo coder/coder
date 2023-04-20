@@ -5067,6 +5067,83 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/register": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Register workspace proxy",
+                "operationId": "register-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/{workspaceproxy}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete workspace proxy",
+                "operationId": "delete-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces": {
             "get": {
                 "security": [
@@ -9749,6 +9826,37 @@ const docTemplate = `{
                 "ParameterSourceSchemeData"
             ]
         },
+        "derp.ServerInfoMessage": {
+            "type": "object",
+            "properties": {
+                "tokenBucketBytesBurst": {
+                    "description": "TokenBucketBytesBurst is how many bytes the server will\nallow to burst, temporarily violating\nTokenBucketBytesPerSecond.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                },
+                "tokenBucketBytesPerSecond": {
+                    "description": "TokenBucketBytesPerSecond is how many bytes per second the\nserver says it will accept, including all framing bytes.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                }
+            }
+        },
+        "healthcheck.AccessURLReport": {
+            "type": "object",
+            "properties": {
+                "err": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "healthzResponse": {
+                    "type": "string"
+                },
+                "reachable": {
+                    "type": "boolean"
+                },
+                "statusCode": {
+                    "type": "integer"
+                }
+            }
+        },
         "healthcheck.DERPNodeReport": {
             "type": "object",
             "properties": {
@@ -9776,6 +9884,9 @@ const docTemplate = `{
                 },
                 "node": {
                     "$ref": "#/definitions/tailcfg.DERPNode"
+                },
+                "node_info": {
+                    "$ref": "#/definitions/derp.ServerInfoMessage"
                 },
                 "round_trip_ping": {
                     "type": "integer"
@@ -9814,6 +9925,7 @@ const docTemplate = `{
                 "netcheck": {
                     "$ref": "#/definitions/netcheck.Report"
                 },
+                "netcheck_err": {},
                 "netcheck_logs": {
                     "type": "array",
                     "items": {
@@ -9843,6 +9955,9 @@ const docTemplate = `{
         "healthcheck.Report": {
             "type": "object",
             "properties": {
+                "access_url": {
+                    "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
@@ -10172,6 +10287,27 @@ const docTemplate = `{
             "properties": {
                 "signed_token_str": {
                     "description": "SignedTokenStr should be set as a cookie on the response.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "description": "AccessURL that hits the workspace proxy api.",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname that the workspace proxy api is serving for subdomain apps.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyResponse": {
+            "type": "object",
+            "properties": {
+                "app_security_key": {
                     "type": "string"
                 }
             }

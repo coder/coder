@@ -12,6 +12,7 @@ type RootCmd struct {
 func (r *RootCmd) enterpriseOnly() []*clibase.Cmd {
 	return []*clibase.Cmd{
 		r.server(),
+		r.workspaceProxy(),
 		r.features(),
 		r.licenses(),
 		r.groups(),

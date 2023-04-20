@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/retry"
 )
 
 var (
@@ -100,17 +101,82 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
+			// Enure connection is closed if the context is canceled or
+			// the workspace reaches the stopped state.
+			//
+			// Watching the stopped state is a work-around for cases
+			// where the agent is not gracefully shut down and the
+			// connection is left open. If, for instance, the networking
+			// is stopped before the agent is shut down, the disconnect
+			// will usually not propagate.
+			//
+			// See: https://github.com/coder/coder/issues/6180
+			watchAndClose := func(closer func() error) {
+				// Ensure session is ended on both context cancellation
+				// and workspace stop.
+				defer func() {
+					_ = closer()
+				}()
+
+			startWatchLoop:
+				for {
+					// (Re)connect to the coder server and watch workspace events.
+					var wsWatch <-chan codersdk.Workspace
+					var err error
+					for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
+						wsWatch, err = client.WatchWorkspace(ctx, workspace.ID)
+						if err == nil {
+							break
+						}
+						if ctx.Err() != nil {
+							return
+						}
+					}
+
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case w, ok := <-wsWatch:
+							if !ok {
+								continue startWatchLoop
+							}
+
+							// Transitioning to stop or delete could mean that
+							// the agent will still gracefully stop. If a new
+							// build is starting, there's no reason to wait for
+							// the agent, it should be long gone.
+							if workspace.LatestBuild.ID != w.LatestBuild.ID && w.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
+								return
+							}
+							// Note, we only react to the stopped state here because we
+							// want to give the agent a chance to gracefully shut down
+							// during "stopping".
+							if w.LatestBuild.Status == codersdk.WorkspaceStatusStopped {
+								return
+							}
+						}
+					}
+				}
+			}
+
 			if stdio {
 				rawSSH, err := conn.SSH(ctx)
 				if err != nil {
 					return err
 				}
 				defer rawSSH.Close()
+				go watchAndClose(rawSSH.Close)
 
 				go func() {
-					_, _ = io.Copy(inv.Stdout, rawSSH)
+					// Ensure stdout copy closes incase stdin is closed
+					// unexpectedly. Typically we wouldn't worry about
+					// this since OpenSSH should kill the proxy command.
+					defer rawSSH.Close()
+
+					_, _ = io.Copy(rawSSH, inv.Stdin)
 				}()
-				_, _ = io.Copy(rawSSH, inv.Stdin)
+				_, _ = io.Copy(inv.Stdout, rawSSH)
 				return nil
 			}
 
@@ -125,13 +191,11 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				return err
 			}
 			defer sshSession.Close()
-
-			// Ensure context cancellation is propagated to the
-			// SSH session, e.g. to cancel `Wait()` at the end.
-			go func() {
-				<-ctx.Done()
+			go watchAndClose(func() error {
 				_ = sshSession.Close()
-			}()
+				_ = sshClient.Close()
+				return nil
+			})
 
 			if identityAgent == "" {
 				identityAgent = os.Getenv("SSH_AUTH_SOCK")
