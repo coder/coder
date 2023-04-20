@@ -28,6 +28,7 @@ const ReadyLifecycle: React.FC = () => {
       role="status"
       aria-label={t("agentStatus.connected.ready")}
       className={combineClasses([styles.status, styles.connected])}
+      data-testid="agent-lifecycle-ready"
     />
   )
 }

@@ -20,7 +20,9 @@ export class CreateWorkspacePage extends BasePom {
   }
 
   async submitForm() {
-    await this.createWorkspaceForm.getByLabel("Workspace Name").fill("my-first-workspace")
+    await this.createWorkspaceForm
+      .getByLabel("Workspace Name")
+      .fill("my-first-workspace")
 
     await this.submitButton.click()
   }

@@ -20,6 +20,7 @@ const config: PlaywrightTestConfig = {
     port,
     reuseExistingServer: false,
   },
+  timeout: 120 * 1000,
 }
 
 export default config

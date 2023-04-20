@@ -51,7 +51,7 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
     <Stack spacing={4}>
       <TemplateStats template={template} activeVersion={activeVersion} />
       {daus && <DAUChart daus={daus} />}
-      <TemplateResourcesTable resources={getStartedResources(resources)}/>
+      <TemplateResourcesTable resources={getStartedResources(resources)} />
     </Stack>
   )
 }

@@ -28,7 +28,7 @@ test("Basic scenario", async ({ page, baseURL }) => {
     await templatePage.loaded()
   })
 
-  await test.step("Start a workspace", async() => {
+  await test.step("Start a workspace", async () => {
     await templatePage.createWorkspace()
     await createWorkspacePage.loaded()
 
@@ -36,19 +36,19 @@ test("Basic scenario", async ({ page, baseURL }) => {
     await workspacePage.loaded()
   })
 
-  await test.step("Workspace is up and running", async() => {
+  await test.step("Workspace is up and running", async () => {
     await workspacePage.isRunning()
   })
 
-  await test.step("Stop the workspace", async() => {
+  await test.step("Stop the workspace", async () => {
     await workspacePage.stop()
   })
 
-  await test.step("Workspace is stopped", async() => {
+  await test.step("Workspace is stopped", async () => {
     await workspacePage.isStopped()
   })
 
-  await test.step("Finally", async() => {
+  await test.step("Finally", async () => {
     await page.waitForTimeout(5 * 60 * 1000) // FIXME
   })
 })

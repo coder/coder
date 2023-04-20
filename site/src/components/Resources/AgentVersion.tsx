@@ -19,7 +19,7 @@ export const AgentVersion: FC<{
   )
 
   if (!outdated) {
-    return <span>{displayVersion}</span>
+    return <span data-testid="agent-version">{displayVersion}</span>
   }
 
   return (
@@ -31,6 +31,7 @@ export const AgentVersion: FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         className={styles.trigger}
+        data-testid="agent-version"
       >
         Agent Outdated
       </span>

@@ -211,7 +211,10 @@ export const CreateWorkspacePageView: FC<
 
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={props.onCancel}>
-      <HorizontalForm onSubmit={form.handleSubmit} data-testid="form-create-workspace">
+      <HorizontalForm
+        onSubmit={form.handleSubmit}
+        data-testid="form-create-workspace"
+      >
         {/* General info */}
         <FormSection
           title="General info"

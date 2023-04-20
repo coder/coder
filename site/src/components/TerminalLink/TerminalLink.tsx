@@ -42,6 +42,7 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
       href={href}
       className={combineClasses([styles.link, className])}
       target="_blank"
+      data-testid="button-terminal"
       onClick={(event) => {
         event.preventDefault()
         window.open(

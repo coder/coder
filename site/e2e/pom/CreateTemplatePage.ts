@@ -21,10 +21,12 @@ export class CreateTemplatePage extends BasePom {
 
   async submitForm() {
     await this.createTemplateForm
-    .getByTestId("form-template-upload")
-    .setInputFiles("./e2e/testdata/docker.tar")
+      .getByTestId("form-template-upload")
+      .setInputFiles("./e2e/testdata/docker.tar")
     await this.createTemplateForm.getByLabel("Name *").fill("my-first-template")
-    await this.createTemplateForm.getByLabel("Display name").fill("My First Template")
+    await this.createTemplateForm
+      .getByLabel("Display name")
+      .fill("My First Template")
     await this.createTemplateForm
       .getByLabel("Description")
       .fill("This is my first template.")
