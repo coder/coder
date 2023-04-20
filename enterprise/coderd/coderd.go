@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
+	"github.com/coder/coder/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/enterprise/derpmesh"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/enterprise/tailnet"
@@ -52,9 +53,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
-		AGPL:                   coderd.New(options.Options),
-		Options:                options,
-		cancelEntitlementsLoop: cancelFunc,
+		ctx:    ctx,
+		cancel: cancelFunc,
+
+		AGPL:    coderd.New(options.Options),
+		Options: options,
 	}
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
@@ -222,6 +225,22 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	}
 	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 
+	if api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
+		// Proxy health is a moon feature.
+		api.proxyHealth, err = proxyhealth.New(&proxyhealth.Options{
+			Interval: options.ProxyHealthInterval,
+			DB:       api.Database,
+			Logger:   options.Logger.Named("proxyhealth"),
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("initialize proxy health: %w", err)
+		}
+		go api.proxyHealth.Run(ctx)
+		// Force the initial loading of the cache. Do this in a go routine in case
+		// the calls to the workspace proxies hang and this takes some time.
+		go api.forceWorkspaceProxyHealthUpdate(ctx)
+	}
+
 	err = api.updateEntitlements(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("update entitlements: %w", err)
@@ -245,6 +264,7 @@ type Options struct {
 	DERPServerRegionID     int
 
 	EntitlementsUpdateInterval time.Duration
+	ProxyHealthInterval        time.Duration
 	Keys                       map[string]ed25519.PublicKey
 }
 
@@ -252,18 +272,24 @@ type API struct {
 	AGPL *coderd.API
 	*Options
 
+	// ctx is canceled immediately on shutdown, it can be used to abort
+	// interruptible tasks.
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	// Detects multiple Coder replicas running at the same time.
 	replicaManager *replicasync.Manager
 	// Meshes DERP connections from multiple replicas.
 	derpMesh *derpmesh.Mesh
+	// proxyHealth checks the reachability of all workspace proxies.
+	proxyHealth *proxyhealth.ProxyHealth
 
-	cancelEntitlementsLoop func()
-	entitlementsMu         sync.RWMutex
-	entitlements           codersdk.Entitlements
+	entitlementsMu sync.RWMutex
+	entitlements   codersdk.Entitlements
 }
 
 func (api *API) Close() error {
-	api.cancelEntitlementsLoop()
+	api.cancel()
 	_ = api.replicaManager.Close()
 	_ = api.derpMesh.Close()
 	return api.AGPL.Close()

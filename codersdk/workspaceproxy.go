@@ -12,17 +12,41 @@ import (
 	"github.com/google/uuid"
 )
 
+type ProxyHealthStatus string
+
+const (
+	// ProxyReachable means the proxy access url is reachable and returns a healthy
+	// status code.
+	ProxyReachable ProxyHealthStatus = "reachable"
+	// ProxyUnreachable means the proxy access url is not responding.
+	ProxyUnreachable ProxyHealthStatus = "unreachable"
+	// ProxyUnregistered means the proxy has not registered a url yet. This means
+	// the proxy was created with the cli, but has not yet been started.
+	ProxyUnregistered ProxyHealthStatus = "unregistered"
+)
+
+
+type WorkspaceProxyStatus struct {
+	Status    ProxyHealthStatus    `json:"status" table:"status"`
+	CheckedAt time.Time `json:"checked_at" table:"checked_at"`
+}
+
 type WorkspaceProxy struct {
-	ID   uuid.UUID `db:"id" json:"id" format:"uuid" table:"id"`
-	Name string    `db:"name" json:"name" table:"name,default_sort"`
-	Icon string    `db:"icon" json:"icon" table:"icon"`
+	ID   uuid.UUID `json:"id" format:"uuid" table:"id"`
+	Name string    `json:"name" table:"name,default_sort"`
+	Icon string    `json:"icon" table:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
-	URL string `db:"url" json:"url" table:"url"`
+	URL string `json:"url" table:"url"`
 	// WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com
-	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname" table:"wildcard_hostname"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at" format:"date-time" table:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at" format:"date-time" table:"updated_at"`
-	Deleted          bool      `db:"deleted" json:"deleted" table:"deleted"`
+	WildcardHostname string    `json:"wildcard_hostname" table:"wildcard_hostname"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time" table:"created_at"`
+	UpdatedAt        time.Time `djson:"updated_at" format:"date-time" table:"updated_at"`
+	Deleted          bool      `json:"deleted" table:"deleted"`
+
+	// Status is the latest status check of the proxy. This will be empty for deleted
+	// proxies. This value can be used to determine if a workspace proxy is healthy
+	// and ready to use.
+	Status WorkspaceProxyStatus `json:"status,omitempty" table:"status"`
 }
 
 type CreateWorkspaceProxyRequest struct {

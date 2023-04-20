@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 )
 
 type ProxyHealthStatus string
@@ -63,7 +64,7 @@ func New(opts *Options) (*ProxyHealth, error) {
 	if opts.client == nil {
 		client = http.DefaultClient
 	}
-	// Set a timeout on the client so we don't wait forever for a healthz response.
+	// Set a timeout on the client, so we don't wait forever for a healthz response.
 	tmp := *client
 	tmp.Timeout = time.Second * 5
 	client = &tmp
@@ -124,6 +125,10 @@ func (p *ProxyHealth) HealthStatus() map[uuid.UUID]ProxyStatus {
 }
 
 type ProxyStatus struct {
+	// ProxyStatus includes the value of the proxy at the time of checking. This is
+	// useful to know as it helps determine if the proxy checked has different values
+	// then the proxy in hand. AKA if the proxy was updated, and the status was for
+	// an older proxy.
 	Proxy     database.WorkspaceProxy
 	Status    ProxyHealthStatus
 	CheckedAt time.Time
@@ -133,7 +138,7 @@ type ProxyStatus struct {
 // unexpected error, an error is returned. Expected errors will mark a proxy as
 // unreachable.
 func (p *ProxyHealth) runOnce(ctx context.Context, t time.Time) (map[uuid.UUID]ProxyStatus, error) {
-	proxies, err := p.db.GetWorkspaceProxies(ctx)
+	proxies, err := p.db.GetWorkspaceProxies(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace proxies: %w", err)
 	}

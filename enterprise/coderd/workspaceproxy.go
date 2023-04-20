@@ -1,15 +1,18 @@
 package coderd
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -17,8 +20,17 @@ import (
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 )
+
+// forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
+// This is useful when a proxy is created or deleted. Errors will be logged.
+func (api *API) forceWorkspaceProxyHealthUpdate(ctx context.Context) {
+	if err := api.proxyHealth.ForceUpdate(ctx); err != nil {
+		api.Logger.Error(ctx, "force proxy health update", slog.Error(err))
+	}
+}
 
 // @Summary Delete workspace proxy
 // @ID delete-workspace-proxy
@@ -60,6 +72,9 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Proxy has been deleted!",
 	})
+
+	// Update the proxy health cache to remove this proxy.
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
 // @Summary Create workspace proxy
@@ -140,9 +155,16 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = proxy
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateWorkspaceProxyResponse{
-		Proxy:      convertProxy(proxy),
+		Proxy: convertProxy(proxy, proxyhealth.ProxyStatus{
+			Proxy:     proxy,
+			Status:    proxyhealth.Unregistered,
+			CheckedAt: time.Now(),
+		}),
 		ProxyToken: fullToken,
 	})
+
+	// Update the proxy health cache to include this new proxy.
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
 // nolint:revive
@@ -176,28 +198,8 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies))
-}
-
-func convertProxies(p []database.WorkspaceProxy) []codersdk.WorkspaceProxy {
-	resp := make([]codersdk.WorkspaceProxy, 0, len(p))
-	for _, proxy := range p {
-		resp = append(resp, convertProxy(proxy))
-	}
-	return resp
-}
-
-func convertProxy(p database.WorkspaceProxy) codersdk.WorkspaceProxy {
-	return codersdk.WorkspaceProxy{
-		ID:               p.ID,
-		Name:             p.Name,
-		Icon:             p.Icon,
-		URL:              p.Url,
-		WildcardHostname: p.WildcardHostname,
-		CreatedAt:        p.CreatedAt,
-		UpdatedAt:        p.UpdatedAt,
-		Deleted:          p.Deleted,
-	}
+	statues := api.proxyHealth.HealthStatus()
+	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies, statues))
 }
 
 // @Summary Issue signed workspace app token
@@ -313,4 +315,32 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey: api.AppSecurityKey.String(),
 	})
+
+	// Update the proxy health cache to update this proxy.
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
+}
+
+func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhealth.ProxyStatus) []codersdk.WorkspaceProxy {
+	resp := make([]codersdk.WorkspaceProxy, 0, len(p))
+	for _, proxy := range p {
+		resp = append(resp, convertProxy(proxy, statuses[proxy.ID]))
+	}
+	return resp
+}
+
+func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.WorkspaceProxy {
+	return codersdk.WorkspaceProxy{
+		ID:               p.ID,
+		Name:             p.Name,
+		Icon:             p.Icon,
+		URL:              p.Url,
+		WildcardHostname: p.WildcardHostname,
+		CreatedAt:        p.CreatedAt,
+		UpdatedAt:        p.UpdatedAt,
+		Deleted:          p.Deleted,
+		Status: codersdk.WorkspaceProxyStatus{
+			Status:    codersdk.ProxyHealthStatus(status.Status),
+			CheckedAt: status.CheckedAt,
+		},
+	}
 }
