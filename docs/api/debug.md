@@ -103,6 +103,10 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "stunport": 0,
               "stuntestIP": "string"
             },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
+            },
             "round_trip_ping": 0,
             "stun": {
               "canSTUN": true,
@@ -157,6 +161,10 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "stunonly": true,
               "stunport": 0,
               "stuntestIP": "string"
+            },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
             },
             "round_trip_ping": 0,
             "stun": {

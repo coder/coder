@@ -49,6 +49,7 @@ export const templateVersionEditorMachine = createMachine(
         | { type: "SET_MISSING_VARIABLE_VALUES"; values: VariableValue[] }
         | { type: "CANCEL_MISSING_VARIABLE_VALUES" }
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
+        | { type: "BUILD_DONE" }
         | { type: "PUBLISH" }
         | ({ type: "CONFIRM_PUBLISH" } & PublishVersionData)
         | { type: "CANCEL_PUBLISH" },
@@ -157,14 +158,12 @@ export const templateVersionEditorMachine = createMachine(
         invoke: {
           id: "watchBuildLogs",
           src: "watchBuildLogs",
-          onDone: {
-            target: "fetchingVersion",
-          },
         },
         on: {
           ADD_BUILD_LOG: {
             actions: "addBuildLog",
           },
+          BUILD_DONE: "fetchingVersion",
           CANCEL_VERSION: {
             target: "cancelingBuild",
           },
@@ -360,9 +359,21 @@ export const templateVersionEditorMachine = createMachine(
             throw new Error("version must be set")
           }
 
-          return API.watchBuildLogs(version.id, (log) => {
-            callback({ type: "ADD_BUILD_LOG", log })
+          const socket = API.watchBuildLogsByTemplateVersionId(version.id, {
+            onMessage: (log) => {
+              callback({ type: "ADD_BUILD_LOG", log })
+            },
+            onDone: () => {
+              callback({ type: "BUILD_DONE" })
+            },
+            onError: (error) => {
+              console.error(error)
+            },
           })
+
+          return () => {
+            socket.close()
+          }
         },
       getResources: (ctx) => {
         if (!ctx.version) {

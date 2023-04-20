@@ -5563,6 +5563,24 @@ Parameter represents a set value for the scope.
 | `none` |
 | `data` |
 
+## derp.ServerInfoMessage
+
+```json
+{
+  "tokenBucketBytesBurst": 0,
+  "tokenBucketBytesPerSecond": 0
+}
+```
+
+### Properties
+
+| Name                                                                                       | Type    | Required | Restrictions | Description                                                                                                              |
+| ------------------------------------------------------------------------------------------ | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `tokenBucketBytesBurst`                                                                    | integer | false    |              | Tokenbucketbytesburst is how many bytes the server will allow to burst, temporarily violating TokenBucketBytesPerSecond. |
+| Zero means unspecified. There might be a limit, but the client need not try to respect it. |
+| `tokenBucketBytesPerSecond`                                                                | integer | false    |              | Tokenbucketbytespersecond is how many bytes per second the server says it will accept, including all framing bytes.      |
+| Zero means unspecified. There might be a limit, but the client need not try to respect it. |
+
 ## healthcheck.AccessURLReport
 
 ```json
@@ -5607,6 +5625,10 @@ Parameter represents a set value for the scope.
     "stunport": 0,
     "stuntestIP": "string"
   },
+  "node_info": {
+    "tokenBucketBytesBurst": 0,
+    "tokenBucketBytesPerSecond": 0
+  },
   "round_trip_ping": 0,
   "stun": {
     "canSTUN": true,
@@ -5626,6 +5648,7 @@ Parameter represents a set value for the scope.
 | `client_logs`           | array of array                                           | false    |              |             |
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
+| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
 | `round_trip_ping`       | integer                                                  | false    |              |             |
 | `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
 | `uses_websocket`        | boolean                                                  | false    |              |             |
@@ -5654,6 +5677,10 @@ Parameter represents a set value for the scope.
         "stunonly": true,
         "stunport": 0,
         "stuntestIP": "string"
+      },
+      "node_info": {
+        "tokenBucketBytesBurst": 0,
+        "tokenBucketBytesPerSecond": 0
       },
       "round_trip_ping": 0,
       "stun": {
@@ -5758,6 +5785,10 @@ Parameter represents a set value for the scope.
             "stunport": 0,
             "stuntestIP": "string"
           },
+          "node_info": {
+            "tokenBucketBytesBurst": 0,
+            "tokenBucketBytesPerSecond": 0
+          },
           "round_trip_ping": 0,
           "stun": {
             "canSTUN": true,
@@ -5812,6 +5843,10 @@ Parameter represents a set value for the scope.
             "stunonly": true,
             "stunport": 0,
             "stuntestIP": "string"
+          },
+          "node_info": {
+            "tokenBucketBytesBurst": 0,
+            "tokenBucketBytesPerSecond": 0
           },
           "round_trip_ping": 0,
           "stun": {
@@ -5947,6 +5982,10 @@ Parameter represents a set value for the scope.
               "stunport": 0,
               "stuntestIP": "string"
             },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
+            },
             "round_trip_ping": 0,
             "stun": {
               "canSTUN": true,
@@ -6001,6 +6040,10 @@ Parameter represents a set value for the scope.
               "stunonly": true,
               "stunport": 0,
               "stuntestIP": "string"
+            },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
             },
             "round_trip_ping": 0,
             "stun": {
@@ -6406,3 +6449,33 @@ _None_
 | Name               | Type   | Required | Restrictions | Description                                                 |
 | ------------------ | ------ | -------- | ------------ | ----------------------------------------------------------- |
 | `signed_token_str` | string | false    |              | Signed token str should be set as a cookie on the response. |
+
+## wsproxysdk.RegisterWorkspaceProxyRequest
+
+```json
+{
+  "access_url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description                                                                   |
+| ------------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------- |
+| `access_url`        | string | false    |              | Access URL that hits the workspace proxy api.                                 |
+| `wildcard_hostname` | string | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps. |
+
+## wsproxysdk.RegisterWorkspaceProxyResponse
+
+```json
+{
+  "app_security_key": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `app_security_key` | string | false    |              |             |

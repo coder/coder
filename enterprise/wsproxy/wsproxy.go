@@ -32,8 +32,7 @@ type Options struct {
 
 	// DashboardURL is the URL of the primary coderd instance.
 	DashboardURL *url.URL
-	// AccessURL is the URL of the WorkspaceProxy. This is the url to communicate
-	// with this server.
+	// AccessURL is the URL of the WorkspaceProxy.
 	AccessURL *url.URL
 
 	// TODO: @emyrk We use these two fields in many places with this comment.
@@ -49,9 +48,6 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 
 	RealIPConfig *httpmw.RealIPConfig
-	// TODO: @emyrk this key needs to be provided via a file or something?
-	//		Maybe we should curl it from the primary over some secure connection?
-	AppSecurityKey workspaceapps.SecurityKey
 
 	Tracing            trace.TracerProvider
 	PrometheusRegistry *prometheus.Registry
@@ -72,7 +68,6 @@ func (o *Options) Validate() error {
 	errs.Required("RealIPConfig", o.RealIPConfig)
 	errs.Required("PrometheusRegistry", o.PrometheusRegistry)
 	errs.NotEmpty("ProxySessionToken", o.ProxySessionToken)
-	errs.NotEmpty("AppSecurityKey", o.AppSecurityKey)
 
 	if len(errs) > 0 {
 		return errs
@@ -107,7 +102,10 @@ type Server struct {
 	cancel context.CancelFunc
 }
 
-func New(opts *Options) (*Server, error) {
+// New creates a new workspace proxy server. This requires a primary coderd
+// instance to be reachable and the correct authorization access token to be
+// provided. If the proxy cannot authenticate with the primary, this will fail.
+func New(ctx context.Context, opts *Options) (*Server, error) {
 	if opts.PrometheusRegistry == nil {
 		opts.PrometheusRegistry = prometheus.NewRegistry()
 	}
@@ -116,11 +114,32 @@ func New(opts *Options) (*Server, error) {
 		return nil, err
 	}
 
-	// TODO: implement some ping and registration logic
 	client := wsproxysdk.New(opts.DashboardURL)
 	err := client.SetSessionToken(opts.ProxySessionToken)
 	if err != nil {
 		return nil, xerrors.Errorf("set client token: %w", err)
+	}
+
+	// TODO: Probably do some version checking here
+	info, err := client.SDKClient.BuildInfo(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to fetch build info from %q: %w", opts.DashboardURL, err)
+	}
+	if info.WorkspaceProxy {
+		return nil, xerrors.Errorf("%q is a workspace proxy, not a primary coderd instance", opts.DashboardURL)
+	}
+
+	regResp, err := client.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+		AccessURL:        opts.AccessURL.String(),
+		WildcardHostname: opts.AppHostname,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("register proxy: %w", err)
+	}
+
+	secKey, err := workspaceapps.KeyFromString(regResp.AppSecurityKey)
+	if err != nil {
+		return nil, xerrors.Errorf("parse app security key: %w", err)
 	}
 
 	r := chi.NewRouter()
@@ -149,11 +168,11 @@ func New(opts *Options) (*Server, error) {
 			AccessURL:    opts.AccessURL,
 			AppHostname:  opts.AppHostname,
 			Client:       client,
-			SecurityKey:  s.Options.AppSecurityKey,
+			SecurityKey:  secKey,
 			Logger:       s.Logger.Named("proxy_token_provider"),
 		},
 		WorkspaceConnCache: wsconncache.New(s.DialWorkspaceAgent, 0),
-		AppSecurityKey:     opts.AppSecurityKey,
+		AppSecurityKey:     secKey,
 
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
@@ -220,9 +239,10 @@ func (s *Server) DialWorkspaceAgent(id uuid.UUID) (*codersdk.WorkspaceAgentConn,
 
 func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-		ExternalURL:  buildinfo.ExternalURL(),
-		Version:      buildinfo.Version(),
-		DashboardURL: s.DashboardURL.String(),
+		ExternalURL:    buildinfo.ExternalURL(),
+		Version:        buildinfo.Version(),
+		DashboardURL:   s.DashboardURL.String(),
+		WorkspaceProxy: true,
 	})
 }
 
