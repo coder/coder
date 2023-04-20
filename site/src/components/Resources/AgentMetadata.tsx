@@ -249,12 +249,22 @@ export const AgentMetadata: FC<{
 
   if (metadata === undefined) {
     return (
-      <Skeleton
-        width={65}
-        height={12}
-        variant="text"
-        className={styles.skeleton}
-      />
+      <Stack alignItems="baseline" direction="row" spacing={6}>
+        <div className={styles.metadata}>
+          <Skeleton width={40} height={12} variant="text" />
+          <Skeleton width={65} height={14} variant="text" />
+        </div>
+
+        <div className={styles.metadata}>
+          <Skeleton width={40} height={12} variant="text" />
+          <Skeleton width={65} height={14} variant="text" />
+        </div>
+
+        <div className={styles.metadata}>
+          <Skeleton width={40} height={12} variant="text" />
+          <Skeleton width={65} height={14} variant="text" />
+        </div>
+      </Stack>
     )
   }
 
@@ -266,6 +276,11 @@ export const AgentMetadata: FC<{
 const useStyles = makeStyles((theme) => ({
   metadata: {
     fontSize: 12,
+    lineHeight: "normal",
+    display: "flex",
+    flexDirection: "column",
+    gap: theme.spacing(0.5),
+    overflow: "visible",
   },
 
   metadataLabel: {
@@ -281,10 +296,11 @@ const useStyles = makeStyles((theme) => ({
     overflow: "hidden",
     whiteSpace: "nowrap",
     maxWidth: "16em",
+    fontSize: 14,
   },
 
   metadataValueSuccess: {
-    color: theme.palette.text.primary,
+    color: theme.palette.success.light,
   },
 
   metadataValueError: {

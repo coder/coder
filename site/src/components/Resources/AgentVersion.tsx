@@ -16,7 +16,7 @@ export const AgentVersion: FC<{
   const { outdated } = getDisplayVersionStatus(agent.version, serverVersion)
 
   if (!outdated) {
-    return <span>Updated</span>
+    return <span>{agent.version}</span>
   }
 
   return (

@@ -170,7 +170,10 @@ export const AgentRow: FC<AgentRowProps> = ({
       key={agent.id}
       direction="column"
       spacing={0}
-      className={styles.agentRow}
+      className={combineClasses([
+        styles.agentRow,
+        styles[`agentRow-${agent.status}`],
+      ])}
     >
       <Stack
         direction="row"
@@ -179,57 +182,41 @@ export const AgentRow: FC<AgentRowProps> = ({
         className={styles.agentInfo}
       >
         <div className={styles.agentNameAndStatus}>
-          <AgentStatus agent={agent} />
-          <div>
+          <Stack alignItems="center" direction="row" spacing={3}>
             <div className={styles.agentName}>{agent.name}</div>
-            {agent.status === "timeout" && (
-              <div className={styles.agentErrorMessage}>
-                {t("unableToConnect")}
-              </div>
-            )}
-          </div>
+            <Stack
+              direction="row"
+              spacing={2}
+              alignItems="baseline"
+              className={styles.agentDescription}
+            >
+              {agent.status === "timeout" && (
+                <div className={styles.agentErrorMessage}>
+                  {t("unableToConnect")}
+                </div>
+              )}
+              {agent.status === "connected" && (
+                <>
+                  <span className={styles.agentOS}>
+                    {agent.operating_system}
+                  </span>
+                  <AgentVersion
+                    agent={agent}
+                    serverVersion={serverVersion}
+                    onUpdate={onUpdateAgent}
+                  />
+                  <AgentLatency agent={agent} />
+                </>
+              )}
+              {agent.status === "connecting" && (
+                <>
+                  <Skeleton width={160} variant="text" />
+                  <Skeleton width={36} variant="text" />
+                </>
+              )}
+            </Stack>
+          </Stack>
         </div>
-
-        {agent.status === "connected" && (
-          <div className={styles.agentDataGroup}>
-            <div className={styles.agentData}>
-              <span>Ping</span>
-              <AgentLatency agent={agent} />
-            </div>
-
-            <div className={styles.agentData}>
-              <span>Version</span>
-              <AgentVersion
-                agent={agent}
-                serverVersion={serverVersion}
-                onUpdate={onUpdateAgent}
-              />
-            </div>
-            <AgentMetadata
-              storybookMetadata={storybookAgentMetadata}
-              agent={agent}
-            />
-          </div>
-        )}
-
-        {agent.status === "connecting" && (
-          <div className={styles.agentDataGroup}>
-            <div className={styles.agentData}>
-              <Skeleton width={40} height={12} variant="text" />
-              <Skeleton width={65} height={12} variant="text" />
-            </div>
-
-            <div className={styles.agentData}>
-              <Skeleton width={40} height={12} variant="text" />
-              <Skeleton width={65} height={12} variant="text" />
-            </div>
-
-            <div className={styles.agentData}>
-              <Skeleton width={40} height={12} variant="text" />
-              <Skeleton width={65} height={12} variant="text" />
-            </div>
-          </div>
-        )}
 
         {agent.status === "connected" && (
           <div className={styles.agentDefaultActions}>
@@ -275,42 +262,53 @@ export const AgentRow: FC<AgentRowProps> = ({
         )}
       </Stack>
 
-      {showApps && agent.status === "connected" && (
-        <div className={styles.apps}>
-          {!hideVSCodeDesktopButton && (
-            <VSCodeDesktopButton
-              userName={workspace.owner_name}
-              workspaceName={workspace.name}
-              agentName={agent.name}
-              folderPath={agent.expanded_directory}
-            />
-          )}
-          {agent.apps.map((app) => (
-            <AppLink
-              key={app.slug}
-              appsHost={applicationsHost}
-              app={app}
-              agent={agent}
-              workspace={workspace}
-            />
-          ))}
-        </div>
-      )}
+      <div className={styles.agentMetadata}>
+        <AgentMetadata
+          storybookMetadata={storybookAgentMetadata}
+          agent={agent}
+        />
+      </div>
 
-      {showApps && agent.status === "connecting" && (
+      {showApps && (
         <div className={styles.apps}>
-          <Skeleton
-            width={80}
-            height={36}
-            variant="rect"
-            className={styles.buttonSkeleton}
-          />
-          <Skeleton
-            width={110}
-            height={36}
-            variant="rect"
-            className={styles.buttonSkeleton}
-          />
+          {agent.status === "connected" && (
+            <>
+              {!hideVSCodeDesktopButton && (
+                <VSCodeDesktopButton
+                  userName={workspace.owner_name}
+                  workspaceName={workspace.name}
+                  agentName={agent.name}
+                  folderPath={agent.expanded_directory}
+                />
+              )}
+              {agent.apps.map((app) => (
+                <AppLink
+                  key={app.slug}
+                  appsHost={applicationsHost}
+                  app={app}
+                  agent={agent}
+                  workspace={workspace}
+                />
+              ))}
+            </>
+          )}
+
+          {agent.status === "connecting" && (
+            <>
+              <Skeleton
+                width={80}
+                height={36}
+                variant="rect"
+                className={styles.buttonSkeleton}
+              />
+              <Skeleton
+                width={110}
+                height={36}
+                variant="rect"
+                className={styles.buttonSkeleton}
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -420,16 +418,38 @@ const useStyles = makeStyles((theme) => ({
   agentRow: {
     backgroundColor: theme.palette.background.paperLight,
     fontSize: 16,
+    borderLeft: `2px solid ${theme.palette.text.secondary}`,
+  },
+
+  "agentRow-connected": {
+    borderColor: theme.palette.success.light,
+  },
+
+  "agentRow-disconnected": {
+    borderColor: theme.palette.text.secondary,
+  },
+
+  "agentRow-connecting": {
+    borderColor: theme.palette.info.light,
+  },
+
+  "agentRow-timeout": {
+    borderColor: theme.palette.warning.light,
   },
 
   agentInfo: {
-    padding: theme.spacing(4),
+    padding: theme.spacing(2, 4),
   },
 
   agentDefaultActions: {
     display: "flex",
     gap: theme.spacing(1),
     marginLeft: "auto",
+  },
+
+  agentDescription: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
   },
 
   startupLogs: {
@@ -449,11 +469,9 @@ const useStyles = makeStyles((theme) => ({
   },
 
   agentNameAndStatus: {
-    fontWeight: 600,
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(2),
-    fontSize: theme.spacing(2),
+    gap: theme.spacing(4),
   },
 
   agentName: {
@@ -461,6 +479,8 @@ const useStyles = makeStyles((theme) => ({
     overflow: "hidden",
     textOverflow: "ellipsis",
     maxWidth: 260,
+    fontWeight: 600,
+    fontSize: theme.spacing(2),
   },
 
   agentDataGroup: {
@@ -483,8 +503,9 @@ const useStyles = makeStyles((theme) => ({
   apps: {
     display: "flex",
     flexWrap: "wrap",
-    gap: theme.spacing(1),
-    padding: theme.spacing(0, 4, 4),
+    gap: theme.spacing(1.5),
+    padding: theme.spacing(4),
+    borderTop: `1px solid ${theme.palette.divider}`,
   },
 
   logsPanel: {
@@ -538,5 +559,15 @@ const useStyles = makeStyles((theme) => ({
       width: theme.spacing(2),
       height: theme.spacing(2),
     },
+  },
+
+  agentOS: {
+    textTransform: "capitalize",
+  },
+
+  agentMetadata: {
+    padding: theme.spacing(2.5, 4),
+    borderTop: `1px solid ${theme.palette.divider}`,
+    background: theme.palette.background.paper,
   },
 }))
