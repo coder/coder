@@ -20,7 +20,6 @@ export const VSCodeDesktopButton: FC<
   return (
     <Button
       startIcon={<VSCodeIcon />}
-      size="small"
       disabled={loading}
       className={styles.button}
       onClick={() => {
@@ -59,9 +58,23 @@ const useStyles = makeStyles((theme) => ({
   button: {
     whiteSpace: "nowrap",
     backgroundColor: theme.palette.background.default,
+    padding: theme.spacing(0, 3),
+    height: 44,
+    borderRadius: 6,
 
     "&:hover": {
-      backgroundColor: `${theme.palette.background.default} !important`,
+      backgroundColor: `${theme.palette.background.paper} !important`,
+    },
+
+    "& .MuiButton-startIcon": {
+      marginRight: theme.spacing(1.5),
+      width: 16,
+      height: 16,
+
+      "& svg": {
+        width: "100%",
+        height: "100%",
+      },
     },
   },
 }))

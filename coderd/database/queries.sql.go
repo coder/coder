@@ -2949,6 +2949,36 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 	return i, err
 }
 
+const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
+SELECT
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+FROM
+	workspace_proxies
+WHERE
+	name = $1
+	AND deleted = false
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByName, name)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+		&i.TokenHashedSecret,
+	)
+	return i, err
+}
+
 const insertWorkspaceProxy = `-- name: InsertWorkspaceProxy :one
 INSERT INTO
 	workspace_proxies (
@@ -3007,39 +3037,26 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 	return i, err
 }
 
-const updateWorkspaceProxy = `-- name: UpdateWorkspaceProxy :one
+const registerWorkspaceProxy = `-- name: RegisterWorkspaceProxy :one
 UPDATE
 	workspace_proxies
 SET
-	name = $1,
-	display_name = $2,
-	url = $3,
-	wildcard_hostname = $4,
-	icon = $5,
+	url = $1,
+	wildcard_hostname = $2,
 	updated_at = Now()
 WHERE
-	id = $6
+	id = $3
 RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 `
 
-type UpdateWorkspaceProxyParams struct {
-	Name             string    `db:"name" json:"name"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
+type RegisterWorkspaceProxyParams struct {
 	Url              string    `db:"url" json:"url"`
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
-	Icon             string    `db:"icon" json:"icon"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkspaceProxy,
-		arg.Name,
-		arg.DisplayName,
-		arg.Url,
-		arg.WildcardHostname,
-		arg.Icon,
-		arg.ID,
-	)
+func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, registerWorkspaceProxy, arg.Url, arg.WildcardHostname, arg.ID)
 	var i WorkspaceProxy
 	err := row.Scan(
 		&i.ID,

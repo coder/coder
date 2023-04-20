@@ -5593,6 +5593,46 @@ Parameter represents a set value for the scope.
 | `none` |
 | `data` |
 
+## derp.ServerInfoMessage
+
+```json
+{
+  "tokenBucketBytesBurst": 0,
+  "tokenBucketBytesPerSecond": 0
+}
+```
+
+### Properties
+
+| Name                                                                                       | Type    | Required | Restrictions | Description                                                                                                              |
+| ------------------------------------------------------------------------------------------ | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `tokenBucketBytesBurst`                                                                    | integer | false    |              | Tokenbucketbytesburst is how many bytes the server will allow to burst, temporarily violating TokenBucketBytesPerSecond. |
+| Zero means unspecified. There might be a limit, but the client need not try to respect it. |
+| `tokenBucketBytesPerSecond`                                                                | integer | false    |              | Tokenbucketbytespersecond is how many bytes per second the server says it will accept, including all framing bytes.      |
+| Zero means unspecified. There might be a limit, but the client need not try to respect it. |
+
+## healthcheck.AccessURLReport
+
+```json
+{
+  "err": null,
+  "healthy": true,
+  "healthzResponse": "string",
+  "reachable": true,
+  "statusCode": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description |
+| ----------------- | ------- | -------- | ------------ | ----------- |
+| `err`             | any     | false    |              |             |
+| `healthy`         | boolean | false    |              |             |
+| `healthzResponse` | string  | false    |              |             |
+| `reachable`       | boolean | false    |              |             |
+| `statusCode`      | integer | false    |              |             |
+
 ## healthcheck.DERPNodeReport
 
 ```json
@@ -5615,6 +5655,10 @@ Parameter represents a set value for the scope.
     "stunport": 0,
     "stuntestIP": "string"
   },
+  "node_info": {
+    "tokenBucketBytesBurst": 0,
+    "tokenBucketBytesPerSecond": 0
+  },
   "round_trip_ping": 0,
   "stun": {
     "canSTUN": true,
@@ -5634,6 +5678,7 @@ Parameter represents a set value for the scope.
 | `client_logs`           | array of array                                           | false    |              |             |
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
+| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
 | `round_trip_ping`       | integer                                                  | false    |              |             |
 | `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
 | `uses_websocket`        | boolean                                                  | false    |              |             |
@@ -5662,6 +5707,10 @@ Parameter represents a set value for the scope.
         "stunonly": true,
         "stunport": 0,
         "stuntestIP": "string"
+      },
+      "node_info": {
+        "tokenBucketBytesBurst": 0,
+        "tokenBucketBytesPerSecond": 0
       },
       "round_trip_ping": 0,
       "stun": {
@@ -5741,6 +5790,7 @@ Parameter represents a set value for the scope.
     "udp": true,
     "upnP": "string"
   },
+  "netcheck_err": null,
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
@@ -5764,6 +5814,10 @@ Parameter represents a set value for the scope.
             "stunonly": true,
             "stunport": 0,
             "stuntestIP": "string"
+          },
+          "node_info": {
+            "tokenBucketBytesBurst": 0,
+            "tokenBucketBytesPerSecond": 0
           },
           "round_trip_ping": 0,
           "stun": {
@@ -5820,6 +5874,10 @@ Parameter represents a set value for the scope.
             "stunport": 0,
             "stuntestIP": "string"
           },
+          "node_info": {
+            "tokenBucketBytesBurst": 0,
+            "tokenBucketBytesPerSecond": 0
+          },
           "round_trip_ping": 0,
           "stun": {
             "canSTUN": true,
@@ -5863,6 +5921,7 @@ Parameter represents a set value for the scope.
 | ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
 | `healthy`          | boolean                                                      | false    |              |             |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
+| `netcheck_err`     | any                                                          | false    |              |             |
 | `netcheck_logs`    | array of string                                              | false    |              |             |
 | `regions`          | object                                                       | false    |              |             |
 | » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
@@ -5889,6 +5948,13 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "access_url": {
+    "err": null,
+    "healthy": true,
+    "healthzResponse": "string",
+    "reachable": true,
+    "statusCode": 0
+  },
   "derp": {
     "healthy": true,
     "netcheck": {
@@ -5921,6 +5987,7 @@ Parameter represents a set value for the scope.
       "udp": true,
       "upnP": "string"
     },
+    "netcheck_err": null,
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
@@ -5944,6 +6011,10 @@ Parameter represents a set value for the scope.
               "stunonly": true,
               "stunport": 0,
               "stuntestIP": "string"
+            },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
             },
             "round_trip_ping": 0,
             "stun": {
@@ -6000,6 +6071,10 @@ Parameter represents a set value for the scope.
               "stunport": 0,
               "stuntestIP": "string"
             },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
+            },
             "round_trip_ping": 0,
             "stun": {
               "canSTUN": true,
@@ -6042,11 +6117,12 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name   | Type                                             | Required | Restrictions | Description                                      |
-| ------ | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------ |
-| `derp` | [healthcheck.DERPReport](#healthcheckderpreport) | false    |              |                                                  |
-| `pass` | boolean                                          | false    |              | Healthy is true if the report returns no errors. |
-| `time` | string                                           | false    |              | Time is the time the report was generated at.    |
+| Name         | Type                                                       | Required | Restrictions | Description                                      |
+| ------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
+| `access_url` | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
+| `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
+| `pass`       | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
+| `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
 
 ## netcheck.Report
 
@@ -6403,3 +6479,33 @@ _None_
 | Name               | Type   | Required | Restrictions | Description                                                 |
 | ------------------ | ------ | -------- | ------------ | ----------------------------------------------------------- |
 | `signed_token_str` | string | false    |              | Signed token str should be set as a cookie on the response. |
+
+## wsproxysdk.RegisterWorkspaceProxyRequest
+
+```json
+{
+  "access_url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description                                                                   |
+| ------------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------- |
+| `access_url`        | string | false    |              | Access URL that hits the workspace proxy api.                                 |
+| `wildcard_hostname` | string | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps. |
+
+## wsproxysdk.RegisterWorkspaceProxyResponse
+
+```json
+{
+  "app_security_key": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `app_security_key` | string | false    |              |             |

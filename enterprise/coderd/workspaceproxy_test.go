@@ -65,6 +65,42 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		require.Equal(t, proxyRes.Proxy, proxies[0])
 		require.NotEmpty(t, proxyRes.ProxyToken)
 	})
+
+	t.Run("delete", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentMoons),
+			"*",
+		}
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name:             namesgenerator.GetRandomName(1),
+			Icon:             "/emojis/flag.png",
+			URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
+			WildcardHostname: "*.sub.example.com",
+		})
+		require.NoError(t, err)
+
+		err = client.DeleteWorkspaceProxyByID(ctx, proxyRes.Proxy.ID)
+		require.NoError(t, err, "failed to delete workspace proxy")
+
+		proxies, err := client.WorkspaceProxies(ctx)
+		require.NoError(t, err)
+		require.Len(t, proxies, 0)
+	})
 }
 
 func TestIssueSignedAppToken(t *testing.T) {

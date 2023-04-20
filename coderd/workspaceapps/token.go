@@ -54,6 +54,10 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 // two keys.
 type SecurityKey [96]byte
 
+func (k SecurityKey) String() string {
+	return hex.EncodeToString(k[:])
+}
+
 func (k SecurityKey) signingKey() []byte {
 	return k[:64]
 }

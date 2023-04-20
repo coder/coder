@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"sync"
@@ -99,6 +100,10 @@ type Client struct {
 	// LogBodies can be enabled to print request and response bodies to the logger.
 	LogBodies bool
 
+	// PlainLogger may be set to log HTTP traffic in a human-readable form.
+	// It uses the LogBodies option.
+	PlainLogger io.Writer
+
 	// Trace can be enabled to propagate tracing spans to the Coder API.
 	// This is useful for tracking a request end-to-end.
 	Trace bool
@@ -116,6 +121,16 @@ func (c *Client) SetSessionToken(token string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sessionToken = token
+}
+
+func prefixLines(prefix, s []byte) []byte {
+	ss := bytes.NewBuffer(make([]byte, 0, len(s)*2))
+	for _, line := range bytes.Split(s, []byte("\n")) {
+		_, _ = ss.Write(prefix)
+		_, _ = ss.Write(line)
+		_ = ss.WriteByte('\n')
+	}
+	return ss.Bytes()
 }
 
 // Request performs a HTTP request with the body provided. The caller is
@@ -164,6 +179,15 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 
+	if c.PlainLogger != nil {
+		out, err := httputil.DumpRequest(req, c.LogBodies)
+		if err != nil {
+			return nil, xerrors.Errorf("dump request: %w", err)
+		}
+		out = prefixLines([]byte("http --> "), out)
+		_, _ = c.PlainLogger.Write(out)
+	}
+
 	tokenHeader := c.SessionTokenHeader
 	if tokenHeader == "" {
 		tokenHeader = SessionTokenHeader
@@ -199,6 +223,15 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
+	}
+
+	if c.PlainLogger != nil {
+		out, err := httputil.DumpResponse(resp, c.LogBodies)
+		if err != nil {
+			return nil, xerrors.Errorf("dump response: %w", err)
+		}
+		out = prefixLines([]byte("http <-- "), out)
+		_, _ = c.PlainLogger.Write(out)
 	}
 
 	span.SetAttributes(httpconv.ClientResponse(resp)...)

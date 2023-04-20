@@ -22,6 +22,48 @@ import (
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 )
 
+// @Summary Delete workspace proxy
+// @ID delete-workspace-proxy
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /workspaceproxies/{workspaceproxy} [delete]
+func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		proxy             = httpmw.WorkspaceProxyParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	aReq.Old = proxy
+	defer commitAudit()
+
+	err := api.Database.UpdateWorkspaceProxyDeleted(ctx, database.UpdateWorkspaceProxyDeletedParams{
+		ID:      proxy.ID,
+		Deleted: true,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = database.WorkspaceProxy{}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "Proxy has been deleted!",
+	})
+}
+
 // @Summary Create workspace proxy
 // @ID create-workspace-proxy
 // @Security CoderSessionToken
@@ -209,6 +251,69 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.IssueSignedAppTokenResponse{
 		SignedTokenStr: tokenStr,
+	})
+}
+
+// workspaceProxyRegister is used to register a new workspace proxy. When a proxy
+// comes online, it will announce itself to this endpoint. This updates its values
+// in the database and returns a signed token that can be used to authenticate
+// tokens.
+//
+// @Summary Register workspace proxy
+// @ID register-workspace-proxy
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param request body wsproxysdk.RegisterWorkspaceProxyRequest true "Issue signed app token request"
+// @Success 201 {object} wsproxysdk.RegisterWorkspaceProxyResponse
+// @Router /workspaceproxies/me/register [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		proxy = httpmw.WorkspaceProxy(r)
+	)
+
+	var req wsproxysdk.RegisterWorkspaceProxyRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if err := validateProxyURL(req.AccessURL); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "URL is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if req.WildcardHostname != "" {
+		if _, err := httpapi.CompileHostnamePattern(req.WildcardHostname); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Wildcard URL is invalid.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	_, err := api.Database.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
+		ID:               proxy.ID,
+		Url:              req.AccessURL,
+		WildcardHostname: req.WildcardHostname,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
+		AppSecurityKey: api.AppSecurityKey.String(),
 	})
 }
 

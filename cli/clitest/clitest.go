@@ -127,8 +127,8 @@ func extractTar(t *testing.T, data []byte, directory string) {
 	}
 }
 
-// Start runs the command in a goroutine and cleans it up when
-// the test completed.
+// Start runs the command in a goroutine and cleans it up when the test
+// completed.
 func Start(t *testing.T, inv *clibase.Invocation) {
 	t.Helper()
 
@@ -170,7 +170,7 @@ func (w *ErrorWaiter) Wait() error {
 		var ok bool
 		w.cachedError, ok = <-w.c
 		if !ok {
-			panic("unexpoected channel close")
+			panic("unexpected channel close")
 		}
 	})
 	return w.cachedError
@@ -196,18 +196,18 @@ func (w *ErrorWaiter) RequireAs(want interface{}) {
 	require.ErrorAs(w.t, w.Wait(), want)
 }
 
-// StartWithWaiter runs the command in a goroutine but returns the error
-// instead of asserting it. This is useful for testing error cases.
+// StartWithWaiter runs the command in a goroutine but returns the error instead
+// of asserting it. This is useful for testing error cases.
 func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 	t.Helper()
-
-	errCh := make(chan error, 1)
-
-	var cleaningUp atomic.Bool
 
 	var (
 		ctx    = inv.Context()
 		cancel func()
+
+		cleaningUp atomic.Bool
+		errCh      = make(chan error, 1)
+		doneCh     = make(chan struct{})
 	)
 	if _, ok := ctx.Deadline(); !ok {
 		ctx, cancel = context.WithDeadline(ctx, time.Now().Add(testutil.WaitMedium))
@@ -218,12 +218,13 @@ func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 	inv = inv.WithContext(ctx)
 
 	go func() {
+		defer close(doneCh)
 		defer close(errCh)
 		err := inv.Run()
 		if cleaningUp.Load() && errors.Is(err, context.DeadlineExceeded) {
-			// If we're cleaning up, this error is likely related to the
-			// CLI teardown process. E.g., the server could be slow to shut
-			// down Postgres.
+			// If we're cleaning up, this error is likely related to the CLI
+			// teardown process. E.g., the server could be slow to shut down
+			// Postgres.
 			t.Logf("command %q timed out during test cleanup", inv.Command.FullName())
 		}
 		// Whether or not this fails the test is left to the caller.
@@ -235,7 +236,7 @@ func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 	t.Cleanup(func() {
 		cancel()
 		cleaningUp.Store(true)
-		<-errCh
+		<-doneCh
 	})
 	return &ErrorWaiter{c: errCh, t: t}
 }
