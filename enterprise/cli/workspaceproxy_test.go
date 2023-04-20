@@ -49,7 +49,6 @@ func Test_ProxyCRUD(t *testing.T) {
 			"--name", expectedName,
 			"--display-name", "Test Proxy",
 			"--icon", "/emojis/1f4bb.png",
-			"--access-url", "http://localhost:3010",
 			"--only-token",
 		)
 
