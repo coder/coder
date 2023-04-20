@@ -9749,6 +9749,19 @@ const docTemplate = `{
                 "ParameterSourceSchemeData"
             ]
         },
+        "derp.ServerInfoMessage": {
+            "type": "object",
+            "properties": {
+                "tokenBucketBytesBurst": {
+                    "description": "TokenBucketBytesBurst is how many bytes the server will\nallow to burst, temporarily violating\nTokenBucketBytesPerSecond.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                },
+                "tokenBucketBytesPerSecond": {
+                    "description": "TokenBucketBytesPerSecond is how many bytes per second the\nserver says it will accept, including all framing bytes.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                }
+            }
+        },
         "healthcheck.AccessURLReport": {
             "type": "object",
             "properties": {
@@ -9794,6 +9807,9 @@ const docTemplate = `{
                 },
                 "node": {
                     "$ref": "#/definitions/tailcfg.DERPNode"
+                },
+                "node_info": {
+                    "$ref": "#/definitions/derp.ServerInfoMessage"
                 },
                 "round_trip_ping": {
                     "type": "integer"
