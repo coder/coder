@@ -10,16 +10,18 @@ export interface PillProps {
   type?: PaletteIndex
   lightBorder?: boolean
   title?: string
+  dataTestId?: string
 }
 
 export const Pill: FC<PillProps> = (props) => {
-  const { className, icon, text = false, title } = props
+  const { className, icon, text = false, title, dataTestId } = props
   const styles = useStyles(props)
   return (
     <div
       className={combineClasses([styles.wrapper, styles.pillColor, className])}
       role="status"
       title={title}
+      data-testid={dataTestId}
     >
       {icon && <div className={styles.iconWrapper}>{icon}</div>}
       {text}

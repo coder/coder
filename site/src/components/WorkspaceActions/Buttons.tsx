@@ -61,6 +61,7 @@ export const StopButton: FC<PropsWithChildren<WorkspaceAction>> = ({
       startIcon={<CropSquareIcon />}
       onClick={handleAction}
       className={styles.fixedWidth}
+      data-testid="button-stop-workspace"
     >
       {t("actionButton.stop")}
     </Button>
