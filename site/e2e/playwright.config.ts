@@ -1,6 +1,6 @@
 import { PlaywrightTestConfig } from "@playwright/test"
 import path from "path"
-import { defaultPort } from "./constants"
+import { defaultPort, defaultEndpoint } from "./constants"
 
 const port = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
@@ -12,7 +12,7 @@ const config: PlaywrightTestConfig = {
   testDir: "tests",
   globalSetup: require.resolve("./globalSetup"),
   use: {
-    baseURL: `http://localhost:${port}`,
+    baseURL: `http://${defaultEndpoint}`,
     video: {
       mode: "retain-on-failure",
       size: { width: 1280, height: 768 },
