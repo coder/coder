@@ -153,7 +153,10 @@ type ValidWorkspaceAppHostnameOpts struct {
 // ValidWorkspaceAppHostname checks if the given host is a valid workspace app
 // hostname based on the provided options. It returns a scheme to force on
 // success. If the hostname is not valid or doesn't match, an empty string is
-// returned.
+// returned. Any error returned is a 500 error.
+//
+// For hosts that match a wildcard app hostname, the scheme is forced to be the
+// corresponding access URL scheme.
 func (api *API) ValidWorkspaceAppHostname(ctx context.Context, host string, opts ValidWorkspaceAppHostnameOpts) (string, error) {
 	if opts.AllowPrimaryAccessURL && (host == api.AccessURL.Hostname() || host == api.AccessURL.Host) {
 		// Force the redirect URI to have the same scheme as the access URL for

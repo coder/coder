@@ -240,6 +240,9 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 	}
 
 	u, err := url.Parse(req.URL)
+	if err == nil && u.Scheme != "ws" && u.Scheme != "wss" {
+		err = xerrors.Errorf("invalid URL scheme %q, expected 'ws' or 'wss'", u.Scheme)
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid URL.",

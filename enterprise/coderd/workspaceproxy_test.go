@@ -275,6 +275,26 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
 	})
 
+	t.Run("BadURL", func(t *testing.T) {
+		t.Parallel()
+
+		u := *u
+		u.Scheme = "ftp"
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+			URL:     u.String(),
+			AgentID: agentID,
+		})
+		require.Error(t, err)
+		require.Empty(t, res)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
+		require.Contains(t, sdkErr.Response.Detail, "scheme")
+	})
+
 	t.Run("BadURLPath", func(t *testing.T) {
 		t.Parallel()
 

@@ -111,6 +111,11 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			}
 
 			u := *appDetails.PathAppBaseURL
+			if u.Scheme == "http" {
+				u.Scheme = "ws"
+			} else {
+				u.Scheme = "wss"
+			}
 			u.Path = fmt.Sprintf("/api/v2/workspaceagents/%s/pty", appDetails.Agent.ID.String())
 
 			ctx := testutil.Context(t, testutil.WaitLong)
