@@ -117,32 +117,31 @@ export const checks = {
 const permissionsToCheck = (
   workspace: TypesGen.Workspace,
   template: TypesGen.Template,
-) =>
-  ({
-    [checks.readWorkspace]: {
-      object: {
-        resource_type: "workspace",
-        resource_id: workspace.id,
-        owner_id: workspace.owner_id,
-      },
-      action: "read",
+) => ({
+  [checks.readWorkspace]: {
+    object: {
+      resource_type: "workspace",
+      resource_id: workspace.id,
+      owner_id: workspace.owner_id,
     },
-    [checks.updateWorkspace]: {
-      object: {
-        resource_type: "workspace",
-        resource_id: workspace.id,
-        owner_id: workspace.owner_id,
-      },
-      action: "update",
+    action: "read",
+  },
+  [checks.updateWorkspace]: {
+    object: {
+      resource_type: "workspace",
+      resource_id: workspace.id,
+      owner_id: workspace.owner_id,
     },
-    [checks.updateTemplate]: {
-      object: {
-        resource_type: "template",
-        resource_id: template.id,
-      },
-      action: "update",
+    action: "update",
+  },
+  [checks.updateTemplate]: {
+    object: {
+      resource_type: "template",
+      resource_id: template.id,
     },
-  } as const)
+    action: "update",
+  },
+})
 
 export const workspaceMachine = createMachine(
   {
