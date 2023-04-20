@@ -181,6 +181,7 @@ var (
 					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
 					rbac.ResourceWorkspaceExecution.Type: {rbac.ActionCreate},
+					rbac.ResourceWorkspaceProxy.Type:     {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
