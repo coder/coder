@@ -444,9 +444,9 @@ func (s *MethodTestSuite) TestWorkspaceProxy() {
 			ID: uuid.New(),
 		}).Asserts(rbac.ResourceWorkspaceProxy, rbac.ActionCreate)
 	}))
-	s.Run("UpdateWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("RegisterWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
 		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
-		check.Args(database.UpdateWorkspaceProxyParams{
+		check.Args(database.RegisterWorkspaceProxyParams{
 			ID: p.ID,
 		}).Asserts(p, rbac.ActionUpdate)
 	}))

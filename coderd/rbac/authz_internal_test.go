@@ -68,7 +68,7 @@ func TestFilterError(t *testing.T) {
 
 		auth := &MockAuthorizer{
 			AuthorizeFunc: func(ctx context.Context, subject Subject, action Action, object Object) error {
-				// Authorize func always returns nil, unless the context is cancelled.
+				// Authorize func always returns nil, unless the context is canceled.
 				return ctx.Err()
 			},
 		}

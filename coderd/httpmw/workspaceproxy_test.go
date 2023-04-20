@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -159,5 +160,107 @@ func TestExtractWorkspaceProxy(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("Deleted", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db = dbfake.New()
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+
+			proxy, secret = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+		)
+		err := db.UpdateWorkspaceProxyDeleted(context.Background(), database.UpdateWorkspaceProxyDeletedParams{
+			ID:      proxy.ID,
+			Deleted: true,
+		})
+		require.NoError(t, err, "failed to delete workspace proxy")
+
+		r.Header.Set(httpmw.WorkspaceProxyAuthTokenHeader, fmt.Sprintf("%s:%s", proxy.ID.String(), secret))
+
+		httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
+			DB: db,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+}
+
+func TestExtractWorkspaceProxyParam(t *testing.T) {
+	t.Parallel()
+
+	successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		// Only called if the API key passes through the handler.
+		httpapi.Write(context.Background(), rw, http.StatusOK, codersdk.Response{
+			Message: "It worked!",
+		})
+	})
+
+	t.Run("OKName", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db = dbfake.New()
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+
+			proxy, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+		)
+
+		routeContext := chi.NewRouteContext()
+		routeContext.URLParams.Add("workspaceproxy", proxy.Name)
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
+
+		httpmw.ExtractWorkspaceProxyParam(db)(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			// Checks that it exists on the context!
+			_ = httpmw.WorkspaceProxyParam(request)
+			successHandler.ServeHTTP(writer, request)
+		})).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("OKID", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db = dbfake.New()
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+
+			proxy, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+		)
+
+		routeContext := chi.NewRouteContext()
+		routeContext.URLParams.Add("workspaceproxy", proxy.ID.String())
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
+
+		httpmw.ExtractWorkspaceProxyParam(db)(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			// Checks that it exists on the context!
+			_ = httpmw.WorkspaceProxyParam(request)
+			successHandler.ServeHTTP(writer, request)
+		})).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db = dbfake.New()
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+
+		routeContext := chi.NewRouteContext()
+		routeContext.URLParams.Add("workspaceproxy", uuid.NewString())
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
+
+		httpmw.ExtractWorkspaceProxyParam(db)(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 }
