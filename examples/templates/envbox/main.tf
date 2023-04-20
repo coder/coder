@@ -148,7 +148,7 @@ resource "kubernetes_pod" "main" {
     }
     container {
       name              = "dev"
-      image             = "gcr.io/coder-dogfood/sreya/envbox:testtt"
+      image             = "ghcr.io/coder/envbox:latest"
       image_pull_policy = "Always"
       command           = ["/envbox", "docker"]
 

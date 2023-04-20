@@ -113,7 +113,7 @@ resource "kubernetes_pod" "dev" {
 
 ## Envbox
 
-Envbox is an image developed and maintained by Coder that bundles the sysbox runtime. It works
+[Envbox](https://github.com/coder/envbox) is an image developed and maintained by Coder that bundles the sysbox runtime. It works
 by starting an outer container that manages the various sysbox daemons and spawns an unprivileged
 inner container that acts as the user's workspace. The inner container is able to run system-level
 software similar to a regular virtual machine (e.g. `systemd`, `dockerd`, etc). Envbox offers the
@@ -135,6 +135,40 @@ Envbox requires the same kernel requirements as running sysbox directly on the n
 to sysbox's [compatibility matrix](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility) to ensure your nodes are compliant.
 
 To get started with `envbox` check out the [starter template](../../examples/templates/envbox) or visit the [repo](https://github.com/coder/envbox).
+
+### Authenticating with a Private Registry
+
+Authenticating with a private container registry can be done by referencing the credentials
+via the `CODER_IMAGE_PULL_SECRET` environment variable. It is encouraged to populate this
+[environment variable](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/#define-container-environment-variables-using-secret-data) by using a Kubernetes [secret](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#registry-secret-existing-credentials).
+
+Refer to your container registry documentation to understand how to best create this secret.
+
+The following shows a minimal example using a the JSON API key from a GCP service account to pull
+a private image:
+
+```bash
+# Create the secret
+$ kubectl create secret docker-registry <name> \
+  --docker-server=us.gcr.io \
+  --docker-username=_json_key \
+  --docker-password="$(cat ./json-key-file.yaml)" \
+  --docker-email=<service-account-email>
+```
+
+```yaml
+# An example of referencing a secret in an environment variable.
+kind: Pod
+spec:
+  containers:
+    - name: envbox
+      env:
+        - name: CODER_IMAGE_PULL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: <name>
+              key: .dockerconfigjson
+```
 
 ## Rootless podman
 
