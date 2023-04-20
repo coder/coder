@@ -591,9 +591,8 @@ func CreateWorkspaceBuild(
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
-		Name:        randomUsername(t),
-		Description: randomUsername(t),
-		VersionID:   version,
+		Name:      randomUsername(t),
+		VersionID: version,
 	}
 	for _, mut := range mutators {
 		mut(&req)
