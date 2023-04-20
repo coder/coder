@@ -70,6 +70,13 @@ func Entitlements(
 			// LicenseExpires we must be in grace period.
 			entitlement = codersdk.EntitlementGracePeriod
 		}
+
+		// add warning if license is expiring soon
+		if claims.LicenseExpires.Time.Sub(now) < 30*24*time.Hour {
+			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+				"Your license expires in %d days.", int(claims.LicenseExpires.Time.Sub(now).Hours()/24)))
+		}
+
 		for featureName, featureValue := range claims.Features {
 			// Can this be negative?
 			if featureValue <= 0 {
