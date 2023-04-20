@@ -32,7 +32,7 @@ func New(t *testing.T, opts ...pty.Option) *PTY {
 
 	e := newExpecter(t, ptty.Output(), "cmd")
 	r := &PTY{
-		outExpecter: *e,
+		outExpecter: e,
 		PTY:         ptty,
 	}
 	// Ensure pty is cleaned up at the end of test.
@@ -56,7 +56,7 @@ func Start(t *testing.T, cmd *exec.Cmd, opts ...pty.StartOption) (*PTYCmd, pty.P
 	ex := newExpecter(t, ptty.OutputReader(), cmd.Args[0])
 
 	r := &PTYCmd{
-		outExpecter: *ex,
+		outExpecter: ex,
 		PTYCmd:      ptty,
 	}
 	t.Cleanup(func() {
@@ -65,7 +65,7 @@ func Start(t *testing.T, cmd *exec.Cmd, opts ...pty.StartOption) (*PTYCmd, pty.P
 	return r, ps
 }
 
-func newExpecter(t *testing.T, r io.Reader, name string) *outExpecter {
+func newExpecter(t *testing.T, r io.Reader, name string) outExpecter {
 	// Use pipe for logging.
 	logDone := make(chan struct{})
 	logr, logw := io.Pipe()
@@ -75,7 +75,7 @@ func newExpecter(t *testing.T, r io.Reader, name string) *outExpecter {
 	out := newStdbuf()
 	w := io.MultiWriter(logw, out)
 
-	ex := &outExpecter{
+	ex := outExpecter{
 		t:    t,
 		out:  out,
 		name: name,

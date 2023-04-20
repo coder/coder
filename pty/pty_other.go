@@ -10,11 +10,10 @@ import (
 	"runtime"
 	"sync"
 
-	"golang.org/x/xerrors"
-
 	"github.com/creack/pty"
 	"github.com/u-root/u-root/pkg/termios"
 	"golang.org/x/sys/unix"
+	"golang.org/x/xerrors"
 )
 
 func newPty(opt ...Option) (retPTY *otherPty, err error) {

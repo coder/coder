@@ -160,13 +160,15 @@ func (p *ptyWindows) Close() error {
 	if p.outputWrite != nil {
 		_ = p.outputWrite.Close()
 	}
-	if p.inputRead.Close() != nil {
+	if p.inputRead != nil {
 		_ = p.inputRead.Close()
 	}
 	return nil
 }
 
 func (p *windowsProcess) waitInternal() {
+	// put this on the bottom of the defer stack since the next defer can write to p.cmdErr
+	defer close(p.cmdDone)
 	defer func() {
 		// close the pseudoconsole handle when the process exits, if it hasn't already been closed.
 		// this is important because the PseudoConsole (conhost.exe) holds the write-end
@@ -186,7 +188,7 @@ func (p *windowsProcess) waitInternal() {
 			p.pw.console = windows.InvalidHandle
 		}
 	}()
-	defer close(p.cmdDone)
+
 	state, err := p.proc.Wait()
 	if err != nil {
 		p.cmdErr = err

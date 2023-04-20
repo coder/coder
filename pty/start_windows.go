@@ -17,7 +17,7 @@ import (
 
 // Allocates a PTY and starts the specified command attached to it.
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session#creating-the-hosted-process
-func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
+func startPty(cmd *exec.Cmd, opt ...StartOption) (_ PTY, _ Process, retErr error) {
 	var opts startOptions
 	for _, o := range opt {
 		o(&opts)
@@ -45,10 +45,18 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+
 	pty, err := newPty(opts.ptyOpts...)
 	if err != nil {
 		return nil, nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			// we hit some error finishing setup; close pty, so
+			// we don't leak the kernel resources associated with it
+			_ := pty.Close()
+		}
+	}()
 	winPty := pty.(*ptyWindows)
 	if winPty.opts.sshReq != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_TTY=%s", winPty.Name()))
@@ -87,6 +95,24 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
 	}
 	defer windows.CloseHandle(processInfo.Thread)
 	defer windows.CloseHandle(processInfo.Process)
+
+	process, err := os.FindProcess(int(processInfo.ProcessId))
+	if err != nil {
+		return nil, nil, xerrors.Errorf("find process %d: %w", processInfo.ProcessId, err)
+	}
+	wp := &windowsProcess{
+		cmdDone: make(chan any),
+		proc:    process,
+		pw:      winPty,
+	}
+	defer func() {
+		if retErr != nil {
+			// if we later error out, kill the process since
+			// the caller will have no way to interact with it
+			_ = process.Kill()
+		}
+	}()
+
 	// Now that we've started the command, and passed the pseudoconsole to it,
 	// close the output write and input read files, so that the other process
 	// has the only handles to them.  Once the process closes the console, there
@@ -102,16 +128,6 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
 	}
 	if errI != nil {
 		return nil, nil, errI
-	}
-
-	process, err := os.FindProcess(int(processInfo.ProcessId))
-	if err != nil {
-		return nil, nil, xerrors.Errorf("find process %d: %w", processInfo.ProcessId, err)
-	}
-	wp := &windowsProcess{
-		cmdDone: make(chan any),
-		proc:    process,
-		pw:      winPty,
 	}
 	go wp.waitInternal()
 	return pty, wp, nil

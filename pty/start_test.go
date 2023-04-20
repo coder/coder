@@ -29,7 +29,7 @@ func Test_Start_copy(t *testing.T) {
 	pc, cmd, err := pty.Start(exec.CommandContext(ctx, cmdEcho, argEcho...))
 	require.NoError(t, err)
 	b := &bytes.Buffer{}
-	readDone := make(chan error)
+	readDone := make(chan error, 1)
 	go func() {
 		_, err := io.Copy(b, pc.OutputReader())
 		readDone <- err
@@ -43,7 +43,7 @@ func Test_Start_copy(t *testing.T) {
 	}
 	assert.Contains(t, b.String(), "test")
 
-	cmdDone := make(chan error)
+	cmdDone := make(chan error, 1)
 	go func() {
 		cmdDone <- cmd.Wait()
 	}()
@@ -58,7 +58,7 @@ func Test_Start_copy(t *testing.T) {
 
 // Test_Start_truncation tests that we can read command output without truncation
 // even after the command has exited.
-func Test_Start_trucation(t *testing.T) {
+func Test_Start_truncation(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -94,7 +94,7 @@ func Test_Start_trucation(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	cmdDone := make(chan error)
+	cmdDone := make(chan error, 1)
 	go func() {
 		cmdDone <- cmd.Wait()
 	}()
@@ -103,14 +103,14 @@ func Test_Start_trucation(t *testing.T) {
 	case err := <-cmdDone:
 		require.NoError(t, err)
 	case <-ctx.Done():
-		t.Error("cmd.Wait() timed out")
+		t.Fatal("cmd.Wait() timed out")
 	}
 
 	select {
 	case <-readDone:
 		// OK!
 	case <-ctx.Done():
-		t.Error("read timed out")
+		t.Fatal("read timed out")
 	}
 }
 
