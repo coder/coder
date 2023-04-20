@@ -49,6 +49,7 @@ const (
 
 type Server struct {
 	mu        sync.RWMutex // Protects following.
+	fs        afero.Fs
 	listeners map[net.Listener]struct{}
 	conns     map[net.Conn]struct{}
 	sessions  map[ssh.Session]struct{}
@@ -85,16 +86,13 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 	if x11SocketDir == "" {
 		x11SocketDir = filepath.Join(os.TempDir(), ".X11-unix")
 	}
-	err = fs.MkdirAll(x11SocketDir, 0700)
-	if err != nil {
-		return nil, err
-	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	unixForwardHandler := &forwardedUnixHandler{log: logger}
 
 	s := &Server{
 		listeners:    make(map[net.Listener]struct{}),
+		fs:           fs,
 		conns:        make(map[net.Conn]struct{}),
 		sessions:     make(map[ssh.Session]struct{}),
 		logger:       logger,
@@ -135,9 +133,7 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 			"streamlocal-forward@openssh.com":        unixForwardHandler.HandleSSHRequest,
 			"cancel-streamlocal-forward@openssh.com": unixForwardHandler.HandleSSHRequest,
 		},
-		X11Callback: func(ctx ssh.Context, x11 ssh.X11) bool {
-			return x11Callback(logger, fs, ctx, x11)
-		},
+		X11Callback: s.x11Callback,
 		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
 			return &gossh.ServerConfig{
 				NoClientAuth: true,

@@ -1,6 +1,7 @@
 package agentssh
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -9,8 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/gliderlabs/ssh"
+	"github.com/gofrs/flock"
 	"github.com/spf13/afero"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -20,16 +23,22 @@ import (
 
 // x11Callback is called when the client requests X11 forwarding.
 // It adds an Xauthority entry to the Xauthority file.
-func x11Callback(logger slog.Logger, fs afero.Fs, ctx ssh.Context, x11 ssh.X11) bool {
+func (s *Server) x11Callback(ctx ssh.Context, x11 ssh.X11) bool {
 	hostname, err := os.Hostname()
 	if err != nil {
-		logger.Warn(ctx, "failed to get hostname", slog.Error(err))
+		s.logger.Warn(ctx, "failed to get hostname", slog.Error(err))
 		return false
 	}
 
-	err = addXauthEntry(fs, hostname, strconv.Itoa(int(x11.ScreenNumber)), x11.AuthProtocol, x11.AuthCookie)
+	err = s.fs.MkdirAll(s.x11SocketDir, 0o700)
 	if err != nil {
-		logger.Warn(ctx, "failed to add Xauthority entry", slog.Error(err))
+		s.logger.Warn(ctx, "failed to make the x11 socket dir", slog.F("dir", s.x11SocketDir), slog.Error(err))
+		return false
+	}
+
+	err = addXauthEntry(ctx, s.fs, hostname, strconv.Itoa(int(x11.ScreenNumber)), x11.AuthProtocol, x11.AuthCookie)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to add Xauthority entry", slog.Error(err))
 		return false
 	}
 	return true
@@ -64,16 +73,16 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
 			}
 			unixConn, ok := conn.(*net.UnixConn)
 			if !ok {
-				s.logger.Warn(ctx, "failed to cast connection to UnixConn")
+				s.logger.Warn(ctx, fmt.Sprintf("failed to cast connection to UnixConn. got: %T", conn))
 				return
 			}
 			unixAddr, ok := unixConn.LocalAddr().(*net.UnixAddr)
 			if !ok {
-				s.logger.Warn(ctx, "failed to cast local address to UnixAddr")
+				s.logger.Warn(ctx, fmt.Sprintf("failed to cast local address to UnixAddr. got: %T", unixConn.LocalAddr()))
 				return
 			}
 
-			channel, _, err := serverConn.OpenChannel("x11", gossh.Marshal(struct {
+			channel, reqs, err := serverConn.OpenChannel("x11", gossh.Marshal(struct {
 				OriginatorAddress string
 				OriginatorPort    uint32
 			}{
@@ -84,7 +93,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
 				s.logger.Warn(ctx, "failed to open X11 channel", slog.Error(err))
 				return
 			}
-
+			go gossh.DiscardRequests(reqs)
 			go Bicopy(ctx, conn, channel)
 		}
 	}()
@@ -93,7 +102,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
 
 // addXauthEntry adds an Xauthority entry to the Xauthority file.
 // The Xauthority file is located at ~/.Xauthority.
-func addXauthEntry(fs afero.Fs, host string, display string, authProtocol string, authCookie string) error {
+func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string, authProtocol string, authCookie string) error {
 	// Get the Xauthority file path
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -102,8 +111,15 @@ func addXauthEntry(fs afero.Fs, host string, display string, authProtocol string
 
 	xauthPath := filepath.Join(homeDir, ".Xauthority")
 
+	lock := flock.New(xauthPath)
+	ok, err := lock.TryLockContext(ctx, 100*time.Millisecond)
+	if !ok {
+		return xerrors.Errorf("failed to lock Xauthority file: %w", err)
+	}
+	defer lock.Close()
+
 	// Open or create the Xauthority file
-	file, err := fs.OpenFile(xauthPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
+	file, err := fs.OpenFile(xauthPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return xerrors.Errorf("failed to open Xauthority file: %w", err)
 	}

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/hex"
 	"net"
+	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gliderlabs/ssh"
@@ -23,6 +25,9 @@ import (
 
 func TestServer_X11(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("X11 forwarding is only supported on Linux")
+	}
 
 	ctx := context.Background()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -79,4 +84,10 @@ func TestServer_X11(t *testing.T) {
 	require.NoError(t, err)
 	s.Close()
 	<-done
+
+	// Ensure the Xauthority file was written!
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	_, err = fs.Stat(filepath.Join(home, ".Xauthority"))
+	require.NoError(t, err)
 }
