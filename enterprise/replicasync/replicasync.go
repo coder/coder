@@ -216,6 +216,12 @@ func (m *Manager) subscribe(ctx context.Context) error {
 
 func (m *Manager) syncReplicas(ctx context.Context) error {
 	m.closeMutex.Lock()
+	select {
+	case <-m.closed:
+		m.closeMutex.Unlock()
+		return xerrors.New("manager is closed")
+	default:
+	}
 	m.closeWait.Add(1)
 	m.closeMutex.Unlock()
 	defer m.closeWait.Done()
