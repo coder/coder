@@ -77,6 +77,8 @@ func New(opts *Options) (*ProxyHealth, error) {
 	}, nil
 }
 
+// Run will block until the context is canceled. It will periodically check the
+// health of all proxies and store the results in the cache.
 func (p *ProxyHealth) Run(ctx context.Context) {
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
@@ -111,6 +113,8 @@ func (p *ProxyHealth) ForceUpdate(ctx context.Context) error {
 	return nil
 }
 
+// HealthStatus returns the current health status of all proxies stored in the
+// cache.
 func (p *ProxyHealth) HealthStatus() map[uuid.UUID]ProxyStatus {
 	ptr := p.cache.Load()
 	if ptr == nil {
