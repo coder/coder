@@ -13,7 +13,11 @@ const config: PlaywrightTestConfig = {
   globalSetup: require.resolve("./globalSetup"),
   use: {
     baseURL: `http://localhost:${port}`,
-    video: "retain-on-failure",
+    video: {
+      mode: "retain-on-failure",
+      size: { width: 1280, height: 768 },
+    },
+    viewport: { width: 1280, height: 768 },
   },
   webServer: {
     command: `go run -tags embed ${coderMain} server --global-config $(mktemp -d -t e2e-XXXXXXXXXX)`,
