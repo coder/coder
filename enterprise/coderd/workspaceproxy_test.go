@@ -1,8 +1,11 @@
 package coderd_test
 
 import (
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"net/url"
 	"testing"
 
 	"github.com/google/uuid"
@@ -204,5 +207,215 @@ func TestIssueSignedAppToken(t *testing.T) {
 			require.NoError(t, err)
 			t.Log(string(dump))
 		}
+	})
+}
+
+func TestReconnectingPTYSignedToken(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{
+		string(codersdk.ExperimentMoons),
+		"*",
+	}
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues:         dv,
+			Database:                 db,
+			Pubsub:                   pubsub,
+			IncludeProvisionerDaemon: true,
+		},
+	})
+
+	user := coderdtest.CreateFirstUser(t, client)
+	_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		Features: license.Features{
+			codersdk.FeatureWorkspaceProxy: 1,
+		},
+	})
+
+	// Create a workspace + apps
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	workspace.LatestBuild = build
+
+	// Connect an agent to the workspace
+	agentID := build.Resources[0].Agents[0].ID
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	agentCloser := agent.New(agent.Options{
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	t.Cleanup(func() {
+		_ = agentCloser.Close()
+	})
+
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	createProxyCtx := testutil.Context(t, testutil.WaitLong)
+	proxyRes, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
+		Name:             namesgenerator.GetRandomName(1),
+		Icon:             "/emojis/flag.png",
+		URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
+		WildcardHostname: "*.sub.example.com",
+	})
+	require.NoError(t, err)
+
+	u, err := url.Parse(proxyRes.Proxy.URL)
+	require.NoError(t, err)
+	if u.Scheme == "https" {
+		u.Scheme = "wss"
+	} else {
+		u.Scheme = "ws"
+	}
+	u.Path = fmt.Sprintf("/api/v2/workspaceagents/%s/pty", agentID.String())
+
+	t.Run("Validate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+			URL:     "",
+			AgentID: uuid.Nil,
+		})
+		require.Error(t, err)
+		require.Empty(t, res)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("BadURL", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+			URL:     ":",
+			AgentID: agentID,
+		})
+		require.Error(t, err)
+		require.Empty(t, res)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
+	})
+
+	t.Run("BadURL", func(t *testing.T) {
+		t.Parallel()
+
+		u := *u
+		u.Scheme = "ftp"
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+			URL:     u.String(),
+			AgentID: agentID,
+		})
+		require.Error(t, err)
+		require.Empty(t, res)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
+		require.Contains(t, sdkErr.Response.Detail, "scheme")
+	})
+
+	t.Run("BadURLPath", func(t *testing.T) {
+		t.Parallel()
+
+		u := *u
+		u.Path = "/hello"
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+			URL:     u.String(),
+			AgentID: agentID,
+		})
+		require.Error(t, err)
+		require.Empty(t, res)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
+		require.Contains(t, sdkErr.Response.Detail, "The provided URL is not a valid reconnecting PTY endpoint URL")
+	})
+
+	t.Run("BadHostname", func(t *testing.T) {
+		t.Parallel()
+
+		u := *u
+		u.Host = "badhostname.com"
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+			URL:     u.String(),
+			AgentID: agentID,
+		})
+		require.Error(t, err)
+		require.Empty(t, res)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Response.Message, "Invalid hostname in URL")
+	})
+
+	t.Run("NoToken", func(t *testing.T) {
+		t.Parallel()
+
+		unauthedClient := codersdk.New(client.URL)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := unauthedClient.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+			URL:     u.String(),
+			AgentID: agentID,
+		})
+		require.Error(t, err)
+		require.Empty(t, res)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+
+	t.Run("NoPermissions", func(t *testing.T) {
+		t.Parallel()
+
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := userClient.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+			URL:     u.String(),
+			AgentID: agentID,
+		})
+		require.Error(t, err)
+		require.Empty(t, res)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+			URL:     u.String(),
+			AgentID: agentID,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, res.SignedToken)
+
+		// The token is validated in the apptest suite, so we don't need to
+		// validate it here.
 	})
 }

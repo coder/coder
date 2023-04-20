@@ -2871,18 +2871,30 @@ WHERE
 	--
 	-- Periods don't need to be escaped because they're not special characters
 	-- in SQL matches unlike regular expressions.
-	$1 :: text SIMILAR TO '[a-zA-Z0-9.-]+' AND
+	$1 :: text SIMILAR TO '[a-zA-Z0-9._-]+' AND
 	deleted = false AND
 
 	-- Validate that the hostname matches either the wildcard hostname or the
 	-- access URL (ignoring scheme, port and path).
 	(
-		url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*' OR
-		$1 :: text LIKE replace(wildcard_hostname, '*', '%')
+		(
+			$2 :: bool = true AND
+			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*'
+		) OR
+		(
+			$3 :: bool = true AND
+			$1 :: text LIKE replace(wildcard_hostname, '*', '%')
+		)
 	)
 LIMIT
 	1
 `
+
+type GetWorkspaceProxyByHostnameParams struct {
+	Hostname              string `db:"hostname" json:"hostname"`
+	AllowAccessUrl        bool   `db:"allow_access_url" json:"allow_access_url"`
+	AllowWildcardHostname bool   `db:"allow_wildcard_hostname" json:"allow_wildcard_hostname"`
+}
 
 // Finds a workspace proxy that has an access URL or app hostname that matches
 // the provided hostname. This is to check if a hostname matches any workspace
@@ -2890,8 +2902,8 @@ LIMIT
 //
 // The hostname must be sanitized to only contain [a-zA-Z0-9.-] before calling
 // this query. The scheme, port and path should be stripped.
-func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, hostname string) (WorkspaceProxy, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByHostname, hostname)
+func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWorkspaceProxyByHostnameParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByHostname, arg.Hostname, arg.AllowAccessUrl, arg.AllowWildcardHostname)
 	var i WorkspaceProxy
 	err := row.Scan(
 		&i.ID,

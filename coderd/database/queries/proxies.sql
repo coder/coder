@@ -77,14 +77,20 @@ WHERE
 	--
 	-- Periods don't need to be escaped because they're not special characters
 	-- in SQL matches unlike regular expressions.
-	@hostname :: text SIMILAR TO '[a-zA-Z0-9.-]+' AND
+	@hostname :: text SIMILAR TO '[a-zA-Z0-9._-]+' AND
 	deleted = false AND
 
 	-- Validate that the hostname matches either the wildcard hostname or the
 	-- access URL (ignoring scheme, port and path).
 	(
-		url SIMILAR TO '[^:]*://' || @hostname :: text || '([:/]?%)*' OR
-		@hostname :: text LIKE replace(wildcard_hostname, '*', '%')
+		(
+			@allow_access_url :: bool = true AND
+			url SIMILAR TO '[^:]*://' || @hostname :: text || '([:/]?%)*'
+		) OR
+		(
+			@allow_wildcard_hostname :: bool = true AND
+			@hostname :: text LIKE replace(wildcard_hostname, '*', '%')
+		)
 	)
 LIMIT
 	1;
