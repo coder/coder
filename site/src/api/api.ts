@@ -1041,10 +1041,19 @@ export const updateWorkspace = async (
     throw new MissingBuildParameters(missingParameters)
   }
 
+  // Merge parameters using name as key
+  const richParameterValues = newBuildParameters
+  oldBuildParameters.forEach((oldParam) => {
+    const newParam = richParameterValues.find((p) => p.name === oldParam.name)
+    if (newParam === undefined) {
+      richParameterValues.push(oldParam)
+    }
+  })
+
   return postWorkspaceBuild(workspace.id, {
     transition: "start",
     template_version_id: activeVersionId,
-    rich_parameter_values: newBuildParameters,
+    rich_parameter_values: richParameterValues,
   })
 }
 

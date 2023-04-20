@@ -173,7 +173,12 @@ describe("api.ts", () => {
       expect(api.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
         transition: "start",
         template_version_id: MockTemplate.active_version_id,
-        rich_parameter_values: [],
+        rich_parameter_values: [
+          {
+            name: "first_parameter",
+            value: "mock-abc",
+          },
+        ],
       })
     })
 
@@ -222,7 +227,12 @@ describe("api.ts", () => {
       expect(api.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
         transition: "start",
         template_version_id: MockTemplate.active_version_id,
-        rich_parameter_values: [],
+        rich_parameter_values: [
+          {
+            name: "first_parameter",
+            value: "mock-abc",
+          },
+        ],
       })
     })
   })
