@@ -1231,14 +1231,21 @@ export interface WorkspaceProxy {
   readonly url: string
   readonly wildcard_hostname: string
   readonly created_at: string
-  readonly updated_at: string
+  readonly UpdatedAt: string
   readonly deleted: boolean
+  readonly status?: WorkspaceProxyStatus
 }
 
 // From codersdk/deployment.go
 export interface WorkspaceProxyBuildInfo {
   readonly workspace_proxy: boolean
   readonly dashboard_url: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface WorkspaceProxyStatus {
+  readonly status: ProxyHealthStatus
+  readonly checked_at: string
 }
 
 // From codersdk/workspaces.go
@@ -1437,6 +1444,14 @@ export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"]
 // From codersdk/organizations.go
 export type ProvisionerType = "echo" | "terraform"
 export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
+
+// From codersdk/workspaceproxy.go
+export type ProxyHealthStatus = "reachable" | "unreachable" | "unregistered"
+export const ProxyHealthStatuses: ProxyHealthStatus[] = [
+  "reachable",
+  "unreachable",
+  "unregistered",
+]
 
 // From codersdk/rbacresources.go
 export type RBACResource =

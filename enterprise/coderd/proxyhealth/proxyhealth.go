@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -33,10 +34,11 @@ const (
 
 type Options struct {
 	// Interval is the interval at which the proxy health is checked.
-	Interval time.Duration
-	DB       database.Store
-	Logger   slog.Logger
-	client   *http.Client
+	Interval   time.Duration
+	DB         database.Store
+	Logger     slog.Logger
+	Client     *http.Client
+	Prometheus *prometheus.Registry
 }
 
 // ProxyHealth runs a go routine that periodically checks the health of all
@@ -50,6 +52,9 @@ type ProxyHealth struct {
 	client   *http.Client
 
 	cache *atomic.Pointer[map[uuid.UUID]ProxyStatus]
+
+	// PromMetrics
+	healthCheckDuration prometheus.Histogram
 }
 
 func New(opts *Options) (*ProxyHealth, error) {
@@ -59,9 +64,12 @@ func New(opts *Options) (*ProxyHealth, error) {
 	if opts.DB == nil {
 		return nil, xerrors.Errorf("db is required")
 	}
+	if opts.Prometheus == nil {
+		opts.Prometheus = prometheus.NewRegistry()
+	}
 
-	client := opts.client
-	if opts.client == nil {
+	client := opts.Client
+	if client == nil {
 		client = http.DefaultClient
 	}
 	// Set a timeout on the client, so we don't wait forever for a healthz response.
@@ -69,12 +77,23 @@ func New(opts *Options) (*ProxyHealth, error) {
 	tmp.Timeout = time.Second * 5
 	client = &tmp
 
+	// Prometheus metrics
+	healthCheckDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "proxyhealth",
+		Name:      "health_check_duration_seconds",
+		Help:      "Histogram for duration of proxy health collection in seconds.",
+		Buckets:   []float64{0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500, 1, 5, 10, 30},
+	})
+	opts.Prometheus.MustRegister(healthCheckDuration)
+
 	return &ProxyHealth{
-		db:       opts.DB,
-		interval: opts.Interval,
-		logger:   opts.Logger,
-		client:   opts.client,
-		cache:    &atomic.Pointer[map[uuid.UUID]ProxyStatus]{},
+		db:                  opts.DB,
+		interval:            opts.Interval,
+		logger:              opts.Logger,
+		client:              client,
+		cache:               &atomic.Pointer[map[uuid.UUID]ProxyStatus]{},
+		healthCheckDuration: healthCheckDuration,
 	}, nil
 }
 
@@ -119,7 +138,7 @@ func (p *ProxyHealth) ForceUpdate(ctx context.Context) error {
 func (p *ProxyHealth) HealthStatus() map[uuid.UUID]ProxyStatus {
 	ptr := p.cache.Load()
 	if ptr == nil {
-		return nil
+		return map[uuid.UUID]ProxyStatus{}
 	}
 	return *ptr
 }
@@ -129,15 +148,20 @@ type ProxyStatus struct {
 	// useful to know as it helps determine if the proxy checked has different values
 	// then the proxy in hand. AKA if the proxy was updated, and the status was for
 	// an older proxy.
-	Proxy     database.WorkspaceProxy
-	Status    ProxyHealthStatus
-	CheckedAt time.Time
+	Proxy  database.WorkspaceProxy
+	Status ProxyHealthStatus
+	// StatusError is the error message returned when the proxy is unreachable.
+	StatusError string
+	CheckedAt   time.Time
 }
 
 // runOnce runs the health check for all workspace proxies. If there is an
 // unexpected error, an error is returned. Expected errors will mark a proxy as
 // unreachable.
-func (p *ProxyHealth) runOnce(ctx context.Context, t time.Time) (map[uuid.UUID]ProxyStatus, error) {
+func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID]ProxyStatus, error) {
+	// Record from the given time.
+	defer p.healthCheckDuration.Observe(time.Since(now).Seconds())
+
 	proxies, err := p.db.GetWorkspaceProxies(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace proxies: %w", err)
@@ -161,7 +185,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, t time.Time) (map[uuid.UUID]P
 		proxy := proxy
 		status := ProxyStatus{
 			Proxy:     proxy,
-			CheckedAt: t,
+			CheckedAt: now,
 		}
 
 		grp.Go(func() error {
@@ -184,19 +208,20 @@ func (p *ProxyHealth) runOnce(ctx context.Context, t time.Time) (map[uuid.UUID]P
 			req = req.WithContext(gctx)
 
 			resp, err := p.client.Do(req)
+			if err == nil && resp.StatusCode != http.StatusOK {
+				// No error but the status code is incorrect.
+				status.Status = Unreachable
+			} else if err == nil {
+				status.Status = Reachable
+			} else {
+				// Any form of error is considered unreachable.
+				status.Status = Unreachable
+				status.StatusError = err.Error()
+			}
+
 			statusMu.Lock()
 			defer statusMu.Unlock()
-			if err != nil {
-				status.Status = Unreachable
-				return nil
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				status.Status = Unreachable
-				return nil
-			}
-
-			status.Status = Reachable
+			proxyStatus[proxy.ID] = status
 			return nil
 		})
 	}
@@ -206,5 +231,5 @@ func (p *ProxyHealth) runOnce(ctx context.Context, t time.Time) (map[uuid.UUID]P
 		return nil, xerrors.Errorf("group run: %w", err)
 	}
 
-	return nil, nil
+	return proxyStatus, nil
 }

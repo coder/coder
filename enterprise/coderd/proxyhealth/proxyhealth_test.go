@@ -1,0 +1,130 @@
+package proxyhealth_test
+
+import (
+	"context"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/enterprise/coderd/proxyhealth"
+	"github.com/coder/coder/testutil"
+)
+
+func insertProxy(t *testing.T, db database.Store, url string) database.WorkspaceProxy {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	proxy, _ := dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+	_, err := db.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
+		Url:              url,
+		WildcardHostname: "",
+		ID:               proxy.ID,
+	})
+	require.NoError(t, err, "failed to update proxy")
+	return proxy
+}
+
+func TestProxyHealth_Unregistered(t *testing.T) {
+	t.Parallel()
+	db := dbfake.New()
+
+	proxies := []database.WorkspaceProxy{
+		insertProxy(t, db, ""),
+		insertProxy(t, db, ""),
+	}
+
+	ph, err := proxyhealth.New(&proxyhealth.Options{
+		Interval: 0,
+		DB:       db,
+		Logger:   slogtest.Make(t, nil),
+	})
+	require.NoError(t, err, "failed to create proxy health")
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	err = ph.ForceUpdate(ctx)
+	require.NoError(t, err, "failed to force update")
+	for _, p := range proxies {
+		require.Equal(t, ph.HealthStatus()[p.ID].Status, proxyhealth.Unregistered, "expect unregistered proxy")
+	}
+}
+
+func TestProxyHealth_Reachable(t *testing.T) {
+	t.Parallel()
+	db := dbfake.New()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("OK"))
+	}))
+
+	proxies := []database.WorkspaceProxy{
+		// Same url for both, just checking multiple proxies are checked.
+		insertProxy(t, db, srv.URL),
+		insertProxy(t, db, srv.URL),
+	}
+
+	ph, err := proxyhealth.New(&proxyhealth.Options{
+		Interval: 0,
+		DB:       db,
+		Logger:   slogtest.Make(t, nil),
+		Client:   srv.Client(),
+	})
+	require.NoError(t, err, "failed to create proxy health")
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	err = ph.ForceUpdate(ctx)
+	require.NoError(t, err, "failed to force update")
+	for _, p := range proxies {
+		require.Equal(t, ph.HealthStatus()[p.ID].Status, proxyhealth.Reachable, "expect reachable proxy")
+	}
+}
+
+func TestProxyHealth_Unreachable(t *testing.T) {
+	t.Parallel()
+	db := dbfake.New()
+
+	cli := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return nil, xerrors.New("Always fail")
+			},
+		},
+	}
+
+	proxies := []database.WorkspaceProxy{
+		// example.com is a real domain, but the client should always fail.
+		insertProxy(t, db, "https://example.com"),
+		insertProxy(t, db, "https://random.example.com"),
+	}
+
+	ph, err := proxyhealth.New(&proxyhealth.Options{
+		Interval: 0,
+		DB:       db,
+		Logger:   slogtest.Make(t, nil),
+		Client:   cli,
+	})
+	require.NoError(t, err, "failed to create proxy health")
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	err = ph.ForceUpdate(ctx)
+	require.NoError(t, err, "failed to force update")
+	for _, p := range proxies {
+		require.Equal(t, ph.HealthStatus()[p.ID].Status, proxyhealth.Unreachable, "expect unreachable proxy")
+	}
+}
