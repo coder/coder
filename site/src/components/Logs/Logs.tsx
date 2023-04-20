@@ -129,8 +129,9 @@ const useStyles = makeStyles<
   },
   space: {
     userSelect: "none",
-    width: theme.spacing(1),
+    width: theme.spacing(3),
     display: "block",
+    flexShrink: 0,
   },
   time: {
     userSelect: "none",
