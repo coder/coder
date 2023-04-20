@@ -57,6 +57,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
         label={t("deleteDialog.confirmLabel", { entity })}
         error={hasError}
         helperText={hasError && t("deleteDialog.incorrectName", { entity })}
+        data-testid="delete-dialog-confirmation"
       />
     </>
   )

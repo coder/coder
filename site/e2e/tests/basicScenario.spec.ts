@@ -34,21 +34,18 @@ test("Basic scenario", async ({ page, baseURL }) => {
 
     await createWorkspacePage.submitForm()
     await workspacePage.loaded()
-  })
-
-  await test.step("Workspace is up and running", async () => {
     await workspacePage.isRunning()
+    await page.waitForTimeout(1000) // Wait for 1s to snapshot the agent status on the video
   })
 
   await test.step("Stop the workspace", async () => {
     await workspacePage.stop()
-  })
-
-  await test.step("Workspace is stopped", async () => {
     await workspacePage.isStopped()
   })
 
-  await test.step("Finally", async () => {
-    await page.waitForTimeout(5 * 60 * 1000) // FIXME
+  await test.step("Delete the workspace", async () => {
+    await workspacePage.delete()
+    await workspacePage.isDeleted()
+    await page.waitForTimeout(1000) // Wait to show the deleted workspace
   })
 })

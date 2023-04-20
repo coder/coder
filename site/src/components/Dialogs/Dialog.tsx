@@ -75,6 +75,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
             [styles.errorButton]: type === "delete",
             [styles.successButton]: type === "success",
           })}
+          data-testid={type + "-dialog-confirm"}
         >
           {confirmText}
         </LoadingButton>

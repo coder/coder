@@ -163,7 +163,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
               Change version
             </MenuItem>
           )}
-          <MenuItem onClick={onMenuItemClick(handleDelete)}>
+          <MenuItem
+            onClick={onMenuItemClick(handleDelete)}
+            data-testid="menuitem-delete-workspace"
+          >
             <DeleteOutlined />
             Delete
           </MenuItem>
