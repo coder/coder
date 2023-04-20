@@ -55,13 +55,11 @@ func (r *RootCmd) deleteProxy() *clibase.Cmd {
 
 func (r *RootCmd) createProxy() *clibase.Cmd {
 	var (
-		proxyName             string
-		displayName           string
-		proxyIcon             string
-		proxyURL              string
-		proxyWildcardHostname string
-		onlyToken             bool
-		formatter             = cliui.NewOutputFormatter(
+		proxyName   string
+		displayName string
+		proxyIcon   string
+		onlyToken   bool
+		formatter   = cliui.NewOutputFormatter(
 			// Text formatter should be human readable.
 			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
 				response, ok := data.(codersdk.CreateWorkspaceProxyResponse)
@@ -94,11 +92,9 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			resp, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-				Name:             proxyName,
-				DisplayName:      displayName,
-				Icon:             proxyIcon,
-				URL:              proxyURL,
-				WildcardHostname: proxyWildcardHostname,
+				Name:        proxyName,
+				DisplayName: displayName,
+				Icon:        proxyIcon,
 			})
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
@@ -135,16 +131,6 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 			Flag:        "icon",
 			Description: "Display icon of the proxy.",
 			Value:       clibase.StringOf(&proxyIcon),
-		},
-		clibase.Option{
-			Flag:        "access-url",
-			Description: "Access URL of the proxy.",
-			Value:       clibase.StringOf(&proxyURL),
-		},
-		clibase.Option{
-			Flag:        "wildcard-access-url",
-			Description: "(Optional) Access url of the proxy for subdomain based apps.",
-			Value:       clibase.StringOf(&proxyWildcardHostname),
 		},
 		clibase.Option{
 			Flag:        "only-token",

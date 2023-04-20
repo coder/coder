@@ -5191,8 +5191,6 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 		Name:              arg.Name,
 		DisplayName:       arg.DisplayName,
 		Icon:              arg.Icon,
-		Url:               arg.Url,
-		WildcardHostname:  arg.WildcardHostname,
 		TokenHashedSecret: arg.TokenHashedSecret,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,

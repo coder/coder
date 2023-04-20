@@ -6899,12 +6899,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                },
-                "url": {
-                    "type": "string"
-                },
-                "wildcard_hostname": {
-                    "type": "string"
                 }
             }
         },

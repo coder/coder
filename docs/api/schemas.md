@@ -1557,21 +1557,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 {
   "display_name": "string",
   "icon": "string",
-  "name": "string",
-  "url": "string",
-  "wildcard_hostname": "string"
+  "name": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type   | Required | Restrictions | Description |
-| ------------------- | ------ | -------- | ------------ | ----------- |
-| `display_name`      | string | false    |              |             |
-| `icon`              | string | false    |              |             |
-| `name`              | string | false    |              |             |
-| `url`               | string | false    |              |             |
-| `wildcard_hostname` | string | false    |              |             |
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.CreateWorkspaceRequest
 
