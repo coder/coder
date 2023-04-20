@@ -1069,7 +1069,12 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 func randomUsername(t testing.TB) string {
 	suffix, err := cryptorand.String(3)
 	require.NoError(t, err)
-	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-") + "-" + suffix
+	suffix = "-" + suffix
+	n := strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-") + suffix
+	if len(n) > 32 {
+		n = n[:32-len(suffix)] + suffix
+	}
+	return n
 }
 
 // Used to easily create an HTTP transport!
