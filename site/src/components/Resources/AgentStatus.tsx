@@ -422,15 +422,15 @@ const useStyles = makeStyles((theme) => ({
 
   timeoutWarning: {
     color: theme.palette.warning.light,
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
+    width: theme.spacing(2),
+    height: theme.spacing(2),
     position: "relative",
   },
 
   errorWarning: {
     color: theme.palette.error.main,
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
+    width: theme.spacing(2),
+    height: theme.spacing(2),
     position: "relative",
   },
 }))

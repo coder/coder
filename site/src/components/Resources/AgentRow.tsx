@@ -19,7 +19,6 @@ import {
   useRef,
   useState,
 } from "react"
-import { useTranslation } from "react-i18next"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
 import AutoSizer from "react-virtualized-auto-sizer"
@@ -41,8 +40,8 @@ import { Stack } from "../Stack/Stack"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentLatency } from "./AgentLatency"
 import { AgentMetadata } from "./AgentMetadata"
-import { AgentStatus } from "./AgentStatus"
 import { AgentVersion } from "./AgentVersion"
+import { AgentStatus } from "./AgentStatus"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -72,7 +71,6 @@ export const AgentRow: FC<AgentRowProps> = ({
   sshPrefix,
 }) => {
   const styles = useStyles()
-  const { t } = useTranslation("agent")
   const [logsMachine, sendLogsEvent] = useMachine(workspaceAgentLogsMachine, {
     context: { agentID: agent.id },
     services: process.env.STORYBOOK
@@ -89,7 +87,11 @@ export const AgentRow: FC<AgentRowProps> = ({
   const theme = useTheme()
   const startupScriptAnchorRef = useRef<HTMLButtonElement>(null)
   const [startupScriptOpen, setStartupScriptOpen] = useState(false)
-
+  const hasAppsToDisplay = !hideVSCodeDesktopButton || agent.apps.length > 0
+  const shouldDisplayApps =
+    showApps &&
+    ((agent.status === "connected" && hasAppsToDisplay) ||
+      agent.status === "connecting")
   const hasStartupFeatures =
     Boolean(agent.startup_logs_length) ||
     Boolean(logsMachine.context.startupLogs?.length)
@@ -173,6 +175,7 @@ export const AgentRow: FC<AgentRowProps> = ({
       className={combineClasses([
         styles.agentRow,
         styles[`agentRow-${agent.status}`],
+        styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
       ])}
     >
       <Stack
@@ -183,6 +186,7 @@ export const AgentRow: FC<AgentRowProps> = ({
       >
         <div className={styles.agentNameAndStatus}>
           <Stack alignItems="center" direction="row" spacing={3}>
+            <AgentStatus agent={agent} />
             <div className={styles.agentName}>{agent.name}</div>
             <Stack
               direction="row"
@@ -190,11 +194,6 @@ export const AgentRow: FC<AgentRowProps> = ({
               alignItems="baseline"
               className={styles.agentDescription}
             >
-              {agent.status === "timeout" && (
-                <div className={styles.agentErrorMessage}>
-                  {t("unableToConnect")}
-                </div>
-              )}
               {agent.status === "connected" && (
                 <>
                   <span className={styles.agentOS}>
@@ -262,14 +261,9 @@ export const AgentRow: FC<AgentRowProps> = ({
         )}
       </Stack>
 
-      <div className={styles.agentMetadata}>
-        <AgentMetadata
-          storybookMetadata={storybookAgentMetadata}
-          agent={agent}
-        />
-      </div>
+      <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
 
-      {showApps && (
+      {shouldDisplayApps && (
         <div className={styles.apps}>
           {agent.status === "connected" && (
             <>
@@ -419,22 +413,60 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.background.paperLight,
     fontSize: 16,
     borderLeft: `2px solid ${theme.palette.text.secondary}`,
+
+    "&:not(:first-child)": {
+      borderTop: `2px solid ${theme.palette.divider}`,
+    },
   },
 
   "agentRow-connected": {
-    borderColor: theme.palette.success.light,
+    borderLeftColor: theme.palette.success.light,
   },
 
   "agentRow-disconnected": {
-    borderColor: theme.palette.text.secondary,
+    borderLeftColor: theme.palette.text.secondary,
   },
 
   "agentRow-connecting": {
-    borderColor: theme.palette.info.light,
+    borderLeftColor: theme.palette.info.light,
   },
 
   "agentRow-timeout": {
-    borderColor: theme.palette.warning.light,
+    borderLeftColor: theme.palette.warning.light,
+  },
+
+  "agentRow-lifecycle-created": {},
+
+  "agentRow-lifecycle-starting": {
+    borderLeftColor: theme.palette.info.light,
+  },
+
+  "agentRow-lifecycle-ready": {
+    borderLeftColor: theme.palette.success.light,
+  },
+
+  "agentRow-lifecycle-start_timeout": {
+    borderLeftColor: theme.palette.warning.light,
+  },
+
+  "agentRow-lifecycle-start_error": {
+    borderLeftColor: theme.palette.error.light,
+  },
+
+  "agentRow-lifecycle-shutting_down": {
+    borderLeftColor: theme.palette.info.light,
+  },
+
+  "agentRow-lifecycle-shutdown_timeout": {
+    borderLeftColor: theme.palette.warning.light,
+  },
+
+  "agentRow-lifecycle-shutdown_error": {
+    borderLeftColor: theme.palette.error.light,
+  },
+
+  "agentRow-lifecycle-off": {
+    borderLeftColor: theme.palette.text.secondary,
   },
 
   agentInfo: {
@@ -563,11 +595,5 @@ const useStyles = makeStyles((theme) => ({
 
   agentOS: {
     textTransform: "capitalize",
-  },
-
-  agentMetadata: {
-    padding: theme.spacing(2.5, 4),
-    borderTop: `1px solid ${theme.palette.divider}`,
-    background: theme.palette.background.paper,
   },
 }))

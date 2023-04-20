@@ -77,18 +77,21 @@ export interface AgentMetadataViewProps {
 }
 
 export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
+  const styles = useStyles()
   if (metadata.length === 0) {
     return <></>
   }
   return (
-    <Stack alignItems="baseline" direction="row" spacing={6}>
-      {metadata.map((m) => {
-        if (m.description === undefined) {
-          throw new Error("Metadata item description is undefined")
-        }
-        return <MetadataItem key={m.description.key} item={m} />
-      })}
-    </Stack>
+    <div className={styles.root}>
+      <Stack alignItems="baseline" direction="row" spacing={6}>
+        {metadata.map((m) => {
+          if (m.description === undefined) {
+            throw new Error("Metadata item description is undefined")
+          }
+          return <MetadataItem key={m.description.key} item={m} />
+        })}
+      </Stack>
+    </div>
   )
 }
 
@@ -99,8 +102,8 @@ export const AgentMetadata: FC<{
   const [metadata, setMetadata] = useState<
     WorkspaceAgentMetadata[] | undefined
   >(undefined)
-  const styles = useStyles()
   const watchAgentMetadata = useContext(WatchAgentMetadataContext)
+  const styles = useStyles()
 
   useEffect(() => {
     if (storybookMetadata !== undefined) {
@@ -139,31 +142,46 @@ export const AgentMetadata: FC<{
 
   if (metadata === undefined) {
     return (
-      <Stack alignItems="baseline" direction="row" spacing={6}>
-        <div className={styles.metadata}>
-          <Skeleton width={40} height={12} variant="text" />
-          <Skeleton width={65} height={14} variant="text" />
-        </div>
-
-        <div className={styles.metadata}>
-          <Skeleton width={40} height={12} variant="text" />
-          <Skeleton width={65} height={14} variant="text" />
-        </div>
-
-        <div className={styles.metadata}>
-          <Skeleton width={40} height={12} variant="text" />
-          <Skeleton width={65} height={14} variant="text" />
-        </div>
-      </Stack>
+      <div className={styles.root}>
+        <AgentMetadataSkeleton />
+      </div>
     )
   }
 
   return <AgentMetadataView metadata={metadata} />
 }
 
+export const AgentMetadataSkeleton: FC = () => {
+  const styles = useStyles()
+
+  return (
+    <Stack alignItems="baseline" direction="row" spacing={6}>
+      <div className={styles.metadata}>
+        <Skeleton width={40} height={12} variant="text" />
+        <Skeleton width={65} height={14} variant="text" />
+      </div>
+
+      <div className={styles.metadata}>
+        <Skeleton width={40} height={12} variant="text" />
+        <Skeleton width={65} height={14} variant="text" />
+      </div>
+
+      <div className={styles.metadata}>
+        <Skeleton width={40} height={12} variant="text" />
+        <Skeleton width={65} height={14} variant="text" />
+      </div>
+    </Stack>
+  )
+}
+
 // These are more or less copied from
 // site/src/components/Resources/ResourceCard.tsx
 const useStyles = makeStyles((theme) => ({
+  root: {
+    padding: theme.spacing(2.5, 4),
+    borderTop: `1px solid ${theme.palette.divider}`,
+    background: theme.palette.background.paper,
+  },
   metadata: {
     fontSize: 12,
     lineHeight: "normal",

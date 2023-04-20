@@ -16,7 +16,7 @@ export const AgentVersion: FC<{
   const { outdated } = getDisplayVersionStatus(agent.version, serverVersion)
 
   if (!outdated) {
-    return <span>{agent.version}</span>
+    return <span>Updated</span>
   }
 
   return (
@@ -29,7 +29,7 @@ export const AgentVersion: FC<{
         onMouseLeave={() => setIsOpen(false)}
         className={styles.trigger}
       >
-        Agent Outdated
+        Outdated
       </span>
       <AgentOutdatedTooltip
         id={id}
