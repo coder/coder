@@ -18,6 +18,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -36,6 +37,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 		noReap            bool
 		sshMaxTimeout     time.Duration
 		tailnetListenPort int64
+		prometheusAddress string
 	)
 	cmd := &clibase.Cmd{
 		Use:   "agent",
@@ -124,6 +126,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Do a best effort here. If this fails, it's not a big deal.
 			if port, err := urlPort(pprofAddress); err == nil {
 				agentPorts[port] = "pprof"
+			}
+
+			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
+			defer prometheusSrvClose()
+			// Do a best effort here. If this fails, it's not a big deal.
+			if port, err := urlPort(prometheusAddress); err == nil {
+				agentPorts[port] = "prometheus"
 			}
 
 			// exchangeToken returns a session token.
@@ -257,6 +266,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Description: "Specify a static port for Tailscale to use for listening.",
 			Value:       clibase.Int64Of(&tailnetListenPort),
 		},
+		{
+			Flag:        "prometheus-address",
+			Default:     "127.0.0.1:2112",
+			Env:         "CODER_AGENT_PROMETHEUS_ADDRESS",
+			Value:       clibase.StringOf(&prometheusAddress),
+			Description: "The bind address to serve Prometheus metrics.",
+		},
 	}
 
 	return cmd
@@ -342,4 +358,13 @@ func urlPort(u string) (int, error) {
 		}
 	}
 	return -1, xerrors.Errorf("invalid port: %s", u)
+}
+
+func prometheusMetricsHandler() http.Handler {
+	// We don't have any other internal metrics so far, so it's safe to expose metrics this way.
+	// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		clientmetric.WritePrometheusExpositionFormat(w)
+	})
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 )
 
 func structName(t reflect.Type) string {
@@ -132,10 +133,10 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 		if !typedLeft.Valid {
 			leftInt64Ptr = nil
 		} else {
-			leftInt64Ptr = ptr(typedLeft.Int64)
+			leftInt64Ptr = ptr.Ref(typedLeft.Int64)
 		}
 
-		rightInt64Ptr = ptr(right.(sql.NullInt64).Int64)
+		rightInt64Ptr = ptr.Ref(right.(sql.NullInt64).Int64)
 		if !right.(sql.NullInt64).Valid {
 			rightInt64Ptr = nil
 		}
@@ -209,23 +210,19 @@ func flattenStructFields(leftV, rightV reflect.Value) ([]fieldDiff, error) {
 // derefPointer deferences a reflect.Value that is a pointer to its underlying
 // value. It dereferences recursively until it finds a non-pointer value. If the
 // pointer is nil, it will be coerced to the zero value of the underlying type.
-func derefPointer(ptr reflect.Value) reflect.Value {
-	if !ptr.IsNil() {
+func derefPointer(ref reflect.Value) reflect.Value {
+	if !ref.IsNil() {
 		// Grab the value the pointer references.
-		ptr = ptr.Elem()
+		ref = ref.Elem()
 	} else {
 		// Coerce nil ptrs to zero'd values of their underlying type.
-		ptr = reflect.Zero(ptr.Type().Elem())
+		ref = reflect.Zero(ref.Type().Elem())
 	}
 
 	// Recursively deref nested pointers.
-	if ptr.Kind() == reflect.Ptr {
-		return derefPointer(ptr)
+	if ref.Kind() == reflect.Ptr {
+		return derefPointer(ref)
 	}
 
-	return ptr
-}
-
-func ptr[T any](x T) *T {
-	return &x
+	return ref
 }
