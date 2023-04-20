@@ -231,11 +231,17 @@ func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 		errCh <- err
 	}()
 
+	ew := &ErrorWaiter{c: errCh, t: t}
+
 	// Don't exit test routine until server is done.
 	t.Cleanup(func() {
 		cancel()
 		cleaningUp.Store(true)
+		// We must allow Wait to deplete errCh because if we deplete it
+		// here Wait will panic.
+		_ = ew.Wait()
+		// Safe to wait for errCh close after depletion.
 		<-errCh
 	})
-	return &ErrorWaiter{c: errCh, t: t}
+	return ew
 }
