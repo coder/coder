@@ -25,10 +25,9 @@ const (
 	ProxyUnregistered ProxyHealthStatus = "unregistered"
 )
 
-
 type WorkspaceProxyStatus struct {
-	Status    ProxyHealthStatus    `json:"status" table:"status"`
-	CheckedAt time.Time `json:"checked_at" table:"checked_at"`
+	Status    ProxyHealthStatus `json:"status" table:"status"`
+	CheckedAt time.Time         `json:"checked_at" table:"checked_at"`
 }
 
 type WorkspaceProxy struct {

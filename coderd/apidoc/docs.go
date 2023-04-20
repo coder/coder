@@ -8147,6 +8147,19 @@ const docTemplate = `{
                 "ProvisionerStorageMethodFile"
             ]
         },
+        "codersdk.ProxyHealthStatus": {
+            "type": "string",
+            "enum": [
+                "reachable",
+                "unreachable",
+                "unregistered"
+            ],
+            "x-enum-varnames": [
+                "ProxyReachable",
+                "ProxyUnreachable",
+                "ProxyUnregistered"
+            ]
+        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -9640,7 +9653,15 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "updated_at": {
+                "status": {
+                    "description": "Status is the latest status check of the proxy. This will be empty for deleted\nproxies. This value can be used to determine if a workspace proxy is healthy\nand ready to use.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxyStatus"
+                        }
+                    ]
+                },
+                "updatedAt": {
                     "type": "string",
                     "format": "date-time"
                 },
@@ -9651,6 +9672,17 @@ const docTemplate = `{
                 "wildcard_hostname": {
                     "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceProxyStatus": {
+            "type": "object",
+            "properties": {
+                "checked_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ProxyHealthStatus"
                 }
             }
         },

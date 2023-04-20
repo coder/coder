@@ -3356,6 +3356,22 @@ Parameter represents a set value for the scope.
 | ------ |
 | `file` |
 
+## codersdk.ProxyHealthStatus
+
+```json
+"reachable"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `reachable`    |
+| `unreachable`  |
+| `unregistered` |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -5166,7 +5182,11 @@ Parameter represents a set value for the scope.
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
+  "status": {
+    "checked_at": "string",
+    "status": "reachable"
+  },
+  "updatedAt": "2019-08-24T14:15:22Z",
   "url": "string",
   "wildcard_hostname": "string"
 }
@@ -5174,16 +5194,33 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description                                                                            |
-| ------------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
-| `created_at`        | string  | false    |              |                                                                                        |
-| `deleted`           | boolean | false    |              |                                                                                        |
-| `icon`              | string  | false    |              |                                                                                        |
-| `id`                | string  | false    |              |                                                                                        |
-| `name`              | string  | false    |              |                                                                                        |
-| `updated_at`        | string  | false    |              |                                                                                        |
-| `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
-| `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
+| Name                | Type                                                           | Required | Restrictions | Description                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `created_at`        | string                                                         | false    |              |                                                                                                                                                                               |
+| `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                               |
+| `icon`              | string                                                         | false    |              |                                                                                                                                                                               |
+| `id`                | string                                                         | false    |              |                                                                                                                                                                               |
+| `name`              | string                                                         | false    |              |                                                                                                                                                                               |
+| `status`            | [codersdk.WorkspaceProxyStatus](#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use. |
+| `updatedAt`         | string                                                         | false    |              |                                                                                                                                                                               |
+| `url`               | string                                                         | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                                                                                                        |
+| `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com                                                                                        |
+
+## codersdk.WorkspaceProxyStatus
+
+```json
+{
+  "checked_at": "string",
+  "status": "reachable"
+}
+```
+
+### Properties
+
+| Name         | Type                                                     | Required | Restrictions | Description |
+| ------------ | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `checked_at` | string                                                   | false    |              |             |
+| `status`     | [codersdk.ProxyHealthStatus](#codersdkproxyhealthstatus) | false    |              |             |
 
 ## codersdk.WorkspaceQuota
 
