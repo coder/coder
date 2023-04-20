@@ -9,6 +9,8 @@ import { WorkspacePage } from "../pom/WorkspacePage"
 test.use({ storageState: getStatePath("authState") })
 
 test("Basic scenario", async ({ page, baseURL }) => {
+  test.slow()
+
   const templatesPage = new TemplatesPage(baseURL, page)
   const createTemplatePage = new CreateTemplatePage(baseURL, page)
   const templatePage = new TemplatePage(baseURL, page)
