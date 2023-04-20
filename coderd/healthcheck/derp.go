@@ -101,7 +101,7 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 		r.mu.Unlock()
 	}
 	nc := &netcheck.Client{
-		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil, nil),
+		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil),
 		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
 	}
 	r.Netcheck, r.NetcheckErr = nc.GetReport(ctx, opts.DERPMap)
