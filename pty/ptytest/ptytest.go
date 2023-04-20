@@ -88,7 +88,7 @@ func newExpecter(t *testing.T, r io.Reader, name string) outExpecter {
 		err := c.Close()
 		ex.logf("closed %s: %v", name, err)
 	}
-	// Set the actual close function for the tpty.
+	// Set the actual close function for the outExpecter.
 	ex.close = func(reason string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
@@ -143,45 +143,6 @@ type outExpecter struct {
 	name  string
 
 	runeReader *bufio.Reader
-}
-
-type PTY struct {
-	outExpecter
-	pty.PTY
-}
-
-type PTYCmd struct {
-	outExpecter
-	pty.PTYCmd
-}
-
-func (p *PTY) Close() error {
-	p.t.Helper()
-	pErr := p.PTY.Close()
-	eErr := p.outExpecter.close("close")
-	if pErr != nil {
-		return pErr
-	}
-	return eErr
-}
-
-func (p *PTYCmd) Close() error {
-	p.t.Helper()
-	pErr := p.PTYCmd.Close()
-	eErr := p.outExpecter.close("close")
-	if pErr != nil {
-		return pErr
-	}
-	return eErr
-}
-
-func (p *PTY) Attach(inv *clibase.Invocation) *PTY {
-	p.t.Helper()
-
-	inv.Stdout = p.Output()
-	inv.Stderr = p.Output()
-	inv.Stdin = p.Input()
-	return p
 }
 
 func (e *outExpecter) ExpectMatch(str string) string {
@@ -335,6 +296,48 @@ func (e *outExpecter) doMatchWithDeadline(ctx context.Context, name string, fn f
 	}
 }
 
+func (e *outExpecter) logf(format string, args ...interface{}) {
+	e.t.Helper()
+
+	// Match regular logger timestamp format, we seem to be logging in
+	// UTC in other places as well, so match here.
+	e.t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), e.name, fmt.Sprintf(format, args...))
+}
+
+func (e *outExpecter) fatalf(reason string, format string, args ...interface{}) {
+	e.t.Helper()
+
+	// Ensure the message is part of the normal log stream before
+	// failing the test.
+	e.logf("%s: %s", reason, fmt.Sprintf(format, args...))
+
+	require.FailNowf(e.t, reason, format, args...)
+}
+
+type PTY struct {
+	outExpecter
+	pty.PTY
+}
+
+func (p *PTY) Close() error {
+	p.t.Helper()
+	pErr := p.PTY.Close()
+	eErr := p.outExpecter.close("close")
+	if pErr != nil {
+		return pErr
+	}
+	return eErr
+}
+
+func (p *PTY) Attach(inv *clibase.Invocation) *PTY {
+	p.t.Helper()
+
+	inv.Stdout = p.Output()
+	inv.Stderr = p.Output()
+	inv.Stdin = p.Input()
+	return p
+}
+
 func (p *PTY) Write(r rune) {
 	p.t.Helper()
 
@@ -355,22 +358,19 @@ func (p *PTY) WriteLine(str string) {
 	require.NoError(p.t, err, "write line failed")
 }
 
-func (e *outExpecter) logf(format string, args ...interface{}) {
-	e.t.Helper()
-
-	// Match regular logger timestamp format, we seem to be logging in
-	// UTC in other places as well, so match here.
-	e.t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), e.name, fmt.Sprintf(format, args...))
+type PTYCmd struct {
+	outExpecter
+	pty.PTYCmd
 }
 
-func (e *outExpecter) fatalf(reason string, format string, args ...interface{}) {
-	e.t.Helper()
-
-	// Ensure the message is part of the normal log stream before
-	// failing the test.
-	e.logf("%s: %s", reason, fmt.Sprintf(format, args...))
-
-	require.FailNowf(e.t, reason, format, args...)
+func (p *PTYCmd) Close() error {
+	p.t.Helper()
+	pErr := p.PTYCmd.Close()
+	eErr := p.outExpecter.close("close")
+	if pErr != nil {
+		return pErr
+	}
+	return eErr
 }
 
 // stdbuf is like a buffered stdout, it buffers writes until read.
