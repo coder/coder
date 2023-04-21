@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/coderd/prometheusmetrics"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
@@ -27,6 +29,9 @@ const (
 	Reachable ProxyHealthStatus = "reachable"
 	// Unreachable means the proxy access url is not responding.
 	Unreachable ProxyHealthStatus = "unreachable"
+	// Unhealthy means the proxy access url is responding, but there is some
+	// problem with the proxy. This problem may or may not be preventing functionality.
+	Unhealthy ProxyHealthStatus = "unhealthy"
 	// Unregistered means the proxy has not registered a url yet. This means
 	// the proxy was created with the cli, but has not yet been started.
 	Unregistered ProxyHealthStatus = "unregistered"
@@ -55,6 +60,7 @@ type ProxyHealth struct {
 
 	// PromMetrics
 	healthCheckDuration prometheus.Histogram
+	healthCheckResults  *prometheusmetrics.CachedGaugeVec
 }
 
 func New(opts *Options) (*ProxyHealth, error) {
@@ -87,6 +93,16 @@ func New(opts *Options) (*ProxyHealth, error) {
 	})
 	opts.Prometheus.MustRegister(healthCheckDuration)
 
+	healthCheckResults := prometheusmetrics.NewCachedGaugeVec(prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "coderd",
+			Subsystem: "proxyhealth",
+			Name:      "health_check_results",
+			Help: "This endpoint returns a number to indicate the health status. " +
+				"-2 (Unreachable), -1 (Unhealthy), 0 (Unregistered), 1 (Reachable)",
+		}, []string{"proxy_id"}))
+	opts.Prometheus.MustRegister(healthCheckResults)
+
 	return &ProxyHealth{
 		db:                  opts.DB,
 		interval:            opts.Interval,
@@ -94,6 +110,7 @@ func New(opts *Options) (*ProxyHealth, error) {
 		client:              client,
 		cache:               &atomic.Pointer[map[uuid.UUID]ProxyStatus]{},
 		healthCheckDuration: healthCheckDuration,
+		healthCheckResults:  healthCheckResults,
 	}, nil
 }
 
@@ -194,6 +211,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 				// When the proxy is started, it will update the url.
 				statusMu.Lock()
 				defer statusMu.Unlock()
+				p.healthCheckResults.WithLabelValues(prometheusmetrics.VectorOperationSet, 0, proxy.ID.String())
 				status.Status = Unregistered
 				proxyStatus[proxy.ID] = status
 				return nil
@@ -211,12 +229,16 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 			if err == nil && resp.StatusCode != http.StatusOK {
 				// No error but the status code is incorrect.
 				status.Status = Unreachable
+				status.StatusError = fmt.Sprintf("status code %d", resp.StatusCode)
+				p.healthCheckResults.WithLabelValues(prometheusmetrics.VectorOperationSet, -2, proxy.ID.String())
 			} else if err == nil {
 				status.Status = Reachable
+				p.healthCheckResults.WithLabelValues(prometheusmetrics.VectorOperationSet, 1, proxy.ID.String())
 			} else {
 				// Any form of error is considered unreachable.
 				status.Status = Unreachable
 				status.StatusError = err.Error()
+				p.healthCheckResults.WithLabelValues(prometheusmetrics.VectorOperationSet, -2, proxy.ID.String())
 			}
 
 			statusMu.Lock()
@@ -230,6 +252,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 	if err != nil {
 		return nil, xerrors.Errorf("group run: %w", err)
 	}
+	p.healthCheckResults.Commit()
 
 	return proxyStatus, nil
 }
