@@ -122,6 +122,12 @@ func (p *ptyWindows) InputWriter() io.Writer {
 }
 
 func (p *ptyWindows) Resize(height uint16, width uint16) error {
+	// hold the lock, so we don't race with anyone trying to close the console
+	p.closeMutex.Lock()
+	defer p.closeMutex.Unlock()
+	if p.closed || p.console == windows.InvalidHandle {
+		return pty.ErrClosed
+	}
 	// Taken from: https://github.com/microsoft/hcsshim/blob/54a5ad86808d761e3e396aff3e2022840f39f9a8/internal/winapi/zsyscall_windows.go#L144
 	ret, _, err := procResizePseudoConsole.Call(uintptr(p.console), uintptr(*((*uint32)(unsafe.Pointer(&windows.Coord{
 		Y: int16(height),
