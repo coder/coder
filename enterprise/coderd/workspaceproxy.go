@@ -417,6 +417,7 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 		Deleted:          p.Deleted,
 		Status: codersdk.WorkspaceProxyStatus{
 			Status:    codersdk.ProxyHealthStatus(status.Status),
+			Reason:    status.StatusError,
 			CheckedAt: status.CheckedAt,
 		},
 	}

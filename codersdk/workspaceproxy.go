@@ -20,14 +20,19 @@ const (
 	ProxyReachable ProxyHealthStatus = "reachable"
 	// ProxyUnreachable means the proxy access url is not responding.
 	ProxyUnreachable ProxyHealthStatus = "unreachable"
+	// ProxyUnhealthy means the proxy access url is responding, but there is some
+	// problem with the proxy. This problem may or may not be preventing functionality.
+	ProxyUnhealthy ProxyHealthStatus = "unhealthy"
 	// ProxyUnregistered means the proxy has not registered a url yet. This means
 	// the proxy was created with the cli, but has not yet been started.
 	ProxyUnregistered ProxyHealthStatus = "unregistered"
 )
 
 type WorkspaceProxyStatus struct {
-	Status    ProxyHealthStatus `json:"status" table:"status"`
-	CheckedAt time.Time         `json:"checked_at" table:"checked_at" format:"date-time"`
+	Status ProxyHealthStatus `json:"status" table:"status"`
+	// Reason is optional and provides more context to the status response.
+	Reason    string    `json:"reason,omitempty" table:"reason"`
+	CheckedAt time.Time `json:"checked_at" table:"checked_at" format:"date-time"`
 }
 
 type WorkspaceProxy struct {
