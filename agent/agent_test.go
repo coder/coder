@@ -976,19 +976,20 @@ func TestAgent_StartupScript(t *testing.T) {
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
+	echoHello := "echo hello"
+	if runtime.GOOS == "windows" {
+		echoHello = "echo 'hello'"
+	}
+
 	t.Run("Once", func(t *testing.T) {
 		t.Parallel()
-		script := "echo -n hello"
-		if runtime.GOOS == "windows" {
-			script = "powershell " + script
-		}
 		//nolint:dogsled
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
 					Key:      "greeting",
 					Interval: 0,
-					Script:   script,
+					Script:   echoHello,
 				},
 			},
 		}, 0)
@@ -1012,17 +1013,13 @@ func TestAgent_Metadata(t *testing.T) {
 
 	t.Run("Many", func(t *testing.T) {
 		t.Parallel()
-		script := "echo -n hello"
-		if runtime.GOOS == "windows" {
-			script = "powershell " + script
-		}
 		//nolint:dogsled
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
 					Key:      "greeting",
 					Interval: 1,
-					Script:   script,
+					Script:   echoHello,
 				},
 			},
 		}, 0)
@@ -1034,7 +1031,9 @@ func TestAgent_Metadata(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		collectedAt1 := gotMd["greeting"].CollectedAt
-		assert.Equal(t, "hello", gotMd["greeting"].Value)
+		if !assert.Equal(t, "hello\n", gotMd["greeting"].Value) {
+			t.Logf("got: %+v", gotMd)
+		}
 
 		if !assert.Eventually(t, func() bool {
 			gotMd = client.getMetadata()

@@ -14,9 +14,11 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,6 +37,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/agentssh"
+	"github.com/coder/coder/agent/usershell"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitauth"
@@ -202,7 +205,36 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
+func createMetadataCommand(ctx context.Context, script string) (*exec.Cmd, error) {
+	// This is largely copied from agentssh, but for some reason the command
+	// generated there always returns exit status 1 in Windows.
+	currentUser, err := user.Current()
+	if err != nil {
+		return nil, xerrors.Errorf("get current user: %w", err)
+	}
+	username := currentUser.Username
+
+	shell, err := usershell.Get(username)
+	if err != nil {
+		return nil, xerrors.Errorf("get user shell: %w", err)
+	}
+
+	var caller string
+	switch {
+	case filepath.Base(shell) == "pwsh.exe":
+		caller = "-Command"
+	case runtime.GOOS == "windows":
+		caller = "/c"
+	default:
+		caller = "-c"
+	}
+	// args := []string{caller, "Get-Process"}
+	args := []string{"-NoProfile", "-NonInteractive"}
+	_ = caller
+	return exec.CommandContext(ctx, "powershell", args...), nil
+}
+
+func (*agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
 	var out bytes.Buffer
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
@@ -213,18 +245,33 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		// if it is certain the clocks are in sync.
 		CollectedAt: time.Now(),
 	}
-	cmd, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
+	cmd, err := createMetadataCommand(ctx, md.Script)
 	if err != nil {
-		result.Error = err.Error()
+		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
 	}
 
+	// execPath, err := exec.LookPath("cmd.exe")
+	// if err != nil {
+	// 	result.Error = fmt.Sprintf("look path: %+v", err)
+	// 	return result
+	// }
+
+	// cmd = exec.CommandContext(ctx, execPath, "/c", "echo hello")
+
 	cmd.Stdout = &out
 	cmd.Stderr = &out
+	cmd.Stdin = io.LimitReader(nil, 0)
 
-	// The error isn't mutually exclusive with useful output.
-	err = cmd.Run()
+	// We split up Start and Wait so that we can return a more useful error.
+	err = cmd.Start()
+	if err != nil {
+		result.Error = fmt.Sprintf("start cmd: %+v", err)
+		return result
+	}
 
+	// This error isn't mutually exclusive with useful output.
+	err = cmd.Wait()
 	const bufLimit = 10 << 10
 	if out.Len() > bufLimit {
 		err = errors.Join(
@@ -234,8 +281,10 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		out.Truncate(bufLimit)
 	}
 
+	fmt.Printf("ran %+v %+q: %v\n", cmd.Path, cmd.Args, err)
+
 	if err != nil {
-		result.Error = err.Error()
+		result.Error = fmt.Sprintf("run cmd: %+v", err)
 	}
 	result.Value = out.String()
 	return result
