@@ -90,7 +90,7 @@ const LicensesSettingsPage: FC = () => {
           setLicenseIDMarkedForRemoval(undefined)
         }}
         onClose={() => setLicenseIDMarkedForRemoval(undefined)}
-        title="Confirm removal"
+        title="Confirm license removal"
         confirmLoading={isRemovingLicense}
         confirmText="Remove"
         description="Are you sure you want to remove this license?"
@@ -102,7 +102,7 @@ const LicensesSettingsPage: FC = () => {
       >
         <Header
           title="Licenses"
-          description="Add a license to your account to unlock more features."
+          description="Enterprise licenses unlock more features on your deployment."
         />
 
         <Button
@@ -110,7 +110,7 @@ const LicensesSettingsPage: FC = () => {
           component={Link}
           to="/settings/deployment/licenses/add"
         >
-          Add new License key
+          Add new License
         </Button>
       </Stack>
 
@@ -184,7 +184,7 @@ const LicensesSettingsPage: FC = () => {
       {!isLoading && licenses && licenses.length === 0 && (
         <Stack spacing={4} justifyContent="center" alignItems="center">
           <Button className={styles.ctaButton} size="large">
-            Add your license key
+            Add license
           </Button>
         </Stack>
       )}
