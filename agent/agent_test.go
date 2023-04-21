@@ -733,12 +733,15 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 
 	// It's possible that the socket is created but the server is not ready to
 	// accept connections yet. We need to retry until we can connect.
+	//
+	// Note that we wait long here because if the tailnet connection has trouble
+	// connecting, it could take 5 seconds or more to reconnect.
 	var conn net.Conn
 	require.Eventually(t, func() bool {
 		var err error
 		conn, err = net.Dial("unix", remoteSocketPath)
 		return err == nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalFast)
 	defer conn.Close()
 	_, err = conn.Write([]byte("test"))
 	require.NoError(t, err)
@@ -1775,7 +1778,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	t.Cleanup(func() {
 		_ = agentConn.Close()
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	// Ideally we wouldn't wait too long here, but sometimes the the
+	// networking needs more time to resolve itself.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	if !agentConn.AwaitReachable(ctx) {
 		t.Fatal("agent not reachable")

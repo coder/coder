@@ -362,6 +362,29 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
 }
 
+type IssueReconnectingPTYSignedTokenRequest struct {
+	// URL is the URL of the reconnecting-pty endpoint you are connecting to.
+	URL     string    `json:"url" validate:"required"`
+	AgentID uuid.UUID `json:"agentID" format:"uuid" validate:"required"`
+}
+
+type IssueReconnectingPTYSignedTokenResponse struct {
+	SignedToken string `json:"signed_token"`
+}
+
+func (c *Client) IssueReconnectingPTYSignedToken(ctx context.Context, req IssueReconnectingPTYSignedTokenRequest) (IssueReconnectingPTYSignedTokenResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/applications/reconnecting-pty-signed-token", req)
+	if err != nil {
+		return IssueReconnectingPTYSignedTokenResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return IssueReconnectingPTYSignedTokenResponse{}, ReadBodyAsError(res)
+	}
+	var resp IssueReconnectingPTYSignedTokenResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.
 // It communicates using `agent.ReconnectingPTYRequest` marshaled as JSON.
 // Responses are PTY output that can be rendered.

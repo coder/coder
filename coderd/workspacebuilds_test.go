@@ -572,8 +572,7 @@ func TestWorkspaceBuildState(t *testing.T) {
 
 func TestWorkspaceBuildStatus(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+
 	auditor := audit.NewMock()
 	numLogs := len(auditor.AuditLogs())
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
@@ -597,6 +596,10 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	closeDaemon = coderdtest.NewProvisionerDaemon(t, api)
 	// after successful build is "running"
 	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	workspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)

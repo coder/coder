@@ -133,9 +133,16 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	t.Helper()
 
 	closeCh := make(chan struct{})
+	// StartWithWaiter adds its own `t.Cleanup`, so we need to be sure it's added
+	// before ours.
+	waiter := StartWithWaiter(t, inv)
+	t.Cleanup(func() {
+		<-closeCh
+	})
+
 	go func() {
 		defer close(closeCh)
-		err := StartWithWaiter(t, inv).Wait()
+		err := waiter.Wait()
 		switch {
 		case errors.Is(err, context.Canceled):
 			return
@@ -143,10 +150,6 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 			assert.NoError(t, err)
 		}
 	}()
-
-	t.Cleanup(func() {
-		<-closeCh
-	})
 }
 
 // Run runs the command and asserts that there is no error.

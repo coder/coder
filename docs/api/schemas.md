@@ -1557,21 +1557,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 {
   "display_name": "string",
   "icon": "string",
-  "name": "string",
-  "url": "string",
-  "wildcard_hostname": "string"
+  "name": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type   | Required | Restrictions | Description |
-| ------------------- | ------ | -------- | ------------ | ----------- |
-| `display_name`      | string | false    |              |             |
-| `icon`              | string | false    |              |             |
-| `name`              | string | false    |              |             |
-| `url`               | string | false    |              |             |
-| `wildcard_hostname` | string | false    |              |             |
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.CreateWorkspaceRequest
 
@@ -2654,6 +2650,36 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `interval`  | integer | false    |              | Interval specifies the seconds between each health check.                                        |
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
+
+## codersdk.IssueReconnectingPTYSignedTokenRequest
+
+```json
+{
+  "agentID": "bc282582-04f9-45ce-b904-3e3bfab66958",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                            |
+| --------- | ------ | -------- | ------------ | ---------------------------------------------------------------------- |
+| `agentID` | string | true     |              |                                                                        |
+| `url`     | string | true     |              | URL is the URL of the reconnecting-pty endpoint you are connecting to. |
+
+## codersdk.IssueReconnectingPTYSignedTokenResponse
+
+```json
+{
+  "signed_token": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `signed_token` | string | false    |              |             |
 
 ## codersdk.JobErrorCode
 
