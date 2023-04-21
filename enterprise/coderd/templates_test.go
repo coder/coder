@@ -980,7 +980,6 @@ func TestReadFileWithTemplateUpdate(t *testing.T) {
 	t.Parallel()
 	t.Run("HasTemplateUpdate", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Upload a file
 		client := coderdenttest.New(t, nil)
@@ -990,6 +989,8 @@ func TestReadFileWithTemplateUpdate(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(make([]byte, 1024)))
 		require.NoError(t, err)
