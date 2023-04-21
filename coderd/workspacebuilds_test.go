@@ -898,12 +898,23 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		nextBuildParameters := []codersdk.WorkspaceBuildParameter{
 			{Name: newImmutableParameterName, Value: "good"},
 		}
-		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		nextWorkspaceBuild, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID:   version2.ID,
 			Transition:          codersdk.WorkspaceTransitionStart,
 			RichParameterValues: nextBuildParameters,
 		})
 		require.NoError(t, err)
+		require.NotEqual(t, workspaceBuild, nextWorkspaceBuild)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, nextWorkspaceBuild.ID)
+
+		workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, nextWorkspaceBuild.ID)
+		require.NoError(t, err)
+
+		expectedNextBuildParameters := append(initialBuildParameters, codersdk.WorkspaceBuildParameter{
+			Name:  newImmutableParameterName,
+			Value: "good",
+		})
+		require.ElementsMatch(t, expectedNextBuildParameters, workspaceBuildParameters)
 	})
 
 	t.Run("NewImmutableOptionalParameterUsesDefault", func(t *testing.T) {
@@ -958,12 +969,23 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		defer cancel()
 
 		var nextBuildParameters []codersdk.WorkspaceBuildParameter
-		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		nextWorkspaceBuild, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID:   version2.ID,
 			Transition:          codersdk.WorkspaceTransitionStart,
 			RichParameterValues: nextBuildParameters,
 		})
 		require.NoError(t, err)
+		require.NotEqual(t, workspaceBuild, nextWorkspaceBuild)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, nextWorkspaceBuild.ID)
+
+		workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, nextWorkspaceBuild.ID)
+		require.NoError(t, err)
+
+		expectedNextBuildParameters := append(initialBuildParameters, codersdk.WorkspaceBuildParameter{
+			Name:  newImmutableParameterName,
+			Value: "12345",
+		})
+		require.ElementsMatch(t, expectedNextBuildParameters, workspaceBuildParameters)
 	})
 }
 

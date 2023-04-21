@@ -544,6 +544,15 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		// Check if parameter is defined in previous build
 		if buildParameter, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
 			parameters = append(parameters, *buildParameter)
+			continue
+		}
+
+		// Check if default parameter value is in schema
+		if templateVersionParameter.DefaultValue != "" {
+			parameters = append(parameters, codersdk.WorkspaceBuildParameter{
+				Name:  templateVersionParameter.Name,
+				Value: templateVersionParameter.DefaultValue,
+			})
 		}
 	}
 
