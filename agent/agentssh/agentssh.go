@@ -172,6 +172,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	ctx := session.Context()
 
+	extraEnv := make([]string, 0)
 	x11, hasX11 := session.X11()
 	if hasX11 {
 		handled := s.x11Handler(session.Context(), x11)
@@ -179,6 +180,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			_ = session.Exit(1)
 			return
 		}
+		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d.0", x11.ScreenNumber))
 	}
 
 	switch ss := session.Subsystem(); ss {
@@ -192,7 +194,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
-	err := s.sessionStart(session)
+	err := s.sessionStart(session, extraEnv)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
 		s.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
@@ -209,9 +211,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	_ = session.Exit(0)
 }
 
-func (s *Server) sessionStart(session ssh.Session) (retErr error) {
+func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr error) {
 	ctx := session.Context()
-	env := session.Environ()
+	env := append(session.Environ(), extraEnv...)
 	var magicType string
 	for index, kv := range env {
 		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {

@@ -52,7 +52,14 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
 		s.logger.Warn(ctx, "failed to get server connection")
 		return false
 	}
-	listener, err := net.Listen("unix", filepath.Join(s.x11SocketDir, fmt.Sprintf("X%d", x11.ScreenNumber)))
+	// We want to overwrite the socket so that subsequent connections will succeed.
+	socketPath := filepath.Join(s.x11SocketDir, fmt.Sprintf("X%d", x11.ScreenNumber))
+	err := os.Remove(socketPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		s.logger.Warn(ctx, "failed to remove existing X11 socket", slog.Error(err))
+		return false
+	}
+	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to listen for X11", slog.Error(err))
 		return false
