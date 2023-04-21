@@ -30,9 +30,19 @@ const (
 
 type WorkspaceProxyStatus struct {
 	Status ProxyHealthStatus `json:"status" table:"status"`
-	// Reason is optional and provides more context to the status response.
-	Reason    string    `json:"reason,omitempty" table:"reason"`
-	CheckedAt time.Time `json:"checked_at" table:"checked_at" format:"date-time"`
+	// Report provides more information about the health of the workspace proxy.
+	Report    ProxyHealthReport `json:"report,omitempty" table:"report"`
+	CheckedAt time.Time         `json:"checked_at" table:"checked_at" format:"date-time"`
+}
+
+// ProxyHealthReport is a report of the health of the workspace proxy.
+// A healthy report will have no errors. Warnings are not fatal.
+type ProxyHealthReport struct {
+	// Errors are problems that prevent the workspace proxy from being healthy
+	Errors []string
+	// Warnings do not prevent the workspace proxy from being healthy, but
+	// should be addressed.
+	Warnings []string
 }
 
 type WorkspaceProxy struct {

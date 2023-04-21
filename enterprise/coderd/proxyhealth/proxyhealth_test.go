@@ -7,6 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
+
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -61,13 +64,56 @@ func TestProxyHealth_Unregistered(t *testing.T) {
 	}
 }
 
+func TestProxyHealth_Unhealthy(t *testing.T) {
+	t.Parallel()
+	db := dbfake.New()
+
+	srvBadReport := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpapi.Write(context.Background(), w, http.StatusOK, codersdk.ProxyHealthReport{
+			Errors: []string{"We have a problem!"},
+		})
+	}))
+	defer srvBadReport.Close()
+
+	srvBadCode := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srvBadCode.Close()
+
+	proxies := []database.WorkspaceProxy{
+		// Same url for both, just checking multiple proxies are checked.
+		insertProxy(t, db, srvBadReport.URL),
+		insertProxy(t, db, srvBadCode.URL),
+	}
+
+	ph, err := proxyhealth.New(&proxyhealth.Options{
+		Interval: 0,
+		DB:       db,
+		Logger:   slogtest.Make(t, nil),
+		Client:   srvBadReport.Client(),
+	})
+	require.NoError(t, err, "failed to create proxy health")
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	err = ph.ForceUpdate(ctx)
+	require.NoError(t, err, "failed to force update")
+	for _, p := range proxies {
+		require.Equal(t, ph.HealthStatus()[p.ID].Status, proxyhealth.Unhealthy, "expect reachable proxy")
+	}
+}
+
 func TestProxyHealth_Reachable(t *testing.T) {
 	t.Parallel()
 	db := dbfake.New()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("OK"))
+		httpapi.Write(context.Background(), w, http.StatusOK, codersdk.ProxyHealthReport{
+			Warnings: []string{"No problems, just a warning"},
+		})
 	}))
+	defer srv.Close()
 
 	proxies := []database.WorkspaceProxy{
 		// Same url for both, just checking multiple proxies are checked.
@@ -89,7 +135,7 @@ func TestProxyHealth_Reachable(t *testing.T) {
 	err = ph.ForceUpdate(ctx)
 	require.NoError(t, err, "failed to force update")
 	for _, p := range proxies {
-		require.Equal(t, ph.HealthStatus()[p.ID].Status, proxyhealth.Reachable, "expect reachable proxy")
+		require.Equal(t, ph.HealthStatus()[p.ID].Status, proxyhealth.Healthy, "expect reachable proxy")
 	}
 }
 

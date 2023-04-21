@@ -690,6 +690,12 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
+// From codersdk/workspaceproxy.go
+export interface ProxyHealthReport {
+  readonly Errors: string[]
+  readonly Warnings: string[]
+}
+
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
@@ -1240,7 +1246,7 @@ export interface WorkspaceProxy {
   readonly url: string
   readonly wildcard_hostname: string
   readonly created_at: string
-  readonly UpdatedAt: string
+  readonly updated_at: string
   readonly deleted: boolean
   readonly status?: WorkspaceProxyStatus
 }
@@ -1254,6 +1260,7 @@ export interface WorkspaceProxyBuildInfo {
 // From codersdk/workspaceproxy.go
 export interface WorkspaceProxyStatus {
   readonly status: ProxyHealthStatus
+  readonly report?: ProxyHealthReport
   readonly checked_at: string
 }
 
@@ -1455,9 +1462,14 @@ export type ProvisionerType = "echo" | "terraform"
 export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
 
 // From codersdk/workspaceproxy.go
-export type ProxyHealthStatus = "reachable" | "unreachable" | "unregistered"
+export type ProxyHealthStatus =
+  | "reachable"
+  | "unhealthy"
+  | "unreachable"
+  | "unregistered"
 export const ProxyHealthStatuses: ProxyHealthStatus[] = [
   "reachable",
+  "unhealthy",
   "unreachable",
   "unregistered",
 ]

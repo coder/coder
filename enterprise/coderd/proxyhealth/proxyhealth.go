@@ -2,6 +2,7 @@ package proxyhealth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/coderd/prometheusmetrics"
+	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,14 +20,17 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/prometheusmetrics"
 )
 
 type ProxyHealthStatus string
 
 const (
-	// Reachable means the proxy access url is reachable and returns a healthy
+	// Unknown should never be returned by the proxy health check.
+	Unknown ProxyHealthStatus = "unknown"
+	// Healthy means the proxy access url is reachable and returns a healthy
 	// status code.
-	Reachable ProxyHealthStatus = "reachable"
+	Healthy ProxyHealthStatus = "ok"
 	// Unreachable means the proxy access url is not responding.
 	Unreachable ProxyHealthStatus = "unreachable"
 	// Unhealthy means the proxy access url is responding, but there is some
@@ -99,7 +103,7 @@ func New(opts *Options) (*ProxyHealth, error) {
 			Subsystem: "proxyhealth",
 			Name:      "health_check_results",
 			Help: "This endpoint returns a number to indicate the health status. " +
-				"-2 (Unreachable), -1 (Unhealthy), 0 (Unregistered), 1 (Reachable)",
+				"-3 (unknown), -2 (Unreachable), -1 (Unhealthy), 0 (Unregistered), 1 (Healthy)",
 		}, []string{"proxy_id"}))
 	opts.Prometheus.MustRegister(healthCheckResults)
 
@@ -165,11 +169,10 @@ type ProxyStatus struct {
 	// useful to know as it helps determine if the proxy checked has different values
 	// then the proxy in hand. AKA if the proxy was updated, and the status was for
 	// an older proxy.
-	Proxy  database.WorkspaceProxy
-	Status ProxyHealthStatus
-	// StatusError is the error message returned when the proxy is unreachable.
-	StatusError string
-	CheckedAt   time.Time
+	Proxy     database.WorkspaceProxy
+	Status    ProxyHealthStatus
+	Report    codersdk.ProxyHealthReport
+	CheckedAt time.Time
 }
 
 // runOnce runs the health check for all workspace proxies. If there is an
@@ -203,6 +206,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 		status := ProxyStatus{
 			Proxy:     proxy,
 			CheckedAt: now,
+			Status:    Unknown,
 		}
 
 		grp.Go(func() error {
@@ -217,8 +221,8 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 				return nil
 			}
 
-			// Try to hit the healthz endpoint.
-			reqURL := fmt.Sprintf("%s/healthz", strings.TrimSuffix(proxy.Url, "/"))
+			// Try to hit the healthz-report endpoint for a comprehensive health check.
+			reqURL := fmt.Sprintf("%s/healthz-report", strings.TrimSuffix(proxy.Url, "/"))
 			req, err := http.NewRequestWithContext(gctx, http.MethodGet, reqURL, nil)
 			if err != nil {
 				return xerrors.Errorf("new request: %w", err)
@@ -226,19 +230,46 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 			req = req.WithContext(gctx)
 
 			resp, err := p.client.Do(req)
-			if err == nil && resp.StatusCode != http.StatusOK {
-				// No error but the status code is incorrect.
+			// A switch statement felt easier to categorize the different cases than
+			// if else statements or nested if statements.
+			switch {
+			case err == nil && resp.StatusCode == http.StatusOK:
+				err := json.NewDecoder(resp.Body).Decode(&status.Report)
+				if err != nil {
+					// If we cannot read the report, mark the proxy as unhealthy.
+					status.Report.Errors = []string{fmt.Sprintf("failed to decode health report: %s", err.Error())}
+					status.Status = Unhealthy
+					break
+				}
+				if len(status.Report.Errors) > 0 {
+					status.Status = Unhealthy
+					break
+				}
+				status.Status = Healthy
+			case err == nil && resp.StatusCode != http.StatusOK:
+				// Unhealthy as we did reach the proxy but it got an unexpected response.
+				status.Status = Unhealthy
+				status.Report.Errors = []string{fmt.Sprintf("unexpected status code %d", resp.StatusCode)}
+			case err != nil:
+				// Request failed, mark the proxy as unreachable.
 				status.Status = Unreachable
-				status.StatusError = fmt.Sprintf("status code %d", resp.StatusCode)
-				p.healthCheckResults.WithLabelValues(prometheusmetrics.VectorOperationSet, -2, proxy.ID.String())
-			} else if err == nil {
-				status.Status = Reachable
+				status.Report.Errors = []string{fmt.Sprintf("request to proxy failed: %s", err.Error())}
+			default:
+				// This should never happen
+				status.Status = Unknown
+			}
+
+			// Set the prometheus metric correctly.
+			switch status.Status {
+			case Healthy:
 				p.healthCheckResults.WithLabelValues(prometheusmetrics.VectorOperationSet, 1, proxy.ID.String())
-			} else {
-				// Any form of error is considered unreachable.
-				status.Status = Unreachable
-				status.StatusError = err.Error()
+			case Unhealthy:
+				p.healthCheckResults.WithLabelValues(prometheusmetrics.VectorOperationSet, -1, proxy.ID.String())
+			case Unreachable:
 				p.healthCheckResults.WithLabelValues(prometheusmetrics.VectorOperationSet, -2, proxy.ID.String())
+			default:
+				// Unknown
+				p.healthCheckResults.WithLabelValues(prometheusmetrics.VectorOperationSet, -3, proxy.ID.String())
 			}
 
 			statusMu.Lock()

@@ -139,8 +139,8 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateWorkspaceProxyResponse{
 		Proxy: convertProxy(proxy, proxyhealth.ProxyStatus{
 			Proxy:     proxy,
-			Status:    proxyhealth.Unregistered,
 			CheckedAt: time.Now(),
+			Status:    proxyhealth.Unregistered,
 		}),
 		ProxyToken: fullToken,
 	})
@@ -417,7 +417,7 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 		Deleted:          p.Deleted,
 		Status: codersdk.WorkspaceProxyStatus{
 			Status:    codersdk.ProxyHealthStatus(status.Status),
-			Reason:    status.StatusError,
+			Report:    status.Report,
 			CheckedAt: status.CheckedAt,
 		},
 	}
