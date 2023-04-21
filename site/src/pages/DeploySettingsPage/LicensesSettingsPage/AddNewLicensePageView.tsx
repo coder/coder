@@ -1,21 +1,20 @@
 import Button from "@material-ui/core/Button"
 import TextField from "@material-ui/core/TextField"
 import { makeStyles } from "@material-ui/core/styles"
-import CloudUploadOutlined from "@material-ui/icons/CloudUploadOutlined"
 import { useMutation } from "@tanstack/react-query"
 import { createLicense } from "api/api"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
+import { DividerWithText } from "components/DividerWithText/DividerWithText"
+import { FileUpload } from "components/FileUpload/FileUpload"
+import { Form, FormFields, FormSection } from "components/Form/Form"
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils"
 import { Stack } from "components/Stack/Stack"
-import { DropzoneDialog } from "material-ui-dropzone"
-import { FC, PropsWithChildren } from "react"
+import { FC } from "react"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
-import { useToggle } from "react-use"
 
 const AddNewLicense: FC = () => {
   const styles = useStyles()
-  const [isDialogOpen, toggleDialogOpen] = useToggle(false)
   const navigate = useNavigate()
 
   const {
@@ -44,12 +43,18 @@ const AddNewLicense: FC = () => {
       { license: licenseKey },
       {
         onSuccess: () => {
-          displaySuccess("License key saved")
+          displaySuccess("You have successfully added a license")
           navigate("/settings/deployment/licenses?success=true")
         },
         onError: () => displayError("Failed to save license key"),
       },
     )
+  }
+
+  const isUploading = false
+
+  function onUpload(file: File) {
+    handleFileUploaded([file])
   }
 
   return (
@@ -61,7 +66,7 @@ const AddNewLicense: FC = () => {
       >
         <Header
           title="Add your license"
-          description="Add a license to your account to unlock more features."
+          description="Enterprise licenses unlock more features on your deployment."
         />
         <Button
           component={RouterLink}
@@ -72,25 +77,24 @@ const AddNewLicense: FC = () => {
         </Button>
       </Stack>
 
-      <Stack className={styles.main}>
-        <Stack alignItems="center">
-          <Button
-            className={styles.ctaButton}
-            startIcon={<CloudUploadOutlined />}
-            size="large"
-            onClick={() => toggleDialogOpen()}
-          >
-            Upload License Key
-          </Button>
-        </Stack>
-        <DropzoneDialog
-          open={isDialogOpen}
-          onSave={handleFileUploaded}
-          showPreviews
-          maxFileSize={1000000}
-          onClose={() => toggleDialogOpen(false)}
-        />
+      <Form direction="horizontal">
+        <FormSection
+          title="Upload your license"
+          description="Upload a text file containing your license key"
+        >
+          <FormFields>
+            <FileUpload
+              isUploading={isUploading}
+              onUpload={onUpload}
+              file={undefined}
+              removeLabel="Remove File"
+              title="Upload a license"
+            />
+          </FormFields>
+        </FormSection>
+      </Form>
 
+      <Stack className={styles.main}>
         <DividerWithText>or</DividerWithText>
 
         <Fieldset
@@ -108,7 +112,7 @@ const AddNewLicense: FC = () => {
           }}
           button={
             <Button type="submit" disabled={isCreating}>
-              Save License
+              Add license
             </Button>
           }
         >
@@ -148,32 +152,4 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 600,
     marging: theme.spacing(1),
   },
-  container: {
-    display: "flex",
-    alignItems: "center",
-  },
-  border: {
-    borderBottom: `2px solid ${theme.palette.divider}`,
-    width: "100%",
-  },
-  content: {
-    paddingTop: theme.spacing(0.5),
-    paddingBottom: theme.spacing(0.5),
-    paddingRight: theme.spacing(2),
-    paddingLeft: theme.spacing(2),
-    fontWeight: 500,
-    fontSize: theme.typography.h5.fontSize,
-    color: theme.palette.text.secondary,
-  },
 }))
-
-const DividerWithText: FC<PropsWithChildren> = ({ children }) => {
-  const classes = useStyles()
-  return (
-    <div className={classes.container}>
-      <div className={classes.border} />
-      <span className={classes.content}>{children}</span>
-      <div className={classes.border} />
-    </div>
-  )
-}
