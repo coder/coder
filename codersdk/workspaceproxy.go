@@ -26,11 +26,9 @@ type WorkspaceProxy struct {
 }
 
 type CreateWorkspaceProxyRequest struct {
-	Name             string `json:"name"`
-	DisplayName      string `json:"display_name"`
-	Icon             string `json:"icon"`
-	URL              string `json:"url"`
-	WildcardHostname string `json:"wildcard_hostname"`
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	Icon        string `json:"icon"`
 }
 
 type CreateWorkspaceProxyResponse struct {

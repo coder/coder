@@ -183,7 +183,7 @@ fatal() {
 			# Attempt to delete the proxy first, in case it already exists.
 			"${CODER_DEV_SHIM}" proxy delete local-proxy || true
 			# Create the proxy
-			proxy_session_token=$("${CODER_DEV_SHIM}" proxy create --name=local-proxy --display-name="Local Proxy" --icon="/emojis/1f4bb.png" --access-url=http://localhost:3010 --only-token)
+			proxy_session_token=$("${CODER_DEV_SHIM}" proxy create --name=local-proxy --display-name="Local Proxy" --icon="/emojis/1f4bb.png" --only-token)
 			# Start the proxy
 			start_cmd PROXY "" "${CODER_DEV_SHIM}" proxy server --http-address=localhost:3010 --proxy-session-token="${proxy_session_token}" --primary-access-url=http://localhost:3000
 		) || echo "Failed to create workspace proxy. No workspace proxy created."

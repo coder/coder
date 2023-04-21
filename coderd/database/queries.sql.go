@@ -2983,18 +2983,18 @@ const insertWorkspaceProxy = `-- name: InsertWorkspaceProxy :one
 INSERT INTO
 	workspace_proxies (
 		id,
+		url,
+		wildcard_hostname,
 		name,
 		display_name,
 		icon,
-		url,
-		wildcard_hostname,
 		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	($1, '', '', $2, $3, $4, $5, $6, $7, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 `
 
 type InsertWorkspaceProxyParams struct {
@@ -3002,8 +3002,6 @@ type InsertWorkspaceProxyParams struct {
 	Name              string    `db:"name" json:"name"`
 	DisplayName       string    `db:"display_name" json:"display_name"`
 	Icon              string    `db:"icon" json:"icon"`
-	Url               string    `db:"url" json:"url"`
-	WildcardHostname  string    `db:"wildcard_hostname" json:"wildcard_hostname"`
 	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
@@ -3015,8 +3013,6 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		arg.Name,
 		arg.DisplayName,
 		arg.Icon,
-		arg.Url,
-		arg.WildcardHostname,
 		arg.TokenHashedSecret,
 		arg.CreatedAt,
 		arg.UpdatedAt,

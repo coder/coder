@@ -49,7 +49,6 @@ func Test_ProxyCRUD(t *testing.T) {
 			"--name", expectedName,
 			"--display-name", "Test Proxy",
 			"--icon", "/emojis/1f4bb.png",
-			"--access-url", "http://localhost:3010",
 			"--only-token",
 		)
 
@@ -99,7 +98,6 @@ func Test_ProxyCRUD(t *testing.T) {
 			Name:        expectedName,
 			DisplayName: "Test Proxy",
 			Icon:        "/emojis/us.png",
-			URL:         "http://localhost:3010",
 		})
 		require.NoError(t, err, "failed to create workspace proxy")
 

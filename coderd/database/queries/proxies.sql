@@ -2,18 +2,18 @@
 INSERT INTO
 	workspace_proxies (
 		id,
+		url,
+		wildcard_hostname,
 		name,
 		display_name,
 		icon,
-		url,
-		wildcard_hostname,
 		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING *;
+	($1, '', '', $2, $3, $4, $5, $6, $7, false) RETURNING *;
 
 -- name: RegisterWorkspaceProxy :one
 UPDATE

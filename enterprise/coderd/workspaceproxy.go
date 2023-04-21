@@ -91,24 +91,6 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateProxyURL(req.URL); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "URL is invalid.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if req.WildcardHostname != "" {
-		if _, err := httpapi.CompileHostnamePattern(req.WildcardHostname); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Wildcard URL is invalid.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	id := uuid.New()
 	secret, err := cryptorand.HexString(64)
 	if err != nil {
@@ -123,8 +105,6 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		Name:              req.Name,
 		DisplayName:       req.DisplayName,
 		Icon:              req.Icon,
-		Url:               req.URL,
-		WildcardHostname:  req.WildcardHostname,
 		TokenHashedSecret: hashedSecret[:],
 		CreatedAt:         database.Now(),
 		UpdatedAt:         database.Now(),

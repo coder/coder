@@ -260,8 +260,6 @@ export interface CreateWorkspaceProxyRequest {
   readonly name: string
   readonly display_name: string
   readonly icon: string
-  readonly url: string
-  readonly wildcard_hostname: string
 }
 
 // From codersdk/workspaceproxy.go

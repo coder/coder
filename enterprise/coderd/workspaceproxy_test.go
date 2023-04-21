@@ -52,10 +52,8 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-			Name:             namesgenerator.GetRandomName(1),
-			Icon:             "/emojis/flag.png",
-			URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
-			WildcardHostname: "*.sub.example.com",
+			Name: namesgenerator.GetRandomName(1),
+			Icon: "/emojis/flag.png",
 		})
 		require.NoError(t, err)
 
@@ -87,10 +85,8 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-			Name:             namesgenerator.GetRandomName(1),
-			Icon:             "/emojis/flag.png",
-			URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
-			WildcardHostname: "*.sub.example.com",
+			Name: namesgenerator.GetRandomName(1),
+			Icon: "/emojis/flag.png",
 		})
 		require.NoError(t, err)
 
@@ -156,10 +152,8 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	createProxyCtx := testutil.Context(t, testutil.WaitLong)
 	proxyRes, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
-		Name:             namesgenerator.GetRandomName(1),
-		Icon:             "/emojis/flag.png",
-		URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
-		WildcardHostname: "*.sub.example.com",
+		Name: namesgenerator.GetRandomName(1),
+		Icon: "/emojis/flag.png",
 	})
 	require.NoError(t, err)
 
