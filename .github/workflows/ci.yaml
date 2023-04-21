@@ -37,6 +37,7 @@ jobs:
       # Install Go!
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       # Check for any typos!
@@ -152,6 +153,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -252,6 +254,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -339,6 +342,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -429,6 +433,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -558,6 +563,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - uses: hashicorp/setup-terraform@v2
