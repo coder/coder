@@ -61,6 +61,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
 
 	go func() {
 		defer s.trackListener(listener, false)
+		handledFirstConnection := false
 
 		for {
 			conn, err := listener.Accept()
@@ -71,6 +72,13 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
 				s.logger.Warn(ctx, "failed to accept X11 connection", slog.Error(err))
 				return
 			}
+			if x11.SingleConnection && handledFirstConnection {
+				s.logger.Warn(ctx, "X11 connection rejected because single connection is enabled")
+				_ = conn.Close()
+				continue
+			}
+			handledFirstConnection = true
+
 			unixConn, ok := conn.(*net.UnixConn)
 			if !ok {
 				s.logger.Warn(ctx, fmt.Sprintf("failed to cast connection to UnixConn. got: %T", conn))

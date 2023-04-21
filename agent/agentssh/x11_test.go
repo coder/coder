@@ -68,9 +68,12 @@ func TestServer_X11(t *testing.T) {
 	require.NoError(t, err)
 
 	x11Chans := c.HandleChannelOpen("x11")
+	payload := "hello world"
 	require.Eventually(t, func() bool {
 		conn, err := net.Dial("unix", filepath.Join(dir, "X0"))
 		if err == nil {
+			_, err = conn.Write([]byte(payload))
+			assert.NoError(t, err)
 			_ = conn.Close()
 		}
 		return err == nil
@@ -80,9 +83,12 @@ func TestServer_X11(t *testing.T) {
 	ch, reqs, err := x11.Accept()
 	require.NoError(t, err)
 	go gossh.DiscardRequests(reqs)
-	err = ch.Close()
+	got := make([]byte, len(payload))
+	_, err = ch.Read(got)
 	require.NoError(t, err)
-	s.Close()
+	assert.Equal(t, payload, string(got))
+	_ = ch.Close()
+	_ = s.Close()
 	<-done
 
 	// Ensure the Xauthority file was written!
