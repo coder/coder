@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -296,6 +297,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey: api.AppSecurityKey.String(),
 	})
+
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
 // reconnectingPTYSignedToken issues a signed app token for use when connecting
