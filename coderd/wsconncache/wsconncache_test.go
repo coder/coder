@@ -40,33 +40,33 @@ func TestCache(t *testing.T) {
 	t.Parallel()
 	t.Run("Same", func(t *testing.T) {
 		t.Parallel()
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			return setupAgent(t, agentsdk.Metadata{}, 0), nil
+		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+			return setupAgent(t, agentsdk.Manifest{}, 0), nil
 		}, 0)
 		defer func() {
 			_ = cache.Close()
 		}()
-		conn1, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn1, _, err := cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
-		conn2, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn2, _, err := cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
 		require.True(t, conn1 == conn2)
 	})
 	t.Run("Expire", func(t *testing.T) {
 		t.Parallel()
 		called := atomic.NewInt32(0)
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 			called.Add(1)
-			return setupAgent(t, agentsdk.Metadata{}, 0), nil
+			return setupAgent(t, agentsdk.Manifest{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
 		}()
-		conn, release, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn, release, err := cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
 		release()
 		<-conn.Closed()
-		conn, release, err = cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn, release, err = cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
 		release()
 		<-conn.Closed()
@@ -74,13 +74,13 @@ func TestCache(t *testing.T) {
 	})
 	t.Run("NoExpireWhenLocked", func(t *testing.T) {
 		t.Parallel()
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			return setupAgent(t, agentsdk.Metadata{}, 0), nil
+		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+			return setupAgent(t, agentsdk.Manifest{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
 		}()
-		conn, release, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn, release, err := cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
 		time.Sleep(time.Millisecond)
 		release()
@@ -107,8 +107,8 @@ func TestCache(t *testing.T) {
 		}()
 		go server.Serve(random)
 
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			return setupAgent(t, agentsdk.Metadata{}, 0), nil
+		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+			return setupAgent(t, agentsdk.Manifest{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -126,15 +126,15 @@ func TestCache(t *testing.T) {
 					Host:   fmt.Sprintf("127.0.0.1:%d", tcpAddr.Port),
 					Path:   "/",
 				})
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+				defer cancel()
 				req := httptest.NewRequest(http.MethodGet, "/", nil)
-				conn, release, err := cache.Acquire(req, uuid.Nil)
+				req = req.WithContext(ctx)
+				conn, release, err := cache.Acquire(uuid.Nil)
 				if !assert.NoError(t, err) {
 					return
 				}
 				defer release()
-
-				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-				defer cancel()
 				if !conn.AwaitReachable(ctx) {
 					t.Error("agent not reachable")
 					return
@@ -154,10 +154,10 @@ func TestCache(t *testing.T) {
 	})
 }
 
-func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Duration) *codersdk.WorkspaceAgentConn {
+func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Duration) *codersdk.WorkspaceAgentConn {
 	t.Helper()
 
-	metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
+	manifest.DERPMap = tailnettest.RunDERPAndSTUN(t)
 
 	coordinator := tailnet.NewCoordinator()
 	t.Cleanup(func() {
@@ -168,7 +168,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 		Client: &client{
 			t:           t,
 			agentID:     agentID,
-			metadata:    metadata,
+			manifest:    manifest,
 			coordinator: coordinator,
 		},
 		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelInfo),
@@ -179,7 +179,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   metadata.DERPMap,
+		DERPMap:   manifest.DERPMap,
 		Logger:    slogtest.Make(t, nil).Named("tailnet").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
@@ -211,12 +211,12 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 type client struct {
 	t           *testing.T
 	agentID     uuid.UUID
-	metadata    agentsdk.Metadata
+	manifest    agentsdk.Manifest
 	coordinator tailnet.Coordinator
 }
 
-func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
-	return c.metadata, nil
+func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
+	return c.manifest, nil
 }
 
 func (c *client) Listen(_ context.Context) (net.Conn, error) {
@@ -246,6 +246,14 @@ func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest
 	return nil
 }
 
+func (*client) PostMetadata(_ context.Context, _ string, _ agentsdk.PostMetadataRequest) error {
+	return nil
+}
+
 func (*client) PostStartup(_ context.Context, _ agentsdk.PostStartupRequest) error {
+	return nil
+}
+
+func (*client) PatchStartupLogs(_ context.Context, _ agentsdk.PatchStartupLogs) error {
 	return nil
 }

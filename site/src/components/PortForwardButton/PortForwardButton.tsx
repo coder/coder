@@ -3,7 +3,6 @@ import Link from "@material-ui/core/Link"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
-import OpenInNewOutlined from "@material-ui/icons/OpenInNewOutlined"
 import { Stack } from "components/Stack/Stack"
 import { useRef, useState, Fragment } from "react"
 import { colors } from "theme/colors"
@@ -149,8 +148,8 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
   return (
     <>
       <Button
+        variant="outlined"
         className={styles.button}
-        startIcon={<OpenInNewOutlined />}
         size="small"
         ref={anchorRef}
         onClick={() => {
@@ -211,11 +210,10 @@ const useStyles = makeStyles((theme) => ({
   },
 
   button: {
-    whiteSpace: "nowrap",
-    backgroundColor: theme.palette.background.default,
-
-    "&:hover": {
-      backgroundColor: `${theme.palette.background.default} !important`,
-    },
+    fontSize: 12,
+    fontWeight: 500,
+    height: theme.spacing(4),
+    minHeight: theme.spacing(4),
+    borderRadius: 4,
   },
 }))

@@ -15,14 +15,16 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-// nolint:paralleltest
 func TestDotfiles(t *testing.T) {
+	t.Parallel()
 	t.Run("MissingArg", func(t *testing.T) {
-		cmd, _ := clitest.New(t, "dotfiles")
-		err := cmd.Execute()
+		t.Parallel()
+		inv, _ := clitest.New(t, "dotfiles")
+		err := inv.Run()
 		require.Error(t, err)
 	})
 	t.Run("NoInstallScript", func(t *testing.T) {
+		t.Parallel()
 		_, root := clitest.New(t)
 		testRepo := testGitRepo(t, root)
 
@@ -40,8 +42,8 @@ func TestDotfiles(t *testing.T) {
 		out, err := c.CombinedOutput()
 		require.NoError(t, err, string(out))
 
-		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
-		err = cmd.Execute()
+		inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
+		err = inv.Run()
 		require.NoError(t, err)
 
 		b, err := os.ReadFile(filepath.Join(string(root), ".bashrc"))
@@ -49,6 +51,7 @@ func TestDotfiles(t *testing.T) {
 		require.Equal(t, string(b), "wow")
 	})
 	t.Run("InstallScript", func(t *testing.T) {
+		t.Parallel()
 		if runtime.GOOS == "windows" {
 			t.Skip("install scripts on windows require sh and aren't very practical")
 		}
@@ -69,8 +72,8 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		require.NoError(t, err)
 
-		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
-		err = cmd.Execute()
+		inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
+		err = inv.Run()
 		require.NoError(t, err)
 
 		b, err := os.ReadFile(filepath.Join(string(root), ".bashrc"))
@@ -78,6 +81,7 @@ func TestDotfiles(t *testing.T) {
 		require.Equal(t, string(b), "wow\n")
 	})
 	t.Run("SymlinkBackup", func(t *testing.T) {
+		t.Parallel()
 		_, root := clitest.New(t)
 		testRepo := testGitRepo(t, root)
 
@@ -100,8 +104,8 @@ func TestDotfiles(t *testing.T) {
 		out, err := c.CombinedOutput()
 		require.NoError(t, err, string(out))
 
-		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
-		err = cmd.Execute()
+		inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
+		err = inv.Run()
 		require.NoError(t, err)
 
 		b, err := os.ReadFile(filepath.Join(string(root), ".bashrc"))

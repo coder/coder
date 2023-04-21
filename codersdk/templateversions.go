@@ -24,6 +24,13 @@ type TemplateVersion struct {
 	CreatedBy      User           `json:"created_by"`
 }
 
+type TemplateVersionGitAuth struct {
+	ID              string      `json:"id"`
+	Type            GitProvider `json:"type"`
+	AuthenticateURL string      `json:"authenticate_url"`
+	Authenticated   bool        `json:"authenticated"`
+}
+
 type ValidationMonotonicOrder string
 
 const (
@@ -34,9 +41,10 @@ const (
 // TemplateVersionParameter represents a parameter for a template version.
 type TemplateVersionParameter struct {
 	Name                 string                           `json:"name"`
+	DisplayName          string                           `json:"display_name,omitempty"`
 	Description          string                           `json:"description"`
 	DescriptionPlaintext string                           `json:"description_plaintext"`
-	Type                 string                           `json:"type" enums:"string,number,bool"`
+	Type                 string                           `json:"type" enums:"string,number,bool,list(string)"`
 	Mutable              bool                             `json:"mutable"`
 	DefaultValue         string                           `json:"default_value"`
 	Icon                 string                           `json:"icon"`
@@ -46,6 +54,8 @@ type TemplateVersionParameter struct {
 	ValidationMin        int32                            `json:"validation_min,omitempty"`
 	ValidationMax        int32                            `json:"validation_max,omitempty"`
 	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
+	Required             bool                             `json:"required"`
+	LegacyVariableName   string                           `json:"legacy_variable_name,omitempty"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
@@ -65,6 +75,10 @@ type TemplateVersionVariable struct {
 	DefaultValue string `json:"default_value"`
 	Required     bool   `json:"required"`
 	Sensitive    bool   `json:"sensitive"`
+}
+
+type PatchTemplateVersionRequest struct {
+	Name string `json:"name" validate:"omitempty,template_version_name"`
 }
 
 // TemplateVersion returns a template version by ID.
@@ -106,6 +120,20 @@ func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid
 	}
 	var params []TemplateVersionParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
+}
+
+// TemplateVersionGitAuth returns git authentication for the requested template version.
+func (c *Client) TemplateVersionGitAuth(ctx context.Context, version uuid.UUID) ([]TemplateVersionGitAuth, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/gitauth", version), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var gitAuth []TemplateVersionGitAuth
+	return gitAuth, json.NewDecoder(res.Body).Decode(&gitAuth)
 }
 
 // TemplateVersionSchema returns schemas for a template version by ID.
@@ -162,11 +190,6 @@ func (c *Client) TemplateVersionVariables(ctx context.Context, version uuid.UUID
 	}
 	var variables []TemplateVersionVariable
 	return variables, json.NewDecoder(res.Body).Decode(&variables)
-}
-
-// TemplateVersionLogsBefore returns logs that occurred before a specific log ID.
-func (c *Client) TemplateVersionLogsBefore(ctx context.Context, version uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), before)
 }
 
 // TemplateVersionLogsAfter streams logs for a template version that occurred after a specific log ID.
@@ -231,12 +254,6 @@ func (c *Client) TemplateVersionDryRunResources(ctx context.Context, version, jo
 	return resources, json.NewDecoder(res.Body).Decode(&resources)
 }
 
-// TemplateVersionDryRunLogsBefore returns logs for a template version dry-run
-// that occurred before a specific log ID.
-func (c *Client) TemplateVersionDryRunLogsBefore(ctx context.Context, version, job uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/logs", version, job), before)
-}
-
 // TemplateVersionDryRunLogsAfter streams logs for a template version dry-run
 // that occurred after a specific log ID.
 func (c *Client) TemplateVersionDryRunLogsAfter(ctx context.Context, version, job uuid.UUID, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
@@ -258,6 +275,19 @@ func (c *Client) CancelTemplateVersionDryRun(ctx context.Context, version, job u
 
 func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.UUID, templateName, versionName string) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s/previous", organization, templateName, versionName), nil)
+	if err != nil {
+		return TemplateVersion{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return TemplateVersion{}, ReadBodyAsError(res)
+	}
+	var version TemplateVersion
+	return version, json.NewDecoder(res.Body).Decode(&version)
+}
+
+func (c *Client) UpdateTemplateVersion(ctx context.Context, versionID uuid.UUID, req PatchTemplateVersionRequest) (TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s", versionID), req)
 	if err != nil {
 		return TemplateVersion{}, err
 	}

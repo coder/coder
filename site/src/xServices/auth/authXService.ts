@@ -14,9 +14,10 @@ export const checks = {
   createTemplates: "createTemplates",
   deleteTemplates: "deleteTemplates",
   viewAuditLog: "viewAuditLog",
-  viewDeploymentConfig: "viewDeploymentConfig",
+  viewDeploymentValues: "viewDeploymentValues",
   createGroup: "createGroup",
   viewUpdateCheck: "viewUpdateCheck",
+  viewDeploymentStats: "viewDeploymentStats",
 } as const
 
 export const permissionsToCheck = {
@@ -56,9 +57,9 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
-  [checks.viewDeploymentConfig]: {
+  [checks.viewDeploymentValues]: {
     object: {
-      resource_type: "deployment_flags",
+      resource_type: "deployment_config",
     },
     action: "read",
   },
@@ -70,7 +71,13 @@ export const permissionsToCheck = {
   },
   [checks.viewUpdateCheck]: {
     object: {
-      resource_type: "update_check",
+      resource_type: "deployment_config",
+    },
+    action: "read",
+  },
+  [checks.viewDeploymentStats]: {
+    object: {
+      resource_type: "deployment_stats",
     },
     action: "read",
   },
@@ -134,30 +141,10 @@ const signIn = async (
 }
 
 const signOut = async () => {
-  // Get app hostname so we can see if we need to log out of app URLs.
-  // We need to load this before we log out of the API as this is an
-  // authenticated endpoint.
-  const appHost = await API.getApplicationsHost()
   const [authMethods] = await Promise.all([
-    API.getAuthMethods(), // Antecipate and load the auth methods
+    API.getAuthMethods(), // Anticipate and load the auth methods
     API.logout(),
   ])
-
-  // Logout the app URLs
-  if (appHost.host !== "") {
-    const { protocol, host } = window.location
-    const redirect_uri = encodeURIComponent(`${protocol}//${host}/login`)
-    // The path doesn't matter but we use /api because the dev server
-    // proxies /api to the backend.
-    const uri = `${protocol}//${appHost.host.replace(
-      "*",
-      "coder-logout",
-    )}/api/logout?redirect_uri=${redirect_uri}`
-
-    return {
-      redirectUrl: uri,
-    }
-  }
 
   return {
     hasFirstUser: true,
@@ -380,14 +367,8 @@ export const authMachine =
         clearUpdateProfileError: assign({
           updateProfileError: (_) => undefined,
         }),
-        redirect: (_, { data }) => {
-          if (!("redirectUrl" in data)) {
-            throw new Error(
-              "Redirect only should be called with data.redirectUrl",
-            )
-          }
-
-          window.location.replace(data.redirectUrl)
+        redirect: (_, _data) => {
+          window.location.href = location.origin
         },
       },
       guards: {

@@ -32,7 +32,7 @@ func New(dialer Dialer, inactiveTimeout time.Duration) *Cache {
 }
 
 // Dialer creates a new agent connection by ID.
-type Dialer func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error)
+type Dialer func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error)
 
 // Conn wraps an agent connection with a reusable HTTP transport.
 type Conn struct {
@@ -78,7 +78,7 @@ type Cache struct {
 // The returned function is used to release a lock on the connection. Once zero
 // locks exist on a connection, the inactive timeout will begin to tick down.
 // After the time expires, the connection will be cleared from the cache.
-func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
+func (c *Cache) Acquire(id uuid.UUID) (*Conn, func(), error) {
 	rawConn, found := c.connMap.Load(id.String())
 	// If the connection isn't found, establish a new one!
 	if !found {
@@ -95,7 +95,7 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 			}
 			c.closeGroup.Add(1)
 			c.closeMutex.Unlock()
-			agentConn, err := c.dialer(r, id)
+			agentConn, err := c.dialer(id)
 			if err != nil {
 				c.closeGroup.Done()
 				return nil, xerrors.Errorf("dial: %w", err)
@@ -121,6 +121,7 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 				}
 				c.connMap.Delete(id.String())
 				c.connGroup.Forget(id.String())
+				transport.CloseIdleConnections()
 				_ = conn.Close()
 			}()
 			return conn, nil

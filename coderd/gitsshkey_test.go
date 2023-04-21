@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
 
@@ -95,8 +94,8 @@ func TestGitSSHKey(t *testing.T) {
 		require.NotEmpty(t, key2.PublicKey)
 		require.NotEqual(t, key2.PublicKey, key1.PublicKey)
 
-		require.Len(t, auditor.AuditLogs, 2)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[1].Action)
+		require.Len(t, auditor.AuditLogs(), 2)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[1].Action)
 	})
 }
 
@@ -109,24 +108,9 @@ func TestAgentGitSSHKey(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
-							Auth: &proto.Agent_Token{
-								Token: authToken,
-							},
-						}},
-					}},
-				},
-			},
-		}},
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)

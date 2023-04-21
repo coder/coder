@@ -633,6 +633,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 	case *types.Struct:
 		// This handles anonymous structs. This should never happen really.
+		// If you require this, either change your datastructures, or implement
+		// anonymous structs here.
 		// Such as:
 		//  type Name struct {
 		//	  Embedded struct {
@@ -643,7 +645,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			ValueType: "any",
 			AboveTypeLine: fmt.Sprintf("%s\n%s",
 				indentedComment("Embedded anonymous struct, please fix by naming it"),
-				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed"),
+				// Linter needs to be disabled here, or else it will complain about the "any" type.
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- Anonymously embedded struct"),
 			),
 		}, nil
 	case *types.Map:
@@ -695,6 +698,16 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		// These are external named types that we handle uniquely.
 		switch n.String() {
+		case "github.com/coder/coder/cli/clibase.String":
+			return TypescriptType{ValueType: "string"}, nil
+		case "github.com/coder/coder/cli/clibase.Strings":
+			return TypescriptType{ValueType: "string[]"}, nil
+		case "github.com/coder/coder/cli/clibase.Int64":
+			return TypescriptType{ValueType: "number"}, nil
+		case "github.com/coder/coder/cli/clibase.Bool":
+			return TypescriptType{ValueType: "boolean"}, nil
+		case "github.com/coder/coder/cli/clibase.Duration":
+			return TypescriptType{ValueType: "number"}, nil
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		case "time.Time":
@@ -710,6 +723,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "encoding/json.RawMessage":
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
+		case "github.com/coder/coder/cli/clibase.URL":
+			return TypescriptType{ValueType: "string"}, nil
 		}
 
 		// Then see if the type is defined elsewhere. If it is, we can just
@@ -754,9 +769,14 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		// If it's a struct, just use the name of the struct type
 		if _, ok := n.Underlying().(*types.Struct); ok {
+			// External structs cannot be introspected, as we only parse the codersdk package.
+			// You can handle your type manually in the switch list above, otherwise "any" will be used.
+			// An easy way to fix this is to pull your external type into `codersdk` package, then it will
+			// be known by the generator.
 			return TypescriptType{ValueType: "any", AboveTypeLine: fmt.Sprintf("%s\n%s",
 				indentedComment(fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())),
-				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed"),
+				// Linter needs to be disabled here, or else it will complain about the "any" type.
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type"),
 			)}, nil
 		}
 
@@ -777,14 +797,28 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		resp.Optional = true
 		return resp, nil
 	case *types.Interface:
-		// only handle the empty interface for now
+		// only handle the empty interface (interface{}) for now
 		intf := ty
 		if intf.Empty() {
+			// This field is 'interface{}'. We can't infer any type from 'interface{}'
+			// so just use "any" as the type.
 			return TypescriptType{
-				ValueType:     "any",
-				AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed"),
+				ValueType: "any",
+				AboveTypeLine: fmt.Sprintf("%s\n%s",
+					indentedComment("Empty interface{} type, cannot resolve the type."),
+					// Linter needs to be disabled here, or else it will complain about the "any" type.
+					indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}"),
+				),
 			}, nil
 		}
+		// All complex interfaces should be named. So if we get here, that means
+		// we are using anonymous interfaces. Which is just weird and not supported.
+		// Example:
+		//  type Foo struct {
+		//    Bar interface {
+		//      Baz() string
+		//    }
+		//  }
 		return TypescriptType{}, xerrors.New("only empty interface types are supported")
 	case *types.TypeParam:
 		_, ok := ty.Underlying().(*types.Interface)

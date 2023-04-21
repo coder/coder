@@ -1,7 +1,6 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
-import CloudIcon from "@material-ui/icons/CloudOutlined"
 import { useRef, useState } from "react"
 import { CodeExample } from "../CodeExample/CodeExample"
 import { Stack } from "../Stack/Stack"
@@ -15,12 +14,14 @@ export interface SSHButtonProps {
   workspaceName: string
   agentName: string
   defaultIsOpen?: boolean
+  sshPrefix?: string
 }
 
 export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
   workspaceName,
   agentName,
   defaultIsOpen = false,
+  sshPrefix,
 }) => {
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(defaultIsOpen)
@@ -35,14 +36,14 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
     <>
       <Button
         className={styles.button}
-        startIcon={<CloudIcon />}
+        variant="outlined"
         size="small"
         ref={anchorRef}
         onClick={() => {
           setIsOpen(true)
         }}
       >
-        SSH
+        Connect SSH
       </Button>
       <Popover
         classes={{ paper: styles.popoverPaper }}
@@ -79,7 +80,9 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
                 Connect to the agent:
               </strong>
             </HelpTooltipText>
-            <CodeExample code={`ssh coder.${workspaceName}.${agentName}`} />
+            <CodeExample
+              code={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+            />
           </div>
         </Stack>
 
@@ -125,11 +128,10 @@ const useStyles = makeStyles((theme) => ({
   },
 
   button: {
-    whiteSpace: "nowrap",
-    backgroundColor: theme.palette.background.default,
-
-    "&:hover": {
-      backgroundColor: `${theme.palette.background.default} !important`,
-    },
+    fontSize: 12,
+    fontWeight: 500,
+    height: theme.spacing(4),
+    minHeight: theme.spacing(4),
+    borderRadius: 4,
   },
 }))

@@ -21,8 +21,8 @@
     "incorrectName": "Incorrect {{entity}} name."
   },
   "schedule": {
-    "autoStartLabel": "Starts at",
-    "autoStopLabel": "Stops at"
+    "autostartLabel": "Starts at",
+    "autostopLabel": "Stops at"
   },
   "ctas": {
     "dismissCta": "Dismiss",
@@ -39,5 +39,10 @@
   "updateCheck": {
     "message": "Coder {{version}} is now available. View the <4>release notes</4> and <7>upgrade instructions</7> for more information.",
     "error": "Coder update check failed."
+  },
+  "licenseFieldTextHelper": "You need an enterprise license to use it.",
+  "learnMore": "Learn more",
+  "forms": {
+    "typeToSearch": "Start typing to search..."
   }
 }

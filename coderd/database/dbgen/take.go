@@ -3,8 +3,6 @@ package dbgen
 import "net"
 
 func takeFirstIP(values ...net.IPNet) net.IPNet {
-	takeFirstSlice([]string{})
-
 	return takeFirstF(values, func(v net.IPNet) bool {
 		return len(v.IP) != 0 && len(v.Mask) != 0
 	})
@@ -20,13 +18,16 @@ func takeFirstSlice[T any](values ...[]T) []T {
 
 // takeFirstF takes the first value that returns true
 func takeFirstF[Value any](values []Value, take func(v Value) bool) Value {
-	var empty Value
 	for _, v := range values {
 		if take(v) {
 			return v
 		}
 	}
-	// If all empty, return empty
+	// If all empty, return the last element
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	var empty Value
 	return empty
 }
 

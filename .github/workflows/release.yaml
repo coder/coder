@@ -90,7 +90,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 
@@ -188,11 +188,41 @@ jobs:
           project: wl5hnrrkns
           context: base-build-context
           file: scripts/Dockerfile.base
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           pull: true
           no-cache: true
           push: true
           tags: |
             ${{ steps.image-base-tag.outputs.tag }}
+
+      - name: Verify that images are pushed properly
+        run: |
+          # retry 10 times with a 5 second delay as the images may not be
+          # available immediately
+          for i in {1..10}; do
+            rc=0
+            raw_manifests=$(docker buildx imagetools inspect --raw "${{ steps.image-base-tag.outputs.tag }}") || rc=$?
+            if [[ "$rc" -eq 0 ]]; then
+              break
+            fi
+            if [[ "$i" -eq 10 ]]; then
+              echo "Failed to pull manifests after 10 retries"
+              exit 1
+            fi
+            echo "Failed to pull manifests, retrying in 5 seconds"
+            sleep 5
+          done
+
+          manifests=$(
+            echo "$raw_manifests" | \
+              jq -r '.manifests[].platform | .os + "/" + .architecture + (if .variant then "/" + .variant else "" end)'
+          )
+
+          # Verify all 3 platforms are present.
+          set -euxo pipefail
+          echo "$manifests" | grep -q linux/amd64
+          echo "$manifests" | grep -q linux/arm64
+          echo "$manifests" | grep -q linux/arm/v7
 
       - name: Build Linux Docker images
         run: |
@@ -272,10 +302,11 @@ jobs:
           helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: release-artifacts
           path: |

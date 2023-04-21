@@ -2,39 +2,57 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templateEdit() *cobra.Command {
+func (r *RootCmd) templateEdit() *clibase.Cmd {
 	var (
 		name                         string
 		displayName                  string
 		description                  string
 		icon                         string
 		defaultTTL                   time.Duration
+		maxTTL                       time.Duration
 		allowUserCancelWorkspaceJobs bool
+		allowUserAutostart           bool
+		allowUserAutostop            bool
 	)
+	client := new(codersdk.Client)
 
-	cmd := &cobra.Command{
-		Use:   "edit <template> [flags]",
-		Args:  cobra.ExactArgs(1),
+	cmd := &clibase.Cmd{
+		Use: "edit <template>",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
 		Short: "Edit the metadata of a template by name.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
+		Handler: func(inv *clibase.Invocation) error {
+			if maxTTL != 0 || !allowUserAutostart || !allowUserAutostop {
+				entitlements, err := client.Entitlements(inv.Context())
+				var sdkErr *codersdk.Error
+				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --max-ttl, --allow-user-autostart=false or --allow-user-autostop=false")
+				} else if err != nil {
+					return xerrors.Errorf("get entitlements: %w", err)
+				}
+
+				if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl, --allow-user-autostart=false or --allow-user-autostop=false")
+				}
 			}
-			organization, err := CurrentOrganization(cmd, client)
+
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
-			template, err := client.TemplateByName(cmd.Context(), organization.ID, args[0])
+			template, err := client.TemplateByName(inv.Context(), organization.ID, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace template: %w", err)
 			}
@@ -46,25 +64,72 @@ func templateEdit() *cobra.Command {
 				Description:                  description,
 				Icon:                         icon,
 				DefaultTTLMillis:             defaultTTL.Milliseconds(),
+				MaxTTLMillis:                 maxTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
+				AllowUserAutostart:           allowUserAutostart,
+				AllowUserAutostop:            allowUserAutostop,
 			}
 
-			_, err = client.UpdateTemplateMeta(cmd.Context(), template.ID, req)
+			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
 			if err != nil {
 				return xerrors.Errorf("update template metadata: %w", err)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated template metadata at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&name, "name", "", "", "Edit the template name")
-	cmd.Flags().StringVarP(&displayName, "display-name", "", "", "Edit the template display name")
-	cmd.Flags().StringVarP(&description, "description", "", "", "Edit the template description")
-	cmd.Flags().StringVarP(&icon, "icon", "", "", "Edit the template icon path")
-	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 0, "Edit the template default time before shutdown - workspaces created from this template to this value.")
-	cmd.Flags().BoolVarP(&allowUserCancelWorkspaceJobs, "allow-user-cancel-workspace-jobs", "", true, "Allow users to cancel in-progress workspace jobs.")
-	cliui.AllowSkipPrompt(cmd)
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "name",
+			Description: "Edit the template name.",
+			Value:       clibase.StringOf(&name),
+		},
+		{
+			Flag:        "display-name",
+			Description: "Edit the template display name.",
+			Value:       clibase.StringOf(&displayName),
+		},
+		{
+			Flag:        "description",
+			Description: "Edit the template description.",
+			Value:       clibase.StringOf(&description),
+		},
+		{
+			Flag:        "icon",
+			Description: "Edit the template icon path.",
+			Value:       clibase.StringOf(&icon),
+		},
+		{
+			Flag:        "default-ttl",
+			Description: "Edit the template default time before shutdown - workspaces created from this template default to this value.",
+			Value:       clibase.DurationOf(&defaultTTL),
+		},
+		{
+			Flag:        "max-ttl",
+			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
+			Value:       clibase.DurationOf(&maxTTL),
+		},
+		{
+			Flag:        "allow-user-cancel-workspace-jobs",
+			Description: "Allow users to cancel in-progress workspace jobs.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&allowUserCancelWorkspaceJobs),
+		},
+		{
+			Flag:        "allow-user-autostart",
+			Description: "Allow users to configure autostart for workspaces on this template. This can only be disabled in enterprise.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&allowUserAutostart),
+		},
+		{
+			Flag:        "allow-user-autostop",
+			Description: "Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled in enterprise.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&allowUserAutostop),
+		},
+		cliui.SkipPromptOption(),
+	}
 
 	return cmd
 }

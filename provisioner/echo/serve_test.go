@@ -79,6 +79,7 @@ func TestEcho(t *testing.T) {
 		responses := []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Log{
 				Log: &proto.Log{
+					Level:  proto.LogLevel_INFO,
 					Output: "log-output",
 				},
 			},
@@ -113,6 +114,59 @@ func TestEcho(t *testing.T) {
 		complete, err := client.Recv()
 		require.NoError(t, err)
 		require.Equal(t, responses[1].GetComplete().Resources[0].Name,
+			complete.GetComplete().Resources[0].Name)
+	})
+
+	t.Run("ProvisionWithLogLevel", func(t *testing.T) {
+		t.Parallel()
+
+		responses := []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{
+					Level:  proto.LogLevel_TRACE,
+					Output: "log-output-trace",
+				},
+			},
+		}, {
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{
+					Level:  proto.LogLevel_INFO,
+					Output: "log-output-info",
+				},
+			},
+		}, {
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "resource",
+					}},
+				},
+			},
+		}}
+		data, err := echo.Tar(&echo.Responses{
+			ProvisionApply: responses,
+		})
+		require.NoError(t, err)
+		client, err := api.Provision(ctx)
+		require.NoError(t, err)
+		err = client.Send(&proto.Provision_Request{
+			Type: &proto.Provision_Request_Plan{
+				Plan: &proto.Provision_Plan{
+					Config: &proto.Provision_Config{
+						Directory:           unpackTar(t, fs, data),
+						ProvisionerLogLevel: "debug",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		log, err := client.Recv()
+		require.NoError(t, err)
+		// Skip responses[0] as it's trace level
+		require.Equal(t, responses[1].GetLog().Output, log.GetLog().Output)
+		complete, err := client.Recv()
+		require.NoError(t, err)
+		require.Equal(t, responses[2].GetComplete().Resources[0].Name,
 			complete.GetComplete().Resources[0].Name)
 	})
 }

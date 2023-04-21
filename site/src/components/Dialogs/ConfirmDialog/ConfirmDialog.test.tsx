@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { FC } from "react"
 import { WrapperComponent } from "../../../testHelpers/renderHelpers"
 import { ConfirmDialog, ConfirmDialogProps } from "./ConfirmDialog"
@@ -26,10 +26,10 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    const { getByRole } = render(<Helpers.Component {...props} />)
+    render(<Helpers.Component {...props} />)
 
     // Then
-    expect(getByRole("dialog")).toBeDefined()
+    expect(screen.getByRole("dialog")).toBeDefined()
   })
 
   it("does not display cancel for info dialogs", () => {
@@ -43,10 +43,10 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    const { queryByText } = render(<Helpers.Component {...props} />)
+    render(<Helpers.Component {...props} />)
 
     // Then
-    expect(queryByText("CANCEL")).toBeNull()
+    expect(screen.queryByText("CANCEL")).toBeNull()
   })
 
   it("can display cancel when normally hidden", () => {
@@ -61,10 +61,10 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    const { getByText } = render(<Helpers.Component {...props} />)
+    render(<Helpers.Component {...props} />)
 
     // Then
-    expect(getByText("CANCEL")).toBeDefined()
+    expect(screen.getByText("CANCEL")).toBeDefined()
   })
 
   it("displays cancel for delete dialogs", () => {
@@ -79,10 +79,10 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    const { getByText } = render(<Helpers.Component {...props} />)
+    render(<Helpers.Component {...props} />)
 
     // Then
-    expect(getByText("CANCEL")).toBeDefined()
+    expect(screen.getByText("CANCEL")).toBeDefined()
   })
 
   it("can hide cancel when normally visible", () => {
@@ -98,10 +98,10 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    const { queryByText } = render(<Helpers.Component {...props} />)
+    render(<Helpers.Component {...props} />)
 
     // Then
-    expect(queryByText("CANCEL")).toBeNull()
+    expect(screen.queryByText("CANCEL")).toBeNull()
   })
 
   it("onClose is called when cancelled", () => {
@@ -116,8 +116,8 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    const { getByText } = render(<Helpers.Component {...props} />)
-    fireEvent.click(getByText("CANCEL"))
+    render(<Helpers.Component {...props} />)
+    fireEvent.click(screen.getByText("CANCEL"))
 
     // Then
     expect(onCloseMock).toBeCalledTimes(1)
@@ -138,8 +138,8 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    const { getByText } = render(<Helpers.Component {...props} />)
-    fireEvent.click(getByText("CONFIRM"))
+    render(<Helpers.Component {...props} />)
+    fireEvent.click(screen.getByText("CONFIRM"))
 
     // Then
     expect(onCloseMock).toBeCalledTimes(0)

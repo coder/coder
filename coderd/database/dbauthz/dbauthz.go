@@ -34,8 +34,15 @@ func (e NotAuthorizedError) Error() string {
 
 // Unwrap will always unwrap to a sql.ErrNoRows so the API returns a 404.
 // So 'errors.Is(err, sql.ErrNoRows)' will always be true.
-func (NotAuthorizedError) Unwrap() error {
-	return sql.ErrNoRows
+func (e NotAuthorizedError) Unwrap() error {
+	return e.Err
+}
+
+func IsNotAuthorizedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return xerrors.As(err, &NotAuthorizedError{})
 }
 
 func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
@@ -50,8 +57,9 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 			//
 			// NotAuthorizedError is == to sql.ErrNoRows, which is not correct
 			// if it's actually a canceled context.
-			internalError.SetInternal(context.Canceled)
-			return internalError
+			contextError := *internalError
+			contextError.SetInternal(context.Canceled)
+			return &contextError
 		}
 		logger.Debug(ctx, "unauthorized",
 			slog.F("internal", internalError.Internal()),
@@ -115,40 +123,36 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 	return a, ok
 }
 
-// AsProvisionerd returns a context with an actor that has permissions required
-// for provisionerd to function.
-func AsProvisionerd(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
+var (
+	subjectProvisionerd = rbac.Subject{
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "provisionerd",
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]rbac.Action{
+					// TODO: Add ProvisionerJob resource type.
 					rbac.ResourceFile.Type:      {rbac.ActionRead},
+					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
 					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
 					rbac.ResourceUser.Type:      {rbac.ActionRead},
 					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+					rbac.ResourceUserData.Type:  {rbac.ActionRead, rbac.ActionUpdate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
-	},
-	)
-}
-
-// AsAutostart returns a context with an actor that has permissions required
-// for autostart to function.
-func AsAutostart(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
+	}
+	subjectAutostart = rbac.Subject{
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "autostart",
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]rbac.Action{
+					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
 					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate},
 				}),
@@ -157,14 +161,8 @@ func AsAutostart(ctx context.Context) context.Context {
 			},
 		}),
 		Scope: rbac.ScopeAll,
-	},
-	)
-}
-
-// AsSystemRestricted returns a context with an actor that has permissions
-// required for various system operations (login, logout, metrics cache).
-func AsSystemRestricted(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
+	}
+	subjectSystemRestricted = rbac.Subject{
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
@@ -175,20 +173,40 @@ func AsSystemRestricted(ctx context.Context) context.Context {
 					rbac.ResourceAPIKey.Type:             {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceGroup.Type:              {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceRoleAssignment.Type:     {rbac.ActionCreate},
+					rbac.ResourceSystem.Type:             {rbac.WildcardSymbol},
 					rbac.ResourceOrganization.Type:       {rbac.ActionCreate},
 					rbac.ResourceOrganizationMember.Type: {rbac.ActionCreate},
 					rbac.ResourceOrgRoleAssignment.Type:  {rbac.ActionCreate},
 					rbac.ResourceUser.Type:               {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
+					rbac.ResourceWorkspaceExecution.Type: {rbac.ActionCreate},
+					rbac.ResourceWorkspaceProxy.Type:     {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
-	},
-	)
+	}
+)
+
+// AsProvisionerd returns a context with an actor that has permissions required
+// for provisionerd to function.
+func AsProvisionerd(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectProvisionerd)
+}
+
+// AsAutostart returns a context with an actor that has permissions required
+// for autostart to function.
+func AsAutostart(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectAutostart)
+}
+
+// AsSystemRestricted returns a context with an actor that has permissions
+// required for various system operations (login, logout, metrics cache).
+func AsSystemRestricted(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectSystemRestricted)
 }
 
 var AsRemoveActor = rbac.Subject{

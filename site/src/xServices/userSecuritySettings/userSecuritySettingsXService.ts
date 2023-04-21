@@ -35,7 +35,7 @@ export const userSecuritySettingsMachine = createMachine(
           src: "updateSecurity",
           onDone: [
             {
-              actions: "notifyUpdate",
+              actions: ["notifyUpdate", "redirectToHome"],
               target: "idle",
             },
           ],
@@ -66,6 +66,9 @@ export const userSecuritySettingsMachine = createMachine(
       assignError: assign({
         error: (_, event) => event.data,
       }),
+      redirectToHome: () => {
+        window.location.href = location.origin
+      },
     },
   },
 )

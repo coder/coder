@@ -12,6 +12,7 @@ var (
 	UsernameValidRegex = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
 	usernameReplace    = regexp.MustCompile("[^a-zA-Z0-9-]*")
 
+	templateVersionName = regexp.MustCompile(`^[a-zA-Z0-9]+(?:[_.-]{1}[a-zA-Z0-9]+)*$`)
 	templateDisplayName = regexp.MustCompile(`^[^\s](.*[^\s])?$`)
 )
 
@@ -48,6 +49,18 @@ func NameValid(str string) error {
 	matched := UsernameValidRegex.MatchString(str)
 	if !matched {
 		return xerrors.New("must be alphanumeric with hyphens")
+	}
+	return nil
+}
+
+// TemplateVersionNameValid returns whether the input string is a valid template version name.
+func TemplateVersionNameValid(str string) error {
+	if len(str) > 64 {
+		return xerrors.New("must be <= 64 characters")
+	}
+	matched := templateVersionName.MatchString(str)
+	if !matched {
+		return xerrors.New("must be alphanumeric with underscores and dots")
 	}
 	return nil
 }

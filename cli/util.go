@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/tz"
 )
 

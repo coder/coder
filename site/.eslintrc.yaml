@@ -32,6 +32,24 @@ plugins:
   - react-hooks
   - jest
   - unicorn
+  - testing-library
+overrides:
+  - files: ["**/__tests__/**/*.[jt]s?(x)", "**/?(*.)+(spec|test).[jt]s?(x)"]
+    extends: ["plugin:testing-library/react", "plugin:testing-library/dom"]
+    rules:
+      # Occasionally, we must traverse the DOM when querying for an element to
+      # avoid the performance costs that come with using selectors like ByRole.
+      # You can read more about these performance costs here:
+      # https://coder.com/docs/v2/latest/contributing/frontend#tests-getting-too-slow.
+      testing-library/no-node-access: off
+      testing-library/no-container: off
+  - files: ["e2e/**/*.[tj]s"]
+    extends: ["plugin:testing-library/react", "plugin:testing-library/dom"]
+    rules:
+      # Sometimes the eslint-plugin-testing-library believes playwright queries are
+      # also react-testing-library queries, which is not the case. So we disable this
+      # rule for all e2e tests.
+      testing-library/prefer-screen-queries: "off"
 root: true
 rules:
   "@typescript-eslint/brace-style":

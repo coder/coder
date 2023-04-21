@@ -1,38 +1,45 @@
 import { makeStyles } from "@material-ui/core/styles"
 import {
   Template,
-  TemplateDAUsResponse,
   TemplateVersion,
   WorkspaceResource,
 } from "api/typesGenerated"
-import { MemoizedMarkdown } from "components/Markdown/Markdown"
+import { Loader } from "components/Loader/Loader"
 import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { TemplateStats } from "components/TemplateStats/TemplateStats"
-import { VersionsTable } from "components/VersionsTable/VersionsTable"
-import frontMatter from "front-matter"
-import { FC } from "react"
+import { FC, useEffect } from "react"
 import { DAUChart } from "../../../components/DAUChart/DAUChart"
+import { TemplateSummaryData } from "./data"
+import { useLocation, useNavigate } from "react-router-dom"
 
 export interface TemplateSummaryPageViewProps {
+  data?: TemplateSummaryData
   template: Template
-  activeTemplateVersion: TemplateVersion
-  templateResources: WorkspaceResource[]
-  templateVersions?: TemplateVersion[]
-  templateDAUs?: TemplateDAUsResponse
+  activeVersion: TemplateVersion
 }
 
-export const TemplateSummaryPageView: FC<
-  React.PropsWithChildren<TemplateSummaryPageViewProps>
-> = ({
+export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
+  data,
   template,
-  activeTemplateVersion,
-  templateResources,
-  templateVersions,
-  templateDAUs,
+  activeVersion,
 }) => {
-  const styles = useStyles()
-  const readme = frontMatter(activeTemplateVersion.readme)
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (location.hash === "#readme") {
+      // We moved the readme to the docs page, but we known that some users
+      // have bookmarked the readme or linked it elsewhere. Redirect them to the docs page.
+      navigate(`/templates/${template.name}/docs`, { replace: true })
+    }
+  }, [template, navigate, location])
+
+  if (!data) {
+    return <Loader />
+  }
+
+  const { daus, resources } = data
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter(
@@ -42,23 +49,9 @@ export const TemplateSummaryPageView: FC<
 
   return (
     <Stack spacing={4}>
-      <TemplateStats
-        template={template}
-        activeVersion={activeTemplateVersion}
-      />
-      {templateDAUs && <DAUChart daus={templateDAUs} />}
-      <TemplateResourcesTable
-        resources={getStartedResources(templateResources)}
-      />
-
-      <div className={styles.markdownSection} id="readme">
-        <div className={styles.readmeLabel}>README.md</div>
-        <div className={styles.markdownWrapper}>
-          <MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
-        </div>
-      </div>
-
-      <VersionsTable versions={templateVersions} />
+      <TemplateStats template={template} activeVersion={activeVersion} />
+      {daus && <DAUChart daus={daus} />}
+      <TemplateResourcesTable resources={getStartedResources(resources)} />
     </Stack>
   )
 }

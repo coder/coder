@@ -14,7 +14,9 @@
   "status": {
     "timeout": "Timeout",
     "startTimeout": "Start Timeout",
-    "startError": "Error"
+    "startError": "Start Error",
+    "shutdownTimeout": "Stop Timeout",
+    "shutdownError": "Stop Error"
   },
   "timeoutTooltip": {
     "title": "Agent is taking too long to connect",
@@ -27,8 +29,18 @@
     "link": "Troubleshoot"
   },
   "startErrorTooltip": {
-    "title": "Error starting agent",
-    "message": "Something went wrong during the agent start.",
+    "title": "Error starting the agent",
+    "message": "Something went wrong during the agent startup.",
+    "link": "Troubleshoot"
+  },
+  "shutdownTimeoutTooltip": {
+    "title": "Agent is taking too long to stop",
+    "message": "We noticed this agent is taking longer than expected to stop.",
+    "link": "Troubleshoot"
+  },
+  "shutdownErrorTooltip": {
+    "title": "Error stopping the agent",
+    "message": "Something went wrong while trying to stop the agent.",
     "link": "Troubleshoot"
   },
   "unableToConnect": "Unable to connect"

@@ -2,17 +2,16 @@
 
 # coder
 
-Coder — A tool for provisioning self-hosted development environments with Terraform.
-
 ## Usage
 
 ```console
-coder [flags]
+coder [global-flags] <subcommand>
 ```
 
-## Examples
+## Description
 
 ```console
+Coder — A tool for provisioning self-hosted development environments with Terraform.
   - Start a Coder server:
 
       $ coder server
@@ -24,32 +23,110 @@ coder [flags]
 
 ## Subcommands
 
-| Name                                                      | Purpose                                                         |
-| --------------------------------------------------------- | --------------------------------------------------------------- |
-| [<code>config-ssh</code>](./cli/coder_config-ssh)         | Add an SSH Host entry for your workspaces "ssh coder.workspace" |
-| [<code>create</code>](./cli/coder_create)                 | Create a workspace                                              |
-| [<code>delete</code>](./cli/coder_delete)                 | Delete a workspace                                              |
-| [<code>dotfiles</code>](./cli/coder_dotfiles)             | Checkout and install a dotfiles repository from a Git URL       |
-| [<code>list</code>](./cli/coder_list)                     | List workspaces                                                 |
-| [<code>login</code>](./cli/coder_login)                   | Authenticate with Coder deployment                              |
-| [<code>logout</code>](./cli/coder_logout)                 | Unauthenticate your local session                               |
-| [<code>ping</code>](./cli/coder_ping)                     | Ping a workspace                                                |
-| [<code>port-forward</code>](./cli/coder_port-forward)     | Forward ports from machine to a workspace                       |
-| [<code>publickey</code>](./cli/coder_publickey)           | Output your Coder public key used for Git operations            |
-| [<code>rename</code>](./cli/coder_rename)                 | Rename a workspace                                              |
-| [<code>reset-password</code>](./cli/coder_reset-password) | Directly connect to the database to reset a user's password     |
-| [<code>restart</code>](./cli/coder_restart)               | Restart a workspace                                             |
-| [<code>scaletest</code>](./cli/coder_scaletest)           | Run a scale test against the Coder API                          |
-| [<code>schedule</code>](./cli/coder_schedule)             | Schedule automated start and stop times for workspaces          |
-| [<code>server</code>](./cli/coder_server)                 | Start a Coder server                                            |
-| [<code>show</code>](./cli/coder_show)                     | Display details of a workspace's resources and agents           |
-| [<code>speedtest</code>](./cli/coder_speedtest)           | Run upload and download tests from your machine to a workspace  |
-| [<code>ssh</code>](./cli/coder_ssh)                       | Start a shell into a workspace                                  |
-| [<code>start</code>](./cli/coder_start)                   | Start a workspace                                               |
-| [<code>state</code>](./cli/coder_state)                   | Manually manage Terraform state to fix broken workspaces        |
-| [<code>stop</code>](./cli/coder_stop)                     | Stop a workspace                                                |
-| [<code>templates</code>](./cli/coder_templates)           | Manage templates                                                |
-| [<code>tokens</code>](./cli/coder_tokens)                 | Manage personal access tokens                                   |
-| [<code>update</code>](./cli/coder_update)                 | Update a workspace                                              |
-| [<code>users</code>](./cli/coder_users)                   | Manage users                                                    |
-| [<code>version</code>](./cli/coder_version)               | Show coder version                                              |
+| Name                                                   | Purpose                                                                |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| [<code>config-ssh</code>](./cli/config-ssh.md)         | Add an SSH Host entry for your workspaces "ssh coder.workspace"        |
+| [<code>create</code>](./cli/create.md)                 | Create a workspace                                                     |
+| [<code>delete</code>](./cli/delete.md)                 | Delete a workspace                                                     |
+| [<code>dotfiles</code>](./cli/dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository |
+| [<code>features</code>](./cli/features.md)             | List Enterprise features                                               |
+| [<code>groups</code>](./cli/groups.md)                 | Manage groups                                                          |
+| [<code>licenses</code>](./cli/licenses.md)             | Add, delete, and list licenses                                         |
+| [<code>list</code>](./cli/list.md)                     | List workspaces                                                        |
+| [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                     |
+| [<code>logout</code>](./cli/logout.md)                 | Unauthenticate your local session                                      |
+| [<code>ping</code>](./cli/ping.md)                     | Ping a workspace                                                       |
+| [<code>port-forward</code>](./cli/port-forward.md)     | Forward ports from machine to a workspace                              |
+| [<code>provisionerd</code>](./cli/provisionerd.md)     | Manage provisioner daemons                                             |
+| [<code>publickey</code>](./cli/publickey.md)           | Output your Coder public key used for Git operations                   |
+| [<code>rename</code>](./cli/rename.md)                 | Rename a workspace                                                     |
+| [<code>reset-password</code>](./cli/reset-password.md) | Directly connect to the database to reset a user's password            |
+| [<code>restart</code>](./cli/restart.md)               | Restart a workspace                                                    |
+| [<code>scaletest</code>](./cli/scaletest.md)           | Run a scale test against the Coder API                                 |
+| [<code>schedule</code>](./cli/schedule.md)             | Schedule automated start and stop times for workspaces                 |
+| [<code>server</code>](./cli/server.md)                 | Start a Coder server                                                   |
+| [<code>show</code>](./cli/show.md)                     | Display details of a workspace's resources and agents                  |
+| [<code>speedtest</code>](./cli/speedtest.md)           | Run upload and download tests from your machine to a workspace         |
+| [<code>ssh</code>](./cli/ssh.md)                       | Start a shell into a workspace                                         |
+| [<code>start</code>](./cli/start.md)                   | Start a workspace                                                      |
+| [<code>state</code>](./cli/state.md)                   | Manually manage Terraform state to fix broken workspaces               |
+| [<code>stop</code>](./cli/stop.md)                     | Stop a workspace                                                       |
+| [<code>templates</code>](./cli/templates.md)           | Manage templates                                                       |
+| [<code>tokens</code>](./cli/tokens.md)                 | Manage personal access tokens                                          |
+| [<code>update</code>](./cli/update.md)                 | Will update and start a given workspace if it is out of date           |
+| [<code>users</code>](./cli/users.md)                   | Manage users                                                           |
+| [<code>version</code>](./cli/version.md)               | Show coder version                                                     |
+
+## Options
+
+### --debug-options
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Print all options, how they're set, then exit.
+
+### --global-config
+
+|             |                                |
+| ----------- | ------------------------------ |
+| Type        | <code>string</code>            |
+| Environment | <code>$CODER_CONFIG_DIR</code> |
+| Default     | <code>~/.config/coderv2</code> |
+
+Path to the global `coder` config directory.
+
+### --header
+
+|             |                            |
+| ----------- | -------------------------- |
+| Type        | <code>string-array</code>  |
+| Environment | <code>$CODER_HEADER</code> |
+
+Additional HTTP headers added to all requests. Provide as key=value. Can be specified multiple times.
+
+### --no-feature-warning
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>bool</code>                      |
+| Environment | <code>$CODER_NO_FEATURE_WARNING</code> |
+
+Suppress warnings about unlicensed features.
+
+### --no-version-warning
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>bool</code>                      |
+| Environment | <code>$CODER_NO_VERSION_WARNING</code> |
+
+Suppress warning when client and server versions do not match.
+
+### --token
+
+|             |                                   |
+| ----------- | --------------------------------- |
+| Type        | <code>string</code>               |
+| Environment | <code>$CODER_SESSION_TOKEN</code> |
+
+Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
+
+### --url
+
+|             |                         |
+| ----------- | ----------------------- |
+| Type        | <code>url</code>        |
+| Environment | <code>$CODER_URL</code> |
+
+URL to a deployment.
+
+### -v, --verbose
+
+|             |                             |
+| ----------- | --------------------------- |
+| Type        | <code>bool</code>           |
+| Environment | <code>$CODER_VERBOSE</code> |
+
+Enable verbose output.

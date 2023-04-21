@@ -15,7 +15,7 @@ import { siteRolesMachine } from "xServices/roles/siteRolesXService"
 import { usersMachine } from "xServices/users/usersXService"
 import { ConfirmDialog } from "../../components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { ResetPasswordDialog } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
-import { pageTitle } from "../../util/page"
+import { pageTitle } from "../../utils/page"
 import { UsersPageView } from "./UsersPageView"
 
 export const Language = {
@@ -133,6 +133,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       />
 
       <DeleteDialog
+        key={usernameToDelete}
         isOpen={
           usersState.matches("confirmUserDeletion") ||
           usersState.matches("deletingUser")

@@ -1,21 +1,21 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import { FC } from "react"
+import { FC, ReactNode, PropsWithChildren } from "react"
 import { SectionAction } from "../SectionAction/SectionAction"
 
 type SectionLayout = "fixed" | "fluid"
 
 export interface SectionProps {
-  title?: React.ReactNode | string
-  description?: React.ReactNode
-  toolbar?: React.ReactNode
-  alert?: React.ReactNode
+  title?: ReactNode | string
+  description?: ReactNode
+  toolbar?: ReactNode
+  alert?: ReactNode
   layout?: SectionLayout
   className?: string
-  children?: React.ReactNode
+  children?: ReactNode
 }
 
-type SectionFC = FC<React.PropsWithChildren<SectionProps>> & {
+type SectionFC = FC<PropsWithChildren<SectionProps>> & {
   Action: typeof SectionAction
 }
 

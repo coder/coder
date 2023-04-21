@@ -18,19 +18,19 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
-	"github.com/spf13/cobra"
 	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/agent/agentssh"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/retry"
 )
 
 var (
@@ -38,55 +38,41 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
-func ssh() *cobra.Command {
+func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
 		stdio          bool
-		shuffle        bool
 		forwardAgent   bool
 		forwardGPG     bool
 		identityAgent  string
 		wsPollInterval time.Duration
 		noWait         bool
 	)
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
-		Args:        cobra.ArbitraryArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithCancel(cmd.Context())
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-
-			if shuffle {
-				err := cobra.ExactArgs(0)(cmd, args)
-				if err != nil {
-					return err
-				}
-			} else {
-				err := cobra.MinimumNArgs(1)(cmd, args)
-				if err != nil {
-					return err
-				}
-			}
-
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], shuffle)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
 			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
-			if outdated && isTTYErr(cmd) {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), updateWorkspaceBanner)
+			if outdated && isTTYErr(inv) {
+				_, _ = fmt.Fprintln(inv.Stderr, updateWorkspaceBanner)
 			}
 
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
-			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
@@ -97,10 +83,13 @@ func ssh() *cobra.Command {
 				if xerrors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
-				if xerrors.Is(err, cliui.AgentStartError) {
-					return xerrors.New("Agent startup script exited with non-zero status, use --no-wait to login anyway.")
+				if !xerrors.Is(err, cliui.AgentStartError) {
+					return xerrors.Errorf("await agent: %w", err)
 				}
-				return xerrors.Errorf("await agent: %w", err)
+
+				// We don't want to fail on a startup script error because it's
+				// natural that the user will want to fix the script and try again.
+				// We don't print the error because cliui.Agent does that for us.
 			}
 
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{})
@@ -112,17 +101,82 @@ func ssh() *cobra.Command {
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
+			// Enure connection is closed if the context is canceled or
+			// the workspace reaches the stopped state.
+			//
+			// Watching the stopped state is a work-around for cases
+			// where the agent is not gracefully shut down and the
+			// connection is left open. If, for instance, the networking
+			// is stopped before the agent is shut down, the disconnect
+			// will usually not propagate.
+			//
+			// See: https://github.com/coder/coder/issues/6180
+			watchAndClose := func(closer func() error) {
+				// Ensure session is ended on both context cancellation
+				// and workspace stop.
+				defer func() {
+					_ = closer()
+				}()
+
+			startWatchLoop:
+				for {
+					// (Re)connect to the coder server and watch workspace events.
+					var wsWatch <-chan codersdk.Workspace
+					var err error
+					for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
+						wsWatch, err = client.WatchWorkspace(ctx, workspace.ID)
+						if err == nil {
+							break
+						}
+						if ctx.Err() != nil {
+							return
+						}
+					}
+
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case w, ok := <-wsWatch:
+							if !ok {
+								continue startWatchLoop
+							}
+
+							// Transitioning to stop or delete could mean that
+							// the agent will still gracefully stop. If a new
+							// build is starting, there's no reason to wait for
+							// the agent, it should be long gone.
+							if workspace.LatestBuild.ID != w.LatestBuild.ID && w.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
+								return
+							}
+							// Note, we only react to the stopped state here because we
+							// want to give the agent a chance to gracefully shut down
+							// during "stopping".
+							if w.LatestBuild.Status == codersdk.WorkspaceStatusStopped {
+								return
+							}
+						}
+					}
+				}
+			}
+
 			if stdio {
 				rawSSH, err := conn.SSH(ctx)
 				if err != nil {
 					return err
 				}
 				defer rawSSH.Close()
+				go watchAndClose(rawSSH.Close)
 
 				go func() {
-					_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
+					// Ensure stdout copy closes incase stdin is closed
+					// unexpectedly. Typically we wouldn't worry about
+					// this since OpenSSH should kill the proxy command.
+					defer rawSSH.Close()
+
+					_, _ = io.Copy(rawSSH, inv.Stdin)
 				}()
-				_, _ = io.Copy(rawSSH, cmd.InOrStdin())
+				_, _ = io.Copy(inv.Stdout, rawSSH)
 				return nil
 			}
 
@@ -137,13 +191,11 @@ func ssh() *cobra.Command {
 				return err
 			}
 			defer sshSession.Close()
-
-			// Ensure context cancellation is propagated to the
-			// SSH session, e.g. to cancel `Wait()` at the end.
-			go func() {
-				<-ctx.Done()
+			go watchAndClose(func() error {
 				_ = sshSession.Close()
-			}()
+				_ = sshClient.Close()
+				return nil
+			})
 
 			if identityAgent == "" {
 				identityAgent = os.Getenv("SSH_AUTH_SOCK")
@@ -168,15 +220,15 @@ func ssh() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
 				}
-				closer, err := forwardGPGAgent(ctx, cmd.ErrOrStderr(), sshClient)
+				closer, err := forwardGPGAgent(ctx, inv.Stderr, sshClient)
 				if err != nil {
 					return xerrors.Errorf("forward GPG socket: %w", err)
 				}
 				defer closer.Close()
 			}
 
-			stdoutFile, validOut := cmd.OutOrStdout().(*os.File)
-			stdinFile, validIn := cmd.InOrStdin().(*os.File)
+			stdoutFile, validOut := inv.Stdout.(*os.File)
+			stdinFile, validIn := inv.Stdin.(*os.File)
 			if validOut && validIn && isatty.IsTerminal(stdoutFile.Fd()) {
 				state, err := term.MakeRaw(int(stdinFile.Fd()))
 				if err != nil {
@@ -208,9 +260,9 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			sshSession.Stdin = cmd.InOrStdin()
-			sshSession.Stdout = cmd.OutOrStdout()
-			sshSession.Stderr = cmd.ErrOrStderr()
+			sshSession.Stdin = inv.Stdin
+			sshSession.Stdout = inv.Stdout
+			sshSession.Stderr = inv.Stderr
 
 			err = sshSession.Shell()
 			if err != nil {
@@ -243,53 +295,70 @@ func ssh() *cobra.Command {
 			return nil
 		},
 	}
-	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
-	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
-	_ = cmd.Flags().MarkHidden("shuffle")
-	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
-	cliflag.BoolVarP(cmd.Flags(), &forwardGPG, "forward-gpg", "G", "CODER_SSH_FORWARD_GPG", false, "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.")
-	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
-	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
-	cliflag.BoolVarP(cmd.Flags(), &noWait, "no-wait", "", "CODER_SSH_NO_WAIT", false, "Specifies whether to wait for a workspace to become ready before logging in (only applicable when the login before ready option has not been enabled). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "stdio",
+			Env:         "CODER_SSH_STDIO",
+			Description: "Specifies whether to emit SSH output over stdin/stdout.",
+			Value:       clibase.BoolOf(&stdio),
+		},
+		{
+			Flag:          "forward-agent",
+			FlagShorthand: "A",
+			Env:           "CODER_SSH_FORWARD_AGENT",
+			Description:   "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK.",
+			Value:         clibase.BoolOf(&forwardAgent),
+		},
+		{
+			Flag:          "forward-gpg",
+			FlagShorthand: "G",
+			Env:           "CODER_SSH_FORWARD_GPG",
+			Description:   "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.",
+			Value:         clibase.BoolOf(&forwardGPG),
+		},
+		{
+			Flag:        "identity-agent",
+			Env:         "CODER_SSH_IDENTITY_AGENT",
+			Description: "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled.",
+			Value:       clibase.StringOf(&identityAgent),
+		},
+		{
+			Flag:        "workspace-poll-interval",
+			Env:         "CODER_WORKSPACE_POLL_INTERVAL",
+			Description: "Specifies how often to poll for workspace automated shutdown.",
+			Default:     "1m",
+			Value:       clibase.DurationOf(&wsPollInterval),
+		},
+		{
+			Flag:        "no-wait",
+			Env:         "CODER_SSH_NO_WAIT",
+			Description: "Specifies whether to wait for a workspace to become ready before logging in (only applicable when the login before ready option has not been enabled). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.",
+			Value:       clibase.BoolOf(&noWait),
+		},
+	}
 	return cmd
 }
 
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
 // if `shuffle` is true.
-func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
 		err            error
 	)
-	if shuffle {
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Owner: userID,
-		})
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-		}
-		if len(res.Workspaces) == 0 {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("no workspaces to shuffle")
-		}
 
-		workspace, err = cryptorand.Element(res.Workspaces)
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-		}
-	} else {
-		workspace, err = namedWorkspace(cmd, client, workspaceParts[0])
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-		}
+	workspace, err = namedWorkspace(inv.Context(), client, workspaceParts[0])
+	if err != nil {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
 
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
-		err := cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID)
+		err := cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
@@ -322,9 +391,6 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 	}
 	if workspaceAgent.ID == uuid.Nil {
 		if len(agents) > 1 {
-			if !shuffle {
-				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
-			}
 			workspaceAgent, err = cryptorand.Element(agents)
 			if err != nil {
 				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
@@ -572,7 +638,7 @@ func sshForwardRemote(ctx context.Context, stderr io.Writer, sshClient *gossh.Cl
 					}
 				}
 
-				agent.Bicopy(ctx, localConn, remoteConn)
+				agentssh.Bicopy(ctx, localConn, remoteConn)
 			}()
 		}
 	}()

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"regexp"
 	"testing"
 
 	"github.com/google/uuid"
@@ -14,7 +15,9 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/provisionerdserver"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
 	"github.com/coder/coder/provisioner/echo"
@@ -26,14 +29,19 @@ func TestTemplateVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, _, api := coderdtest.NewWithAPI(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+		authz := coderdtest.AssertRBAC(t, api, client).Reset()
+
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(user.OrganizationID))
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersion(ctx, version.ID)
+		authz.Reset()
+		tv, err := client.TemplateVersion(ctx, version.ID)
+		authz.AssertChecked(t, rbac.ActionRead, tv)
 		require.NoError(t, err)
 	})
 
@@ -45,7 +53,7 @@ func TestTemplateVersion(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
@@ -127,8 +135,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Equal(t, "bananas", version.Name)
 		require.Equal(t, provisionerdserver.ScopeOrganization, version.Job.Tags[provisionerdserver.TagScope])
 
-		require.Len(t, auditor.AuditLogs, 2)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[1].Action)
+		require.Len(t, auditor.AuditLogs(), 2)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
 	})
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
@@ -434,6 +442,67 @@ func TestTemplateVersionParameters(t *testing.T) {
 	})
 }
 
+func TestTemplateVersionsGitAuth(t *testing.T) {
+	t.Parallel()
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionGitAuth(ctx, version.ID)
+		require.NoError(t, err)
+	})
+	t.Run("Authenticated", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			GitAuthConfigs: []*gitauth.Config{{
+				OAuth2Config: &testutil.OAuth2Config{},
+				ID:           "github",
+				Regex:        regexp.MustCompile(`github\.com`),
+				Type:         codersdk.GitProviderGitHub,
+			}},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						GitAuthProviders: []string{"github"},
+					},
+				},
+			}},
+		})
+		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		require.Empty(t, version.Job.Error)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Not authenticated to start!
+		providers, err := client.TemplateVersionGitAuth(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, providers, 1)
+		require.False(t, providers[0].Authenticated)
+
+		// Perform the Git auth callback to authenticate the user...
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		// Ensure that the returned Git auth for the template is authenticated!
+		providers, err = client.TemplateVersionGitAuth(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, providers, 1)
+		require.True(t, providers[0].Authenticated)
+	})
+}
+
 func TestTemplateVersionResources(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
@@ -646,8 +715,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs, 5)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
+		require.Len(t, auditor.AuditLogs(), 5)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
 	})
 }
 
@@ -1263,5 +1332,123 @@ func TestTemplateVersionVariables(t *testing.T) {
 		require.Equal(t, templateVariables[0].Sensitive, actualVariables[0].Sensitive)
 		require.Equal(t, "*redacted*", actualVariables[0].DefaultValue)
 		require.Equal(t, "*redacted*", actualVariables[0].Value)
+	})
+}
+
+func TestTemplateVersionPatch(t *testing.T) {
+	t.Parallel()
+	t.Run("Update the name", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const newName = "new-name"
+		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{
+			Name: newName,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, newName, updatedVersion.Name)
+		assert.NotEqual(t, updatedVersion.Name, version.Name)
+	})
+
+	t.Run("Use the same name if a new name is not passed", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, version.Name, updatedVersion.Name)
+	})
+
+	t.Run("Use the same name for two different templates", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const commonTemplateVersionName = "common-template-version-name"
+		updatedVersion1, err := client.UpdateTemplateVersion(ctx, version1.ID, codersdk.PatchTemplateVersionRequest{
+			Name: commonTemplateVersionName,
+		})
+		require.NoError(t, err)
+
+		updatedVersion2, err := client.UpdateTemplateVersion(ctx, version2.ID, codersdk.PatchTemplateVersionRequest{
+			Name: commonTemplateVersionName,
+		})
+		require.NoError(t, err)
+
+		assert.NotEqual(t, updatedVersion1.ID, updatedVersion2.ID)
+		assert.Equal(t, updatedVersion1.Name, updatedVersion2.Name)
+	})
+
+	t.Run("Use the same name for two versions for the same templates", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		_, err := client.UpdateTemplateVersion(ctx, version2.ID, codersdk.PatchTemplateVersionRequest{
+			Name: version1.Name,
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("Rename the unassigned template", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const commonTemplateVersionName = "common-template-version-name"
+		updatedVersion1, err := client.UpdateTemplateVersion(ctx, version1.ID, codersdk.PatchTemplateVersionRequest{
+			Name: commonTemplateVersionName,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, commonTemplateVersionName, updatedVersion1.Name)
+	})
+
+	t.Run("Use incorrect template version name", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const incorrectTemplateVersionName = "incorrect/name"
+		_, err := client.UpdateTemplateVersion(ctx, version1.ID, codersdk.PatchTemplateVersionRequest{
+			Name: incorrectTemplateVersionName,
+		})
+		require.Error(t, err)
 	})
 }

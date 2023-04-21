@@ -25,7 +25,7 @@ To support 120 concurrent workspace builds, for example:
 
 - Create a cluster/nodepool with 4 nodes, 8-core each (AWS: `t3.2xlarge` GCP: `e2-highcpu-8`)
 - Run coderd with 4 replicas, 30 provisioner daemons each. (`CODER_PROVISIONER_DAEMONS=30`)
-- Ensure Coder's [PostgreSQL server](./configure.md#postgresql-database) can use up to 1.5 cores
+- Ensure Coder's [PostgreSQL server](./configure.md#postgresql-database) can use up to 2 cores and 4 GB RAM
 
 ## Recent scale tests
 

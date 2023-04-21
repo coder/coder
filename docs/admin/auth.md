@@ -50,33 +50,59 @@ CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
 
 Once complete, run `sudo service coder restart` to reboot Coder.
 
+If deploying Coder via Helm, you can set the above environment variables in the
+`values.yaml` file as such:
+
+```yaml
+coder:
+  env:
+    - name: CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
+      value: true
+    - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
+      value: "your-org"
+    - name: CODER_OAUTH2_GITHUB_CLIENT_ID
+      value: "533...des"
+    - name: CODER_OAUTH2_GITHUB_CLIENT_SECRET
+      value: "G0CSP...7qSM"
+    - name: CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
+      value: true
+```
+
+To upgrade Coder, run:
+
+```console
+helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
+```
+
 > We recommend requiring and auditing MFA usage for all users in your GitHub
 > organizations. This can be enforced from the organization settings page in the
 > "Authentication security" sidebar tab.
 
-## GitLab
+## OpenID Connect
 
-### Step 1: Configure the OAuth application in your GitLab instance
+The following steps through how to integrate any OpenID Connect provider (Okta, Active Directory, etc.) to Coder.
 
-First, [register a GitLab OAuth application](https://docs.gitlab.com/ee/integration/oauth_provider.html). GitLab will ask you for the following parameter:
+### Step 1: Set Redirect URI with your OIDC provider
+
+Your OIDC provider will ask you for the following parameter:
 
 - **Redirect URI**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
 
-### Step 2: Configure Coder with the Gitlab OpenID Connect credentials
+### Step 2: Configure Coder with the OpenID Connect credentials
 
 Navigate to your Coder host and run the following command to start up the Coder
 server:
 
 ```console
-coder server --oidc-issuer-url="https://gitlab.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-id="533...des" --oidc-client-secret="G0CSP...7qSM"
+coder server --oidc-issuer-url="https://issuer.corp.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-id="533...des" --oidc-client-secret="G0CSP...7qSM"
 ```
 
-Alternatively, if you are running Coder as a system service, you can achieve the
+If you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
 to the `/etc/coder.d/coder.env` file:
 
 ```console
-CODER_OIDC_ISSUER_URL="https://gitlab.com"
+CODER_OIDC_ISSUER_URL="https://issuer.corp.com"
 CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
 CODER_OIDC_CLIENT_ID="533...des"
 CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
@@ -84,58 +110,60 @@ CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
 
 Once complete, run `sudo service coder restart` to reboot Coder.
 
-> We recommend requiring and auditing MFA usage for all users in your GitLab
-> organizations or deployment. This can be enforced for an organization from the
-> organization settings page in the "Permissions and group features" section.
-> For deployments, this can be enforced in the Admin area, under the "Settings >
-> General" sidebar tab in the "Sign-in restrictions" section.
+If deploying Coder via Helm, you can set the above environment variables in the
+`values.yaml` file as such:
 
-### Additional Notes
-
-GitLab maintains configuration settings for OIDC applications at the following URL:
-
-```console
-https://gitlab.com/.well-known/openid-configuration
+```yaml
+coder:
+  env:
+    - name: CODER_OIDC_ISSUER_URL
+      value: "https://issuer.corp.com"
+    - name: CODER_OIDC_EMAIL_DOMAIN
+      value: "your-domain-1,your-domain-2"
+    - name: CODER_OIDC_CLIENT_ID
+      value: "533...des"
+    - name: CODER_OIDC_CLIENT_SECRET
+      value: "G0CSP...7qSM"
 ```
 
-If you are using a self-hosted GitLab instance, replace `gitlab.com` in the above URL
-with your internal domain. The same will apply for the `OIDC_ISSUER_URL` variable.
-
-## OpenID Connect with Google
-
-### Step 1: Configure the OAuth application on Google Cloud
-
-First, [register a Google OAuth application](https://support.google.com/cloud/answer/6158849?hl=en). Google will ask you for the following Coder parameters:
-
-- **Authorized JavaScript origins**: Set to your Coder domain (e.g. `https://coder.domain.com`)
-- **Redirect URIs**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
-
-### Step 2: Configure Coder with the Google OpenID Connect credentials
-
-Navigate to your Coder host and run the following command to start up the Coder
-server:
+To upgrade Coder, run:
 
 ```console
-coder server --oidc-issuer-url="https://accounts.google.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-id="533...ent.com" --oidc-client-secret="G0CSP...7qSM"
+helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
-
-Alternatively, if you are running Coder as a system service, you can achieve the
-same result as the command above by adding the following environment variables
-to the `/etc/coder.d/coder.env` file:
-
-```console
-CODER_OIDC_ISSUER_URL="https://accounts.google.com"
-CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
-CODER_OIDC_CLIENT_ID="533...ent.com"
-CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
-```
-
-Once complete, run `sudo service coder restart` to reboot Coder.
 
 ## OIDC Claims
 
-Coder requires all OIDC email addresses to be verified by default. If the
-`email_verified` claim is present in the token response from the identity
+When a user logs in for the first time via OIDC, Coder will merge both
+the claims from the ID token and the claims obtained from hitting the
+upstream provider's `userinfo` endpoint, and use the resulting data
+as a basis for creating a new user or looking up an existing user.
+
+To troubleshoot claims, set `CODER_VERBOSE=true` and follow the logs
+while signing in via OIDC as a new user. Coder will log the claim fields
+returned by the upstream identity provider in a message containing the
+string `got oidc claims`, as well as the user info returned.
+
+> **Note:** If you need to ensure that Coder only uses information from
+> the ID token and does not hit the UserInfo endpoint, you can set the
+> configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
+
+### Email Addresses
+
+By default, Coder will look for the OIDC claim named `email` and use that
+value for the newly created user's email address.
+
+If your upstream identity provider users a different claim, you can set
+`CODER_OIDC_EMAIL_FIELD` to the desired claim.
+
+> **Note:** If this field is not present, Coder will attempt to use the
+> claim field configured for `username` as an email address. If this field
+> is not a valid email address, OIDC logins will fail.
+
+### Email Address Verification
+
+Coder requires all OIDC email addresses to be verified by default. If
+the `email_verified` claim is present in the token response from the identity
 provider, Coder will validate that its value is `true`. If needed, you can
 disable this behavior with the following setting:
 
@@ -144,11 +172,22 @@ CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 ```
 
 > **Note:** This will cause Coder to implicitly treat all OIDC emails as
-> "verified".
+> "verified", regardless of what the upstream identity provider says.
 
-When a new user is created, the `preferred_username` claim becomes the username.
-If this claim is empty, the email address will be stripped of the domain, and
-become the username (e.g. `example@coder.com` becomes `example`).
+### Usernames
+
+When a new user logs in via OIDC, Coder will by default use the value
+of the claim field named `preferred_username` as the the username.
+
+If your upstream identity provider uses a different claim, you can
+set `CODER_OIDC_USERNAME_FIELD` to the desired claim.
+
+> **Note:** If this claim is empty, the email address will be stripped of
+> the domain, and become the username (e.g. `example@coder.com` becomes `example`).
+> To avoid conflicts, Coder may also append a random word to the resulting
+> username.
+
+## OIDC Login Customization
 
 If you'd like to change the OpenID Connect button text and/or icon, you can
 configure them like so:
@@ -183,7 +222,9 @@ CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder.
 
-To enable group sync, ensure that the `group` claim is set:
+To enable group sync, ensure that the `groups` claim is set. If group sync is
+enabled, the user's groups will be controlled by the OIDC provider. This means
+manual group additions/removals will be overwritten on the next login.
 
 ```console
 # as an environment variable
@@ -195,4 +236,77 @@ CODER_OIDC_SCOPES=openid,profile,email,groups
 On login, users will automatically be assigned to groups that have matching
 names in Coder and removed from groups that the user no longer belongs to.
 
+For cases when an OIDC provider only returns group IDs ([Azure AD][azure-gids])
+or you want to have different group names in Coder than in your OIDC provider,
+you can configure mapping between the two.
+
+```console
+# as an environment variable
+CODER_OIDC_GROUP_MAPPING='{"myOIDCGroupID": "myCoderGroupName"}'
+# as a flag
+--oidc-group-mapping '{"myOIDCGroupID": "myCoderGroupName"}'
+```
+
+Below is an example mapping in the Coder Helm chart:
+
+```yaml
+coder:
+  env:
+    - name: CODER_OIDC_GROUP_MAPPING
+      value: >
+        {"myOIDCGroupID": "myCoderGroupName"}
+```
+
+From the example above, users that belong to the `myOIDCGroupID` group in your
+OIDC provider will be added to the `myCoderGroupName` group in Coder.
+
 > **Note:** Groups are only updated on login.
+
+[azure-gids]: https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
+
+## Provider-Specific Guides
+
+Below are some details specific to individual OIDC providers.
+
+### Active Directory Federation Services (ADFS)
+
+> **Note:** Tested on ADFS 4.0, Windows Server 2019
+
+1. In your Federation Server, create a new application group for Coder. Follow the
+   steps as described [here.](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/development/msal/adfs-msal-web-app-web-api#app-registration-in-ad-fs)
+   - **Server Application**: Note the Client ID.
+   - **Configure Application Credentials**: Note the Client Secret.
+   - **Configure Web API**: Set the Client ID as the relying party identifier.
+   - **Application Permissions**: Allow access to the claims `openid`, `email`, `profile`, and `allatclaims`.
+1. Visit your ADFS server's `/.well-known/openid-configuration` URL and note
+   the value for `issuer`.
+   > **Note:** This is usually of the form `https://adfs.corp/adfs/.well-known/openid-configuration`
+1. In Coder's configuration file (or Helm values as appropriate), set the following
+   environment variables or their corresponding CLI arguments:
+
+   - `CODER_OIDC_ISSUER_URL`: the `issuer` value from the previous step.
+   - `CODER_OIDC_CLIENT_ID`: the Client ID from step 1.
+   - `CODER_OIDC_CLIENT_SECRET`: the Client Secret from step 1.
+   - `CODER_OIDC_AUTH_URL_PARAMS`: set to
+
+     ```console
+     {"resource":"$CLIENT_ID"}
+     ```
+
+     where `$CLIENT_ID` is the Client ID from step 1 ([see here](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional)).
+     This is required for the upstream OIDC provider to return the requested claims.
+
+   - `CODER_OIDC_IGNORE_USERINFO`: Set to `true`.
+
+1. Configure [Issuance Transform Rules](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims)
+   on your federation server to send the following claims:
+
+   - `preferred_username`: You can use e.g. "Display Name" as required.
+   - `email`: You can use e.g. the LDAP attribute "E-Mail-Addresses" as required.
+   - `email_verified`: Create a custom claim rule:
+
+     ```console
+     => issue(Type = "email_verified", Value = "true")
+     ```
+
+   - (Optional) If using Group Sync, send the required groups in the configured groups claim field. See [here](https://stackoverflow.com/a/55570286) for an example.

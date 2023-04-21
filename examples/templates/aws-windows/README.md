@@ -35,6 +35,8 @@ instances provisioned by Coder:
         "ec2:GetDefaultCreditSpecification",
         "ec2:DescribeIamInstanceProfileAssociations",
         "ec2:DescribeTags",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceTypes",
         "ec2:CreateTags",
         "ec2:RunInstances",
         "ec2:DescribeInstanceCreditSpecifications",
@@ -48,7 +50,6 @@ instances provisioned by Coder:
       "Sid": "CoderResources",
       "Effect": "Allow",
       "Action": [
-        "ec2:DescribeInstances",
         "ec2:DescribeInstanceAttribute",
         "ec2:UnmonitorInstances",
         "ec2:TerminateInstances",

@@ -1,9 +1,7 @@
 package coderd
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -37,7 +35,9 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	instanceID, err := azureidentity.Validate(ctx, req.Signature, api.AzureCertificates)
+	instanceID, err := azureidentity.Validate(r.Context(), req.Signature, azureidentity.Options{
+		VerifyOptions: api.AzureCertificates,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Invalid Azure identity.",
@@ -129,7 +129,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	ctx := r.Context()
 	//nolint:gocritic // needed for auth instance id
 	agent, err := api.Database.GetWorkspaceAgentByInstanceID(dbauthz.AsSystemRestricted(ctx), instanceID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
 		})

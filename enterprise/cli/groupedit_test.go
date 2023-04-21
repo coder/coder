@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/pty/ptytest"
@@ -32,7 +31,7 @@ func TestGroupEdit(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, user1 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -51,7 +50,8 @@ func TestGroupEdit(t *testing.T) {
 
 		expectedName := "beta"
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		inv, conf := newCLI(
+			t,
 			"groups", "edit", group.Name,
 			"--name", expectedName,
 			"--avatar-url", "https://example.com",
@@ -62,10 +62,10 @@ func TestGroupEdit(t *testing.T) {
 
 		pty := ptytest.New(t)
 
-		cmd.SetOut(pty.Output())
-		clitest.SetupConfig(t, client, root)
+		inv.Stdout = pty.Output()
+		clitest.SetupConfig(t, client, conf)
 
-		err = cmd.Execute()
+		err = inv.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch(fmt.Sprintf("Successfully patched group %s", cliui.Styles.Keyword.Render(expectedName)))
@@ -83,21 +83,22 @@ func TestGroupEdit(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "alpha",
 		})
 		require.NoError(t, err)
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		inv, conf := newCLI(
+			t,
 			"groups", "edit", group.Name,
 			"-a", "foo",
 		)
 
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, conf)
 
-		err = cmd.Execute()
+		err = inv.Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must be a valid UUID or email address")
 	})
@@ -114,11 +115,10 @@ func TestGroupEdit(t *testing.T) {
 			},
 		})
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "edit")
+		inv, conf := newCLI(t, "groups", "edit")
+		clitest.SetupConfig(t, client, conf)
 
-		clitest.SetupConfig(t, client, root)
-
-		err := cmd.Execute()
+		err := inv.Run()
 		require.Error(t, err)
 	})
 }

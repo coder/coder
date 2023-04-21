@@ -11,7 +11,6 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/pty/ptytest"
 )
@@ -22,16 +21,10 @@ func TestFeaturesList(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "features", "list")
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		errC := make(chan error)
-		go func() {
-			errC <- cmd.Execute()
-		}()
-		require.NoError(t, <-errC)
+		inv, conf := newCLI(t, "features", "list")
+		clitest.SetupConfig(t, client, conf)
+		pty := ptytest.New(t).Attach(inv)
+		clitest.Start(t, inv)
 		pty.ExpectMatch("user_limit")
 		pty.ExpectMatch("not_entitled")
 	})
@@ -40,15 +33,15 @@ func TestFeaturesList(t *testing.T) {
 
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "features", "list", "-o", "json")
-		clitest.SetupConfig(t, client, root)
+		inv, conf := newCLI(t, "features", "list", "-o", "json")
+		clitest.SetupConfig(t, client, conf)
 		doneChan := make(chan struct{})
 
 		buf := bytes.NewBuffer(nil)
-		cmd.SetOut(buf)
+		inv.Stdout = buf
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -62,6 +55,5 @@ func TestFeaturesList(t *testing.T) {
 			assert.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
 		}
 		assert.False(t, entitlements.HasLicense)
-		assert.False(t, entitlements.Experimental)
 	})
 }

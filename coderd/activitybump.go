@@ -70,19 +70,23 @@ func activityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 		}
 
 		newDeadline := database.Now().Add(bumpAmount)
+		if !build.MaxDeadline.IsZero() && newDeadline.After(build.MaxDeadline) {
+			newDeadline = build.MaxDeadline
+		}
 
 		if _, err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: build.ProvisionerState,
 			Deadline:         newDeadline,
+			MaxDeadline:      build.MaxDeadline,
 		}); err != nil {
 			return xerrors.Errorf("update workspace build: %w", err)
 		}
 		return nil
 	}, nil)
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
+		if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 			// Bump will fail if the context is canceled, but this is ok.
 			log.Error(ctx, "bump failed", slog.Error(err),
 				slog.F("workspace_id", workspaceID),

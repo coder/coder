@@ -15,7 +15,7 @@ import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/Search
 import { Stack } from "../../components/Stack/Stack"
 import { WorkspaceHelpTooltip } from "../../components/Tooltips"
 import { WorkspacesTable } from "../../components/WorkspacesTable/WorkspacesTable"
-import { workspaceFilterQuery } from "../../util/filters"
+import { workspaceFilterQuery } from "../../utils/filters"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -95,12 +95,14 @@ export const WorkspacesPageView: FC<
           filter={filter}
           onFilter={onFilter}
           presetFilters={presetFilters}
+          error={error}
         />
       </Stack>
       <WorkspacesTable
         workspaces={workspaces}
         isUsingFilter={filter !== workspaceFilterQuery.me}
         onUpdateWorkspace={onUpdateWorkspace}
+        error={error}
       />
       {count !== undefined && (
         <PaginationWidgetBase

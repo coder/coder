@@ -223,7 +223,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
-	resources, parameters, err := e.planResources(ctx, killCtx, planfilePath)
+	state, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -234,31 +234,42 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
-				Parameters: parameters,
-				Resources:  resources,
-				Plan:       planFileByt,
+				Parameters:       state.Parameters,
+				Resources:        state.Resources,
+				GitAuthProviders: state.GitAuthProviders,
+				Plan:             planFileByt,
 			},
 		},
 	}, nil
 }
 
 // planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) ([]*proto.Resource, []*proto.RichParameter, error) {
+func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, error) {
 	plan, err := e.showPlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("graph: %w", err)
+		return nil, xerrors.Errorf("graph: %w", err)
 	}
 	modules := []*tfjson.StateModule{}
 	if plan.PriorState != nil {
 		modules = append(modules, plan.PriorState.Values.RootModule)
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
-	return ConvertResourcesAndParameters(modules, rawGraph)
+
+	rawParameterNames, err := rawRichParameterNames(e.workdir)
+	if err != nil {
+		return nil, xerrors.Errorf("raw rich parameter names: %w", err)
+	}
+
+	state, err := ConvertState(modules, rawGraph, rawParameterNames)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 // showPlan must only be called while the lock is held.
@@ -332,7 +343,7 @@ func (e *executor) apply(
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
-	resources, parameters, err := e.stateResources(ctx, killCtx)
+	state, err := e.stateResources(ctx, killCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -344,35 +355,40 @@ func (e *executor) apply(
 	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
-				Parameters: parameters,
-				Resources:  resources,
-				State:      stateContent,
+				Parameters:       state.Parameters,
+				Resources:        state.Resources,
+				GitAuthProviders: state.GitAuthProviders,
+				State:            stateContent,
 			},
 		},
 	}, nil
 }
 
 // stateResources must only be called while the lock is held.
-func (e *executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resource, []*proto.RichParameter, error) {
+func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) {
 	state, err := e.state(ctx, killCtx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get terraform graph: %w", err)
+		return nil, xerrors.Errorf("get terraform graph: %w", err)
 	}
-	var resources []*proto.Resource
-	var parameters []*proto.RichParameter
+	converted := &State{}
 	if state.Values != nil {
-		resources, parameters, err = ConvertResourcesAndParameters([]*tfjson.StateModule{
-			state.Values.RootModule,
-		}, rawGraph)
+		rawParameterNames, err := rawRichParameterNames(e.workdir)
 		if err != nil {
-			return nil, nil, err
+			return nil, xerrors.Errorf("raw rich parameter names: %w", err)
+		}
+
+		converted, err = ConvertState([]*tfjson.StateModule{
+			state.Values.RootModule,
+		}, rawGraph, rawParameterNames)
+		if err != nil {
+			return nil, err
 		}
 	}
-	return resources, parameters, nil
+	return converted, nil
 }
 
 // state must only be called while the lock is held.
@@ -444,7 +460,31 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 	defer close(done)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		sink.Log(&proto.Log{Level: level, Output: scanner.Text()})
+		var log terraformProvisionLog
+		err := json.Unmarshal(scanner.Bytes(), &log)
+		if err != nil {
+			if strings.TrimSpace(scanner.Text()) == "" {
+				continue
+			}
+
+			sink.Log(&proto.Log{Level: level, Output: scanner.Text()})
+			continue
+		}
+
+		logLevel := convertTerraformLogLevel(log.Level, sink)
+		if logLevel == proto.LogLevel_TRACE {
+			// Skip TRACE log entries as they produce a lot of noise.
+			//
+			// FIXME consider config.ProvisionerLogLevel to enable custom level logging
+			// instead of "just-debug-level" mode.
+			continue
+		}
+
+		// Degrade JSON log entries marked as INFO as these are logs produced in debug mode.
+		if logLevel == proto.LogLevel_INFO {
+			logLevel = proto.LogLevel_DEBUG
+		}
+		sink.Log(&proto.Log{Level: logLevel, Output: log.Message})
 	}
 }
 
@@ -495,8 +535,10 @@ func provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 		if log.Diagnostic == nil {
 			continue
 		}
-		logLevel = convertTerraformLogLevel(log.Diagnostic.Severity, sink)
-		sink.Log(&proto.Log{Level: logLevel, Output: log.Diagnostic.Detail})
+		logLevel = convertTerraformLogLevel(string(log.Diagnostic.Severity), sink)
+		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
+			sink.Log(&proto.Log{Level: logLevel, Output: diagLine})
+		}
 	}
 }
 
@@ -508,7 +550,7 @@ func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {
 		return proto.LogLevel_DEBUG
 	case "info":
 		return proto.LogLevel_INFO
-	case "warn":
+	case "warn", "warning":
 		return proto.LogLevel_WARN
 	case "error":
 		return proto.LogLevel_ERROR
@@ -525,13 +567,7 @@ type terraformProvisionLog struct {
 	Level   string `json:"@level"`
 	Message string `json:"@message"`
 
-	Diagnostic *terraformProvisionLogDiagnostic `json:"diagnostic"`
-}
-
-type terraformProvisionLogDiagnostic struct {
-	Severity string `json:"severity"`
-	Summary  string `json:"summary"`
-	Detail   string `json:"detail"`
+	Diagnostic *tfjson.Diagnostic `json:"diagnostic,omitempty"`
 }
 
 // syncWriter wraps an io.Writer in a sync.Mutex.

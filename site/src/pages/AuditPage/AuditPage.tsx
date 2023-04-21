@@ -7,7 +7,7 @@ import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useSearchParams } from "react-router-dom"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { auditMachine } from "xServices/audit/auditXService"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import { AuditPageView } from "./AuditPageView"
@@ -26,7 +26,7 @@ const AuditPage: FC = () => {
     },
   })
 
-  const { auditLogs, count } = auditState.context
+  const { auditLogs, count, apiError } = auditState.context
   const paginationRef = auditState.context.paginationRef as PaginationMachineRef
   const { audit_log: isAuditLogVisible } = useFeatureVisibility()
 
@@ -45,6 +45,7 @@ const AuditPage: FC = () => {
         paginationRef={paginationRef}
         isNonInitialPage={nonInitialPage(searchParams)}
         isAuditLogVisible={isAuditLogVisible}
+        error={apiError}
       />
     </>
   )

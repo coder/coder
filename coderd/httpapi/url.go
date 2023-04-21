@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -23,9 +22,7 @@ var (
 
 // ApplicationURL is a parsed application URL hostname.
 type ApplicationURL struct {
-	// Only one of AppSlug or Port will be set.
-	AppSlug       string
-	Port          uint16
+	AppSlugOrPort string
 	AgentName     string
 	WorkspaceName string
 	Username      string
@@ -34,12 +31,7 @@ type ApplicationURL struct {
 // String returns the application URL hostname without scheme. You will likely
 // want to append a period and the base hostname.
 func (a ApplicationURL) String() string {
-	appSlugOrPort := a.AppSlug
-	if a.Port != 0 {
-		appSlugOrPort = strconv.Itoa(int(a.Port))
-	}
-
-	return fmt.Sprintf("%s--%s--%s--%s", appSlugOrPort, a.AgentName, a.WorkspaceName, a.Username)
+	return fmt.Sprintf("%s--%s--%s--%s", a.AppSlugOrPort, a.AgentName, a.WorkspaceName, a.Username)
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If
@@ -60,27 +52,12 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	}
 	matchGroup := matches[0]
 
-	appSlug, port := AppSlugOrPort(matchGroup[appURL.SubexpIndex("AppSlug")])
 	return ApplicationURL{
-		AppSlug:       appSlug,
-		Port:          port,
+		AppSlugOrPort: matchGroup[appURL.SubexpIndex("AppSlug")],
 		AgentName:     matchGroup[appURL.SubexpIndex("AgentName")],
 		WorkspaceName: matchGroup[appURL.SubexpIndex("WorkspaceName")],
 		Username:      matchGroup[appURL.SubexpIndex("Username")],
 	}, nil
-}
-
-// AppSlugOrPort takes a string and returns either the input string or a port
-// number.
-func AppSlugOrPort(val string) (string, uint16) {
-	port, err := strconv.ParseUint(val, 10, 16)
-	if err != nil || port == 0 {
-		port = 0
-	} else {
-		val = ""
-	}
-
-	return val, uint16(port)
 }
 
 // HostnamesMatch returns true if the hostnames are equal, disregarding

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -29,7 +29,7 @@ func TestPtytest(t *testing.T) {
 			t.Skip("ReadLine is glitchy on windows when it comes to the final line of output it seems")
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		pty := ptytest.New(t)
 
 		// The PTY expands these to \r\n (even on linux).
@@ -43,7 +43,7 @@ func TestPtytest(t *testing.T) {
 
 	// See https://github.com/coder/coder/issues/2122 for the motivation
 	// behind this test.
-	t.Run("Cobra ptytest should not hang when output is not consumed", func(t *testing.T) {
+	t.Run("Ptytest should not hang when output is not consumed", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -59,18 +59,18 @@ func TestPtytest(t *testing.T) {
 			tt := tt
 			// nolint:paralleltest // Avoid parallel test to more easily identify the issue.
 			t.Run(tt.name, func(t *testing.T) {
-				cmd := cobra.Command{
+				cmd := &clibase.Cmd{
 					Use: "test",
-					RunE: func(cmd *cobra.Command, args []string) error {
-						fmt.Fprint(cmd.OutOrStdout(), tt.output)
+					Handler: func(inv *clibase.Invocation) error {
+						fmt.Fprint(inv.Stdout, tt.output)
 						return nil
 					},
 				}
 
+				inv := cmd.Invoke()
 				pty := ptytest.New(t)
-				cmd.SetIn(pty.Input())
-				cmd.SetOut(pty.Output())
-				err := cmd.Execute()
+				pty.Attach(inv)
+				err := inv.Run()
 				require.NoError(t, err)
 			})
 		}

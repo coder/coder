@@ -6,55 +6,55 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templateVersions() *cobra.Command {
-	cmd := &cobra.Command{
+func (r *RootCmd) templateVersions() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:     "versions",
 		Short:   "Manage different versions of the specified template",
 		Aliases: []string{"version"},
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Description: "List versions of a specific template",
 				Command:     "coder templates versions list my-template",
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
+		Handler: func(inv *clibase.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
+		Children: []*clibase.Cmd{
+			r.templateVersionsList(),
 		},
 	}
-	cmd.AddCommand(
-		templateVersionsList(),
-	)
 
 	return cmd
 }
 
-func templateVersionsList() *cobra.Command {
+func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateVersionRow{}, nil),
 		cliui.JSONFormat(),
 	)
+	client := new(codersdk.Client)
 
-	cmd := &cobra.Command{
-		Use:   "list <template>",
-		Args:  cobra.ExactArgs(1),
+	cmd := &clibase.Cmd{
+		Use: "list <template>",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
 		Short: "List all the versions of the specified template",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
-			organization, err := CurrentOrganization(cmd, client)
+		Handler: func(inv *clibase.Invocation) error {
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
-			template, err := client.TemplateByName(cmd.Context(), organization.ID, args[0])
+			template, err := client.TemplateByName(inv.Context(), organization.ID, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get template by name: %w", err)
 			}
@@ -62,23 +62,23 @@ func templateVersionsList() *cobra.Command {
 				TemplateID: template.ID,
 			}
 
-			versions, err := client.TemplateVersionsByTemplate(cmd.Context(), req)
+			versions, err := client.TemplateVersionsByTemplate(inv.Context(), req)
 			if err != nil {
 				return xerrors.Errorf("get template versions by template: %w", err)
 			}
 
 			rows := templateVersionsToRows(template.ActiveVersionID, versions...)
-			out, err := formatter.Format(cmd.Context(), rows)
+			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return xerrors.Errorf("render table: %w", err)
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 

@@ -12,8 +12,12 @@ import {
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
+  MockTemplateVersionGitAuth,
 } from "testHelpers/entities"
-import { renderWithAuth } from "testHelpers/renderHelpers"
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
+} from "testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
 
 const { t } = i18next
@@ -37,6 +41,17 @@ const renderCreateWorkspacePage = () => {
     path: "/templates/:template/workspace",
   })
 }
+
+Object.defineProperty(window, "BroadcastChannel", {
+  value: class {
+    addEventListener() {
+      // noop
+    }
+    close() {
+      // noop
+    }
+  },
+})
 
 describe("CreateWorkspacePage", () => {
   it("renders", async () => {
@@ -64,6 +79,7 @@ describe("CreateWorkspacePage", () => {
   })
 
   it("succeeds with default owner", async () => {
+    jest.spyOn(API, "getTemplateVersionSchema").mockResolvedValueOnce([])
     jest
       .spyOn(API, "getUsers")
       .mockResolvedValueOnce({ users: [MockUser], count: 1 })
@@ -135,15 +151,13 @@ describe("CreateWorkspacePage", () => {
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1])
 
-    await waitFor(() =>
-      renderWithAuth(<CreateWorkspacePage />, {
-        route:
-          "/templates/" +
-          MockTemplate.name +
-          `/workspace?param.${param}=${paramValue}`,
-        path: "/templates/:template/workspace",
-      }),
-    )
+    renderWithAuth(<CreateWorkspacePage />, {
+      route:
+        "/templates/" +
+        MockTemplate.name +
+        `/workspace?param.${param}=${paramValue}`,
+      path: "/templates/:template/workspace",
+    })
 
     await screen.findByDisplayValue(paramValue)
   })
@@ -156,7 +170,8 @@ describe("CreateWorkspacePage", () => {
         MockTemplateVersionParameter2,
       ])
 
-    await waitFor(() => renderCreateWorkspacePage())
+    renderCreateWorkspacePage()
+    await waitForLoaderToBeRemoved()
 
     const element = await screen.findByText("Create workspace")
     expect(element).toBeDefined()
@@ -167,6 +182,7 @@ describe("CreateWorkspacePage", () => {
 
     const secondParameterField = await screen.findByLabelText(
       MockTemplateVersionParameter2.name,
+      { exact: false },
     )
     expect(secondParameterField).toBeDefined()
 
@@ -189,7 +205,8 @@ describe("CreateWorkspacePage", () => {
         MockTemplateVersionParameter3,
       ])
 
-    await waitFor(() => renderCreateWorkspacePage())
+    renderCreateWorkspacePage()
+    await waitForLoaderToBeRemoved()
 
     const element = await screen.findByText(createWorkspaceText)
     expect(element).toBeDefined()
@@ -200,6 +217,7 @@ describe("CreateWorkspacePage", () => {
 
     const thirdParameterField = await screen.findByLabelText(
       MockTemplateVersionParameter3.name,
+      { exact: false },
     )
     expect(thirdParameterField).toBeDefined()
     fireEvent.change(thirdParameterField, {
@@ -209,5 +227,26 @@ describe("CreateWorkspacePage", () => {
 
     const validationError = await screen.findByText(validationPatternNotMatched)
     expect(validationError).toBeInTheDocument()
+  })
+
+  it("gitauth: errors if unauthenticated and submits", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionGitAuth")
+      .mockResolvedValueOnce([MockTemplateVersionGitAuth])
+
+    renderCreateWorkspacePage()
+    await waitForLoaderToBeRemoved()
+
+    const nameField = await screen.findByLabelText(nameLabelText)
+
+    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
+    fireEvent.change(nameField, {
+      target: { value: "test" },
+    })
+
+    const submitButton = screen.getByText(createWorkspaceText)
+    await userEvent.click(submitButton)
+
+    await screen.findByText("You must authenticate to create a workspace!")
   })
 })

@@ -6,43 +6,41 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	tsspeedtest "tailscale.com/net/speedtest"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func speedtest() *cobra.Command {
+func (r *RootCmd) speedtest() *clibase.Cmd {
 	var (
 		direct    bool
 		duration  time.Duration
 		direction string
 	)
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
-		Args:        cobra.ExactArgs(1),
 		Short:       "Run upload and download tests from your machine to a workspace",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithCancel(cmd.Context())
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
-			}
-
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
-			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
@@ -53,9 +51,9 @@ func speedtest() *cobra.Command {
 			}
 			logger, ok := LoggerFromContext(ctx)
 			if !ok {
-				logger = slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+				logger = slog.Make(sloghuman.Sink(inv.Stderr))
 			}
-			if cliflag.IsSetBool(cmd, varVerbose) {
+			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
@@ -84,14 +82,14 @@ func speedtest() *cobra.Command {
 					}
 					peer := status.Peer[status.Peers()[0]]
 					if !p2p && direct {
-						cmd.Printf("Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
+						cliui.Infof(inv.Stdout, "Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
 						continue
 					}
 					via := peer.Relay
 					if via == "" {
 						via = "direct"
 					}
-					cmd.Printf("%dms via %s\n", dur.Milliseconds(), via)
+					cliui.Infof(inv.Stdout, "%dms via %s\n", dur.Milliseconds(), via)
 					break
 				}
 			} else {
@@ -106,7 +104,7 @@ func speedtest() *cobra.Command {
 			default:
 				return xerrors.Errorf("invalid direction: %q", direction)
 			}
-			cmd.Printf("Starting a %ds %s test...\n", int(duration.Seconds()), tsDir)
+			cliui.Infof(inv.Stdout, "Starting a %ds %s test...\n", int(duration.Seconds()), tsDir)
 			results, err := conn.Speedtest(ctx, tsDir, duration)
 			if err != nil {
 				return err
@@ -123,16 +121,31 @@ func speedtest() *cobra.Command {
 					fmt.Sprintf("%.4f Mbits/sec", r.MBitsPerSecond()),
 				})
 			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), tableWriter.Render())
+			_, err = fmt.Fprintln(inv.Stdout, tableWriter.Render())
 			return err
 		},
 	}
-	cliflag.BoolVarP(cmd.Flags(), &direct, "direct", "d", "", false,
-		"Specifies whether to wait for a direct connection before testing speed.")
-	cliflag.StringVarP(cmd.Flags(), &direction, "direction", "", "", "down",
-		"Specifies whether to run in reverse mode where the client receives and the server sends. (up|down)",
-	)
-	cmd.Flags().DurationVarP(&duration, "time", "t", tsspeedtest.DefaultDuration,
-		"Specifies the duration to monitor traffic.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Description:   "Specifies whether to wait for a direct connection before testing speed.",
+			Flag:          "direct",
+			FlagShorthand: "d",
+
+			Value: clibase.BoolOf(&direct),
+		},
+		{
+			Description: "Specifies whether to run in reverse mode where the client receives and the server sends.",
+			Flag:        "direction",
+			Default:     "down",
+			Value:       clibase.EnumOf(&direction, "up", "down"),
+		},
+		{
+			Description:   "Specifies the duration to monitor traffic.",
+			Flag:          "time",
+			FlagShorthand: "t",
+			Default:       tsspeedtest.DefaultDuration.String(),
+			Value:         clibase.DurationOf(&duration),
+		},
+	}
 	return cmd
 }

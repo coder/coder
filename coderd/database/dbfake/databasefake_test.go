@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 )
 
 // test that transactions don't deadlock, and that we don't see intermediate state.
@@ -102,6 +103,153 @@ func TestExactMethods(t *testing.T) {
 		// for the database.Store. If you still want to keep it, add it to
 		// 'extraFakeMethods' to allow it.
 		t.Errorf("Fake method '%s()' is excessive and not needed to fit interface, delete it", k)
+	}
+}
+
+// TestUserOrder ensures that the fake database returns users in the order they
+// were created.
+func TestUserOrder(t *testing.T) {
+	t.Parallel()
+
+	db := dbfake.New()
+	now := database.Now()
+	count := 10
+	for i := 0; i < count; i++ {
+		dbgen.User(t, db, database.User{
+			Username:  fmt.Sprintf("user%d", i),
+			CreatedAt: now,
+		})
+	}
+
+	users, err := db.GetUsers(context.Background(), database.GetUsersParams{})
+	require.NoError(t, err)
+	require.Lenf(t, users, count, "expected %d users", count)
+	for i, user := range users {
+		require.Equal(t, fmt.Sprintf("user%d", i), user.Username)
+	}
+}
+
+func TestProxyByHostname(t *testing.T) {
+	t.Parallel()
+
+	db := dbfake.New()
+
+	// Insert a bunch of different proxies.
+	proxies := []struct {
+		name             string
+		accessURL        string
+		wildcardHostname string
+	}{
+		{
+			name:             "one",
+			accessURL:        "https://one.coder.com",
+			wildcardHostname: "*.wildcard.one.coder.com",
+		},
+		{
+			name:             "two",
+			accessURL:        "https://two.coder.com",
+			wildcardHostname: "*--suffix.two.coder.com",
+		},
+	}
+	for _, p := range proxies {
+		dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{
+			Name:             p.name,
+			Url:              p.accessURL,
+			WildcardHostname: p.wildcardHostname,
+		})
+	}
+
+	cases := []struct {
+		name              string
+		testHostname      string
+		allowAccessURL    bool
+		allowWildcardHost bool
+		matchProxyName    string
+	}{
+		{
+			name:              "NoMatch",
+			testHostname:      "test.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
+			name:              "MatchAccessURL",
+			testHostname:      "one.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "one",
+		},
+		{
+			name:              "MatchWildcard",
+			testHostname:      "something.wildcard.one.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "one",
+		},
+		{
+			name:              "MatchSuffix",
+			testHostname:      "something--suffix.two.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "two",
+		},
+		{
+			name:              "ValidateHostname/1",
+			testHostname:      ".*ne.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
+			name:              "ValidateHostname/2",
+			testHostname:      "https://one.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
+			name:              "ValidateHostname/3",
+			testHostname:      "one.coder.com:8080/hello",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
+			name:              "IgnoreAccessURLMatch",
+			testHostname:      "one.coder.com",
+			allowAccessURL:    false,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
+			name:              "IgnoreWildcardMatch",
+			testHostname:      "hi.wildcard.one.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "",
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			proxy, err := db.GetWorkspaceProxyByHostname(context.Background(), database.GetWorkspaceProxyByHostnameParams{
+				Hostname:              c.testHostname,
+				AllowAccessUrl:        c.allowAccessURL,
+				AllowWildcardHostname: c.allowWildcardHost,
+			})
+			if c.matchProxyName == "" {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+				require.Empty(t, proxy)
+			} else {
+				require.NoError(t, err)
+				require.NotEmpty(t, proxy)
+				require.Equal(t, c.matchProxyName, proxy.Name)
+			}
+		})
 	}
 }
 

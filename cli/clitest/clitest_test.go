@@ -18,13 +18,9 @@ func TestCli(t *testing.T) {
 	t.Parallel()
 	clitest.CreateTemplateVersionSource(t, nil)
 	client := coderdtest.New(t, nil)
-	cmd, config := clitest.New(t)
+	i, config := clitest.New(t)
 	clitest.SetupConfig(t, client, config)
-	pty := ptytest.New(t)
-	cmd.SetIn(pty.Input())
-	cmd.SetOut(pty.Output())
-	go func() {
-		_ = cmd.Execute()
-	}()
+	pty := ptytest.New(t).Attach(i)
+	clitest.Start(t, i)
 	pty.ExpectMatch("coder")
 }

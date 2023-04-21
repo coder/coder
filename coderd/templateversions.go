@@ -19,6 +19,7 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
@@ -39,15 +40,7 @@ import (
 // @Router /templateversions/{templateversion} [get]
 func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var (
-		templateVersion = httpmw.TemplateVersionParam(r)
-		template        = httpmw.TemplateParam(r)
-	)
-
-	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	templateVersion := httpmw.TemplateVersionParam(r)
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -70,6 +63,100 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
+// @Summary Patch template version by ID
+// @ID patch-template-version-by-id
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Param request body codersdk.PatchTemplateVersionRequest true "Patch template version request"
+// @Success 200 {object} codersdk.TemplateVersion
+// @Router /templateversions/{templateversion} [patch]
+func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+
+	var params codersdk.PatchTemplateVersionRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	updateParams := database.UpdateTemplateVersionByIDParams{
+		ID:         templateVersion.ID,
+		TemplateID: templateVersion.TemplateID,
+		UpdatedAt:  database.Now(),
+		Name:       templateVersion.Name,
+	}
+
+	if params.Name != "" {
+		updateParams.Name = params.Name
+	}
+
+	errTemplateVersionNameConflict := xerrors.New("template version name must be unique for a template")
+
+	var updatedTemplateVersion database.TemplateVersion
+	err := api.Database.InTx(func(tx database.Store) error {
+		if templateVersion.TemplateID.Valid && templateVersion.Name != updateParams.Name {
+			// User wants to rename the template version
+
+			_, err := tx.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
+				TemplateID: templateVersion.TemplateID,
+				Name:       updateParams.Name,
+			})
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("error on retrieving conflicting template version: %v", err)
+			}
+			if err == nil {
+				return errTemplateVersionNameConflict
+			}
+		}
+
+		// It is not allowed to "patch" the template ID, and reassign it.
+		var err error
+		updatedTemplateVersion, err = tx.UpdateTemplateVersionByID(ctx, updateParams)
+		if err != nil {
+			return xerrors.Errorf("error on patching template version: %v", err)
+		}
+		return nil
+	}, nil)
+	if errors.Is(err, errTemplateVersionNameConflict) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: err.Error(),
+			Validations: []codersdk.ValidationError{
+				{Field: "name", Detail: "Name is already used"},
+			},
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error on fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(job), user))
+}
+
 // @Summary Cancel template version by ID
 // @ID cancel-template-version-by-id
 // @Security CoderSessionToken
@@ -80,14 +167,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 // @Router /templateversions/{templateversion}/cancel [patch]
 func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var (
-		templateVersion = httpmw.TemplateVersionParam(r)
-		template        = httpmw.TemplateParam(r)
-	)
-	if !api.Authorize(r, rbac.ActionUpdate, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	templateVersion := httpmw.TemplateVersionParam(r)
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -143,15 +223,7 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // @Router /templateversions/{templateversion}/schema [get]
 func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var (
-		templateVersion = httpmw.TemplateVersionParam(r)
-		template        = httpmw.TemplateParam(r)
-	)
-
-	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	templateVersion := httpmw.TemplateVersionParam(r)
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -204,11 +276,7 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
-	template := httpmw.TemplateParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -243,6 +311,101 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 	httpapi.Write(ctx, rw, http.StatusOK, templateVersionParameters)
 }
 
+// @Summary Get git auth by template version
+// @ID get-git-auth-by-template-version
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 200 {array} codersdk.TemplateVersionGitAuth
+// @Router /templateversions/{templateversion}/gitauth [get]
+func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var (
+		apiKey          = httpmw.APIKey(r)
+		templateVersion = httpmw.TemplateVersionParam(r)
+	)
+
+	rawProviders := templateVersion.GitAuthProviders
+	providers := make([]codersdk.TemplateVersionGitAuth, 0)
+	for _, rawProvider := range rawProviders {
+		var config *gitauth.Config
+		for _, provider := range api.GitAuthConfigs {
+			if provider.ID == rawProvider {
+				config = provider
+				break
+			}
+		}
+		if config == nil {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("The template version references a Git auth provider %q that no longer exists.", rawProvider),
+				Detail:  "You'll need to update the template version to use a different provider.",
+			})
+			return
+		}
+
+		// This is the URL that will redirect the user with a state token.
+		redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/gitauth/%s", config.ID))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to parse access URL.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		query := redirectURL.Query()
+		// The frontend uses a BroadcastChannel to notify listening pages for
+		// Git auth updates if the "notify" query parameter is set.
+		//
+		// It's important we do this in the backend, because the same endpoint
+		// is used for CLI authentication.
+		query.Add("redirect", "/gitauth?notify")
+		redirectURL.RawQuery = query.Encode()
+
+		provider := codersdk.TemplateVersionGitAuth{
+			ID:              config.ID,
+			Type:            config.Type,
+			AuthenticateURL: redirectURL.String(),
+		}
+
+		authLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+			ProviderID: config.ID,
+			UserID:     apiKey.UserID,
+		})
+		// If there isn't an auth link, then the user just isn't authenticated.
+		if errors.Is(err, sql.ErrNoRows) {
+			providers = append(providers, provider)
+			continue
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching git auth link.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		_, updated, err := config.RefreshToken(ctx, api.Database, authLink)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to refresh git auth token.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		// If the token couldn't be validated, then we assume the user isn't
+		// authenticated and return early.
+		if !updated {
+			providers = append(providers, provider)
+			continue
+		}
+		provider.Authenticated = true
+		providers = append(providers, provider)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, providers)
+}
+
 // @Summary Get template variables by template version
 // @ID get-template-variables-by-template-version
 // @Security CoderSessionToken
@@ -254,11 +417,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
-	template := httpmw.TemplateParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -295,14 +454,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 // @Router /templateversions/{templateversion}/parameters [get]
 func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var (
-		templateVersion = httpmw.TemplateVersionParam(r)
-		template        = httpmw.TemplateParam(r)
-	)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	templateVersion := httpmw.TemplateVersionParam(r)
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -353,12 +505,8 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 	var (
 		apiKey          = httpmw.APIKey(r)
 		templateVersion = httpmw.TemplateVersionParam(r)
-		template        = httpmw.TemplateParam(r)
 	)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+
 	// We use the workspace RBAC check since we don't want to allow dry runs if
 	// the user can't create workspaces.
 	if !api.Authorize(r, rbac.ActionCreate,
@@ -576,14 +724,8 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	var (
 		ctx             = r.Context()
 		templateVersion = httpmw.TemplateVersionParam(r)
-		template        = httpmw.TemplateParam(r)
 		jobID           = chi.URLParam(r, "jobID")
 	)
-
-	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return database.ProvisionerJob{}, false
-	}
 
 	jobUUID, err := uuid.Parse(jobID)
 	if err != nil {
@@ -595,7 +737,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	}
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, jobUUID)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Provisioner job %q not found.", jobUUID),
 		})
@@ -652,10 +794,6 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	paginationParams, ok := parsePagination(rw, r)
 	if !ok {
@@ -758,10 +896,6 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	templateVersionName := chi.URLParam(r, "templateversionname")
 	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
@@ -771,7 +905,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		},
 		Name: templateVersionName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 		})
@@ -825,7 +959,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		Name:           templateName,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -837,11 +971,6 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	templateVersionName := chi.URLParam(r, "templateversionname")
 	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
 		TemplateID: uuid.NullUUID{
@@ -850,7 +979,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		},
 		Name: templateVersionName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 		})
@@ -903,7 +1032,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		Name:           templateName,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -912,11 +1041,6 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 			Message: "Internal error fetching template.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -929,7 +1053,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		Name: templateVersionName,
 	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 			})
@@ -949,7 +1073,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		TemplateID:     templateVersion.TemplateID,
 	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No previous template version found for %q.", templateVersionName),
 			})
@@ -1009,17 +1133,12 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	defer commitAudit()
 	aReq.Old = template
 
-	if !api.Authorize(r, rbac.ActionUpdate, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	var req codersdk.UpdateActiveTemplateVersion
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 	version, err := api.Database.GetTemplateVersionByID(ctx, req.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Template version not found.",
 		})
@@ -1077,7 +1196,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // @Produce json
 // @Tags Templates
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.CreateTemplateVersionDryRunRequest true "Create template version request"
+// @Param request body codersdk.CreateTemplateVersionRequest true "Create template version request"
 // @Success 201 {object} codersdk.TemplateVersion
 // @Router /organizations/{organization}/templateversions [post]
 func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -1101,11 +1220,9 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	var template database.Template
 	if req.TemplateID != uuid.Nil {
-		var err error
-		template, err = api.Database.GetTemplateByID(ctx, req.TemplateID)
-		if errors.Is(err, sql.ErrNoRows) {
+		_, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Template does not exist.",
 			})
@@ -1118,17 +1235,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
-	}
-
-	if template.ID != uuid.Nil {
-		if !api.Authorize(r, rbac.ActionCreate, template) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-	} else if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
-		// Making a new template version is the same permission as creating a new template.
-		httpapi.ResourceNotFound(rw)
-		return
 	}
 
 	// Ensures the "owner" is properly applied.
@@ -1212,7 +1318,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	if req.FileID != uuid.Nil {
 		file, err = api.Database.GetFileByID(ctx, req.FileID)
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "File not found.",
 			})
@@ -1225,11 +1331,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, file) {
-		httpapi.ResourceNotFound(rw)
-		return
 	}
 
 	var templateVersion database.TemplateVersion
@@ -1391,13 +1492,7 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 	var (
 		ctx             = r.Context()
 		templateVersion = httpmw.TemplateVersionParam(r)
-		template        = httpmw.TemplateParam(r)
 	)
-
-	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -1421,8 +1516,8 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param before query int false "Before Unix timestamp"
-// @Param after query int false "After Unix timestamp"
+// @Param before query int false "Before log id"
+// @Param after query int false "After log id"
 // @Param follow query bool false "Follow log stream"
 // @Success 200 {array} codersdk.ProvisionerJobLog
 // @Router /templateversions/{templateversion}/logs [get]
@@ -1430,13 +1525,7 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx             = r.Context()
 		templateVersion = httpmw.TemplateVersionParam(r)
-		template        = httpmw.TemplateParam(r)
 	)
-
-	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -1507,6 +1596,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 	}
 	return codersdk.TemplateVersionParameter{
 		Name:                 param.Name,
+		DisplayName:          param.DisplayName,
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,
@@ -1519,6 +1609,8 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationMax:        param.ValidationMax,
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
+		Required:             param.Required,
+		LegacyVariableName:   param.LegacyVariableName,
 	}, nil
 }
 

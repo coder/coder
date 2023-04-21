@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -64,7 +64,7 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 	}
 }
 
-func list() *cobra.Command {
+func (r *RootCmd) list() *clibase.Cmd {
 	var (
 		all               bool
 		defaultQuery      = "owner:me"
@@ -75,18 +75,17 @@ func list() *cobra.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List workspaces",
 		Aliases:     []string{"ls"},
-		Args:        cobra.ExactArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
 			filter := codersdk.WorkspaceFilter{
 				FilterQuery: searchQuery,
 			}
@@ -94,19 +93,19 @@ func list() *cobra.Command {
 				filter.FilterQuery = ""
 			}
 
-			res, err := client.Workspaces(cmd.Context(), filter)
+			res, err := client.Workspaces(inv.Context(), filter)
 			if err != nil {
 				return err
 			}
 			if len(res.Workspaces) == 0 {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "  "+cliui.Styles.Code.Render("coder create <name>"))
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+				_, _ = fmt.Fprintln(inv.Stderr, cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
+				_, _ = fmt.Fprintln(inv.Stderr)
+				_, _ = fmt.Fprintln(inv.Stderr, "  "+cliui.Styles.Code.Render("coder create <name>"))
+				_, _ = fmt.Fprintln(inv.Stderr)
 				return nil
 			}
 
-			userRes, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
+			userRes, err := client.Users(inv.Context(), codersdk.UsersRequest{})
 			if err != nil {
 				return err
 			}
@@ -122,20 +121,31 @@ func list() *cobra.Command {
 				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
 			}
 
-			out, err := formatter.Format(cmd.Context(), displayWorkspaces)
+			out, err := formatter.Format(inv.Context(), displayWorkspaces)
 			if err != nil {
 				return err
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "all",
+			FlagShorthand: "a",
+			Description:   "Specifies whether all workspaces will be listed or not.",
 
-	cmd.Flags().BoolVarP(&all, "all", "a", false,
-		"Specifies whether all workspaces will be listed or not.")
-	cmd.Flags().StringVar(&searchQuery, "search", defaultQuery, "Search for a workspace with a query.")
+			Value: clibase.BoolOf(&all),
+		},
+		{
+			Flag:        "search",
+			Description: "Search for a workspace with a query.",
+			Default:     defaultQuery,
+			Value:       clibase.StringOf(&searchQuery),
+		},
+	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }

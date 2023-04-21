@@ -22,12 +22,12 @@ func TestPing(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-		cmd, root := clitest.New(t, "ping", workspace.Name)
+		inv, root := clitest.New(t, "ping", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetErr(pty.Output())
-		cmd.SetOut(pty.Output())
+		inv.Stdin = pty.Input()
+		inv.Stderr = pty.Output()
+		inv.Stdout = pty.Output()
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(agentToken)
@@ -43,7 +43,7 @@ func TestPing(t *testing.T) {
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
 

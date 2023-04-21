@@ -9,8 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,6 +65,14 @@ const (
 	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
 )
 
+// JobErrorCode defines the error code returned by job runner.
+type JobErrorCode string
+
+const (
+	MissingTemplateParameter  JobErrorCode = "MISSING_TEMPLATE_PARAMETER"
+	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+)
+
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
 	ID          uuid.UUID            `json:"id" format:"uuid"`
@@ -75,6 +81,7 @@ type ProvisionerJob struct {
 	CompletedAt *time.Time           `json:"completed_at,omitempty" format:"date-time"`
 	CanceledAt  *time.Time           `json:"canceled_at,omitempty" format:"date-time"`
 	Error       string               `json:"error,omitempty"`
+	ErrorCode   JobErrorCode         `json:"error_code,omitempty" enums:"MISSING_TEMPLATE_PARAMETER,REQUIRED_TEMPLATE_VARIABLES"`
 	Status      ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed"`
 	WorkerID    *uuid.UUID           `json:"worker_id,omitempty" format:"uuid"`
 	FileID      uuid.UUID            `json:"file_id" format:"uuid"`
@@ -89,27 +96,6 @@ type ProvisionerJobLog struct {
 	Level     LogLevel  `json:"log_level" enums:"trace,debug,info,warn,error"`
 	Stage     string    `json:"stage"`
 	Output    string    `json:"output"`
-}
-
-// provisionerJobLogsBefore provides log output that occurred before a time.
-// This is abstracted from a specific job type to provide consistency between
-// APIs. Logs is the only shared route between jobs.
-func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, before int64) ([]ProvisionerJobLog, error) {
-	values := url.Values{}
-	if before != 0 {
-		values["before"] = []string{strconv.FormatInt(before, 10)}
-	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s?%s", path, values.Encode()), nil)
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode != http.StatusOK {
-		defer res.Body.Close()
-		return nil, ReadBodyAsError(res)
-	}
-
-	var logs []ProvisionerJobLog
-	return logs, json.NewDecoder(res.Body).Decode(&logs)
 }
 
 // provisionerJobLogsAfter streams logs that occurred after a specific time.
@@ -131,7 +117,8 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
 		HTTPClient:      httpClient,
@@ -196,7 +183,8 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.U
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 
@@ -176,6 +177,83 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			require.NoError(t, err)
 			got := strings.TrimSpace(string(b))
 			require.Equal(t, "yay", got)
+		})
+	}
+}
+
+func Test_sshConfigOptions_addOption(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		Name        string
+		Start       []string
+		Add         []string
+		Expect      []string
+		ExpectError bool
+	}{
+		{
+			Name: "Empty",
+		},
+		{
+			Name: "AddOne",
+			Add:  []string{"foo bar"},
+			Expect: []string{
+				"foo bar",
+			},
+		},
+		{
+			Name: "Replace",
+			Start: []string{
+				"foo bar",
+			},
+			Add: []string{"Foo baz"},
+			Expect: []string{
+				"Foo baz",
+			},
+		},
+		{
+			Name: "AddAndReplace",
+			Start: []string{
+				"a b",
+				"foo bar",
+				"buzz bazz",
+			},
+			Add: []string{
+				"b c",
+				"A hello",
+				"hello world",
+			},
+			Expect: []string{
+				"foo bar",
+				"buzz bazz",
+				"b c",
+				"A hello",
+				"hello world",
+			},
+		},
+		{
+			Name:        "Error",
+			Add:         []string{"novalue"},
+			ExpectError: true,
+		},
+	}
+
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.Name, func(t *testing.T) {
+			t.Parallel()
+
+			o := sshConfigOptions{
+				sshOptions: tt.Start,
+			}
+			err := o.addOptions(tt.Add...)
+			if tt.ExpectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			sort.Strings(tt.Expect)
+			sort.Strings(o.sshOptions)
+			require.Equal(t, tt.Expect, o.sshOptions)
 		})
 	}
 }

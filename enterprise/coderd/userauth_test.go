@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
@@ -25,10 +27,13 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("Assigns", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
-			config := conf.OIDCConfig(t, jwt.MapClaims{})
+			const groupClaim = "custom-groups"
+			config := conf.OIDCConfig(t, jwt.MapClaims{}, func(cfg *coderd.OIDCConfig) {
+				cfg.GroupField = groupClaim
+			})
 			config.AllowSignups = true
 
 			client := coderdenttest.New(t, &coderdenttest.Options{
@@ -53,8 +58,8 @@ func TestUserOIDC(t *testing.T) {
 			require.Len(t, group.Members, 0)
 
 			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
-				"email":  "colin@coder.com",
-				"groups": []string{groupName},
+				"email":    "colin@coder.com",
+				groupClaim: []string{groupName},
 			}))
 			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
@@ -62,10 +67,121 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 1)
 		})
+		t.Run("AssignsMapped", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			conf := coderdtest.NewOIDCConfig(t, "")
+
+			oidcGroupName := "pingpong"
+			coderGroupName := "bingbong"
+
+			config := conf.OIDCConfig(t, jwt.MapClaims{}, func(cfg *coderd.OIDCConfig) {
+				cfg.GroupMapping = map[string]string{oidcGroupName: coderGroupName}
+			})
+			config.AllowSignups = true
+
+			client := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					OIDCConfig: config,
+				},
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+				AllFeatures: true,
+			})
+
+			admin, err := client.User(ctx, "me")
+			require.NoError(t, err)
+			require.Len(t, admin.OrganizationIDs, 1)
+
+			group, err := client.CreateGroup(ctx, admin.OrganizationIDs[0], codersdk.CreateGroupRequest{
+				Name: coderGroupName,
+			})
+			require.NoError(t, err)
+			require.Len(t, group.Members, 0)
+
+			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
+				"email":  "colin@coder.com",
+				"groups": []string{oidcGroupName},
+			}))
+			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+			group, err = client.Group(ctx, group.ID)
+			require.NoError(t, err)
+			require.Len(t, group.Members, 1)
+		})
+
+		t.Run("AddThenRemove", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			conf := coderdtest.NewOIDCConfig(t, "")
+
+			config := conf.OIDCConfig(t, jwt.MapClaims{})
+			config.AllowSignups = true
+
+			client := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					OIDCConfig: config,
+				},
+			})
+			firstUser := coderdtest.CreateFirstUser(t, client)
+			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+				AllFeatures: true,
+			})
+
+			// Add some extra users/groups that should be asserted after.
+			// Adding this user as there was a bug that removing 1 user removed
+			// all users from the group.
+			_, extra := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+			groupName := "bingbong"
+			group, err := client.CreateGroup(ctx, firstUser.OrganizationID, codersdk.CreateGroupRequest{
+				Name: groupName,
+			})
+			require.NoError(t, err, "create group")
+
+			group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+				AddUsers: []string{
+					firstUser.UserID.String(),
+					extra.ID.String(),
+				},
+			})
+			require.NoError(t, err, "patch group")
+			require.Len(t, group.Members, 2, "expect both members")
+
+			// Now add OIDC user into the group
+			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
+				"email":  "colin@coder.com",
+				"groups": []string{groupName},
+			}))
+			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+			group, err = client.Group(ctx, group.ID)
+			require.NoError(t, err)
+			require.Len(t, group.Members, 3)
+
+			// Login to remove the OIDC user from the group
+			resp = oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
+				"email":  "colin@coder.com",
+				"groups": []string{},
+			}))
+			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+			group, err = client.Group(ctx, group.ID)
+			require.NoError(t, err)
+			require.Len(t, group.Members, 2)
+			var expected []uuid.UUID
+			for _, mem := range group.Members {
+				expected = append(expected, mem.ID)
+			}
+			require.ElementsMatchf(t, expected, []uuid.UUID{firstUser.UserID, extra.ID}, "expected members")
+		})
+
 		t.Run("NoneMatch", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			config := conf.OIDCConfig(t, jwt.MapClaims{})

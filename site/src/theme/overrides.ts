@@ -49,6 +49,7 @@ export const getOverrides = ({
         textTransform: "none",
         letterSpacing: "none",
         border: `1px solid ${palette.divider}`,
+        whiteSpace: "nowrap",
 
         "&:focus-visible": {
           outline: `2px solid ${palette.primary.dark}`,
@@ -226,6 +227,38 @@ export const getOverrides = ({
     MuiLinearProgress: {
       root: {
         borderRadius: 999,
+      },
+    },
+    MuiChip: {
+      root: {
+        backgroundColor: colors.gray[12],
+      },
+    },
+    MuiMenu: {
+      paper: {
+        marginTop: 8,
+        borderRadius: 4,
+        padding: "4px 0",
+        minWidth: 120,
+      },
+    },
+    MuiMenuItem: {
+      root: {
+        gap: 12,
+
+        "& .MuiSvgIcon-root": {
+          fontSize: 20,
+        },
+      },
+    },
+    MuiSnackbar: {
+      anchorOriginBottomRight: {
+        bottom: `${24 + 36}px !important`, // 36 is the bottom bar height
+      },
+    },
+    MuiSnackbarContent: {
+      root: {
+        borderRadius: "4px !important",
       },
     },
   }

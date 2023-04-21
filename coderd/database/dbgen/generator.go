@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
@@ -60,7 +61,6 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		Provisioner:                  takeFirst(seed.Provisioner, database.ProvisionerTypeEcho),
 		ActiveVersionID:              takeFirst(seed.ActiveVersionID, uuid.New()),
 		Description:                  takeFirst(seed.Description, namesgenerator.GetRandomName(1)),
-		DefaultTTL:                   takeFirst(seed.DefaultTTL, 3600),
 		CreatedBy:                    takeFirst(seed.CreatedBy, uuid.New()),
 		Icon:                         takeFirst(seed.Icon, namesgenerator.GetRandomName(1)),
 		UserACL:                      seed.UserACL,
@@ -77,12 +77,23 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 	secret, _ := cryptorand.String(22)
 	hashed := sha256.Sum256([]byte(secret))
 
+	ip := seed.IPAddress
+	if !ip.Valid {
+		ip = pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(127, 0, 0, 1),
+				Mask: net.IPv4Mask(255, 255, 255, 255),
+			},
+			Valid: true,
+		}
+	}
+
 	key, err := db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 		ID: takeFirst(seed.ID, id),
 		// 0 defaults to 86400 at the db layer
 		LifetimeSeconds: takeFirst(seed.LifetimeSeconds, 0),
 		HashedSecret:    takeFirstSlice(seed.HashedSecret, hashed[:]),
-		IPAddress:       pqtype.Inet{},
+		IPAddress:       ip,
 		UserID:          takeFirst(seed.UserID, uuid.New()),
 		LastUsed:        takeFirst(seed.LastUsed, database.Now()),
 		ExpiresAt:       takeFirst(seed.ExpiresAt, database.Now().Add(time.Hour)),
@@ -90,6 +101,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 		UpdatedAt:       takeFirst(seed.UpdatedAt, database.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
 		Scope:           takeFirst(seed.Scope, database.APIKeyScopeAll),
+		TokenName:       takeFirst(seed.TokenName),
 	})
 	require.NoError(t, err, "insert api key")
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
@@ -144,6 +156,7 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 		OrganizationID:    takeFirst(orig.OrganizationID, uuid.New()),
 		TemplateID:        takeFirst(orig.TemplateID, uuid.New()),
+		LastUsedAt:        takeFirst(orig.LastUsedAt, database.Now()),
 		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		AutostartSchedule: orig.AutostartSchedule,
 		Ttl:               orig.Ttl,
@@ -325,6 +338,34 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 	return meta
 }
 
+func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) (database.WorkspaceProxy, string) {
+	secret, err := cryptorand.HexString(64)
+	require.NoError(t, err, "generate secret")
+	hashedSecret := sha256.Sum256([]byte(secret))
+
+	proxy, err := db.InsertWorkspaceProxy(context.Background(), database.InsertWorkspaceProxyParams{
+		ID:                takeFirst(orig.ID, uuid.New()),
+		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName:       takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		Icon:              takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		TokenHashedSecret: hashedSecret[:],
+		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
+	})
+	require.NoError(t, err, "insert proxy")
+
+	// Also set these fields if the caller wants them.
+	if orig.Url != "" || orig.WildcardHostname != "" {
+		proxy, err = db.RegisterWorkspaceProxy(context.Background(), database.RegisterWorkspaceProxyParams{
+			Url:              orig.Url,
+			WildcardHostname: orig.WildcardHostname,
+			ID:               proxy.ID,
+		})
+		require.NoError(t, err, "update proxy")
+	}
+	return proxy, secret
+}
+
 func File(t testing.TB, db database.Store, orig database.File) database.File {
 	file, err := db.InsertFile(context.Background(), database.InsertFileParams{
 		ID:        takeFirst(orig.ID, uuid.New()),
@@ -435,5 +476,32 @@ func ParameterValue(t testing.TB, db database.Store, seed database.ParameterValu
 		DestinationScheme: takeFirst(seed.DestinationScheme, database.ParameterDestinationSchemeNone),
 	})
 	require.NoError(t, err, "insert parameter value")
+	return scheme
+}
+
+func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
+	if orig.ConnectionsByProto == nil {
+		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
+	}
+	scheme, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
+		ID:                          takeFirst(orig.ID, uuid.New()),
+		CreatedAt:                   takeFirst(orig.CreatedAt, database.Now()),
+		UserID:                      takeFirst(orig.UserID, uuid.New()),
+		TemplateID:                  takeFirst(orig.TemplateID, uuid.New()),
+		WorkspaceID:                 takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentID:                     takeFirst(orig.AgentID, uuid.New()),
+		ConnectionsByProto:          orig.ConnectionsByProto,
+		ConnectionCount:             takeFirst(orig.ConnectionCount, 0),
+		RxPackets:                   takeFirst(orig.RxPackets, 0),
+		RxBytes:                     takeFirst(orig.RxBytes, 0),
+		TxPackets:                   takeFirst(orig.TxPackets, 0),
+		TxBytes:                     takeFirst(orig.TxBytes, 0),
+		SessionCountVSCode:          takeFirst(orig.SessionCountVSCode, 0),
+		SessionCountJetBrains:       takeFirst(orig.SessionCountJetBrains, 0),
+		SessionCountReconnectingPTY: takeFirst(orig.SessionCountReconnectingPTY, 0),
+		SessionCountSSH:             takeFirst(orig.SessionCountSSH, 0),
+		ConnectionMedianLatencyMS:   takeFirst(orig.ConnectionMedianLatencyMS, 0),
+	})
+	require.NoError(t, err, "insert workspace agent stat")
 	return scheme
 }

@@ -6,25 +6,31 @@ import {
   getTemplateVersionSchema,
   uploadTemplateFile,
   getTemplateVersionLogs,
+  getTemplateVersionVariables,
+  getTemplateByName,
+  getTemplateVersionParameters,
 } from "api/api"
 import {
   CreateTemplateVersionRequest,
   ParameterSchema,
+  ProvisionerJob,
   ProvisionerJobLog,
   Template,
   TemplateExample,
   TemplateVersion,
+  TemplateVersionVariable,
   UploadResponse,
+  VariableValue,
 } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
-import { delay } from "util/delay"
+import { delay } from "utils/delay"
 import { assign, createMachine } from "xstate"
 
 // for creating a new template:
 // 1. upload template tar or use the example ID
 // 2. create template version
 // 3. wait for it to complete
-// 4. if the job failed with the missing parameter error then:
+// 4. verify if template has missing parameters or variables
 //    a. prompt for params
 //    b. create template version again with the same file hash
 //    c. wait for it to complete
@@ -37,8 +43,12 @@ export interface CreateTemplateData {
   description: string
   icon: string
   default_ttl_hours: number
+  max_ttl_hours: number
+  allow_user_autostart: boolean
+  allow_user_autostop: boolean
   allow_user_cancel_workspace_jobs: boolean
   parameter_values_by_name?: Record<string, string>
+  user_variable_values?: VariableValue[]
 }
 interface CreateTemplateContext {
   organizationId: string
@@ -50,10 +60,14 @@ interface CreateTemplateContext {
   version?: TemplateVersion
   templateData?: CreateTemplateData
   parameters?: ParameterSchema[]
+  variables?: TemplateVersionVariable[]
   // file is used in the FE to show the filename and some other visual stuff
   // uploadedFile is the response from the server to use in the API
   file?: File
   uploadResponse?: UploadResponse
+  // When wanting to duplicate a Template
+  templateNameToCopy: string | null // It can be null because it is passed from query string
+  copiedTemplate?: Template
 }
 
 export const createTemplateMachine =
@@ -78,7 +92,7 @@ export const createTemplateMachine =
           createFirstVersion: {
             data: TemplateVersion
           }
-          createVersionWithParameters: {
+          createVersionWithParametersAndVariables: {
             data: TemplateVersion
           }
           waitForJobToBeCompleted: {
@@ -87,11 +101,25 @@ export const createTemplateMachine =
           loadParameterSchema: {
             data: ParameterSchema[]
           }
+          checkParametersAndVariables: {
+            data: {
+              parameters?: ParameterSchema[]
+              variables?: TemplateVersionVariable[]
+            }
+          }
           createTemplate: {
             data: Template
           }
           loadVersionLogs: {
             data: ProvisionerJobLog[]
+          }
+          copyTemplateData: {
+            data: {
+              template: Template
+              version: TemplateVersion
+              parameters: ParameterSchema[]
+              variables: TemplateVersionVariable[]
+            }
           }
         },
       },
@@ -101,6 +129,10 @@ export const createTemplateMachine =
         starting: {
           always: [
             { target: "loadingStarterTemplate", cond: "isExampleProvided" },
+            {
+              target: "copyingTemplateData",
+              cond: "isTemplateIdToCopyProvided",
+            },
             { target: "idle" },
           ],
           tags: ["loading"],
@@ -112,6 +144,27 @@ export const createTemplateMachine =
               target: "idle",
               actions: ["assignStarterTemplate"],
             },
+            onError: {
+              target: "idle",
+              actions: ["assignError"],
+            },
+          },
+          tags: ["loading"],
+        },
+        copyingTemplateData: {
+          invoke: {
+            src: "copyTemplateData",
+            onDone: [
+              {
+                target: "creating.promptParametersAndVariables",
+                actions: ["assignCopiedTemplateData"],
+                cond: "hasParametersOrVariables",
+              },
+              {
+                target: "idle",
+                actions: ["assignCopiedTemplateData"],
+              },
+            ],
             onError: {
               target: "idle",
               actions: ["assignError"],
@@ -171,16 +224,14 @@ export const createTemplateMachine =
                 src: "waitForJobToBeCompleted",
                 onDone: [
                   {
-                    target: "loadingMissingParameters",
-                    cond: "hasMissingParameters",
-                    actions: ["assignVersion"],
-                  },
-                  {
                     target: "loadingVersionLogs",
                     actions: ["assignJobError", "assignVersion"],
                     cond: "hasFailed",
                   },
-                  { target: "creatingTemplate", actions: ["assignVersion"] },
+                  {
+                    target: "checkingParametersAndVariables",
+                    actions: ["assignVersion"],
+                  },
                 ],
                 onError: {
                   target: "#createTemplate.idle",
@@ -189,26 +240,19 @@ export const createTemplateMachine =
               },
               tags: ["submitting"],
             },
-            loadingVersionLogs: {
+            checkingParametersAndVariables: {
               invoke: {
-                src: "loadVersionLogs",
-                onDone: {
-                  target: "#createTemplate.idle",
-                  actions: ["assignJobLogs"],
-                },
-                onError: {
-                  target: "#createTemplate.idle",
-                  actions: ["assignError"],
-                },
-              },
-            },
-            loadingMissingParameters: {
-              invoke: {
-                src: "loadParameterSchema",
-                onDone: {
-                  target: "promptParameters",
-                  actions: ["assignParameters"],
-                },
+                src: "checkParametersAndVariables",
+                onDone: [
+                  {
+                    target: "creatingTemplate",
+                    cond: "hasNoParametersOrVariables",
+                  },
+                  {
+                    target: "promptParametersAndVariables",
+                    actions: ["assignParametersAndVariables"],
+                  },
+                ],
                 onError: {
                   target: "#createTemplate.idle",
                   actions: ["assignError"],
@@ -216,24 +260,24 @@ export const createTemplateMachine =
               },
               tags: ["submitting"],
             },
-            promptParameters: {
+            promptParametersAndVariables: {
               on: {
                 CREATE: {
-                  target: "creatingVersionWithParameters",
+                  target: "creatingVersionWithParametersAndVariables",
                   actions: ["assignTemplateData"],
                 },
               },
             },
-            creatingVersionWithParameters: {
+            creatingVersionWithParametersAndVariables: {
               invoke: {
-                src: "createVersionWithParameters",
+                src: "createVersionWithParametersAndVariables",
                 onDone: {
                   target: "waitingForJobToBeCompleted",
                   actions: ["assignVersion"],
                 },
                 onError: {
                   actions: ["assignError"],
-                  target: "promptParameters",
+                  target: "promptParametersAndVariables",
                 },
               },
               tags: ["submitting"],
@@ -255,6 +299,19 @@ export const createTemplateMachine =
             created: {
               type: "final",
             },
+            loadingVersionLogs: {
+              invoke: {
+                src: "loadVersionLogs",
+                onDone: {
+                  target: "#createTemplate.idle",
+                  actions: ["assignJobLogs"],
+                },
+                onError: {
+                  target: "#createTemplate.idle",
+                  actions: ["assignError"],
+                },
+              },
+            },
           },
         },
       },
@@ -275,15 +332,76 @@ export const createTemplateMachine =
           }
           return starterTemplate
         },
+        copyTemplateData: async ({ organizationId, templateNameToCopy }) => {
+          if (!organizationId) {
+            throw new Error("No organization ID provided")
+          }
+          if (!templateNameToCopy) {
+            throw new Error("No template name to copy provided")
+          }
+          const template = await getTemplateByName(
+            organizationId,
+            templateNameToCopy,
+          )
+          const [version, schemaParameters, computedParameters, variables] =
+            await Promise.all([
+              getTemplateVersion(template.active_version_id),
+              getTemplateVersionSchema(template.active_version_id),
+              getTemplateVersionParameters(template.active_version_id),
+              getTemplateVersionVariables(template.active_version_id),
+            ])
+
+          // Recreate parameters with default_source_value from the already
+          // computed version parameters
+          const parameters: ParameterSchema[] = []
+          computedParameters.forEach((computedParameter) => {
+            const schema = schemaParameters.find(
+              (schema) => schema.name === computedParameter.name,
+            )
+            if (!schema) {
+              throw new Error(
+                `Parameter ${computedParameter.name} not found in schema`,
+              )
+            }
+            parameters.push({
+              ...schema,
+              default_source_value: computedParameter.source_value,
+            })
+          })
+
+          return {
+            template,
+            version,
+            parameters,
+            variables,
+          }
+        },
         createFirstVersion: async ({
           organizationId,
+          templateNameToCopy,
           exampleId,
           uploadResponse,
+          version,
         }) => {
           if (exampleId) {
             return createTemplateVersion(organizationId, {
               storage_method: "file",
               example_id: exampleId,
+              provisioner: "terraform",
+              tags: {},
+            })
+          }
+
+          if (templateNameToCopy) {
+            if (!version) {
+              throw new Error(
+                "Can't copy template due to a missing template version",
+              )
+            }
+
+            return createTemplateVersion(organizationId, {
+              storage_method: "file",
+              file_id: version.job.file_id,
               provisioner: "terraform",
               tags: {},
             })
@@ -300,7 +418,7 @@ export const createTemplateMachine =
 
           throw new Error("No file or example provided")
         },
-        createVersionWithParameters: async ({
+        createVersionWithParametersAndVariables: async ({
           organizationId,
           parameters,
           templateData,
@@ -313,11 +431,11 @@ export const createTemplateMachine =
             throw new Error("No template data defined")
           }
 
-          const { parameter_values_by_name } = templateData
           // Get parameter values if they are needed/present
           const parameterValues: CreateTemplateVersionRequest["parameter_values"] =
             []
           if (parameters) {
+            const { parameter_values_by_name } = templateData
             parameters.forEach((schema) => {
               const value = parameter_values_by_name?.[schema.name]
               parameterValues.push({
@@ -334,6 +452,7 @@ export const createTemplateMachine =
             file_id: version.job.file_id,
             provisioner: "terraform",
             parameter_values: parameterValues,
+            user_variable_values: templateData.user_variable_values,
             tags: {},
           })
         },
@@ -342,24 +461,48 @@ export const createTemplateMachine =
             throw new Error("Version not defined")
           }
 
-          let status = version.job.status
-          while (["pending", "running"].includes(status)) {
+          let job = version.job
+          while (isPendingOrRunning(job)) {
             version = await getTemplateVersion(version.id)
-            status = version.job.status
+            job = version.job
+
             // Delay the verification in two seconds to not overload the server
             // with too many requests Maybe at some point we could have a
             // websocket for template version Also, preferred doing this way to
             // avoid a new state since we don't need to reflect it on the UI
-            await delay(2_000)
+            if (isPendingOrRunning(job)) {
+              await delay(2_000)
+            }
           }
           return version
         },
-        loadParameterSchema: async ({ version }) => {
+        checkParametersAndVariables: async ({ version }) => {
           if (!version) {
             throw new Error("Version not defined")
           }
 
-          return getTemplateVersionSchema(version.id)
+          let promiseParameter: Promise<ParameterSchema[]> | undefined =
+            undefined
+          let promiseVariables: Promise<TemplateVersionVariable[]> | undefined =
+            undefined
+
+          if (isMissingParameter(version)) {
+            promiseParameter = getTemplateVersionSchema(version.id)
+          }
+
+          if (isMissingVariables(version)) {
+            promiseVariables = getTemplateVersionVariables(version.id)
+          }
+
+          const [parameters, variables] = await Promise.all([
+            promiseParameter,
+            promiseVariables,
+          ])
+
+          return {
+            parameters,
+            variables,
+          }
         },
         createTemplate: async ({ organizationId, version, templateData }) => {
           if (!version) {
@@ -372,6 +515,7 @@ export const createTemplateMachine =
 
           const {
             default_ttl_hours,
+            max_ttl_hours,
             parameter_values_by_name,
             ...safeTemplateData
           } = templateData
@@ -379,6 +523,7 @@ export const createTemplateMachine =
           return createTemplate(organizationId, {
             ...safeTemplateData,
             default_ttl_ms: templateData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
+            max_ttl_ms: templateData.max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
             template_version_id: version.id,
           })
         },
@@ -401,7 +546,10 @@ export const createTemplateMachine =
         }),
         assignVersion: assign({ version: (_, { data }) => data }),
         assignTemplateData: assign({ templateData: (_, { data }) => data }),
-        assignParameters: assign({ parameters: (_, { data }) => data }),
+        assignParametersAndVariables: assign({
+          parameters: (_, { data }) => data.parameters,
+          variables: (_, { data }) => data.variables,
+        }),
         assignFile: assign({ file: (_, { file }) => file }),
         assignUploadResponse: assign({ uploadResponse: (_, { data }) => data }),
         removeFile: assign({
@@ -409,16 +557,48 @@ export const createTemplateMachine =
           uploadResponse: (_) => undefined,
         }),
         assignJobLogs: assign({ jobLogs: (_, { data }) => data }),
+        assignCopiedTemplateData: assign({
+          copiedTemplate: (_, { data }) => data.template,
+          version: (_, { data }) => data.version,
+          parameters: (_, { data }) => data.parameters,
+          variables: (_, { data }) => data.variables,
+        }),
       },
       guards: {
         isExampleProvided: ({ exampleId }) => Boolean(exampleId),
+        isTemplateIdToCopyProvided: ({ templateNameToCopy }) =>
+          Boolean(templateNameToCopy),
         isNotUsingExample: ({ exampleId }) => !exampleId,
         hasFile: ({ file }) => Boolean(file),
-        hasFailed: (_, { data }) => data.job.status === "failed",
-        hasMissingParameters: (_, { data }) =>
+        hasFailed: (_, { data }) =>
           Boolean(
-            data.job.error && data.job.error.includes("missing parameter"),
+            data.job.status === "failed" &&
+              !isMissingParameter(data) &&
+              !isMissingVariables(data),
           ),
+        hasNoParametersOrVariables: (_, { data }) =>
+          data.parameters === undefined && data.variables === undefined,
+        hasParametersOrVariables: (_, { data }) => {
+          return data.parameters.length > 0 || data.variables.length > 0
+        },
       },
     },
   )
+
+const isMissingParameter = (version: TemplateVersion) => {
+  return Boolean(
+    version.job.error_code &&
+      version.job.error_code === "MISSING_TEMPLATE_PARAMETER",
+  )
+}
+
+const isMissingVariables = (version: TemplateVersion) => {
+  return Boolean(
+    version.job.error_code &&
+      version.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
+  )
+}
+
+const isPendingOrRunning = (job: ProvisionerJob) => {
+  return job.status === "pending" || job.status === "running"
+}

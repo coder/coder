@@ -7,7 +7,6 @@ metadata:
   annotations: {{ toYaml .Values.coder.serviceAccount.annotations | nindent 4 }}
   labels:
     {{- include "coder.labels" . | nindent 4 }}
-
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -15,6 +14,9 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+    {{- with .Values.coder.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
   replicas: {{ .Values.coder.replicaCount }}
@@ -25,6 +27,11 @@ spec:
     metadata:
       labels:
         {{- include "coder.labels" . | nindent 8 }}
+        {{- with .Values.coder.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- toYaml .Values.coder.podAnnotations | nindent 8  }}
     spec:
       serviceAccountName: {{ .Values.coder.serviceAccount.name | quote }}
       restartPolicy: Always
@@ -55,6 +62,8 @@ spec:
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
           resources:
             {{- toYaml .Values.coder.resources | nindent 12 }}
+          lifecycle:
+            {{- toYaml .Values.coder.lifecycle | nindent 12 }}
           env:
             - name: CODER_HTTP_ADDRESS
               value: "0.0.0.0:8080"

@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/testutil"
 )
 
 func randomAPIKeyParts() (id string, secret string) {
@@ -47,7 +48,7 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -63,7 +64,7 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: true,
 		})(successHandler).ServeHTTP(rw, r)
@@ -72,7 +73,7 @@ func TestAPIKey(t *testing.T) {
 		location, err := res.Location()
 		require.NoError(t, err)
 		require.NotEmpty(t, location.Query().Get("message"))
-		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+		require.Equal(t, http.StatusSeeOther, res.StatusCode)
 	})
 
 	t.Run("InvalidFormat", func(t *testing.T) {
@@ -84,7 +85,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, "test-wow-hello")
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -102,7 +103,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, "test-wow")
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -120,7 +121,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, "testtestid-wow")
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -139,7 +140,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -164,7 +165,7 @@ func TestAPIKey(t *testing.T) {
 			})
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -188,7 +189,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -212,7 +213,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -251,7 +252,7 @@ func TestAPIKey(t *testing.T) {
 			Value: token,
 		})
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -286,7 +287,7 @@ func TestAPIKey(t *testing.T) {
 		q.Add(codersdk.SessionTokenCookie, token)
 		r.URL.RawQuery = q.Encode()
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -317,7 +318,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -348,7 +349,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -379,7 +380,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:                          db,
 			RedirectToLogin:             false,
 			DisableSessionExpiryRefresh: true,
@@ -416,7 +417,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -459,13 +460,11 @@ func TestAPIKey(t *testing.T) {
 			RefreshToken: "moo",
 			Expiry:       database.Now().AddDate(0, 0, 1),
 		}
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB: db,
 			OAuth2Configs: &httpmw.OAuth2Configs{
-				Github: &oauth2Config{
-					tokenSource: oauth2TokenSource(func() (*oauth2.Token, error) {
-						return oauthToken, nil
-					}),
+				Github: &testutil.OAuth2Config{
+					Token: oauthToken,
 				},
 			},
 			RedirectToLogin: false,
@@ -498,7 +497,7 @@ func TestAPIKey(t *testing.T) {
 		r.RemoteAddr = "1.1.1.1"
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -520,14 +519,14 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: true,
 		})(successHandler).ServeHTTP(rw, r)
 
 		res := rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+		require.Equal(t, http.StatusSeeOther, res.StatusCode)
 		u, err := res.Location()
 		require.NoError(t, err)
 		require.Equal(t, "/login", u.Path)
@@ -552,7 +551,7 @@ func TestAPIKey(t *testing.T) {
 			})
 		)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 			Optional:        true,
@@ -581,7 +580,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -596,26 +595,4 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 		require.Equal(t, sentAPIKey.LoginType, gotAPIKey.LoginType)
 	})
-}
-
-type oauth2Config struct {
-	tokenSource oauth2TokenSource
-}
-
-func (o *oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
-	return o.tokenSource
-}
-
-func (*oauth2Config) AuthCodeURL(string, ...oauth2.AuthCodeOption) string {
-	return ""
-}
-
-func (*oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
-	return &oauth2.Token{}, nil
-}
-
-type oauth2TokenSource func() (*oauth2.Token, error)
-
-func (o oauth2TokenSource) Token() (*oauth2.Token, error) {
-	return o()
 }

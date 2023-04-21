@@ -7,7 +7,7 @@ import {
 import { zones } from "./zones"
 
 const valid: WorkspaceScheduleFormValues = {
-  autoStartEnabled: true,
+  autostartEnabled: true,
   sunday: false,
   monday: true,
   tuesday: true,
@@ -18,14 +18,14 @@ const valid: WorkspaceScheduleFormValues = {
   startTime: "09:30",
   timezone: "Canada/Eastern",
 
-  autoStopEnabled: true,
+  autostopEnabled: true,
   ttl: 120,
 }
 
 describe("validationSchema", () => {
   it("allows everything to be falsy when switches are off", () => {
     const values: WorkspaceScheduleFormValues = {
-      autoStartEnabled: false,
+      autostartEnabled: false,
       sunday: false,
       monday: false,
       tuesday: false,
@@ -36,7 +36,7 @@ describe("validationSchema", () => {
       startTime: "",
       timezone: "",
 
-      autoStopEnabled: false,
+      autostopEnabled: false,
       ttl: 0,
     }
     const validate = () => validationSchema.validateSync(values)
@@ -52,7 +52,7 @@ describe("validationSchema", () => {
     expect(validate).toThrow()
   })
 
-  it("disallows all days-of-week to be false when auto-start is enabled", () => {
+  it("disallows all days-of-week to be false when autostart is enabled", () => {
     const values: WorkspaceScheduleFormValues = {
       ...valid,
       sunday: false,
@@ -67,7 +67,7 @@ describe("validationSchema", () => {
     expect(validate).toThrowError(Language.errorNoDayOfWeek)
   })
 
-  it("disallows empty startTime when auto-start is enabled", () => {
+  it("disallows empty startTime when autostart is enabled", () => {
     const values: WorkspaceScheduleFormValues = {
       ...valid,
       sunday: false,

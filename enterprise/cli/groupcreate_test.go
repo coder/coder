@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/pty/ptytest"
@@ -35,16 +34,16 @@ func TestCreateGroup(t *testing.T) {
 			avatarURL = "https://example.com"
 		)
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups",
+		inv, conf := newCLI(t, "groups",
 			"create", groupName,
 			"--avatar-url", avatarURL,
 		)
 
 		pty := ptytest.New(t)
-		cmd.SetOut(pty.Output())
-		clitest.SetupConfig(t, client, root)
+		inv.Stdout = pty.Output()
+		clitest.SetupConfig(t, client, conf)
 
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch(fmt.Sprintf("Successfully created group %s!", cliui.Styles.Keyword.Render(groupName)))

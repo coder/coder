@@ -42,11 +42,11 @@ func TestScheduleShow(t *testing.T) {
 			stdoutBuf = &bytes.Buffer{}
 		)
 
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		inv.Stdout = stdoutBuf
 
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err, "unexpected error")
 		lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 		if assert.Len(t, lines, 4) {
@@ -79,11 +79,11 @@ func TestScheduleShow(t *testing.T) {
 			stdoutBuf = &bytes.Buffer{}
 		)
 
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		inv.Stdout = stdoutBuf
 
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err, "unexpected error")
 		lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 		if assert.Len(t, lines, 4) {
@@ -104,10 +104,10 @@ func TestScheduleShow(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "schedule", "show", "doesnotexist")
+		inv, root := clitest.New(t, "schedule", "show", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		err := inv.Run()
 		require.ErrorContains(t, err, "status code 404", "unexpected error")
 	})
 }
@@ -132,11 +132,11 @@ func TestScheduleStart(t *testing.T) {
 	)
 
 	// Set a well-specified autostart schedule
-	cmd, root := clitest.New(t, "schedule", "start", workspace.Name, "9:30AM", "Mon-Fri", tz)
+	inv, root := clitest.New(t, "schedule", "start", workspace.Name, "9:30AM", "Mon-Fri", tz)
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
+	inv.Stdout = stdoutBuf
 
-	err := cmd.Execute()
+	err := inv.Run()
 	assert.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
@@ -157,11 +157,11 @@ func TestScheduleStart(t *testing.T) {
 	stdoutBuf = &bytes.Buffer{}
 
 	// unset schedule
-	cmd, root = clitest.New(t, "schedule", "start", workspace.Name, "manual")
+	inv, root = clitest.New(t, "schedule", "start", workspace.Name, "manual")
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
+	inv.Stdout = stdoutBuf
 
-	err = cmd.Execute()
+	err = inv.Run()
 	assert.NoError(t, err, "unexpected error")
 	lines = strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
@@ -186,11 +186,11 @@ func TestScheduleStop(t *testing.T) {
 	)
 
 	// Set the workspace TTL
-	cmd, root := clitest.New(t, "schedule", "stop", workspace.Name, ttl.String())
+	inv, root := clitest.New(t, "schedule", "stop", workspace.Name, ttl.String())
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
+	inv.Stdout = stdoutBuf
 
-	err := cmd.Execute()
+	err := inv.Run()
 	assert.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
@@ -203,11 +203,11 @@ func TestScheduleStop(t *testing.T) {
 	stdoutBuf = &bytes.Buffer{}
 
 	// Unset the workspace TTL
-	cmd, root = clitest.New(t, "schedule", "stop", workspace.Name, "manual")
+	inv, root = clitest.New(t, "schedule", "stop", workspace.Name, "manual")
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
+	inv.Stdout = stdoutBuf
 
-	err = cmd.Execute()
+	err = inv.Run()
 	assert.NoError(t, err, "unexpected error")
 	lines = strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
@@ -247,12 +247,12 @@ func TestScheduleOverride(t *testing.T) {
 		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
 		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline.Time, time.Minute)
 
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		inv.Stdout = stdoutBuf
 
 		// When: we execute `coder schedule override workspace <number without units>`
-		err = cmd.ExecuteContext(ctx)
+		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
 		// Then: the deadline of the latest build is updated assuming the units are minutes
@@ -287,12 +287,12 @@ func TestScheduleOverride(t *testing.T) {
 		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
 		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline.Time, time.Minute)
 
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		inv.Stdout = stdoutBuf
 
 		// When: we execute `coder bump workspace <not a number>`
-		err = cmd.ExecuteContext(ctx)
+		err = inv.WithContext(ctx).Run()
 		// Then: the command fails
 		require.ErrorContains(t, err, "invalid duration")
 	})
@@ -308,13 +308,16 @@ func TestScheduleOverride(t *testing.T) {
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.TTLMillis = nil
 			})
 			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "1h"}
 			stdoutBuf = &bytes.Buffer{}
 		)
+		require.Zero(t, template.DefaultTTLMillis)
+		require.Zero(t, template.MaxTTLMillis)
+
 		// Unset the workspace TTL
 		err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
 		require.NoError(t, err)
@@ -336,12 +339,12 @@ func TestScheduleOverride(t *testing.T) {
 		require.Zero(t, workspace.LatestBuild.Deadline)
 		require.NoError(t, err)
 
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		inv.Stdout = stdoutBuf
 
 		// When: we execute `coder bump workspace``
-		err = cmd.ExecuteContext(ctx)
+		err = inv.WithContext(ctx).Run()
 		require.Error(t, err)
 
 		// Then: nothing happens and the deadline remains unset
@@ -367,11 +370,10 @@ func TestScheduleStartDefaults(t *testing.T) {
 	)
 
 	// Set an underspecified schedule
-	cmd, root := clitest.New(t, "schedule", "start", workspace.Name, "9:30AM")
+	inv, root := clitest.New(t, "schedule", "start", workspace.Name, "9:30AM")
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
-
-	err := cmd.Execute()
+	inv.Stdout = stdoutBuf
+	err := inv.Run()
 	require.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {

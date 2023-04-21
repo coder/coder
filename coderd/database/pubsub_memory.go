@@ -46,9 +46,16 @@ func (m *memoryPubsub) Publish(event string, message []byte) error {
 	if !ok {
 		return nil
 	}
+	var wg sync.WaitGroup
 	for _, listener := range listeners {
-		go listener(context.Background(), message)
+		wg.Add(1)
+		listener := listener
+		go func() {
+			defer wg.Done()
+			listener(context.Background(), message)
+		}()
 	}
+	wg.Wait()
 
 	return nil
 }

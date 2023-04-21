@@ -21,11 +21,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,7 +37,6 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -52,8 +51,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/executor"
@@ -63,12 +60,15 @@ import (
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/cryptorand"
@@ -81,26 +81,35 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+// AppSecurityKey is a 96-byte key used to sign JWTs and encrypt JWEs for
+// workspace app tokens in tests.
+var AppSecurityKey = must(workspaceapps.KeyFromString("6465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e2077617320686572"))
+
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL            *url.URL
-	AppHostname          string
-	AWSCertificates      awsidentity.Certificates
-	Authorizer           rbac.Authorizer
-	AzureCertificates    x509.VerifyOptions
-	GithubOAuth2Config   *coderd.GithubOAuth2Config
-	RealIPConfig         *httpmw.RealIPConfig
-	OIDCConfig           *coderd.OIDCConfig
-	GoogleTokenValidator *idtoken.Validator
-	SSHKeygenAlgorithm   gitsshkey.Algorithm
-	AutobuildTicker      <-chan time.Time
-	AutobuildStats       chan<- executor.Stats
-	Auditor              audit.Auditor
-	TLSCertificates      []tls.Certificate
-	GitAuthConfigs       []*gitauth.Config
-	TrialGenerator       func(context.Context, string) error
+	AccessURL             *url.URL
+	AppHostname           string
+	AWSCertificates       awsidentity.Certificates
+	Authorizer            rbac.Authorizer
+	AzureCertificates     x509.VerifyOptions
+	GithubOAuth2Config    *coderd.GithubOAuth2Config
+	RealIPConfig          *httpmw.RealIPConfig
+	OIDCConfig            *coderd.OIDCConfig
+	GoogleTokenValidator  *idtoken.Validator
+	SSHKeygenAlgorithm    gitsshkey.Algorithm
+	AutobuildTicker       <-chan time.Time
+	AutobuildStats        chan<- executor.Stats
+	Auditor               audit.Auditor
+	TLSCertificates       []tls.Certificate
+	GitAuthConfigs        []*gitauth.Config
+	TrialGenerator        func(context.Context, string) error
+	TemplateScheduleStore schedule.TemplateScheduleStore
+
+	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckTimeout time.Duration
+	HealthcheckRefresh time.Duration
 
 	// All rate limits default to -1 (unlimited) in tests if not set.
 	APIRateLimit   int
@@ -111,7 +120,7 @@ type Options struct {
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
-	DeploymentConfig            *codersdk.DeploymentConfig
+	DeploymentValues            *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -121,6 +130,8 @@ type Options struct {
 	// test instances are running against the same database.
 	Database database.Store
 	Pubsub   database.Pubsub
+
+	ConfigSSH codersdk.SSHConfigResponse
 
 	SwaggerEndpoint bool
 }
@@ -177,21 +188,23 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			close(options.AutobuildStats)
 		})
 	}
+
+	if options.Authorizer == nil {
+		options.Authorizer = &RecordingAuthorizer{
+			Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
+		}
+	}
+
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-	}
-	// TODO: remove this once we're ready to enable authz querier by default.
-	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), string(codersdk.ExperimentAuthzQuerier)) {
-		if options.Authorizer == nil {
-			options.Authorizer = &RecordingAuthorizer{
-				Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
-			}
-		}
 		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
-	if options.DeploymentConfig == nil {
-		options.DeploymentConfig = DeploymentConfig(t)
+
+	if options.DeploymentValues == nil {
+		options.DeploymentValues = DeploymentValues(t)
 	}
+	// This value is not safe to run in parallel. Force it to be false.
+	options.DeploymentValues.DisableOwnerWorkspaceExec = false
 
 	// If no ratelimits are set, disable all rate limiting for tests.
 	if options.APIRateLimit == 0 {
@@ -204,10 +217,17 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		options.FilesRateLimit = -1
 	}
 
+	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
+	if options.TemplateScheduleStore == nil {
+		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
+	}
+	templateScheduleStore.Store(&options.TemplateScheduleStore)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
 		ctx,
 		options.Database,
+		&templateScheduleStore,
 		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
@@ -254,7 +274,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 	t.Cleanup(stunCleanup)
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp")))
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
 
 	// match default with cli default
@@ -287,22 +307,23 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			Pubsub:                         options.Pubsub,
 			GitAuthConfigs:                 options.GitAuthConfigs,
 
-			Auditor:              options.Auditor,
-			AWSCertificates:      options.AWSCertificates,
-			AzureCertificates:    options.AzureCertificates,
-			GithubOAuth2Config:   options.GithubOAuth2Config,
-			RealIPConfig:         options.RealIPConfig,
-			OIDCConfig:           options.OIDCConfig,
-			GoogleTokenValidator: options.GoogleTokenValidator,
-			SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
-			DERPServer:           derpServer,
-			APIRateLimit:         options.APIRateLimit,
-			LoginRateLimit:       options.LoginRateLimit,
-			FilesRateLimit:       options.FilesRateLimit,
-			Authorizer:           options.Authorizer,
-			Telemetry:            telemetry.NewNoop(),
-			TLSCertificates:      options.TLSCertificates,
-			TrialGenerator:       options.TrialGenerator,
+			Auditor:               options.Auditor,
+			AWSCertificates:       options.AWSCertificates,
+			AzureCertificates:     options.AzureCertificates,
+			GithubOAuth2Config:    options.GithubOAuth2Config,
+			RealIPConfig:          options.RealIPConfig,
+			OIDCConfig:            options.OIDCConfig,
+			GoogleTokenValidator:  options.GoogleTokenValidator,
+			SSHKeygenAlgorithm:    options.SSHKeygenAlgorithm,
+			DERPServer:            derpServer,
+			APIRateLimit:          options.APIRateLimit,
+			LoginRateLimit:        options.LoginRateLimit,
+			FilesRateLimit:        options.FilesRateLimit,
+			Authorizer:            options.Authorizer,
+			Telemetry:             telemetry.NewNoop(),
+			TemplateScheduleStore: &templateScheduleStore,
+			TLSCertificates:       options.TLSCertificates,
+			TrialGenerator:        options.TrialGenerator,
 			DERPMap: &tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
 					1: {
@@ -324,9 +345,14 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			},
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-			DeploymentConfig:            options.DeploymentConfig,
+			DeploymentValues:            options.DeploymentValues,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
+			AppSecurityKey:              AppSecurityKey,
+			SSHConfig:                   options.ConfigSSH,
+			HealthcheckFunc:             options.HealthcheckFunc,
+			HealthcheckTimeout:          options.HealthcheckTimeout,
+			HealthcheckRefresh:          options.HealthcheckRefresh,
 		}
 }
 
@@ -460,7 +486,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
-		Username:       randomUsername(),
+		Username:       randomUsername(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
@@ -565,9 +591,8 @@ func CreateWorkspaceBuild(
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
-		Name:        randomUsername(),
-		Description: randomUsername(),
-		VersionID:   version,
+		Name:      randomUsername(t),
+		VersionID: version,
 	}
 	for _, mut := range mutators {
 		mut(&req)
@@ -630,9 +655,16 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 	return workspaceBuild
 }
 
-// AwaitWorkspaceAgents waits for all resources with agents to be connected.
-func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) []codersdk.WorkspaceResource {
+// AwaitWorkspaceAgents waits for all resources with agents to be connected. If
+// specific agents are provided, it will wait for those agents to be connected
+// but will not fail if other agents are not connected.
+func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, agentNames ...string) []codersdk.WorkspaceResource {
 	t.Helper()
+
+	agentNamesMap := make(map[string]struct{}, len(agentNames))
+	for _, name := range agentNames {
+		agentNamesMap[name] = struct{}{}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -651,6 +683,12 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 
 		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
+				if len(agentNames) > 0 {
+					if _, ok := agentNamesMap[agent.Name]; !ok {
+						continue
+					}
+				}
+
 				if agent.Status != codersdk.WorkspaceAgentConnected {
 					t.Logf("agent %s not connected yet", agent.Name)
 					return false
@@ -672,7 +710,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	t.Helper()
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
-		Name:              randomUsername(),
+		Name:              randomUsername(t),
 		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 	}
@@ -718,6 +756,33 @@ func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	}
 	require.NoError(t, err, "no workspace found with id %s", workspaceID)
 	return ws
+}
+
+// RequestGitAuthCallback makes a request with the proper OAuth2 state cookie
+// to the git auth callback endpoint.
+func RequestGitAuthCallback(t *testing.T, providerID string, client *codersdk.Client) *http.Response {
+	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	state := "somestate"
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/gitauth/%s/callback?code=asd&state=%s", providerID, state))
+	require.NoError(t, err)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  codersdk.OAuth2StateCookie,
+		Value: state,
+	})
+	req.AddCookie(&http.Cookie{
+		Name:  codersdk.SessionTokenCookie,
+		Value: client.SessionToken(),
+	})
+	res, err := client.HTTPClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = res.Body.Close()
+	})
+	return res
 }
 
 // NewGoogleInstanceIdentity returns a metadata client and ID token validator for faking
@@ -906,7 +971,7 @@ func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	return base64.StdEncoding.EncodeToString([]byte(signed))
 }
 
-func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *coderd.OIDCConfig {
+func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	// By default, the provider can be empty.
 	// This means it won't support any endpoints!
 	provider := &oidc.Provider{}
@@ -923,7 +988,7 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *cod
 		}
 		provider = cfg.NewProvider(context.Background())
 	}
-	return &coderd.OIDCConfig{
+	cfg := &coderd.OIDCConfig{
 		OAuth2Config: o,
 		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{o.key.Public()},
@@ -932,7 +997,14 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *cod
 		}),
 		Provider:      provider,
 		UsernameField: "preferred_username",
+		EmailField:    "email",
+		AuthURLParams: map[string]string{"access_type": "offline"},
+		GroupField:    "groups",
 	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return cfg
 }
 
 // NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
@@ -994,8 +1066,15 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 		}
 }
 
-func randomUsername() string {
-	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-")
+func randomUsername(t testing.TB) string {
+	suffix, err := cryptorand.String(3)
+	require.NoError(t, err)
+	suffix = "-" + suffix
+	n := strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-") + suffix
+	if len(n) > 32 {
+		n = n[:32-len(suffix)] + suffix
+	}
+	return n
 }
 
 // Used to easily create an HTTP transport!
@@ -1032,12 +1111,10 @@ sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
 QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
 
-func DeploymentConfig(t *testing.T) *codersdk.DeploymentConfig {
-	vip := deployment.NewViper()
-	fs := pflag.NewFlagSet(randomUsername(), pflag.ContinueOnError)
-	fs.String(config.FlagName, randomUsername(), randomUsername())
-	cfg, err := deployment.Config(fs, vip)
+func DeploymentValues(t *testing.T) *codersdk.DeploymentValues {
+	var cfg codersdk.DeploymentValues
+	opts := cfg.Options()
+	err := opts.SetDefaults()
 	require.NoError(t, err)
-
-	return cfg
+	return &cfg
 }

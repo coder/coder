@@ -1,18 +1,16 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import {
-  MockAssignableSiteRoles,
   MockUser,
   MockUser2,
-} from "../../testHelpers/renderHelpers"
+  MockAssignableSiteRoles,
+} from "testHelpers/entities"
 import { UsersTable, UsersTableProps } from "./UsersTable"
 
 export default {
   title: "components/UsersTable",
   component: UsersTable,
-  argTypes: {
-    isNonInitialPage: {
-      defaultValue: false,
-    },
+  args: {
+    isNonInitialPage: false,
   },
 } as ComponentMeta<typeof UsersTable>
 

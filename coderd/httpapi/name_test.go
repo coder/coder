@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"testing"
 
+	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/httpapi"
@@ -117,6 +118,57 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 			valid := httpapi.TemplateDisplayNameValid(testCase.Name)
 			require.Equal(t, testCase.Valid, valid == nil)
 		})
+	}
+}
+
+func TestTemplateVersionNameValid(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name  string
+		Valid bool
+	}{
+		{"1", true},
+		{"12", true},
+		{"1_2", true},
+		{"1-2", true},
+		{"cray", true},
+		{"123_456", true},
+		{"123-456", true},
+		{"1234_678901234567890", true},
+		{"1234-678901234567890", true},
+		{"S", true},
+		{"a1", true},
+		{"a1K2", true},
+		{"fuzzy_bear3", true},
+		{"fuzzy-bear3", true},
+		{"v1.0.0", true},
+		{"heuristic_cray2", true},
+
+		{"", false},
+		{".v1", false},
+		{"v1..0", false},
+		{"4--4", false},
+		{"<b> </b>", false},
+		{"!!!!1 ?????", false},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.Name, func(t *testing.T) {
+			t.Parallel()
+			valid := httpapi.TemplateVersionNameValid(testCase.Name)
+			require.Equal(t, testCase.Valid, valid == nil)
+		})
+	}
+}
+
+func TestGeneratedTemplateVersionNameValid(t *testing.T) {
+	t.Parallel()
+
+	for i := 0; i < 1000; i++ {
+		name := namesgenerator.GetRandomName(1)
+		err := httpapi.TemplateVersionNameValid(name)
+		require.NoError(t, err, "invalid template version name: %s", name)
 	}
 }
 

@@ -5,7 +5,7 @@ import { rest } from "msw"
 import {
   MockEntitlementsWithAuditLog,
   MockMemberPermissions,
-} from "testHelpers/renderHelpers"
+} from "testHelpers/entities"
 import { server } from "testHelpers/server"
 
 /**

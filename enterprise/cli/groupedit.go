@@ -5,38 +5,36 @@ import (
 	"net/mail"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func groupEdit() *cobra.Command {
+func (r *RootCmd) groupEdit() *clibase.Cmd {
 	var (
 		avatarURL string
 		name      string
 		addUsers  []string
 		rmUsers   []string
 	)
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use:   "edit <name>",
 		Short: "Edit a user group",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
 			var (
-				ctx       = cmd.Context()
-				groupName = args[0]
+				ctx       = inv.Context()
+				groupName = inv.Args[0]
 			)
 
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
-
-			org, err := agpl.CurrentOrganization(cmd, client)
+			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}
@@ -74,15 +72,38 @@ func groupEdit() *cobra.Command {
 				return xerrors.Errorf("patch group: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully patched group %s!\n", cliui.Styles.Keyword.Render(group.Name))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully patched group %s!\n", cliui.Styles.Keyword.Render(group.Name))
 			return nil
 		},
 	}
 
-	cliflag.StringVarP(cmd.Flags(), &name, "name", "n", "", "", "Update the group name")
-	cliflag.StringVarP(cmd.Flags(), &avatarURL, "avatar-url", "u", "", "", "Update the group avatar")
-	cliflag.StringArrayVarP(cmd.Flags(), &addUsers, "add-users", "a", "", nil, "Add users to the group. Accepts emails or IDs.")
-	cliflag.StringArrayVarP(cmd.Flags(), &rmUsers, "rm-users", "r", "", nil, "Remove users to the group. Accepts emails or IDs.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "name",
+			FlagShorthand: "n",
+			Description:   "Update the group name.",
+			Value:         clibase.StringOf(&name),
+		},
+		{
+			Flag:          "avatar-url",
+			FlagShorthand: "u",
+			Description:   "Update the group avatar.",
+			Value:         clibase.StringOf(&avatarURL),
+		},
+		{
+			Flag:          "add-users",
+			FlagShorthand: "a",
+			Description:   "Add users to the group. Accepts emails or IDs.",
+			Value:         clibase.StringArrayOf(&addUsers),
+		},
+		{
+			Flag:          "rm-users",
+			FlagShorthand: "r",
+			Description:   "Remove users to the group. Accepts emails or IDs.",
+			Value:         clibase.StringArrayOf(&rmUsers),
+		},
+	}
+
 	return cmd
 }
 

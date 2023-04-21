@@ -47,6 +47,8 @@ describe("SecurityPage", () => {
       expect(successMessage).toBeDefined()
       expect(API.updateUserPassword).toBeCalledTimes(1)
       expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
+
+      await waitFor(() => expect(window.location).toBeAt("/"))
     })
   })
 

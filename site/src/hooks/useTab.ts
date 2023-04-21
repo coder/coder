@@ -13,7 +13,7 @@ export const useTab = (tabKey: string, defaultValue: string): UseTabResult => {
     value,
     set: (value: string) => {
       searchParams.set(tabKey, value)
-      setSearchParams(searchParams)
+      setSearchParams(searchParams, { replace: true })
     },
   }
 }

@@ -1,16 +1,21 @@
 package rbac
 
 import (
+	"context"
 	"errors"
+	"flag"
+	"fmt"
 
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/topdown"
+	"golang.org/x/xerrors"
 )
 
 const (
 	// errUnauthorized is the error message that should be returned to
 	// clients when an action is forbidden. It is intentionally vague to prevent
 	// disclosing information that a client should not have access to.
-	errUnauthorized = "forbidden"
+	errUnauthorized = "rbac: forbidden"
 )
 
 // UnauthorizedError is the error type for authorization errors
@@ -51,8 +56,18 @@ func (e UnauthorizedError) Unwrap() error {
 	return e.internal
 }
 
+func (e *UnauthorizedError) longError() string {
+	return fmt.Sprintf(
+		"%s: (subject: %v), (action: %v), (object: %v), (output: %v)",
+		errUnauthorized, e.subject, e.action, e.object, e.output,
+	)
+}
+
 // Error implements the error interface.
-func (UnauthorizedError) Error() string {
+func (e UnauthorizedError) Error() string {
+	if flag.Lookup("test.v") != nil {
+		return e.longError()
+	}
 	return errUnauthorized
 }
 
@@ -84,4 +99,18 @@ func (*UnauthorizedError) As(target interface{}) bool {
 		return true
 	}
 	return false
+}
+
+// correctCancelError will return the correct error for a canceled context. This
+// is because rego changes a canceled context to a topdown.CancelErr. This error
+// is not helpful if the code is "canceled". To make the error conform with the
+// rest of our canceled errors, we will convert the error to a context.Canceled
+// error. No good information is lost, as the topdown.CancelErr provides the
+// location of the query that was canceled, which does not matter.
+func correctCancelError(err error) error {
+	e := new(topdown.Error)
+	if xerrors.As(err, &e) || e.Code == topdown.CancelErr {
+		return context.Canceled
+	}
+	return err
 }

@@ -1,4 +1,4 @@
--- name: GetProvisionerLogsByIDBetween :many
+-- name: GetProvisionerLogsAfterID :many
 SELECT
 	*
 FROM
@@ -7,7 +7,6 @@ WHERE
 	job_id = @job_id
 	AND (
 		id > @created_after
-		OR id < @created_before
 	) ORDER BY id ASC;
 
 -- name: InsertProvisionerJobLogs :many

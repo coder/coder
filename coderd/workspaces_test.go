@@ -17,11 +17,11 @@ import (
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -36,8 +36,9 @@ func TestWorkspace(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
+		authz := coderdtest.AssertRBAC(t, api, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -46,7 +47,9 @@ func TestWorkspace(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		authz.Reset() // Reset all previous checks done in setup.
 		ws, err := client.Workspace(ctx, workspace.ID)
+		authz.AssertChecked(t, rbac.ActionRead, ws)
 		require.NoError(t, err)
 		require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
 		require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
@@ -103,6 +106,9 @@ func TestWorkspace(t *testing.T) {
 		defer cancel()
 
 		want := ws1.Name + "-test"
+		if len(want) > 32 {
+			want = want[:32-5] + "-test"
+		}
 		err := client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
 			Name: want,
 		})
@@ -269,10 +275,15 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		require.Len(t, auditor.AuditLogs, 5)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[4].Action)
+		require.Eventually(t, func() bool {
+			if len(auditor.AuditLogs()) < 6 {
+				return false
+			}
+			return auditor.AuditLogs()[4].Action == database.AuditActionCreate
+		}, testutil.WaitMedium, testutil.IntervalFast)
 	})
 
 	t.Run("CreateWithDeletedTemplate", func(t *testing.T) {
@@ -331,7 +342,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		})
 		// TTL should be set by the template
 		require.Equal(t, template.DefaultTTLMillis, templateTTL)
-		require.Equal(t, template.DefaultTTLMillis, template.DefaultTTLMillis, workspace.TTLMillis)
+		require.Equal(t, template.DefaultTTLMillis, *workspace.TTLMillis)
 	})
 
 	t.Run("InvalidTTL", func(t *testing.T) {
@@ -834,24 +845,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -877,24 +873,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -1283,12 +1264,64 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			interval := next.Sub(testCase.at)
 			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
 
-			require.Len(t, auditor.AuditLogs, 7)
-			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[6].Action)
+			require.Eventually(t, func() bool {
+				if len(auditor.AuditLogs()) < 7 {
+					return false
+				}
+				return auditor.AuditLogs()[6].Action == database.AuditActionWrite ||
+					auditor.AuditLogs()[5].Action == database.AuditActionWrite
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
 
+	t.Run("CustomAutostartDisabledByTemplate", func(t *testing.T) {
+		t.Parallel()
+		var (
+			tss = schedule.MockTemplateScheduleStore{
+				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+					return schedule.TemplateScheduleOptions{
+						UserAutostartEnabled: false,
+						UserAutostopEnabled:  false,
+						DefaultTTL:           0,
+						MaxTTL:               0,
+					}, nil
+				},
+				SetFn: func(_ context.Context, _ database.Store, tpl database.Template, _ schedule.TemplateScheduleOptions) (database.Template, error) {
+					return tpl, nil
+				},
+			}
+
+			client = coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				TemplateScheduleStore:    tss,
+			})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.AutostartSchedule = nil
+				cwr.TTLMillis = nil
+			})
+		)
+
+		// await job to ensure audit logs for workspace_build start are created
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// ensure test invariant: new workspaces have no autostart schedule.
+		require.Empty(t, workspace.AutostartSchedule, "expected newly-minted workspace to have no autostart schedule")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+			Schedule: ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
+		})
+		require.ErrorContains(t, err, "Autostart is not allowed for workspaces using this template")
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 		var (
 			client = coderdtest.New(t, nil)
 			_      = coderdtest.CreateFirstUser(t, client)
@@ -1398,12 +1431,64 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
 
-			require.Len(t, auditor.AuditLogs, 7)
-			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[6].Action)
+			require.Eventually(t, func() bool {
+				if len(auditor.AuditLogs()) != 7 {
+					return false
+				}
+				return auditor.AuditLogs()[6].Action == database.AuditActionWrite ||
+					auditor.AuditLogs()[5].Action == database.AuditActionWrite
+			}, testutil.WaitMedium, testutil.IntervalFast, "expected audit log to be written")
 		})
 	}
 
+	t.Run("CustomAutostopDisabledByTemplate", func(t *testing.T) {
+		t.Parallel()
+		var (
+			tss = schedule.MockTemplateScheduleStore{
+				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+					return schedule.TemplateScheduleOptions{
+						UserAutostartEnabled: false,
+						UserAutostopEnabled:  false,
+						DefaultTTL:           0,
+						MaxTTL:               0,
+					}, nil
+				},
+				SetFn: func(_ context.Context, _ database.Store, tpl database.Template, _ schedule.TemplateScheduleOptions) (database.Template, error) {
+					return tpl, nil
+				},
+			}
+
+			client = coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				TemplateScheduleStore:    tss,
+			})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.AutostartSchedule = nil
+				cwr.TTLMillis = nil
+			})
+		)
+
+		// await job to ensure audit logs for workspace_build start are created
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// ensure test invariant: new workspaces have no autostart schedule.
+		require.Empty(t, workspace.AutostartSchedule, "expected newly-minted workspace to have no autostart schedule")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: ptr.Ref(time.Hour.Milliseconds()),
+		})
+		require.ErrorContains(t, err, "Custom autostop TTL is not allowed for workspaces using this template")
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 		var (
 			client = coderdtest.New(t, nil)
 			_      = coderdtest.CreateFirstUser(t, client)
@@ -1804,6 +1889,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 		firstParameterValue       = "1"
 
 		secondParameterName                = "second_parameter"
+		secondParameterDisplayName         = "Second Parameter"
 		secondParameterType                = "number"
 		secondParameterDescription         = "_This_ is second *parameter*"
 		secondParameterValue               = "2"
@@ -1826,6 +1912,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 							},
 							{
 								Name:                secondParameterName,
+								DisplayName:         secondParameterDisplayName,
 								Type:                secondParameterType,
 								Description:         secondParameterDescription,
 								ValidationMin:       1,
@@ -1862,6 +1949,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	require.Equal(t, firstParameterDescriptionPlaintext, templateRichParameters[0].DescriptionPlaintext)
 	require.Equal(t, codersdk.ValidationMonotonicOrder(""), templateRichParameters[0].ValidationMonotonic) // no validation for string
 	require.Equal(t, secondParameterName, templateRichParameters[1].Name)
+	require.Equal(t, secondParameterDisplayName, templateRichParameters[1].DisplayName)
 	require.Equal(t, secondParameterType, templateRichParameters[1].Type)
 	require.Equal(t, secondParameterDescription, templateRichParameters[1].Description)
 	require.Equal(t, secondParameterDescriptionPlaintext, templateRichParameters[1].DescriptionPlaintext)
@@ -1882,5 +1970,89 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 
 	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
 	require.NoError(t, err)
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+}
+
+func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName         = "first_parameter"
+		firstParameterType         = "string"
+		firstParameterDescription  = "This is _first_ *parameter*"
+		firstParameterDefaultValue = "1"
+
+		secondParameterName        = "second_parameter"
+		secondParameterType        = "number"
+		secondParameterDescription = "_This_ is second *parameter*"
+		secondParameterRequired    = true
+		secondParameterValue       = "333"
+	)
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:         firstParameterName,
+								Type:         firstParameterType,
+								Description:  firstParameterDescription,
+								DefaultValue: firstParameterDefaultValue,
+							},
+							{
+								Name:        secondParameterName,
+								Type:        secondParameterType,
+								Description: secondParameterDescription,
+								Required:    secondParameterRequired,
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, templateRichParameters, 2)
+	require.Equal(t, firstParameterName, templateRichParameters[0].Name)
+	require.Equal(t, firstParameterType, templateRichParameters[0].Type)
+	require.Equal(t, firstParameterDescription, templateRichParameters[0].Description)
+	require.Equal(t, firstParameterDefaultValue, templateRichParameters[0].DefaultValue)
+	require.Equal(t, secondParameterName, templateRichParameters[1].Name)
+	require.Equal(t, secondParameterType, templateRichParameters[1].Type)
+	require.Equal(t, secondParameterDescription, templateRichParameters[1].Description)
+	require.Equal(t, secondParameterRequired, templateRichParameters[1].Required)
+
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		// First parameter is optional, so coder will pick the default value.
+		{Name: secondParameterName, Value: secondParameterValue},
+	}
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = expectedBuildParameters
+	})
+
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }

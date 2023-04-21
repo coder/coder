@@ -4,7 +4,7 @@ import SvgIcon from "@material-ui/core/SvgIcon"
 import CheckIcon from "@material-ui/icons/Check"
 import { FC } from "react"
 import { NavLink } from "react-router-dom"
-import { ellipsizeText } from "../../util/ellipsizeText"
+import { ellipsizeText } from "../../utils/ellipsizeText"
 import { Typography } from "../Typography/Typography"
 
 type BorderedMenuRowVariant = "narrow" | "wide"

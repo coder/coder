@@ -1,6 +1,7 @@
-import { getDeploymentConfig, getDeploymentDAUs } from "api/api"
-import { DeploymentConfig, DeploymentDAUsResponse } from "api/typesGenerated"
+import { DeploymentDAUsResponse } from "./../../api/typesGenerated"
+import { getDeploymentValues, getDeploymentDAUs } from "api/api"
 import { createMachine, assign } from "xstate"
+import { DeploymentConfig } from "api/types"
 
 export const deploymentConfigMachine = createMachine(
   {
@@ -9,14 +10,14 @@ export const deploymentConfigMachine = createMachine(
 
     schema: {
       context: {} as {
-        deploymentConfig?: DeploymentConfig
-        getDeploymentConfigError?: unknown
+        deploymentValues?: DeploymentConfig
+        getDeploymentValuesError?: unknown
         deploymentDAUs?: DeploymentDAUsResponse
         getDeploymentDAUsError?: unknown
       },
       events: {} as { type: "LOAD" },
       services: {} as {
-        getDeploymentConfig: {
+        getDeploymentValues: {
           data: DeploymentConfig
         }
         getDeploymentDAUs: {
@@ -29,14 +30,14 @@ export const deploymentConfigMachine = createMachine(
     states: {
       config: {
         invoke: {
-          src: "getDeploymentConfig",
+          src: "getDeploymentValues",
           onDone: {
             target: "daus",
-            actions: ["assignDeploymentConfig"],
+            actions: ["assignDeploymentValues"],
           },
           onError: {
             target: "daus",
-            actions: ["assignGetDeploymentConfigError"],
+            actions: ["assignGetDeploymentValuesError"],
           },
         },
         tags: "loading",
@@ -62,15 +63,15 @@ export const deploymentConfigMachine = createMachine(
   },
   {
     services: {
-      getDeploymentConfig: getDeploymentConfig,
+      getDeploymentValues: getDeploymentValues,
       getDeploymentDAUs: getDeploymentDAUs,
     },
     actions: {
-      assignDeploymentConfig: assign({
-        deploymentConfig: (_, { data }) => data,
+      assignDeploymentValues: assign({
+        deploymentValues: (_, { data }) => data,
       }),
-      assignGetDeploymentConfigError: assign({
-        getDeploymentConfigError: (_, { data }) => data,
+      assignGetDeploymentValuesError: assign({
+        getDeploymentValuesError: (_, { data }) => data,
       }),
       assignDeploymentDAUs: assign({
         deploymentDAUs: (_, { data }) => data,

@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -63,7 +64,20 @@ func sshConfigFileRead(t *testing.T, name string) string {
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	const hostname = "test-coder."
+	const expectedKey = "ConnectionAttempts"
+	const removeKey = "ConnectionTimeout"
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		ConfigSSH: codersdk.SSHConfigResponse{
+			HostnamePrefix: hostname,
+			SSHConfigOptions: map[string]string{
+				// Something we can test for
+				expectedKey: "3",
+				removeKey:   "",
+			},
+		},
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -82,23 +96,7 @@ func TestConfigSSH(t *testing.T) {
 				},
 			},
 		}},
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(),
-							Name: "example",
-							Auth: &proto.Agent_Token{
-								Token: authToken,
-							},
-						}},
-					}},
-				},
-			},
-		}},
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -153,21 +151,17 @@ func TestConfigSSH(t *testing.T) {
 
 	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 	require.True(t, valid)
-	cmd, root := clitest.New(t, "config-ssh",
+	inv, root := clitest.New(t, "config-ssh",
 		"--ssh-option", "HostName "+tcpAddr.IP.String(),
 		"--ssh-option", "Port "+strconv.Itoa(tcpAddr.Port),
 		"--ssh-config-file", sshConfigFile,
 		"--skip-proxy-command")
 	clitest.SetupConfig(t, client, root)
-	doneChan := make(chan struct{})
 	pty := ptytest.New(t)
-	cmd.SetIn(pty.Input())
-	cmd.SetOut(pty.Output())
-	go func() {
-		defer close(doneChan)
-		err := cmd.Execute()
-		assert.NoError(t, err)
-	}()
+	inv.Stdin = pty.Input()
+	inv.Stdout = pty.Output()
+
+	waiter := clitest.StartWithWaiter(t, inv)
 
 	matches := []struct {
 		match, write string
@@ -179,15 +173,20 @@ func TestConfigSSH(t *testing.T) {
 		pty.WriteLine(m.write)
 	}
 
-	<-doneChan
+	waiter.RequireSuccess()
+
+	fileContents, err := os.ReadFile(sshConfigFile)
+	require.NoError(t, err, "read ssh config file")
+	require.Contains(t, string(fileContents), expectedKey, "ssh config file contains expected key")
+	require.NotContains(t, string(fileContents), removeKey, "ssh config file should not have removed key")
 
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
-	sshCmd := exec.Command("ssh", "-F", sshConfigFile, "coder."+workspace.Name, "echo", "test")
+	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+workspace.Name, "echo", "test")
 	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
-	sshCmd.Stderr = pty.Output()
+	inv.Stderr = pty.Output()
 	data, err := sshCmd.Output()
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(data)))
@@ -586,14 +585,14 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--ssh-config-file", sshConfigName,
 			}
 			args = append(args, tt.args...)
-			cmd, root := clitest.New(t, args...)
+			inv, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, client, root)
 
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
 			done := tGo(t, func() {
-				err := cmd.Execute()
+				err := inv.Run()
 				if !tt.wantErr {
 					assert.NoError(t, err)
 				} else {
@@ -703,17 +702,13 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 
 			sshConfigFile := sshConfigFileName(t)
 
-			cmd, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
+			inv, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
 			clitest.SetupConfig(t, client, root)
-			doneChan := make(chan struct{})
+
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
-			go func() {
-				defer close(doneChan)
-				err := cmd.Execute()
-				assert.NoError(t, err)
-			}()
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
+			clitest.Start(t, inv)
 
 			matches := []struct {
 				match, write string
@@ -725,7 +720,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 
-			<-doneChan
+			pty.ExpectMatch("Updated")
 
 			var expectedHosts []string
 			for _, hostnamePattern := range tt.expected {

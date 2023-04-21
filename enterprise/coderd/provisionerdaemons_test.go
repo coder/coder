@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/provisionerdserver"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
@@ -20,6 +21,22 @@ import (
 
 func TestProvisionerDaemonServe(t *testing.T) {
 	t.Parallel()
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		})
+		srv, err := client.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
+			codersdk.ProvisionerTypeEcho,
+		}, map[string]string{})
+		require.NoError(t, err)
+		srv.DRPCConn().Close()
+	})
+
 	t.Run("NoLicense", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
@@ -42,11 +59,16 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
 		})
-		srv, err := client.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
+		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOrgAdmin(user.OrganizationID))
+		_, err := another.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
 			codersdk.ProvisionerTypeEcho,
-		}, map[string]string{})
-		require.NoError(t, err)
-		srv.DRPCConn().Close()
+		}, map[string]string{
+			provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+		})
+		require.Error(t, err)
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})
 
 	t.Run("OrganizationNoPerms", func(t *testing.T) {
@@ -101,23 +123,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 					},
 				},
 			}},
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id:   uuid.NewString(),
-								Name: "example",
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		require.NoError(t, err)
 		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))

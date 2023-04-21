@@ -13,25 +13,37 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
 const (
-	MissingParameterErrorText = "missing parameter"
+	MissingParameterErrorCode = "MISSING_TEMPLATE_PARAMETER"
+	missingParameterErrorText = "missing parameter"
+
+	RequiredTemplateVariablesErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+	requiredTemplateVariablesErrorText = "required template variables"
 )
+
+var errorCodes = map[string]string{
+	MissingParameterErrorCode:          missingParameterErrorText,
+	RequiredTemplateVariablesErrorCode: requiredTemplateVariablesErrorText,
+}
 
 var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
 
@@ -45,6 +57,7 @@ type Runner struct {
 	filesystem          afero.Fs
 	workDirectory       string
 	provisioner         sdkproto.DRPCProvisionerClient
+	lastUpdate          atomic.Pointer[time.Time]
 	updateInterval      time.Duration
 	forceCancelInterval time.Duration
 	logBufferInterval   time.Duration
@@ -124,7 +137,7 @@ func New(
 			slog.F("workspace_id", build.Metadata.WorkspaceId),
 			slog.F("workspace_name", build.Metadata.WorkspaceName),
 			slog.F("workspace_owner", build.Metadata.WorkspaceOwner),
-			slog.F("workspace_transition", build.Metadata.WorkspaceTransition.String()),
+			slog.F("workspace_transition", strings.ToLower(build.Metadata.WorkspaceTransition.String())),
 		)
 	}
 
@@ -194,7 +207,7 @@ func (r *Runner) Run() {
 	defer r.stop()
 
 	go r.doCleanFinish(ctx)
-	go r.heartbeat(ctx)
+	go r.heartbeatRoutine(ctx)
 	for r.failedJob == nil && r.completedJob == nil {
 		r.cond.Wait()
 	}
@@ -298,15 +311,51 @@ func (r *Runner) ForceStop() {
 	r.cond.Signal()
 }
 
+func (r *Runner) sendHeartbeat(ctx context.Context) (*proto.UpdateJobResponse, error) {
+	ctx, span := r.startTrace(ctx, "updateHeartbeat")
+	defer span.End()
+
+	r.mutex.Lock()
+	if !r.okToSend {
+		r.mutex.Unlock()
+		return nil, errUpdateSkipped
+	}
+	r.mutex.Unlock()
+
+	// Skip sending a heartbeat if we've sent an update recently.
+	if lastUpdate := r.lastUpdate.Load(); lastUpdate != nil {
+		if time.Since(*lastUpdate) < r.updateInterval {
+			span.SetAttributes(attribute.Bool("heartbeat_skipped", true))
+			return &proto.UpdateJobResponse{}, nil
+		}
+	}
+
+	return r.update(ctx, &proto.UpdateJobRequest{
+		JobId: r.job.JobId,
+	})
+}
+
 func (r *Runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
+	defer func() {
+		r.lastUpdate.Store(ptr.Ref(time.Now()))
+	}()
+
+	span.SetAttributes(
+		attribute.Int64("logs_len", int64(len(u.Logs))),
+		attribute.Int64("parameter_schemas_len", int64(len(u.ParameterSchemas))),
+		attribute.Int64("template_variables_len", int64(len(u.TemplateVariables))),
+		attribute.Int64("user_variable_values_len", int64(len(u.UserVariableValues))),
+		attribute.Int64("readme_len", int64(len(u.Readme))),
+	)
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if !r.okToSend {
 		return nil, errUpdateSkipped
 	}
+
 	return r.sender.UpdateJob(ctx, u)
 }
 
@@ -471,9 +520,13 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 	}
 }
 
-// heartbeat periodically sends updates on the job, which keeps coder server from assuming the job
-// is stalled, and allows the runner to learn if the job has been canceled by the user.
-func (r *Runner) heartbeat(ctx context.Context) {
+// heartbeatRoutine periodically sends updates on the job, which keeps coder server
+// from assuming the job is stalled, and allows the runner to learn if the job
+// has been canceled by the user.
+func (r *Runner) heartbeatRoutine(ctx context.Context) {
+	ctx, span := r.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	ticker := time.NewTicker(r.updateInterval)
 	defer ticker.Stop()
 
@@ -484,9 +537,7 @@ func (r *Runner) heartbeat(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		resp, err := r.update(ctx, &proto.UpdateJobRequest{
-			JobId: r.job.JobId,
-		})
+		resp, err := r.sendHeartbeat(ctx)
 		if err != nil {
 			err = r.Fail(ctx, r.failedJobf("send periodic update: %s", err))
 			if err != nil {
@@ -495,6 +546,7 @@ func (r *Runner) heartbeat(ctx context.Context) {
 			return
 		}
 		if !resp.Canceled {
+			ticker.Reset(r.updateInterval)
 			continue
 		}
 		r.logger.Info(ctx, "attempting graceful cancelation")
@@ -589,7 +641,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	for _, parameterSchema := range parameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			return nil, r.failedJobf("%s: %s", MissingParameterErrorText, parameterSchema.Name)
+			return nil, r.failedJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
 		}
 	}
 
@@ -600,7 +652,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Detecting persistent resources",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	startResources, parameters, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
+	startProvision, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
 	})
@@ -615,7 +667,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Detecting ephemeral resources",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	stopResources, _, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
+	stopProvision, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
@@ -627,9 +679,10 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
 			TemplateImport: &proto.CompletedJob_TemplateImport{
-				StartResources: startResources,
-				StopResources:  stopResources,
-				RichParameters: parameters,
+				StartResources:   startProvision.Resources,
+				StopResources:    stopProvision.Resources,
+				RichParameters:   startProvision.Parameters,
+				GitAuthProviders: startProvision.GitAuthProviders,
 			},
 		},
 	}, nil
@@ -680,16 +733,22 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 	}
 }
 
+type templateImportProvision struct {
+	Resources        []*sdkproto.Resource
+	Parameters       []*sdkproto.RichParameter
+	GitAuthProviders []string
+}
+
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned for a workspace in various states.
 // It doesn't define values for rich parameters as they're unknown during template import.
-func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
+func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Provision_Metadata) (*templateImportProvision, error) {
 	return r.runTemplateImportProvisionWithRichParameters(ctx, values, variableValues, nil, metadata)
 }
 
 // Performs a dry-run provision with provided rich parameters.
 // This is used to detect resources that would be provisioned for a workspace in various states.
-func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, richParameterValues []*sdkproto.RichParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
+func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, richParameterValues []*sdkproto.RichParameterValue, metadata *sdkproto.Provision_Metadata) (*templateImportProvision, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -704,7 +763,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 	// to send the cancel to the provisioner
 	stream, err := r.provisioner.Provision(ctx)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("provision: %w", err)
+		return nil, xerrors.Errorf("provision: %w", err)
 	}
 	defer stream.Close()
 	go func() {
@@ -733,13 +792,13 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 		},
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("start provision: %w", err)
+		return nil, xerrors.Errorf("start provision: %w", err)
 	}
 
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, nil, xerrors.Errorf("recv import provision: %w", err)
+			return nil, xerrors.Errorf("recv import provision: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
@@ -760,11 +819,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 					slog.F("error", msgType.Complete.Error),
 				)
 
-				return nil, nil, xerrors.New(msgType.Complete.Error)
-			}
-
-			if len(msgType.Complete.Parameters) > 0 && len(values) > 0 {
-				return nil, nil, xerrors.Errorf(`rich parameters can't be used together with legacy parameters, set the coder provider flag "feature_use_managed_variables = true" to enable managed variables`)
+				return nil, xerrors.New(msgType.Complete.Error)
 			}
 
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
@@ -773,9 +828,13 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 				slog.F("state_length", len(msgType.Complete.State)),
 			)
 
-			return msgType.Complete.Resources, msgType.Complete.Parameters, nil
+			return &templateImportProvision{
+				Resources:        msgType.Complete.Resources,
+				Parameters:       msgType.Complete.Parameters,
+				GitAuthProviders: msgType.Complete.GitAuthProviders,
+			}, nil
 		default:
-			return nil, nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}
@@ -814,7 +873,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	// Run the template import provision task since it's already a dry run.
-	resources, _, err := r.runTemplateImportProvisionWithRichParameters(ctx,
+	provision, err := r.runTemplateImportProvisionWithRichParameters(ctx,
 		r.job.GetTemplateDryRun().GetParameterValues(),
 		r.job.GetTemplateDryRun().GetVariableValues(),
 		r.job.GetTemplateDryRun().GetRichParameterValues(),
@@ -828,7 +887,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateDryRun_{
 			TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
-				Resources: resources,
+				Resources: provision.Resources,
 			},
 		},
 	}, nil
@@ -869,7 +928,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			r.logger.Info(context.Background(), "workspace provision job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "workspace provisioner job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
@@ -884,8 +943,9 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 			})
 		case *sdkproto.Provision_Response_Complete:
 			if msgType.Complete.Error != "" {
-				r.logger.Info(context.Background(), "provision failed; updating state",
+				r.logger.Error(context.Background(), "provision failed; updating state",
 					slog.F("state_length", len(msgType.Complete.State)),
+					slog.F("error", msgType.Complete.Error),
 				)
 
 				return nil, &proto.FailedJob{
@@ -984,6 +1044,8 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		Directory: r.workDirectory,
 		Metadata:  r.job.GetWorkspaceBuild().Metadata,
 		State:     r.job.GetWorkspaceBuild().State,
+
+		ProvisionerLogLevel: r.job.GetWorkspaceBuild().LogLevel,
 	}
 
 	completedPlan, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Provision_Request{
@@ -993,6 +1055,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				ParameterValues:     r.job.GetWorkspaceBuild().ParameterValues,
 				RichParameterValues: r.job.GetWorkspaceBuild().RichParameterValues,
 				VariableValues:      r.job.GetWorkspaceBuild().VariableValues,
+				GitAuthProviders:    r.job.GetWorkspaceBuild().GitAuthProviders,
 			},
 		},
 	})
@@ -1040,15 +1103,26 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 }
 
 func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
+	message := fmt.Sprintf(format, args...)
+	var code string
+
+	for c, m := range errorCodes {
+		if strings.Contains(message, m) {
+			code = c
+			break
+		}
+	}
 	return &proto.FailedJob{
-		JobId: r.job.JobId,
-		Error: fmt.Sprintf(format, args...),
+		JobId:     r.job.JobId,
+		Error:     message,
+		ErrorCode: code,
 	}
 }
 
 func (r *Runner) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	return r.tracer.Start(ctx, name, append(opts, trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd"),
+		attribute.String("job_id", r.job.JobId),
 	))...)
 }
 
@@ -1108,4 +1182,22 @@ func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.
 		redacted = append(redacted, v)
 	}
 	return redacted
+}
+
+// logProvisionerJobLog logs a message from the provisioner daemon at the appropriate level.
+func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...slog.Field) {
+	switch logLevel {
+	case sdkproto.LogLevel_TRACE:
+		r.logger.Debug(ctx, msg, fields...) // There's no trace, so we'll just use debug.
+	case sdkproto.LogLevel_DEBUG:
+		r.logger.Debug(ctx, msg, fields...)
+	case sdkproto.LogLevel_INFO:
+		r.logger.Info(ctx, msg, fields...)
+	case sdkproto.LogLevel_WARN:
+		r.logger.Warn(ctx, msg, fields...)
+	case sdkproto.LogLevel_ERROR:
+		r.logger.Error(ctx, msg, fields...)
+	default: // should never happen, but we should not explode either.
+		r.logger.Info(ctx, msg, fields...)
+	}
 }

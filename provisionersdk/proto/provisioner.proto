@@ -84,6 +84,9 @@ message RichParameter {
     int32 validation_min = 10;
     int32 validation_max = 11;
     string validation_monotonic = 12;
+    bool required = 13;
+    string legacy_variable_name = 14;
+    string display_name = 15;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
@@ -118,8 +121,20 @@ message InstanceIdentityAuth {
     string instance_id = 1;
 }
 
+message GitAuthProvider {
+	string id = 1;
+	string access_token = 2;
+}
+
 // Agent represents a running agent on the workspace.
 message Agent {
+    message Metadata {
+        string key = 1;
+        string display_name = 2;
+        string script = 3;
+        int64 interval = 4;
+        int64 timeout = 5;
+    }
     string id = 1;
     string name = 2;
     map<string, string> env = 3;
@@ -137,6 +152,9 @@ message Agent {
 	string motd_file = 13;
 	bool login_before_ready = 14;
 	int32 startup_script_timeout_seconds = 15;
+	string shutdown_script = 16;
+	int32 shutdown_script_timeout_seconds = 17;
+    repeated Metadata metadata = 18;
 }
 
 enum AppSharingLevel {
@@ -222,6 +240,7 @@ message Provision {
         string workspace_owner_email = 7;
         string template_name = 8;
         string template_version = 9;
+        string workspace_owner_oidc_access_token = 10;
     }
 
     // Config represents execution configuration shared by both Plan and
@@ -230,13 +249,16 @@ message Provision {
         string directory = 1;
         bytes state = 2;
         Metadata metadata = 3;
+
+        string provisioner_log_level = 4;
     }
 
     message Plan {
         Config config = 1;
         repeated ParameterValue parameter_values = 2;
-		repeated RichParameterValue rich_parameter_values = 3;
-		repeated VariableValue variable_values = 4;
+        repeated RichParameterValue rich_parameter_values = 3;
+        repeated VariableValue variable_values = 4;
+        repeated GitAuthProvider git_auth_providers = 5;
     }
 
     message Apply {
@@ -257,7 +279,8 @@ message Provision {
         string error = 2;
         repeated Resource resources = 3;
 		repeated RichParameter parameters = 4;
-		bytes plan = 5;
+		repeated string git_auth_providers = 5;
+		bytes plan = 6;
     }
     message Response {
         oneof type {

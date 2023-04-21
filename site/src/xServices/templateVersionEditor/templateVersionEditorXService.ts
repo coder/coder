@@ -2,14 +2,17 @@ import {
   ProvisionerJobLog,
   ProvisionerJobStatus,
   TemplateVersion,
+  TemplateVersionVariable,
   UploadResponse,
+  VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "api/api"
-import { FileTree, traverse } from "util/filetree"
-import { isAllowedFile } from "util/templateVersion"
-import { TarReader, TarWriter } from "util/tar"
+import { FileTree, traverse } from "utils/filetree"
+import { isAllowedFile } from "utils/templateVersion"
+import { TarReader, TarWriter } from "utils/tar"
+import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
 
 export interface CreateVersionData {
   file: File
@@ -24,6 +27,9 @@ export interface TemplateVersionEditorMachineContext {
   resources?: WorkspaceResource[]
   buildLogs?: ProvisionerJobLog[]
   tarReader?: TarReader
+  publishingError?: unknown
+  missingVariables?: TemplateVersionVariable[]
+  missingVariableValues?: VariableValue[]
 }
 
 export const templateVersionEditorMachine = createMachine(
@@ -40,8 +46,14 @@ export const templateVersionEditorMachine = createMachine(
             templateId: string
           }
         | { type: "CANCEL_VERSION" }
+        | { type: "SET_MISSING_VARIABLE_VALUES"; values: VariableValue[] }
+        | { type: "CANCEL_MISSING_VARIABLE_VALUES" }
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
-        | { type: "UPDATE_ACTIVE_VERSION" },
+        | { type: "BUILD_DONE" }
+        | { type: "PUBLISH" }
+        | ({ type: "CONFIRM_PUBLISH" } & PublishVersionData)
+        | { type: "CANCEL_PUBLISH" },
+
       services: {} as {
         uploadTar: {
           data: UploadResponse
@@ -58,8 +70,11 @@ export const templateVersionEditorMachine = createMachine(
         getResources: {
           data: WorkspaceResource[]
         }
-        updateActiveVersion: {
+        publishingVersion: {
           data: void
+        }
+        loadMissingVariables: {
+          data: TemplateVersionVariable[]
         }
       },
     },
@@ -80,18 +95,29 @@ export const templateVersionEditorMachine = createMachine(
             actions: ["assignCreateBuild"],
             target: "cancelingBuild",
           },
-          UPDATE_ACTIVE_VERSION: {
-            target: "updatingActiveVersion",
+          PUBLISH: {
+            target: "askPublishParameters",
           },
         },
       },
-      updatingActiveVersion: {
+      askPublishParameters: {
+        on: {
+          CANCEL_PUBLISH: "idle",
+          CONFIRM_PUBLISH: "publishingVersion",
+        },
+      },
+      publishingVersion: {
         tags: "loading",
+        entry: ["clearPublishingError"],
         invoke: {
-          id: "updateActiveVersion",
-          src: "updateActiveVersion",
+          id: "publishingVersion",
+          src: "publishingVersion",
           onDone: {
-            target: "idle",
+            actions: ["onPublish"],
+          },
+          onError: {
+            actions: ["assignPublishingError"],
+            target: "askPublishParameters",
           },
         },
       },
@@ -132,14 +158,12 @@ export const templateVersionEditorMachine = createMachine(
         invoke: {
           id: "watchBuildLogs",
           src: "watchBuildLogs",
-          onDone: {
-            target: "fetchingVersion",
-          },
         },
         on: {
           ADD_BUILD_LOG: {
             actions: "addBuildLog",
           },
+          BUILD_DONE: "fetchingVersion",
           CANCEL_VERSION: {
             target: "cancelingBuild",
           },
@@ -154,9 +178,41 @@ export const templateVersionEditorMachine = createMachine(
         invoke: {
           id: "fetchVersion",
           src: "fetchVersion",
-          onDone: {
-            actions: ["assignBuild"],
-            target: "fetchResources",
+          onDone: [
+            {
+              actions: ["assignBuild"],
+              target: "promptVariables",
+              cond: "jobFailedWithMissingVariables",
+            },
+            {
+              actions: ["assignBuild"],
+              target: "fetchResources",
+            },
+          ],
+        },
+      },
+      promptVariables: {
+        initial: "loadingMissingVariables",
+        states: {
+          loadingMissingVariables: {
+            invoke: {
+              src: "loadMissingVariables",
+              onDone: {
+                actions: "assignMissingVariables",
+                target: "idle",
+              },
+            },
+          },
+          idle: {
+            on: {
+              SET_MISSING_VARIABLE_VALUES: {
+                actions: "assignMissingVariableValues",
+                target: "#templateVersionEditor.creatingBuild",
+              },
+              CANCEL_MISSING_VARIABLE_VALUES: {
+                target: "#templateVersionEditor.idle",
+              },
+            },
           },
         },
       },
@@ -215,6 +271,16 @@ export const templateVersionEditorMachine = createMachine(
       assignTarReader: assign({
         tarReader: (_, { tarReader }) => tarReader,
       }),
+      assignPublishingError: assign({
+        publishingError: (_, event) => event.data,
+      }),
+      clearPublishingError: assign({ publishingError: (_) => undefined }),
+      assignMissingVariables: assign({
+        missingVariables: (_, event) => event.data,
+      }),
+      assignMissingVariableValues: assign({
+        missingVariableValues: (_, event) => event.values,
+      }),
     },
     services: {
       uploadTar: async ({ fileTree, tarReader }) => {
@@ -252,11 +318,17 @@ export const templateVersionEditorMachine = createMachine(
         }
         // Add the editable files
         traverse(fileTree, (content, _filename, fullPath) => {
+          // When a file is deleted. Don't add it to the tar.
+          if (content === undefined) {
+            return
+          }
+
           if (typeof content === "string") {
             tar.addFile(fullPath, content)
-          } else {
-            tar.addFolder(fullPath)
+            return
           }
+
+          tar.addFolder(fullPath)
         })
         const blob = await tar.write()
         return API.uploadTemplateFile(new File([blob], "template.tar"))
@@ -271,6 +343,7 @@ export const templateVersionEditorMachine = createMachine(
           tags: {},
           template_id: ctx.templateId,
           file_id: ctx.uploadResponse.hash,
+          user_variable_values: ctx.missingVariableValues,
         })
       },
       fetchVersion: (ctx) => {
@@ -279,28 +352,29 @@ export const templateVersionEditorMachine = createMachine(
         }
         return API.getTemplateVersion(ctx.version.id)
       },
-      watchBuildLogs: (ctx) => async (callback) => {
-        return new Promise<void>((resolve, reject) => {
-          if (!ctx.version) {
-            return reject("version must be set")
+      watchBuildLogs:
+        ({ version }) =>
+        async (callback) => {
+          if (!version) {
+            throw new Error("version must be set")
           }
-          const proto = location.protocol === "https:" ? "wss:" : "ws:"
-          const socket = new WebSocket(
-            `${proto}//${location.host}/api/v2/templateversions/${ctx.version?.id}/logs?follow=true`,
-          )
-          socket.binaryType = "blob"
-          socket.addEventListener("message", (event) => {
-            callback({ type: "ADD_BUILD_LOG", log: JSON.parse(event.data) })
+
+          const socket = API.watchBuildLogsByTemplateVersionId(version.id, {
+            onMessage: (log) => {
+              callback({ type: "ADD_BUILD_LOG", log })
+            },
+            onDone: () => {
+              callback({ type: "BUILD_DONE" })
+            },
+            onError: (error) => {
+              console.error(error)
+            },
           })
-          socket.addEventListener("error", () => {
-            reject(new Error("socket errored"))
-          })
-          socket.addEventListener("close", () => {
-            // When the socket closes, logs have finished streaming!
-            resolve()
-          })
-        })
-      },
+
+          return () => {
+            socket.close()
+          }
+        },
       getResources: (ctx) => {
         if (!ctx.version) {
           throw new Error("template version must be set")
@@ -315,16 +389,39 @@ export const templateVersionEditorMachine = createMachine(
           await API.cancelTemplateVersionBuild(ctx.version.id)
         }
       },
-      updateActiveVersion: async (ctx) => {
-        if (!ctx.templateId) {
-          throw new Error("template must be set")
+      publishingVersion: async (
+        { version, templateId },
+        { name, isActiveVersion },
+      ) => {
+        if (!version) {
+          throw new Error("Version is not set")
         }
-        if (!ctx.version) {
-          throw new Error("template version must be set")
+        if (!templateId) {
+          throw new Error("Template is not set")
         }
-        await API.updateActiveTemplateVersion(ctx.templateId, {
-          id: ctx.version.id,
-        })
+        await Promise.all([
+          // Only do a patch if the name is different
+          name !== version.name
+            ? API.patchTemplateVersion(version.id, { name })
+            : Promise.resolve(),
+          isActiveVersion
+            ? API.updateActiveTemplateVersion(templateId, {
+                id: version.id,
+              })
+            : Promise.resolve(),
+        ])
+      },
+      loadMissingVariables: ({ version }) => {
+        if (!version) {
+          throw new Error("Version is not set")
+        }
+        const variables = API.getTemplateVersionVariables(version.id)
+        return variables
+      },
+    },
+    guards: {
+      jobFailedWithMissingVariables: (_, { data }) => {
+        return data.job.error_code === "REQUIRED_TEMPLATE_VARIABLES"
       },
     },
   },

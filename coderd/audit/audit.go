@@ -39,13 +39,21 @@ func NewMock() *MockAuditor {
 
 type MockAuditor struct {
 	mutex     sync.Mutex
-	AuditLogs []database.AuditLog
+	auditLogs []database.AuditLog
+}
+
+func (a *MockAuditor) AuditLogs() []database.AuditLog {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+	logs := make([]database.AuditLog, len(a.auditLogs))
+	copy(logs, a.auditLogs)
+	return logs
 }
 
 func (a *MockAuditor) Export(_ context.Context, alog database.AuditLog) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
-	a.AuditLogs = append(a.AuditLogs, alog)
+	a.auditLogs = append(a.auditLogs, alog)
 	return nil
 }
 

@@ -68,6 +68,7 @@ type WorkspaceBuild struct {
 	Reason              BuildReason         `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
 	Resources           []WorkspaceResource `json:"resources"`
 	Deadline            NullTime            `json:"deadline,omitempty" format:"date-time"`
+	MaxDeadline         NullTime            `json:"max_deadline,omitempty" format:"date-time"`
 	Status              WorkspaceStatus     `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
 	DailyCost           int32               `json:"daily_cost"`
 }
@@ -127,11 +128,6 @@ func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
 		return ReadBodyAsError(res)
 	}
 	return nil
-}
-
-// WorkspaceBuildLogsBefore returns logs that occurred before a specific log ID.
-func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, build uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), before)
 }
 
 // WorkspaceBuildLogsAfter streams logs for a workspace build that occurred after a specific log ID.

@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
 
@@ -31,24 +30,9 @@ func TestDeploymentInsights(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
-							Auth: &proto.Agent_Token{
-								Token: authToken,
-							},
-						}},
-					}},
-				},
-			},
-		}},
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
@@ -74,13 +58,9 @@ func TestDeploymentInsights(t *testing.T) {
 	daus, err := client.DeploymentDAUs(context.Background())
 	require.NoError(t, err)
 
-	require.Equal(t, &codersdk.DeploymentDAUsResponse{
-		Entries: []codersdk.DAUEntry{},
-	}, daus, "no DAUs when stats are empty")
-
 	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	assert.Zero(t, res.Workspaces[0].LastUsedAt)
+	assert.NotZero(t, res.Workspaces[0].LastUsedAt)
 
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: slogtest.Make(t, nil).Named("tailnet"),

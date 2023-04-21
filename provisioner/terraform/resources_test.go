@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"testing"
 
-	protobuf "github.com/golang/protobuf/proto"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/terraform"
@@ -22,8 +23,9 @@ func TestConvertResources(t *testing.T) {
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 	type testCase struct {
-		resources  []*proto.Resource
-		parameters []*proto.RichParameter
+		resources        []*proto.Resource
+		parameters       []*proto.RichParameter
+		gitAuthProviders []string
 	}
 	// nolint:paralleltest
 	for folderName, expected := range map[string]testCase{
@@ -104,31 +106,35 @@ func TestConvertResources(t *testing.T) {
 				Name: "dev",
 				Type: "null_resource",
 				Agents: []*proto.Agent{{
-					Name:                        "dev1",
-					OperatingSystem:             "linux",
-					Architecture:                "amd64",
-					Auth:                        &proto.Agent_Token{},
-					ConnectionTimeoutSeconds:    120,
-					LoginBeforeReady:            true,
-					StartupScriptTimeoutSeconds: 300,
+					Name:                         "dev1",
+					OperatingSystem:              "linux",
+					Architecture:                 "amd64",
+					Auth:                         &proto.Agent_Token{},
+					ConnectionTimeoutSeconds:     120,
+					LoginBeforeReady:             true,
+					StartupScriptTimeoutSeconds:  300,
+					ShutdownScriptTimeoutSeconds: 300,
 				}, {
-					Name:                        "dev2",
-					OperatingSystem:             "darwin",
-					Architecture:                "amd64",
-					Auth:                        &proto.Agent_Token{},
-					ConnectionTimeoutSeconds:    1,
-					MotdFile:                    "/etc/motd",
-					LoginBeforeReady:            true,
-					StartupScriptTimeoutSeconds: 30,
+					Name:                         "dev2",
+					OperatingSystem:              "darwin",
+					Architecture:                 "amd64",
+					Auth:                         &proto.Agent_Token{},
+					ConnectionTimeoutSeconds:     1,
+					MotdFile:                     "/etc/motd",
+					LoginBeforeReady:             true,
+					StartupScriptTimeoutSeconds:  30,
+					ShutdownScript:               "echo bye bye",
+					ShutdownScriptTimeoutSeconds: 30,
 				}, {
-					Name:                        "dev3",
-					OperatingSystem:             "windows",
-					Architecture:                "arm64",
-					Auth:                        &proto.Agent_Token{},
-					ConnectionTimeoutSeconds:    120,
-					TroubleshootingUrl:          "https://coder.com/troubleshoot",
-					LoginBeforeReady:            false,
-					StartupScriptTimeoutSeconds: 300,
+					Name:                         "dev3",
+					OperatingSystem:              "windows",
+					Architecture:                 "arm64",
+					Auth:                         &proto.Agent_Token{},
+					ConnectionTimeoutSeconds:     120,
+					TroubleshootingUrl:           "https://coder.com/troubleshoot",
+					LoginBeforeReady:             false,
+					StartupScriptTimeoutSeconds:  300,
+					ShutdownScriptTimeoutSeconds: 300,
 				}},
 			}},
 		},
@@ -215,6 +221,23 @@ func TestConvertResources(t *testing.T) {
 					Value:     "squirrel",
 					Sensitive: true,
 				}},
+				Agents: []*proto.Agent{{
+					Name:            "main",
+					Auth:            &proto.Agent_Token{},
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Metadata: []*proto.Agent_Metadata{{
+						Key:         "process_count",
+						DisplayName: "Process Count",
+						Script:      "ps -ef | wc -l",
+						Interval:    5,
+						Timeout:     1,
+					}},
+					ShutdownScriptTimeoutSeconds: 300,
+					StartupScriptTimeoutSeconds:  300,
+					LoginBeforeReady:             true,
+					ConnectionTimeoutSeconds:     120,
+				}},
 			}},
 		},
 		// Tests that resources with the same id correctly get metadata applied
@@ -274,12 +297,14 @@ func TestConvertResources(t *testing.T) {
 				Name: "dev",
 				Type: "null_resource",
 				Agents: []*proto.Agent{{
-					Name:                     "dev",
-					OperatingSystem:          "windows",
-					Architecture:             "arm64",
-					Auth:                     &proto.Agent_Token{},
-					LoginBeforeReady:         true,
-					ConnectionTimeoutSeconds: 120,
+					Name:                         "dev",
+					OperatingSystem:              "windows",
+					ShutdownScriptTimeoutSeconds: 300,
+					StartupScriptTimeoutSeconds:  300,
+					Architecture:                 "arm64",
+					Auth:                         &proto.Agent_Token{},
+					LoginBeforeReady:             true,
+					ConnectionTimeoutSeconds:     120,
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -292,7 +317,30 @@ func TestConvertResources(t *testing.T) {
 					Name:  "Second Option",
 					Value: "second",
 				}},
+				Required: true,
+			}, {
+				Name:         "Sample",
+				Type:         "string",
+				Description:  "blah blah",
+				DefaultValue: "ok",
 			}},
+		},
+		"git-auth-providers": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                         "main",
+					OperatingSystem:              "linux",
+					Architecture:                 "amd64",
+					Auth:                         &proto.Agent_Token{},
+					LoginBeforeReady:             true,
+					ConnectionTimeoutSeconds:     120,
+					StartupScriptTimeoutSeconds:  300,
+					ShutdownScriptTimeoutSeconds: 300,
+				}},
+			}},
+			gitAuthProviders: []string{"github", "gitlab"},
 		},
 	} {
 		folderName := folderName
@@ -319,10 +367,10 @@ func TestConvertResources(t *testing.T) {
 					// and that no errors occur!
 					modules = append(modules, tfPlan.PlannedValues.RootModule)
 				}
-				resources, parameters, err := terraform.ConvertResourcesAndParameters(modules, string(tfPlanGraph))
+				state, err := terraform.ConvertState(modules, string(tfPlanGraph), richParameterResourceNames(expected.parameters))
 				require.NoError(t, err)
-				sortResources(resources)
-				sortParameters(parameters)
+				sortResources(state.Resources)
+				sort.Strings(state.GitAuthProviders)
 
 				expectedNoMetadata := make([]*proto.Resource, 0)
 				for _, resource := range expected.resources {
@@ -342,22 +390,25 @@ func TestConvertResources(t *testing.T) {
 				err = json.Unmarshal(data, &expectedNoMetadataMap)
 				require.NoError(t, err)
 
-				data, err = json.Marshal(resources)
+				data, err = json.Marshal(state.Resources)
 				require.NoError(t, err)
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 
-				if expected.parameters == nil {
-					expected.parameters = []*proto.RichParameter{}
+				expectedParams := expected.parameters
+				if expectedParams == nil {
+					expectedParams = []*proto.RichParameter{}
 				}
-				parametersWant, err := json.Marshal(expected.parameters)
+				parametersWant, err := json.Marshal(expectedParams)
 				require.NoError(t, err)
-				parametersGot, err := json.Marshal(parameters)
+				parametersGot, err := json.Marshal(state.Parameters)
 				require.NoError(t, err)
 				require.Equal(t, string(parametersWant), string(parametersGot))
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
+
+				require.ElementsMatch(t, expected.gitAuthProviders, state.GitAuthProviders)
 			})
 
 			t.Run("Provision", func(t *testing.T) {
@@ -370,11 +421,11 @@ func TestConvertResources(t *testing.T) {
 				tfStateGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.dot"))
 				require.NoError(t, err)
 
-				resources, parameters, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
+				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), richParameterResourceNames(expected.parameters))
 				require.NoError(t, err)
-				sortResources(resources)
-				sortParameters(parameters)
-				for _, resource := range resources {
+				sortResources(state.Resources)
+				sort.Strings(state.GitAuthProviders)
+				for _, resource := range state.Resources {
 					for _, agent := range resource.Agents {
 						agent.Id = ""
 						if agent.GetToken() != "" {
@@ -393,13 +444,14 @@ func TestConvertResources(t *testing.T) {
 				err = json.Unmarshal(data, &expectedMap)
 				require.NoError(t, err)
 
-				data, err = json.Marshal(resources)
+				data, err = json.Marshal(state.Resources)
 				require.NoError(t, err)
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
 
 				require.Equal(t, expectedMap, resourcesMap)
+				require.ElementsMatch(t, expected.gitAuthProviders, state.GitAuthProviders)
 			})
 		})
 	}
@@ -428,8 +480,8 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	resources, _, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
-	require.Nil(t, resources)
+	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), nil)
+	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "invalid app slug")
 
@@ -440,8 +492,8 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	resources, _, err = terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
-	require.Nil(t, resources)
+	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), nil)
+	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "duplicate app slug")
 }
@@ -473,7 +525,7 @@ func TestInstanceTypeAssociation(t *testing.T) {
 			t.Parallel()
 			instanceType, err := cryptorand.String(12)
 			require.NoError(t, err)
-			resources, _, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{{
+			state, err := terraform.ConvertState([]*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{{
 					Address: tc.ResourceType + ".dev",
 					Type:    tc.ResourceType,
@@ -490,10 +542,10 @@ func TestInstanceTypeAssociation(t *testing.T) {
 	subgraph "root" {
 		"[root] `+tc.ResourceType+`.dev" [label = "`+tc.ResourceType+`.dev", shape = "box"]
 	}
-}`)
+}`, nil)
 			require.NoError(t, err)
-			require.Len(t, resources, 1)
-			require.Equal(t, resources[0].GetInstanceType(), instanceType)
+			require.Len(t, state.Resources, 1)
+			require.Equal(t, state.Resources[0].GetInstanceType(), instanceType)
 		})
 	}
 }
@@ -531,7 +583,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 			t.Parallel()
 			instanceID, err := cryptorand.String(12)
 			require.NoError(t, err)
-			resources, _, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{{
+			state, err := terraform.ConvertState([]*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{{
 					Address: "coder_agent.dev",
 					Type:    "coder_agent",
@@ -561,11 +613,11 @@ func TestInstanceIDAssociation(t *testing.T) {
 		"[root] `+tc.ResourceType+`.dev" -> "[root] coder_agent.dev"
 	}
 }
-`)
+`, nil)
 			require.NoError(t, err)
-			require.Len(t, resources, 1)
-			require.Len(t, resources[0].Agents, 1)
-			require.Equal(t, resources[0].Agents[0].GetInstanceId(), instanceID)
+			require.Len(t, state.Resources, 1)
+			require.Len(t, state.Resources[0].Agents, 1)
+			require.Equal(t, state.Resources[0].Agents[0].GetInstanceId(), instanceID)
 		})
 	}
 }
@@ -591,13 +643,10 @@ func sortResources(resources []*proto.Resource) {
 	}
 }
 
-func sortParameters(parameters []*proto.RichParameter) {
-	sort.Slice(parameters, func(i, j int) bool {
-		return parameters[i].Name < parameters[j].Name
-	})
-	for _, parameter := range parameters {
-		sort.Slice(parameter.Options, func(i, j int) bool {
-			return parameter.Options[i].Name < parameter.Options[j].Name
-		})
+func richParameterResourceNames(parameters []*proto.RichParameter) []string {
+	var names []string
+	for _, p := range parameters {
+		names = append(names, strings.ToLower(p.Name))
 	}
+	return names
 }

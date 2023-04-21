@@ -24,11 +24,11 @@
     "displayName": "Display name",
     "description": "Description",
     "icon": "Icon",
-    "autoStop": "Auto-stop default",
+    "autostop": "Autostop default",
     "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs"
   },
   "helperText": {
-    "autoStop": "Time in hours",
+    "autostop": "Time in hours",
     "allowUsersToCancel": "If checked, users may be able to corrupt their workspace."
   },
   "upload": {

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -125,9 +125,9 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 	}
 	jobLock := sync.Mutex{}
 	logs := make(chan codersdk.ProvisionerJobLog, 1)
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+	cmd := &clibase.Cmd{
+		Handler: func(inv *clibase.Invocation) error {
+			return cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 				FetchInterval: time.Millisecond,
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					jobLock.Lock()
@@ -145,13 +145,14 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 			})
 		},
 	}
+	inv := cmd.Invoke()
+
 	ptty := ptytest.New(t)
-	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
+	ptty.Attach(inv)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := cmd.ExecuteContext(context.Background())
+		err := inv.WithContext(context.Background()).Run()
 		if err != nil {
 			assert.ErrorIs(t, err, cliui.Canceled)
 		}

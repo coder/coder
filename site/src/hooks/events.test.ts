@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react"
-import { dispatchCustomEvent } from "../util/events"
+import { dispatchCustomEvent } from "../utils/events"
 import { useCustomEvent } from "./events"
 
 describe("useCustomEvent", () => {
@@ -10,7 +10,7 @@ describe("useCustomEvent", () => {
     dispatchCustomEvent("testEvent", detail)
     await waitFor(() => {
       expect(callback).toBeCalledTimes(1)
-      expect(callback.mock.calls[0][0].detail).toBe(detail)
     })
+    expect(callback.mock.calls[0][0].detail).toBe(detail)
   })
 })

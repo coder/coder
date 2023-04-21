@@ -1,43 +1,26 @@
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
+import { getTemplatePageTitle } from "../utils"
+import { useTemplateSummaryData } from "./data"
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView"
-import { Loader } from "components/Loader/Loader"
 
 export const TemplateSummaryPage: FC = () => {
-  const { context } = useTemplateLayoutContext()
-  const {
-    template,
-    activeTemplateVersion,
-    templateResources,
-    templateVersions,
-    templateDAUs,
-  } = context
-
-  if (!template || !activeTemplateVersion || !templateResources) {
-    return <Loader />
-  }
+  const { template, activeVersion } = useTemplateLayoutContext()
+  const { data } = useTemplateSummaryData(
+    template.id,
+    template.active_version_id,
+  )
 
   return (
     <>
       <Helmet>
-        <title>
-          {pageTitle(
-            `${
-              template.display_name.length > 0
-                ? template.display_name
-                : template.name
-            } · Template`,
-          )}
-        </title>
+        <title>{getTemplatePageTitle("Template", template)}</title>
       </Helmet>
       <TemplateSummaryPageView
+        data={data}
         template={template}
-        activeTemplateVersion={activeTemplateVersion}
-        templateResources={templateResources}
-        templateVersions={templateVersions}
-        templateDAUs={templateDAUs}
+        activeVersion={activeVersion}
       />
     </>
   )

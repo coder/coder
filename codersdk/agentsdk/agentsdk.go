@@ -65,35 +65,56 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
 }
 
-type Metadata struct {
+// In the future, we may want to support sending back multiple values for
+// performance.
+type PostMetadataRequest = codersdk.WorkspaceAgentMetadataResult
+
+func (c *Client) PostMetadata(ctx context.Context, key string, req PostMetadataRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata/"+key, req)
+	if err != nil {
+		return xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(res)
+	}
+
+	return nil
+}
+
+type Manifest struct {
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
-	GitAuthConfigs       int                     `json:"git_auth_configs"`
-	VSCodePortProxyURI   string                  `json:"vscode_port_proxy_uri"`
-	Apps                 []codersdk.WorkspaceApp `json:"apps"`
-	DERPMap              *tailcfg.DERPMap        `json:"derpmap"`
-	EnvironmentVariables map[string]string       `json:"environment_variables"`
-	StartupScript        string                  `json:"startup_script"`
-	StartupScriptTimeout time.Duration           `json:"startup_script_timeout"`
-	Directory            string                  `json:"directory"`
-	MOTDFile             string                  `json:"motd_file"`
+	GitAuthConfigs        int                                          `json:"git_auth_configs"`
+	VSCodePortProxyURI    string                                       `json:"vscode_port_proxy_uri"`
+	Apps                  []codersdk.WorkspaceApp                      `json:"apps"`
+	DERPMap               *tailcfg.DERPMap                             `json:"derpmap"`
+	EnvironmentVariables  map[string]string                            `json:"environment_variables"`
+	StartupScript         string                                       `json:"startup_script"`
+	StartupScriptTimeout  time.Duration                                `json:"startup_script_timeout"`
+	Directory             string                                       `json:"directory"`
+	MOTDFile              string                                       `json:"motd_file"`
+	ShutdownScript        string                                       `json:"shutdown_script"`
+	ShutdownScriptTimeout time.Duration                                `json:"shutdown_script_timeout"`
+	Metadata              []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 }
 
-// Metadata fetches metadata for the currently authenticated workspace agent.
-func (c *Client) Metadata(ctx context.Context) (Metadata, error) {
-	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
+// Manifest fetches manifest for the currently authenticated workspace agent.
+func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
+	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/manifest", nil)
 	if err != nil {
-		return Metadata{}, err
+		return Manifest{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Metadata{}, codersdk.ReadBodyAsError(res)
+		return Manifest{}, codersdk.ReadBodyAsError(res)
 	}
-	var agentMeta Metadata
+	var agentMeta Manifest
 	err = json.NewDecoder(res.Body).Decode(&agentMeta)
 	if err != nil {
-		return Metadata{}, err
+		return Manifest{}, err
 	}
 	accessingPort := c.SDK.URL.Port()
 	if accessingPort == "" {
@@ -104,14 +125,14 @@ func (c *Client) Metadata(ctx context.Context) (Metadata, error) {
 	}
 	accessPort, err := strconv.Atoi(accessingPort)
 	if err != nil {
-		return Metadata{}, xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
+		return Manifest{}, xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
 	}
 	// Agents can provide an arbitrary access URL that may be different
 	// that the globally configured one. This breaks the built-in DERP,
 	// which would continue to reference the global access URL.
 	//
 	// This converts all built-in DERPs to use the access URL that the
-	// metadata request was performed with.
+	// manifest request was performed with.
 	for _, region := range agentMeta.DERPMap.Regions {
 		if !region.EmbeddedRelay {
 			continue
@@ -159,12 +180,15 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 
+	ctx, cancelFunc := context.WithCancel(ctx)
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 
 	// Ping once every 30 seconds to ensure that the websocket is alive. If we
 	// don't get a response within 30s we kill the websocket and reconnect.
 	// See: https://github.com/coder/coder/pull/5824
+	closed := make(chan struct{})
 	go func() {
+		defer close(closed)
 		tick := 30 * time.Second
 		ticker := time.NewTicker(tick)
 		defer ticker.Stop()
@@ -197,7 +221,13 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 		}
 	}()
 
-	return wsNetConn, nil
+	return &closeNetConn{
+		Conn: wsNetConn,
+		closeFunc: func() {
+			cancelFunc()
+			<-closed
+		},
+	}, nil
 }
 
 type PostAppHealthsRequest struct {
@@ -397,7 +427,7 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 	}
 
 	// Send an empty stat to get the interval.
-	postStat(&Stats{ConnsByProto: map[string]int64{}})
+	postStat(&Stats{})
 
 	go func() {
 		defer close(exited)
@@ -426,10 +456,12 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 type Stats struct {
-	// ConnsByProto is a count of connections by protocol.
-	ConnsByProto map[string]int64 `json:"conns_by_proto"`
-	// NumConns is the number of connections received by an agent.
-	NumConns int64 `json:"num_comms"`
+	// ConnectionsByProto is a count of connections by protocol.
+	ConnectionsByProto map[string]int64 `json:"connections_by_proto"`
+	// ConnectionCount is the number of connections received by an agent.
+	ConnectionCount int64 `json:"connection_count"`
+	// ConnectionMedianLatencyMS is the median latency of all connections in milliseconds.
+	ConnectionMedianLatencyMS float64 `json:"connection_median_latency_ms"`
 	// RxPackets is the number of received packets.
 	RxPackets int64 `json:"rx_packets"`
 	// RxBytes is the number of received bytes.
@@ -438,6 +470,19 @@ type Stats struct {
 	TxPackets int64 `json:"tx_packets"`
 	// TxBytes is the number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
+
+	// SessionCountVSCode is the number of connections received by an agent
+	// that are from our VS Code extension.
+	SessionCountVSCode int64 `json:"session_count_vscode"`
+	// SessionCountJetBrains is the number of connections received by an agent
+	// that are from our JetBrains extension.
+	SessionCountJetBrains int64 `json:"session_count_jetbrains"`
+	// SessionCountReconnectingPTY is the number of connections received by an agent
+	// that are from the reconnecting web terminal.
+	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
+	// SessionCountSSH is the number of connections received by an agent
+	// that are normal, non-tagged SSH sessions.
+	SessionCountSSH int64 `json:"session_count_ssh"`
 }
 
 type StatsResponse struct {
@@ -489,6 +534,30 @@ type PostStartupRequest struct {
 
 func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/startup", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
+type StartupLog struct {
+	CreatedAt time.Time         `json:"created_at"`
+	Output    string            `json:"output"`
+	Level     codersdk.LogLevel `json:"level"`
+}
+
+type PatchStartupLogs struct {
+	Logs []StartupLog `json:"logs"`
+}
+
+// PatchStartupLogs writes log messages to the agent startup script.
+// Log messages are limited to 1MB in total.
+func (c *Client) PatchStartupLogs(ctx context.Context, req PatchStartupLogs) error {
+	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/startup-logs", req)
 	if err != nil {
 		return err
 	}
@@ -571,4 +640,25 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 		cancel: cancel,
 		Conn:   nc,
 	}
+}
+
+// StartupLogsNotifyChannel returns the channel name responsible for notifying
+// of new startup logs.
+func StartupLogsNotifyChannel(agentID uuid.UUID) string {
+	return fmt.Sprintf("startup-logs:%s", agentID)
+}
+
+type StartupLogsNotifyMessage struct {
+	CreatedAfter int64 `json:"created_after"`
+	EndOfLogs    bool  `json:"end_of_logs"`
+}
+
+type closeNetConn struct {
+	net.Conn
+	closeFunc func()
+}
+
+func (c *closeNetConn) Close() error {
+	c.closeFunc()
+	return c.Conn.Close()
 }

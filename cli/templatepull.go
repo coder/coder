@@ -7,37 +7,37 @@ import (
 	"sort"
 
 	"github.com/codeclysm/extract"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templatePull() *cobra.Command {
+func (r *RootCmd) templatePull() *clibase.Cmd {
 	var tarMode bool
-	cmd := &cobra.Command{
+
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use:   "pull <name> [destination]",
 		Short: "Download the latest version of a template to a path.",
-		Args:  cobra.RangeArgs(1, 2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Middleware: clibase.Chain(
+			clibase.RequireRangeArgs(1, 2),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
 			var (
-				ctx          = cmd.Context()
-				templateName = args[0]
+				ctx          = inv.Context()
+				templateName = inv.Args[0]
 				dest         string
 			)
 
-			if len(args) > 1 {
-				dest = args[1]
-			}
-
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
+			if len(inv.Args) > 1 {
+				dest = inv.Args[1]
 			}
 
 			// TODO(JonA): Do we need to add a flag for organization?
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}
@@ -78,7 +78,7 @@ func templatePull() *cobra.Command {
 			}
 
 			if tarMode {
-				_, err = cmd.OutOrStdout().Write(raw)
+				_, err = inv.Stdout.Write(raw)
 				return err
 			}
 
@@ -97,7 +97,7 @@ func templatePull() *cobra.Command {
 			}
 
 			if len(ents) > 0 {
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("Directory %q is not empty, existing files may be overwritten.\nContinue extracting?", dest),
 					Default:   "No",
 					Secret:    false,
@@ -108,14 +108,21 @@ func templatePull() *cobra.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Extracting template to %q\n", dest)
+			_, _ = fmt.Fprintf(inv.Stderr, "Extracting template to %q\n", dest)
 			err = extract.Tar(ctx, bytes.NewReader(raw), dest, nil)
 			return err
 		},
 	}
 
-	cmd.Flags().BoolVar(&tarMode, "tar", false, "output the template as a tar archive to stdout")
-	cliui.AllowSkipPrompt(cmd)
+	cmd.Options = clibase.OptionSet{
+		{
+			Description: "Output the template as a tar archive to stdout.",
+			Flag:        "tar",
+
+			Value: clibase.BoolOf(&tarMode),
+		},
+		cliui.SkipPromptOption(),
+	}
 
 	return cmd
 }

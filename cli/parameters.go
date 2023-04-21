@@ -1,13 +1,13 @@
 package cli
 
 import (
-	"github.com/spf13/cobra"
+	"github.com/coder/coder/cli/clibase"
 )
 
-func parameters() *cobra.Command {
-	cmd := &cobra.Command{
+func (r *RootCmd) parameters() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Short: "List parameters for a given scope",
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Command: "coder parameters list workspace my-workspace",
 			},
@@ -20,12 +20,9 @@ func parameters() *cobra.Command {
 		// constructing curl requests.
 		Hidden:  true,
 		Aliases: []string{"params"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
+		Children: []*clibase.Cmd{
+			r.parameterList(),
 		},
 	}
-	cmd.AddCommand(
-		parameterList(),
-	)
 	return cmd
 }

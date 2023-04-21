@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 )
 
@@ -25,6 +27,68 @@ type queryParamTestCase[T any] struct {
 
 func TestParseQueryParams(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Enum", func(t *testing.T) {
+		t.Parallel()
+
+		expParams := []queryParamTestCase[database.ResourceType]{
+			{
+				QueryParam: "resource_type",
+				Value:      string(database.ResourceTypeWorkspace),
+				Expected:   database.ResourceTypeWorkspace,
+			},
+			{
+				QueryParam:            "bad_type",
+				Value:                 "foo",
+				ExpectedErrorContains: "not a valid value",
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, func(vals url.Values, def database.ResourceType, queryParam string) database.ResourceType {
+			return httpapi.ParseCustom(parser, vals, def, queryParam, httpapi.ParseEnum[database.ResourceType])
+		})
+	})
+
+	t.Run("EnumList", func(t *testing.T) {
+		t.Parallel()
+
+		expParams := []queryParamTestCase[[]database.ResourceType]{
+			{
+				QueryParam: "resource_type",
+				Value:      fmt.Sprintf("%s,%s", database.ResourceTypeWorkspace, database.ResourceTypeApiKey),
+				Expected:   []database.ResourceType{database.ResourceTypeWorkspace, database.ResourceTypeApiKey},
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, func(vals url.Values, def []database.ResourceType, queryParam string) []database.ResourceType {
+			return httpapi.ParseCustomList(parser, vals, def, queryParam, httpapi.ParseEnum[database.ResourceType])
+		})
+	})
+
+	t.Run("Time", func(t *testing.T) {
+		t.Parallel()
+		const layout = "2006-01-02"
+
+		expParams := []queryParamTestCase[time.Time]{
+			{
+				QueryParam: "date",
+				Value:      "2010-01-01",
+				Expected:   must(time.Parse(layout, "2010-01-01")),
+			},
+			{
+				QueryParam:            "bad_date",
+				Value:                 "2010",
+				ExpectedErrorContains: "must be a valid date format",
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, func(vals url.Values, def time.Time, queryParam string) time.Time {
+			return parser.Time(vals, time.Time{}, queryParam, layout)
+		})
+	})
 
 	t.Run("UUID", func(t *testing.T) {
 		t.Parallel()
@@ -43,12 +107,12 @@ func TestParseQueryParams(t *testing.T) {
 			{
 				QueryParam:            "invalid_id",
 				Value:                 "bogus",
-				ExpectedErrorContains: "must be a valid uuid",
+				ExpectedErrorContains: "invalid UUID length",
 			},
 			{
 				QueryParam:            "long_id",
 				Value:                 "afe39fbf-0f52-4a62-b0cc-58670145d773-123",
-				ExpectedErrorContains: "must be a valid uuid",
+				ExpectedErrorContains: "invalid UUID length",
 			},
 			{
 				QueryParam: "no_value",
@@ -131,6 +195,43 @@ func TestParseQueryParams(t *testing.T) {
 		testQueryParams(t, expParams, parser, parser.Int)
 	})
 
+	t.Run("UInt", func(t *testing.T) {
+		t.Parallel()
+		expParams := []queryParamTestCase[uint64]{
+			{
+				QueryParam: "valid_integer",
+				Value:      "100",
+				Expected:   100,
+			},
+			{
+				QueryParam: "empty",
+				Value:      "",
+				Expected:   0,
+			},
+			{
+				QueryParam: "no_value",
+				NoSet:      true,
+				Default:    5,
+				Expected:   5,
+			},
+			{
+				QueryParam:            "negative",
+				Value:                 "-10",
+				Default:               5,
+				ExpectedErrorContains: "must be a valid positive integer",
+			},
+			{
+				QueryParam:            "invalid_integer",
+				Value:                 "bogus",
+				Expected:              0,
+				ExpectedErrorContains: "must be a valid positive integer",
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, parser.UInt)
+	})
+
 	t.Run("UUIDs", func(t *testing.T) {
 		t.Parallel()
 		expParams := []queryParamTestCase[[]uuid.UUID]{
@@ -173,6 +274,15 @@ func TestParseQueryParams(t *testing.T) {
 		parser := httpapi.NewQueryParamParser()
 		testQueryParams(t, expParams, parser, parser.UUIDs)
 	})
+
+	t.Run("Required", func(t *testing.T) {
+		t.Parallel()
+
+		parser := httpapi.NewQueryParamParser()
+		parser.Required("test_value")
+		parser.UUID(url.Values{}, uuid.New(), "test_value")
+		require.Len(t, parser.Errors, 1)
+	})
 }
 
 func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], parser *httpapi.QueryParamParser, parse func(vals url.Values, def T, queryParam string) T) {
@@ -187,8 +297,8 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 	for _, c := range testCases {
 		// !! Do not run these in parallel !!
 		t.Run(c.QueryParam, func(t *testing.T) {
-			v := parse(v, c.Default, c.QueryParam)
-			require.Equal(t, c.Expected, v, fmt.Sprintf("param=%q value=%q", c.QueryParam, c.Value))
+			value := parse(v, c.Default, c.QueryParam)
+			require.Equal(t, c.Expected, value, fmt.Sprintf("param=%q value=%q", c.QueryParam, c.Value))
 			if c.ExpectedErrorContains != "" {
 				errors := parser.Errors
 				require.True(t, len(errors) > 0, "error exist")
@@ -198,4 +308,11 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 			}
 		})
 	}
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }

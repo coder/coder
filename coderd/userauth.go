@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -89,7 +90,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	// If password authentication is disabled and the user does not have the
 	// owner role, block the request.
-	if api.DeploymentConfig.DisablePasswordAuth.Value {
+	if api.DeploymentValues.DisablePasswordAuth {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
 		})
@@ -194,48 +195,17 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Deployments should not host app tokens on the same domain as the
-	// primary deployment. But in the case they are, we should also delete this
-	// token.
-	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
-		appCookieRemove := &http.Cookie{
-			// MaxAge < 0 means to delete the cookie now.
-			MaxAge: -1,
-			Name:   httpmw.DevURLSessionTokenCookie,
-			Path:   "/",
-			Domain: "." + api.AccessURL.Hostname(),
-		}
-		http.SetCookie(rw, appCookieRemove)
-
-		id, _, err := httpmw.SplitAPIToken(appCookie.Value)
-		if err == nil {
-			err = api.Database.DeleteAPIKeyByID(ctx, id)
-			if err != nil {
-				// Don't block logout, just log any errors.
-				api.Logger.Warn(r.Context(), "failed to delete devurl token on logout",
-					slog.Error(err),
-					slog.F("id", id),
-				)
-			}
-		}
-	}
-
-	// This code should be removed after Jan 1 2023.
-	// This code logs out of the old session cookie before we renamed it
-	// if it is a valid coder token. Otherwise, this old cookie hangs around
-	// and we never log out of the user.
-	oldCookie, err := r.Cookie("session_token")
-	if err == nil && oldCookie != nil {
-		_, _, err := httpmw.SplitAPIToken(oldCookie.Value)
-		if err == nil {
-			cookie := &http.Cookie{
-				// MaxAge < 0 means to delete the cookie now.
-				MaxAge: -1,
-				Name:   "session_token",
-				Path:   "/",
-			}
-			http.SetCookie(rw, cookie)
-		}
+	// Invalidate all subdomain app tokens. This saves us from having to
+	// track which app tokens are associated which this browser session and
+	// doesn't inconvenience the user as they'll just get redirected if they try
+	// to access the app again.
+	err = api.Database.DeleteApplicationConnectAPIKeysByUserID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting app tokens.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	aReq.New = database.APIKey{}
@@ -285,7 +255,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
 		Password: codersdk.AuthMethod{
-			Enabled: !api.DeploymentConfig.DisablePasswordAuth.Value,
+			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
 		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
 		OIDC: codersdk.OIDCAuthMethod{
@@ -304,7 +274,9 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/oauth2/github/callback [get]
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx               = r.Context()
+		// userOAuth2Github is a system function.
+		//nolint:gocritic
+		ctx               = dbauthz.AsSystemRestricted(r.Context())
 		state             = httpmw.OAuth2(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
@@ -422,7 +394,12 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	aReq.UserID = user.ID
+
+	// If a new user is authenticating for the first time
+	// the audit action is 'register', not 'login'
+	if user.ID == uuid.Nil {
+		aReq.Action = database.AuditActionRegister
+	}
 
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
 		User:         user,
@@ -451,6 +428,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = key
+	aReq.UserID = key.UserID
 
 	http.SetCookie(rw, cookie)
 
@@ -475,6 +453,25 @@ type OIDCConfig struct {
 	// UsernameField selects the claim field to be used as the created user's
 	// username.
 	UsernameField string
+	// EmailField selects the claim field to be used as the created user's
+	// email.
+	EmailField string
+	// AuthURLParams are additional parameters to be passed to the OIDC provider
+	// when requesting an access token.
+	AuthURLParams map[string]string
+	// IgnoreUserInfo causes Coder to only use claims from the ID token to
+	// process OIDC logins. This is useful if the OIDC provider does not
+	// support the userinfo endpoint, or if the userinfo endpoint causes
+	// undesirable behavior.
+	IgnoreUserInfo bool
+	// GroupField selects the claim field to be used as the created user's
+	// groups. If the group field is the empty string, then no group updates
+	// will ever come from the OIDC provider.
+	GroupField string
+	// GroupMapping controls how groups returned by the OIDC provider get mapped
+	// to groups within Coder.
+	// map[oidcGroupName]coderGroupName
+	GroupMapping map[string]string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
@@ -489,7 +486,9 @@ type OIDCConfig struct {
 // @Router /users/oidc/callback [get]
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx               = r.Context()
+		// userOIDC is a system function.
+		//nolint:gocritic
+		ctx               = dbauthz.AsSystemRestricted(r.Context())
 		state             = httpmw.OAuth2(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
@@ -533,32 +532,62 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	api.Logger.Debug(ctx, "got oidc claims",
+		slog.F("source", "id_token"),
+		slog.F("claim_fields", claimFields(claims)),
+		slog.F("blank", blankFields(claims)),
+	)
+
 	// Not all claims are necessarily embedded in the `id_token`.
 	// In GitLab, the username is left empty and must be fetched in UserInfo.
 	//
 	// The OIDC specification says claims can be in either place, so we fetch
-	// user info and merge the two claim sets to be sure we have all of
-	// the correct data.
-	userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
-	if err == nil {
-		userInfoClaims := map[string]interface{}{}
-		err = userInfo.Claims(&userInfoClaims)
-		if err != nil {
+	// user info if required and merge the two claim sets to be sure we have
+	// all of the correct data.
+	//
+	// Some providers (e.g. ADFS) do not support custom OIDC claims in the
+	// UserInfo endpoint, so we allow users to disable it and only rely on the
+	// ID token.
+	if !api.OIDCConfig.IgnoreUserInfo {
+		userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
+		if err == nil {
+			userInfoClaims := map[string]interface{}{}
+			err = userInfo.Claims(&userInfoClaims)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to unmarshal user info claims.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			api.Logger.Debug(ctx, "got oidc claims",
+				slog.F("source", "userinfo"),
+				slog.F("claim_fields", claimFields(userInfoClaims)),
+				slog.F("blank", blankFields(userInfoClaims)),
+			)
+
+			// Merge the claims from the ID token and the UserInfo endpoint.
+			// Information from UserInfo takes precedence.
+			claims = mergeClaims(claims, userInfoClaims)
+
+			// Log all of the field names after merging.
+			api.Logger.Debug(ctx, "got oidc claims",
+				slog.F("source", "merged"),
+				slog.F("claim_fields", claimFields(claims)),
+				slog.F("blank", blankFields(claims)),
+			)
+		} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to unmarshal user info claims.",
-				Detail:  err.Error(),
+				Message: "Failed to obtain user information claims.",
+				Detail:  "The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
 			})
 			return
+		} else {
+			// The OIDC provider does not support the UserInfo endpoint.
+			// This is not an error, but we should log it as it may mean
+			// that some claims are missing.
+			api.Logger.Warn(ctx, "OIDC provider does not support the user info endpoint, ensure that all required claims are present in the id_token")
 		}
-		for k, v := range userInfoClaims {
-			claims[k] = v
-		}
-	} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to obtain user information claims.",
-			Detail:  "The OIDC provider returned no claims as part of the `id_token`. The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
-		})
-		return
 	}
 
 	usernameRaw, ok := claims[api.OIDCConfig.UsernameField]
@@ -567,7 +596,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		username, _ = usernameRaw.(string)
 	}
 
-	emailRaw, ok := claims["email"]
+	emailRaw, ok := claims[api.OIDCConfig.EmailField]
 	if !ok {
 		// Email is an optional claim in OIDC and
 		// instead the email is frequently sent in
@@ -605,21 +634,41 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var usingGroups bool
 	var groups []string
-	groupsRaw, ok := claims["groups"]
-	if ok {
-		// Convert the []interface{} we get to a []string.
-		groupsInterface, ok := groupsRaw.([]interface{})
-		if ok {
-			for _, groupInterface := range groupsInterface {
-				group, ok := groupInterface.(string)
-				if !ok {
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: fmt.Sprintf("Invalid group type. Expected string, got: %t", emailRaw),
-					})
-					return
+	// If the GroupField is the empty string, then groups from OIDC are not used.
+	// This is so we can support manual group assignment.
+	if api.OIDCConfig.GroupField != "" {
+		usingGroups = true
+		groupsRaw, ok := claims[api.OIDCConfig.GroupField]
+		if ok && api.OIDCConfig.GroupField != "" {
+			// Convert the []interface{} we get to a []string.
+			groupsInterface, ok := groupsRaw.([]interface{})
+			if ok {
+				api.Logger.Debug(ctx, "groups returned in oidc claims",
+					slog.F("len", len(groupsInterface)),
+					slog.F("groups", groupsInterface),
+				)
+
+				for _, groupInterface := range groupsInterface {
+					group, ok := groupInterface.(string)
+					if !ok {
+						httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+							Message: fmt.Sprintf("Invalid group type. Expected string, got: %T", groupInterface),
+						})
+						return
+					}
+
+					if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
+						group = mappedGroup
+					}
+
+					groups = append(groups, group)
 				}
-				groups = append(groups, group)
+			} else {
+				api.Logger.Debug(ctx, "groups field was an unknown type",
+					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
+				)
 			}
 		}
 	}
@@ -668,7 +717,12 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	aReq.UserID = user.ID
+
+	// If a new user is authenticating for the first time
+	// the audit action is 'register', not 'login'
+	if user.ID == uuid.Nil {
+		aReq.Action = database.AuditActionRegister
+	}
 
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
 		User:         user,
@@ -680,6 +734,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Email:        email,
 		Username:     username,
 		AvatarURL:    picture,
+		UsingGroups:  usingGroups,
 		Groups:       groups,
 	})
 	var httpErr httpError
@@ -698,6 +753,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = key
+	aReq.UserID = key.UserID
 
 	http.SetCookie(rw, cookie)
 
@@ -706,6 +762,42 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		redirect = "/"
 	}
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+}
+
+// claimFields returns the sorted list of fields in the claims map.
+func claimFields(claims map[string]interface{}) []string {
+	fields := []string{}
+	for field := range claims {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	return fields
+}
+
+// blankFields returns the list of fields in the claims map that are
+// an empty string.
+func blankFields(claims map[string]interface{}) []string {
+	fields := make([]string, 0)
+	for field, value := range claims {
+		if valueStr, ok := value.(string); ok && valueStr == "" {
+			fields = append(fields, field)
+		}
+	}
+	sort.Strings(fields)
+	return fields
+}
+
+// mergeClaims merges the claims from a and b and returns the merged set.
+// claims from b take precedence over claims from a.
+func mergeClaims(a, b map[string]interface{}) map[string]interface{} {
+	c := make(map[string]interface{})
+	for k, v := range a {
+		c[k] = v
+	}
+	for k, v := range b {
+		c[k] = v
+	}
+	return c
 }
 
 type oauthLoginParams struct {
@@ -721,7 +813,10 @@ type oauthLoginParams struct {
 	Email        string
 	Username     string
 	AvatarURL    string
-	Groups       []string
+	// Is UsingGroups is true, then the user will be assigned
+	// to the Groups provided.
+	UsingGroups bool
+	Groups      []string
 }
 
 type httpError struct {
@@ -861,7 +956,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		// Ensure groups are correct.
-		if len(params.Groups) > 0 {
+		if params.UsingGroups {
 			//nolint:gocritic
 			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), tx, user.ID, params.Groups)
 			if err != nil {

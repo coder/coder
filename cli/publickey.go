@@ -3,30 +3,26 @@ package cli
 import (
 	"strings"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func publickey() *cobra.Command {
+func (r *RootCmd) publickey() *clibase.Cmd {
 	var reset bool
-
-	cmd := &cobra.Command{
-		Use:     "publickey",
-		Aliases: []string{"pubkey"},
-		Short:   "Output your Coder public key used for Git operations",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
-			}
-
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
+		Use:        "publickey",
+		Aliases:    []string{"pubkey"},
+		Short:      "Output your Coder public key used for Git operations",
+		Middleware: r.InitClient(client),
+		Handler: func(inv *clibase.Invocation) error {
 			if reset {
 				// Confirm prompt if using --reset. We don't want to accidentally
 				// reset our public key.
-				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err := cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Confirm regenerate a new sshkey for your workspaces? This will require updating the key " +
 						"on any services it is registered with. This action cannot be reverted.",
 					IsConfirm: true,
@@ -36,33 +32,38 @@ func publickey() *cobra.Command {
 				}
 
 				// Reset the public key, let the retrieve re-read it.
-				_, err = client.RegenerateGitSSHKey(cmd.Context(), codersdk.Me)
+				_, err = client.RegenerateGitSSHKey(inv.Context(), codersdk.Me)
 				if err != nil {
 					return err
 				}
 			}
 
-			key, err := client.GitSSHKey(cmd.Context(), codersdk.Me)
+			key, err := client.GitSSHKey(inv.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			cmd.Println(cliui.Styles.Wrap.Render(
-				"This is your public key for using " + cliui.Styles.Field.Render("git") + " in " +
-					"Coder. All clones with SSH will be authenticated automatically 🪄.",
-			))
-			cmd.Println()
-			cmd.Println(cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey)))
-			cmd.Println()
-			cmd.Println("Add to GitHub and GitLab:")
-			cmd.Println(cliui.Styles.Prompt.String() + "https://github.com/settings/ssh/new")
-			cmd.Println(cliui.Styles.Prompt.String() + "https://gitlab.com/-/profile/keys")
+			cliui.Infof(inv.Stdout,
+				"This is your public key for using "+cliui.Styles.Field.Render("git")+" in "+
+					"Coder. All clones with SSH will be authenticated automatically 🪄.\n\n",
+			)
+			cliui.Infof(inv.Stdout, cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey))+"\n\n")
+			cliui.Infof(inv.Stdout, "Add to GitHub and GitLab:"+"\n")
+			cliui.Infof(inv.Stdout, cliui.Styles.Prompt.String()+"https://github.com/settings/ssh/new"+"\n")
+			cliui.Infof(inv.Stdout, cliui.Styles.Prompt.String()+"https://gitlab.com/-/profile/keys"+"\n")
 
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&reset, "reset", false, "Regenerate your public key. This will require updating the key on any services it's registered with.")
-	cliui.AllowSkipPrompt(cmd)
+
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "reset",
+			Description: "Regenerate your public key. This will require updating the key on any services it's registered with.",
+			Value:       clibase.BoolOf(&reset),
+		},
+		cliui.SkipPromptOption(),
+	}
 
 	return cmd
 }

@@ -2,6 +2,8 @@ package tailnettest
 
 import (
 	"crypto/tls"
+	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -53,6 +55,63 @@ func RunDERPAndSTUN(t *testing.T) *tailcfg.DERPMap {
 						IPv4:             "127.0.0.1",
 						IPv6:             "none",
 						STUNPort:         stunAddr.Port,
+						DERPPort:         tcpAddr.Port,
+						InsecureForTests: true,
+					},
+				},
+			},
+		},
+	}
+}
+
+// RunDERPOnlyWebSockets creates a DERP mapping for tests that
+// only allows WebSockets through it. Many proxies do not support
+// upgrading DERP, so this is a good fallback.
+func RunDERPOnlyWebSockets(t *testing.T) *tailcfg.DERPMap {
+	logf := tailnet.Logger(slogtest.Make(t, nil))
+	d := derp.NewServer(key.NewNode(), logf)
+	handler := derphttp.Handler(d)
+	var closeFunc func()
+	handler, closeFunc = tailnet.WithWebsocketSupport(d, handler)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/derp" {
+			handler.ServeHTTP(w, r)
+			return
+		}
+		if r.Header.Get("Upgrade") != "websocket" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(fmt.Sprintf(`Invalid "Upgrade" header: %s`, html.EscapeString(r.Header.Get("Upgrade")))))
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	server.Config.ErrorLog = tslogger.StdLogger(logf)
+	server.Config.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
+	server.StartTLS()
+	t.Cleanup(func() {
+		server.CloseClientConnections()
+		server.Close()
+		closeFunc()
+		d.Close()
+	})
+
+	tcpAddr, ok := server.Listener.Addr().(*net.TCPAddr)
+	if !ok {
+		t.FailNow()
+	}
+
+	return &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: {
+				RegionID:   1,
+				RegionCode: "test",
+				RegionName: "Test",
+				Nodes: []*tailcfg.DERPNode{
+					{
+						Name:             "t1",
+						RegionID:         1,
+						IPv4:             "127.0.0.1",
+						IPv6:             "none",
 						DERPPort:         tcpAddr.Port,
 						InsecureForTests: true,
 					},

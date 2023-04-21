@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/pty/ptytest"
@@ -32,22 +31,22 @@ func TestGroupDelete(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "alpha",
 		})
 		require.NoError(t, err)
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		inv, conf := newCLI(t,
 			"groups", "delete", group.Name,
 		)
 
 		pty := ptytest.New(t)
 
-		cmd.SetOut(pty.Output())
-		clitest.SetupConfig(t, client, root)
+		inv.Stdout = pty.Output()
+		clitest.SetupConfig(t, client, conf)
 
-		err = cmd.Execute()
+		err = inv.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch(fmt.Sprintf("Successfully deleted group %s", cliui.Styles.Keyword.Render(group.Name)))
@@ -65,12 +64,14 @@ func TestGroupDelete(t *testing.T) {
 			},
 		})
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
-			"groups", "delete")
+		inv, conf := newCLI(
+			t,
+			"groups", "delete",
+		)
 
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, conf)
 
-		err := cmd.Execute()
+		err := inv.Run()
 		require.Error(t, err)
 	})
 }

@@ -10,7 +10,13 @@ export interface APIKey {
   readonly updated_at: string
   readonly login_type: LoginType
   readonly scope: APIKeyScope
+  readonly token_name: string
   readonly lifetime_seconds: number
+}
+
+// From codersdk/apikey.go
+export interface APIKeyWithOwner extends APIKey {
+  readonly username: string
 }
 
 // From codersdk/licenses.go
@@ -34,6 +40,7 @@ export interface AppHostResponse {
 export interface AppearanceConfig {
   readonly logo_url: string
   readonly service_banner: ServiceBannerConfig
+  readonly support_links?: LinkConfig[]
 }
 
 // From codersdk/roles.go
@@ -46,9 +53,11 @@ export type AuditDiff = Record<string, AuditDiffField>
 
 // From codersdk/audit.go
 export interface AuditDiffField {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly old?: any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly new?: any
   readonly secret: boolean
 }
@@ -60,7 +69,7 @@ export interface AuditLog {
   readonly time: string
   readonly organization_id: string
   // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly ip: any
   readonly user_agent: string
   readonly resource_type: ResourceType
@@ -108,7 +117,7 @@ export interface AuthorizationCheck {
 
 // From codersdk/authorization.go
 export interface AuthorizationObject {
-  readonly resource_type: string
+  readonly resource_type: RBACResource
   readonly owner_id?: string
   readonly organization_id?: string
   readonly resource_id?: string
@@ -126,6 +135,8 @@ export type AuthorizationResponse = Record<string, boolean>
 export interface BuildInfoResponse {
   readonly external_url: string
   readonly version: string
+  readonly dashboard_url: string
+  readonly workspace_proxy: boolean
 }
 
 // From codersdk/parameters.go
@@ -179,7 +190,10 @@ export interface CreateTemplateRequest {
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
   readonly default_ttl_ms?: number
+  readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
+  readonly allow_user_autostart?: boolean
+  readonly allow_user_autostop?: boolean
 }
 
 // From codersdk/templateversions.go
@@ -218,6 +232,7 @@ export interface CreateTokenRequest {
   // This is likely an enum in an external package ("time.Duration")
   readonly lifetime: number
   readonly scope: APIKeyScope
+  readonly token_name: string
 }
 
 // From codersdk/users.go
@@ -237,6 +252,20 @@ export interface CreateWorkspaceBuildRequest {
   readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
+  readonly log_level?: ProvisionerLogLevel
+}
+
+// From codersdk/workspaceproxy.go
+export interface CreateWorkspaceProxyRequest {
+  readonly name: string
+  readonly display_name: string
+  readonly icon: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface CreateWorkspaceProxyResponse {
+  readonly proxy: WorkspaceProxy
+  readonly proxy_token: string
 }
 
 // From codersdk/organizations.go
@@ -263,8 +292,8 @@ export interface DERP {
 
 // From codersdk/deployment.go
 export interface DERPConfig {
-  readonly url: DeploymentConfigField<string>
-  readonly path: DeploymentConfigField<string>
+  readonly url: string
+  readonly path: string
 }
 
 // From codersdk/workspaceagents.go
@@ -275,83 +304,94 @@ export interface DERPRegion {
 
 // From codersdk/deployment.go
 export interface DERPServerConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly region_id: DeploymentConfigField<number>
-  readonly region_code: DeploymentConfigField<string>
-  readonly region_name: DeploymentConfigField<string>
-  readonly stun_addresses: DeploymentConfigField<string[]>
-  readonly relay_url: DeploymentConfigField<string>
+  readonly enable: boolean
+  readonly region_id: number
+  readonly region_code: string
+  readonly region_name: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly stun_addresses: string[]
+  readonly relay_url: string
 }
 
 // From codersdk/deployment.go
 export interface DangerousConfig {
-  readonly allow_path_app_sharing: DeploymentConfigField<boolean>
-  readonly allow_path_app_site_owner_access: DeploymentConfigField<boolean>
-}
-
-// From codersdk/deployment.go
-export interface DeploymentConfig {
-  readonly access_url: DeploymentConfigField<string>
-  readonly wildcard_access_url: DeploymentConfigField<string>
-  readonly redirect_to_access_url: DeploymentConfigField<boolean>
-  readonly http_address: DeploymentConfigField<string>
-  readonly autobuild_poll_interval: DeploymentConfigField<number>
-  readonly derp: DERP
-  readonly gitauth: DeploymentConfigField<GitAuthConfig[]>
-  readonly prometheus: PrometheusConfig
-  readonly pprof: PprofConfig
-  readonly proxy_trusted_headers: DeploymentConfigField<string[]>
-  readonly proxy_trusted_origins: DeploymentConfigField<string[]>
-  readonly cache_directory: DeploymentConfigField<string>
-  readonly in_memory_database: DeploymentConfigField<boolean>
-  readonly pg_connection_url: DeploymentConfigField<string>
-  readonly oauth2: OAuth2Config
-  readonly oidc: OIDCConfig
-  readonly telemetry: TelemetryConfig
-  readonly tls: TLSConfig
-  readonly trace: TraceConfig
-  readonly secure_auth_cookie: DeploymentConfigField<boolean>
-  readonly strict_transport_security: DeploymentConfigField<number>
-  readonly strict_transport_security_options: DeploymentConfigField<string[]>
-  readonly ssh_keygen_algorithm: DeploymentConfigField<string>
-  readonly metrics_cache_refresh_interval: DeploymentConfigField<number>
-  readonly agent_stat_refresh_interval: DeploymentConfigField<number>
-  readonly agent_fallback_troubleshooting_url: DeploymentConfigField<string>
-  readonly audit_logging: DeploymentConfigField<boolean>
-  readonly browser_only: DeploymentConfigField<boolean>
-  readonly scim_api_key: DeploymentConfigField<string>
-  readonly provisioner: ProvisionerConfig
-  readonly rate_limit: RateLimitConfig
-  readonly experiments: DeploymentConfigField<string[]>
-  readonly update_check: DeploymentConfigField<boolean>
-  readonly max_token_lifetime: DeploymentConfigField<number>
-  readonly swagger: SwaggerConfig
-  readonly logging: LoggingConfig
-  readonly dangerous: DangerousConfig
-  readonly disable_path_apps: DeploymentConfigField<boolean>
-  readonly max_session_expiry: DeploymentConfigField<number>
-  readonly disable_session_expiry_refresh: DeploymentConfigField<boolean>
-  readonly disable_password_auth: DeploymentConfigField<boolean>
-  readonly address: DeploymentConfigField<string>
-  readonly experimental: DeploymentConfigField<boolean>
-}
-
-// From codersdk/deployment.go
-export interface DeploymentConfigField<T extends Flaggable> {
-  readonly name: string
-  readonly usage: string
-  readonly flag: string
-  readonly shorthand: string
-  readonly enterprise: boolean
-  readonly hidden: boolean
-  readonly secret: boolean
-  readonly default: T
-  readonly value: T
+  readonly allow_path_app_sharing: boolean
+  readonly allow_path_app_site_owner_access: boolean
 }
 
 // From codersdk/deployment.go
 export interface DeploymentDAUsResponse {
   readonly entries: DAUEntry[]
+}
+
+// From codersdk/deployment.go
+export interface DeploymentStats {
+  readonly aggregated_from: string
+  readonly collected_at: string
+  readonly next_update_at: string
+  readonly workspaces: WorkspaceDeploymentStats
+  readonly session_count: SessionCountDeploymentStats
+}
+
+// From codersdk/deployment.go
+export interface DeploymentValues {
+  readonly verbose?: boolean
+  readonly access_url?: string
+  readonly wildcard_access_url?: string
+  readonly redirect_to_access_url?: boolean
+  readonly http_address?: string
+  readonly autobuild_poll_interval?: number
+  readonly derp?: DERP
+  readonly prometheus?: PrometheusConfig
+  readonly pprof?: PprofConfig
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly proxy_trusted_headers?: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly proxy_trusted_origins?: string[]
+  readonly cache_directory?: string
+  readonly in_memory_database?: boolean
+  readonly pg_connection_url?: string
+  readonly oauth2?: OAuth2Config
+  readonly oidc?: OIDCConfig
+  readonly telemetry?: TelemetryConfig
+  readonly tls?: TLSConfig
+  readonly trace?: TraceConfig
+  readonly secure_auth_cookie?: boolean
+  readonly strict_transport_security?: number
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly strict_transport_security_options?: string[]
+  readonly ssh_keygen_algorithm?: string
+  readonly metrics_cache_refresh_interval?: number
+  readonly agent_stat_refresh_interval?: number
+  readonly agent_fallback_troubleshooting_url?: string
+  readonly browser_only?: boolean
+  readonly scim_api_key?: string
+  readonly provisioner?: ProvisionerConfig
+  readonly rate_limit?: RateLimitConfig
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly experiments?: string[]
+  readonly update_check?: boolean
+  readonly max_token_lifetime?: number
+  readonly swagger?: SwaggerConfig
+  readonly logging?: LoggingConfig
+  readonly dangerous?: DangerousConfig
+  readonly disable_path_apps?: boolean
+  readonly max_session_expiry?: number
+  readonly disable_session_expiry_refresh?: boolean
+  readonly disable_password_auth?: boolean
+  readonly support?: SupportConfig
+  // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly git_auth?: any
+  readonly config_ssh?: SSHConfig
+  readonly wgtunnel_host?: string
+  readonly disable_owner_workspace_exec?: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.YAMLConfigPath")
+  readonly config?: string
+  readonly write_config?: boolean
+  // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly address?: any
 }
 
 // From codersdk/deployment.go
@@ -362,7 +402,6 @@ export interface Entitlements {
   readonly has_license: boolean
   readonly trial: boolean
   readonly require_telemetry: boolean
-  readonly experimental: boolean
 }
 
 // From codersdk/deployment.go
@@ -425,20 +464,39 @@ export interface Healthcheck {
   readonly threshold: number
 }
 
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenRequest {
+  readonly url: string
+  readonly agentID: string
+}
+
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenResponse {
+  readonly signed_token: string
+}
+
 // From codersdk/licenses.go
 export interface License {
   readonly id: number
   readonly uuid: string
   readonly uploaded_at: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly claims: Record<string, any>
 }
 
 // From codersdk/deployment.go
+export interface LinkConfig {
+  readonly name: string
+  readonly target: string
+  readonly icon: string
+}
+
+// From codersdk/deployment.go
 export interface LoggingConfig {
-  readonly human: DeploymentConfigField<string>
-  readonly json: DeploymentConfigField<string>
-  readonly stackdriver: DeploymentConfigField<string>
+  readonly human: string
+  readonly json: string
+  readonly stackdriver: string
 }
 
 // From codersdk/users.go
@@ -459,13 +517,15 @@ export interface OAuth2Config {
 
 // From codersdk/deployment.go
 export interface OAuth2GithubConfig {
-  readonly client_id: DeploymentConfigField<string>
-  readonly client_secret: DeploymentConfigField<string>
-  readonly allowed_orgs: DeploymentConfigField<string[]>
-  readonly allowed_teams: DeploymentConfigField<string[]>
-  readonly allow_signups: DeploymentConfigField<boolean>
-  readonly allow_everyone: DeploymentConfigField<boolean>
-  readonly enterprise_base_url: DeploymentConfigField<string>
+  readonly client_id: string
+  readonly client_secret: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly allowed_orgs: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly allowed_teams: string[]
+  readonly allow_signups: boolean
+  readonly allow_everyone: boolean
+  readonly enterprise_base_url: string
 }
 
 // From codersdk/users.go
@@ -476,16 +536,27 @@ export interface OIDCAuthMethod extends AuthMethod {
 
 // From codersdk/deployment.go
 export interface OIDCConfig {
-  readonly allow_signups: DeploymentConfigField<boolean>
-  readonly client_id: DeploymentConfigField<string>
-  readonly client_secret: DeploymentConfigField<string>
-  readonly email_domain: DeploymentConfigField<string[]>
-  readonly issuer_url: DeploymentConfigField<string>
-  readonly scopes: DeploymentConfigField<string[]>
-  readonly ignore_email_verified: DeploymentConfigField<boolean>
-  readonly username_field: DeploymentConfigField<string>
-  readonly sign_in_text: DeploymentConfigField<string>
-  readonly icon_url: DeploymentConfigField<string>
+  readonly allow_signups: boolean
+  readonly client_id: string
+  readonly client_secret: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly email_domain: string[]
+  readonly issuer_url: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly scopes: string[]
+  readonly ignore_email_verified: boolean
+  readonly username_field: string
+  readonly email_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly auth_url_params: any
+  readonly ignore_user_info: boolean
+  readonly groups_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly group_mapping: any
+  readonly sign_in_text: string
+  readonly icon_url: string
 }
 
 // From codersdk/organizations.go
@@ -554,24 +625,34 @@ export interface PatchGroupRequest {
   readonly quota_allowance?: number
 }
 
+// From codersdk/templateversions.go
+export interface PatchTemplateVersionRequest {
+  readonly name: string
+}
+
 // From codersdk/deployment.go
 export interface PprofConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly address: DeploymentConfigField<string>
+  readonly enable: boolean
+  // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly address: any
 }
 
 // From codersdk/deployment.go
 export interface PrometheusConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly address: DeploymentConfigField<string>
+  readonly enable: boolean
+  // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly address: any
+  readonly collect_agent_stats: boolean
 }
 
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
-  readonly daemons: DeploymentConfigField<number>
-  readonly daemon_poll_interval: DeploymentConfigField<number>
-  readonly daemon_poll_jitter: DeploymentConfigField<number>
-  readonly force_cancel_interval: DeploymentConfigField<number>
+  readonly daemons: number
+  readonly daemon_poll_interval: number
+  readonly daemon_poll_jitter: number
+  readonly force_cancel_interval: number
 }
 
 // From codersdk/provisionerdaemons.go
@@ -592,6 +673,7 @@ export interface ProvisionerJob {
   readonly completed_at?: string
   readonly canceled_at?: string
   readonly error?: string
+  readonly error_code?: JobErrorCode
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
   readonly file_id: string
@@ -615,8 +697,8 @@ export interface PutExtendWorkspaceRequest {
 
 // From codersdk/deployment.go
 export interface RateLimitConfig {
-  readonly disable_all: DeploymentConfigField<boolean>
-  readonly api: DeploymentConfigField<number>
+  readonly disable_all: boolean
+  readonly api: number
 }
 
 // From codersdk/replicas.go
@@ -643,10 +725,24 @@ export interface Role {
   readonly display_name: string
 }
 
+// From codersdk/deployment.go
+export interface SSHConfig {
+  readonly DeploymentName: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly SSHConfigOptions: string[]
+}
+
+// From codersdk/deployment.go
+export interface SSHConfigResponse {
+  readonly hostname_prefix: string
+  readonly ssh_config_options: Record<string, string>
+}
+
 // From codersdk/serversentevents.go
 export interface ServerSentEvent {
   readonly type: ServerSentEventType
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly data: any
 }
 
@@ -658,29 +754,48 @@ export interface ServiceBannerConfig {
 }
 
 // From codersdk/deployment.go
+export interface SessionCountDeploymentStats {
+  readonly vscode: number
+  readonly ssh: number
+  readonly jetbrains: number
+  readonly reconnecting_pty: number
+}
+
+// From codersdk/deployment.go
+export interface SupportConfig {
+  // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly links: any
+}
+
+// From codersdk/deployment.go
 export interface SwaggerConfig {
-  readonly enable: DeploymentConfigField<boolean>
+  readonly enable: boolean
 }
 
 // From codersdk/deployment.go
 export interface TLSConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly address: DeploymentConfigField<string>
-  readonly redirect_http: DeploymentConfigField<boolean>
-  readonly cert_file: DeploymentConfigField<string[]>
-  readonly client_auth: DeploymentConfigField<string>
-  readonly client_ca_file: DeploymentConfigField<string>
-  readonly key_file: DeploymentConfigField<string[]>
-  readonly min_version: DeploymentConfigField<string>
-  readonly client_cert_file: DeploymentConfigField<string>
-  readonly client_key_file: DeploymentConfigField<string>
+  readonly enable: boolean
+  // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly address: any
+  readonly redirect_http: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly cert_file: string[]
+  readonly client_auth: string
+  readonly client_ca_file: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly key_file: string[]
+  readonly min_version: string
+  readonly client_cert_file: string
+  readonly client_key_file: string
 }
 
 // From codersdk/deployment.go
 export interface TelemetryConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly trace: DeploymentConfigField<boolean>
-  readonly url: DeploymentConfigField<string>
+  readonly enable: boolean
+  readonly trace: boolean
+  readonly url: string
 }
 
 // From codersdk/templates.go
@@ -698,8 +813,11 @@ export interface Template {
   readonly description: string
   readonly icon: string
   readonly default_ttl_ms: number
+  readonly max_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+  readonly allow_user_autostart: boolean
+  readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
 }
 
@@ -755,8 +873,17 @@ export interface TemplateVersion {
 }
 
 // From codersdk/templateversions.go
+export interface TemplateVersionGitAuth {
+  readonly id: string
+  readonly type: GitProvider
+  readonly authenticate_url: string
+  readonly authenticated: boolean
+}
+
+// From codersdk/templateversions.go
 export interface TemplateVersionParameter {
   readonly name: string
+  readonly display_name?: string
   readonly description: string
   readonly description_plaintext: string
   readonly type: string
@@ -769,6 +896,8 @@ export interface TemplateVersionParameter {
   readonly validation_min?: number
   readonly validation_max?: number
   readonly validation_monotonic?: ValidationMonotonicOrder
+  readonly required: boolean
+  readonly legacy_variable_name?: string
 }
 
 // From codersdk/templateversions.go
@@ -796,15 +925,21 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 }
 
 // From codersdk/apikey.go
+export interface TokenConfig {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly max_token_lifetime: number
+}
+
+// From codersdk/apikey.go
 export interface TokensFilter {
   readonly include_all: boolean
 }
 
 // From codersdk/deployment.go
 export interface TraceConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly honeycomb_api_key: DeploymentConfigField<string>
-  readonly capture_logs: DeploymentConfigField<boolean>
+  readonly enable: boolean
+  readonly honeycomb_api_key: string
+  readonly capture_logs: boolean
 }
 
 // From codersdk/templates.go
@@ -816,6 +951,12 @@ export interface TransitionStats {
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string
+}
+
+// From codersdk/deployment.go
+export interface UpdateAppearanceConfig {
+  readonly logo_url: string
+  readonly service_banner: ServiceBannerConfig
 }
 
 // From codersdk/updatecheck.go
@@ -843,6 +984,9 @@ export interface UpdateTemplateMeta {
   readonly description?: string
   readonly icon?: string
   readonly default_ttl_ms?: number
+  readonly max_ttl_ms?: number
+  readonly allow_user_autostart?: boolean
+  readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
@@ -920,6 +1064,7 @@ export interface Workspace {
   readonly updated_at: string
   readonly owner_id: string
   readonly owner_name: string
+  readonly organization_id: string
   readonly template_id: string
   readonly template_name: string
   readonly template_display_name: string
@@ -950,6 +1095,8 @@ export interface WorkspaceAgent {
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
   readonly startup_script?: string
+  readonly startup_logs_length: number
+  readonly startup_logs_overflowed: boolean
   readonly directory?: string
   readonly expanded_directory?: string
   readonly version: string
@@ -959,6 +1106,8 @@ export interface WorkspaceAgent {
   readonly troubleshooting_url: string
   readonly login_before_ready: boolean
   readonly startup_script_timeout_seconds: number
+  readonly shutdown_script?: string
+  readonly shutdown_script_timeout_seconds: number
 }
 
 // From codersdk/workspaceagentconn.go
@@ -971,6 +1120,37 @@ export interface WorkspaceAgentListeningPort {
 // From codersdk/workspaceagentconn.go
 export interface WorkspaceAgentListeningPortsResponse {
   readonly ports: WorkspaceAgentListeningPort[]
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadata {
+  readonly result: WorkspaceAgentMetadataResult
+  readonly description: WorkspaceAgentMetadataDescription
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadataDescription {
+  readonly display_name: string
+  readonly key: string
+  readonly script: string
+  readonly interval: number
+  readonly timeout: number
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadataResult {
+  readonly collected_at: string
+  readonly age: number
+  readonly value: string
+  readonly error: string
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentStartupLog {
+  readonly id: number
+  readonly created_at: string
+  readonly output: string
+  readonly level: LogLevel
 }
 
 // From codersdk/workspaceapps.go
@@ -1007,6 +1187,7 @@ export interface WorkspaceBuild {
   readonly reason: BuildReason
   readonly resources: WorkspaceResource[]
   readonly deadline?: string
+  readonly max_deadline?: string
   readonly status: WorkspaceStatus
   readonly daily_cost: number
 }
@@ -1023,6 +1204,24 @@ export interface WorkspaceBuildsRequest extends Pagination {
   readonly Since: string
 }
 
+// From codersdk/deployment.go
+export interface WorkspaceConnectionLatencyMS {
+  readonly P50: number
+  readonly P95: number
+}
+
+// From codersdk/deployment.go
+export interface WorkspaceDeploymentStats {
+  readonly pending: number
+  readonly building: number
+  readonly running: number
+  readonly failed: number
+  readonly stopped: number
+  readonly connection_latency_ms: WorkspaceConnectionLatencyMS
+  readonly rx_bytes: number
+  readonly tx_bytes: number
+}
+
 // From codersdk/workspaces.go
 export interface WorkspaceFilter {
   readonly q?: string
@@ -1031,6 +1230,24 @@ export interface WorkspaceFilter {
 // From codersdk/workspaces.go
 export interface WorkspaceOptions {
   readonly include_deleted?: boolean
+}
+
+// From codersdk/workspaceproxy.go
+export interface WorkspaceProxy {
+  readonly id: string
+  readonly name: string
+  readonly icon: string
+  readonly url: string
+  readonly wildcard_hostname: string
+  readonly created_at: string
+  readonly updated_at: string
+  readonly deleted: boolean
+}
+
+// From codersdk/deployment.go
+export interface WorkspaceProxyBuildInfo {
+  readonly workspace_proxy: boolean
+  readonly dashboard_url: string
 }
 
 // From codersdk/workspaces.go
@@ -1082,6 +1299,7 @@ export type AuditAction =
   | "delete"
   | "login"
   | "logout"
+  | "register"
   | "start"
   | "stop"
   | "write"
@@ -1090,6 +1308,7 @@ export const AuditActions: AuditAction[] = [
   "delete",
   "login",
   "logout",
+  "register",
   "start",
   "stop",
   "write",
@@ -1112,11 +1331,12 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "authz_querier" | "template_editor"
-export const Experiments: Experiment[] = ["authz_querier", "template_editor"]
+export type Experiment = "moons"
+export const Experiments: Experiment[] = ["moons"]
 
 // From codersdk/deployment.go
 export type FeatureName =
+  | "advanced_template_scheduling"
   | "appearance"
   | "audit_log"
   | "browser_only"
@@ -1126,7 +1346,9 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
+  | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
+  "advanced_template_scheduling",
   "appearance",
   "audit_log",
   "browser_only",
@@ -1136,6 +1358,25 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
+  "workspace_proxy",
+]
+
+// From codersdk/workspaceagents.go
+export type GitProvider = "azure-devops" | "bitbucket" | "github" | "gitlab"
+export const GitProviders: GitProvider[] = [
+  "azure-devops",
+  "bitbucket",
+  "github",
+  "gitlab",
+]
+
+// From codersdk/provisionerdaemons.go
+export type JobErrorCode =
+  | "MISSING_TEMPLATE_PARAMETER"
+  | "REQUIRED_TEMPLATE_VARIABLES"
+export const JobErrorCodes: JobErrorCode[] = [
+  "MISSING_TEMPLATE_PARAMETER",
+  "REQUIRED_TEMPLATE_VARIABLES",
 ]
 
 // From codersdk/provisionerdaemons.go
@@ -1194,6 +1435,10 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "succeeded",
 ]
 
+// From codersdk/workspaces.go
+export type ProvisionerLogLevel = "debug"
+export const ProvisionerLogLevels: ProvisionerLogLevel[] = ["debug"]
+
 // From codersdk/organizations.go
 export type ProvisionerStorageMethod = "file"
 export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"]
@@ -1201,6 +1446,55 @@ export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"]
 // From codersdk/organizations.go
 export type ProvisionerType = "echo" | "terraform"
 export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
+
+// From codersdk/rbacresources.go
+export type RBACResource =
+  | "api_key"
+  | "application_connect"
+  | "assign_org_role"
+  | "assign_role"
+  | "audit_log"
+  | "debug_info"
+  | "deployment_config"
+  | "deployment_stats"
+  | "file"
+  | "group"
+  | "license"
+  | "organization"
+  | "organization_member"
+  | "provisioner_daemon"
+  | "replicas"
+  | "system"
+  | "template"
+  | "user"
+  | "user_data"
+  | "workspace"
+  | "workspace_execution"
+  | "workspace_proxy"
+export const RBACResources: RBACResource[] = [
+  "api_key",
+  "application_connect",
+  "assign_org_role",
+  "assign_role",
+  "audit_log",
+  "debug_info",
+  "deployment_config",
+  "deployment_stats",
+  "file",
+  "group",
+  "license",
+  "organization",
+  "organization_member",
+  "provisioner_daemon",
+  "replicas",
+  "system",
+  "template",
+  "user",
+  "user_data",
+  "workspace",
+  "workspace_execution",
+  "workspace_proxy",
+]
 
 // From codersdk/audit.go
 export type ResourceType =
@@ -1251,13 +1545,21 @@ export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentLifecycle =
   | "created"
+  | "off"
   | "ready"
+  | "shutdown_error"
+  | "shutdown_timeout"
+  | "shutting_down"
   | "start_error"
   | "start_timeout"
   | "starting"
 export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "created",
+  "off",
   "ready",
+  "shutdown_error",
+  "shutdown_timeout",
+  "shutting_down",
   "start_error",
   "start_timeout",
   "starting",
@@ -1329,6 +1631,3 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
   "start",
   "stop",
 ]
-
-// From codersdk/deployment.go
-export type Flaggable = string | number | boolean | string[] | GitAuthConfig[]

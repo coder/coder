@@ -1,0 +1,16 @@
+# Filtering pull requests is much easier when we can reliably guarantee
+# that the "Assignee" field is populated.
+name: PR Auto Assign
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  assign-author:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: toshimaru/auto-author-assign@v1.6.2

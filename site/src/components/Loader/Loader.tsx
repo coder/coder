@@ -12,6 +12,7 @@ export const Loader: FC<React.PropsWithChildren<{ size?: number }>> = ({
       display="flex"
       alignItems="center"
       justifyContent="center"
+      data-testid="loader"
     >
       <CircularProgress size={size} />
     </Box>

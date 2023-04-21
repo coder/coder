@@ -36,6 +36,11 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentL
 			continue
 		}
 
+		// Ignore ports that we've been told to ignore.
+		if _, ok := lp.ignorePorts[int(tab.LocalAddr.Port)]; ok {
+			continue
+		}
+
 		// Don't include ports that we've already seen. This can happen on
 		// Windows, and maybe on Linux if you're using a shared listener socket.
 		if _, ok := seen[tab.LocalAddr.Port]; ok {

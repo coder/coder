@@ -5,27 +5,28 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
-func logout() *cobra.Command {
-	cmd := &cobra.Command{
+func (r *RootCmd) logout() *clibase.Cmd {
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use:   "logout",
 		Short: "Unauthenticate your local session",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-
+		Middleware: clibase.Chain(
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
 			var errors []error
 
-			config := createConfig(cmd)
+			config := r.createConfig()
 
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			var err error
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Are you sure you want to log out?",
 				IsConfirm: true,
 				Default:   cliui.ConfirmYes,
@@ -34,7 +35,7 @@ func logout() *cobra.Command {
 				return err
 			}
 
-			err = client.Logout(cmd.Context())
+			err = client.Logout(inv.Context())
 			if err != nil {
 				errors = append(errors, xerrors.Errorf("logout api: %w", err))
 			}
@@ -67,11 +68,10 @@ func logout() *cobra.Command {
 				errorString := strings.TrimRight(errorStringBuilder.String(), "\n")
 				return xerrors.New("Failed to log out.\n" + errorString)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"You are no longer logged in. You can log in using 'coder login <url>'.\n")
+			_, _ = fmt.Fprintf(inv.Stdout, Caret+"You are no longer logged in. You can log in using 'coder login <url>'.\n")
 			return nil
 		},
 	}
-
-	cliui.AllowSkipPrompt(cmd)
+	cmd.Options = append(cmd.Options, cliui.SkipPromptOption())
 	return cmd
 }

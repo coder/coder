@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,9 +11,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -20,7 +21,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 )
 
-func templateCreate() *cobra.Command {
+func (r *RootCmd) templateCreate() *clibase.Cmd {
 	var (
 		provisioner     string
 		provisionerTags []string
@@ -31,22 +32,21 @@ func templateCreate() *cobra.Command {
 
 		uploadFlags templateUploadFlags
 	)
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use:   "create [name]",
 		Short: "Create a template from the current directory or as specified by flag",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+		Middleware: clibase.Chain(
+			clibase.RequireRangeArgs(0, 1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}
 
-			organization, err := CurrentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
-
-			templateName, err := uploadFlags.templateName(args)
+			templateName, err := uploadFlags.templateName(inv.Args)
 			if err != nil {
 				return err
 			}
@@ -55,13 +55,13 @@ func templateCreate() *cobra.Command {
 				return xerrors.Errorf("Template name must be less than 32 characters")
 			}
 
-			_, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
+			_, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
 			if err == nil {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
 			}
 
 			// Confirm upload of the directory.
-			resp, err := uploadFlags.upload(cmd, client)
+			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
 			}
@@ -71,7 +71,7 @@ func templateCreate() *cobra.Command {
 				return err
 			}
 
-			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+			job, _, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
@@ -86,7 +86,7 @@ func templateCreate() *cobra.Command {
 			}
 
 			if !uploadFlags.stdin() {
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      "Confirm create?",
 					IsConfirm: true,
 				})
@@ -101,34 +101,58 @@ func templateCreate() *cobra.Command {
 				DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()),
 			}
 
-			_, err = client.CreateTemplate(cmd.Context(), organization.ID, createReq)
+			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n"+cliui.Styles.Wrap.Render(
+			_, _ = fmt.Fprintln(inv.Stdout, "\n"+cliui.Styles.Wrap.Render(
 				"The "+cliui.Styles.Keyword.Render(templateName)+" template has been created at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render(fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
-			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+cliui.Styles.Code.Render(fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
-	cmd.Flags().StringVarP(&variablesFile, "variables-file", "", "", "Specify a file path with values for Terraform-managed variables.")
-	cmd.Flags().StringArrayVarP(&variables, "variable", "", []string{}, "Specify a set of values for Terraform-managed variables.")
-	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
-	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 24*time.Hour, "Specify a default TTL for workspaces created from this template.")
-	uploadFlags.register(cmd.Flags())
-	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
-	// This is for testing!
-	err := cmd.Flags().MarkHidden("test.provisioner")
-	if err != nil {
-		panic(err)
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "parameter-file",
+			Description: "Specify a file path with parameter values.",
+			Value:       clibase.StringOf(&parameterFile),
+		},
+		{
+			Flag:        "variables-file",
+			Description: "Specify a file path with values for Terraform-managed variables.",
+			Value:       clibase.StringOf(&variablesFile),
+		},
+		{
+			Flag:        "variable",
+			Description: "Specify a set of values for Terraform-managed variables.",
+			Value:       clibase.StringArrayOf(&variables),
+		},
+		{
+			Flag:        "provisioner-tag",
+			Description: "Specify a set of tags to target provisioner daemons.",
+			Value:       clibase.StringArrayOf(&provisionerTags),
+		},
+		{
+			Flag:        "default-ttl",
+			Description: "Specify a default TTL for workspaces created from this template.",
+			Default:     "24h",
+			Value:       clibase.DurationOf(&defaultTTL),
+		},
+		uploadFlags.option(),
+		{
+			Flag:        "test.provisioner",
+			Description: "Customize the provisioner backend.",
+			Default:     "terraform",
+			Value:       clibase.StringOf(&provisioner),
+			Hidden:      true,
+		},
+		cliui.SkipPromptOption(),
 	}
-	cliui.AllowSkipPrompt(cmd)
 	return cmd
 }
 
@@ -152,7 +176,7 @@ type createValidTemplateVersionArgs struct {
 	ProvisionerTags map[string]string
 }
 
-func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	client := args.Client
 
 	variableValues, err := loadVariableValuesFromFile(args.VariablesFile)
@@ -178,37 +202,38 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	if args.Template != nil {
 		req.TemplateID = args.Template.ID
 	}
-	version, err := client.CreateTemplateVersion(cmd.Context(), args.Organization.ID, req)
+	version, err := client.CreateTemplateVersion(inv.Context(), args.Organization.ID, req)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
-			version, err := client.TemplateVersion(cmd.Context(), version.ID)
+			version, err := client.TemplateVersion(inv.Context(), version.ID)
 			return version.Job, err
 		},
 		Cancel: func() error {
-			return client.CancelTemplateVersion(cmd.Context(), version.ID)
+			return client.CancelTemplateVersion(inv.Context(), version.ID)
 		},
 		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-			return client.TemplateVersionLogsAfter(cmd.Context(), version.ID, 0)
+			return client.TemplateVersionLogsAfter(inv.Context(), version.ID, 0)
 		},
 	})
 	if err != nil {
-		if !provisionerd.IsMissingParameterError(err.Error()) {
+		var jobErr *cliui.ProvisionerJobError
+		if errors.As(err, &jobErr) && !provisionerd.IsMissingParameterErrorCode(string(jobErr.Code)) {
 			return nil, nil, err
 		}
 	}
-	version, err = client.TemplateVersion(cmd.Context(), version.ID)
+	version, err = client.TemplateVersion(inv.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
-	parameterSchemas, err := client.TemplateVersionSchema(cmd.Context(), version.ID)
+	parameterSchemas, err := client.TemplateVersionSchema(inv.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
-	parameterValues, err := client.TemplateVersionParameters(cmd.Context(), version.ID)
+	parameterValues, err := client.TemplateVersionParameters(inv.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -218,13 +243,13 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	// version instead of prompting if we are updating template versions.
 	lastParameterValues := make(map[string]codersdk.Parameter)
 	if args.ReuseParameters && args.Template != nil {
-		activeVersion, err := client.TemplateVersion(cmd.Context(), args.Template.ActiveVersionID)
+		activeVersion, err := client.TemplateVersion(inv.Context(), args.Template.ActiveVersionID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)
 		}
 
 		// We don't want to compute the params, we only want to copy from this scope
-		values, err := client.Parameters(cmd.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
+		values, err := client.Parameters(inv.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch previous version parameters: %w", err)
 		}
@@ -233,7 +258,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		}
 	}
 
-	if provisionerd.IsMissingParameterError(version.Job.Error) {
+	if provisionerd.IsMissingParameterErrorCode(string(version.Job.ErrorCode)) {
 		valuesBySchemaID := map[string]codersdk.ComputedParameter{}
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
@@ -242,7 +267,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		// parameterMapFromFile can be nil if parameter file is not specified
 		var parameterMapFromFile map[string]string
 		if args.ParameterFile != "" {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
 			parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
 			if err != nil {
 				return nil, nil, err
@@ -273,15 +298,15 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 
 			missingSchemas = append(missingSchemas, parameterSchema)
 		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set."))
+		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set."))
 		if len(pulled) > 0 {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(fmt.Sprintf("The following parameter values are being pulled from the latest template version: %s.", strings.Join(pulled, ", "))))
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Use \"--always-prompt\" flag to change the values."))
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render(fmt.Sprintf("The following parameter values are being pulled from the latest template version: %s.", strings.Join(pulled, ", "))))
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Use \"--always-prompt\" flag to change the values."))
 		}
-		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\r\n")
+		_, _ = fmt.Fprint(inv.Stdout, "\r\n")
 
 		for _, parameterSchema := range missingSchemas {
-			parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
+			parameterValue, err := getParameterValueFromMapOrInput(inv, parameterMapFromFile, parameterSchema)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -291,19 +316,19 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 				SourceScheme:      codersdk.ParameterSourceSchemeData,
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
-			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+			_, _ = fmt.Fprintln(inv.Stdout)
 		}
 
 		// This recursion is only 1 level deep in practice.
 		// The first pass populates the missing parameters, so it does not enter this `if` block again.
-		return createValidTemplateVersion(cmd, args, parameters...)
+		return createValidTemplateVersion(inv, args, parameters...)
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
 		return nil, nil, xerrors.New(version.Job.Error)
 	}
 
-	resources, err := client.TemplateVersionResources(cmd.Context(), version.ID)
+	resources, err := client.TemplateVersionResources(inv.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -315,7 +340,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 			startResources = append(startResources, r)
 		}
 	}
-	err = cliui.WorkspaceResources(cmd.OutOrStdout(), startResources, cliui.WorkspaceResourcesOptions{
+	err = cliui.WorkspaceResources(inv.Stdout, startResources, cliui.WorkspaceResourcesOptions{
 		HideAgentState: true,
 		HideAccess:     true,
 		Title:          "Template Preview",

@@ -12,10 +12,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -570,10 +572,9 @@ func TestWorkspaceBuildState(t *testing.T) {
 
 func TestWorkspaceBuildStatus(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+
 	auditor := audit.NewMock()
-	numLogs := len(auditor.AuditLogs)
+	numLogs := len(auditor.AuditLogs())
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
 	numLogs++ // add an audit log for login
@@ -595,6 +596,10 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	closeDaemon = coderdtest.NewProvisionerDaemon(t, api)
 	// after successful build is "running"
 	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	workspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
@@ -610,8 +615,8 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 
 	// assert an audit log has been created for workspace stopping
 	numLogs++ // add an audit log for workspace_build stop
-	require.Len(t, auditor.AuditLogs, numLogs)
-	require.Equal(t, database.AuditActionStop, auditor.AuditLogs[numLogs-1].Action)
+	require.Len(t, auditor.AuditLogs(), numLogs)
+	require.Equal(t, database.AuditActionStop, auditor.AuditLogs()[numLogs-1].Action)
 
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"
@@ -779,6 +784,190 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+
+	t.Run("NewImmutableRequiredParameterAdded", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = initialBuildParameters
+		})
+
+		workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+		// Push new template revision
+		const newImmutableParameterName = "new_immutable_parameter"
+		const newImmutableParameterDescription = "This is also an immutable parameter"
+		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Provision_Response{
+				{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Parameters: []*proto.RichParameter{
+								{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+								{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+								{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+								{Name: newImmutableParameterName, Description: newImmutableParameterDescription, Mutable: false, Required: true},
+							},
+						},
+					},
+				},
+			},
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		}, template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
+		err := client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err)
+
+		// Update build parameters
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		nextBuildParameters := []codersdk.WorkspaceBuildParameter{
+			{Name: newImmutableParameterName, Value: "good"},
+		}
+		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID:   version2.ID,
+			Transition:          codersdk.WorkspaceTransitionStart,
+			RichParameterValues: nextBuildParameters,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("NewImmutableOptionalParameterAdded", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = initialBuildParameters
+		})
+
+		workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+		// Push new template revision
+		const newImmutableParameterName = "new_immutable_parameter"
+		const newImmutableParameterDescription = "This is also an immutable parameter"
+		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Provision_Response{
+				{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Parameters: []*proto.RichParameter{
+								{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+								{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+								{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+								{Name: newImmutableParameterName, Description: newImmutableParameterDescription, Mutable: false, DefaultValue: "12345"},
+							},
+						},
+					},
+				},
+			},
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		}, template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
+		err := client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err)
+
+		// Update build parameters
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		nextBuildParameters := []codersdk.WorkspaceBuildParameter{
+			{Name: newImmutableParameterName, Value: "good"},
+		}
+		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID:   version2.ID,
+			Transition:          codersdk.WorkspaceTransitionStart,
+			RichParameterValues: nextBuildParameters,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("NewImmutableOptionalParameterUsesDefault", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = initialBuildParameters
+		})
+
+		workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+		// Push new template revision
+		const newImmutableParameterName = "new_immutable_parameter"
+		const newImmutableParameterDescription = "This is also an immutable parameter"
+		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Provision_Response{
+				{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Parameters: []*proto.RichParameter{
+								{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+								{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+								{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+								{Name: newImmutableParameterName, Description: newImmutableParameterDescription, Mutable: false, DefaultValue: "12345"},
+							},
+						},
+					},
+				},
+			},
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		}, template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
+		err := client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err)
+
+		// Update build parameters
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		var nextBuildParameters []codersdk.WorkspaceBuildParameter
+		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID:   version2.ID,
+			Transition:          codersdk.WorkspaceTransitionStart,
+			RichParameterValues: nextBuildParameters,
+		})
+		require.NoError(t, err)
+	})
 }
 
 func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
@@ -793,12 +982,16 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 
 		boolParameterName  = "bool_parameter"
 		boolParameterValue = "true"
+
+		listOfStringsParameterName  = "list_of_strings_parameter"
+		listOfStringsParameterValue = `["a","b","c"]`
 	)
 
 	initialBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: stringParameterName, Value: stringParameterValue},
 		{Name: numberParameterName, Value: numberParameterValue},
 		{Name: boolParameterName, Value: boolParameterValue},
+		{Name: listOfStringsParameterName, Value: listOfStringsParameterValue},
 	}
 
 	prepareEchoResponses := func(richParameters []*proto.RichParameter) *echo.Responses {
@@ -902,6 +1095,10 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
+		listOfStringsRichParameters := []*proto.RichParameter{
+			{Name: listOfStringsParameterName, Type: "list(string)", Mutable: true},
+		}
+
 		tests := []struct {
 			parameterName  string
 			value          string
@@ -930,6 +1127,11 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{boolParameterName, "true", true, boolRichParameters},
 			{boolParameterName, "false", true, boolRichParameters},
 			{boolParameterName, "cat", false, boolRichParameters},
+
+			{listOfStringsParameterName, `[]`, true, listOfStringsRichParameters},
+			{listOfStringsParameterName, `["aa"]`, true, listOfStringsRichParameters},
+			{listOfStringsParameterName, `["aa]`, false, listOfStringsRichParameters},
+			{listOfStringsParameterName, ``, false, listOfStringsRichParameters},
 		}
 
 		for _, tc := range tests {
@@ -969,5 +1171,302 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 				}
 			})
 		}
+	})
+}
+
+func TestMigrateLegacyToRichParameters(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// 1. Prepare a template with legacy parameters.
+	templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: []*proto.Parse_Response{{
+			Type: &proto.Parse_Response_Complete{
+				Complete: &proto.Parse_Complete{
+					ParameterSchemas: []*proto.ParameterSchema{
+						{
+							AllowOverrideSource: true,
+							Name:                "example",
+							Description:         "description 1",
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "tomato",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						},
+					},
+				},
+			},
+		}},
+		ProvisionApply: echo.ProvisionComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+
+	// Create a workspace
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.ParameterValues = []codersdk.CreateParameterRequest{
+			{
+				Name:              "example",
+				SourceValue:       "carrot",
+				SourceScheme:      codersdk.ParameterSourceSchemeData,
+				DestinationScheme: codersdk.ParameterDestinationSchemeEnvironmentVariable,
+			},
+		}
+	})
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// 2. Upload the template with legacy and rich parameters.
+	templateWithParameters := &echo.Responses{
+		Parse: []*proto.Parse_Response{{
+			Type: &proto.Parse_Response_Complete{
+				Complete: &proto.Parse_Complete{
+					ParameterSchemas: []*proto.ParameterSchema{
+						{
+							AllowOverrideSource: true,
+							Name:                "example",
+							Description:         "description 1",
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "tomato",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						},
+					},
+				},
+			},
+		}},
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:               "new_example",
+								Type:               "string",
+								Mutable:            true,
+								Required:           true,
+								LegacyVariableName: "example",
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: echo.ProvisionComplete,
+	}
+	templateVersion = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, templateWithParameters, template.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+
+	// Check if rich parameters are expected
+	richParameters, err := client.TemplateVersionRichParameters(ctx, templateVersion.ID)
+	require.NoError(t, err)
+	require.Len(t, richParameters, 1)
+	require.Equal(t, "new_example", richParameters[0].Name)
+
+	// Update workspace to use rich parameters and template variables
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		TemplateVersionID: templateVersion.ID,
+		Transition:        codersdk.WorkspaceTransitionStart,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+		return codersdk.WorkspaceStatusRunning == workspaceBuild.Status
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// Check if variable value has been imported
+	buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+	require.Len(t, buildParameters, 1)
+	require.Equal(t, "carrot", buildParameters[0].Value)
+
+	// 3. Upload the template with rich parameters only
+	templateWithParameters = &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:               "new_example",
+								Type:               "string",
+								Mutable:            true,
+								Required:           true,
+								LegacyVariableName: "example",
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: echo.ProvisionComplete,
+	}
+	templateVersion = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, templateWithParameters, template.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+
+	// Check if rich parameters are expected
+	richParameters, err = client.TemplateVersionRichParameters(ctx, templateVersion.ID)
+	require.NoError(t, err)
+	require.Len(t, richParameters, 1)
+	require.Equal(t, "new_example", richParameters[0].Name)
+
+	// Update workspace to use rich parameters and template variables
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		TemplateVersionID: templateVersion.ID,
+		Transition:        codersdk.WorkspaceTransitionStart,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+		return codersdk.WorkspaceStatusRunning == workspaceBuild.Status
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// Check if build parameters have been pulled from last build
+	buildParameters, err = client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+	require.Len(t, buildParameters, 1)
+	require.Equal(t, "carrot", buildParameters[0].Value)
+}
+
+func TestWorkspaceBuildDebugMode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AsRegularUser", func(t *testing.T) {
+		t.Parallel()
+
+		// Create users
+		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		templateAuthor := coderdtest.CreateFirstUser(t, templateAuthorClient)
+		regularUserClient, _ := coderdtest.CreateAnotherUser(t, templateAuthorClient, templateAuthor.OrganizationID)
+
+		// Template owner: create a template
+		version := coderdtest.CreateTemplateVersion(t, templateAuthorClient, templateAuthor.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, templateAuthorClient, templateAuthor.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, templateAuthorClient, version.ID)
+
+		// Regular user: create a workspace
+		workspace := coderdtest.CreateWorkspace(t, regularUserClient, templateAuthor.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, regularUserClient, workspace.LatestBuild.ID)
+
+		// Regular user: try to start a workspace build in debug mode
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := regularUserClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+			LogLevel:          "debug",
+		})
+
+		// Regular user: expect an error
+		require.NotNil(t, err)
+		var sdkError *codersdk.Error
+		isSdkError := xerrors.As(err, &sdkError)
+		require.True(t, isSdkError)
+		require.Contains(t, sdkError.Message, "Workspace builds with a custom log level are restricted to template authors only.")
+	})
+	t.Run("AsTemplateAuthor", func(t *testing.T) {
+		t.Parallel()
+
+		// Create users
+		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		admin := coderdtest.CreateFirstUser(t, adminClient)
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID, rbac.RoleTemplateAdmin())
+
+		// Interact as template admin
+		echoResponses := &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_DEBUG,
+						Output: "want-it",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_TRACE,
+						Output: "dont-want-it",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_DEBUG,
+						Output: "done",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		}
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, admin.OrganizationID, echoResponses)
+		template := coderdtest.CreateTemplate(t, templateAdminClient, admin.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, templateAdminClient, version.ID)
+
+		// Create workspace
+		workspace := coderdtest.CreateWorkspace(t, templateAdminClient, admin.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, templateAdminClient, workspace.LatestBuild.ID)
+
+		// Create workspace build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		build, err := templateAdminClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+			ProvisionerState:  []byte(" "),
+			LogLevel:          "debug",
+		})
+		require.Nil(t, err)
+
+		build = coderdtest.AwaitWorkspaceBuildJob(t, templateAdminClient, build.ID)
+
+		// Watch for incoming logs
+		logs, closer, err := templateAdminClient.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
+		require.NoError(t, err)
+		defer closer.Close()
+
+		var logsProcessed int
+
+	processingLogs:
+		for {
+			select {
+			case <-ctx.Done():
+				require.Fail(t, "timeout occurred while processing logs")
+				return
+			case log, ok := <-logs:
+				if !ok {
+					break processingLogs
+				}
+
+				logsProcessed++
+
+				require.NotEqual(t, "dont-want-it", log.Output, "unexpected log message", "%s log message shouldn't be logged: %s")
+
+				if log.Output == "done" {
+					break processingLogs
+				}
+			}
+		}
+
+		require.Len(t, echoResponses.ProvisionApply, logsProcessed)
 	})
 }

@@ -35,16 +35,10 @@ FROM
 
 -- name: DeleteGroupMembersByOrgAndUser :exec
 DELETE FROM
-    group_members
-USING
-    group_members AS gm
-LEFT JOIN
-    groups
-ON
-    groups.id = gm.group_id
+	group_members
 WHERE
-    groups.organization_id = @organization_id AND
-    gm.user_id = @user_id;
+	group_members.user_id = @user_id
+	AND group_id = ANY(SELECT id FROM groups WHERE organization_id = @organization_id);
 
 -- name: InsertGroupMember :exec
 INSERT INTO

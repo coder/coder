@@ -2,18 +2,18 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { i18n } from "i18n"
 import { rest } from "msw"
+import {
+  MockUser,
+  MockUser2,
+  SuspendedMockUser,
+  MockAuditorRole,
+  MockOwnerRole,
+} from "testHelpers/entities"
 import { Language as usersXServiceLanguage } from "xServices/users/usersXService"
 import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
 import { Language as ResetPasswordDialogLanguage } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
-import {
-  MockAuditorRole,
-  MockOwnerRole,
-  MockUser,
-  MockUser2,
-  renderWithAuth,
-  SuspendedMockUser,
-} from "../../testHelpers/renderHelpers"
+import { renderWithAuth } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
 
@@ -401,8 +401,8 @@ describe("UsersPage", () => {
         // Check if the select text was updated with the Auditor role
         await waitFor(() => {
           expect(userRow).toHaveTextContent(MockOwnerRole.display_name)
-          expect(userRow).toHaveTextContent(MockAuditorRole.display_name)
         })
+        expect(userRow).toHaveTextContent(MockAuditorRole.display_name)
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)

@@ -18,6 +18,7 @@ interface AuditContext {
   filter: string
   paginationContext: PaginationContext
   paginationRef?: PaginationMachineRef
+  apiError?: Error | unknown
 }
 
 export const auditMachine = createMachine(
@@ -52,7 +53,7 @@ export const auditMachine = createMachine(
         // Right now, XState doesn't a good job with state + context typing so
         // this forces the AuditPageView to showing the loading state when the
         // loading state is called again by cleaning up the audit logs data
-        entry: "clearPreviousAuditLogs",
+        entry: ["clearPreviousAuditLogs", "clearError"],
         invoke: {
           src: "loadAuditLogsAndCount",
           onDone: {
@@ -61,7 +62,7 @@ export const auditMachine = createMachine(
           },
           onError: {
             target: "idle",
-            actions: ["displayApiError"],
+            actions: ["displayApiError", "assignError"],
           },
         },
         onDone: "idle",
@@ -97,6 +98,12 @@ export const auditMachine = createMachine(
       }),
       assignFilter: assign({
         filter: (_, { filter }) => filter,
+      }),
+      assignError: assign({
+        apiError: (_, event) => event.data,
+      }),
+      clearError: assign({
+        apiError: (_) => undefined,
       }),
       displayApiError: (_, event) => {
         const message = getErrorMessage(

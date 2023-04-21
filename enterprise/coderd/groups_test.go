@@ -6,11 +6,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/pointer"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
@@ -31,7 +31,7 @@ func TestCreateGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:      "hi",
 			AvatarURL: "https://example.com",
@@ -63,17 +63,17 @@ func TestCreateGroup(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 		numLogs++
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs[numLogs-1].Action)
-		require.Equal(t, group.ID, auditor.AuditLogs[numLogs-1].ResourceID)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, group.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
 	})
 
 	t.Run("Conflict", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestCreateGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -113,7 +113,7 @@ func TestCreateGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: database.AllUsersGroup,
 		})
@@ -138,7 +138,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:           "hi",
 			AvatarURL:      "https://example.com",
@@ -149,8 +149,8 @@ func TestPatchGroup(t *testing.T) {
 
 		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name:           "bye",
-			AvatarURL:      pointer.String("https://google.com"),
-			QuotaAllowance: pointer.Int(20),
+			AvatarURL:      ptr.Ref("https://google.com"),
+			QuotaAllowance: ptr.Ref(20),
 		})
 		require.NoError(t, err)
 		require.Equal(t, "bye", group.Name)
@@ -172,7 +172,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -199,7 +199,7 @@ func TestPatchGroup(t *testing.T) {
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -228,7 +228,7 @@ func TestPatchGroup(t *testing.T) {
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -271,23 +271,23 @@ func TestPatchGroup(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name: "bye",
 		})
 		require.NoError(t, err)
 		numLogs++
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs[numLogs-1].Action)
-		require.Equal(t, group.ID, auditor.AuditLogs[numLogs-1].ResourceID)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, group.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
 	})
 	t.Run("NameConflict", func(t *testing.T) {
 		t.Parallel()
@@ -300,7 +300,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:      "hi",
 			AvatarURL: "https://example.com",
@@ -314,7 +314,7 @@ func TestPatchGroup(t *testing.T) {
 
 		group1, err = client.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
 			Name:      group2.Name,
-			AvatarURL: pointer.String("https://google.com"),
+			AvatarURL: ptr.Ref("https://google.com"),
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
@@ -333,7 +333,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -359,7 +359,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -386,7 +386,7 @@ func TestPatchGroup(t *testing.T) {
 			},
 		})
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -413,7 +413,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -444,7 +444,7 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -466,7 +466,7 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -491,7 +491,7 @@ func TestGroup(t *testing.T) {
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -522,7 +522,7 @@ func TestGroup(t *testing.T) {
 		})
 		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -547,7 +547,7 @@ func TestGroup(t *testing.T) {
 		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -582,7 +582,7 @@ func TestGroup(t *testing.T) {
 		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -617,7 +617,7 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		// The 'Everyone' group always has an ID that matches the organization ID.
 		group, err := client.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -646,7 +646,7 @@ func TestGroups(t *testing.T) {
 		_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user5 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -689,7 +689,7 @@ func TestDeleteGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -724,21 +724,21 @@ func TestDeleteGroup(t *testing.T) {
 				codersdk.FeatureAuditLog:     1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 		err = client.DeleteGroup(ctx, group.ID)
 		require.NoError(t, err)
 		numLogs++
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionDelete, auditor.AuditLogs[numLogs-1].Action)
-		require.Equal(t, group.ID, auditor.AuditLogs[numLogs-1].ResourceID)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, group.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
 	})
 
 	t.Run("allUsers", func(t *testing.T) {
@@ -752,7 +752,7 @@ func TestDeleteGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := client.DeleteGroup(ctx, user.OrganizationID)
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)

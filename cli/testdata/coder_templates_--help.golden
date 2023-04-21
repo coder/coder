@@ -1,14 +1,10 @@
+Usage: coder templates
+
+Manage templates
+
+Aliases: template
+
 Templates are written in standard Terraform and describe the infrastructure for workspaces
-
-Usage:
-  coder templates [flags]
-
-  coder templates [command]
-
-Aliases:
-  templates, template
-
-Get Started:
   - Create a template for developers to create workspaces:                      
 
       [;m$ coder templates create[0m 
@@ -19,37 +15,20 @@ Get Started:
 
   - Push an update to the template. Your developers can update their workspaces:
 
-      [;m$ coder templates push my-template[0m 
+      [;m$ coder templates push my-template[0m
 
-Commands:
-  create      Create a template from the current directory or as specified by flag
-  delete      Delete templates
-  edit        Edit the metadata of a template by name.
-  init        Get started with a templated template.
-  list        List all the templates available for the organization
-  plan        Plan a template push from the current directory
-  pull        Download the latest version of a template to a path.
-  push        Push a new template version from the current directory or as specified by flag
-  versions    Manage different versions of the specified template
+[1mSubcommands[0m
+    create      Create a template from the current directory or as specified by
+                flag
+    delete      Delete templates
+    edit        Edit the metadata of a template by name.
+    init        Get started with a templated template.
+    list        List all the templates available for the organization
+    plan        Plan a template push from the current directory
+    pull        Download the latest version of a template to a path.
+    push        Push a new template version from the current directory or as
+                specified by flag
+    versions    Manage different versions of the specified template
 
-Flags:
-  -h, --help   help for templates
-
-Global Flags:
-      --global-config coder   Path to the global coder config directory.
-                              Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
-      --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
-                              Consumes $CODER_HEADER
-      --no-feature-warning    Suppress warnings about unlicensed features.
-                              Consumes $CODER_NO_FEATURE_WARNING
-      --no-version-warning    Suppress warning when client and server versions do not match.
-                              Consumes $CODER_NO_VERSION_WARNING
-      --token string          Specify an authentication token. For security reasons setting
-                              CODER_SESSION_TOKEN is preferred.
-                              Consumes $CODER_SESSION_TOKEN
-      --url string            URL to a deployment.
-                              Consumes $CODER_URL
-  -v, --verbose               Enable verbose output.
-                              Consumes $CODER_VERBOSE
-
-Use "coder templates [command] --help" for more information about a command.
+---
+Run `coder --help` for a list of global options.

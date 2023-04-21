@@ -25,15 +25,13 @@ func TestDelete(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		cmd, root := clitest.New(t, "delete", workspace.Name, "-y")
+		inv, root := clitest.New(t, "delete", workspace.Name, "-y")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			// When running with the race detector on, we sometimes get an EOF.
 			if err != nil {
 				assert.ErrorIs(t, err, io.EOF)
@@ -52,17 +50,15 @@ func TestDelete(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		cmd, root := clitest.New(t, "delete", workspace.Name, "-y", "--orphan")
+		inv, root := clitest.New(t, "delete", workspace.Name, "-y", "--orphan")
 
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		cmd.SetErr(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stderr = pty.Output()
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			// When running with the race detector on, we sometimes get an EOF.
 			if err != nil {
 				assert.ErrorIs(t, err, io.EOF)
@@ -87,15 +83,13 @@ func TestDelete(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		cmd, root := clitest.New(t, "delete", user.Username+"/"+workspace.Name, "-y")
+		inv, root := clitest.New(t, "delete", user.Username+"/"+workspace.Name, "-y")
 		clitest.SetupConfig(t, adminClient, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			// When running with the race detector on, we sometimes get an EOF.
 			if err != nil {
 				assert.ErrorIs(t, err, io.EOF)
@@ -112,12 +106,12 @@ func TestDelete(t *testing.T) {
 	t.Run("InvalidWorkspaceIdentifier", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		cmd, root := clitest.New(t, "delete", "a/b/c", "-y")
+		inv, root := clitest.New(t, "delete", "a/b/c", "-y")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.ErrorContains(t, err, "invalid workspace name: \"a/b/c\"")
 		}()
 		<-doneChan

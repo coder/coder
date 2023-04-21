@@ -22,6 +22,7 @@ type Workspace struct {
 	UpdatedAt                            time.Time      `json:"updated_at" format:"date-time"`
 	OwnerID                              uuid.UUID      `json:"owner_id" format:"uuid"`
 	OwnerName                            string         `json:"owner_name"`
+	OrganizationID                       uuid.UUID      `json:"organization_id" format:"uuid"`
 	TemplateID                           uuid.UUID      `json:"template_id" format:"uuid"`
 	TemplateName                         string         `json:"template_name"`
 	TemplateDisplayName                  string         `json:"template_display_name"`
@@ -45,6 +46,12 @@ type WorkspacesResponse struct {
 	Count      int         `json:"count"`
 }
 
+type ProvisionerLogLevel string
+
+const (
+	ProvisionerLogLevelDebug ProvisionerLogLevel = "debug"
+)
+
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
@@ -58,6 +65,9 @@ type CreateWorkspaceBuildRequest struct {
 	// This will not delete old params not included in this list.
 	ParameterValues     []CreateParameterRequest  `json:"parameter_values,omitempty"`
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+
+	// Log level changes the default logging verbosity of a provider ("info" if empty).
+	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
 }
 
 type WorkspaceOptions struct {

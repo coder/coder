@@ -1,5 +1,4 @@
-Coder server's primary configuration is done via environment variables. For a full list
-of the options, run `coder server --help` on the host.
+Coder server's primary configuration is done via environment variables. For a full list of the options, run `coder server --help` or see our [CLI documentation](../cli/server.md).
 
 ## Access URL
 
@@ -36,7 +35,7 @@ coder server
 ## Wildcard access URL
 
 `CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard)
-via the dashboard or running [coder_apps](../templates.md#coder-apps) on an absolute path. Set this to a wildcard
+via the dashboard or running [coder_apps](../templates/README.md#coder-apps) on an absolute path. Set this to a wildcard
 subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
 > If you are providing TLS certificates directly to the Coder server, you must use a single certificate for the
@@ -46,9 +45,9 @@ subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
 The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and accompanying configuration flags. However, Coder can also run behind a reverse-proxy to terminate TLS certificates from LetsEncrypt, for example.
 
-- Apache: [Run Coder with Apache and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/apache)
-- Caddy: [Run Coder with Caddy and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
-- NGINX: [Run Coder with Nginx and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/nginx)
+- [Apache](https://github.com/coder/coder/tree/main/examples/web-server/apache)
+- [Caddy](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
+- [NGINX](https://github.com/coder/coder/tree/main/examples/web-server/nginx)
 
 ## PostgreSQL Database
 
@@ -121,5 +120,4 @@ respected in this case.
 
 ## Up Next
 
-- [Get started using Coder](../quickstart.md).
 - [Learn how to upgrade Coder](./upgrade.md).

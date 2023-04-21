@@ -25,7 +25,7 @@ It offers:
 provisionerd is the execution context for infrastructure modifying providers.
 At the moment, the only provider is Terraform (running `terraform`).
 
-> At the moment, provisionerd cannot be separated from coderd. Follow [this GitHub issue](https://github.com/coder/coder/issues/44) for more details.
+By default, the Coder server runs multiple provisioner daemons. [External provisioners](../admin/provisioners.md) can be added for security or scalability purposes.
 
 ## Agents
 
@@ -40,7 +40,7 @@ It offers the following services along with much more:
 - Liveness checks
 - `startup_script` automation
 
-Templates are responsible for [creating and running agents](../templates.md#coder-agent) within workspaces.
+Templates are responsible for [creating and running agents](../templates/README.md#coder-agent) within workspaces.
 
 ## Service Bundling
 

@@ -14,10 +14,9 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/pkg/browser"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
@@ -38,7 +37,7 @@ func init() {
 	browser.Stdout = io.Discard
 }
 
-func login() *cobra.Command {
+func (r *RootCmd) login() *clibase.Cmd {
 	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
 
 	var (
@@ -47,20 +46,16 @@ func login() *cobra.Command {
 		password string
 		trial    bool
 	)
-	cmd := &cobra.Command{
-		Use:   "login <url>",
-		Short: "Authenticate with Coder deployment",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &clibase.Cmd{
+		Use:        "login <url>",
+		Short:      "Authenticate with Coder deployment",
+		Middleware: clibase.RequireRangeArgs(0, 1),
+		Handler: func(inv *clibase.Invocation) error {
 			rawURL := ""
-			if len(args) == 0 {
-				var err error
-				rawURL, err = cmd.Flags().GetString(varURL)
-				if err != nil {
-					return xerrors.Errorf("get global url flag")
-				}
+			if len(inv.Args) == 0 {
+				rawURL = r.clientURL.String()
 			} else {
-				rawURL = args[0]
+				rawURL = inv.Args[0]
 			}
 
 			if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
@@ -79,7 +74,7 @@ func login() *cobra.Command {
 				serverURL.Scheme = "https"
 			}
 
-			client, err := createUnauthenticatedClient(cmd, serverURL)
+			client, err := r.createUnauthenticatedClient(serverURL)
 			if err != nil {
 				return err
 			}
@@ -87,25 +82,25 @@ func login() *cobra.Command {
 			// Try to check the version of the server prior to logging in.
 			// It may be useful to warn the user if they are trying to login
 			// on a very old client.
-			err = checkVersions(cmd, client)
+			err = r.checkVersions(inv, client)
 			if err != nil {
 				// Checking versions isn't a fatal error so we print a warning
 				// and proceed.
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(err.Error()))
+				_, _ = fmt.Fprintln(inv.Stderr, cliui.Styles.Warn.Render(err.Error()))
 			}
 
-			hasInitialUser, err := client.HasFirstUser(cmd.Context())
+			hasInitialUser, err := client.HasFirstUser(inv.Context())
 			if err != nil {
 				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
 			if !hasInitialUser {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"Your Coder deployment hasn't been set up!\n")
+				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
-					if !isTTY(cmd) {
+					if !isTTY(inv) {
 						return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 					}
-					_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+					_, err := cliui.Prompt(inv, cliui.PromptOptions{
 						Text:      "Would you like to create the first user?",
 						Default:   cliui.ConfirmYes,
 						IsConfirm: true,
@@ -120,7 +115,7 @@ func login() *cobra.Command {
 					if err != nil {
 						return xerrors.Errorf("get current user: %w", err)
 					}
-					username, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					username, err = cliui.Prompt(inv, cliui.PromptOptions{
 						Text:    "What " + cliui.Styles.Field.Render("username") + " would you like?",
 						Default: currentUser.Username,
 					})
@@ -133,7 +128,7 @@ func login() *cobra.Command {
 				}
 
 				if email == "" {
-					email, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					email, err = cliui.Prompt(inv, cliui.PromptOptions{
 						Text: "What's your " + cliui.Styles.Field.Render("email") + "?",
 						Validate: func(s string) error {
 							err := validator.New().Var(s, "email")
@@ -152,7 +147,7 @@ func login() *cobra.Command {
 					var matching bool
 
 					for !matching {
-						password, err = cliui.Prompt(cmd, cliui.PromptOptions{
+						password, err = cliui.Prompt(inv, cliui.PromptOptions{
 							Text:   "Enter a " + cliui.Styles.Field.Render("password") + ":",
 							Secret: true,
 							Validate: func(s string) error {
@@ -162,7 +157,7 @@ func login() *cobra.Command {
 						if err != nil {
 							return xerrors.Errorf("specify password prompt: %w", err)
 						}
-						confirm, err := cliui.Prompt(cmd, cliui.PromptOptions{
+						confirm, err := cliui.Prompt(inv, cliui.PromptOptions{
 							Text:     "Confirm " + cliui.Styles.Field.Render("password") + ":",
 							Secret:   true,
 							Validate: cliui.ValidateNotEmpty,
@@ -173,13 +168,13 @@ func login() *cobra.Command {
 
 						matching = confirm == password
 						if !matching {
-							_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Error.Render("Passwords do not match"))
+							_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Error.Render("Passwords do not match"))
 						}
 					}
 				}
 
-				if !cmd.Flags().Changed("first-user-trial") && os.Getenv(firstUserTrialEnv) == "" {
-					v, _ := cliui.Prompt(cmd, cliui.PromptOptions{
+				if !inv.ParsedFlags().Changed("first-user-trial") && os.Getenv(firstUserTrialEnv) == "" {
+					v, _ := cliui.Prompt(inv, cliui.PromptOptions{
 						Text:      "Start a 30-day trial of Enterprise?",
 						IsConfirm: true,
 						Default:   "yes",
@@ -187,7 +182,7 @@ func login() *cobra.Command {
 					trial = v == "yes" || v == "y"
 				}
 
-				_, err = client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
+				_, err = client.CreateFirstUser(inv.Context(), codersdk.CreateFirstUserRequest{
 					Email:    email,
 					Username: username,
 					Password: password,
@@ -196,7 +191,7 @@ func login() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
 				}
-				resp, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
+				resp, err := client.LoginWithPassword(inv.Context(), codersdk.LoginWithPasswordRequest{
 					Email:    email,
 					Password: password,
 				})
@@ -205,7 +200,7 @@ func login() *cobra.Command {
 				}
 
 				sessionToken := resp.SessionToken
-				config := createConfig(cmd)
+				config := r.createConfig()
 				err = config.Session().Write(sessionToken)
 				if err != nil {
 					return xerrors.Errorf("write session token: %w", err)
@@ -215,32 +210,32 @@ func login() *cobra.Command {
 					return xerrors.Errorf("write server url: %w", err)
 				}
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+				_, _ = fmt.Fprintf(inv.Stdout,
 					cliui.Styles.Paragraph.Render(fmt.Sprintf("Welcome to Coder, %s! You're authenticated.", cliui.Styles.Keyword.Render(username)))+"\n")
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+				_, _ = fmt.Fprintf(inv.Stdout,
 					cliui.Styles.Paragraph.Render("Get started by creating a template: "+cliui.Styles.Code.Render("coder templates init"))+"\n")
 				return nil
 			}
 
-			sessionToken, _ := cmd.Flags().GetString(varToken)
+			sessionToken, _ := inv.ParsedFlags().GetString(varToken)
 			if sessionToken == "" {
 				authURL := *serverURL
 				// Don't use filepath.Join, we don't want to use the os separator
 				// for a url.
 				authURL.Path = path.Join(serverURL.Path, "/cli-auth")
-				if err := openURL(cmd, authURL.String()); err != nil {
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
+				if err := openURL(inv, authURL.String()); err != nil {
+					_, _ = fmt.Fprintf(inv.Stdout, "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
 				} else {
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
+					_, _ = fmt.Fprintf(inv.Stdout, "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
 				}
 
-				sessionToken, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				sessionToken, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Paste your token here:",
 					Secret: true,
 					Validate: func(token string) error {
 						client.SetSessionToken(token)
-						_, err := client.User(cmd.Context(), codersdk.Me)
+						_, err := client.User(inv.Context(), codersdk.Me)
 						if err != nil {
 							return xerrors.New("That's not a valid token!")
 						}
@@ -254,12 +249,12 @@ func login() *cobra.Command {
 
 			// Login to get user data - verify it is OK before persisting
 			client.SetSessionToken(sessionToken)
-			resp, err := client.User(cmd.Context(), codersdk.Me)
+			resp, err := client.User(inv.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("get user: %w", err)
 			}
 
-			config := createConfig(cmd)
+			config := r.createConfig()
 			err = config.Session().Write(sessionToken)
 			if err != nil {
 				return xerrors.Errorf("write session token: %w", err)
@@ -269,14 +264,36 @@ func login() *cobra.Command {
 				return xerrors.Errorf("write server url: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.Styles.Keyword.Render(resp.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.Styles.Keyword.Render(resp.Username))
 			return nil
 		},
 	}
-	cliflag.StringVarP(cmd.Flags(), &email, "first-user-email", "", "CODER_FIRST_USER_EMAIL", "", "Specifies an email address to use if creating the first user for the deployment.")
-	cliflag.StringVarP(cmd.Flags(), &username, "first-user-username", "", "CODER_FIRST_USER_USERNAME", "", "Specifies a username to use if creating the first user for the deployment.")
-	cliflag.StringVarP(cmd.Flags(), &password, "first-user-password", "", "CODER_FIRST_USER_PASSWORD", "", "Specifies a password to use if creating the first user for the deployment.")
-	cliflag.BoolVarP(cmd.Flags(), &trial, "first-user-trial", "", firstUserTrialEnv, false, "Specifies whether a trial license should be provisioned for the Coder deployment or not.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "first-user-email",
+			Env:         "CODER_FIRST_USER_EMAIL",
+			Description: "Specifies an email address to use if creating the first user for the deployment.",
+			Value:       clibase.StringOf(&email),
+		},
+		{
+			Flag:        "first-user-username",
+			Env:         "CODER_FIRST_USER_USERNAME",
+			Description: "Specifies a username to use if creating the first user for the deployment.",
+			Value:       clibase.StringOf(&username),
+		},
+		{
+			Flag:        "first-user-password",
+			Env:         "CODER_FIRST_USER_PASSWORD",
+			Description: "Specifies a password to use if creating the first user for the deployment.",
+			Value:       clibase.StringOf(&password),
+		},
+		{
+			Flag:        "first-user-trial",
+			Env:         firstUserTrialEnv,
+			Description: "Specifies whether a trial license should be provisioned for the Coder deployment or not.",
+			Value:       clibase.BoolOf(&trial),
+		},
+	}
 	return cmd
 }
 
@@ -293,8 +310,8 @@ func isWSL() (bool, error) {
 }
 
 // openURL opens the provided URL via user's default browser
-func openURL(cmd *cobra.Command, urlToOpen string) error {
-	noOpen, err := cmd.Flags().GetBool(varNoOpen)
+func openURL(inv *clibase.Invocation, urlToOpen string) error {
+	noOpen, err := inv.ParsedFlags().GetBool(varNoOpen)
 	if err != nil {
 		panic(err)
 	}
@@ -314,7 +331,7 @@ func openURL(cmd *cobra.Command, urlToOpen string) error {
 	browserEnv := os.Getenv("BROWSER")
 	if browserEnv != "" {
 		browserSh := fmt.Sprintf("%s '%s'", browserEnv, urlToOpen)
-		cmd := exec.CommandContext(cmd.Context(), "sh", "-c", browserSh)
+		cmd := exec.CommandContext(inv.Context(), "sh", "-c", browserSh)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return xerrors.Errorf("failed to run %v (out: %q): %w", cmd.Args, out, err)

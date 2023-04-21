@@ -10,7 +10,7 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import {
   displayWorkspaceBuildDuration,
   getDisplayWorkspaceBuildInitiatedBy,
-} from "util/workspace"
+} from "utils/workspace"
 import { BuildAvatar } from "./BuildAvatar"
 
 export interface BuildRowProps {

@@ -7,12 +7,10 @@ export enum ButtonTypesEnum {
   starting = "starting",
   stop = "stop",
   stopping = "stopping",
-  delete = "delete",
+  restart = "restart",
   deleting = "deleting",
   update = "update",
   updating = "updating",
-  changeVersion = "changeVersion",
-  buildParameters = "buildParameters",
   // disabled buttons
   canceling = "canceling",
   deleted = "deleted",
@@ -29,36 +27,20 @@ interface WorkspaceAbilities {
   canAcceptJobs: boolean
 }
 
-export const buttonAbilities = (
+export const actionsByWorkspaceStatus = (
   status: WorkspaceStatus,
-  hasTemplateParameters: boolean,
 ): WorkspaceAbilities => {
-  if (hasTemplateParameters) {
-    return statusToAbilities[status]
-  }
-
-  const all = statusToAbilities[status]
-  return {
-    ...all,
-    actions: all.actions.filter(
-      (action) => action !== ButtonTypesEnum.buildParameters,
-    ),
-  }
+  return statusToActions[status]
 }
 
-const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
+const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
   starting: {
     actions: [ButtonTypesEnum.starting],
     canCancel: true,
     canAcceptJobs: false,
   },
   running: {
-    actions: [
-      ButtonTypesEnum.stop,
-      ButtonTypesEnum.buildParameters,
-      ButtonTypesEnum.changeVersion,
-      ButtonTypesEnum.delete,
-    ],
+    actions: [ButtonTypesEnum.stop, ButtonTypesEnum.restart],
     canCancel: false,
     canAcceptJobs: true,
   },
@@ -68,34 +50,18 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
     canAcceptJobs: false,
   },
   stopped: {
-    actions: [
-      ButtonTypesEnum.start,
-      ButtonTypesEnum.buildParameters,
-      ButtonTypesEnum.changeVersion,
-      ButtonTypesEnum.delete,
-    ],
+    actions: [ButtonTypesEnum.start],
     canCancel: false,
     canAcceptJobs: true,
   },
   canceled: {
-    actions: [
-      ButtonTypesEnum.start,
-      ButtonTypesEnum.stop,
-      ButtonTypesEnum.buildParameters,
-      ButtonTypesEnum.changeVersion,
-      ButtonTypesEnum.delete,
-    ],
+    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
     canCancel: false,
     canAcceptJobs: true,
   },
   // in the case of an error
   failed: {
-    actions: [
-      ButtonTypesEnum.start,
-      ButtonTypesEnum.buildParameters,
-      ButtonTypesEnum.changeVersion,
-      ButtonTypesEnum.delete,
-    ],
+    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
     canCancel: false,
     canAcceptJobs: true,
   },
@@ -115,7 +81,7 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
   deleted: {
     actions: [ButtonTypesEnum.deleted],
     canCancel: false,
-    canAcceptJobs: true,
+    canAcceptJobs: false,
   },
   pending: {
     actions: [ButtonTypesEnum.pending],

@@ -1,8 +1,10 @@
 import Button from "@material-ui/core/Button"
-import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
-import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
-import { AuthorizationResponse, Template } from "api/typesGenerated"
+import {
+  AuthorizationResponse,
+  Template,
+  TemplateVersion,
+} from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { Maybe } from "components/Conditionals/Maybe"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
@@ -12,30 +14,86 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
-import { Link as RouterLink } from "react-router-dom"
+import { FC, useRef, useState } from "react"
+import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { useDeleteTemplate } from "./deleteTemplate"
 import { Margins } from "components/Margins/Margins"
+import MoreVertOutlined from "@material-ui/icons/MoreVertOutlined"
+import Menu from "@material-ui/core/Menu"
+import MenuItem from "@material-ui/core/MenuItem"
+import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
+import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
+import EditOutlined from "@material-ui/icons/EditOutlined"
+import FileCopyOutlined from "@material-ui/icons/FileCopyOutlined"
 
-const Language = {
-  editButton: "Edit",
-  settingsButton: "Settings",
-  createButton: "Create workspace",
-  deleteButton: "Delete",
+const TemplateMenu: FC<{
+  templateName: string
+  templateVersion: string
+  onDelete: () => void
+}> = ({ templateName, templateVersion, onDelete }) => {
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const navigate = useNavigate()
+
+  // Returns a function that will execute the action and close the menu
+  const onMenuItemClick = (actionFn: () => void) => () => {
+    setIsMenuOpen(false)
+
+    actionFn()
+  }
+
+  return (
+    <div>
+      <Button
+        variant="outlined"
+        aria-controls="template-options"
+        aria-haspopup="true"
+        onClick={() => setIsMenuOpen(true)}
+        ref={menuTriggerRef}
+      >
+        <MoreVertOutlined />
+      </Button>
+
+      <Menu
+        id="template-options"
+        anchorEl={menuTriggerRef.current}
+        open={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+      >
+        <MenuItem
+          onClick={onMenuItemClick(() =>
+            navigate(`/templates/${templateName}/settings`),
+          )}
+        >
+          <SettingsOutlined />
+          Settings
+        </MenuItem>
+        <MenuItem
+          onClick={onMenuItemClick(() =>
+            navigate(`/templates/new?fromTemplate=${templateName}`),
+          )}
+        >
+          <FileCopyOutlined />
+          Duplicate
+        </MenuItem>
+        <MenuItem
+          onClick={onMenuItemClick(() =>
+            navigate(
+              `/templates/${templateName}/versions/${templateVersion}/edit`,
+            ),
+          )}
+        >
+          <EditOutlined />
+          Edit files
+        </MenuItem>
+        <MenuItem onClick={onMenuItemClick(onDelete)}>
+          <DeleteOutlined />
+          Delete
+        </MenuItem>
+      </Menu>
+    </div>
+  )
 }
-
-const TemplateSettingsButton: FC<{ templateName: string }> = ({
-  templateName,
-}) => (
-  <Button
-    variant="outlined"
-    component={RouterLink}
-    to={`/templates/${templateName}/settings`}
-    startIcon={<SettingsOutlined />}
-  >
-    {Language.settingsButton}
-  </Button>
-)
 
 const CreateWorkspaceButton: FC<{
   templateName: string
@@ -46,24 +104,20 @@ const CreateWorkspaceButton: FC<{
     component={RouterLink}
     to={`/templates/${templateName}/workspace`}
   >
-    {Language.createButton}
-  </Button>
-)
-
-const DeleteTemplateButton: FC<{ onClick: () => void }> = ({ onClick }) => (
-  <Button variant="outlined" startIcon={<DeleteOutlined />} onClick={onClick}>
-    {Language.deleteButton}
+    Create workspace
   </Button>
 )
 
 export type TemplatePageHeaderProps = {
   template: Template
+  activeVersion: TemplateVersion
   permissions: AuthorizationResponse
   onDeleteTemplate: () => void
 }
 
 export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   template,
+  activeVersion,
   permissions,
   onDeleteTemplate,
 }) => {
@@ -75,13 +129,14 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
       <PageHeader
         actions={
           <>
-            <Maybe condition={permissions.canUpdateTemplate}>
-              <DeleteTemplateButton
-                onClick={deleteTemplate.openDeleteConfirmation}
-              />
-              <TemplateSettingsButton templateName={template.name} />
-            </Maybe>
             <CreateWorkspaceButton templateName={template.name} />
+            <Maybe condition={permissions.canUpdateTemplate}>
+              <TemplateMenu
+                templateVersion={activeVersion.name}
+                templateName={template.name}
+                onDelete={deleteTemplate.openDeleteConfirmation}
+              />
+            </Maybe>
           </>
         }
       >

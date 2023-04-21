@@ -48,18 +48,18 @@ func TestSpeedtest(t *testing.T) {
 			a.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
 	}, testutil.WaitLong, testutil.IntervalFast, "agent is not ready")
 
-	cmd, root := clitest.New(t, "speedtest", workspace.Name)
+	inv, root := clitest.New(t, "speedtest", workspace.Name)
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
-	cmd.SetOut(pty.Output())
-	cmd.SetErr(pty.Output())
+	inv.Stdout = pty.Output()
+	inv.Stderr = pty.Output()
 
 	ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	ctx = cli.ContextWithLogger(ctx, slogtest.Make(t, nil).Named("speedtest").Leveled(slog.LevelDebug))
 	cmdDone := tGo(t, func() {
-		err := cmd.ExecuteContext(ctx)
+		err := inv.WithContext(ctx).Run()
 		assert.NoError(t, err)
 	})
 	<-cmdDone

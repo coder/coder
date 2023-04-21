@@ -10,7 +10,7 @@ import {
   MockStoppedWorkspace,
   MockStoppingWorkspace,
   MockWorkspace,
-} from "testHelpers/renderHelpers"
+} from "testHelpers/entities"
 import {
   WorkspaceStatusBadge,
   WorkspaceStatusBadgeProps,

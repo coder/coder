@@ -31,6 +31,16 @@ CODER_GITAUTH_0_CLIENT_ID=xxxxxx
 CODER_GITAUTH_0_CLIENT_SECRET=xxxxxxx
 ```
 
+### GitHub Enterprise
+
+GitHub Enterprise requires the following authentication and token URLs:
+
+```console
+CODER_GITAUTH_0_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
+CODER_GITAUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
+CODER_GITAUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+```
+
 ### Self-managed git providers
 
 Custom authentication and token URLs should be
@@ -70,12 +80,45 @@ CODER_GITAUTH_1_TYPE=github
 CODER_GITAUTH_1_CLIENT_ID=xxxxxx
 CODER_GITAUTH_1_CLIENT_SECRET=xxxxxxx
 CODER_GITAUTH_1_REGEX=github.example.com
-CODER_GITAUTH_1_AUTH_URL="https://github.example.com/oauth/authorize"
-CODER_GITAUTH_1_TOKEN_URL="https://github.example.com/oauth/token"
+CODER_GITAUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize"
+CODER_GITAUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+CODER_GITAUTH_1_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
 ```
 
-To support regex matching for paths (e.g. github.com/orgname), youll need to add this to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
+To support regex matching for paths (e.g. github.com/orgname), you'll need to add this to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
 
 ```console
 git config --global credential.useHttpPath true
 ```
+
+## Require git authentication in templates
+
+If your template requires git authentication (e.g. running `git clone` in the [startup_script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)), you can require users authenticate via git prior to creating a workspace:
+
+![Git authentication in template](../images/admin/git-auth-template.png)
+
+The following example will require users authenticate via GitHub and auto-clone a repo
+into the `~/coder` directory.
+
+```hcl
+data "coder_git_auth" "github" {
+  # Matches the ID of the git auth provider in Coder.
+  id = "github"
+}
+
+resource "coder_agent" "dev" {
+  os   = "linux"
+  arch = "amd64"
+  dir  = "~/coder"
+  env = {
+    GITHUB_TOKEN : data.coder_git_auth.github.access_token
+  }
+  startup_script = <<EOF
+if [ ! -d ~/coder ]; then
+    git clone https://github.com/coder/coder
+fi
+EOF
+}
+```
+
+See the [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/git_auth) for all available options.

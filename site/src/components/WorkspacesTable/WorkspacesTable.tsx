@@ -20,12 +20,14 @@ export interface WorkspacesTableProps {
   workspaces?: Workspace[]
   isUsingFilter: boolean
   onUpdateWorkspace: (workspace: Workspace) => void
+  error?: Error | unknown
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   workspaces,
   isUsingFilter,
   onUpdateWorkspace,
+  error,
 }) => {
   return (
     <TableContainer>
@@ -44,6 +46,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
             workspaces={workspaces}
             isUsingFilter={isUsingFilter}
             onUpdateWorkspace={onUpdateWorkspace}
+            error={error}
           />
         </TableBody>
       </Table>

@@ -2,9 +2,11 @@ package coderd_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -37,12 +39,12 @@ func TestWorkspaceQuota(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		max := 1
-		client := coderdenttest.New(t, &coderdenttest.Options{
+		client, _, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			UserWorkspaceQuota: max,
-			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-			},
 		})
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
 
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
@@ -104,12 +106,18 @@ func TestWorkspaceQuota(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Spin up three workspaces fine
+		var wg sync.WaitGroup
 		for i := 0; i < 3; i++ {
-			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-			build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-			verifyQuota(ctx, t, client, i+1, 3)
-			require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+				assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+			}()
 		}
+		wg.Wait()
+		verifyQuota(ctx, t, client, 3, 3)
 
 		// Next one must fail
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)

@@ -83,6 +83,21 @@ func (c *haCoordinator) Node(id uuid.UUID) *agpl.Node {
 // with the specified ID.
 func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
 	c.mutex.Lock()
+	connectionSockets, ok := c.agentToConnectionSockets[agent]
+	if !ok {
+		connectionSockets = map[uuid.UUID]*agpl.TrackedConn{}
+		c.agentToConnectionSockets[agent] = connectionSockets
+	}
+
+	now := time.Now().Unix()
+	// Insert this connection into a map so the agent
+	// can publish node updates.
+	connectionSockets[id] = &agpl.TrackedConn{
+		Conn:      conn,
+		Start:     now,
+		LastWrite: now,
+	}
+
 	// When a new connection is requested, we update it with the latest
 	// node of the agent. This allows the connection to establish.
 	node, ok := c.nodes[agent]
@@ -102,23 +117,6 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID
 			return xerrors.Errorf("publish client hello: %w", err)
 		}
 	}
-
-	c.mutex.Lock()
-	connectionSockets, ok := c.agentToConnectionSockets[agent]
-	if !ok {
-		connectionSockets = map[uuid.UUID]*agpl.TrackedConn{}
-		c.agentToConnectionSockets[agent] = connectionSockets
-	}
-
-	now := time.Now().Unix()
-	// Insert this connection into a map so the agent
-	// can publish node updates.
-	connectionSockets[id] = &agpl.TrackedConn{
-		Conn:      conn,
-		Start:     now,
-		LastWrite: now,
-	}
-	c.mutex.Unlock()
 
 	defer func() {
 		c.mutex.Lock()
@@ -197,12 +195,6 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 	c.agentNameCache.Add(id, name)
 
-	// Tell clients on other instances to send a callmemaybe to us.
-	err := c.publishAgentHello(id)
-	if err != nil {
-		return xerrors.Errorf("publish agent hello: %w", err)
-	}
-
 	// Publish all nodes on this instance that want to connect to this agent.
 	nodes := c.nodesSubscribedToAgent(id)
 	if len(nodes) > 0 {
@@ -240,6 +232,12 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 		Overwrites: overwrites,
 	}
 	c.mutex.Unlock()
+
+	// Tell clients on other instances to send a callmemaybe to us.
+	err := c.publishAgentHello(id)
+	if err != nil {
+		return xerrors.Errorf("publish agent hello: %w", err)
+	}
 
 	defer func() {
 		c.mutex.Lock()

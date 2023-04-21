@@ -53,7 +53,20 @@ export const buildInfoMachine = createMachine(
   },
   {
     services: {
-      getBuildInfo: API.getBuildInfo,
+      getBuildInfo: async () => {
+        // Build info is injected by the Coder server into the HTML document.
+        const buildInfo = document.querySelector("meta[property=build-info]")
+        if (buildInfo) {
+          const rawContent = buildInfo.getAttribute("content")
+          try {
+            return JSON.parse(rawContent as string)
+          } catch (ex) {
+            // Ignore this and fetch as normal!
+          }
+        }
+
+        return API.getBuildInfo()
+      },
     },
     actions: {
       assignBuildInfo: assign({

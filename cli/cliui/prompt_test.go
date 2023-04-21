@@ -8,10 +8,10 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
@@ -77,9 +77,9 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text:      "ShouldNotSeeThis",
 				IsConfirm: true,
-			}, func(cmd *cobra.Command) {
-				cliui.AllowSkipPrompt(cmd)
-				cmd.SetArgs([]string{"-y"})
+			}, func(inv *clibase.Invocation) {
+				inv.Command.Options = append(inv.Command.Options, cliui.SkipPromptOption())
+				inv.Args = []string{"-y"}
 			})
 			assert.NoError(t, err)
 			doneChan <- resp
@@ -145,23 +145,25 @@ func TestPrompt(t *testing.T) {
 	})
 }
 
-func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cobra.Command)) (string, error) {
+func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *clibase.Invocation)) (string, error) {
 	value := ""
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &clibase.Cmd{
+		Handler: func(inv *clibase.Invocation) error {
 			var err error
-			value, err = cliui.Prompt(cmd, opts)
+			value, err = cliui.Prompt(inv, opts)
 			return err
 		},
 	}
+
+	inv := cmd.Invoke()
 	// Optionally modify the cmd
-	if cmdOpt != nil {
-		cmdOpt(cmd)
+	if invOpt != nil {
+		invOpt(inv)
 	}
-	cmd.SetOut(ptty.Output())
-	cmd.SetErr(ptty.Output())
-	cmd.SetIn(ptty.Input())
-	return value, cmd.ExecuteContext(context.Background())
+	inv.Stdout = ptty.Output()
+	inv.Stderr = ptty.Output()
+	inv.Stdin = ptty.Input()
+	return value, inv.WithContext(context.Background()).Run()
 }
 
 func TestPasswordTerminalState(t *testing.T) {
@@ -208,13 +210,17 @@ func TestPasswordTerminalState(t *testing.T) {
 
 // nolint:unused
 func passwordHelper() {
-	cmd := &cobra.Command{
-		Run: func(cmd *cobra.Command, args []string) {
-			cliui.Prompt(cmd, cliui.PromptOptions{
+	cmd := &clibase.Cmd{
+		Handler: func(inv *clibase.Invocation) error {
+			cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Password:",
 				Secret: true,
 			})
+			return nil
 		},
 	}
-	cmd.ExecuteContext(context.Background())
+	err := cmd.Invoke().WithOS().Run()
+	if err != nil {
+		panic(err)
+	}
 }

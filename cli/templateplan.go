@@ -1,15 +1,17 @@
 package cli
 
 import (
-	"github.com/spf13/cobra"
+	"github.com/coder/coder/cli/clibase"
 )
 
-func templatePlan() *cobra.Command {
-	return &cobra.Command{
-		Use:   "plan <directory>",
-		Args:  cobra.MinimumNArgs(1),
+func (*RootCmd) templatePlan() *clibase.Cmd {
+	return &clibase.Cmd{
+		Use: "plan <directory>",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+		),
 		Short: "Plan a template push from the current directory",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return nil
 		},
 	}

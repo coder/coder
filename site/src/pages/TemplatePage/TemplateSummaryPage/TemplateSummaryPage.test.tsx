@@ -3,14 +3,13 @@ import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import { rest } from "msw"
 import { ResizeObserver } from "resize-observer"
 import {
-  MockMemberPermissions,
   MockTemplate,
   MockTemplateVersion,
-  MockWorkspaceResource,
-  renderWithAuth,
-} from "testHelpers/renderHelpers"
+  MockMemberPermissions,
+} from "testHelpers/entities"
+import { renderWithAuth } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
-import * as CreateDayString from "util/createDayString"
+import * as CreateDayString from "utils/createDayString"
 import { TemplateSummaryPage } from "./TemplateSummaryPage"
 
 jest.mock("remark-gfm", () => jest.fn())
@@ -31,15 +30,13 @@ const renderPage = () =>
   )
 
 describe("TemplateSummaryPage", () => {
-  it("shows the template name, readme and resources", async () => {
+  it("shows the template name and resources", async () => {
     // Mocking the dayjs module within the createDayString file
     const mock = jest.spyOn(CreateDayString, "createDayString")
     mock.mockImplementation(() => "a minute ago")
 
     renderPage()
     await screen.findByText(MockTemplate.display_name)
-    await screen.findByTestId("markdown")
-    screen.getByText(MockWorkspaceResource.name)
     screen.queryAllByText(`${MockTemplateVersion.name}`).length
   })
   it("does not allow a member to delete a template", () => {

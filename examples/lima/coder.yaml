@@ -93,17 +93,17 @@ provision:
       # If we are already logged in, nothing to do
       coder templates list >/dev/null 2>&1 && exit 0
       # Set up initial user
-      [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 --first-user-username admin --first-user-email admin@coder.com --first-user-password $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c8 | tee ${HOME}/.config/coderv2/password)
+      [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 --first-user-username admin --first-user-email admin@coder.com --first-user-password $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c12 | tee ${HOME}/.config/coderv2/password)
       # Create an initial template
       temp_template_dir=$(mktemp -d)
-      echo code-server | coder templates init "${temp_template_dir}"
+      coder templates init --id docker "${temp_template_dir}"
       DOCKER_ARCH="amd64"
       if [ "$(arch)" = "aarch64" ]; then
         DOCKER_ARCH="arm64"
       fi
       DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
       printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${DOCKER_ARCH}" "${DOCKER_HOST}" | tee "${temp_template_dir}/params.yaml"
-      coder templates create "docker-code-server-${DOCKER_ARCH}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
+      coder templates create "docker-${DOCKER_ARCH}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
       rm -rfv "${temp_template_dir}"
 probes:
   - description: "docker to be installed"

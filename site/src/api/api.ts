@@ -1,21 +1,31 @@
-import axios, { AxiosRequestHeaders } from "axios"
+import axios from "axios"
 import dayjs from "dayjs"
 import * as Types from "./types"
+import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
 
+// Adds 304 for the default axios validateStatus function
+// https://github.com/axios/axios#handling-errors Check status here
+// https://httpstatusdogs.com/
+axios.defaults.validateStatus = (status) => {
+  return (status >= 200 && status < 300) || status === 304
+}
+
 export const hardCodedCSRFCookie = (): string => {
-  // This is a hard coded CSRF token/cookie pair for local development.
-  // In prod, the GoLang webserver generates a random cookie with a new token for
-  // each document request. For local development, we don't use the Go webserver for static files,
-  // so this is the 'hack' to make local development work with remote apis.
-  // The CSRF cookie for this token is "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
+  // This is a hard coded CSRF token/cookie pair for local development. In prod,
+  // the GoLang webserver generates a random cookie with a new token for each
+  // document request. For local development, we don't use the Go webserver for
+  // static files, so this is the 'hack' to make local development work with
+  // remote apis. The CSRF cookie for this token is
+  // "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
   const csrfToken =
     "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A=="
   axios.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken
   return csrfToken
 }
 
-// withDefaultFeatures sets all unspecified features to not_entitled and disabled.
+// withDefaultFeatures sets all unspecified features to not_entitled and
+// disabled.
 export const withDefaultFeatures = (
   fs: Partial<TypesGen.Entitlements["features"]>,
 ): TypesGen.Entitlements["features"] => {
@@ -32,9 +42,8 @@ export const withDefaultFeatures = (
   return fs as TypesGen.Entitlements["features"]
 }
 
-// Always attach CSRF token to all requests.
-// In puppeteer the document is undefined. In those cases, just
-// do nothing.
+// Always attach CSRF token to all requests. In puppeteer the document is
+// undefined. In those cases, just do nothing.
 const token =
   typeof document !== "undefined"
     ? document.head.querySelector('meta[property="csrf-token"]')
@@ -56,7 +65,7 @@ if (token !== null && token.getAttribute("content") !== null) {
   }
 }
 
-const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
+const CONTENT_TYPE_JSON = {
   "Content-Type": "application/json",
 }
 
@@ -142,8 +151,8 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 
 export const getTokens = async (
   params: TypesGen.TokensFilter,
-): Promise<TypesGen.APIKey[]> => {
-  const response = await axios.get<TypesGen.APIKey[]>(
+): Promise<TypesGen.APIKeyWithOwner[]> => {
+  const response = await axios.get<TypesGen.APIKeyWithOwner[]>(
     `/api/v2/users/me/keys/tokens`,
     {
       params,
@@ -152,8 +161,20 @@ export const getTokens = async (
   return response.data
 }
 
-export const deleteAPIKey = async (keyId: string): Promise<void> => {
+export const deleteToken = async (keyId: string): Promise<void> => {
   await axios.delete("/api/v2/users/me/keys/" + keyId)
+}
+
+export const createToken = async (
+  params: TypesGen.CreateTokenRequest,
+): Promise<TypesGen.GenerateAPIKeyResponse> => {
+  const response = await axios.post(`/api/v2/users/me/keys/tokens`, params)
+  return response.data
+}
+
+export const getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
+  const response = await axios.get("/api/v2/users/me/keys/tokens/tokenconfig")
+  return response.data
 }
 
 export const getUsers = async (
@@ -235,6 +256,15 @@ export const getTemplateVersionResources = async (
   return response.data
 }
 
+export const getTemplateVersionVariables = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionVariable[]> => {
+  const response = await axios.get<TypesGen.TemplateVersionVariable[]>(
+    `/api/v2/templateversions/${versionId}/variables`,
+  )
+  return response.data
+}
+
 export const getTemplateVersions = async (
   templateId: string,
 ): Promise<TypesGen.TemplateVersion[]> => {
@@ -295,9 +325,18 @@ export const createTemplateVersion = async (
   return response.data
 }
 
+export const getTemplateVersionGitAuth = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionGitAuth[]> => {
+  const response = await axios.get(
+    `/api/v2/templateversions/${versionId}/gitauth`,
+  )
+  return response.data
+}
+
 export const getTemplateVersionParameters = async (
   versionId: string,
-): Promise<TypesGen.Parameter[]> => {
+): Promise<TypesGen.ComputedParameter[]> => {
   const response = await axios.get(
     `/api/v2/templateversions/${versionId}/parameters`,
   )
@@ -330,6 +369,17 @@ export const updateActiveTemplateVersion = async (
 ): Promise<Types.Message> => {
   const response = await axios.patch<Types.Message>(
     `/api/v2/templates/${templateId}/versions`,
+    data,
+  )
+  return response.data
+}
+
+export const patchTemplateVersion = async (
+  templateVersionId: string,
+  data: TypesGen.PatchTemplateVersionRequest,
+) => {
+  const response = await axios.patch<TypesGen.TemplateVersion>(
+    `/api/v2/templateversions/${templateVersionId}`,
     data,
   )
   return response.data
@@ -440,15 +490,29 @@ export const postWorkspaceBuild = async (
 export const startWorkspace = (
   workspaceId: string,
   templateVersionID: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
     template_version_id: templateVersionID,
+    log_level: logLevel,
   })
-export const stopWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "stop" })
-export const deleteWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "delete" })
+export const stopWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "stop",
+    log_level: logLevel,
+  })
+export const deleteWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "delete",
+    log_level: logLevel,
+  })
 
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
@@ -485,6 +549,13 @@ export const createWorkspace = async (
     workspace,
   )
   return response.data
+}
+
+export const patchWorkspace = async (
+  workspaceId: string,
+  data: TypesGen.UpdateWorkspaceRequest,
+) => {
+  await axios.patch(`/api/v2/workspaces/${workspaceId}`, data)
 }
 
 export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
@@ -649,6 +720,15 @@ export const getWorkspaceBuildLogs = async (
   return response.data
 }
 
+export const getWorkspaceAgentStartupLogs = async (
+  agentID: string,
+): Promise<TypesGen.WorkspaceAgentStartupLog[]> => {
+  const response = await axios.get<TypesGen.WorkspaceAgentStartupLog[]>(
+    `/api/v2/workspaceagents/${agentID}/startup-logs`,
+  )
+  return response.data
+}
+
 export const putWorkspaceExtension = async (
   workspaceId: string,
   newDeadline: dayjs.Dayjs,
@@ -666,7 +746,6 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
     if (axios.isAxiosError(ex) && ex.response?.status === 404) {
       return {
         errors: [],
-        experimental: false,
         features: withDefaultFeatures({}),
         has_license: false,
         require_telemetry: false,
@@ -788,9 +867,21 @@ export const getAgentListeningPorts = async (
   return response.data
 }
 
-export const getDeploymentConfig =
-  async (): Promise<TypesGen.DeploymentConfig> => {
-    const response = await axios.get(`/api/v2/config/deployment`)
+// getDeploymentSSHConfig is used by the VSCode-Extension.
+export const getDeploymentSSHConfig =
+  async (): Promise<TypesGen.SSHConfigResponse> => {
+    const response = await axios.get(`/api/v2/deployment/ssh`)
+    return response.data
+  }
+
+export const getDeploymentValues = async (): Promise<DeploymentConfig> => {
+  const response = await axios.get(`/api/v2/deployment/config`)
+  return response.data
+}
+
+export const getDeploymentStats =
+  async (): Promise<TypesGen.DeploymentStats> => {
+    const response = await axios.get(`/api/v2/deployment/stats`)
     return response.data
   }
 
@@ -873,4 +964,249 @@ export const getWorkspaceBuildParameters = async (
     `/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
   )
   return response.data
+}
+
+export class MissingBuildParameters extends Error {
+  parameters: TypesGen.TemplateVersionParameter[] = []
+
+  constructor(parameters: TypesGen.TemplateVersionParameter[]) {
+    super("Missing build parameters.")
+    this.parameters = parameters
+  }
+}
+
+/** Steps to change the workspace version
+ * - Get the latest template to access the latest active version
+ * - Get the current build parameters
+ * - Get the template parameters
+ * - Update the build parameters and check if there are missed parameters for the new version
+ *   - If there are missing parameters raise an error
+ * - Create a build with the version and updated build parameters
+ */
+export const changeWorkspaceVersion = async (
+  workspace: TypesGen.Workspace,
+  templateVersionId: string,
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+): Promise<TypesGen.WorkspaceBuild> => {
+  const [currentBuildParameters, templateParameters] = await Promise.all([
+    getWorkspaceBuildParameters(workspace.latest_build.id),
+    getTemplateVersionRichParameters(templateVersionId),
+  ])
+
+  const missingParameters = getMissingParameters(
+    currentBuildParameters,
+    newBuildParameters,
+    templateParameters,
+  )
+
+  if (missingParameters.length > 0) {
+    throw new MissingBuildParameters(missingParameters)
+  }
+
+  return postWorkspaceBuild(workspace.id, {
+    transition: "start",
+    template_version_id: templateVersionId,
+    rich_parameter_values: newBuildParameters,
+  })
+}
+
+/** Steps to update the workspace
+ * - Get the latest template to access the latest active version
+ * - Get the current build parameters
+ * - Get the template parameters
+ * - Update the build parameters and check if there are missed parameters for
+ *   the newest version
+ *   - If there are missing parameters raise an error
+ * - Create a build with the latest version and updated build parameters
+ */
+export const updateWorkspace = async (
+  workspace: TypesGen.Workspace,
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+): Promise<TypesGen.WorkspaceBuild> => {
+  const [template, oldBuildParameters] = await Promise.all([
+    getTemplate(workspace.template_id),
+    getWorkspaceBuildParameters(workspace.latest_build.id),
+  ])
+  const activeVersionId = template.active_version_id
+  const templateParameters = await getTemplateVersionRichParameters(
+    activeVersionId,
+  )
+  const missingParameters = getMissingParameters(
+    oldBuildParameters,
+    newBuildParameters,
+    templateParameters,
+  )
+
+  if (missingParameters.length > 0) {
+    throw new MissingBuildParameters(missingParameters)
+  }
+
+  return postWorkspaceBuild(workspace.id, {
+    transition: "start",
+    template_version_id: activeVersionId,
+    rich_parameter_values: newBuildParameters,
+  })
+}
+
+const getMissingParameters = (
+  oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  templateParameters: TypesGen.TemplateVersionParameter[],
+) => {
+  const missingParameters: TypesGen.TemplateVersionParameter[] = []
+  const requiredParameters: TypesGen.TemplateVersionParameter[] = []
+
+  templateParameters.forEach((p) => {
+    // Legacy parameters should be required. So we can migrate them.
+    const isLegacy = p.legacy_variable_name === undefined
+    // It is mutable and required. Mutable values can be changed after so we
+    // don't need to ask them if they are not required.
+    const isMutableAndRequired = p.mutable && p.required
+    // Is immutable, so we can check if it is its first time on the build
+    const isImmutable = !p.mutable
+
+    if (isLegacy || isMutableAndRequired || isImmutable) {
+      requiredParameters.push(p)
+      return
+    }
+  })
+
+  for (const parameter of requiredParameters) {
+    // Check if there is a new value
+    let buildParameter = newBuildParameters.find(
+      (p) => p.name === parameter.name,
+    )
+
+    // If not, get the old one
+    if (!buildParameter) {
+      buildParameter = oldBuildParameters.find((p) => p.name === parameter.name)
+    }
+
+    // If there is a value from the new or old one, it is not missed
+    if (buildParameter) {
+      continue
+    }
+
+    missingParameters.push(parameter)
+  }
+
+  return missingParameters
+}
+
+/**
+ *
+ * @param agentId
+ * @returns An EventSource that emits agent metadata event objects
+ * (ServerSentEvent)
+ */
+export const watchAgentMetadata = (agentId: string): EventSource => {
+  return new EventSource(
+    `${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
+    { withCredentials: true },
+  )
+}
+
+type WatchBuildLogsByTemplateVersionIdOptions = {
+  after?: number
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void
+  onDone: () => void
+  onError: (error: Error) => void
+}
+export const watchBuildLogsByTemplateVersionId = (
+  versionId: string,
+  {
+    onMessage,
+    onDone,
+    onError,
+    after,
+  }: WatchBuildLogsByTemplateVersionIdOptions,
+) => {
+  const searchParams = new URLSearchParams({ follow: "true" })
+  if (after !== undefined) {
+    searchParams.append("after", after.toString())
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:"
+  const socket = new WebSocket(
+    `${proto}//${
+      location.host
+    }/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
+  )
+  socket.binaryType = "blob"
+  socket.addEventListener("message", (event) =>
+    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+  )
+  socket.addEventListener("error", () => {
+    onError(new Error("Connection for logs failed."))
+    socket.close()
+  })
+  socket.addEventListener("close", () => {
+    // When the socket closes, logs have finished streaming!
+    onDone()
+  })
+  return socket
+}
+
+type WatchStartupLogsOptions = {
+  after: number
+  onMessage: (logs: TypesGen.WorkspaceAgentStartupLog[]) => void
+  onDone: () => void
+  onError: (error: Error) => void
+}
+
+export const watchStartupLogs = (
+  agentId: string,
+  { after, onMessage, onDone, onError }: WatchStartupLogsOptions,
+) => {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:"
+  const socket = new WebSocket(
+    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/startup-logs?follow&after=${after}`,
+  )
+  socket.binaryType = "blob"
+  socket.addEventListener("message", (event) => {
+    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentStartupLog[]
+    onMessage(logs)
+  })
+  socket.addEventListener("error", () => {
+    onError(new Error("socket errored"))
+  })
+  socket.addEventListener("close", () => {
+    onDone()
+  })
+
+  return socket
+}
+
+type WatchBuildLogsByBuildIdOptions = {
+  after?: number
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void
+  onDone: () => void
+  onError: (error: Error) => void
+}
+export const watchBuildLogsByBuildId = (
+  buildId: string,
+  { onMessage, onDone, onError, after }: WatchBuildLogsByBuildIdOptions,
+) => {
+  const searchParams = new URLSearchParams({ follow: "true" })
+  if (after !== undefined) {
+    searchParams.append("after", after.toString())
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:"
+  const socket = new WebSocket(
+    `${proto}//${
+      location.host
+    }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
+  )
+  socket.binaryType = "blob"
+  socket.addEventListener("message", (event) =>
+    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+  )
+  socket.addEventListener("error", () => {
+    onError(new Error("Connection for logs failed."))
+    socket.close()
+  })
+  socket.addEventListener("close", () => {
+    // When the socket closes, logs have finished streaming!
+    onDone()
+  })
+  return socket
 }

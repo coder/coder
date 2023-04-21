@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 )
 
 const (
@@ -209,7 +210,8 @@ func (c *Checker) update() (r Result, err error) {
 		return r, xerrors.Errorf("json marshal result: %w", err)
 	}
 
-	err = c.db.InsertOrUpdateLastUpdateCheck(ctx, string(b))
+	// nolint:gocritic // Inserting the last update check is a system function.
+	err = c.db.UpsertLastUpdateCheck(dbauthz.AsSystemRestricted(ctx), string(b))
 	if err != nil {
 		return r, err
 	}
@@ -224,7 +226,8 @@ func (c *Checker) notifyIfNewer(prev, next Result) {
 }
 
 func (c *Checker) lastUpdateCheck(ctx context.Context) (r Result, err error) {
-	s, err := c.db.GetLastUpdateCheck(ctx)
+	// nolint:gocritic // Getting the last update check is a system function.
+	s, err := c.db.GetLastUpdateCheck(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return r, err
 	}

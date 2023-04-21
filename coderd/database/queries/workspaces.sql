@@ -270,10 +270,11 @@ INSERT INTO
 		template_id,
 		name,
 		autostart_schedule,
-		ttl
+		ttl,
+		last_used_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
@@ -316,3 +317,118 @@ SET
 	last_used_at = $2
 WHERE
 	id = $1;
+
+-- name: UpdateWorkspaceTTLToBeWithinTemplateMax :exec
+UPDATE
+	workspaces
+SET
+	ttl = LEAST(ttl, @template_max_ttl::bigint)
+WHERE
+	template_id = @template_id
+	-- LEAST() does not pick NULL, so filter it out as we don't want to set a
+	-- TTL on the workspace if it's unset.
+	--
+	-- During build time, the template max TTL will still be used if the
+	-- workspace TTL is NULL.
+	AND ttl IS NOT NULL;
+
+-- name: GetDeploymentWorkspaceStats :one
+WITH workspaces_with_jobs AS (
+	SELECT
+	latest_build.* FROM workspaces
+	LEFT JOIN LATERAL (
+		SELECT
+			workspace_builds.transition,
+			provisioner_jobs.id AS provisioner_job_id,
+			provisioner_jobs.started_at,
+			provisioner_jobs.updated_at,
+			provisioner_jobs.canceled_at,
+			provisioner_jobs.completed_at,
+			provisioner_jobs.error
+		FROM
+			workspace_builds
+		LEFT JOIN
+			provisioner_jobs
+		ON
+			provisioner_jobs.id = workspace_builds.job_id
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+		ORDER BY
+			build_number DESC
+		LIMIT
+			1
+	) latest_build ON TRUE WHERE deleted = false
+), pending_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		started_at IS NULL
+), building_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		started_at IS NOT NULL AND
+		canceled_at IS NULL AND
+		completed_at IS NULL AND
+		updated_at - INTERVAL '30 seconds' < NOW()
+), running_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		completed_at IS NOT NULL AND
+		canceled_at IS NULL AND
+		error IS NULL AND
+		transition = 'start'::workspace_transition
+), failed_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		(canceled_at IS NOT NULL AND
+			error IS NOT NULL) OR
+		(completed_at IS NOT NULL AND
+			error IS NOT NULL)
+), stopped_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		completed_at IS NOT NULL AND
+		canceled_at IS NULL AND
+		error IS NULL AND
+		transition = 'stop'::workspace_transition
+)
+SELECT
+	pending_workspaces.count AS pending_workspaces,
+	building_workspaces.count AS building_workspaces,
+	running_workspaces.count AS running_workspaces,
+	failed_workspaces.count AS failed_workspaces,
+	stopped_workspaces.count AS stopped_workspaces
+FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces;
+
+-- name: GetWorkspacesEligibleForAutoStartStop :many
+SELECT
+	workspaces.*
+FROM
+	workspaces
+LEFT JOIN
+	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+WHERE
+	workspace_builds.build_number = (
+		SELECT
+			MAX(build_number)
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+	) AND
+
+	(
+		-- If the workspace build was a start transition, the workspace is
+		-- potentially eligible for autostop if it's past the deadline. The
+		-- deadline is computed at build time upon success and is bumped based
+		-- on activity (up the max deadline if set). We don't need to check
+		-- license here since that's done when the values are written to the build.
+		(
+			workspace_builds.transition = 'start'::workspace_transition AND
+			workspace_builds.deadline IS NOT NULL AND
+			workspace_builds.deadline < @now :: timestamptz
+		) OR
+
+		-- If the workspace build was a stop transition, the workspace is
+		-- potentially eligible for autostart if it has a schedule set. The
+		-- caller must check if the template allows autostart in a license-aware
+		-- fashion as we cannot check it here.
+		(
+			workspace_builds.transition = 'stop'::workspace_transition AND
+			workspaces.autostart_schedule IS NOT NULL
+		)
+	);

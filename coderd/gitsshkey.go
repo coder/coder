@@ -8,7 +8,6 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
@@ -34,11 +33,6 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-
-	if !api.Authorize(r, rbac.ActionUpdate, user.UserDataRBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	oldKey, err := api.Database.GetGitSSHKey(ctx, user.ID)
 	if err != nil {
@@ -93,11 +87,6 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-
-	if !api.Authorize(r, rbac.ActionRead, user.UserDataRBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	gitSSHKey, err := api.Database.GetGitSSHKey(ctx, user.ID)
 	if err != nil {

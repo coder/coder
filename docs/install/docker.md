@@ -4,10 +4,12 @@ You can install and run Coder using the official Docker images published on [Git
 
 Docker is required. See the [official installation documentation](https://docs.docker.com/install/).
 
+> Note that the below steps are only supported on a Linux distribution. If on macOS, please [run Coder via the standalone binary](./binary.md).
+
 ## Run Coder with the built-in database (quick)
 
 For proof-of-concept deployments, you can run a complete Coder instance with
-the following command:
+the following command.
 
 ```console
 export CODER_DATA=$HOME/.config/coderv2-docker
@@ -86,7 +88,7 @@ an PostgreSQL container and volume.
 
 ### Docker-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See [troubleshooting templates](../templates.md#creating-and-troubleshooting-templates) for more steps.
+Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See [troubleshooting templates](../templates/README.md#troubleshooting-templates) for more steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
 
@@ -94,6 +96,5 @@ See Docker's official documentation to [Manage Docker as a non-root user](https:
 
 ## Next steps
 
-- [Quickstart](../quickstart.md)
 - [Configuring Coder](../admin/configure.md)
-- [Templates](../templates.md)
+- [Templates](../templates/README.md)

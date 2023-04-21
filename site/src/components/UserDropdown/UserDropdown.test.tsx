@@ -1,5 +1,5 @@
 import { fireEvent, screen } from "@testing-library/react"
-import { MockUser } from "../../testHelpers/entities"
+import { MockSupportLinks, MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language } from "../UserDropdownContent/UserDropdownContent"
 import { UserDropdown, UserDropdownProps } from "./UsersDropdown"
@@ -8,6 +8,7 @@ const renderAndClick = async (props: Partial<UserDropdownProps> = {}) => {
   render(
     <UserDropdown
       user={props.user ?? MockUser}
+      supportLinks={MockSupportLinks}
       onSignOut={props.onSignOut ?? jest.fn()}
     />,
   )
@@ -20,7 +21,9 @@ describe("UserDropdown", () => {
     it("opens the menu", async () => {
       await renderAndClick()
       expect(screen.getByText(Language.accountLabel)).toBeDefined()
-      expect(screen.getByText(Language.docsLabel)).toBeDefined()
+      expect(screen.getByText(MockSupportLinks[0].name)).toBeDefined()
+      expect(screen.getByText(MockSupportLinks[1].name)).toBeDefined()
+      expect(screen.getByText(MockSupportLinks[2].name)).toBeDefined()
       expect(screen.getByText(Language.signOutLabel)).toBeDefined()
     })
   })

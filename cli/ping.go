@@ -5,46 +5,48 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func ping() *cobra.Command {
+func (r *RootCmd) ping() *clibase.Cmd {
 	var (
-		pingNum     int
+		pingNum     int64
 		pingTimeout time.Duration
 		pingWait    time.Duration
-		verbose     bool
 	)
-	cmd := &cobra.Command{
+
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ping <workspace>",
 		Short:       "Ping a workspace",
-		Args:        cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithCancel(cmd.Context())
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-
-			workspaceName := args[0]
-			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, workspaceName, false)
+			workspaceName := inv.Args[0]
+			_, workspaceAgent, err := getWorkspaceAndAgent(
+				ctx, inv, client,
+				codersdk.Me, workspaceName,
+			)
 			if err != nil {
 				return err
 			}
 
 			var logger slog.Logger
-			if verbose {
-				logger = slog.Make(sloghuman.Sink(cmd.OutOrStdout())).Leveled(slog.LevelDebug)
+			if r.verbose {
+				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{Logger: logger})
@@ -70,8 +72,8 @@ func ping() *cobra.Command {
 				cancel()
 				if err != nil {
 					if xerrors.Is(err, context.DeadlineExceeded) {
-						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ping to %q timed out \n", workspaceName)
-						if n == pingNum {
+						_, _ = fmt.Fprintf(inv.Stdout, "ping to %q timed out \n", workspaceName)
+						if n == int(pingNum) {
 							return nil
 						}
 						continue
@@ -84,8 +86,8 @@ func ping() *cobra.Command {
 						continue
 					}
 
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ping to %q failed %s\n", workspaceName, err.Error())
-					if n == pingNum {
+					_, _ = fmt.Fprintf(inv.Stdout, "ping to %q failed %s\n", workspaceName, err.Error())
+					if n == int(pingNum) {
 						return nil
 					}
 					continue
@@ -95,7 +97,7 @@ func ping() *cobra.Command {
 				var via string
 				if p2p {
 					if !didP2p {
-						_, _ = fmt.Fprintln(cmd.OutOrStdout(), "p2p connection established in",
+						_, _ = fmt.Fprintln(inv.Stdout, "p2p connection established in",
 							cliui.Styles.DateTimeStamp.Render(time.Since(start).Round(time.Millisecond).String()),
 						)
 					}
@@ -117,22 +119,40 @@ func ping() *cobra.Command {
 					)
 				}
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "pong from %s %s in %s\n",
+				_, _ = fmt.Fprintf(inv.Stdout, "pong from %s %s in %s\n",
 					cliui.Styles.Keyword.Render(workspaceName),
 					via,
 					cliui.Styles.DateTimeStamp.Render(dur.String()),
 				)
 
-				if n == pingNum {
+				if n == int(pingNum) {
 					return nil
 				}
 			}
 		},
 	}
 
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enables verbose logging.")
-	cmd.Flags().DurationVarP(&pingWait, "wait", "", time.Second, "Specifies how long to wait between pings.")
-	cmd.Flags().DurationVarP(&pingTimeout, "timeout", "t", 5*time.Second, "Specifies how long to wait for a ping to complete.")
-	cmd.Flags().IntVarP(&pingNum, "num", "n", 10, "Specifies the number of pings to perform.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "wait",
+			Description: "Specifies how long to wait between pings.",
+			Default:     "1s",
+			Value:       clibase.DurationOf(&pingWait),
+		},
+		{
+			Flag:          "timeout",
+			FlagShorthand: "t",
+			Default:       "5s",
+			Description:   "Specifies how long to wait for a ping to complete.",
+			Value:         clibase.DurationOf(&pingTimeout),
+		},
+		{
+			Flag:          "num",
+			FlagShorthand: "n",
+			Default:       "10",
+			Description:   "Specifies the number of pings to perform.",
+			Value:         clibase.Int64Of(&pingNum),
+		},
+	}
 	return cmd
 }

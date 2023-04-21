@@ -41,6 +41,17 @@ type ProvisionerJobOptions struct {
 	Silent bool
 }
 
+type ProvisionerJobError struct {
+	Message string
+	Code    codersdk.JobErrorCode
+}
+
+var _ error = new(ProvisionerJobError)
+
+func (err *ProvisionerJobError) Error() string {
+	return err.Message
+}
+
 // ProvisionerJob renders a provisioner job with interactive cancellation.
 func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOptions) error {
 	if opts.FetchInterval == 0 {
@@ -181,7 +192,10 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 					return nil
 				case codersdk.ProvisionerJobFailed:
 				}
-				err = xerrors.New(job.Error)
+				err = &ProvisionerJobError{
+					Message: job.Error,
+					Code:    job.ErrorCode,
+				}
 				jobMutex.Unlock()
 				flushLogBuffer()
 				return err

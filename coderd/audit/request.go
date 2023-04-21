@@ -36,6 +36,10 @@ type Request[T Auditable] struct {
 	// This optional field can be passed in when the userID cannot be determined from the API Key
 	// such as in the case of login, when the audit log is created prior the API Key's existence.
 	UserID uuid.UUID
+
+	// This optional field can be passed in if the AuditAction must be overridden
+	// such as in the case of new user authentication when the Audit Action is 'register', not 'login'.
+	Action database.AuditAction
 }
 
 type BuildAuditParams[T Auditable] struct {
@@ -70,10 +74,16 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.AuditableGroup:
 		return typed.Group.Name
 	case database.APIKey:
-		// this isn't used
+		if typed.TokenName != "nil" {
+			return typed.TokenName
+		}
+		// API Keys without names are used for auth
+		// and don't have a target
 		return ""
 	case database.License:
 		return strconv.Itoa(int(typed.ID))
+	case database.WorkspaceProxy:
+		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -99,13 +109,15 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.License:
 		return typed.UUID
+	case database.WorkspaceProxy:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
 }
 
 func ResourceType[T Auditable](tgt T) database.ResourceType {
-	switch any(tgt).(type) {
+	switch typed := any(tgt).(type) {
 	case database.Template:
 		return database.ResourceTypeTemplate
 	case database.TemplateVersion:
@@ -124,8 +136,10 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeApiKey
 	case database.License:
 		return database.ResourceTypeLicense
+	case database.WorkspaceProxy:
+		return database.ResourceTypeWorkspaceProxy
 	default:
-		panic(fmt.Sprintf("unknown resource %T", tgt))
+		panic(fmt.Sprintf("unknown resource %T", typed))
 	}
 }
 
@@ -150,17 +164,17 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		if ResourceID(req.Old) == uuid.Nil && ResourceID(req.New) == uuid.Nil {
 			// If the request action is a login or logout, we always want to audit it even if
 			// there is no diff. This is so we can capture events where an API Key is never created
-			// because an unknown user fails to login.
-			// TODO: introduce the concept of an anonymous user so we always have a userID even
-			// when dealing with a mystery user. https://github.com/coder/coder/issues/6054
+			// because a known user fails to login.
 			if req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 				return
 			}
 		}
 
 		diffRaw := []byte("{}")
-		// Only generate diffs if the request succeeded.
-		if sw.Status < 400 {
+		// Only generate diffs if the request succeeded
+		// and only if we aren't auditing authentication actions
+		if sw.Status < 400 &&
+			req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 			diff := Diff(p.Audit, req.Old, req.New)
 
 			var err error
@@ -179,8 +193,18 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		key, ok := httpmw.APIKeyOptional(p.Request)
 		if ok {
 			userID = key.UserID
-		} else {
+		} else if req.UserID != uuid.Nil {
 			userID = req.UserID
+		} else {
+			// if we do not have a user associated with the audit action
+			// we do not want to audit
+			// (this pertains to logins; we don't want to capture non-user login attempts)
+			return
+		}
+
+		action := p.Action
+		if req.Action != "" {
+			action = req.Action
 		}
 
 		ip := parseIP(p.Request.RemoteAddr)
@@ -193,7 +217,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			ResourceType:     either(req.Old, req.New, ResourceType[T], req.params.Action),
 			ResourceID:       either(req.Old, req.New, ResourceID[T], req.params.Action),
 			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T], req.params.Action),
-			Action:           p.Action,
+			Action:           action,
 			Diff:             diffRaw,
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),

@@ -2,9 +2,16 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.6"
+      version = "0.6.20"
     }
   }
+}
+
+data "coder_parameter" "sample" {
+  name        = "Sample"
+  type        = "string"
+  description = "blah blah"
+  default     = "ok"
 }
 
 data "coder_parameter" "example" {

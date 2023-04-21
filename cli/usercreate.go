@@ -4,33 +4,34 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
 
-func userCreate() *cobra.Command {
+func (r *RootCmd) userCreate() *clibase.Cmd {
 	var (
 		email    string
 		username string
 		password string
 	)
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use: "create",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-			organization, err := CurrentOrganization(cmd, client)
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}
 			if username == "" {
-				username, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				username, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Username:",
 				})
 				if err != nil {
@@ -38,7 +39,7 @@ func userCreate() *cobra.Command {
 				}
 			}
 			if email == "" {
-				email, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				email, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Email:",
 					Validate: func(s string) error {
 						err := validator.New().Var(s, "email")
@@ -59,7 +60,7 @@ func userCreate() *cobra.Command {
 				}
 			}
 
-			_, err = client.CreateUser(cmd.Context(), codersdk.CreateUserRequest{
+			_, err = client.CreateUser(inv.Context(), codersdk.CreateUserRequest{
 				Email:          email,
 				Username:       username,
 				Password:       password,
@@ -68,7 +69,7 @@ func userCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), `A new user has been created!
+			_, _ = fmt.Fprintln(inv.Stderr, `A new user has been created!
 Share the instructions below to get them started.
 `+cliui.Styles.Placeholder.Render("—————————————————————————————————————————————————")+`
 Download the Coder command line for your operating system:
@@ -83,8 +84,25 @@ Create a workspace  `+cliui.Styles.Code.Render("coder create")+`!`)
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&email, "email", "e", "", "Specifies an email address for the new user.")
-	cmd.Flags().StringVarP(&username, "username", "u", "", "Specifies a username for the new user.")
-	cmd.Flags().StringVarP(&password, "password", "p", "", "Specifies a password for the new user.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "email",
+			FlagShorthand: "e",
+			Description:   "Specifies an email address for the new user.",
+			Value:         clibase.StringOf(&email),
+		},
+		{
+			Flag:          "username",
+			FlagShorthand: "u",
+			Description:   "Specifies a username for the new user.",
+			Value:         clibase.StringOf(&username),
+		},
+		{
+			Flag:          "password",
+			FlagShorthand: "p",
+			Description:   "Specifies a password for the new user.",
+			Value:         clibase.StringOf(&password),
+		},
+	}
 	return cmd
 }

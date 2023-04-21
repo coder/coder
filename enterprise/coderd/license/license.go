@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -39,12 +40,14 @@ func Entitlements(
 		}
 	}
 
-	licenses, err := db.GetUnexpiredLicenses(ctx)
+	// nolint:gocritic // Getting unexpired licenses is a system function.
+	licenses, err := db.GetUnexpiredLicenses(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return entitlements, err
 	}
 
-	activeUserCount, err := db.GetActiveUserCount(ctx)
+	// nolint:gocritic // Getting active user count is a system function.
+	activeUserCount, err := db.GetActiveUserCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return entitlements, xerrors.Errorf("query active user count: %w", err)
 	}

@@ -90,7 +90,7 @@ describe("Create User Page", () => {
   it("shows success notification and redirects to users page", async () => {
     await renderCreateUserPage()
     await fillForm({})
-    const successMessage = screen.findByText(
+    const successMessage = await screen.findByText(
       CreateUserLanguage.createUserSuccess,
     )
     expect(successMessage).toBeDefined()

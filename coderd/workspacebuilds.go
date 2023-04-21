@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/provisionerdserver"
@@ -36,16 +37,29 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	data, err := api.workspaceBuildsData(ctx, []database.Workspace{workspace}, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Ensure we have the job and template version for the workspace build.
+	// Otherwise we risk a panic in the api.convertWorkspaceBuild call below.
+	if len(data.jobs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error getting workspace build data.",
+			Detail:  "No job found for workspace build.",
+		})
+		return
+	}
+
+	if len(data.templateVersions) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error getting workspace build data.",
+			Detail:  "No template version found for workspace build.",
 		})
 		return
 	}
@@ -87,11 +101,6 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
-
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	paginationParams, ok := parsePagination(rw, r)
 	if !ok {
@@ -218,7 +227,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		OwnerID: owner.ID,
 		Name:    workspaceName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -230,16 +239,11 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	workspaceBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 		WorkspaceID: workspace.ID,
 		BuildNumber: int32(buildNumber),
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Workspace %q Build %d does not exist.", workspaceName, buildNumber),
 		})
@@ -307,7 +311,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Rbac action depends on the transition
+	// Doing this up front saves a lot of work if the user doesn't have permission.
+	// This is checked again in the dbauthz layer, but the check is cached
+	// and will be a noop later.
 	var action rbac.Action
 	switch createBuild.Transition {
 	case codersdk.WorkspaceTransitionDelete:
@@ -477,6 +483,39 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	apiLastBuildParameters := convertWorkspaceBuildParameters(lastBuildParameters)
 
+	legacyParameters, err := api.Database.ParameterValues(ctx, database.ParameterValuesParams{
+		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
+		ScopeIds: []uuid.UUID{workspace.ID},
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error fetching previous legacy parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Rich parameters migration: include legacy variables to the last build parameters
+	for _, templateVersionParameter := range templateVersionParameters {
+		// Check if parameter is defined in previous build
+		if _, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
+			continue
+		}
+
+		// Check if legacy variable is defined
+		for _, legacyParameter := range legacyParameters {
+			if legacyParameter.Name != templateVersionParameter.LegacyVariableName {
+				continue
+			}
+
+			apiLastBuildParameters = append(apiLastBuildParameters, codersdk.WorkspaceBuildParameter{
+				Name:  templateVersionParameter.Name,
+				Value: legacyParameter.SourceValue,
+			})
+			break
+		}
+	}
+
 	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createBuild.RichParameterValues, apiLastBuildParameters)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -491,10 +530,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		// Check if parameter value is in request
 		if buildParameter, found := findWorkspaceBuildParameter(createBuild.RichParameterValues, templateVersionParameter.Name); found {
 			if !templateVersionParameter.Mutable {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: fmt.Sprintf("Parameter %q is mutable, so it can't be updated after creating workspace.", templateVersionParameter.Name),
-				})
-				return
+				if _, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", templateVersionParameter.Name),
+					})
+					return
+				}
 			}
 			parameters = append(parameters, *buildParameter)
 			continue
@@ -506,22 +547,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	legacyParameters, err := api.Database.ParameterValues(ctx, database.ParameterValuesParams{
-		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
-		ScopeIds: []uuid.UUID{workspace.ID},
-	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error fetching previous legacy parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if createBuild.Transition == codersdk.WorkspaceTransitionStart &&
-		len(legacyParameters) > 0 && len(parameters) > 0 {
+	if createBuild.LogLevel != "" && !api.Authorize(r, rbac.ActionUpdate, template) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Rich parameters can't be used together with legacy parameters.",
+			Message: "Workspace builds with a custom log level are restricted to template authors only.",
 		})
 		return
 	}
@@ -563,6 +591,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuildID := uuid.New()
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
+			LogLevel:         string(createBuild.LogLevel),
 		})
 		if err != nil {
 			return xerrors.Errorf("marshal provision job: %w", err)
@@ -681,11 +710,6 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, httpmw.APIKey(r).UserID, workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -776,18 +800,6 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "No workspace exists for this job.",
-		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
 	if err != nil {
@@ -811,18 +823,6 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "No workspace exists for this job.",
-		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
 	if err != nil {
@@ -850,18 +850,6 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "No workspace exists for this job.",
-		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
 	if err != nil {
@@ -892,8 +880,18 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get template",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
+	// You must have update permissions on the template to get the state.
+	// This matches a push!
+	if !api.Authorize(r, rbac.ActionUpdate, template.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -939,12 +937,15 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	for _, build := range workspaceBuilds {
 		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
 	}
-	templateVersions, err := api.Database.GetTemplateVersionsByIDs(ctx, templateVersionIDs)
+
+	// nolint:gocritic // Getting template versions by ID is a system function.
+	templateVersions, err := api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
 	}
 
-	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
+	// nolint:gocritic // Getting workspace resources by job ID is a system function.
+	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(dbauthz.AsSystemRestricted(ctx), jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
 	}
@@ -962,12 +963,14 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
 
-	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
+	// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
+	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
 	}
 
-	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
 	}
@@ -987,7 +990,8 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		agentIDs = append(agentIDs, agent.ID)
 	}
 
-	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+	// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace apps: %w", err)
 	}
@@ -1112,7 +1116,10 @@ func (api *API) convertWorkspaceBuild(
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
-			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+			apiAgent, err := convertWorkspaceAgent(
+				api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout,
+				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+			)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
 			}
@@ -1139,6 +1146,7 @@ func (api *API) convertWorkspaceBuild(
 		InitiatorUsername:   initiator.Username,
 		Job:                 apiJob,
 		Deadline:            codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
+		MaxDeadline:         codersdk.NewNullTime(build.MaxDeadline, !build.MaxDeadline.IsZero()),
 		Reason:              codersdk.BuildReason(build.Reason),
 		Resources:           apiResources,
 		Status:              convertWorkspaceStatus(apiJob.Status, transition),

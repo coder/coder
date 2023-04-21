@@ -3,8 +3,10 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -14,6 +16,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 )
@@ -63,6 +67,30 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	templateVersionNameValidator := func(fl validator.FieldLevel) bool {
+		f := fl.Field().Interface()
+		str, ok := f.(string)
+		if !ok {
+			return false
+		}
+		valid := TemplateVersionNameValid(str)
+		return valid == nil
+	}
+	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Is404Error returns true if the given error should return a 404 status code.
+// Both actual 404s and unauthorized errors should return 404s to not leak
+// information about the existence of resources.
+func Is404Error(err error) bool {
+	if err == nil {
+		return false
+	}
+	return xerrors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) || rbac.IsUnauthorizedError(err)
 }
 
 // Convenience error functions don't take contexts since their responses are
@@ -114,6 +142,10 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(true)
+	// Pretty up JSON when testing.
+	if flag.Lookup("test.v") != nil {
+		enc.SetIndent("", "\t")
+	}
 	err := enc.Encode(response)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)

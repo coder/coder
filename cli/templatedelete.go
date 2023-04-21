@@ -5,35 +5,38 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templateDelete() *cobra.Command {
-	cmd := &cobra.Command{
+func (r *RootCmd) templateDelete() *clibase.Cmd {
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Middleware: clibase.Chain(
+			r.InitClient(client),
+		),
+		Options: clibase.OptionSet{
+			cliui.SkipPromptOption(),
+		},
+		Handler: func(inv *clibase.Invocation) error {
 			var (
-				ctx           = cmd.Context()
+				ctx           = inv.Context()
 				templateNames = []string{}
 				templates     = []codersdk.Template{}
 			)
 
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}
 
-			if len(args) > 0 {
-				templateNames = args
+			if len(inv.Args) > 0 {
+				templateNames = inv.Args
 
 				for _, templateName := range templateNames {
 					template, err := client.TemplateByName(ctx, organization.ID, templateName)
@@ -57,7 +60,7 @@ func templateDelete() *cobra.Command {
 					opts = append(opts, template.Name)
 				}
 
-				selection, err := cliui.Select(cmd, cliui.SelectOptions{
+				selection, err := cliui.Select(inv, cliui.SelectOptions{
 					Options: opts,
 				})
 				if err != nil {
@@ -73,7 +76,7 @@ func templateDelete() *cobra.Command {
 			}
 
 			// Confirm deletion of the template.
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
@@ -88,13 +91,12 @@ func templateDelete() *cobra.Command {
 					return xerrors.Errorf("delete template %q: %w", template.Name, err)
 				}
 
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Deleted template "+cliui.Styles.Code.Render(template.Name)+" at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")
+				_, _ = fmt.Fprintln(inv.Stdout, "Deleted template "+cliui.Styles.Code.Render(template.Name)+" at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")
 			}
 
 			return nil
 		},
 	}
 
-	cliui.AllowSkipPrompt(cmd)
 	return cmd
 }

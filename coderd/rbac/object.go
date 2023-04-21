@@ -14,12 +14,26 @@ type Objecter interface {
 // Resources are just typed objects. Making resources this way allows directly
 // passing them into an Authorize function and use the chaining api.
 var (
+	// ResourceWildcard represents all resource types
+	// Try to avoid using this where possible.
+	ResourceWildcard = Object{
+		Type: WildcardSymbol,
+	}
+
 	// ResourceWorkspace CRUD. Org + User owner
 	//	create/delete = make or delete workspaces
 	// 	read = access workspace
 	//	update = edit workspace variables
 	ResourceWorkspace = Object{
 		Type: "workspace",
+	}
+
+	// ResourceWorkspaceProxy CRUD. Org
+	//	create/delete = make or delete proxies
+	// 	read = read proxy urls
+	//	update = edit workspace proxy fields
+	ResourceWorkspaceProxy = Object{
+		Type: "workspace_proxy",
 	}
 
 	// ResourceWorkspaceExecution CRUD. Org + User owner
@@ -128,11 +142,6 @@ var (
 		Type: "organization_member",
 	}
 
-	// ResourceWildcard represents all resource types
-	ResourceWildcard = Object{
-		Type: WildcardSymbol,
-	}
-
 	// ResourceLicense is the license in the 'licenses' table.
 	// ResourceLicense is site wide.
 	// 	create/delete = add or remove license from site.
@@ -142,9 +151,13 @@ var (
 		Type: "license",
 	}
 
-	// ResourceDeploymentConfig
-	ResourceDeploymentConfig = Object{
+	// ResourceDeploymentValues
+	ResourceDeploymentValues = Object{
 		Type: "deployment_config",
+	}
+
+	ResourceDeploymentStats = Object{
+		Type: "deployment_stats",
 	}
 
 	ResourceReplicas = Object{
@@ -154,6 +167,11 @@ var (
 	// ResourceDebugInfo controls access to the debug routes `/api/v2/debug/*`.
 	ResourceDebugInfo = Object{
 		Type: "debug_info",
+	}
+
+	// ResourceSystem is a pseudo-resource only used for system-level actions.
+	ResourceSystem = Object{
+		Type: "system",
 	}
 )
 

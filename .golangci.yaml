@@ -194,6 +194,7 @@ issues:
       linters:
         # We use assertions rather than explicitly checking errors in tests
         - errcheck
+        - forcetypeassert
 
   fix: true
   max-issues-per-linter: 0
@@ -215,7 +216,6 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
-    - deadcode
     - dogsled
     - errcheck
     - errname
@@ -259,4 +259,3 @@ linters:
     - typecheck
     - unconvert
     - unused
-    - varcheck

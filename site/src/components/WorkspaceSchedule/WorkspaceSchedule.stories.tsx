@@ -9,10 +9,8 @@ dayjs.extend(utc)
 export default {
   title: "components/WorkspaceSchedule",
   component: WorkspaceSchedule,
-  argTypes: {
-    canUpdateWorkspace: {
-      defaultValue: true,
-    },
+  args: {
+    canUpdateWorkspace: true,
   },
 }
 

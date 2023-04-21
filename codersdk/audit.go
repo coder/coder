@@ -42,7 +42,7 @@ func (r ResourceType) FriendlyString() string {
 	case ResourceTypeGitSSHKey:
 		return "git ssh key"
 	case ResourceTypeAPIKey:
-		return "api key"
+		return "token"
 	case ResourceTypeGroup:
 		return "group"
 	case ResourceTypeLicense:
@@ -55,13 +55,14 @@ func (r ResourceType) FriendlyString() string {
 type AuditAction string
 
 const (
-	AuditActionCreate AuditAction = "create"
-	AuditActionWrite  AuditAction = "write"
-	AuditActionDelete AuditAction = "delete"
-	AuditActionStart  AuditAction = "start"
-	AuditActionStop   AuditAction = "stop"
-	AuditActionLogin  AuditAction = "login"
-	AuditActionLogout AuditAction = "logout"
+	AuditActionCreate   AuditAction = "create"
+	AuditActionWrite    AuditAction = "write"
+	AuditActionDelete   AuditAction = "delete"
+	AuditActionStart    AuditAction = "start"
+	AuditActionStop     AuditAction = "stop"
+	AuditActionLogin    AuditAction = "login"
+	AuditActionLogout   AuditAction = "logout"
+	AuditActionRegister AuditAction = "register"
 )
 
 func (a AuditAction) Friendly() string {
@@ -80,6 +81,8 @@ func (a AuditAction) Friendly() string {
 		return "logged in"
 	case AuditActionLogout:
 		return "logged out"
+	case AuditActionRegister:
+		return "registered"
 	default:
 		return "unknown"
 	}

@@ -15,9 +15,11 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
@@ -36,11 +38,6 @@ import (
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
-
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, []database.Template{template})
 	if err != nil {
@@ -77,16 +74,10 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = template
 
-	if !api.Authorize(r, rbac.ActionDelete, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// TODO: This just returns the workspaces a user can view. We should use
-	// a system function to get all workspaces that use this template.
-	// This data should never be exposed to the user aside from a non-zero count.
-	// Or we move this into a postgres constraint.
-	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+	// This is just to get the workspace count, so we use a system context to
+	// return ALL workspaces. Not just workspaces the user can view.
+	// nolint:gocritic
+	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
 		TemplateIds: []uuid.UUID{template.ID},
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -155,11 +146,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	defer commitTemplateAudit()
 	defer commitTemplateVersionAudit()
 
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	if !httpapi.Read(ctx, rw, r, &createTemplate) {
 		return
 	}
@@ -212,23 +198,48 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var ttl time.Duration
+	var (
+		defaultTTL time.Duration
+		maxTTL     time.Duration
+	)
 	if createTemplate.DefaultTTLMillis != nil {
-		ttl = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
+		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
 	}
-	if ttl < 0 {
+	if createTemplate.MaxTTLMillis != nil {
+		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
+	}
+
+	var validErrs []codersdk.ValidationError
+	if defaultTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if maxTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if maxTTL != 0 && defaultTTL > maxTTL {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
+	}
+	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid create template request.",
-			Validations: []codersdk.ValidationError{
-				{Field: "default_ttl_ms", Detail: "Must be a positive integer."},
-			},
+			Message:     "Invalid create template request.",
+			Validations: validErrs,
 		})
 		return
 	}
 
-	var allowUserCancelWorkspaceJobs bool
+	var (
+		allowUserCancelWorkspaceJobs bool
+		allowUserAutostart           = true
+		allowUserAutostop            = true
+	)
 	if createTemplate.AllowUserCancelWorkspaceJobs != nil {
 		allowUserCancelWorkspaceJobs = *createTemplate.AllowUserCancelWorkspaceJobs
+	}
+	if createTemplate.AllowUserAutostart != nil {
+		allowUserAutostart = *createTemplate.AllowUserAutostart
+	}
+	if createTemplate.AllowUserAutostop != nil {
+		allowUserAutostop = *createTemplate.AllowUserAutostop
 	}
 
 	var dbTemplate database.Template
@@ -244,7 +255,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Provisioner:     importJob.Provisioner,
 			ActiveVersionID: templateVersion.ID,
 			Description:     createTemplate.Description,
-			DefaultTTL:      int64(ttl),
 			CreatedBy:       apiKey.UserID,
 			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
@@ -258,15 +268,26 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("insert template: %s", err)
 		}
 
+		dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
+			UserAutostartEnabled: allowUserAutostart,
+			UserAutostopEnabled:  allowUserAutostop,
+			DefaultTTL:           defaultTTL,
+			MaxTTL:               maxTTL,
+		})
+		if err != nil {
+			return xerrors.Errorf("set template schedule options: %s", err)
+		}
+
 		templateAudit.New = dbTemplate
 
-		err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+		_, err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
 			ID: templateVersion.ID,
 			TemplateID: uuid.NullUUID{
 				UUID:  dbTemplate.ID,
 				Valid: true,
 			},
 			UpdatedAt: database.Now(),
+			Name:      templateVersion.Name,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template version: %s", err)
@@ -386,7 +407,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		Name:           templateName,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -395,11 +416,6 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 			Message: "Internal error fetching template.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -438,11 +454,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = template
 
-	if !api.Authorize(r, rbac.ActionUpdate, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	var req codersdk.UpdateTemplateMeta
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -451,6 +462,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var validErrs []codersdk.ValidationError
 	if req.DefaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if req.MaxTTLMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if req.MaxTTLMillis != 0 && req.DefaultTTLMillis > req.MaxTTLMillis {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
 	}
 
 	if len(validErrs) > 0 {
@@ -467,26 +484,24 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Description == template.Description &&
 			req.DisplayName == template.DisplayName &&
 			req.Icon == template.Icon &&
+			req.AllowUserAutostart == template.AllowUserAutostart &&
+			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
-			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() {
+			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
+			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() {
 			return nil
 		}
 
 		// Update template metadata -- empty fields are not overwritten,
-		// except for display_name, icon, and default_ttl.
-		// The exception is required to clear content of these fields with UI.
+		// except for display_name, description, icon, and default_ttl.
+		// These exceptions are required to clear content of these fields with UI.
 		name := req.Name
 		displayName := req.DisplayName
 		desc := req.Description
 		icon := req.Icon
-		maxTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
-		allowUserCancelWorkspaceJobs := req.AllowUserCancelWorkspaceJobs
 
 		if name == "" {
 			name = template.Name
-		}
-		if desc == "" {
-			desc = template.Description
 		}
 
 		var err error
@@ -497,11 +512,30 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisplayName:                  displayName,
 			Description:                  desc,
 			Icon:                         icon,
-			DefaultTTL:                   int64(maxTTL),
-			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
+			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 		})
 		if err != nil {
-			return err
+			return xerrors.Errorf("update template metadata: %w", err)
+		}
+
+		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
+		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
+		if defaultTTL != time.Duration(template.DefaultTTL) ||
+			maxTTL != time.Duration(template.MaxTTL) ||
+			req.AllowUserAutostart != template.AllowUserAutostart ||
+			req.AllowUserAutostop != template.AllowUserAutostop {
+			updated, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, updated, schedule.TemplateScheduleOptions{
+				// Some of these values are enterprise-only, but the
+				// TemplateScheduleStore will handle avoiding setting them if
+				// unlicensed.
+				UserAutostartEnabled: req.AllowUserAutostart,
+				UserAutostopEnabled:  req.AllowUserAutostop,
+				DefaultTTL:           defaultTTL,
+				MaxTTL:               maxTTL,
+			})
+			if err != nil {
+				return xerrors.Errorf("set template schedule options: %w", err)
+			}
 		}
 
 		return nil
@@ -541,10 +575,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	resp, _ := api.metricsCache.TemplateDAUs(template.ID)
 	if resp == nil || resp.Entries == nil {
@@ -635,8 +665,11 @@ func (api *API) convertTemplate(
 		Description:                  template.Description,
 		Icon:                         template.Icon,
 		DefaultTTLMillis:             time.Duration(template.DefaultTTL).Milliseconds(),
+		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                  template.CreatedBy,
 		CreatedByName:                createdByName,
+		AllowUserAutostart:           template.AllowUserAutostart,
+		AllowUserAutostop:            template.AllowUserAutostop,
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 	}
 }

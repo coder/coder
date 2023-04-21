@@ -160,6 +160,11 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 		t.Run(method+" "+route, func(t *testing.T) {
 			t.Parallel()
 
+			// This route is for compatibility purposes and is not documented.
+			if route == "/workspaceagents/me/metadata" {
+				return
+			}
+
 			c := findSwaggerCommentByMethodAndRoute(swaggerComments, method, route)
 			assert.NotNil(t, c, "Missing @Router annotation")
 			if c == nil {
@@ -345,6 +350,7 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 	} else {
 		if (comment.router == "/workspaceagents/me/app-health" && comment.method == "post") ||
 			(comment.router == "/workspaceagents/me/startup" && comment.method == "post") ||
+			(comment.router == "/workspaceagents/me/startup/logs" && comment.method == "patch") ||
 			(comment.router == "/licenses/{id}" && comment.method == "delete") ||
 			(comment.router == "/debug/coordinator" && comment.method == "get") {
 			return // Exception: HTTP 200 is returned without response entity

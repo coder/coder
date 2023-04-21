@@ -15,9 +15,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-type testOAuth2Provider struct{}
+type testOAuth2Provider struct {
+	t        testing.TB
+	authOpts []oauth2.AuthCodeOption
+}
 
-func (*testOAuth2Provider) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
+func (p *testOAuth2Provider) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
+	assert.EqualValues(p.t, p.authOpts, opts)
 	return "?state=" + url.QueryEscape(state)
 }
 
@@ -31,6 +35,13 @@ func (*testOAuth2Provider) TokenSource(_ context.Context, _ *oauth2.Token) oauth
 	return nil
 }
 
+func newTestOAuth2Provider(t testing.TB, opts ...oauth2.AuthCodeOption) *testOAuth2Provider {
+	return &testOAuth2Provider{
+		t:        t,
+		authOpts: opts,
+	}
+}
+
 // nolint:bodyclose
 func TestOAuth2(t *testing.T) {
 	t.Parallel()
@@ -38,14 +49,15 @@ func TestOAuth2(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/", nil)
 		res := httptest.NewRecorder()
-		httpmw.ExtractOAuth2(nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(nil, nil, nil)(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 	})
 	t.Run("RedirectWithoutCode", func(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape("/dashboard"), nil)
 		res := httptest.NewRecorder()
-		httpmw.ExtractOAuth2(&testOAuth2Provider{}, nil)(nil).ServeHTTP(res, req)
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
 		location := res.Header().Get("Location")
 		if !assert.NotEmpty(t, location) {
 			return
@@ -58,14 +70,16 @@ func TestOAuth2(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?code=something", nil)
 		res := httptest.NewRecorder()
-		httpmw.ExtractOAuth2(&testOAuth2Provider{}, nil)(nil).ServeHTTP(res, req)
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 	})
 	t.Run("NoStateCookie", func(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?code=something&state=test", nil)
 		res := httptest.NewRecorder()
-		httpmw.ExtractOAuth2(&testOAuth2Provider{}, nil)(nil).ServeHTTP(res, req)
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
 	})
 	t.Run("MismatchedState", func(t *testing.T) {
@@ -76,7 +90,8 @@ func TestOAuth2(t *testing.T) {
 			Value: "mismatch",
 		})
 		res := httptest.NewRecorder()
-		httpmw.ExtractOAuth2(&testOAuth2Provider{}, nil)(nil).ServeHTTP(res, req)
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
 	})
 	t.Run("ExchangeCodeAndState", func(t *testing.T) {
@@ -91,9 +106,23 @@ func TestOAuth2(t *testing.T) {
 			Value: "/dashboard",
 		})
 		res := httptest.NewRecorder()
-		httpmw.ExtractOAuth2(&testOAuth2Provider{}, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			state := httpmw.OAuth2(r)
 			require.Equal(t, "/dashboard", state.Redirect)
 		})).ServeHTTP(res, req)
+	})
+	t.Run("CustomAuthCodeOptions", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape("/dashboard"), nil)
+		res := httptest.NewRecorder()
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("foo", "bar"))
+		authOpts := map[string]string{"foo": "bar"}
+		httpmw.ExtractOAuth2(tp, nil, authOpts)(nil).ServeHTTP(res, req)
+		location := res.Header().Get("Location")
+		// Ideally we would also assert that the location contains the query params
+		// we set in the auth URL but this would essentially be testing the oauth2 package.
+		// testOAuth2Provider does this job for us.
+		require.NotEmpty(t, location)
 	})
 }

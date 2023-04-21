@@ -5,7 +5,7 @@ import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService"
 import {
   CreateWorkspaceErrors,
@@ -33,8 +33,10 @@ const CreateWorkspacePage: FC = () => {
     templates,
     templateParameters,
     templateSchema,
+    templateGitAuth,
     selectedTemplate,
     getTemplateSchemaError,
+    getTemplateGitAuthError,
     getTemplatesError,
     createWorkspaceError,
     permissions,
@@ -61,11 +63,14 @@ const CreateWorkspacePage: FC = () => {
         selectedTemplate={selectedTemplate}
         templateParameters={orderedTemplateParameters(templateParameters)}
         templateSchema={templateSchema}
+        templateGitAuth={templateGitAuth}
         createWorkspaceErrors={{
           [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
           [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]:
             getTemplateSchemaError,
           [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
+          [CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR]:
+            getTemplateGitAuthError,
         }}
         canCreateForUser={permissions?.createWorkspaceForUser}
         owner={owner}

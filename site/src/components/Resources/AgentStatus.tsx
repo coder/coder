@@ -1,6 +1,6 @@
 import Tooltip from "@material-ui/core/Tooltip"
 import { makeStyles } from "@material-ui/core/styles"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { useTranslation } from "react-i18next"
@@ -16,9 +16,10 @@ import Link from "@material-ui/core/Link"
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,
 // connected:starting, connected:start_timeout, connected:start_error,
-// connected:ready
+// connected:ready, connected:shutting_down, connected:shutdown_timeout,
+// connected:shutdown_error, connected:off.
 
-const ReadyLifeCycle: React.FC = () => {
+const ReadyLifecycle: React.FC = () => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
@@ -132,6 +133,122 @@ const StartErrorLifecycle: React.FC<{
   )
 }
 
+const ShuttingDownLifecycle: React.FC = () => {
+  const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
+
+  return (
+    <Tooltip title={t("agentStatus.connected.shuttingDown")}>
+      <div
+        role="status"
+        aria-label={t("agentStatus.connected.shuttingDown")}
+        className={combineClasses([styles.status, styles.connecting])}
+      />
+    </Tooltip>
+  )
+}
+
+const ShutdownTimeoutLifecycle: React.FC<{
+  agent: WorkspaceAgent
+}> = ({ agent }) => {
+  const { t } = useTranslation("agent")
+  const styles = useStyles()
+  const anchorRef = useRef<SVGSVGElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const id = isOpen ? "timeout-popover" : undefined
+
+  return (
+    <>
+      <WarningRounded
+        ref={anchorRef}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        role="status"
+        aria-label={t("status.shutdownTimeout")}
+        className={styles.timeoutWarning}
+      />
+      <HelpPopover
+        id={id}
+        open={isOpen}
+        anchorEl={anchorRef.current}
+        onOpen={() => setIsOpen(true)}
+        onClose={() => setIsOpen(false)}
+      >
+        <HelpTooltipTitle>{t("shutdownTimeoutTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipText>
+          {t("shutdownTimeoutTooltip.message")}{" "}
+          <Link
+            target="_blank"
+            rel="noreferrer"
+            href={agent.troubleshooting_url}
+          >
+            {t("shutdownTimeoutTooltip.link")}
+          </Link>
+          .
+        </HelpTooltipText>
+      </HelpPopover>
+    </>
+  )
+}
+
+const ShutdownErrorLifecycle: React.FC<{
+  agent: WorkspaceAgent
+}> = ({ agent }) => {
+  const { t } = useTranslation("agent")
+  const styles = useStyles()
+  const anchorRef = useRef<SVGSVGElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const id = isOpen ? "timeout-popover" : undefined
+
+  return (
+    <>
+      <WarningRounded
+        ref={anchorRef}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        role="status"
+        aria-label={t("status.error")}
+        className={styles.errorWarning}
+      />
+      <HelpPopover
+        id={id}
+        open={isOpen}
+        anchorEl={anchorRef.current}
+        onOpen={() => setIsOpen(true)}
+        onClose={() => setIsOpen(false)}
+      >
+        <HelpTooltipTitle>{t("shutdownErrorTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipText>
+          {t("shutdownErrorTooltip.message")}{" "}
+          <Link
+            target="_blank"
+            rel="noreferrer"
+            href={agent.troubleshooting_url}
+          >
+            {t("shutdownErrorTooltip.link")}
+          </Link>
+          .
+        </HelpTooltipText>
+      </HelpPopover>
+    </>
+  )
+}
+
+const OffLifecycle: React.FC = () => {
+  const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
+
+  return (
+    <Tooltip title={t("agentStatus.connected.off")}>
+      <div
+        role="status"
+        aria-label={t("agentStatus.connected.off")}
+        className={combineClasses([styles.status, styles.disconnected])}
+      />
+    </Tooltip>
+  )
+}
+
 const ConnectedStatus: React.FC<{
   agent: WorkspaceAgent
 }> = ({ agent }) => {
@@ -143,18 +260,30 @@ const ConnectedStatus: React.FC<{
   // release indicating startup script behavior has changed.
   // https://github.com/coder/coder/issues/5749
   if (agent.login_before_ready) {
-    return <ReadyLifeCycle />
+    return <ReadyLifecycle />
   }
   return (
     <ChooseOne>
       <Cond condition={agent.lifecycle_state === "ready"}>
-        <ReadyLifeCycle />
+        <ReadyLifecycle />
       </Cond>
       <Cond condition={agent.lifecycle_state === "start_timeout"}>
         <StartTimeoutLifecycle agent={agent} />
       </Cond>
       <Cond condition={agent.lifecycle_state === "start_error"}>
         <StartErrorLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutting_down"}>
+        <ShuttingDownLifecycle />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
+        <ShutdownTimeoutLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutdown_error"}>
+        <ShutdownErrorLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "off"}>
+        <OffLifecycle />
       </Cond>
       <Cond>
         <StartingLifecycle />
@@ -262,6 +391,7 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(1),
     height: theme.spacing(1),
     borderRadius: "100%",
+    flexShrink: 0,
   },
 
   connected: {
@@ -292,17 +422,15 @@ const useStyles = makeStyles((theme) => ({
 
   timeoutWarning: {
     color: theme.palette.warning.light,
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
+    width: theme.spacing(2),
+    height: theme.spacing(2),
     position: "relative",
-    top: theme.spacing(1),
   },
 
   errorWarning: {
     color: theme.palette.error.main,
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
+    width: theme.spacing(2),
+    height: theme.spacing(2),
     position: "relative",
-    top: theme.spacing(1),
   },
 }))

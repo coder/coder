@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,192 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/testutil"
 )
+
+func TestTemplates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SetMaxTTL", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.EqualValues(t, 0, template.MaxTTLMillis)
+
+		// Create some workspaces to test propagation to user-defined TTLs.
+		workspace1 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			ttl := (24 * time.Hour).Milliseconds()
+			cwr.TTLMillis = &ttl
+		})
+		workspace2TTL := (1 * time.Hour).Milliseconds()
+		workspace2 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = &workspace2TTL
+		})
+		workspace3 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		// To unset TTL you have to update, as setting a nil TTL on create
+		// copies the template default TTL.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := client.UpdateWorkspaceTTL(ctx, workspace3.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: nil,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:                         template.Name,
+			DisplayName:                  template.DisplayName,
+			Description:                  template.Description,
+			Icon:                         template.Icon,
+			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			DefaultTTLMillis:             time.Hour.Milliseconds(),
+			MaxTTLMillis:                 (2 * time.Hour).Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, 2*time.Hour, time.Duration(updated.MaxTTLMillis)*time.Millisecond)
+
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, 2*time.Hour, time.Duration(template.MaxTTLMillis)*time.Millisecond)
+
+		// Verify that only the first workspace has been updated.
+		workspace1, err = client.Workspace(ctx, workspace1.ID)
+		require.NoError(t, err)
+		require.Equal(t, &template.MaxTTLMillis, workspace1.TTLMillis)
+
+		workspace2, err = client.Workspace(ctx, workspace2.ID)
+		require.NoError(t, err)
+		require.Equal(t, &workspace2TTL, workspace2.TTLMillis)
+
+		workspace3, err = client.Workspace(ctx, workspace3.ID)
+		require.NoError(t, err)
+		require.Nil(t, workspace3.TTLMillis)
+	})
+
+	t.Run("CreateUpdateWorkspaceMaxTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		exp := 24 * time.Hour.Milliseconds()
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.DefaultTTLMillis = &exp
+			ctr.MaxTTLMillis = &exp
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// No TTL provided should use template default
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "testing",
+		}
+		ws, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
+		require.NoError(t, err)
+		require.EqualValues(t, exp, *ws.TTLMillis)
+
+		// Editing a workspace to have a higher TTL than the template's max
+		// should error
+		exp = exp + time.Minute.Milliseconds()
+		err = client.UpdateWorkspaceTTL(ctx, ws.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: &exp,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
+		require.Contains(t, apiErr.Validations[0].Detail, "time until shutdown must be less than or equal to the template's maximum TTL")
+
+		// Creating workspace with TTL higher than max should error
+		req.Name = "testing2"
+		req.TTLMillis = &exp
+		ws, err = client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
+		require.Error(t, err)
+		apiErr = nil
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
+		require.Contains(t, apiErr.Validations[0].Detail, "time until shutdown must be less than or equal to the template's maximum TTL")
+	})
+
+	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		exp := 24 * time.Hour.Milliseconds()
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxTTLMillis = &exp
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// No TTL provided should use template default
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "testing",
+		}
+		ws, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
+		require.NoError(t, err)
+		require.EqualValues(t, exp, *ws.TTLMillis)
+
+		// Editing a workspace to disable the TTL should do nothing
+		err = client.UpdateWorkspaceTTL(ctx, ws.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: nil,
+		})
+		require.NoError(t, err)
+		ws, err = client.Workspace(ctx, ws.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, exp, *ws.TTLMillis)
+
+		// Editing a workspace to have a TTL of 0 should do nothing
+		zero := int64(0)
+		err = client.UpdateWorkspaceTTL(ctx, ws.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: &zero,
+		})
+		require.NoError(t, err)
+		ws, err = client.Workspace(ctx, ws.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, exp, *ws.TTLMillis)
+	})
+}
 
 func TestTemplateACL(t *testing.T) {
 	t.Parallel()
@@ -39,7 +226,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -160,7 +347,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -200,7 +387,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -239,7 +426,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "test",
@@ -290,7 +477,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -402,9 +589,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		req := codersdk.UpdateTemplateACL{
 			GroupPerms: map[string]codersdk.TemplateRole{
@@ -415,9 +602,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 		numLogs++
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs[numLogs-1].Action)
-		require.Equal(t, template.ID, auditor.AuditLogs[numLogs-1].ResourceID)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, template.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
 	})
 
 	t.Run("DeleteUser", func(t *testing.T) {
@@ -502,7 +689,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
@@ -529,7 +716,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
@@ -557,7 +744,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
@@ -585,7 +772,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -599,7 +786,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		err = client2.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
-		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+		require.Equal(t, http.StatusInternalServerError, cerr.StatusCode())
 	})
 
 	t.Run("RegularUserWithAdminCanUpdate", func(t *testing.T) {
@@ -623,7 +810,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -685,7 +872,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create a group to add to the template.
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -789,6 +976,54 @@ func TestUpdateTemplateACL(t *testing.T) {
 	})
 }
 
+func TestReadFileWithTemplateUpdate(t *testing.T) {
+	t.Parallel()
+	t.Run("HasTemplateUpdate", func(t *testing.T) {
+		t.Parallel()
+
+		// Upload a file
+		client := coderdenttest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(make([]byte, 1024)))
+		require.NoError(t, err)
+
+		// Make a new user
+		member, memberData := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		// Try to download file, this should fail
+		_, _, err = member.Download(ctx, resp.ID)
+		require.Error(t, err, "no template yet")
+
+		// Make a new template version with the file
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil, func(request *codersdk.CreateTemplateVersionRequest) {
+			request.FileID = resp.ID
+		})
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		// Not in acl yet
+		_, _, err = member.Download(ctx, resp.ID)
+		require.Error(t, err, "not in acl yet")
+
+		err = client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				memberData.ID.String(): codersdk.TemplateRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		_, _, err = member.Download(ctx, resp.ID)
+		require.NoError(t, err)
+	})
+}
+
 // TestTemplateAccess tests the rego -> sql conversion. We need to implement
 // this test on at least 1 table type to ensure that the conversion is correct.
 // The rbac tests only assert against static SQL queries.
@@ -797,7 +1032,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 //nolint:tparallel
 func TestTemplateAccess(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	// TODO: This context is for all the subtests. Each subtest should have its
+	// own context.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*3)
 	t.Cleanup(cancel)
 
 	ownerClient := coderdenttest.New(t, nil)

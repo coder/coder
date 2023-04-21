@@ -71,6 +71,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
+      "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "started_at": "2019-08-24T14:15:22Z",
@@ -81,6 +82,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "max_deadline": "2019-08-24T14:15:22Z",
     "reason": "initiator",
     "resources": [
       {
@@ -134,6 +136,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "shutdown_script": "string",
+            "shutdown_script_timeout_seconds": 0,
+            "startup_logs_length": 0,
+            "startup_logs_overflowed": true,
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
@@ -171,6 +177,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     "workspace_owner_name": "string"
   },
   "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -236,6 +243,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
+      "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "started_at": "2019-08-24T14:15:22Z",
@@ -246,6 +254,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "max_deadline": "2019-08-24T14:15:22Z",
     "reason": "initiator",
     "resources": [
       {
@@ -299,6 +308,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "shutdown_script": "string",
+            "shutdown_script_timeout_seconds": 0,
+            "startup_logs_length": 0,
+            "startup_logs_overflowed": true,
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
@@ -336,6 +349,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "workspace_owner_name": "string"
   },
   "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -424,6 +438,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
+          "error_code": "MISSING_TEMPLATE_PARAMETER",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "started_at": "2019-08-24T14:15:22Z",
@@ -434,6 +449,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           },
           "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
         },
+        "max_deadline": "2019-08-24T14:15:22Z",
         "reason": "initiator",
         "resources": [
           {
@@ -483,6 +499,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+                "shutdown_script": "string",
+                "shutdown_script_timeout_seconds": 0,
+                "startup_logs_length": 0,
+                "startup_logs_overflowed": true,
                 "startup_script": "string",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
@@ -520,6 +540,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "workspace_owner_name": "string"
       },
       "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -586,6 +607,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
+      "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "started_at": "2019-08-24T14:15:22Z",
@@ -596,6 +618,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "max_deadline": "2019-08-24T14:15:22Z",
     "reason": "initiator",
     "resources": [
       {
@@ -649,6 +672,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "shutdown_script": "string",
+            "shutdown_script_timeout_seconds": 0,
+            "startup_logs_length": 0,
+            "startup_logs_overflowed": true,
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
@@ -686,6 +713,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "workspace_owner_name": "string"
   },
   "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",

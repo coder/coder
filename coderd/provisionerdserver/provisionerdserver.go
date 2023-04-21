@@ -19,6 +19,7 @@ import (
 	"github.com/tabbed/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -27,7 +28,10 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/gitauth"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
@@ -42,18 +46,21 @@ var (
 )
 
 type Server struct {
-	AccessURL      *url.URL
-	ID             uuid.UUID
-	Logger         slog.Logger
-	Provisioners   []database.ProvisionerType
-	Tags           json.RawMessage
-	Database       database.Store
-	Pubsub         database.Pubsub
-	Telemetry      telemetry.Reporter
-	QuotaCommitter *atomic.Pointer[proto.QuotaCommitter]
-	Auditor        *atomic.Pointer[audit.Auditor]
+	AccessURL             *url.URL
+	ID                    uuid.UUID
+	Logger                slog.Logger
+	Provisioners          []database.ProvisionerType
+	GitAuthConfigs        []*gitauth.Config
+	Tags                  json.RawMessage
+	Database              database.Store
+	Pubsub                database.Pubsub
+	Telemetry             telemetry.Reporter
+	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
+	Auditor               *atomic.Pointer[audit.Auditor]
+	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	AcquireJobDebounce time.Duration
+	OIDCConfig         httpmw.OAuth2Config
 }
 
 // AcquireJob queries the database to lock a job.
@@ -109,6 +116,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				String: errorMessage,
 				Valid:  true,
 			},
+			ErrorCode: job.ErrorCode,
 		})
 		if err != nil {
 			return xerrors.Errorf("update provisioner job: %w", err)
@@ -163,6 +171,14 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("publish workspace update: %s", err))
 		}
 
+		var workspaceOwnerOIDCAccessToken string
+		if server.OIDCConfig != nil {
+			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, server.Database, server.OIDCConfig, owner.ID)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
+			}
+		}
+
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: templateVersion.JobID,
@@ -194,6 +210,48 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
+		gitAuthProviders := []*sdkproto.GitAuthProvider{}
+		for _, p := range templateVersion.GitAuthProviders {
+			link, err := server.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+				ProviderID: p,
+				UserID:     owner.ID,
+			})
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("acquire git auth link: %s", err))
+			}
+			var config *gitauth.Config
+			for _, c := range server.GitAuthConfigs {
+				if c.ID != p {
+					continue
+				}
+				config = c
+				break
+			}
+			// We weren't able to find a matching config for the ID!
+			if config == nil {
+				server.Logger.Warn(ctx, "workspace build job is missing git provider",
+					slog.F("git_provider_id", p),
+					slog.F("template_version_id", templateVersion.ID),
+					slog.F("workspace_id", workspaceBuild.WorkspaceID))
+				continue
+			}
+
+			link, valid, err := config.RefreshToken(ctx, server.Database, link)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("refresh git auth link %q: %s", p, err))
+			}
+			if !valid {
+				continue
+			}
+			gitAuthProviders = append(gitAuthProviders, &sdkproto.GitAuthProvider{
+				Id:          p,
+				AccessToken: link.OAuthAccessToken,
+			})
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:    workspaceBuild.ID.String(),
@@ -202,17 +260,20 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				VariableValues:      asVariableValues(templateVariables),
+				GitAuthProviders:    gitAuthProviders,
 				Metadata: &sdkproto.Provision_Metadata{
-					CoderUrl:            server.AccessURL.String(),
-					WorkspaceTransition: transition,
-					WorkspaceName:       workspace.Name,
-					WorkspaceOwner:      owner.Username,
-					WorkspaceOwnerEmail: owner.Email,
-					WorkspaceId:         workspace.ID.String(),
-					WorkspaceOwnerId:    owner.ID.String(),
-					TemplateName:        template.Name,
-					TemplateVersion:     templateVersion.Name,
+					CoderUrl:                      server.AccessURL.String(),
+					WorkspaceTransition:           transition,
+					WorkspaceName:                 workspace.Name,
+					WorkspaceOwner:                owner.Username,
+					WorkspaceOwnerEmail:           owner.Email,
+					WorkspaceOwnerOidcAccessToken: workspaceOwnerOIDCAccessToken,
+					WorkspaceId:                   workspace.ID.String(),
+					WorkspaceOwnerId:              owner.ID.String(),
+					TemplateName:                  template.Name,
+					TemplateVersion:               templateVersion.Name,
 				},
+				LogLevel: input.LogLevel,
 			},
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun:
@@ -307,7 +368,7 @@ func (server *Server) includeLastVariableValues(ctx context.Context, templateVer
 
 	templateVersion, err := server.Database.GetTemplateVersionByID(ctx, templateVersionID)
 	if err != nil {
-		return nil, fmt.Errorf("get template version: %w", err)
+		return nil, xerrors.Errorf("get template version: %w", err)
 	}
 
 	if templateVersion.TemplateID.UUID == uuid.Nil {
@@ -316,7 +377,7 @@ func (server *Server) includeLastVariableValues(ctx context.Context, templateVer
 
 	template, err := server.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
 	if err != nil {
-		return nil, fmt.Errorf("get template: %w", err)
+		return nil, xerrors.Errorf("get template: %w", err)
 	}
 
 	if template.ActiveVersionID == uuid.Nil {
@@ -325,7 +386,7 @@ func (server *Server) includeLastVariableValues(ctx context.Context, templateVer
 
 	templateVariables, err := server.Database.GetTemplateVersionVariables(ctx, template.ActiveVersionID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("get template version variables: %w", err)
+		return nil, xerrors.Errorf("get template version variables: %w", err)
 	}
 
 	for _, templateVariable := range templateVariables {
@@ -429,14 +490,14 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 				slog.F("stage", log.Stage),
 				slog.F("output", log.Output))
 		}
-		//nolint:gocritic // Provisionerd has specific authz rules.
-		logs, err := server.Database.InsertProvisionerJobLogs(dbauthz.AsProvisionerd(context.Background()), insertParams)
+
+		logs, err := server.Database.InsertProvisionerJobLogs(ctx, insertParams)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
-		// Publish by the lowest log ID inserted so the
-		// log stream will fetch everything from that point.
+		// Publish by the lowest log ID inserted so the log stream will fetch
+		// everything from that point.
 		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
 		data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{
@@ -635,12 +696,17 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		String: failJob.Error,
 		Valid:  failJob.Error != "",
 	}
+	job.ErrorCode = sql.NullString{
+		String: failJob.ErrorCode,
+		Valid:  failJob.ErrorCode != "",
+	}
 
 	err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID:          jobID,
 		CompletedAt: job.CompletedAt,
 		UpdatedAt:   database.Now(),
 		Error:       job.Error,
+		ErrorCode:   job.ErrorCode,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update provisioner job: %w", err)
@@ -659,15 +725,31 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
-		build, err := server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-			ID:               input.WorkspaceBuildID,
-			UpdatedAt:        database.Now(),
-			ProvisionerState: jobType.WorkspaceBuild.State,
-			// We are explicitly not updating deadline here.
-		})
+
+		var build database.WorkspaceBuild
+		err := server.Database.InTx(func(db database.Store) error {
+			workspaceBuild, err := db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
+			if err != nil {
+				return xerrors.Errorf("get workspace build: %w", err)
+			}
+
+			build, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+				ID:               input.WorkspaceBuildID,
+				UpdatedAt:        database.Now(),
+				ProvisionerState: jobType.WorkspaceBuild.State,
+				Deadline:         workspaceBuild.Deadline,
+				MaxDeadline:      workspaceBuild.MaxDeadline,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace build state: %w", err)
+			}
+
+			return nil
+		}, nil)
 		if err != nil {
-			return nil, xerrors.Errorf("update workspace build state: %w", err)
+			return nil, err
 		}
+
 		err = server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace: %w", err)
@@ -737,6 +819,8 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
+//
+//nolint:gocyclo
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
@@ -795,6 +879,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
 				TemplateVersionID:   input.TemplateVersionID,
 				Name:                richParameter.Name,
+				DisplayName:         richParameter.DisplayName,
 				Description:         richParameter.Description,
 				Type:                richParameter.Type,
 				Mutable:             richParameter.Mutable,
@@ -806,10 +891,40 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				ValidationMin:       richParameter.ValidationMin,
 				ValidationMax:       richParameter.ValidationMax,
 				ValidationMonotonic: richParameter.ValidationMonotonic,
+				Required:            richParameter.Required,
+				LegacyVariableName:  richParameter.LegacyVariableName,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter: %w", err)
 			}
+		}
+
+		var completedError sql.NullString
+
+		for _, gitAuthProvider := range jobType.TemplateImport.GitAuthProviders {
+			contains := false
+			for _, configuredProvider := range server.GitAuthConfigs {
+				if configuredProvider.ID == gitAuthProvider {
+					contains = true
+					break
+				}
+			}
+			if !contains {
+				completedError = sql.NullString{
+					String: fmt.Sprintf("git auth provider %q is not configured", gitAuthProvider),
+					Valid:  true,
+				}
+				break
+			}
+		}
+
+		err = server.Database.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
+			JobID:            jobID,
+			GitAuthProviders: jobType.TemplateImport.GitAuthProviders,
+			UpdatedAt:        database.Now(),
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("update template version git auth providers: %w", err)
 		}
 
 		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -819,6 +934,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				Time:  database.Now(),
 				Valid: true,
 			},
+			Error: completedError,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update provisioner job: %w", err)
@@ -843,18 +959,52 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		var getWorkspaceError error
 
 		err = server.Database.InTx(func(db database.Store) error {
-			now := database.Now()
-			var workspaceDeadline time.Time
+			var (
+				now = database.Now()
+				// deadline is the time when the workspace will be stopped. The
+				// value can be bumped by user activity or manually by the user
+				// via the UI.
+				deadline time.Time
+				// maxDeadline is the maximum value for deadline.
+				maxDeadline time.Time
+			)
+
 			workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-			if getWorkspaceError == nil {
-				if workspace.Ttl.Valid {
-					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
-				}
-			} else {
-				// Huh? Did the workspace get deleted?
-				// In any case, since this is just for the TTL, try and continue anyway.
-				server.Logger.Error(ctx, "fetch workspace for build", slog.F("workspace_build_id", workspaceBuild.ID), slog.F("workspace_id", workspaceBuild.WorkspaceID))
+			if getWorkspaceError != nil {
+				server.Logger.Error(ctx,
+					"fetch workspace for build",
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("workspace_id", workspaceBuild.WorkspaceID),
+				)
+				return getWorkspaceError
 			}
+			if workspace.Ttl.Valid {
+				deadline = now.Add(time.Duration(workspace.Ttl.Int64))
+			}
+
+			templateSchedule, err := (*server.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, db, workspace.TemplateID)
+			if err != nil {
+				return xerrors.Errorf("get template schedule options: %w", err)
+			}
+			if !templateSchedule.UserAutostopEnabled {
+				// The user is not permitted to set their own TTL, so use the
+				// template default.
+				deadline = time.Time{}
+				if templateSchedule.DefaultTTL > 0 {
+					deadline = now.Add(templateSchedule.DefaultTTL)
+				}
+			}
+			if templateSchedule.MaxTTL > 0 {
+				maxDeadline = now.Add(templateSchedule.MaxTTL)
+
+				if deadline.IsZero() || maxDeadline.Before(deadline) {
+					// If the workspace doesn't have a deadline or the max
+					// deadline is sooner than the workspace deadline, use the
+					// max deadline as the actual deadline.
+					deadline = maxDeadline
+				}
+			}
+
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
 				UpdatedAt: database.Now(),
@@ -868,7 +1018,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
-				Deadline:         workspaceDeadline,
+				Deadline:         deadline,
+				MaxDeadline:      maxDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
 				UpdatedAt:        now,
 			})
@@ -1120,11 +1271,31 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			MOTDFile:                    prAgent.GetMotdFile(),
 			LoginBeforeReady:            prAgent.GetLoginBeforeReady(),
 			StartupScriptTimeoutSeconds: prAgent.GetStartupScriptTimeoutSeconds(),
+			ShutdownScript: sql.NullString{
+				String: prAgent.ShutdownScript,
+				Valid:  prAgent.ShutdownScript != "",
+			},
+			ShutdownScriptTimeoutSeconds: prAgent.GetShutdownScriptTimeoutSeconds(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
 		}
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
+
+		for _, md := range prAgent.Metadata {
+			p := database.InsertWorkspaceAgentMetadataParams{
+				WorkspaceAgentID: agentID,
+				DisplayName:      md.DisplayName,
+				Script:           md.Script,
+				Key:              md.Key,
+				Timeout:          md.Timeout,
+				Interval:         md.Interval,
+			}
+			err := db.InsertWorkspaceAgentMetadata(ctx, p)
+			if err != nil {
+				return xerrors.Errorf("insert agent metadata: %w, params: %+v", err, p)
+			}
+		}
 
 		for _, app := range prAgent.Apps {
 			slug := app.Slug
@@ -1205,6 +1376,51 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 
 	return nil
+}
+
+// obtainOIDCAccessToken returns a valid OpenID Connect access token
+// for the user if it's able to obtain one, otherwise it returns an empty string.
+func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig httpmw.OAuth2Config, userID uuid.UUID) (string, error) {
+	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    userID,
+		LoginType: database.LoginTypeOIDC,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return "", xerrors.Errorf("get owner oidc link: %w", err)
+	}
+
+	if link.OAuthExpiry.Before(database.Now()) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+		token, err := oidcConfig.TokenSource(ctx, &oauth2.Token{
+			AccessToken:  link.OAuthAccessToken,
+			RefreshToken: link.OAuthRefreshToken,
+			Expiry:       link.OAuthExpiry,
+		}).Token()
+		if err != nil {
+			// If OIDC fails to refresh, we return an empty string and don't fail.
+			// There isn't a way to hard-opt in to OIDC from a template, so we don't
+			// want to fail builds if users haven't authenticated for a while or something.
+			return "", nil
+		}
+		link.OAuthAccessToken = token.AccessToken
+		link.OAuthRefreshToken = token.RefreshToken
+		link.OAuthExpiry = token.Expiry
+
+		link, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			UserID:            userID,
+			LoginType:         database.LoginTypeOIDC,
+			OAuthAccessToken:  link.OAuthAccessToken,
+			OAuthRefreshToken: link.OAuthRefreshToken,
+			OAuthExpiry:       link.OAuthExpiry,
+		})
+		if err != nil {
+			return "", xerrors.Errorf("update user link: %w", err)
+		}
+	}
+
+	return link.OAuthAccessToken, nil
 }
 
 func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {
@@ -1355,6 +1571,7 @@ type TemplateVersionImportJob struct {
 type WorkspaceProvisionJob struct {
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
 	DryRun           bool      `json:"dry_run"`
+	LogLevel         string    `json:"log_level,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

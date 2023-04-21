@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 
 	"github.com/coder/coder/provisionersdk"
@@ -30,6 +31,28 @@ func ParameterError(s string) string {
 
 func ParameterSucceed() string {
 	return formatExecValue(successKey, "")
+}
+
+// ProvisionApplyWithAgent returns provision responses that will mock a fake
+// "aws_instance" resource with an agent that has the given auth token.
+func ProvisionApplyWithAgent(authToken string) []*proto.Provision_Response {
+	return []*proto.Provision_Response{{
+		Type: &proto.Provision_Response_Complete{
+			Complete: &proto.Provision_Complete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "aws_instance",
+					Agents: []*proto.Agent{{
+						Id:   uuid.NewString(),
+						Name: "example",
+						Auth: &proto.Agent_Token{
+							Token: authToken,
+						},
+					}},
+				}},
+			},
+		},
+	}}
 }
 
 func formatExecValue(key, value string) string {
@@ -169,7 +192,12 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		if err != nil {
 			return xerrors.Errorf("unmarshal: %w", err)
 		}
-		err = stream.Send(&response)
+		r, ok := filterLogResponses(config, &response)
+		if !ok {
+			continue
+		}
+
+		err = stream.Send(r)
 		if err != nil {
 			return err
 		}
@@ -258,4 +286,24 @@ func Tar(responses *Responses) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+func filterLogResponses(config *proto.Provision_Config, response *proto.Provision_Response) (*proto.Provision_Response, bool) {
+	responseLog, ok := response.Type.(*proto.Provision_Response_Log)
+	if !ok {
+		// Pass all non-log responses
+		return response, true
+	}
+
+	if config.ProvisionerLogLevel == "" {
+		// Don't change the default behavior of "echo"
+		return response, true
+	}
+
+	provisionerLogLevel := proto.LogLevel_value[strings.ToUpper(config.ProvisionerLogLevel)]
+	if int32(responseLog.Log.Level) < provisionerLogLevel {
+		// Log level is not enabled
+		return nil, false
+	}
+	return response, true
 }

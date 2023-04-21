@@ -52,44 +52,59 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.client.Logger = logger
 	r.client.LogBodies = true
 
-	_, _ = fmt.Fprintln(logs, "Generating user password...")
-	password, err := cryptorand.HexString(16)
-	if err != nil {
-		return xerrors.Errorf("generate random password for user: %w", err)
+	var (
+		client = r.client
+		user   codersdk.User
+		err    error
+	)
+	if r.cfg.User.SessionToken != "" {
+		_, _ = fmt.Fprintln(logs, "Using existing user session token:")
+		user, err = client.User(ctx, "me")
+		if err != nil {
+			return xerrors.Errorf("generate random password for user: %w", err)
+		}
+	} else {
+		_, _ = fmt.Fprintln(logs, "Generating user password...")
+		password, err := cryptorand.String(16)
+		if err != nil {
+			return xerrors.Errorf("generate random password for user: %w", err)
+		}
+
+		_, _ = fmt.Fprintln(logs, "Creating user:")
+
+		user, err = r.client.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: r.cfg.User.OrganizationID,
+			Username:       r.cfg.User.Username,
+			Email:          r.cfg.User.Email,
+			Password:       password,
+		})
+		if err != nil {
+			return xerrors.Errorf("create user: %w", err)
+		}
+		r.userID = user.ID
+
+		_, _ = fmt.Fprintln(logs, "\nLogging in as new user...")
+		client = codersdk.New(r.client.URL)
+		loginRes, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    r.cfg.User.Email,
+			Password: password,
+		})
+		if err != nil {
+			return xerrors.Errorf("login as new user: %w", err)
+		}
+		client.SetSessionToken(loginRes.SessionToken)
 	}
 
-	_, _ = fmt.Fprintln(logs, "Creating user:")
 	_, _ = fmt.Fprintf(logs, "\tOrg ID:   %s\n", r.cfg.User.OrganizationID.String())
-	_, _ = fmt.Fprintf(logs, "\tUsername: %s\n", r.cfg.User.Username)
-	_, _ = fmt.Fprintf(logs, "\tEmail:    %s\n", r.cfg.User.Email)
+	_, _ = fmt.Fprintf(logs, "\tUsername: %s\n", user.Username)
+	_, _ = fmt.Fprintf(logs, "\tEmail:    %s\n", user.Email)
 	_, _ = fmt.Fprintf(logs, "\tPassword: ****************\n")
-	user, err := r.client.CreateUser(ctx, codersdk.CreateUserRequest{
-		OrganizationID: r.cfg.User.OrganizationID,
-		Username:       r.cfg.User.Username,
-		Email:          r.cfg.User.Email,
-		Password:       password,
-	})
-	if err != nil {
-		return xerrors.Errorf("create user: %w", err)
-	}
-	r.userID = user.ID
-
-	_, _ = fmt.Fprintln(logs, "\nLogging in as new user...")
-	userClient := codersdk.New(r.client.URL)
-	loginRes, err := userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-		Email:    r.cfg.User.Email,
-		Password: password,
-	})
-	if err != nil {
-		return xerrors.Errorf("login as new user: %w", err)
-	}
-	userClient.SetSessionToken(loginRes.SessionToken)
 
 	_, _ = fmt.Fprintln(logs, "\nCreating workspace...")
 	workspaceBuildConfig := r.cfg.Workspace
 	workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
 	workspaceBuildConfig.UserID = user.ID.String()
-	r.workspacebuildRunner = workspacebuild.NewRunner(userClient, workspaceBuildConfig)
+	r.workspacebuildRunner = workspacebuild.NewRunner(client, workspaceBuildConfig)
 	err = r.workspacebuildRunner.Run(ctx, id, logs)
 	if err != nil {
 		return xerrors.Errorf("create workspace: %w", err)
@@ -104,7 +119,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	if err != nil {
 		return xerrors.Errorf("get workspace ID: %w", err)
 	}
-	workspace, err := userClient.Workspace(ctx, workspaceID)
+	workspace, err := client.Workspace(ctx, workspaceID)
 	if err != nil {
 		return xerrors.Errorf("get workspace %q: %w", workspaceID.String(), err)
 	}
@@ -128,7 +143,7 @@ resourceLoop:
 			reconnectingPTYConfig := *r.cfg.ReconnectingPTY
 			reconnectingPTYConfig.AgentID = agent.ID
 
-			reconnectingPTYRunner := reconnectingpty.NewRunner(userClient, reconnectingPTYConfig)
+			reconnectingPTYRunner := reconnectingpty.NewRunner(client, reconnectingPTYConfig)
 			err := reconnectingPTYRunner.Run(egCtx, id, logs)
 			if err != nil {
 				return xerrors.Errorf("run reconnecting pty: %w", err)
@@ -142,7 +157,7 @@ resourceLoop:
 			agentConnConfig := *r.cfg.AgentConn
 			agentConnConfig.AgentID = agent.ID
 
-			agentConnRunner := agentconn.NewRunner(userClient, agentConnConfig)
+			agentConnRunner := agentconn.NewRunner(client, agentConnConfig)
 			err := agentConnRunner.Run(egCtx, id, logs)
 			if err != nil {
 				return xerrors.Errorf("run agent connection: %w", err)

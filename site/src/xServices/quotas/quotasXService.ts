@@ -3,13 +3,9 @@ import * as API from "../../api/api"
 import { WorkspaceQuota } from "../../api/typesGenerated"
 
 export type QuotaContext = {
+  username: string
   quota?: WorkspaceQuota
   getQuotaError?: Error | unknown
-}
-
-export type QuotaEvent = {
-  type: "GET_QUOTA"
-  username: string
 }
 
 export const quotaMachine = createMachine(
@@ -19,21 +15,15 @@ export const quotaMachine = createMachine(
     tsTypes: {} as import("./quotasXService.typegen").Typegen0,
     schema: {
       context: {} as QuotaContext,
-      events: {} as QuotaEvent,
       services: {
         getQuota: {
           data: {} as WorkspaceQuota,
         },
       },
     },
-    context: {},
-    initial: "idle",
+    initial: "gettingQuotas",
     states: {
-      idle: {
-        on: {
-          GET_QUOTA: "gettingQuotas",
-        },
-      },
+      idle: {},
       gettingQuotas: {
         entry: "clearGetQuotaError",
         invoke: {
@@ -67,7 +57,7 @@ export const quotaMachine = createMachine(
       }),
     },
     services: {
-      getQuota: (context, event) => API.getWorkspaceQuota(event.username),
+      getQuota: ({ username }) => API.getWorkspaceQuota(username),
     },
   },
 )

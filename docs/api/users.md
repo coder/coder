@@ -577,6 +577,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
     "lifetime_seconds": 0,
     "login_type": "password",
     "scope": "all",
+    "token_name": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
   }
@@ -603,6 +604,7 @@ Status Code **200**
 | `» lifetime_seconds` | integer                                                | true     |              |             |
 | `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | true     |              |             |
 | `» scope`            | [codersdk.APIKeyScope](schemas.md#codersdkapikeyscope) | true     |              |             |
+| `» token_name`       | string                                                 | true     |              |             |
 | `» updated_at`       | string(date-time)                                      | true     |              |             |
 | `» user_id`          | string(uuid)                                           | true     |              |             |
 
@@ -638,7 +640,8 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 ```json
 {
   "lifetime": 0,
-  "scope": "all"
+  "scope": "all",
+  "token_name": "string"
 }
 ```
 
@@ -667,7 +670,54 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get API key
+## Get API key by token name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/keys/tokens/{keyname}`
+
+### Parameters
+
+| Name      | In   | Type           | Required | Description          |
+| --------- | ---- | -------------- | -------- | -------------------- |
+| `user`    | path | string         | true     | User ID, name, or me |
+| `keyname` | path | string(string) | true     | Key Name             |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "last_used": "2019-08-24T14:15:22Z",
+  "lifetime_seconds": 0,
+  "login_type": "password",
+  "scope": "all",
+  "token_name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                       |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.APIKey](schemas.md#codersdkapikey) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get API key by ID
 
 ### Code samples
 
@@ -700,6 +750,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }

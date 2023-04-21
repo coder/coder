@@ -4,16 +4,15 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"os/signal"
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -23,7 +22,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func newCreateAdminUserCommand() *cobra.Command {
+func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 	var (
 		newUserDBURL              string
 		newUserSSHKeygenAlgorithm string
@@ -31,36 +30,20 @@ func newCreateAdminUserCommand() *cobra.Command {
 		newUserEmail              string
 		newUserPassword           string
 	)
-	createAdminUserCommand := &cobra.Command{
+	createAdminUserCommand := &clibase.Cmd{
 		Use:   "create-admin-user",
 		Short: "Create a new admin user with the given username, email and password and adds it to every organization.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
 
 			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(newUserSSHKeygenAlgorithm)
 			if err != nil {
 				return xerrors.Errorf("parse ssh keygen algorithm %q: %w", newUserSSHKeygenAlgorithm, err)
 			}
 
-			if val, exists := os.LookupEnv("CODER_POSTGRES_URL"); exists {
-				newUserDBURL = val
-			}
-			if val, exists := os.LookupEnv("CODER_SSH_KEYGEN_ALGORITHM"); exists {
-				newUserSSHKeygenAlgorithm = val
-			}
-			if val, exists := os.LookupEnv("CODER_USERNAME"); exists {
-				newUserUsername = val
-			}
-			if val, exists := os.LookupEnv("CODER_EMAIL"); exists {
-				newUserEmail = val
-			}
-			if val, exists := os.LookupEnv("CODER_PASSWORD"); exists {
-				newUserPassword = val
-			}
-
-			cfg := createConfig(cmd)
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
-			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+			cfg := r.createConfig()
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -68,7 +51,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 			defer cancel()
 
 			if newUserDBURL == "" {
-				cmd.Printf("Using built-in PostgreSQL (%s)\n", cfg.PostgresPath())
+				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)\n", cfg.PostgresPath())
 				url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
 				if err != nil {
 					return err
@@ -110,7 +93,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 			}
 
 			if newUserUsername == "" {
-				newUserUsername, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				newUserUsername, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Username",
 					Validate: func(val string) error {
 						if val == "" {
@@ -124,7 +107,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 				}
 			}
 			if newUserEmail == "" {
-				newUserEmail, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				newUserEmail, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Email",
 					Validate: func(val string) error {
 						if val == "" {
@@ -138,7 +121,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 				}
 			}
 			if newUserPassword == "" {
-				newUserPassword, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				newUserPassword, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Password",
 					Secret: true,
 					Validate: func(val string) error {
@@ -153,7 +136,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 				}
 
 				// Prompt again.
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Confirm password",
 					Secret: true,
 					Validate: func(val string) error {
@@ -191,7 +174,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 					return orgs[i].Name < orgs[j].Name
 				})
 
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Creating user...")
+				_, _ = fmt.Fprintln(inv.Stderr, "Creating user...")
 				newUser, err = tx.InsertUser(ctx, database.InsertUserParams{
 					ID:             uuid.New(),
 					Email:          newUserEmail,
@@ -206,7 +189,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 					return xerrors.Errorf("insert user: %w", err)
 				}
 
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Generating user SSH key...")
+				_, _ = fmt.Fprintln(inv.Stderr, "Generating user SSH key...")
 				privateKey, publicKey, err := gitsshkey.Generate(sshKeygenAlgorithm)
 				if err != nil {
 					return xerrors.Errorf("generate user gitsshkey: %w", err)
@@ -223,7 +206,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 				}
 
 				for _, org := range orgs {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Adding user to organization %q (%s) as admin...\n", org.Name, org.ID.String())
+					_, _ = fmt.Fprintf(inv.Stderr, "Adding user to organization %q (%s) as admin...\n", org.Name, org.ID.String())
 					_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 						OrganizationID: org.ID,
 						UserID:         newUser.ID,
@@ -242,21 +225,50 @@ func newCreateAdminUserCommand() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "")
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "User created successfully.")
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "ID:       "+newUser.ID.String())
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Username: "+newUser.Username)
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Email:    "+newUser.Email)
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Password: ********")
+			_, _ = fmt.Fprintln(inv.Stderr, "")
+			_, _ = fmt.Fprintln(inv.Stderr, "User created successfully.")
+			_, _ = fmt.Fprintln(inv.Stderr, "ID:       "+newUser.ID.String())
+			_, _ = fmt.Fprintln(inv.Stderr, "Username: "+newUser.Username)
+			_, _ = fmt.Fprintln(inv.Stderr, "Email:    "+newUser.Email)
+			_, _ = fmt.Fprintln(inv.Stderr, "Password: ********")
 
 			return nil
 		},
 	}
-	createAdminUserCommand.Flags().StringVar(&newUserDBURL, "postgres-url", "", "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case). Consumes $CODER_POSTGRES_URL.")
-	createAdminUserCommand.Flags().StringVar(&newUserSSHKeygenAlgorithm, "ssh-keygen-algorithm", "ed25519", "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\". Consumes $CODER_SSH_KEYGEN_ALGORITHM.")
-	createAdminUserCommand.Flags().StringVar(&newUserUsername, "username", "", "The username of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_USERNAME.")
-	createAdminUserCommand.Flags().StringVar(&newUserEmail, "email", "", "The email of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_EMAIL.")
-	createAdminUserCommand.Flags().StringVar(&newUserPassword, "password", "", "The password of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_PASSWORD.")
+
+	createAdminUserCommand.Options.Add(
+		clibase.Option{
+			Env:         "CODER_POSTGRES_URL",
+			Flag:        "postgres-url",
+			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
+			Value:       clibase.StringOf(&newUserDBURL),
+		},
+		clibase.Option{
+			Env:         "CODER_SSH_KEYGEN_ALGORITHM",
+			Flag:        "ssh-keygen-algorithm",
+			Description: "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
+			Default:     "ed25519",
+			Value:       clibase.StringOf(&newUserSSHKeygenAlgorithm),
+		},
+		clibase.Option{
+			Env:         "CODER_USERNAME",
+			Flag:        "username",
+			Description: "The username of the new user. If not specified, you will be prompted via stdin.",
+			Value:       clibase.StringOf(&newUserUsername),
+		},
+		clibase.Option{
+			Env:         "CODER_EMAIL",
+			Flag:        "email",
+			Description: "The email of the new user. If not specified, you will be prompted via stdin.",
+			Value:       clibase.StringOf(&newUserEmail),
+		},
+		clibase.Option{
+			Env:         "CODER_PASSWORD",
+			Flag:        "password",
+			Description: "The password of the new user. If not specified, you will be prompted via stdin.",
+			Value:       clibase.StringOf(&newUserPassword),
+		},
+	)
 
 	return createAdminUserCommand
 }

@@ -3,9 +3,11 @@ package rbac
 import (
 	"context"
 	_ "embed"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -14,9 +16,31 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
+	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/util/slice"
 )
+
+// Action represents the allowed actions to be done on an object.
+type Action string
+
+const (
+	ActionCreate Action = "create"
+	ActionRead   Action = "read"
+	ActionUpdate Action = "update"
+	ActionDelete Action = "delete"
+)
+
+// AllActions is a helper function to return all the possible actions types.
+func AllActions() []Action {
+	return []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
+}
+
+type AuthCall struct {
+	Actor  Subject
+	Action Action
+	Object Object
+}
 
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
@@ -113,6 +137,10 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 			err := auth.Authorize(ctx, subject, action, o.RBACObject())
 			if err == nil {
 				filtered = append(filtered, o)
+			} else if !IsUnauthorizedError(err) {
+				// If the error is not the expected "Unauthorized" error, then
+				// it is something unexpected.
+				return nil, err
 			}
 		}
 		return filtered, nil
@@ -131,6 +159,10 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		err := prepared.Authorize(ctx, rbacObj)
 		if err == nil {
 			filtered = append(filtered, object)
+		} else if !IsUnauthorizedError(err) {
+			// If the error is not the expected "Unauthorized" error, then
+			// it is something unexpected.
+			return nil, err
 		}
 	}
 
@@ -295,7 +327,8 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 
 	results, err := a.query.Eval(ctx, rego.EvalParsedInput(astV))
 	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), subject, action, object, results)
+		err = correctCancelError(err)
+		return xerrors.Errorf("evaluate rego: %w", err)
 	}
 
 	if !results.Allowed() {
@@ -328,4 +361,346 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action Act
 
 	a.prepareHist.Observe(time.Since(start).Seconds())
 	return prepared, nil
+}
+
+// PartialAuthorizer is a prepared authorizer with the subject, action, and
+// resource type fields already filled in. This speeds up authorization
+// when authorizing the same type of object numerous times.
+// See rbac.Filter for example usage.
+type PartialAuthorizer struct {
+	// partialQueries is mainly used for unit testing to assert our rego policy
+	// can always be compressed into a set of queries.
+	partialQueries *rego.PartialQueries
+
+	// input is used purely for debugging and logging.
+	subjectInput        Subject
+	subjectAction       Action
+	subjectResourceType Object
+
+	// preparedQueries are the compiled set of queries after partial evaluation.
+	// Cache these prepared queries to avoid re-compiling the queries.
+	// If alwaysTrue is true, then ignore these.
+	preparedQueries []rego.PreparedEvalQuery
+	// alwaysTrue is if the subject can always perform the action on the
+	// resource type, regardless of the unknown fields.
+	alwaysTrue bool
+}
+
+var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
+
+// CompileToSQL converts the remaining rego queries into SQL WHERE clauses.
+func (pa *PartialAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
+	_, span := tracing.StartSpan(ctx, trace.WithAttributes(
+		// Query count is a rough indicator of the complexity of the query
+		// that needs to be converted into SQL.
+		attribute.Int("query_count", len(pa.preparedQueries)),
+		attribute.Bool("always_true", pa.alwaysTrue),
+	))
+	defer span.End()
+
+	filter, err := Compile(cfg, pa)
+	if err != nil {
+		return "", xerrors.Errorf("compile: %w", err)
+	}
+	return filter.SQLString(), nil
+}
+
+func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
+	if pa.alwaysTrue {
+		return nil
+	}
+
+	// If we have no queries, then no queries can return 'true'.
+	// So the result is always 'false'.
+	if len(pa.preparedQueries) == 0 {
+		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"),
+			pa.subjectInput, pa.subjectAction, pa.subjectResourceType, nil)
+	}
+
+	parsed, err := ast.InterfaceToValue(map[string]interface{}{
+		"object": object,
+	})
+	if err != nil {
+		return xerrors.Errorf("parse object: %w", err)
+	}
+
+	// How to interpret the results of the partial queries.
+	// We have a list of queries that are along the lines of:
+	// 	`input.object.org_owner = ""; "me" = input.object.owner`
+	//	`input.object.org_owner in {"feda2e52-8bf1-42ce-ad75-6c5595cb297a"} `
+	// All these queries are joined by an 'OR'. So we need to run through each
+	// query, and evaluate it.
+	//
+	// In each query, we have a list of the expressions, which should be
+	// all boolean expressions. In the above 1st example, there are 2.
+	// These expressions within a single query are `AND` together by rego.
+EachQueryLoop:
+	for _, q := range pa.preparedQueries {
+		// We need to eval each query with the newly known fields.
+		results, err := q.Eval(ctx, rego.EvalParsedInput(parsed))
+		if err != nil {
+			err = correctCancelError(err)
+			return xerrors.Errorf("eval error: %w", err)
+		}
+
+		// If there are no results, then the query is false. This is because rego
+		// treats false queries as "undefined". So if any expression is false, the
+		// result is an empty list.
+		if len(results) == 0 {
+			continue EachQueryLoop
+		}
+
+		// If there is more than 1 result, that means there is more than 1 rule.
+		// This should not happen, because our query should always be an expression.
+		// If this every occurs, it is likely the original query was not an expression.
+		if len(results) > 1 {
+			continue EachQueryLoop
+		}
+
+		// Our queries should be simple, and should not yield any bindings.
+		// A binding is something like 'x := 1'. This binding as an expression is
+		// 'true', but in our case is unhelpful. We are not analyzing this ast to
+		// map bindings. So just error out. Similar to above, our queries should
+		// always be boolean expressions.
+		if len(results[0].Bindings) > 0 {
+			continue EachQueryLoop
+		}
+
+		// We have a valid set of boolean expressions! All expressions are 'AND'd
+		// together. This is automatic by rego, so we should not actually need to
+		// inspect this any further. But just in case, we will verify each expression
+		// did resolve to 'true'. This is purely defensive programming.
+		for _, exp := range results[0].Expressions {
+			if v, ok := exp.Value.(bool); !ok || !v {
+				continue EachQueryLoop
+			}
+		}
+
+		return nil
+	}
+
+	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"),
+		pa.subjectInput, pa.subjectAction, pa.subjectResourceType, nil)
+}
+
+func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subject, action Action, objectType string) (*PartialAuthorizer, error) {
+	if subject.Roles == nil {
+		return nil, xerrors.Errorf("subject must have roles")
+	}
+	if subject.Scope == nil {
+		return nil, xerrors.Errorf("subject must have a scope")
+	}
+
+	input, err := regoPartialInputValue(subject, action, objectType)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare input: %w", err)
+	}
+
+	partialQueries, err := a.partialQuery.Partial(ctx, rego.EvalParsedInput(input))
+	if err != nil {
+		return nil, xerrors.Errorf("prepare: %w", err)
+	}
+
+	pAuth := &PartialAuthorizer{
+		partialQueries:  partialQueries,
+		preparedQueries: []rego.PreparedEvalQuery{},
+		subjectInput:    subject,
+		subjectResourceType: Object{
+			Type: objectType,
+			ID:   "prepared-object",
+		},
+		subjectAction: action,
+	}
+
+	// Prepare each query to optimize the runtime when we iterate over the objects.
+	preparedQueries := make([]rego.PreparedEvalQuery, 0, len(partialQueries.Queries))
+	for _, q := range partialQueries.Queries {
+		if q.String() == "" {
+			// No more work needed. An empty query is the same as
+			//	'WHERE true'
+			// This is likely an admin. We don't even need to use rego going
+			// forward.
+			pAuth.alwaysTrue = true
+			preparedQueries = []rego.PreparedEvalQuery{}
+			break
+		}
+		results, err := rego.New(
+			rego.ParsedQuery(q),
+		).PrepareForEval(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("prepare query %s: %w", q.String(), err)
+		}
+		preparedQueries = append(preparedQueries, results)
+	}
+	pAuth.preparedQueries = preparedQueries
+
+	return pAuth, nil
+}
+
+// AuthorizeFilter is a compiled partial query that can be converted to SQL.
+// This allows enforcing the policy on the database side in a WHERE clause.
+type AuthorizeFilter interface {
+	SQLString() string
+}
+
+type authorizedSQLFilter struct {
+	sqlString string
+	auth      *PartialAuthorizer
+}
+
+// ConfigWithACL is the basic configuration for converting rego to SQL when
+// the object has group and user ACL fields.
+func ConfigWithACL() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.DefaultVariableConverter(),
+	}
+}
+
+// ConfigWithoutACL is the basic configuration for converting rego to SQL when
+// the object has no ACL fields.
+func ConfigWithoutACL() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.NoACLConverter(),
+	}
+}
+
+func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter, error) {
+	root, err := regosql.ConvertRegoAst(cfg, pa.partialQueries)
+	if err != nil {
+		return nil, xerrors.Errorf("convert rego ast: %w", err)
+	}
+
+	// Generate the SQL
+	gen := sqltypes.NewSQLGenerator()
+	sqlString := root.SQLString(gen)
+	if len(gen.Errors()) > 0 {
+		var errStrings []string
+		for _, err := range gen.Errors() {
+			errStrings = append(errStrings, err.Error())
+		}
+		return nil, xerrors.Errorf("sql generation errors: %v", strings.Join(errStrings, ", "))
+	}
+
+	return &authorizedSQLFilter{
+		sqlString: sqlString,
+		auth:      pa,
+	}, nil
+}
+
+func (a *authorizedSQLFilter) SQLString() string {
+	return a.sqlString
+}
+
+type cachedCalls struct {
+	authz Authorizer
+}
+
+// Cacher returns an Authorizer that can use a cache stored on a context
+// to short circuit duplicate calls to the Authorizer. This is useful when
+// multiple calls are made to the Authorizer for the same subject, action, and
+// object. The cache is on each `ctx` and is not shared between requests.
+// If no cache is found on the context, the Authorizer is called as normal.
+//
+// Cacher is safe for multiple actors.
+func Cacher(authz Authorizer) Authorizer {
+	return &cachedCalls{authz: authz}
+}
+
+func (c *cachedCalls) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
+	cache := cacheFromContext(ctx)
+
+	resp, ok := cache.Load(subject, action, object)
+	if ok {
+		return resp
+	}
+
+	err := c.authz.Authorize(ctx, subject, action, object)
+	cache.Save(subject, action, object, err)
+	return err
+}
+
+// Prepare returns the underlying PreparedAuthorized. The cache does not apply
+// to prepared authorizations. These should be using a SQL filter, and
+// therefore the cache is not needed.
+func (c *cachedCalls) Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error) {
+	return c.authz.Prepare(ctx, subject, action, objectType)
+}
+
+// authorizeCache enabled caching of Authorizer calls for a given request. This
+// prevents the cost of running the same rbac checks multiple times.
+// A cache hit must match on all 3 values: subject, action, and object.
+type authorizeCache struct {
+	sync.Mutex
+	// calls is a list of all calls made to the Authorizer.
+	// This list is cached per request context. The size of this list is expected
+	// to be incredibly small. Often 1 or 2 calls.
+	calls []cachedAuthCall
+}
+
+type cachedAuthCall struct {
+	AuthCall
+	Err error
+}
+
+// cacheContextKey is a context key used to store the cache in the context.
+type cacheContextKey struct{}
+
+// cacheFromContext returns the cache from the context.
+// If there is no cache, a nil value is returned.
+// The nil cache can still be called as a normal cache, but will not cache or
+// return any values.
+func cacheFromContext(ctx context.Context) *authorizeCache {
+	cache, _ := ctx.Value(cacheContextKey{}).(*authorizeCache)
+	return cache
+}
+
+func WithCacheCtx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, cacheContextKey{}, &authorizeCache{})
+}
+
+//nolint:revive
+func (c *authorizeCache) Load(subject Subject, action Action, object Object) (error, bool) {
+	if c == nil {
+		return nil, false
+	}
+	c.Lock()
+	defer c.Unlock()
+
+	for _, call := range c.calls {
+		if call.Action == action && call.Object.Equal(object) && call.Actor.Equal(subject) {
+			return call.Err, true
+		}
+	}
+	return nil, false
+}
+
+func (c *authorizeCache) Save(subject Subject, action Action, object Object, err error) {
+	if c == nil {
+		return
+	}
+	c.Lock()
+	defer c.Unlock()
+
+	c.calls = append(c.calls, cachedAuthCall{
+		AuthCall: AuthCall{
+			Actor:  subject,
+			Action: action,
+			Object: object,
+		},
+		Err: err,
+	})
+}
+
+// rbacTraceAttributes are the attributes that are added to all spans created by
+// the rbac package. These attributes should help to debug slow spans.
+func rbacTraceAttributes(actor Subject, action Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {
+	return trace.WithAttributes(
+		append(extra,
+			attribute.StringSlice("subject_roles", actor.SafeRoleNames()),
+			attribute.Int("num_subject_roles", len(actor.SafeRoleNames())),
+			attribute.Int("num_groups", len(actor.Groups)),
+			attribute.String("scope", actor.SafeScopeName()),
+			attribute.String("action", string(action)),
+			attribute.String("object_type", objectType),
+		)...)
 }

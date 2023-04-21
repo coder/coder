@@ -22,3 +22,4 @@
 *.tmproj
 .vscode/
 Makefile
+artifacthub-repo.yml

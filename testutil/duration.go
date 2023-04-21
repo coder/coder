@@ -2,7 +2,9 @@
 
 package testutil
 
-import "time"
+import (
+	"time"
+)
 
 // Constants for timing out operations, usable for creating contexts
 // that timeout or in require.Eventually.

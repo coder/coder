@@ -6,7 +6,11 @@ import (
 	"os"
 
 	"github.com/gliderlabs/ssh"
+	"golang.org/x/xerrors"
 )
+
+// ErrClosed is returned when a PTY is used after it has been closed.
+var ErrClosed = xerrors.New("pty: closed")
 
 // PTY is a minimal interface for interacting with a TTY.
 type PTY interface {
@@ -30,6 +34,11 @@ type PTY interface {
 	//
 	// The same stream would be used to provide user input: pty.Input().Write(...)
 	Input() ReadWriter
+
+	// Dup returns a new file descriptor for the PTY.
+	//
+	// This is useful for closing stdin and stdout separately.
+	Dup() (*os.File, error)
 
 	// Resize sets the size of the PTY.
 	Resize(height uint16, width uint16) error

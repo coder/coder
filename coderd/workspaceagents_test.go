@@ -1,9 +1,7 @@
 package coderd_test
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -175,12 +173,11 @@ func TestWorkspaceAgent(t *testing.T) {
 	})
 }
 
-func TestWorkspaceAgentListen(t *testing.T) {
+func TestWorkspaceAgentStartupLogs(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Connect", func(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		})
@@ -205,6 +202,115 @@ func TestWorkspaceAgentListen(t *testing.T) {
 					},
 				},
 			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+		err := agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
+			Logs: []agentsdk.StartupLog{{
+				CreatedAt: database.Now(),
+				Output:    "testing",
+			}},
+		})
+		require.NoError(t, err)
+
+		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, -500)
+		require.NoError(t, err)
+		defer func() {
+			_ = closer.Close()
+		}()
+		var logChunk []codersdk.WorkspaceAgentStartupLog
+		select {
+		case <-ctx.Done():
+		case logChunk = <-logs:
+		}
+		require.NoError(t, ctx.Err())
+		require.Len(t, logChunk, 1)
+		require.Equal(t, "testing", logChunk[0].Output)
+	})
+	t.Run("PublishesOnOverflow", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		updates, err := client.WatchWorkspace(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
+			Logs: []agentsdk.StartupLog{{
+				CreatedAt: database.Now(),
+				Output:    strings.Repeat("a", (1<<20)+1),
+			}},
+		})
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusRequestEntityTooLarge, apiError.StatusCode())
+
+		// It's possible we have multiple updates queued, but that's alright, we just
+		// wait for the one where it overflows.
+		for {
+			var update codersdk.Workspace
+			select {
+			case <-ctx.Done():
+				t.FailNow()
+			case update = <-updates:
+			}
+			if update.LatestBuild.Resources[0].Agents[0].StartupLogsOverflowed {
+				break
+			}
+		}
+	})
+}
+
+func TestWorkspaceAgentListen(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Connect", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -243,24 +349,9 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -315,24 +406,9 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
-							Auth: &proto.Agent_Token{
-								Token: authToken,
-							},
-						}},
-					}},
-				},
-			},
-		}},
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -366,103 +442,6 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = sshClient.Close()
 	_ = conn.Close()
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
-}
-
-func TestWorkspaceAgentPTY(t *testing.T) {
-	t.Parallel()
-	if runtime.GOOS == "windows" {
-		// This might be our implementation, or ConPTY itself.
-		// It's difficult to find extensive tests for it, so
-		// it seems like it could be either.
-		t.Skip("ConPTY appears to be inconsistent on Windows.")
-	}
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-	})
-	user := coderdtest.CreateFirstUser(t, client)
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
-							Auth: &proto.Agent_Token{
-								Token: authToken,
-							},
-						}},
-					}},
-				},
-			},
-		}},
-	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	defer func() {
-		_ = agentCloser.Close()
-	}()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	conn, err := client.WorkspaceAgentReconnectingPTY(ctx, resources[0].Agents[0].ID, uuid.New(), 80, 80, "/bin/bash")
-	require.NoError(t, err)
-	defer conn.Close()
-
-	// First attempt to resize the TTY.
-	// The websocket will close if it fails!
-	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-		Height: 250,
-		Width:  250,
-	})
-	require.NoError(t, err)
-	_, err = conn.Write(data)
-	require.NoError(t, err)
-	bufRead := bufio.NewReader(conn)
-
-	// Brief pause to reduce the likelihood that we send keystrokes while
-	// the shell is simultaneously sending a prompt.
-	time.Sleep(100 * time.Millisecond)
-
-	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-		Data: "echo test\r\n",
-	})
-	require.NoError(t, err)
-	_, err = conn.Write(data)
-	require.NoError(t, err)
-
-	expectLine := func(matcher func(string) bool) {
-		for {
-			line, err := bufRead.ReadString('\n')
-			require.NoError(t, err)
-			if matcher(line) {
-				break
-			}
-		}
-	}
-	matchEchoCommand := func(line string) bool {
-		return strings.Contains(line, "echo test")
-	}
-	matchEchoOutput := func(line string) bool {
-		return strings.Contains(line, "test") && !strings.Contains(line, "echo")
-	}
-
-	expectLine(matchEchoCommand)
-	expectLine(matchEchoOutput)
 }
 
 func TestWorkspaceAgentListeningPorts(t *testing.T) {
@@ -768,10 +747,10 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 
-	metadata, err := agentClient.Metadata(ctx)
+	manifest, err := agentClient.Manifest(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, metadata.Apps[0].Health)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, metadata.Apps[1].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, manifest.Apps[0].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, manifest.Apps[1].Health)
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{})
 	require.Error(t, err)
 	// empty
@@ -780,37 +759,37 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	// healthcheck disabled
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
 		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			metadata.Apps[0].ID: codersdk.WorkspaceAppHealthInitializing,
+			manifest.Apps[0].ID: codersdk.WorkspaceAppHealthInitializing,
 		},
 	})
 	require.Error(t, err)
 	// invalid value
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
 		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			metadata.Apps[1].ID: codersdk.WorkspaceAppHealth("bad-value"),
+			manifest.Apps[1].ID: codersdk.WorkspaceAppHealth("bad-value"),
 		},
 	})
 	require.Error(t, err)
 	// update to healthy
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
 		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			metadata.Apps[1].ID: codersdk.WorkspaceAppHealthHealthy,
+			manifest.Apps[1].ID: codersdk.WorkspaceAppHealthHealthy,
 		},
 	})
 	require.NoError(t, err)
-	metadata, err = agentClient.Metadata(ctx)
+	manifest, err = agentClient.Manifest(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, metadata.Apps[1].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, manifest.Apps[1].Health)
 	// update to unhealthy
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
 		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			metadata.Apps[1].ID: codersdk.WorkspaceAppHealthUnhealthy,
+			manifest.Apps[1].ID: codersdk.WorkspaceAppHealthUnhealthy,
 		},
 	})
 	require.NoError(t, err)
-	metadata, err = agentClient.Metadata(ctx)
+	manifest, err = agentClient.Manifest(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, metadata.Apps[1].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, manifest.Apps[1].Health)
 }
 
 // nolint:bodyclose
@@ -825,24 +804,9 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -861,7 +825,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
@@ -905,13 +869,13 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
 			}},
 		})
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 	t.Run("AuthorizedCallback", func(t *testing.T) {
@@ -919,27 +883,26 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
 			}},
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		location, err := resp.Location()
 		require.NoError(t, err)
 		require.Equal(t, "/gitauth", location.Path)
 
 		// Callback again to simulate updating the token.
-		resp = gitAuthCallback(t, "github", client)
+		resp = coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
 	t.Run("ValidateURL", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := testutil.Context(t)
-		defer cancelFunc()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		srv := httptest.NewServer(nil)
 		defer srv.Close()
@@ -947,7 +910,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
 				ValidateURL:  srv.URL,
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
@@ -956,24 +919,9 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -983,7 +931,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		// If the validation URL says unauthorized, the callback
@@ -1005,7 +953,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusInternalServerError, apiError.StatusCode())
-		require.Equal(t, "git token validation failed: status 403: body: Something went wrong!", apiError.Detail)
+		require.Equal(t, "validate git auth token: status 403: body: Something went wrong!", apiError.Detail)
 	})
 
 	t.Run("ExpiredNoRefresh", func(t *testing.T) {
@@ -1013,8 +961,8 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{
-					token: &oauth2.Token{
+				OAuth2Config: &testutil.OAuth2Config{
+					Token: &oauth2.Token{
 						AccessToken:  "token",
 						RefreshToken: "something",
 						Expiry:       database.Now().Add(-time.Hour),
@@ -1029,24 +977,9 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -1063,7 +996,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		// In the configuration, we set our OAuth provider
 		// to return an expired token. Coder consumes this
 		// and stores it.
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		// Because the token is expired and `NoRefresh` is specified,
@@ -1078,7 +1011,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
@@ -1087,24 +1020,9 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -1128,10 +1046,10 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 
 		time.Sleep(250 * time.Millisecond)
 
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		token = <-tokenChan
-		require.Equal(t, "token", token.Username)
+		require.Equal(t, "access_token", token.Username)
 
 		token, err = agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
 		require.NoError(t, err)
@@ -1150,24 +1068,9 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -1178,12 +1081,17 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		agentClient.SetSessionToken(authToken)
 
 		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
-			ConnsByProto: map[string]int64{"TCP": 1},
-			NumConns:     1,
-			RxPackets:    1,
-			RxBytes:      1,
-			TxPackets:    1,
-			TxBytes:      1,
+			ConnectionsByProto:          map[string]int64{"TCP": 1},
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          1,
+			SessionCountJetBrains:       1,
+			SessionCountReconnectingPTY: 1,
+			SessionCountSSH:             1,
+			ConnectionMedianLatencyMS:   10,
 		})
 		require.NoError(t, err)
 
@@ -1195,31 +1103,6 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 			"%s is not after %s", newWorkspace.LastUsedAt, workspace.LastUsedAt,
 		)
 	})
-}
-
-func gitAuthCallback(t *testing.T, id string, client *codersdk.Client) *http.Response {
-	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	state := "somestate"
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/gitauth/%s/callback?code=asd&state=%s", id, state))
-	require.NoError(t, err)
-	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
-	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  codersdk.OAuth2StateCookie,
-		Value: state,
-	})
-	req.AddCookie(&http.Cookie{
-		Name:  codersdk.SessionTokenCookie,
-		Value: client.SessionToken(),
-	})
-	res, err := client.HTTPClient.Do(req)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = res.Body.Close()
-	})
-	return res
 }
 
 func TestWorkspaceAgent_LifecycleState(t *testing.T) {
@@ -1234,24 +1117,9 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -1276,6 +1144,10 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 			{codersdk.WorkspaceAgentLifecycleStartTimeout, false},
 			{codersdk.WorkspaceAgentLifecycleStartError, false},
 			{codersdk.WorkspaceAgentLifecycleReady, false},
+			{codersdk.WorkspaceAgentLifecycleShuttingDown, false},
+			{codersdk.WorkspaceAgentLifecycleShutdownTimeout, false},
+			{codersdk.WorkspaceAgentLifecycleShutdownError, false},
+			{codersdk.WorkspaceAgentLifecycleOff, false},
 			{codersdk.WorkspaceAgentLifecycle("nonexistent_state"), true},
 			{codersdk.WorkspaceAgentLifecycle(""), true},
 		}
@@ -1283,7 +1155,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 		for _, tt := range tests {
 			tt := tt
 			t.Run(string(tt.state), func(t *testing.T) {
-				ctx, _ := testutil.Context(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
 
 				err := agentClient.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
 					State: tt.state,
@@ -1305,4 +1177,152 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestWorkspaceAgent_Metadata(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Metadata: []*proto.Agent_Metadata{
+								{
+									DisplayName: "First Meta",
+									Key:         "foo1",
+									Script:      "echo hi",
+									Interval:    10,
+									Timeout:     3,
+								},
+								{
+									DisplayName: "Second Meta",
+									Key:         "foo2",
+									Script:      "echo howdy",
+									Interval:    10,
+									Timeout:     3,
+								},
+								{
+									DisplayName: "TooLong",
+									Key:         "foo3",
+									Script:      "echo howdy",
+									Interval:    10,
+									Timeout:     3,
+								},
+							},
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	for _, res := range workspace.LatestBuild.Resources {
+		for _, a := range res.Agents {
+			require.Equal(t, codersdk.WorkspaceAgentLifecycleCreated, a.LifecycleState)
+		}
+	}
+
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	manifest, err := agentClient.Manifest(ctx)
+	require.NoError(t, err)
+
+	// Verify manifest API response.
+	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
+	require.Equal(t, "foo1", manifest.Metadata[0].Key)
+	require.Equal(t, "echo hi", manifest.Metadata[0].Script)
+	require.EqualValues(t, 10, manifest.Metadata[0].Interval)
+	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
+
+	post := func(key string, mr codersdk.WorkspaceAgentMetadataResult) {
+		err := agentClient.PostMetadata(ctx, key, mr)
+		require.NoError(t, err, "post metadata", t)
+	}
+
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err, "get workspace")
+
+	agentID := workspace.LatestBuild.Resources[0].Agents[0].ID
+
+	var update []codersdk.WorkspaceAgentMetadata
+
+	check := func(want codersdk.WorkspaceAgentMetadataResult, got codersdk.WorkspaceAgentMetadata) {
+		require.Equal(t, want.Value, got.Result.Value)
+		require.Equal(t, want.Error, got.Result.Error)
+	}
+
+	wantMetadata1 := codersdk.WorkspaceAgentMetadataResult{
+		CollectedAt: time.Now(),
+		Value:       "bar",
+	}
+
+	// Initial post must come before the Watch is established.
+	post("foo1", wantMetadata1)
+
+	updates, errors := client.WatchWorkspaceAgentMetadata(ctx, agentID)
+
+	recvUpdate := func() []codersdk.WorkspaceAgentMetadata {
+		select {
+		case err := <-errors:
+			t.Fatalf("error watching metadata: %v", err)
+			return nil
+		case update := <-updates:
+			return update
+		}
+	}
+
+	update = recvUpdate()
+	require.Len(t, update, 3)
+	check(wantMetadata1, update[0])
+	// The second metadata result is not yet posted.
+	require.Zero(t, update[1].Result.CollectedAt)
+
+	wantMetadata2 := wantMetadata1
+	post("foo2", wantMetadata2)
+	update = recvUpdate()
+	require.Len(t, update, 3)
+	check(wantMetadata1, update[0])
+	check(wantMetadata2, update[1])
+
+	wantMetadata1.Error = "error"
+	post("foo1", wantMetadata1)
+	update = recvUpdate()
+	require.Len(t, update, 3)
+	check(wantMetadata1, update[0])
+
+	const maxValueLen = 32 << 10
+	tooLongValueMetadata := wantMetadata1
+	tooLongValueMetadata.Value = strings.Repeat("a", maxValueLen*2)
+	tooLongValueMetadata.Error = ""
+	tooLongValueMetadata.CollectedAt = time.Now()
+	post("foo3", tooLongValueMetadata)
+	got := recvUpdate()[2]
+	require.Len(t, got.Result.Value, maxValueLen)
+	require.NotEmpty(t, got.Result.Error)
+
+	unknownKeyMetadata := wantMetadata1
+	err = agentClient.PostMetadata(ctx, "unknown", unknownKeyMetadata)
+	require.NoError(t, err)
 }

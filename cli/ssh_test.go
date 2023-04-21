@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -87,18 +88,15 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-		cmd, root := clitest.New(t, "ssh", workspace.Name)
+		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetErr(pty.Output())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
 		pty.ExpectMatch("Waiting")
@@ -128,24 +126,68 @@ func TestSSH(t *testing.T) {
 			a[0].TroubleshootingUrl = wantURL
 			return a
 		})
-		cmd, root := clitest.New(t, "ssh", workspace.Name)
+		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetErr(pty.Output())
-		cmd.SetOut(pty.Output())
+		inv.Stdin = pty.Input()
+		inv.Stderr = pty.Output()
+		inv.Stdout = pty.Output()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := inv.WithContext(ctx).Run()
 			assert.ErrorIs(t, err, cliui.Canceled)
 		})
 		pty.ExpectMatch(wantURL)
 		cancel()
 		<-cmdDone
 	})
+
+	t.Run("ExitOnStop", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows doesn't seem to clean up the process, maybe #7100 will fix it")
+		}
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		inv, root := clitest.New(t, "ssh", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.Error(t, err)
+		})
+		pty.ExpectMatch("Waiting")
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(agentToken)
+		agentCloser := agent.New(agent.Options{
+			Client: agentClient,
+			Logger: slogtest.Make(t, nil).Named("agent"),
+		})
+		defer func() {
+			_ = agentCloser.Close()
+		}()
+
+		// Ensure the agent is connected.
+		pty.WriteLine("echo hell'o'")
+		pty.ExpectMatchContext(ctx, "hello")
+
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		select {
+		case <-cmdDone:
+		case <-ctx.Done():
+			require.Fail(t, "command did not exit in time")
+		}
+	})
+
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
@@ -173,13 +215,13 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		cmd, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetIn(clientOutput)
-		cmd.SetOut(serverInput)
-		cmd.SetErr(io.Discard)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
 
@@ -210,6 +252,76 @@ func TestSSH(t *testing.T) {
 
 		<-cmdDone
 	})
+
+	t.Run("StdioExitOnStop", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows doesn't seem to clean up the process, maybe #7100 will fix it")
+		}
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			agentClient := agentsdk.New(client.URL)
+			agentClient.SetSessionToken(agentToken)
+			agentCloser := agent.New(agent.Options{
+				Client: agentClient,
+				Logger: slogtest.Make(t, nil).Named("agent"),
+			})
+			<-ctx.Done()
+			_ = agentCloser.Close()
+		})
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		defer sshClient.Close()
+
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
+		err = session.Shell()
+		require.NoError(t, err)
+
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		select {
+		case <-cmdDone:
+		case <-ctx.Done():
+			require.Fail(t, "command did not exit in time")
+		}
+	})
+
 	t.Run("ForwardAgent", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("Test not supported on windows")
@@ -262,19 +374,17 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		cmd, root := clitest.New(t,
+		inv, root := clitest.New(t,
 			"ssh",
 			workspace.Name,
 			"--forward-agent",
 			"--identity-agent", agentSock, // Overrides $SSH_AUTH_SOCK.
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		cmd.SetErr(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stderr = pty.Output()
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err, "ssh command failed")
 		})
 
@@ -466,18 +576,18 @@ Expire-Date: 0
 	})
 	defer agentCloser.Close()
 
-	cmd, root := clitest.New(t,
+	inv, root := clitest.New(t,
 		"ssh",
 		workspace.Name,
 		"--forward-gpg",
 	)
 	clitest.SetupConfig(t, client, root)
 	tpty := ptytest.New(t)
-	cmd.SetIn(tpty.Input())
-	cmd.SetOut(tpty.Output())
-	cmd.SetErr(tpty.Output())
+	inv.Stdin = tpty.Input()
+	inv.Stdout = tpty.Output()
+	inv.Stderr = tpty.Output()
 	cmdDone := tGo(t, func() {
-		err := cmd.ExecuteContext(ctx)
+		err := inv.WithContext(ctx).Run()
 		assert.NoError(t, err, "ssh command failed")
 	})
 	// Prevent the test from hanging if the asserts below kill the test

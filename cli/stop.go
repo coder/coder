@@ -4,20 +4,26 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/cobra"
-
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func stop() *cobra.Command {
-	cmd := &cobra.Command{
+func (r *RootCmd) stop() *clibase.Cmd {
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "stop <workspace>",
 		Short:       "Stop a workspace",
-		Args:        cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Options: clibase.OptionSet{
+			cliui.SkipPromptOption(),
+		},
+		Handler: func(inv *clibase.Invocation) error {
+			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm stop workspace?",
 				IsConfirm: true,
 			})
@@ -25,30 +31,25 @@ func stop() *cobra.Command {
 				return err
 			}
 
-			client, err := CreateClient(cmd)
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(cmd, client, args[0])
-			if err != nil {
-				return err
-			}
-			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
 			})
 			if err != nil {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID)
+			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID)
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been stopped at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been stopped at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
-	cliui.AllowSkipPrompt(cmd)
 	return cmd
 }

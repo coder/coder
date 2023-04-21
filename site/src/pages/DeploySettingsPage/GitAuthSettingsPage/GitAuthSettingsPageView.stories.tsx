@@ -7,20 +7,16 @@ import {
 export default {
   title: "pages/GitAuthSettingsPageView",
   component: GitAuthSettingsPageView,
-  argTypes: {
-    deploymentConfig: {
-      defaultValue: {
-        gitauth: {
-          name: "Git Auth",
-          usage: "Automatically authenticate Git inside workspaces.",
-          value: [
-            {
-              id: "123",
-              client_id: "575",
-            },
-          ],
+  args: {
+    config: {
+      git_auth: [
+        {
+          id: "0000-1111",
+          type: "GitHub",
+          client_id: "client_id",
+          regex: "regex",
         },
-      },
+      ],
     },
   },
 } as ComponentMeta<typeof GitAuthSettingsPageView>

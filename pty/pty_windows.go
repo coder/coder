@@ -123,6 +123,10 @@ func (p *ptyWindows) Resize(height uint16, width uint16) error {
 	return nil
 }
 
+func (p *ptyWindows) Dup() (*os.File, error) {
+	return nil, xerrors.Errorf("not implemented")
+}
+
 func (p *ptyWindows) Close() error {
 	p.closeMutex.Lock()
 	defer p.closeMutex.Unlock()

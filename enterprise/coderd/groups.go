@@ -22,7 +22,7 @@ import (
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Tags Templates
+// @Tags Enterprise
 // @Param request body codersdk.CreateGroupRequest true "Create group request"
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.Group
@@ -40,11 +40,6 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		})
 	)
 	defer commitAudit()
-
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceGroup.InOrg(org.ID)) {
-		http.NotFound(rw, r)
-		return
-	}
 
 	var req codersdk.CreateGroupRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -111,11 +106,6 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.Old = group.Auditable(currentMembers)
-
-	if !api.Authorize(r, rbac.ActionUpdate, group) {
-		http.NotFound(rw, r)
-		return
-	}
 
 	var req codersdk.PatchGroupRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -241,7 +231,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to add or remove non-existent group member",
 			Detail:  err.Error(),
@@ -294,11 +284,6 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.Old = group.Auditable(groupMembers)
 
-	if !api.Authorize(r, rbac.ActionDelete, group) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	if group.Name == database.AllUsersGroup {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("%q is a reserved group and cannot be deleted!", database.AllUsersGroup),
@@ -344,11 +329,6 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		group = httpmw.GroupParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionRead, group) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	users, err := api.Database.GetGroupMembers(ctx, group.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
@@ -370,14 +350,6 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	api.groups(rw, r)
 }
 
-// @Summary Get groups
-// @ID get-groups
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Success 200 {array} codersdk.Group
-// @Router /groups [get]
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()

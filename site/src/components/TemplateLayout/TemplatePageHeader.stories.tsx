@@ -1,5 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockTemplate } from "testHelpers/entities"
+import { MockTemplate, MockTemplateVersion } from "testHelpers/entities"
 import {
   TemplatePageHeader,
   TemplatePageHeaderProps,
@@ -8,14 +8,11 @@ import {
 export default {
   title: "Components/TemplatePageHeader",
   component: TemplatePageHeader,
-  argTypes: {
-    template: {
-      defaultValue: MockTemplate,
-    },
+  args: {
+    template: MockTemplate,
+    activeVersion: MockTemplateVersion,
     permissions: {
-      defaultValue: {
-        canUpdateTemplate: true,
-      },
+      canUpdateTemplate: true,
     },
   },
 } as ComponentMeta<typeof TemplatePageHeader>

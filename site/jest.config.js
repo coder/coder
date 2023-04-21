@@ -1,28 +1,28 @@
-// REMARK: Jest is supposed to never exceed 50% maxWorkers by default. However,
-//         there seems to be an issue with this in our Ubuntu-based workspaces.
-//         If we don't limit it, then 100% CPU and high MEM usage is hit
-//         unexpectedly, leading to OOM kills.
-//
-// SEE thread: https://github.com/coder/coder/pull/483#discussion_r829636583
-const maxWorkers = 2
-
 module.exports = {
-  maxWorkers,
+  testTimeout: 10_000,
+  maxWorkers: 8,
   projects: [
     {
-      globals: {
-        "ts-jest": {
-          tsconfig: "./tsconfig.test.json",
-        },
-      },
-      coverageReporters: ["text", "lcov"],
       displayName: "test",
-      preset: "ts-jest",
       roots: ["<rootDir>"],
       setupFilesAfterEnv: ["./jest.setup.ts"],
+      extensionsToTreatAsEsm: [".ts"],
       transform: {
-        "^.+\\.tsx?$": "ts-jest",
-        "\\.m?jsx?$": "jest-esm-transformer",
+        "^.+\\.(t|j)sx?$": [
+          "@swc/jest",
+          {
+            jsc: {
+              transform: {
+                react: {
+                  runtime: "automatic",
+                },
+              },
+              experimental: {
+                plugins: [["jest_workaround", {}]],
+              },
+            },
+          },
+        ],
       },
       testEnvironment: "jsdom",
       testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
