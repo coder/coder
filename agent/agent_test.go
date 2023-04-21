@@ -1062,6 +1062,7 @@ func TestAgentMetadata_Timing(t *testing.T) {
 		greetingPath = filepath.Join(dir, "greeting")
 		script       = "echo hello | tee -a " + greetingPath
 	)
+	//nolint:dogsled
 	_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 		Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 			{
