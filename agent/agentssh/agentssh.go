@@ -180,7 +180,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			_ = session.Exit(1)
 			return
 		}
-		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d", x11.ScreenNumber))
+		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d.0", x11.ScreenNumber))
 	}
 
 	switch ss := session.Subsystem(); ss {
