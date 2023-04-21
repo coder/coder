@@ -1778,7 +1778,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	t.Cleanup(func() {
 		_ = agentConn.Close()
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	// Ideally we wouldn't wait too long here, but sometimes the the
+	// networking needs more time to resolve itself.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	if !agentConn.AwaitReachable(ctx) {
 		t.Fatal("agent not reachable")
