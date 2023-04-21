@@ -47,7 +47,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
-		expectLine := func(r *bufio.Reader, matcher func(string) bool) {
+		expectLine := func(t *testing.T, r *bufio.Reader, matcher func(string) bool) {
 			for {
 				line, err := r.ReadString('\n')
 				require.NoError(t, err)
@@ -98,8 +98,8 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			_, err = conn.Write(data)
 			require.NoError(t, err)
 
-			expectLine(bufRead, matchEchoCommand)
-			expectLine(bufRead, matchEchoOutput)
+			expectLine(t, bufRead, matchEchoCommand)
+			expectLine(t, bufRead, matchEchoOutput)
 		})
 
 		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
@@ -148,7 +148,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			conn := websocket.NetConn(ctx, wsConn, websocket.MessageBinary)
 			bufRead := bufio.NewReader(conn)
 
-			expectLine(bufRead, matchEchoOutput)
+			expectLine(t, bufRead, matchEchoOutput)
 		})
 	})
 
