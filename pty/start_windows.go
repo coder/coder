@@ -54,7 +54,7 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (_ PTY, _ Process, retErr error
 		if retErr != nil {
 			// we hit some error finishing setup; close pty, so
 			// we don't leak the kernel resources associated with it
-			_ := pty.Close()
+			_ = pty.Close()
 		}
 	}()
 	winPty := pty.(*ptyWindows)
