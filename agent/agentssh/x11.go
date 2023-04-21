@@ -60,6 +60,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
 	s.trackListener(listener, true)
 
 	go func() {
+		defer listener.Close()
 		defer s.trackListener(listener, false)
 		handledFirstConnection := false
 
@@ -120,11 +121,14 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	xauthPath := filepath.Join(homeDir, ".Xauthority")
 
 	lock := flock.New(xauthPath)
+	defer lock.Close()
 	ok, err := lock.TryLockContext(ctx, 100*time.Millisecond)
 	if !ok {
 		return xerrors.Errorf("failed to lock Xauthority file: %w", err)
 	}
-	defer lock.Close()
+	if err != nil {
+		return xerrors.Errorf("failed to lock Xauthority file: %w", err)
+	}
 
 	// Open or create the Xauthority file
 	file, err := fs.OpenFile(xauthPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600)
