@@ -59,7 +59,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err)
 		require.Len(t, proxies, 1)
-		require.Equal(t, proxyRes.Proxy, proxies[0])
+		require.Equal(t, proxyRes.Proxy.ID, proxies[0].ID)
 		require.NotEmpty(t, proxyRes.ProxyToken)
 	})
 

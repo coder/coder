@@ -27,7 +27,7 @@ const (
 
 type WorkspaceProxyStatus struct {
 	Status    ProxyHealthStatus `json:"status" table:"status"`
-	CheckedAt time.Time         `json:"checked_at" table:"checked_at"`
+	CheckedAt time.Time         `json:"checked_at" table:"checked_at" format:"date-time"`
 }
 
 type WorkspaceProxy struct {
@@ -39,7 +39,7 @@ type WorkspaceProxy struct {
 	// WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com
 	WildcardHostname string    `json:"wildcard_hostname" table:"wildcard_hostname"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time" table:"created_at"`
-	UpdatedAt        time.Time `djson:"updated_at" format:"date-time" table:"updated_at"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time" table:"updated_at"`
 	Deleted          bool      `json:"deleted" table:"deleted"`
 
 	// Status is the latest status check of the proxy. This will be empty for deleted
