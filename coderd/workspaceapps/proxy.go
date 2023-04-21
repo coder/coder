@@ -594,7 +594,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 			BasePath:      r.URL.Path,
 			AgentNameOrID: chi.URLParam(r, "workspaceagent"),
 		},
-		AppPath:  r.URL.Path,
+		AppPath:  "",
 		AppQuery: "",
 	})
 	if !ok {

@@ -1251,9 +1251,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 {
   "display_name": "string",
   "icon": "string",
-  "name": "string",
-  "url": "string",
-  "wildcard_hostname": "string"
+  "name": "string"
 }
 ```
 

@@ -1,7 +1,6 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
-import CloudIcon from "@material-ui/icons/CloudOutlined"
 import { useRef, useState } from "react"
 import { CodeExample } from "../CodeExample/CodeExample"
 import { Stack } from "../Stack/Stack"
@@ -37,14 +36,14 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
     <>
       <Button
         className={styles.button}
-        startIcon={<CloudIcon />}
+        variant="outlined"
         size="small"
         ref={anchorRef}
         onClick={() => {
           setIsOpen(true)
         }}
       >
-        SSH
+        Connect SSH
       </Button>
       <Popover
         classes={{ paper: styles.popoverPaper }}
@@ -129,11 +128,10 @@ const useStyles = makeStyles((theme) => ({
   },
 
   button: {
-    whiteSpace: "nowrap",
-    backgroundColor: theme.palette.background.default,
-
-    "&:hover": {
-      backgroundColor: `${theme.palette.background.default} !important`,
-    },
+    fontSize: 12,
+    fontWeight: 500,
+    height: theme.spacing(4),
+    minHeight: theme.spacing(4),
+    borderRadius: 4,
   },
 }))

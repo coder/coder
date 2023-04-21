@@ -33,8 +33,9 @@ export default defineConfig({
     port: process.env.PORT ? Number(process.env.PORT) : 8080,
     proxy: {
       "/api": {
-        target: process.env.CODER_HOST || "http://localhost:3000",
         ws: true,
+        changeOrigin: true,
+        target: process.env.CODER_HOST || "http://localhost:3000",
         secure: process.env.NODE_ENV === "production",
       },
       "/swagger": {

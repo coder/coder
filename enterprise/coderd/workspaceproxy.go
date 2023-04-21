@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	agpl "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -104,24 +105,6 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateProxyURL(req.URL); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "URL is invalid.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if req.WildcardHostname != "" {
-		if _, err := httpapi.CompileHostnamePattern(req.WildcardHostname); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Wildcard URL is invalid.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	id := uuid.New()
 	secret, err := cryptorand.HexString(64)
 	if err != nil {
@@ -136,8 +119,6 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		Name:              req.Name,
 		DisplayName:       req.DisplayName,
 		Icon:              req.Icon,
-		Url:               req.URL,
-		WildcardHostname:  req.WildcardHostname,
 		TokenHashedSecret: hashedSecret[:],
 		CreatedAt:         database.Now(),
 		UpdatedAt:         database.Now(),
@@ -315,9 +296,102 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey: api.AppSecurityKey.String(),
 	})
+}
 
-	// Update the proxy health cache to update this proxy.
-	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
+// reconnectingPTYSignedToken issues a signed app token for use when connecting
+// to the reconnecting PTY websocket on an external workspace proxy. This is set
+// by the client as a query parameter when connecting.
+//
+// @Summary Issue signed app token for reconnecting PTY
+// @ID issue-signed-app-token-for-reconnecting-pty
+// @Security CoderSessionToken
+// @Tags Applications Enterprise
+// @Accept json
+// @Produce json
+// @Param request body codersdk.IssueReconnectingPTYSignedTokenRequest true "Issue reconnecting PTY signed token request"
+// @Success 200 {object} codersdk.IssueReconnectingPTYSignedTokenResponse
+// @Router /applications/reconnecting-pty-signed-token [post]
+// @x-apidocgen {"skip": true}
+func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	if !api.Authorize(r, rbac.ActionCreate, apiKey) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.IssueReconnectingPTYSignedTokenRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	u, err := url.Parse(req.URL)
+	if err == nil && u.Scheme != "ws" && u.Scheme != "wss" {
+		err = xerrors.Errorf("invalid URL scheme %q, expected 'ws' or 'wss'", u.Scheme)
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid URL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Assert the URL is a valid reconnecting-pty URL.
+	expectedPath := fmt.Sprintf("/api/v2/workspaceagents/%s/pty", req.AgentID.String())
+	if u.Path != expectedPath {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid URL path.",
+			Detail:  "The provided URL is not a valid reconnecting PTY endpoint URL.",
+		})
+		return
+	}
+
+	scheme, err := api.AGPL.ValidWorkspaceAppHostname(ctx, u.Host, agpl.ValidWorkspaceAppHostnameOpts{
+		// Only allow the proxy access URL as a hostname since we don't need a
+		// ticket for the primary dashboard URL terminal.
+		AllowPrimaryAccessURL: false,
+		AllowPrimaryWildcard:  false,
+		AllowProxyAccessURL:   true,
+		AllowProxyWildcard:    false,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to verify hostname in URL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if scheme == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid hostname in URL.",
+			Detail:  "The hostname must be the primary wildcard app hostname, a workspace proxy access URL or a workspace proxy wildcard app hostname.",
+		})
+		return
+	}
+
+	_, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.Issue(ctx, rw, r, workspaceapps.IssueTokenRequest{
+		AppRequest: workspaceapps.Request{
+			AccessMethod:  workspaceapps.AccessMethodTerminal,
+			BasePath:      u.Path,
+			AgentNameOrID: req.AgentID.String(),
+		},
+		SessionToken: httpmw.APITokenFromRequest(r),
+		// The following fields aren't required as long as the request is authed
+		// with a valid API key.
+		PathAppBaseURL: "",
+		AppHostname:    "",
+		// The following fields are empty for terminal apps.
+		AppPath:  "",
+		AppQuery: "",
+	})
+	if !ok {
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.IssueReconnectingPTYSignedTokenResponse{
+		SignedToken: tokenStr,
+	})
 }
 
 func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhealth.ProxyStatus) []codersdk.WorkspaceProxy {

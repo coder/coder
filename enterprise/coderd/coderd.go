@@ -84,6 +84,10 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
+		r.Route("/applications/reconnecting-pty-signed-token", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Post("/", api.reconnectingPTYSignedToken)
+		})
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
 				api.moonsEnabledMW,

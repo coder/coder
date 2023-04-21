@@ -260,8 +260,6 @@ export interface CreateWorkspaceProxyRequest {
   readonly name: string
   readonly display_name: string
   readonly icon: string
-  readonly url: string
-  readonly wildcard_hostname: string
 }
 
 // From codersdk/workspaceproxy.go
@@ -464,6 +462,17 @@ export interface Healthcheck {
   readonly url: string
   readonly interval: number
   readonly threshold: number
+}
+
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenRequest {
+  readonly url: string
+  readonly agentID: string
+}
+
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenResponse {
+  readonly signed_token: string
 }
 
 // From codersdk/licenses.go

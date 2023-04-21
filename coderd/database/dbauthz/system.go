@@ -438,3 +438,10 @@ func (q *querier) InsertParameterSchema(ctx context.Context, arg database.Insert
 	}
 	return q.db.InsertParameterSchema(ctx, arg)
 }
+
+func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, params database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceProxy{}, err
+	}
+	return q.db.GetWorkspaceProxyByHostname(ctx, params)
+}

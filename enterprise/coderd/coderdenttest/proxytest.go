@@ -108,10 +108,8 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	}
 
 	proxyRes, err := owner.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-		Name:             options.Name,
-		Icon:             "/emojis/flag.png",
-		URL:              accessURL.String(),
-		WildcardHostname: options.AppHostname,
+		Name: options.Name,
+		Icon: "/emojis/flag.png",
 	})
 	require.NoError(t, err, "failed to create workspace proxy")
 
