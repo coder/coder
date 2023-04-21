@@ -1,0 +1,15 @@
+coder:
+  image:
+    tag: latest
+  annotations:
+    com.coder/annotation/foo: bar
+    com.coder/annotation/baz: qux
+  labels:
+    com.coder/label/foo: bar
+    com.coder/label/baz: qux
+  podAnnotations:
+    com.coder/podAnnotation/foo: bar
+    com.coder/podAnnotation/baz: qux
+  podLabels:
+    com.coder/podLabel/foo: bar
+    com.coder/podLabel/baz: qux

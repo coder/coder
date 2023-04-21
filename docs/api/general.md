@@ -53,8 +53,10 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 
 ```json
 {
+  "dashboard_url": "string",
   "external_url": "string",
-  "version": "string"
+  "version": "string",
+  "workspace_proxy": true
 }
 ```
 
@@ -507,7 +509,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["template_editor"]
+["moons"]
 ```
 
 ### Responses

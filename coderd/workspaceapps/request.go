@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -24,6 +25,50 @@ const (
 	// applies to the PTY endpoint on the API.
 	AccessMethodTerminal AccessMethod = "terminal"
 )
+
+type IssueTokenRequest struct {
+	AppRequest Request `json:"app_request"`
+	// PathAppBaseURL is required.
+	PathAppBaseURL string `json:"path_app_base_url"`
+	// AppHostname is the optional hostname for subdomain apps on the external
+	// proxy. It must start with an asterisk.
+	AppHostname string `json:"app_hostname"`
+	// AppPath is the path of the user underneath the app base path.
+	AppPath string `json:"app_path"`
+	// AppQuery is the query parameters the user provided in the app request.
+	AppQuery string `json:"app_query"`
+	// SessionToken is the session token provided by the user.
+	SessionToken string `json:"session_token"`
+}
+
+// AppBaseURL returns the base URL of this specific app request. An error is
+// returned if a subdomain app hostname is not provided but the app is a
+// subdomain app.
+func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
+	u, err := url.Parse(r.PathAppBaseURL)
+	if err != nil {
+		return nil, xerrors.Errorf("parse path app base URL: %w", err)
+	}
+
+	switch r.AppRequest.AccessMethod {
+	case AccessMethodPath, AccessMethodTerminal:
+		u.Path = r.AppRequest.BasePath
+		if !strings.HasSuffix(u.Path, "/") {
+			u.Path += "/"
+		}
+		return u, nil
+	case AccessMethodSubdomain:
+		if r.AppHostname == "" {
+			return nil, xerrors.New("subdomain app hostname is required to generate subdomain app URL")
+		}
+		appHost := fmt.Sprintf("%s--%s--%s--%s", r.AppRequest.AppSlugOrPort, r.AppRequest.AgentNameOrID, r.AppRequest.WorkspaceNameOrID, r.AppRequest.UsernameOrID)
+		u.Host = strings.Replace(r.AppHostname, "*", appHost, 1)
+		u.Path = r.AppRequest.BasePath
+		return u, nil
+	default:
+		return nil, xerrors.Errorf("invalid access method: %q", r.AppRequest.AccessMethod)
+	}
+}
 
 type Request struct {
 	AccessMethod AccessMethod `json:"access_method"`
@@ -128,7 +173,7 @@ type databaseRequest struct {
 
 	// AppURL is the resolved URL to the workspace app. This is only set for non
 	// terminal requests.
-	AppURL string
+	AppURL *url.URL
 	// AppHealth is the health of the app. For terminal requests, this is always
 	// database.WorkspaceAppHealthHealthy.
 	AppHealth database.WorkspaceAppHealth
@@ -290,12 +335,17 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		}
 	}
 
+	appURLParsed, err := url.Parse(appURL)
+	if err != nil {
+		return nil, xerrors.Errorf("parse app URL %q: %w", appURL, err)
+	}
+
 	return &databaseRequest{
 		Request:         r,
 		User:            user,
 		Workspace:       workspace,
 		Agent:           agent,
-		AppURL:          appURL,
+		AppURL:          appURLParsed,
 		AppHealth:       appHealth,
 		AppSharingLevel: appSharingLevel,
 	}, nil
@@ -348,7 +398,7 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 		User:            user,
 		Workspace:       workspace,
 		Agent:           agent,
-		AppURL:          "",
+		AppURL:          nil,
 		AppHealth:       database.WorkspaceAppHealthHealthy,
 		AppSharingLevel: database.AppSharingLevelOwner,
 	}, nil

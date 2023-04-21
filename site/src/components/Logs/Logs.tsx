@@ -41,7 +41,7 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
                     ? idx + 1
                     : dayjs(line.time).format(`HH:mm:ss.SSS`)}
                 </span>
-                <span className={styles.space}>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                <span className={styles.space} />
               </>
             )}
             <span>{line.output}</span>
@@ -66,7 +66,7 @@ export const LogLine: FC<{
     lineNumbers: Boolean(number),
   })
   const output = useMemo(() => {
-    return convert.toHtml(line.output)
+    return convert.toHtml(line.output.split(/\r/g).pop() as string)
   }, [line.output])
 
   return (
@@ -76,7 +76,7 @@ export const LogLine: FC<{
           <span className={styles.time}>
             {number ? number : dayjs(line.time).format(`HH:mm:ss.SSS`)}
           </span>
-          <span className={styles.space}>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          <span className={styles.space} />
         </>
       )}
       <span
@@ -96,7 +96,6 @@ const useStyles = makeStyles<
 >((theme) => ({
   root: {
     minHeight: 156,
-    fontSize: 13,
     padding: theme.spacing(2, 0),
     borderRadius: theme.shape.borderRadius,
     overflowX: "auto",
@@ -107,12 +106,14 @@ const useStyles = makeStyles<
   },
   line: {
     wordBreak: "break-all",
+    display: "flex",
+    fontSize: 14,
     color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
     height: ({ lineNumbers }) => (lineNumbers ? logLineHeight : "auto"),
     // Whitespace is significant in terminal output for alignment
     whiteSpace: "pre",
-    padding: theme.spacing(0, 3),
+    padding: theme.spacing(0, 4),
 
     "&.error": {
       backgroundColor: theme.palette.error.dark,
@@ -128,6 +129,9 @@ const useStyles = makeStyles<
   },
   space: {
     userSelect: "none",
+    width: theme.spacing(3),
+    display: "block",
+    flexShrink: 0,
   },
   time: {
     userSelect: "none",

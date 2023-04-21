@@ -16,10 +16,14 @@ type LogsContext = {
   logs?: ProvisionerJobLog[]
 }
 
-type LogsEvent = {
-  type: "ADD_LOG"
-  log: ProvisionerJobLog
-}
+type LogsEvent =
+  | {
+      type: "ADD_LOG"
+      log: ProvisionerJobLog
+    }
+  | {
+      type: "BUILD_DONE"
+    }
 
 export const workspaceBuildMachine = createMachine(
   {
@@ -74,14 +78,17 @@ export const workspaceBuildMachine = createMachine(
               id: "streamWorkspaceBuildLogs",
               src: "streamWorkspaceBuildLogs",
             },
+            on: {
+              ADD_LOG: {
+                actions: "addLog",
+              },
+              BUILD_DONE: {
+                target: "loaded",
+              },
+            },
           },
           loaded: {
             type: "final",
-          },
-        },
-        on: {
-          ADD_LOG: {
-            actions: "addLog",
           },
         },
       },
@@ -124,31 +131,26 @@ export const workspaceBuildMachine = createMachine(
       getLogs: async (ctx) =>
         API.getWorkspaceBuildLogs(ctx.buildId, ctx.timeCursor),
       streamWorkspaceBuildLogs: (ctx) => async (callback) => {
-        return new Promise<void>((resolve, reject) => {
-          if (!ctx.logs) {
-            return reject("logs must be set")
-          }
-          const proto = location.protocol === "https:" ? "wss:" : "ws:"
-          const socket = new WebSocket(
-            `${proto}//${location.host}/api/v2/workspacebuilds/${
-              ctx.buildId
-            }/logs?follow=true&after=${ctx.logs[ctx.logs.length - 1].id}`,
-          )
-          socket.binaryType = "blob"
-          socket.addEventListener("message", (event) => {
-            callback({ type: "ADD_LOG", log: JSON.parse(event.data) })
-          })
-          socket.addEventListener("error", () => {
-            reject(new Error("socket errored"))
-          })
-          socket.addEventListener("open", () => {
-            resolve()
-          })
-          socket.addEventListener("close", () => {
-            // When the socket closes, logs have finished streaming!
-            resolve()
-          })
+        if (!ctx.logs) {
+          throw new Error("logs must be set")
+        }
+
+        const after = ctx.logs[ctx.logs.length - 1].id
+        const socket = API.watchBuildLogsByBuildId(ctx.buildId, {
+          after,
+          onMessage: (log) => {
+            callback({ type: "ADD_LOG", log })
+          },
+          onDone: () => {
+            callback({ type: "BUILD_DONE" })
+          },
+          onError: (err) => {
+            console.error(err)
+          },
         })
+        return () => {
+          socket.close()
+        }
       },
     },
   },

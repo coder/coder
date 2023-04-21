@@ -10,10 +10,10 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/pointer"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 )
 
 func Test_diffValues(t *testing.T) {
@@ -82,14 +82,14 @@ func Test_diffValues(t *testing.T) {
 		runDiffValuesTests(t, table, []diffTest{
 			{
 				name: "LeftNil",
-				left: foo{Bar: nil}, right: foo{Bar: pointer.StringPtr("baz")},
+				left: foo{Bar: nil}, right: foo{Bar: ptr.Ref("baz")},
 				exp: audit.Map{
 					"bar": audit.OldNew{Old: "", New: "baz"},
 				},
 			},
 			{
 				name: "RightNil",
-				left: foo{Bar: pointer.StringPtr("baz")}, right: foo{Bar: nil},
+				left: foo{Bar: ptr.Ref("baz")}, right: foo{Bar: nil},
 				exp: audit.Map{
 					"bar": audit.OldNew{Old: "baz", New: ""},
 				},

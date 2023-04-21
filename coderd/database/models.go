@@ -1674,14 +1674,18 @@ type WorkspaceProxy struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Name        string    `db:"name" json:"name"`
 	DisplayName string    `db:"display_name" json:"display_name"`
-	Icon        string    `db:"icon" json:"icon"`
+	// Expects an emoji character. (/emojis/1f1fa-1f1f8.png)
+	Icon string `db:"icon" json:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
 	Url string `db:"url" json:"url"`
 	// Hostname with the wildcard for subdomain based app hosting: *.us.example.com
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	Deleted          bool      `db:"deleted" json:"deleted"`
+	// Boolean indicator of a deleted workspace proxy. Proxies are soft-deleted.
+	Deleted bool `db:"deleted" json:"deleted"`
+	// Hashed secret is used to authenticate the workspace proxy using a session token.
+	TokenHashedSecret []byte `db:"token_hashed_secret" json:"token_hashed_secret"`
 }
 
 type WorkspaceResource struct {

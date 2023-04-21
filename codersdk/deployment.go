@@ -333,12 +333,22 @@ type DangerousConfig struct {
 }
 
 const (
-	flagEnterpriseKey = "enterprise"
-	flagSecretKey     = "secret"
+	annotationEnterpriseKey = "enterprise"
+	annotationSecretKey     = "secret"
+	// annotationExternalProxies is used to mark options that are used by workspace
+	// proxies. This is used to filter out options that are not relevant.
+	annotationExternalProxies = "external_workspace_proxies"
 )
 
+// IsWorkspaceProxies returns true if the cli option is used by workspace proxies.
+func IsWorkspaceProxies(opt clibase.Option) bool {
+	// If it is a bool, use the bool value.
+	b, _ := strconv.ParseBool(opt.Annotations[annotationExternalProxies])
+	return b
+}
+
 func IsSecretDeploymentOption(opt clibase.Option) bool {
-	return opt.Annotations.IsSet(flagSecretKey)
+	return opt.Annotations.IsSet(annotationSecretKey)
 }
 
 func DefaultCacheDir() string {
@@ -470,6 +480,7 @@ when required by your organization's security policy.`,
 		Value:       &c.HTTPAddress,
 		Group:       &deploymentGroupNetworkingHTTP,
 		YAML:        "httpAddress",
+		Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 	}
 	tlsBindAddress := clibase.Option{
 		Name:        "TLS Address",
@@ -480,6 +491,7 @@ when required by your organization's security policy.`,
 		Value:       &c.TLS.Address,
 		Group:       &deploymentGroupNetworkingTLS,
 		YAML:        "address",
+		Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 	}
 	redirectToAccessURL := clibase.Option{
 		Name:        "Redirect to Access URL",
@@ -499,6 +511,7 @@ when required by your organization's security policy.`,
 			Env:         "CODER_ACCESS_URL",
 			Group:       &deploymentGroupNetworking,
 			YAML:        "accessURL",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Wildcard Access URL",
@@ -508,6 +521,7 @@ when required by your organization's security policy.`,
 			Value:       &c.WildcardAccessURL,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		redirectToAccessURL,
 		{
@@ -534,7 +548,8 @@ when required by your organization's security policy.`,
 				httpAddress,
 				tlsBindAddress,
 			},
-			Group: &deploymentGroupNetworking,
+			Group:       &deploymentGroupNetworking,
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// TLS settings
 		{
@@ -545,6 +560,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.Enable,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "enable",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Redirect HTTP to HTTPS",
@@ -557,6 +573,7 @@ when required by your organization's security policy.`,
 			UseInstead:  clibase.OptionSet{redirectToAccessURL},
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "redirectHTTP",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Certificate Files",
@@ -566,6 +583,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.CertFiles,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "certFiles",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Client CA Files",
@@ -575,6 +593,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientCAFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientCAFile",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Client Auth",
@@ -585,6 +604,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientAuth,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientAuth",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Key Files",
@@ -594,6 +614,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.KeyFiles,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "keyFiles",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Minimum Version",
@@ -604,6 +625,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.MinVersion,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "minVersion",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Client Cert File",
@@ -613,6 +635,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientCertFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientCertFile",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Client Key File",
@@ -622,6 +645,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientKeyFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientKeyFile",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Derp settings
 		{
@@ -666,7 +690,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
-			Description: "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
+			Description: "Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
 			Default:     "stun.l.google.com:19302",
@@ -679,7 +703,7 @@ when required by your organization's security policy.`,
 			Description: "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
 			Flag:        "derp-server-relay-url",
 			Env:         "CODER_DERP_SERVER_RELAY_URL",
-			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true"),
 			Value:       &c.DERP.Server.RelayURL,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "relayURL",
@@ -712,6 +736,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.Enable,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "enable",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Prometheus Address",
@@ -722,6 +747,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.Address,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "address",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Prometheus Collect Agent Stats",
@@ -741,6 +767,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Pprof.Enable,
 			Group:       &deploymentGroupIntrospectionPPROF,
 			YAML:        "enable",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "pprof Address",
@@ -751,6 +778,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Pprof.Address,
 			Group:       &deploymentGroupIntrospectionPPROF,
 			YAML:        "address",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// oAuth settings
 		{
@@ -768,7 +796,7 @@ when required by your organization's security policy.`,
 			Flag:        "oauth2-github-client-secret",
 			Env:         "CODER_OAUTH2_GITHUB_CLIENT_SECRET",
 			Value:       &c.OAuth2.Github.ClientSecret,
-			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
 			Group:       &deploymentGroupOAuth2GitHub,
 		},
 		{
@@ -841,7 +869,7 @@ when required by your organization's security policy.`,
 			Description: "Client secret to use for Login with OIDC.",
 			Flag:        "oidc-client-secret",
 			Env:         "CODER_OIDC_CLIENT_SECRET",
-			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.OIDC.ClientSecret,
 			Group:       &deploymentGroupOIDC,
 		},
@@ -1007,13 +1035,14 @@ when required by your organization's security policy.`,
 			Value:       &c.Trace.Enable,
 			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "enable",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Trace Honeycomb API Key",
 			Description: "Enables trace exporting to Honeycomb.io using the provided API Key.",
 			Flag:        "trace-honeycomb-api-key",
 			Env:         "CODER_TRACE_HONEYCOMB_API_KEY",
-			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true").Mark(annotationExternalProxies, "true"),
 			Value:       &c.Trace.HoneycombAPIKey,
 			Group:       &deploymentGroupIntrospectionTracing,
 		},
@@ -1025,6 +1054,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Trace.CaptureLogs,
 			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "captureLogs",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Provisioner settings
 		{
@@ -1074,19 +1104,21 @@ when required by your organization's security policy.`,
 			Flag:        "dangerous-disable-rate-limits",
 			Env:         "CODER_DANGEROUS_DISABLE_RATE_LIMITS",
 
-			Value:  &c.RateLimit.DisableAll,
-			Hidden: true,
+			Value:       &c.RateLimit.DisableAll,
+			Hidden:      true,
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "API Rate Limit",
 			Description: "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints have separate strict rate limits regardless of this value to prevent denial-of-service or brute force attacks.",
 			// Change the env from the auto-generated CODER_RATE_LIMIT_API to the
 			// old value to avoid breaking existing deployments.
-			Env:     "CODER_API_RATE_LIMIT",
-			Flag:    "api-rate-limit",
-			Default: "512",
-			Value:   &c.RateLimit.API,
-			Hidden:  true,
+			Env:         "CODER_API_RATE_LIMIT",
+			Flag:        "api-rate-limit",
+			Default:     "512",
+			Value:       &c.RateLimit.API,
+			Hidden:      true,
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Logging settings
 		{
@@ -1096,9 +1128,10 @@ when required by your organization's security policy.`,
 			Env:           "CODER_VERBOSE",
 			FlagShorthand: "v",
 
-			Value: &c.Verbose,
-			Group: &deploymentGroupIntrospectionLogging,
-			YAML:  "verbose",
+			Value:       &c.Verbose,
+			Group:       &deploymentGroupIntrospectionLogging,
+			YAML:        "verbose",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Human Log Location",
@@ -1109,6 +1142,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Logging.Human,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "humanPath",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "JSON Log Location",
@@ -1119,6 +1153,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Logging.JSON,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "jsonPath",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Stackdriver Log Location",
@@ -1129,6 +1164,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Logging.Stackdriver,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "stackdriverPath",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// ☢️ Dangerous settings
 		{
@@ -1157,6 +1193,7 @@ when required by your organization's security policy.`,
 			Env:         "CODER_EXPERIMENTS",
 			Value:       &c.Experiments,
 			YAML:        "experiments",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Update Check",
@@ -1199,6 +1236,7 @@ when required by your organization's security policy.`,
 			Value:       &c.ProxyTrustedHeaders,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedHeaders",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Proxy Trusted Origins",
@@ -1208,6 +1246,7 @@ when required by your organization's security policy.`,
 			Value:       &c.ProxyTrustedOrigins,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedOrigins",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Cache Directory",
@@ -1232,7 +1271,7 @@ when required by your organization's security policy.`,
 			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
 			Flag:        "postgres-url",
 			Env:         "CODER_PG_CONNECTION_URL",
-			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.PostgresURL,
 		},
 		{
@@ -1243,28 +1282,31 @@ when required by your organization's security policy.`,
 			Value:       &c.SecureAuthCookie,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name: "Strict-Transport-Security",
 			Description: "Controls if the 'Strict-Transport-Security' header is set on all static file responses. " +
 				"This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of " +
 				"the header.",
-			Default: "0",
-			Flag:    "strict-transport-security",
-			Env:     "CODER_STRICT_TRANSPORT_SECURITY",
-			Value:   &c.StrictTransportSecurity,
-			Group:   &deploymentGroupNetworkingTLS,
-			YAML:    "strictTransportSecurity",
+			Default:     "0",
+			Flag:        "strict-transport-security",
+			Env:         "CODER_STRICT_TRANSPORT_SECURITY",
+			Value:       &c.StrictTransportSecurity,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "strictTransportSecurity",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name: "Strict-Transport-Security Options",
 			Description: "Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. " +
 				"The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.",
-			Flag:  "strict-transport-security-options",
-			Env:   "CODER_STRICT_TRANSPORT_SECURITY_OPTIONS",
-			Value: &c.StrictTransportSecurityOptions,
-			Group: &deploymentGroupNetworkingTLS,
-			YAML:  "strictTransportSecurityOptions",
+			Flag:        "strict-transport-security-options",
+			Env:         "CODER_STRICT_TRANSPORT_SECURITY_OPTIONS",
+			Value:       &c.StrictTransportSecurityOptions,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "strictTransportSecurityOptions",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "SSH Keygen Algorithm",
@@ -1308,7 +1350,7 @@ when required by your organization's security policy.`,
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
 			Env:         "CODER_BROWSER_ONLY",
-			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationExternalProxies, "true"),
 			Value:       &c.BrowserOnly,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "browserOnly",
@@ -1318,7 +1360,7 @@ when required by your organization's security policy.`,
 			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:        "scim-auth-header",
 			Env:         "CODER_SCIM_AUTH_HEADER",
-			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true").Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
 		},
 
@@ -1328,8 +1370,9 @@ when required by your organization's security policy.`,
 			Flag:        "disable-path-apps",
 			Env:         "CODER_DISABLE_PATH_APPS",
 
-			Value: &c.DisablePathApps,
-			YAML:  "disablePathApps",
+			Value:       &c.DisablePathApps,
+			YAML:        "disablePathApps",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Disable Owner Workspace Access",
@@ -1337,8 +1380,9 @@ when required by your organization's security policy.`,
 			Flag:        "disable-owner-workspace-access",
 			Env:         "CODER_DISABLE_OWNER_WORKSPACE_ACCESS",
 
-			Value: &c.DisableOwnerWorkspaceExec,
-			YAML:  "disableOwnerWorkspaceAccess",
+			Value:       &c.DisableOwnerWorkspaceExec,
+			YAML:        "disableOwnerWorkspaceAccess",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Session Duration",
@@ -1407,10 +1451,11 @@ when required by your organization's security policy.`,
 			Name: "Write Config",
 			Description: `
 Write out the current server config as YAML to stdout.`,
-			Flag:   "write-config",
-			Group:  &deploymentGroupConfig,
-			Hidden: false,
-			Value:  &c.WriteConfig,
+			Flag:        "write-config",
+			Group:       &deploymentGroupConfig,
+			Hidden:      false,
+			Value:       &c.WriteConfig,
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Support Links",
@@ -1575,6 +1620,20 @@ type BuildInfoResponse struct {
 	ExternalURL string `json:"external_url"`
 	// Version returns the semantic version of the build.
 	Version string `json:"version"`
+
+	// DashboardURL is the URL to hit the deployment's dashboard.
+	// For external workspace proxies, this is the coderd they are connected
+	// to.
+	DashboardURL string `json:"dashboard_url"`
+
+	WorkspaceProxy bool `json:"workspace_proxy"`
+}
+
+type WorkspaceProxyBuildInfo struct {
+	// TODO: @emyrk what should we include here?
+	WorkspaceProxy bool `json:"workspace_proxy"`
+	// DashboardURL is the URL of the coderd this proxy is connected to.
+	DashboardURL string `json:"dashboard_url"`
 }
 
 // CanonicalVersion trims build information from the version.
@@ -1605,10 +1664,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// ExperimentTemplateEditor is an internal experiment that enables the template editor
-	// for all users.
-	ExperimentTemplateEditor Experiment = "template_editor"
-
 	// ExperimentMoons enabled the workspace proxy endpoints and CRUD. This
 	// feature is not yet complete in functionality.
 	ExperimentMoons Experiment = "moons"
@@ -1621,7 +1676,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{ExperimentTemplateEditor}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

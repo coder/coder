@@ -200,18 +200,12 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	coordinateHeaders := make(http.Header)
+	tokenHeader := SessionTokenHeader
+	if c.SessionTokenHeader != "" {
+		tokenHeader = c.SessionTokenHeader
 	}
-	jar.SetCookies(coordinateURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
-	httpClient := &http.Client{
-		Jar:       jar,
-		Transport: c.HTTPClient.Transport,
-	}
+	coordinateHeaders.Set(tokenHeader, c.SessionToken())
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		if err != nil {
@@ -227,7 +221,8 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 			options.Logger.Debug(ctx, "connecting")
 			// nolint:bodyclose
 			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
-				HTTPClient: httpClient,
+				HTTPClient: c.HTTPClient,
+				HTTPHeader: coordinateHeaders,
 				// Need to disable compression to avoid a data-race.
 				CompressionMode: websocket.CompressionDisabled,
 			})
@@ -365,6 +360,29 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	}
 	var workspaceAgent WorkspaceAgent
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
+}
+
+type IssueReconnectingPTYSignedTokenRequest struct {
+	// URL is the URL of the reconnecting-pty endpoint you are connecting to.
+	URL     string    `json:"url" validate:"required"`
+	AgentID uuid.UUID `json:"agentID" format:"uuid" validate:"required"`
+}
+
+type IssueReconnectingPTYSignedTokenResponse struct {
+	SignedToken string `json:"signed_token"`
+}
+
+func (c *Client) IssueReconnectingPTYSignedToken(ctx context.Context, req IssueReconnectingPTYSignedTokenRequest) (IssueReconnectingPTYSignedTokenResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/applications/reconnecting-pty-signed-token", req)
+	if err != nil {
+		return IssueReconnectingPTYSignedTokenResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return IssueReconnectingPTYSignedTokenResponse{}, ReadBodyAsError(res)
+	}
+	var resp IssueReconnectingPTYSignedTokenResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.

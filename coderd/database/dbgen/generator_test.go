@@ -78,7 +78,8 @@ func TestGenerator(t *testing.T) {
 	t.Run("WorkspaceProxy", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
-		exp := dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+		exp, secret := dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+		require.Len(t, secret, 64)
 		require.Equal(t, exp, must(db.GetWorkspaceProxyByID(context.Background(), exp.ID)))
 	})
 

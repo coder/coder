@@ -57,9 +57,10 @@ URL as a secret. Additionally, if accessing Coder over a hostname, set the `CODE
 value.
 
 By default, Coder creates the cache directory in `/home/coder/.cache`. Given the
-OpenShift-provided UID, the Coder container does not have permission to write to
-this directory. To fix this, set the `CODER_CACHE_DIRECTORY` environment variable
-to `/tmp/coder-cache`.
+OpenShift-provided UID and `readOnlyRootFS` security context constraint, the Coder
+container does not have permission to write to this directory.
+To fix this, you can mount a temporary volume in the pod and set
+the `CODER_CACHE_DIRECTORY` environment variable to that location.
 
 Additionally, create the Coder service as a `ClusterIP`. In the next step,
 you will create an OpenShift route that points to the service HTTP target port.
@@ -70,7 +71,7 @@ coder:
     type: ClusterIP
   env:
     - name: CODER_CACHE_DIRECTORY
-      value: /tmp/coder-cache
+      value: /cache
     - name: CODER_PG_CONNECTION_URL
       valueFrom:
         secretKeyRef:
@@ -82,7 +83,15 @@ coder:
     runAsNonRoot: true
     runAsUser: <project-specific UID>
     runAsGroup: <project-specific GID>
-    readOnlyRootFilesystem: false
+    readOnlyRootFilesystem: true
+  volumes:
+    - name: "cache"
+      emptyDir:
+        sizeLimit: 500Mi
+  volumeMounts:
+    - name: "cache"
+      mountPath: "/cache"
+      readOnly: false
 ```
 
 > Note: OpenShift provides a Developer Catalog offering you can use to

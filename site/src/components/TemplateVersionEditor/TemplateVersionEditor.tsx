@@ -9,8 +9,11 @@ import {
   ProvisionerJobLog,
   Template,
   TemplateVersion,
+  TemplateVersionVariable,
+  VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
@@ -36,6 +39,7 @@ import {
   RenameFileDialog,
 } from "./FileDialog"
 import { FileTreeView } from "./FileTreeView"
+import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog"
 import { MonacoEditor } from "./MonacoEditor"
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog"
 import {
@@ -58,7 +62,11 @@ export interface TemplateVersionEditorProps {
   onCancelPublish: () => void
   publishingError: unknown
   isAskingPublishParameters: boolean
+  isPromptingMissingVariables: boolean
   isPublishing: boolean
+  missingVariables?: TemplateVersionVariable[]
+  onSubmitMissingVariableValues: (values: VariableValue[]) => void
+  onCancelSubmitMissingVariableValues: () => void
 }
 
 const topbarHeight = 80
@@ -91,6 +99,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   isPublishing,
   buildLogs,
   resources,
+  isPromptingMissingVariables,
+  missingVariables,
+  onSubmitMissingVariableValues,
+  onCancelSubmitMissingVariableValues,
 }) => {
   const [selectedTab, setSelectedTab] = useState(() => {
     // If resources are provided, show them by default!
@@ -143,7 +155,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       return
     }
     if (
-      previousVersion.current.job.status === "running" &&
+      ["running", "pending"].includes(previousVersion.current.job.status) &&
       templateVersion.job.status === "succeeded"
     ) {
       setSelectedTab(1)
@@ -363,22 +375,24 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   selectedTab === 0 ? "" : "hidden"
                 }`}
               >
-                {buildLogs && (
+                {templateVersion.job.error && (
+                  <AlertBanner
+                    severity="error"
+                    text={templateVersion.job.error}
+                  />
+                )}
+
+                {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
                     templateEditorPane
                     hideTimestamps
                     logs={buildLogs}
                   />
                 )}
-                {templateVersion.job.error && (
-                  <div className={styles.buildLogError}>
-                    {templateVersion.job.error}
-                  </div>
-                )}
               </div>
 
               <div
-                className={`${styles.panel} ${styles.resources} ${
+                className={`${styles.panel} ${
                   selectedTab === 1 ? "" : "hidden"
                 }`}
               >
@@ -409,6 +423,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         onConfirm={onConfirmPublish}
         isPublishing={isPublishing}
         defaultName={templateVersion.name}
+      />
+
+      <MissingTemplateVariablesDialog
+        open={isPromptingMissingVariables}
+        onClose={onCancelSubmitMissingVariableValues}
+        onSubmit={onSubmitMissingVariableValues}
+        missingVariables={missingVariables}
       />
     </>
   )
@@ -570,13 +591,8 @@ const useStyles = makeStyles<
   },
   buildLogs: {
     display: "flex",
-    flexDirection: "column-reverse",
+    flexDirection: "column",
     overflowY: "auto",
-  },
-  buildLogError: {
-    whiteSpace: "pre-wrap",
-  },
-  resources: {
-    // padding: 16,
+    gap: theme.spacing(1),
   },
 }))

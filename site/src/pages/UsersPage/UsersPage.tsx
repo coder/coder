@@ -133,6 +133,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       />
 
       <DeleteDialog
+        key={usernameToDelete}
         isOpen={
           usersState.matches("confirmUserDeletion") ||
           usersState.matches("deletingUser")

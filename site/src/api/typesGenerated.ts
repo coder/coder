@@ -135,6 +135,8 @@ export type AuthorizationResponse = Record<string, boolean>
 export interface BuildInfoResponse {
   readonly external_url: string
   readonly version: string
+  readonly dashboard_url: string
+  readonly workspace_proxy: boolean
 }
 
 // From codersdk/parameters.go
@@ -258,8 +260,12 @@ export interface CreateWorkspaceProxyRequest {
   readonly name: string
   readonly display_name: string
   readonly icon: string
-  readonly url: string
-  readonly wildcard_hostname: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface CreateWorkspaceProxyResponse {
+  readonly proxy: WorkspaceProxy
+  readonly proxy_token: string
 }
 
 // From codersdk/organizations.go
@@ -456,6 +462,17 @@ export interface Healthcheck {
   readonly url: string
   readonly interval: number
   readonly threshold: number
+}
+
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenRequest {
+  readonly url: string
+  readonly agentID: string
+}
+
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenResponse {
+  readonly signed_token: string
 }
 
 // From codersdk/licenses.go
@@ -1218,7 +1235,6 @@ export interface WorkspaceOptions {
 // From codersdk/workspaceproxy.go
 export interface WorkspaceProxy {
   readonly id: string
-  readonly organization_id: string
   readonly name: string
   readonly icon: string
   readonly url: string
@@ -1226,6 +1242,12 @@ export interface WorkspaceProxy {
   readonly created_at: string
   readonly updated_at: string
   readonly deleted: boolean
+}
+
+// From codersdk/deployment.go
+export interface WorkspaceProxyBuildInfo {
+  readonly workspace_proxy: boolean
+  readonly dashboard_url: string
 }
 
 // From codersdk/workspaces.go
@@ -1309,8 +1331,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons" | "template_editor"
-export const Experiments: Experiment[] = ["moons", "template_editor"]
+export type Experiment = "moons"
+export const Experiments: Experiment[] = ["moons"]
 
 // From codersdk/deployment.go
 export type FeatureName =

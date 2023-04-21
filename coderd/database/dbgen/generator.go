@@ -338,19 +338,32 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 	return meta
 }
 
-func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) database.WorkspaceProxy {
-	resource, err := db.InsertWorkspaceProxy(context.Background(), database.InsertWorkspaceProxyParams{
-		ID:               takeFirst(orig.ID, uuid.New()),
-		Name:             takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
-		DisplayName:      takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
-		Icon:             takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
-		Url:              takeFirst(orig.Url, fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1))),
-		WildcardHostname: takeFirst(orig.WildcardHostname, fmt.Sprintf(".%s.com", namesgenerator.GetRandomName(1))),
-		CreatedAt:        takeFirst(orig.CreatedAt, database.Now()),
-		UpdatedAt:        takeFirst(orig.UpdatedAt, database.Now()),
+func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) (database.WorkspaceProxy, string) {
+	secret, err := cryptorand.HexString(64)
+	require.NoError(t, err, "generate secret")
+	hashedSecret := sha256.Sum256([]byte(secret))
+
+	proxy, err := db.InsertWorkspaceProxy(context.Background(), database.InsertWorkspaceProxyParams{
+		ID:                takeFirst(orig.ID, uuid.New()),
+		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName:       takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		Icon:              takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		TokenHashedSecret: hashedSecret[:],
+		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 	})
-	require.NoError(t, err, "insert app")
-	return resource
+	require.NoError(t, err, "insert proxy")
+
+	// Also set these fields if the caller wants them.
+	if orig.Url != "" || orig.WildcardHostname != "" {
+		proxy, err = db.RegisterWorkspaceProxy(context.Background(), database.RegisterWorkspaceProxyParams{
+			Url:              orig.Url,
+			WildcardHostname: orig.WildcardHostname,
+			ID:               proxy.ID,
+		})
+		require.NoError(t, err, "update proxy")
+	}
+	return proxy, secret
 }
 
 func File(t testing.TB, db database.Store, orig database.File) database.File {

@@ -390,6 +390,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if !cfg.DERP.Server.Enable {
 				defaultRegion = nil
 			}
+
+			// HACK: see https://github.com/coder/coder/issues/6791.
+			for _, addr := range cfg.DERP.Server.STUNAddresses {
+				if addr != "disable" {
+					continue
+				}
+				err := cfg.DERP.Server.STUNAddresses.Replace(nil)
+				if err != nil {
+					panic(err)
+				}
+				break
+			}
+
 			derpMap, err := tailnet.NewDERPMap(
 				ctx, defaultRegion, cfg.DERP.Server.STUNAddresses,
 				cfg.DERP.Config.URL.String(), cfg.DERP.Config.Path.String(),
@@ -1727,24 +1740,24 @@ func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	}
 
 	// Ensure the PostgreSQL version is >=13.0.0!
-	version, err := sqlDB.QueryContext(ctx, "SHOW server_version;")
+	version, err := sqlDB.QueryContext(ctx, "SHOW server_version_num;")
 	if err != nil {
 		return nil, xerrors.Errorf("get postgres version: %w", err)
 	}
 	if !version.Next() {
 		return nil, xerrors.Errorf("no rows returned for version select")
 	}
-	var versionStr string
-	err = version.Scan(&versionStr)
+	var versionNum int
+	err = version.Scan(&versionNum)
 	if err != nil {
 		return nil, xerrors.Errorf("scan version: %w", err)
 	}
 	_ = version.Close()
-	versionStr = strings.Split(versionStr, " ")[0]
-	if semver.Compare("v"+versionStr, "v13") < 0 {
-		return nil, xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
+
+	if versionNum < 130000 {
+		return nil, xerrors.Errorf("PostgreSQL version must be v13.0.0 or higher! Got: %d", versionNum)
 	}
-	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionStr))
+	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionNum))
 
 	err = migrations.Up(sqlDB)
 	if err != nil {

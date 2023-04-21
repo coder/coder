@@ -22,6 +22,9 @@ export const workspaceAgentLogsMachine = createMachine(
           }
         | {
             type: "FETCH_STARTUP_LOGS"
+          }
+        | {
+            type: "STARTUP_DONE"
           },
       context: {} as {
         agentID: string
@@ -56,14 +59,17 @@ export const workspaceAgentLogsMachine = createMachine(
           id: "streamStartupLogs",
           src: "streamStartupLogs",
         },
+        on: {
+          ADD_STARTUP_LOGS: {
+            actions: "addStartupLogs",
+          },
+          STARTUP_DONE: {
+            target: "loaded",
+          },
+        },
       },
       loaded: {
         type: "final",
-      },
-    },
-    on: {
-      ADD_STARTUP_LOGS: {
-        actions: "addStartupLogs",
       },
     },
   },
@@ -79,20 +85,14 @@ export const workspaceAgentLogsMachine = createMachine(
           })),
         ),
       streamStartupLogs: (ctx) => async (callback) => {
-        return new Promise<void>((resolve, reject) => {
-          const proto = location.protocol === "https:" ? "wss:" : "ws:"
-          let after = 0
-          if (ctx.startupLogs && ctx.startupLogs.length > 0) {
-            after = ctx.startupLogs[ctx.startupLogs.length - 1].id
-          }
-          const socket = new WebSocket(
-            `${proto}//${location.host}/api/v2/workspaceagents/${ctx.agentID}/startup-logs?follow&after=${after}`,
-          )
-          socket.binaryType = "blob"
-          socket.addEventListener("message", (event) => {
-            const logs = JSON.parse(
-              event.data,
-            ) as TypesGen.WorkspaceAgentStartupLog[]
+        let after = 0
+        if (ctx.startupLogs && ctx.startupLogs.length > 0) {
+          after = ctx.startupLogs[ctx.startupLogs.length - 1].id
+        }
+
+        const socket = API.watchStartupLogs(ctx.agentID, {
+          after,
+          onMessage: (logs) => {
             callback({
               type: "ADD_STARTUP_LOGS",
               logs: logs.map((log) => ({
@@ -102,14 +102,18 @@ export const workspaceAgentLogsMachine = createMachine(
                 time: log.created_at,
               })),
             })
-          })
-          socket.addEventListener("error", () => {
-            reject(new Error("socket errored"))
-          })
-          socket.addEventListener("open", () => {
-            resolve()
-          })
+          },
+          onDone: () => {
+            callback({ type: "STARTUP_DONE" })
+          },
+          onError: (error) => {
+            console.error(error)
+          },
         })
+
+        return () => {
+          socket.close()
+        }
       },
     },
     actions: {

@@ -104,35 +104,9 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 }
 
-// This cannot be ran in parallel because it uses a signal.
-// nolint:tparallel,paralleltest
 func TestServer(t *testing.T) {
-	t.Run("Production", func(t *testing.T) {
-		if runtime.GOOS != "linux" || testing.Short() {
-			// Skip on non-Linux because it spawns a PostgreSQL instance.
-			t.SkipNow()
-		}
-		connectionURL, closeFunc, err := postgres.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+	t.Parallel()
 
-		// Postgres + race detector + CI = slow.
-		ctx := testutil.Context(t, testutil.WaitSuperLong*3)
-
-		inv, cfg := clitest.New(t,
-			"server",
-			"--http-address", ":0",
-			"--access-url", "http://example.com",
-			"--postgres-url", connectionURL,
-			"--cache-dir", t.TempDir(),
-		)
-		clitest.Start(t, inv.WithContext(ctx))
-		accessURL := waitAccessURL(t, cfg)
-		client := codersdk.New(accessURL)
-
-		_, err = client.CreateFirstUser(ctx, coderdtest.FirstUserParams)
-		require.NoError(t, err)
-	})
 	t.Run("BuiltinPostgres", func(t *testing.T) {
 		t.Parallel()
 		if testing.Short() {
@@ -855,38 +829,6 @@ func TestServer(t *testing.T) {
 		})
 	})
 
-	// This cannot be ran in parallel because it uses a signal.
-	//nolint:paralleltest
-	t.Run("Shutdown", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			// Sending interrupt signal isn't supported on Windows!
-			t.SkipNow()
-		}
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
-
-		root, cfg := clitest.New(t,
-			"server",
-			"--in-memory",
-			"--http-address", ":0",
-			"--access-url", "http://example.com",
-			"--provisioner-daemons", "1",
-			"--cache-dir", t.TempDir(),
-		)
-		serverErr := make(chan error, 1)
-		go func() {
-			serverErr <- root.WithContext(ctx).Run()
-		}()
-		_ = waitAccessURL(t, cfg)
-		currentProcess, err := os.FindProcess(os.Getpid())
-		require.NoError(t, err)
-		err = currentProcess.Signal(os.Interrupt)
-		require.NoError(t, err)
-		// We cannot send more signals here, because it's possible Coder
-		// has already exited, which could cause the test to fail due to interrupt.
-		err = <-serverErr
-		require.NoError(t, err)
-	})
 	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
 
@@ -1491,6 +1433,91 @@ func TestServer(t *testing.T) {
 			w.RequireSuccess()
 		})
 	})
+	t.Run("DisableDERP", func(t *testing.T) {
+		t.Parallel()
+
+		// Make sure that $CODER_DERP_SERVER_STUN_ADDRESSES can be set to
+		// disable STUN.
+
+		inv, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--http-address", ":0",
+			"--access-url", "https://example.com",
+		)
+		inv.Environ.Set("CODER_DERP_SERVER_STUN_ADDRESSES", "disable")
+		ptytest.New(t).Attach(inv)
+		clitest.Start(t, inv)
+		gotURL := waitAccessURL(t, cfg)
+		client := codersdk.New(gotURL)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_ = coderdtest.CreateFirstUser(t, client)
+		gotConfig, err := client.DeploymentConfig(ctx)
+		require.NoError(t, err)
+
+		require.Len(t, gotConfig.Values.DERP.Server.STUNAddresses, 0)
+	})
+}
+
+//nolint:tparallel,paralleltest // This test spawns or connects to an existing PostgreSQL instance.
+func TestServer_Production(t *testing.T) {
+	if runtime.GOOS != "linux" || testing.Short() {
+		// Skip on non-Linux because it spawns a PostgreSQL instance.
+		t.SkipNow()
+	}
+	connectionURL, closeFunc, err := postgres.Open()
+	require.NoError(t, err)
+	defer closeFunc()
+
+	// Postgres + race detector + CI = slow.
+	ctx := testutil.Context(t, testutil.WaitSuperLong*3)
+
+	inv, cfg := clitest.New(t,
+		"server",
+		"--http-address", ":0",
+		"--access-url", "http://example.com",
+		"--postgres-url", connectionURL,
+		"--cache-dir", t.TempDir(),
+	)
+	clitest.Start(t, inv.WithContext(ctx))
+	accessURL := waitAccessURL(t, cfg)
+	client := codersdk.New(accessURL)
+
+	_, err = client.CreateFirstUser(ctx, coderdtest.FirstUserParams)
+	require.NoError(t, err)
+}
+
+//nolint:tparallel,paralleltest // This test cannot be run in parallel due to signal handling.
+func TestServer_Shutdown(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Sending interrupt signal isn't supported on Windows!
+		t.SkipNow()
+	}
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	root, cfg := clitest.New(t,
+		"server",
+		"--in-memory",
+		"--http-address", ":0",
+		"--access-url", "http://example.com",
+		"--provisioner-daemons", "1",
+		"--cache-dir", t.TempDir(),
+	)
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- root.WithContext(ctx).Run()
+	}()
+	_ = waitAccessURL(t, cfg)
+	currentProcess, err := os.FindProcess(os.Getpid())
+	require.NoError(t, err)
+	err = currentProcess.Signal(os.Interrupt)
+	require.NoError(t, err)
+	// We cannot send more signals here, because it's possible Coder
+	// has already exited, which could cause the test to fail due to interrupt.
+	err = <-serverErr
+	require.NoError(t, err)
 }
 
 func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {
