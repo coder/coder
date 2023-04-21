@@ -161,7 +161,7 @@ type agent struct {
 }
 
 func (a *agent) init(ctx context.Context) {
-	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.sshMaxTimeout)
+	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.filesystem, a.sshMaxTimeout, "")
 	if err != nil {
 		panic(err)
 	}

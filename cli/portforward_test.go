@@ -21,27 +21,27 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+func TestPortForward_None(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "port-forward", "blah")
+	clitest.SetupConfig(t, client, root)
+	pty := ptytest.New(t).Attach(inv)
+	inv.Stderr = pty.Output()
+
+	err := inv.Run()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "no port-forwards")
+
+	// Check that the help was printed.
+	pty.ExpectMatch("port-forward <workspace>")
+}
+
 //nolint:tparallel,paralleltest // Subtests require setup that must not be done in parallel.
 func TestPortForward(t *testing.T) {
-	t.Run("None", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		inv, root := clitest.New(t, "port-forward", "blah")
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
-
-		err := inv.Run()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "no port-forwards")
-
-		// Check that the help was printed.
-		pty.ExpectMatch("port-forward <workspace>")
-	})
-
 	cases := []struct {
 		name    string
 		network string
@@ -134,13 +134,13 @@ func TestPortForward(t *testing.T) {
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
 			inv.Stderr = pty.Output()
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 			errC := make(chan error)
 			go func() {
 				errC <- inv.WithContext(ctx).Run()
 			}()
-			pty.ExpectMatch("Ready!")
+			pty.ExpectMatchContext(ctx, "Ready!")
 
 			t.Parallel() // Port is reserved, enable parallel execution.
 
@@ -181,13 +181,13 @@ func TestPortForward(t *testing.T) {
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
 			inv.Stderr = pty.Output()
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 			errC := make(chan error)
 			go func() {
 				errC <- inv.WithContext(ctx).Run()
 			}()
-			pty.ExpectMatch("Ready!")
+			pty.ExpectMatchContext(ctx, "Ready!")
 
 			t.Parallel() // Port is reserved, enable parallel execution.
 
@@ -234,13 +234,13 @@ func TestPortForward(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		errC := make(chan error)
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
 		}()
-		pty.ExpectMatch("Ready!")
+		pty.ExpectMatchContext(ctx, "Ready!")
 
 		t.Parallel() // Port is reserved, enable parallel execution.
 
