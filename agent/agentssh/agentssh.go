@@ -20,6 +20,7 @@ import (
 
 	"github.com/gliderlabs/ssh"
 	"github.com/pkg/sftp"
+	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -48,6 +49,7 @@ const (
 
 type Server struct {
 	mu        sync.RWMutex // Protects following.
+	fs        afero.Fs
 	listeners map[net.Listener]struct{}
 	conns     map[net.Conn]struct{}
 	sessions  map[ssh.Session]struct{}
@@ -56,8 +58,9 @@ type Server struct {
 	// a lock on mu but protected by closing.
 	wg sync.WaitGroup
 
-	logger slog.Logger
-	srv    *ssh.Server
+	logger       slog.Logger
+	srv          *ssh.Server
+	x11SocketDir string
 
 	Env        map[string]string
 	AgentToken func() string
@@ -68,7 +71,7 @@ type Server struct {
 	connCountSSHSession atomic.Int64
 }
 
-func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration) (*Server, error) {
+func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout time.Duration, x11SocketDir string) (*Server, error) {
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
@@ -80,15 +83,20 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 	if err != nil {
 		return nil, err
 	}
+	if x11SocketDir == "" {
+		x11SocketDir = filepath.Join(os.TempDir(), ".X11-unix")
+	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	unixForwardHandler := &forwardedUnixHandler{log: logger}
 
 	s := &Server{
-		listeners: make(map[net.Listener]struct{}),
-		conns:     make(map[net.Conn]struct{}),
-		sessions:  make(map[ssh.Session]struct{}),
-		logger:    logger,
+		listeners:    make(map[net.Listener]struct{}),
+		fs:           fs,
+		conns:        make(map[net.Conn]struct{}),
+		sessions:     make(map[ssh.Session]struct{}),
+		logger:       logger,
+		x11SocketDir: x11SocketDir,
 	}
 
 	s.srv = &ssh.Server{
@@ -125,6 +133,7 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 			"streamlocal-forward@openssh.com":        unixForwardHandler.HandleSSHRequest,
 			"cancel-streamlocal-forward@openssh.com": unixForwardHandler.HandleSSHRequest,
 		},
+		X11Callback: s.x11Callback,
 		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
 			return &gossh.ServerConfig{
 				NoClientAuth: true,
@@ -162,6 +171,15 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	defer s.trackSession(session, false)
 
 	ctx := session.Context()
+
+	x11, hasX11 := session.X11()
+	if hasX11 {
+		handled := s.x11Handler(session.Context(), x11)
+		if !handled {
+			_ = session.Exit(1)
+			return
+		}
+	}
 
 	switch ss := session.Subsystem(); ss {
 	case "":
