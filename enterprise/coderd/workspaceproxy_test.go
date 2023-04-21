@@ -214,13 +214,16 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 	}
 
 	db, pubsub := dbtestutil.NewDB(t)
-	client := coderdenttest.New(t, &coderdenttest.Options{
+	client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues:         dv,
 			Database:                 db,
 			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,
 		},
+	})
+	t.Cleanup(func() {
+		closer.Close()
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)
@@ -253,19 +256,18 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-	createProxyCtx := testutil.Context(t, testutil.WaitLong)
-	proxyRes, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
-		Name:             namesgenerator.GetRandomName(1),
-		Icon:             "/emojis/flag.png",
-		URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
-		WildcardHostname: "*.sub.example.com",
-	})
+	proxyURL, err := url.Parse(fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1)))
 	require.NoError(t, err)
 
-	u, err := url.Parse(proxyRes.Proxy.URL)
+	_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+		Name:        namesgenerator.GetRandomName(1),
+		ProxyURL:    proxyURL,
+		AppHostname: "*.sub.example.com",
+	})
+
+	u, err := url.Parse(proxyURL.String())
 	require.NoError(t, err)
 	if u.Scheme == "https" {
 		u.Scheme = "wss"
