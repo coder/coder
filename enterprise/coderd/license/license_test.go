@@ -112,10 +112,10 @@ func TestEntitlements(t *testing.T) {
 					codersdk.FeatureAuditLog:  1,
 				},
 
-				GraceAt:   time.Now().Add(-time.Hour),
-				ExpiresAt: time.Now().AddDate(0, 0, 2),
+				GraceAt:   time.Now().AddDate(0, 0, 2),
+				ExpiresAt: time.Now().AddDate(0, 0, 5),
 			}),
-			Exp: time.Now().Add(time.Hour),
+			Exp: time.Now().AddDate(0, 0, 5),
 		})
 
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
@@ -124,7 +124,7 @@ func TestEntitlements(t *testing.T) {
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
 
-		require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
+		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
 		require.Contains(
 			t, entitlements.Warnings,
 			"Your license expires in 2 days.",
@@ -192,16 +192,18 @@ func TestEntitlements(t *testing.T) {
 				Features: license.Features{
 					codersdk.FeatureUserLimit: 10,
 				},
+				GraceAt: time.Now().Add(59 * 24 * time.Hour),
 			}),
-			Exp: time.Now().Add(time.Hour),
+			Exp: time.Now().Add(60 * 24 * time.Hour),
 		})
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureUserLimit: 1,
 				},
+				GraceAt: time.Now().Add(59 * 24 * time.Hour),
 			}),
-			Exp: time.Now().Add(time.Hour),
+			Exp: time.Now().Add(60 * 24 * time.Hour),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
