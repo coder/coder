@@ -14,11 +14,9 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -37,7 +35,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/agentssh"
-	"github.com/coder/coder/agent/usershell"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitauth"
@@ -205,42 +202,7 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-var (
-	isCmdExeRe = regexp.MustCompile(`^(cmd|cmd\.exe)$`)
-)
-
-func createMetadataCommand(ctx context.Context, script string) (*exec.Cmd, error) {
-	// This is largely copied from agentssh, but for some reason the command
-	// generated there always returns exit status 1 in Windows powershell.
-	//
-	// This function puts special PowerShell branching in place that fixes the issue,
-	// but I'm hesitant on porting it to agentssh before understanding exactly what's
-	// happening.
-	currentUser, err := user.Current()
-	if err != nil {
-		return nil, xerrors.Errorf("get current user: %w", err)
-	}
-	username := currentUser.Username
-
-	shell, err := usershell.Get(username)
-	if err != nil {
-		return nil, xerrors.Errorf("get user shell: %w", err)
-	}
-	shellBase := filepath.Base(shell)
-
-	var args []string
-	switch {
-	case isCmdExeRe.MatchString(shellBase):
-		args = append(args, "/c")
-	default:
-		// -c works for powershell and sh variants.
-		args = append(args, "-c")
-	}
-	args = append(args, script)
-	return exec.CommandContext(ctx, shell, args...), nil
-}
-
-func (*agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
+func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
 	var out bytes.Buffer
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
@@ -250,7 +212,7 @@ func (*agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMet
 		// if it can guarantee the clocks are synchronized.
 		CollectedAt: time.Now(),
 	}
-	cmd, err := createMetadataCommand(ctx, md.Script)
+	cmd, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
 	if err != nil {
 		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
@@ -278,8 +240,12 @@ func (*agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMet
 		out.Truncate(bufLimit)
 	}
 
+	// Important: if the command times out, we may see a misleading error like
+	// "exit status 1", so it's important to include the context error.
+	err = errors.Join(err, ctx.Err())
+
 	if err != nil {
-		result.Error = fmt.Sprintf("run cmd (shell %v): %+v", cmd.Path, err)
+		result.Error = fmt.Sprintf("run cmd: %+v", err)
 	}
 	result.Value = out.String()
 	return result

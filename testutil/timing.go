@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"flag"
 	"testing"
 )
 
@@ -12,10 +11,10 @@ import (
 //
 // Eventually, we should run all timing tests in a self-hosted runner.
 
-var timingFlag = flag.Bool("timing", false, "run timing-sensitive tests")
+var timing bool
 
 func SkipIfNotTiming(t *testing.T) {
-	if !*timingFlag {
+	if !timing {
 		t.Skip("skipping timing-sensitive test")
 	}
 }

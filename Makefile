@@ -639,26 +639,6 @@ test-postgres-docker:
 	done
 .PHONY: test-postgres-docker
 
-build/go_tests.json: $(GO_SRC_FILES)
-	go test ./... -list="." -json > "$@"
-
-test-timing: build/go_tests.json
-	# The timing tests intentionally run without parallelism to avoid flakiness.
-	function test_cmds {
-		cat "$<" \
-		| jq -r '
-			select(.Action == "output" and (.Output | test("_Timing\n")))
-			| "go test \(.Package) -run=^\(.Output)"
-		' \
-		| grep -v ^$$
-	}
-	while read cmd; do
-		echo "running $$cmd"
-		$$cmd
-	done < <(test_cmds)
-
-.PHONY: test-timing
-
 test-clean:
 	go clean -testcache
 .PHONY: test-clean

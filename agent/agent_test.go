@@ -1016,6 +1016,7 @@ func TestAgent_Metadata(t *testing.T) {
 				{
 					Key:      "greeting",
 					Interval: 1,
+					Timeout:  100,
 					Script:   echoHello,
 				},
 			},
@@ -1085,7 +1086,7 @@ func TestAgentMetadata_Timing(t *testing.T) {
 		}
 
 		require.Equal(t, "hello\n", md["greeting"].Value)
-		require.Equal(t, "exit status 1", md["bad"].Error)
+		require.Equal(t, "run cmd: exit status 1", md["bad"].Error)
 
 		greetingByt, err := os.ReadFile(greetingPath)
 		require.NoError(t, err)
