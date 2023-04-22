@@ -976,10 +976,7 @@ func TestAgent_StartupScript(t *testing.T) {
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
-	echoHello := "echo hello"
-	if runtime.GOOS == "windows" {
-		echoHello = "echo 'hello'"
-	}
+	echoHello := "echo 'hello'"
 
 	t.Run("Once", func(t *testing.T) {
 		t.Parallel()
@@ -1031,8 +1028,8 @@ func TestAgent_Metadata(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		collectedAt1 := gotMd["greeting"].CollectedAt
-		if !assert.Equal(t, "hello\n", gotMd["greeting"].Value) {
-			t.Logf("got: %+v", gotMd)
+		if !assert.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value)) {
+			t.Errorf("got: %+v", gotMd)
 		}
 
 		if !assert.Eventually(t, func() bool {

@@ -18,7 +18,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"reflect"
-	"runtime"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -205,9 +205,17 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
+var (
+	isCmdExeRe = regexp.MustCompile(`^(cmd|cmd\.exe)$`)
+)
+
 func createMetadataCommand(ctx context.Context, script string) (*exec.Cmd, error) {
 	// This is largely copied from agentssh, but for some reason the command
-	// generated there always returns exit status 1 in Windows.
+	// generated there always returns exit status 1 in Windows powershell.
+	//
+	// This function puts special PowerShell branching in place that fixes the issue,
+	// but I'm hesitant on porting it to agentssh before understanding exactly what's
+	// happening.
 	currentUser, err := user.Current()
 	if err != nil {
 		return nil, xerrors.Errorf("get current user: %w", err)
@@ -218,31 +226,28 @@ func createMetadataCommand(ctx context.Context, script string) (*exec.Cmd, error
 	if err != nil {
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
+	shellBase := filepath.Base(shell)
 
-	var caller string
+	var args []string
 	switch {
-	case filepath.Base(shell) == "pwsh.exe":
-		caller = "-Command"
-	case runtime.GOOS == "windows":
-		caller = "/c"
+	case isCmdExeRe.MatchString(shellBase):
+		args = append(args, "/c")
 	default:
-		caller = "-c"
+		// -c works for powershell and sh variants.
+		args = append(args, "-c")
 	}
-	// args := []string{caller, "Get-Process"}
-	args := []string{"-NoProfile", "-NonInteractive"}
-	_ = caller
-	return exec.CommandContext(ctx, "powershell", args...), nil
+	args = append(args, script)
+	return exec.CommandContext(ctx, shell, args...), nil
 }
 
 func (*agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
 	var out bytes.Buffer
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
-		// the server to the time the server received the result to protect
-		// against clock skew.
+		// coderd to the time of server receipt to solve clock skew.
 		//
 		// In the future, the server may accept the timestamp from the agent
-		// if it is certain the clocks are in sync.
+		// if it can guarantee the clocks are synchronized.
 		CollectedAt: time.Now(),
 	}
 	cmd, err := createMetadataCommand(ctx, md.Script)
@@ -251,19 +256,11 @@ func (*agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMet
 		return result
 	}
 
-	// execPath, err := exec.LookPath("cmd.exe")
-	// if err != nil {
-	// 	result.Error = fmt.Sprintf("look path: %+v", err)
-	// 	return result
-	// }
-
-	// cmd = exec.CommandContext(ctx, execPath, "/c", "echo hello")
-
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	cmd.Stdin = io.LimitReader(nil, 0)
 
-	// We split up Start and Wait so that we can return a more useful error.
+	// We split up Start and Wait instead of calling Run so that we can return a more precise error.
 	err = cmd.Start()
 	if err != nil {
 		result.Error = fmt.Sprintf("start cmd: %+v", err)
@@ -281,10 +278,8 @@ func (*agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMet
 		out.Truncate(bufLimit)
 	}
 
-	fmt.Printf("ran %+v %+q: %v\n", cmd.Path, cmd.Args, err)
-
 	if err != nil {
-		result.Error = fmt.Sprintf("run cmd: %+v", err)
+		result.Error = fmt.Sprintf("run cmd (shell %v): %+v", cmd.Path, err)
 	}
 	result.Value = out.String()
 	return result
