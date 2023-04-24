@@ -22,22 +22,22 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-type ProxyHealthStatus string
+type Status string
 
 const (
 	// Unknown should never be returned by the proxy health check.
-	Unknown ProxyHealthStatus = "unknown"
+	Unknown Status = "unknown"
 	// Healthy means the proxy access url is reachable and returns a healthy
 	// status code.
-	Healthy ProxyHealthStatus = "ok"
+	Healthy Status = "ok"
 	// Unreachable means the proxy access url is not responding.
-	Unreachable ProxyHealthStatus = "unreachable"
+	Unreachable Status = "unreachable"
 	// Unhealthy means the proxy access url is responding, but there is some
 	// problem with the proxy. This problem may or may not be preventing functionality.
-	Unhealthy ProxyHealthStatus = "unhealthy"
+	Unhealthy Status = "unhealthy"
 	// Unregistered means the proxy has not registered a url yet. This means
 	// the proxy was created with the cli, but has not yet been started.
-	Unregistered ProxyHealthStatus = "unregistered"
+	Unregistered Status = "unregistered"
 )
 
 type Options struct {
@@ -169,7 +169,7 @@ type ProxyStatus struct {
 	// then the proxy in hand. AKA if the proxy was updated, and the status was for
 	// an older proxy.
 	Proxy     database.WorkspaceProxy
-	Status    ProxyHealthStatus
+	Status    Status
 	Report    codersdk.ProxyHealthReport
 	CheckedAt time.Time
 }
@@ -181,6 +181,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 	// Record from the given time.
 	defer p.healthCheckDuration.Observe(time.Since(now).Seconds())
 
+	//nolint:gocritic // Proxy health is a system service.
 	proxies, err := p.db.GetWorkspaceProxies(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace proxies: %w", err)
@@ -229,6 +230,9 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 			req = req.WithContext(gctx)
 
 			resp, err := p.client.Do(req)
+			if err == nil {
+				defer resp.Body.Close()
+			}
 			// A switch statement felt easier to categorize the different cases than
 			// if else statements or nested if statements.
 			switch {

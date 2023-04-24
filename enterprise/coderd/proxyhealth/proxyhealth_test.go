@@ -12,8 +12,9 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
