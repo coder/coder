@@ -42,6 +42,7 @@ import { AgentLatency } from "./AgentLatency"
 import { AgentMetadata } from "./AgentMetadata"
 import { AgentVersion } from "./AgentVersion"
 import { AgentStatus } from "./AgentStatus"
+import Collapse from "@material-ui/core/Collapse"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -282,7 +283,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 
       {hasStartupFeatures && (
         <div className={styles.logsPanel}>
-          {showStartupLogs && (
+          <Collapse in={showStartupLogs}>
             <AutoSizer disableHeight>
               {({ width }) => (
                 <List
@@ -305,7 +306,8 @@ export const AgentRow: FC<AgentRowProps> = ({
                 </List>
               )}
             </AutoSizer>
-          )}
+          </Collapse>
+
           <div className={styles.logsPanelButtons}>
             {showStartupLogs ? (
               <button
