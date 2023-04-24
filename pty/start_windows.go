@@ -17,7 +17,7 @@ import (
 
 // Allocates a PTY and starts the specified command attached to it.
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session#creating-the-hosted-process
-func startPty(cmd *exec.Cmd, opt ...StartOption) (_ PTY, _ Process, retErr error) {
+func startPty(cmd *exec.Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) {
 	var opts startOptions
 	for _, o := range opt {
 		o(&opts)
@@ -46,7 +46,7 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (_ PTY, _ Process, retErr error
 		return nil, nil, err
 	}
 
-	pty, err := newPty(opts.ptyOpts...)
+	winPty, err := newPty(opts.ptyOpts...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -54,10 +54,9 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (_ PTY, _ Process, retErr error
 		if retErr != nil {
 			// we hit some error finishing setup; close pty, so
 			// we don't leak the kernel resources associated with it
-			_ = pty.Close()
+			_ = winPty.Close()
 		}
 	}()
-	winPty := pty.(*ptyWindows)
 	if winPty.opts.sshReq != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_TTY=%s", winPty.Name()))
 	}
@@ -130,7 +129,7 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (_ PTY, _ Process, retErr error
 		return nil, nil, errI
 	}
 	go wp.waitInternal()
-	return pty, wp, nil
+	return winPty, wp, nil
 }
 
 // Taken from: https://github.com/microsoft/hcsshim/blob/7fbdca16f91de8792371ba22b7305bf4ca84170a/internal/exec/exec.go#L476

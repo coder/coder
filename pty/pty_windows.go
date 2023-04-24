@@ -22,7 +22,7 @@ var (
 )
 
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session
-func newPty(opt ...Option) (PTY, error) {
+func newPty(opt ...Option) (*ptyWindows, error) {
 	var opts ptyOptions
 	for _, o := range opt {
 		o(&opts)
