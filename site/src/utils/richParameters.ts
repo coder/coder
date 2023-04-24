@@ -16,7 +16,8 @@ export const selectInitialRichParametersValues = (
 
   templateParameters.forEach((parameter) => {
     if (parameter.options.length > 0) {
-      let parameterValue = parameter.options[0].value
+      let parameterValue = parameter.default_value ?? parameter.options[0].value
+
       if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
         parameterValue = defaultValuesFromQuery[parameter.name]
       }
