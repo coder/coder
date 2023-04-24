@@ -1976,17 +1976,17 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 
 func convertWorkspaceAgentStartupLogs(logs []database.WorkspaceAgentStartupLog) []codersdk.WorkspaceAgentStartupLog {
 	sdk := make([]codersdk.WorkspaceAgentStartupLog, 0, len(logs))
-	for _, log := range logs {
-		sdk = append(sdk, convertWorkspaceAgentStartupLog(log))
+	for _, logEntry := range logs {
+		sdk = append(sdk, convertWorkspaceAgentStartupLog(logEntry))
 	}
 	return sdk
 }
 
-func convertWorkspaceAgentStartupLog(log database.WorkspaceAgentStartupLog) codersdk.WorkspaceAgentStartupLog {
+func convertWorkspaceAgentStartupLog(logEntry database.WorkspaceAgentStartupLog) codersdk.WorkspaceAgentStartupLog {
 	return codersdk.WorkspaceAgentStartupLog{
-		ID:        log.ID,
-		CreatedAt: log.CreatedAt,
-		Output:    log.Output,
-		Level:     codersdk.LogLevel(log.Level),
+		ID:        logEntry.ID,
+		CreatedAt: logEntry.CreatedAt,
+		Output:    logEntry.Output,
+		Level:     codersdk.LogLevel(logEntry.Level),
 	}
 }
