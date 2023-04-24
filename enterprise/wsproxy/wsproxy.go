@@ -272,6 +272,8 @@ func (s *Server) healthReport(rw http.ResponseWriter, r *http.Request) {
 	primaryBuild, err := s.SDKClient.SDKClient.BuildInfo(ctx)
 	if err != nil {
 		report.Errors = append(report.Errors, fmt.Sprintf("failed to get build info: %s", err.Error()))
+		httpapi.Write(r.Context(), rw, http.StatusOK, report)
+		return
 	}
 
 	if primaryBuild.WorkspaceProxy {
