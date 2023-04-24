@@ -931,6 +931,13 @@ func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.U
 		if u.ID == params.ID {
 			u.Deleted = params.Deleted
 			q.users[i] = u
+			// NOTE: In the real world, this is done by a trigger.
+			for i, k := range q.apiKeys {
+				if k.UserID == u.ID {
+					q.apiKeys[i] = q.apiKeys[len(q.apiKeys)-1]
+					q.apiKeys = q.apiKeys[:len(q.apiKeys)-1]
+				}
+			}
 			return nil
 		}
 	}
@@ -2766,6 +2773,12 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 
 	if arg.LifetimeSeconds == 0 {
 		arg.LifetimeSeconds = 86400
+	}
+
+	for _, u := range q.users {
+		if u.ID == arg.UserID && u.Deleted {
+			return database.APIKey{}, xerrors.Errorf("refusing to create APIKey for deleted user")
+		}
 	}
 
 	//nolint:gosimple
