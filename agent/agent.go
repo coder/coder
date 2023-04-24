@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -1221,11 +1220,11 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		// Convert from microseconds to milliseconds.
 		stats.ConnectionMedianLatencyMS /= 1000
 
-		lastStat := a.latestStat.Load()
-		if lastStat != nil && reflect.DeepEqual(lastStat, stats) {
-			a.logger.Info(ctx, "skipping stat because nothing changed")
-			return
-		}
+		// Collect agent metrics.
+		// Agent metrics are changing all the time, so there is no need to perform
+		// reflect.DeepEqual to see if stats should be transferred.
+		stats.Metrics = collectMetrics()
+
 		a.latestStat.Store(stats)
 
 		select {

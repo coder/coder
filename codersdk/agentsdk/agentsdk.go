@@ -488,10 +488,17 @@ type Stats struct {
 	Metrics []AgentMetric `json:"metrics"`
 }
 
+type AgentMetricType string
+
+const (
+	AgentMetricTypeCounter AgentMetricType = "counter"
+	AgentMetricTypeGauge   AgentMetricType = "gauge"
+)
+
 type AgentMetric struct {
-	Name  string  `json:"name"`
-	Type  string  `json:"type"`
-	Value float64 `json:"value"`
+	Name  string          `json:"name" validate:"required"`
+	Type  AgentMetricType `json:"type" validate:"required" enums:"counter,gauge"`
+	Value float64         `json:"value" validate:"required"`
 }
 
 type StatsResponse struct {
