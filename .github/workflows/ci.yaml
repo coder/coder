@@ -702,9 +702,8 @@ jobs:
     # allow this job to run even if the previous jobs are skipped
     if: |
       always() &&
-      (needs.test-go.outputs.result == 'success' || needs.test-go.outputs.result == 'skipped') &&
-      (needs.test-go-psql.outputs.result == 'success' || needs.test-go-psql.outputs.result == 'skipped') &&
-      (needs.test-js.outputs.result == 'success' || needs.test-js.outputs.result == 'skipped')
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     steps:
       - name: Ensure required checks
         run: echo "Required checks have passed"
