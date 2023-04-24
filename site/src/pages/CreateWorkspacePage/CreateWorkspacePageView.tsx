@@ -135,6 +135,10 @@ export const CreateWorkspacePageView: FC<
     })
 
   const isLoading = props.loadingTemplateSchema || props.loadingTemplates
+  // We only want to show schema that have redisplay_value equals true
+  const schemaToBeDisplayed = props.templateSchema?.filter(
+    (schema) => schema.redisplay_value,
+  )
 
   const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
     form,
@@ -271,29 +275,26 @@ export const CreateWorkspacePageView: FC<
         )}
 
         {/* Template params */}
-        {props.templateSchema && props.templateSchema.length > 0 && (
+        {schemaToBeDisplayed && schemaToBeDisplayed.length > 0 && (
           <FormSection
             title="Template params"
             description="These values are provided by your template's Terraform configuration."
           >
             <FormFields>
-              {props.templateSchema
-                // We only want to show schema that have redisplay_value equals true
-                .filter((schema) => schema.redisplay_value)
-                .map((schema) => (
-                  <ParameterInput
-                    disabled={form.isSubmitting}
-                    key={schema.id}
-                    defaultValue={parameterValues[schema.name]}
-                    onChange={(value) => {
-                      setParameterValues({
-                        ...parameterValues,
-                        [schema.name]: value,
-                      })
-                    }}
-                    schema={schema}
-                  />
-                ))}
+              {schemaToBeDisplayed.map((schema) => (
+                <ParameterInput
+                  disabled={form.isSubmitting}
+                  key={schema.id}
+                  defaultValue={parameterValues[schema.name]}
+                  onChange={(value) => {
+                    setParameterValues({
+                      ...parameterValues,
+                      [schema.name]: value,
+                    })
+                  }}
+                  schema={schema}
+                />
+              ))}
             </FormFields>
           </FormSection>
         )}
