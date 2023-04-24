@@ -7,7 +7,6 @@ export enum ButtonTypesEnum {
   starting = "starting",
   stop = "stop",
   stopping = "stopping",
-  restart = "restart",
   deleting = "deleting",
   update = "update",
   updating = "updating",
@@ -40,7 +39,7 @@ const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
     canAcceptJobs: false,
   },
   running: {
-    actions: [ButtonTypesEnum.stop, ButtonTypesEnum.restart],
+    actions: [ButtonTypesEnum.stop],
     canCancel: false,
     canAcceptJobs: true,
   },
