@@ -5630,6 +5630,20 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.AgentMetric": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "number"
+                }
+            }
+        },
         "agentsdk.AuthenticateResponse": {
             "type": "object",
             "properties": {
@@ -5831,6 +5845,13 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "integer"
+                    }
+                },
+                "metrics": {
+                    "description": "Metrics collected by the agent",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetric"
                     }
                 },
                 "rx_bytes": {

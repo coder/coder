@@ -483,6 +483,15 @@ type Stats struct {
 	// SessionCountSSH is the number of connections received by an agent
 	// that are normal, non-tagged SSH sessions.
 	SessionCountSSH int64 `json:"session_count_ssh"`
+
+	// Metrics collected by the agent
+	Metrics []AgentMetric `json:"metrics"`
+}
+
+type AgentMetric struct {
+	Name  string  `json:"name"`
+	Type  string  `json:"type"`
+	Value float64 `json:"value"`
 }
 
 type StatsResponse struct {
