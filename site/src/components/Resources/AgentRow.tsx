@@ -178,12 +178,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
       ])}
     >
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={6}
-        className={styles.agentInfo}
-      >
+      <div className={styles.agentInfo}>
         <div className={styles.agentNameAndStatus}>
           <Stack alignItems="center" direction="row" spacing={3}>
             <AgentStatus agent={agent} />
@@ -281,7 +276,7 @@ export const AgentRow: FC<AgentRowProps> = ({
             />
           </div>
         )}
-      </Stack>
+      </div>
 
       <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
 
@@ -450,12 +445,25 @@ const useStyles = makeStyles((theme) => ({
 
   agentInfo: {
     padding: theme.spacing(2, 4),
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(6),
+    flexWrap: "wrap",
+
+    [theme.breakpoints.down("md")]: {
+      gap: theme.spacing(2),
+    },
   },
 
   agentButtons: {
     display: "flex",
     gap: theme.spacing(1),
     marginLeft: "auto",
+    flexWrap: "wrap",
+
+    [theme.breakpoints.down("md")]: {
+      marginLeft: 0,
+    },
   },
 
   agentDescription: {
@@ -483,6 +491,10 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(4),
+
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+    },
   },
 
   agentName: {
@@ -492,6 +504,10 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: 260,
     fontWeight: 600,
     fontSize: theme.spacing(2),
+
+    [theme.breakpoints.down("md")]: {
+      overflow: "unset",
+    },
   },
 
   agentDataGroup: {
