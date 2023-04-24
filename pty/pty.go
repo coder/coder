@@ -33,7 +33,10 @@ type PTYCmd interface {
 // process retains access to _both_ ends of the pseudo-TTY (i.e. `ptm` & `pts`
 // on Linux).
 type PTY interface {
-	PTYCmd
+	io.Closer
+
+	// Resize sets the size of the PTY.
+	Resize(height uint16, width uint16) error
 
 	// Name of the TTY. Example on Linux would be "/dev/pts/1".
 	Name() string
