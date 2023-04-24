@@ -21,29 +21,27 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func TestPortForward(t *testing.T) {
+func TestPortForward_None(t *testing.T) {
 	t.Parallel()
-	t.Skip("These tests flake... a lot. It seems related to the Tailscale change, but all other tests pass...")
 
-	t.Run("None", func(t *testing.T) {
-		t.Parallel()
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
 
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+	inv, root := clitest.New(t, "port-forward", "blah")
+	clitest.SetupConfig(t, client, root)
+	pty := ptytest.New(t).Attach(inv)
+	inv.Stderr = pty.Output()
 
-		inv, root := clitest.New(t, "port-forward", "blah")
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
+	err := inv.Run()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "no port-forwards")
 
-		err := inv.Run()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "no port-forwards")
+	// Check that the help was printed.
+	pty.ExpectMatch("port-forward <workspace>")
+}
 
-		// Check that the help was printed.
-		pty.ExpectMatch("port-forward <workspace>")
-	})
-
+//nolint:tparallel,paralleltest // Subtests require setup that must not be done in parallel.
+func TestPortForward(t *testing.T) {
 	cases := []struct {
 		name    string
 		network string
@@ -116,106 +114,102 @@ func TestPortForward(t *testing.T) {
 		workspace = runAgent(t, client, user.UserID)
 	)
 
-	for _, c := range cases { //nolint:paralleltest // the `c := c` confuses the linter
+	for _, c := range cases {
 		c := c
 		// Delay parallel tests here because setupLocal reserves
 		// a free open port which is not guaranteed to be free
 		// between the listener closing and port-forward ready.
-		t.Run(c.name, func(t *testing.T) {
-			t.Run("OnePort", func(t *testing.T) {
-				p1 := setupTestListener(t, c.setupRemote(t))
+		t.Run(c.name+"_OnePort", func(t *testing.T) {
+			p1 := setupTestListener(t, c.setupRemote(t))
 
-				// Create a flag that forwards from local to listener 1.
-				localAddress, localFlag := c.setupLocal(t)
-				flag := fmt.Sprintf(c.flag, localFlag, p1)
+			// Create a flag that forwards from local to listener 1.
+			localAddress, localFlag := c.setupLocal(t)
+			flag := fmt.Sprintf(c.flag, localFlag, p1)
 
-				// Launch port-forward in a goroutine so we can start dialing
-				// the "local" listener.
-				inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
-				clitest.SetupConfig(t, client, root)
-				pty := ptytest.New(t)
-				inv.Stdin = pty.Input()
-				inv.Stdout = pty.Output()
-				inv.Stderr = pty.Output()
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				errC := make(chan error)
-				go func() {
-					errC <- inv.WithContext(ctx).Run()
-				}()
-				pty.ExpectMatch("Ready!")
+			// Launch port-forward in a goroutine so we can start dialing
+			// the "local" listener.
+			inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t)
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
+			inv.Stderr = pty.Output()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+			errC := make(chan error)
+			go func() {
+				errC <- inv.WithContext(ctx).Run()
+			}()
+			pty.ExpectMatchContext(ctx, "Ready!")
 
-				t.Parallel() // Port is reserved, enable parallel execution.
+			t.Parallel() // Port is reserved, enable parallel execution.
 
-				// Open two connections simultaneously and test them out of
-				// sync.
-				d := net.Dialer{Timeout: testutil.WaitShort}
-				c1, err := d.DialContext(ctx, c.network, localAddress)
-				require.NoError(t, err, "open connection 1 to 'local' listener")
-				defer c1.Close()
-				c2, err := d.DialContext(ctx, c.network, localAddress)
-				require.NoError(t, err, "open connection 2 to 'local' listener")
-				defer c2.Close()
-				testDial(t, c2)
-				testDial(t, c1)
+			// Open two connections simultaneously and test them out of
+			// sync.
+			d := net.Dialer{Timeout: testutil.WaitShort}
+			c1, err := d.DialContext(ctx, c.network, localAddress)
+			require.NoError(t, err, "open connection 1 to 'local' listener")
+			defer c1.Close()
+			c2, err := d.DialContext(ctx, c.network, localAddress)
+			require.NoError(t, err, "open connection 2 to 'local' listener")
+			defer c2.Close()
+			testDial(t, c2)
+			testDial(t, c1)
 
-				cancel()
-				err = <-errC
-				require.ErrorIs(t, err, context.Canceled)
-			})
+			cancel()
+			err = <-errC
+			require.ErrorIs(t, err, context.Canceled)
+		})
 
-			//nolint:paralleltest
-			t.Run("TwoPorts", func(t *testing.T) {
-				var (
-					p1 = setupTestListener(t, c.setupRemote(t))
-					p2 = setupTestListener(t, c.setupRemote(t))
-				)
+		t.Run(c.name+"_TwoPorts", func(t *testing.T) {
+			var (
+				p1 = setupTestListener(t, c.setupRemote(t))
+				p2 = setupTestListener(t, c.setupRemote(t))
+			)
 
-				// Create a flags for listener 1 and listener 2.
-				localAddress1, localFlag1 := c.setupLocal(t)
-				localAddress2, localFlag2 := c.setupLocal(t)
-				flag1 := fmt.Sprintf(c.flag, localFlag1, p1)
-				flag2 := fmt.Sprintf(c.flag, localFlag2, p2)
+			// Create a flags for listener 1 and listener 2.
+			localAddress1, localFlag1 := c.setupLocal(t)
+			localAddress2, localFlag2 := c.setupLocal(t)
+			flag1 := fmt.Sprintf(c.flag, localFlag1, p1)
+			flag2 := fmt.Sprintf(c.flag, localFlag2, p2)
 
-				// Launch port-forward in a goroutine so we can start dialing
-				// the "local" listeners.
-				inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
-				clitest.SetupConfig(t, client, root)
-				pty := ptytest.New(t)
-				inv.Stdin = pty.Input()
-				inv.Stdout = pty.Output()
-				inv.Stderr = pty.Output()
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				errC := make(chan error)
-				go func() {
-					errC <- inv.WithContext(ctx).Run()
-				}()
-				pty.ExpectMatch("Ready!")
+			// Launch port-forward in a goroutine so we can start dialing
+			// the "local" listeners.
+			inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t)
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
+			inv.Stderr = pty.Output()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+			errC := make(chan error)
+			go func() {
+				errC <- inv.WithContext(ctx).Run()
+			}()
+			pty.ExpectMatchContext(ctx, "Ready!")
 
-				t.Parallel() // Port is reserved, enable parallel execution.
+			t.Parallel() // Port is reserved, enable parallel execution.
 
-				// Open a connection to both listener 1 and 2 simultaneously and
-				// then test them out of order.
-				d := net.Dialer{Timeout: testutil.WaitShort}
-				c1, err := d.DialContext(ctx, c.network, localAddress1)
-				require.NoError(t, err, "open connection 1 to 'local' listener 1")
-				defer c1.Close()
-				c2, err := d.DialContext(ctx, c.network, localAddress2)
-				require.NoError(t, err, "open connection 2 to 'local' listener 2")
-				defer c2.Close()
-				testDial(t, c2)
-				testDial(t, c1)
+			// Open a connection to both listener 1 and 2 simultaneously and
+			// then test them out of order.
+			d := net.Dialer{Timeout: testutil.WaitShort}
+			c1, err := d.DialContext(ctx, c.network, localAddress1)
+			require.NoError(t, err, "open connection 1 to 'local' listener 1")
+			defer c1.Close()
+			c2, err := d.DialContext(ctx, c.network, localAddress2)
+			require.NoError(t, err, "open connection 2 to 'local' listener 2")
+			defer c2.Close()
+			testDial(t, c2)
+			testDial(t, c1)
 
-				cancel()
-				err = <-errC
-				require.ErrorIs(t, err, context.Canceled)
-			})
+			cancel()
+			err = <-errC
+			require.ErrorIs(t, err, context.Canceled)
 		})
 	}
 
 	// Test doing TCP and UDP at the same time.
-	//nolint:paralleltest
 	t.Run("All", func(t *testing.T) {
 		var (
 			dials = []addr{}
@@ -240,13 +234,13 @@ func TestPortForward(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		errC := make(chan error)
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
 		}()
-		pty.ExpectMatch("Ready!")
+		pty.ExpectMatchContext(ctx, "Ready!")
 
 		t.Parallel() // Port is reserved, enable parallel execution.
 

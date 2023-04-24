@@ -1,11 +1,9 @@
 import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import ComputerIcon from "@material-ui/icons/Computer"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { combineClasses } from "../../util/combineClasses"
-import { generateRandomString } from "../../util/random"
+import { combineClasses } from "../../utils/combineClasses"
+import { generateRandomString } from "../../utils/random"
 
 export const Language = {
   linkText: "Terminal",
@@ -30,7 +28,7 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
   agentName,
   userName = "me",
   workspaceName,
-  className,
+  className = "",
 }) => {
   const styles = useStyles()
   const href = `/@${userName}/${workspaceName}${
@@ -38,9 +36,12 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
   }/terminal`
 
   return (
-    <Link
+    <Button
       href={href}
-      className={combineClasses([styles.link, className])}
+      component="a"
+      size="small"
+      variant="outlined"
+      className={combineClasses([styles.button, className])}
       target="_blank"
       onClick={(event) => {
         event.preventDefault()
@@ -51,28 +52,17 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
         )
       }}
     >
-      <Button
-        startIcon={<ComputerIcon />}
-        size="small"
-        className={styles.button}
-      >
-        {Language.linkText}
-      </Button>
-    </Link>
+      {Language.linkText}
+    </Button>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  link: {
-    textDecoration: "none !important",
-  },
-
   button: {
-    whiteSpace: "nowrap",
-    backgroundColor: theme.palette.background.default,
-
-    "&:hover": {
-      backgroundColor: `${theme.palette.background.default} !important`,
-    },
+    fontSize: 12,
+    fontWeight: 500,
+    height: theme.spacing(4),
+    minHeight: theme.spacing(4),
+    borderRadius: 4,
   },
 }))

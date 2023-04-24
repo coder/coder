@@ -2817,7 +2817,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 FROM
 	workspace_proxies
 WHERE
@@ -2843,6 +2843,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Deleted,
+			&i.TokenHashedSecret,
 		); err != nil {
 			return nil, err
 		}
@@ -2857,9 +2858,71 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 	return items, nil
 }
 
+const getWorkspaceProxyByHostname = `-- name: GetWorkspaceProxyByHostname :one
+SELECT
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+FROM
+	workspace_proxies
+WHERE
+	-- Validate that the @hostname has been sanitized and is not empty. This
+	-- doesn't prevent SQL injection (already prevented by using prepared
+	-- queries), but it does prevent carefully crafted hostnames from matching
+	-- when they shouldn't.
+	--
+	-- Periods don't need to be escaped because they're not special characters
+	-- in SQL matches unlike regular expressions.
+	$1 :: text SIMILAR TO '[a-zA-Z0-9._-]+' AND
+	deleted = false AND
+
+	-- Validate that the hostname matches either the wildcard hostname or the
+	-- access URL (ignoring scheme, port and path).
+	(
+		(
+			$2 :: bool = true AND
+			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*'
+		) OR
+		(
+			$3 :: bool = true AND
+			$1 :: text LIKE replace(wildcard_hostname, '*', '%')
+		)
+	)
+LIMIT
+	1
+`
+
+type GetWorkspaceProxyByHostnameParams struct {
+	Hostname              string `db:"hostname" json:"hostname"`
+	AllowAccessUrl        bool   `db:"allow_access_url" json:"allow_access_url"`
+	AllowWildcardHostname bool   `db:"allow_wildcard_hostname" json:"allow_wildcard_hostname"`
+}
+
+// Finds a workspace proxy that has an access URL or app hostname that matches
+// the provided hostname. This is to check if a hostname matches any workspace
+// proxy.
+//
+// The hostname must be sanitized to only contain [a-zA-Z0-9.-] before calling
+// this query. The scheme, port and path should be stripped.
+func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWorkspaceProxyByHostnameParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByHostname, arg.Hostname, arg.AllowAccessUrl, arg.AllowWildcardHostname)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+		&i.TokenHashedSecret,
+	)
+	return i, err
+}
+
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 FROM
 	workspace_proxies
 WHERE
@@ -2881,6 +2944,37 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Deleted,
+		&i.TokenHashedSecret,
+	)
+	return i, err
+}
+
+const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
+SELECT
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+FROM
+	workspace_proxies
+WHERE
+	name = $1
+	AND deleted = false
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByName, name)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+		&i.TokenHashedSecret,
 	)
 	return i, err
 }
@@ -2889,28 +2983,28 @@ const insertWorkspaceProxy = `-- name: InsertWorkspaceProxy :one
 INSERT INTO
 	workspace_proxies (
 		id,
+		url,
+		wildcard_hostname,
 		name,
 		display_name,
 		icon,
-		url,
-		wildcard_hostname,
+		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+	($1, '', '', $2, $3, $4, $5, $6, $7, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 `
 
 type InsertWorkspaceProxyParams struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	Name             string    `db:"name" json:"name"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
-	Icon             string    `db:"icon" json:"icon"`
-	Url              string    `db:"url" json:"url"`
-	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	ID                uuid.UUID `db:"id" json:"id"`
+	Name              string    `db:"name" json:"name"`
+	DisplayName       string    `db:"display_name" json:"display_name"`
+	Icon              string    `db:"icon" json:"icon"`
+	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error) {
@@ -2919,8 +3013,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		arg.Name,
 		arg.DisplayName,
 		arg.Icon,
-		arg.Url,
-		arg.WildcardHostname,
+		arg.TokenHashedSecret,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -2935,43 +3028,31 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Deleted,
+		&i.TokenHashedSecret,
 	)
 	return i, err
 }
 
-const updateWorkspaceProxy = `-- name: UpdateWorkspaceProxy :one
+const registerWorkspaceProxy = `-- name: RegisterWorkspaceProxy :one
 UPDATE
 	workspace_proxies
 SET
-	name = $1,
-	display_name = $2,
-	url = $3,
-	wildcard_hostname = $4,
-	icon = $5,
+	url = $1,
+	wildcard_hostname = $2,
 	updated_at = Now()
 WHERE
-	id = $6
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+	id = $3
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 `
 
-type UpdateWorkspaceProxyParams struct {
-	Name             string    `db:"name" json:"name"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
+type RegisterWorkspaceProxyParams struct {
 	Url              string    `db:"url" json:"url"`
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
-	Icon             string    `db:"icon" json:"icon"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkspaceProxy,
-		arg.Name,
-		arg.DisplayName,
-		arg.Url,
-		arg.WildcardHostname,
-		arg.Icon,
-		arg.ID,
-	)
+func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, registerWorkspaceProxy, arg.Url, arg.WildcardHostname, arg.ID)
 	var i WorkspaceProxy
 	err := row.Scan(
 		&i.ID,
@@ -2983,6 +3064,7 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Deleted,
+		&i.TokenHashedSecret,
 	)
 	return i, err
 }
@@ -6360,6 +6442,108 @@ func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.
 			&i.SessionCountSSH,
 			&i.SessionCountJetBrains,
 			&i.SessionCountReconnectingPTY,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAgentStatsAndLabels = `-- name: GetWorkspaceAgentStatsAndLabels :many
+WITH agent_stats AS (
+	SELECT
+		user_id,
+		agent_id,
+		workspace_id,
+		coalesce(SUM(rx_bytes), 0)::bigint AS rx_bytes,
+		coalesce(SUM(tx_bytes), 0)::bigint AS tx_bytes
+	 FROM workspace_agent_stats
+		WHERE workspace_agent_stats.created_at > $1
+		GROUP BY user_id, agent_id, workspace_id
+), latest_agent_stats AS (
+	SELECT
+		a.agent_id,
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
+		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
+	 FROM (
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		FROM workspace_agent_stats
+		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+		WHERE created_at > $1 AND connection_median_latency_ms > 0
+	) AS a
+	WHERE a.rn = 1
+	GROUP BY a.user_id, a.agent_id, a.workspace_id
+)
+SELECT
+	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
+	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
+	connection_count, connection_median_latency_ms
+FROM
+	agent_stats
+JOIN
+	latest_agent_stats
+ON
+	agent_stats.agent_id = latest_agent_stats.agent_id
+JOIN
+	users
+ON
+	users.id = agent_stats.user_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.id = agent_stats.agent_id
+JOIN
+	workspaces
+ON
+	workspaces.id = agent_stats.workspace_id
+`
+
+type GetWorkspaceAgentStatsAndLabelsRow struct {
+	Username                    string  `db:"username" json:"username"`
+	AgentName                   string  `db:"agent_name" json:"agent_name"`
+	WorkspaceName               string  `db:"workspace_name" json:"workspace_name"`
+	RxBytes                     int64   `db:"rx_bytes" json:"rx_bytes"`
+	TxBytes                     int64   `db:"tx_bytes" json:"tx_bytes"`
+	SessionCountVSCode          int64   `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH             int64   `db:"session_count_ssh" json:"session_count_ssh"`
+	SessionCountJetBrains       int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	ConnectionCount             int64   `db:"connection_count" json:"connection_count"`
+	ConnectionMedianLatencyMS   float64 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStatsAndLabels, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceAgentStatsAndLabelsRow
+	for rows.Next() {
+		var i GetWorkspaceAgentStatsAndLabelsRow
+		if err := rows.Scan(
+			&i.Username,
+			&i.AgentName,
+			&i.WorkspaceName,
+			&i.RxBytes,
+			&i.TxBytes,
+			&i.SessionCountVSCode,
+			&i.SessionCountSSH,
+			&i.SessionCountJetBrains,
+			&i.SessionCountReconnectingPTY,
+			&i.ConnectionCount,
+			&i.ConnectionMedianLatencyMS,
 		); err != nil {
 			return nil, err
 		}

@@ -12,7 +12,7 @@ import {
   getMaxDeadline,
   getMaxDeadlineChange,
   getMinDeadline,
-} from "util/schedule"
+} from "utils/schedule"
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
@@ -20,8 +20,8 @@ import {
   Workspace,
   WorkspaceErrors,
 } from "../../components/Workspace/Workspace"
-import { pageTitle } from "../../util/page"
-import { getFaviconByStatus } from "../../util/workspace"
+import { pageTitle } from "../../utils/page"
+import { getFaviconByStatus } from "../../utils/workspace"
 import {
   WorkspaceEvent,
   workspaceMachine,
@@ -76,7 +76,6 @@ export const WorkspaceReadyPage = ({
     queryFn: () => getTemplateVersions(workspace.template_id),
     enabled: changeVersionDialogOpen,
   })
-  const dashboard = useDashboard()
 
   // keep banner machine in sync with workspace
   useEffect(() => {
@@ -124,6 +123,7 @@ export const WorkspaceReadyPage = ({
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
+        handleRestart={() => workspaceSend({ type: "START" })}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
@@ -136,9 +136,7 @@ export const WorkspaceReadyPage = ({
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
         canUpdateTemplate={canUpdateTemplate}
-        canChangeVersions={
-          canUpdateTemplate && dashboard.experiments.includes("template_editor")
-        }
+        canChangeVersions={canUpdateTemplate}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{

@@ -8,10 +8,8 @@ import { VersionsTable } from "components/VersionsTable/VersionsTable"
 import { useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { getTemplatePageTitle } from "../utils"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const TemplateVersionsPage = () => {
-  const dashboard = useDashboard()
   const { template, permissions } = useTemplateLayoutContext()
   const { data } = useQuery({
     queryKey: ["template", "versions", template.id],
@@ -39,9 +37,6 @@ const TemplateVersionsPage = () => {
   const [selectedVersionIdToPromote, setSelectedVersionIdToPromote] = useState<
     string | undefined
   >()
-  const canPromoteVersion =
-    dashboard.experiments.includes("template_editor") &&
-    permissions.canUpdateTemplate
 
   return (
     <>
@@ -51,7 +46,9 @@ const TemplateVersionsPage = () => {
       <VersionsTable
         versions={data}
         onPromoteClick={
-          canPromoteVersion ? setSelectedVersionIdToPromote : undefined
+          permissions.canUpdateTemplate
+            ? setSelectedVersionIdToPromote
+            : undefined
         }
         activeVersionId={latestActiveVersion}
       />

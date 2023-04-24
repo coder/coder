@@ -4,7 +4,7 @@ Coder's control plane and/or workspaces can be deployed on Kubernetes.
 
 ## Installation
 
-Refer to our [Helm install docs](../install/kubernetes.md) to deploy Coder on Kubernetes. The default helm values will provision the following:
+Refer to our [Helm install docs](../../install/kubernetes.md) to deploy Coder on Kubernetes. The default helm values will provision the following:
 
 - Coder control plane (as a `Deployment`)
 - ServiceAccount + Role + RoleBinding to provision pods + PVCS in the current namespace (used for Kubernetes workspaces)

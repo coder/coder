@@ -365,6 +365,13 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:         globalGroup,
 		},
 		{
+			Flag:        "debug-http",
+			Description: "Debug codersdk HTTP requests.",
+			Value:       clibase.BoolOf(&r.debugHTTP),
+			Group:       globalGroup,
+			Hidden:      true,
+		},
+		{
 			Flag:        config.FlagName,
 			Env:         "CODER_CONFIG_DIR",
 			Description: "Path to the global `coder` config directory.",
@@ -412,6 +419,7 @@ type RootCmd struct {
 	forceTTY     bool
 	noOpen       bool
 	verbose      bool
+	debugHTTP    bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
@@ -463,6 +471,11 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 			}
 
 			client.SetSessionToken(r.token)
+
+			if r.debugHTTP {
+				client.PlainLogger = os.Stderr
+				client.LogBodies = true
+			}
 
 			// We send these requests in parallel to minimize latency.
 			var (
@@ -711,7 +724,7 @@ func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return h.transport.RoundTrip(req)
 }
 
-// dumpHandler provides a custom SIGQUIT and SIGTRAP handler that dumps the
+// DumpHandler provides a custom SIGQUIT and SIGTRAP handler that dumps the
 // stacktrace of all goroutines to stderr and a well-known file in the home
 // directory. This is useful for debugging deadlock issues that may occur in
 // production in workspaces, since the default Go runtime will only dump to
@@ -723,7 +736,7 @@ func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // A SIGQUIT handler will not be registered if GOTRACEBACK=crash.
 //
 // On Windows this immediately returns.
-func dumpHandler(ctx context.Context) {
+func DumpHandler(ctx context.Context) {
 	if runtime.GOOS == "windows" {
 		// free up the goroutine since it'll be permanently blocked anyways
 		return

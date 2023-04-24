@@ -18,7 +18,8 @@ CREATE TYPE audit_action AS ENUM (
     'start',
     'stop',
     'login',
-    'logout'
+    'logout',
+    'register'
 );
 
 CREATE TYPE build_reason AS ENUM (
@@ -646,12 +647,19 @@ CREATE TABLE workspace_proxies (
     wildcard_hostname text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    deleted boolean NOT NULL
+    deleted boolean NOT NULL,
+    token_hashed_secret bytea NOT NULL
 );
+
+COMMENT ON COLUMN workspace_proxies.icon IS 'Expects an emoji character. (/emojis/1f1fa-1f1f8.png)';
 
 COMMENT ON COLUMN workspace_proxies.url IS 'Full url including scheme of the proxy api url: https://us.example.com';
 
 COMMENT ON COLUMN workspace_proxies.wildcard_hostname IS 'Hostname with the wildcard for subdomain based app hosting: *.us.example.com';
+
+COMMENT ON COLUMN workspace_proxies.deleted IS 'Boolean indicator of a deleted workspace proxy. Proxies are soft-deleted.';
+
+COMMENT ON COLUMN workspace_proxies.token_hashed_secret IS 'Hashed secret is used to authenticate the workspace proxy using a session token.';
 
 CREATE TABLE workspace_resource_metadata (
     workspace_resource_id uuid NOT NULL,
@@ -881,7 +889,7 @@ CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (au
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
-CREATE UNIQUE INDEX workspace_proxies_name_idx ON workspace_proxies USING btree (name) WHERE (deleted = false);
+CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 

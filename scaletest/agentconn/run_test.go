@@ -58,44 +58,6 @@ func Test_Runner(t *testing.T) {
 		require.NotContains(t, logStr, "Waiting for ")
 	})
 
-	//nolint:paralleltest // Measures timing as part of the test.
-	t.Run("Direct+Hold", func(t *testing.T) {
-		client, agentID := setupRunnerTest(t)
-
-		runner := agentconn.NewRunner(client, agentconn.Config{
-			AgentID:        agentID,
-			ConnectionMode: agentconn.ConnectionModeDirect,
-			HoldDuration:   httpapi.Duration(testutil.WaitShort),
-		})
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		logs := bytes.NewBuffer(nil)
-		start := time.Now()
-		err := runner.Run(ctx, "1", logs)
-		logStr := logs.String()
-		t.Log("Runner logs:\n\n" + logStr)
-		require.NoError(t, err)
-
-		require.WithinRange(t,
-			time.Now(),
-			start.Add(testutil.WaitShort-time.Second),
-			start.Add(testutil.WaitShort+5*time.Second),
-		)
-
-		require.Contains(t, logStr, "Opening connection to workspace agent")
-		require.Contains(t, logStr, "Using direct connection")
-		require.Contains(t, logStr, "Disco ping attempt 1/10...")
-		require.Contains(t, logStr, "Direct connection check 1/30...")
-		require.Contains(t, logStr, "Connection established")
-		require.Contains(t, logStr, "Verify connection attempt 1/30...")
-		require.Contains(t, logStr, "Connection verified")
-		require.NotContains(t, logStr, "Performing initial service connections")
-		require.NotContains(t, logStr, "Starting connection loops")
-		require.Contains(t, logStr, fmt.Sprintf("Waiting for %s", testutil.WaitShort))
-	})
-
 	t.Run("Derp+ServicesNoHold", func(t *testing.T) {
 		t.Parallel()
 
@@ -143,8 +105,49 @@ func Test_Runner(t *testing.T) {
 		require.EqualValues(t, 1, service1Count())
 		require.EqualValues(t, 1, service2Count())
 	})
+}
 
-	//nolint:paralleltest // Measures timing as part of the test.
+//nolint:paralleltest // Measures timing as part of the test.
+func Test_Runner_Timing(t *testing.T) {
+	//nolint:paralleltest
+	t.Run("Direct+Hold", func(t *testing.T) {
+		client, agentID := setupRunnerTest(t)
+
+		runner := agentconn.NewRunner(client, agentconn.Config{
+			AgentID:        agentID,
+			ConnectionMode: agentconn.ConnectionModeDirect,
+			HoldDuration:   httpapi.Duration(testutil.WaitShort),
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		logs := bytes.NewBuffer(nil)
+		start := time.Now()
+		err := runner.Run(ctx, "1", logs)
+		logStr := logs.String()
+		t.Log("Runner logs:\n\n" + logStr)
+		require.NoError(t, err)
+
+		require.WithinRange(t,
+			time.Now(),
+			start.Add(testutil.WaitShort-time.Second),
+			start.Add(testutil.WaitShort+5*time.Second),
+		)
+
+		require.Contains(t, logStr, "Opening connection to workspace agent")
+		require.Contains(t, logStr, "Using direct connection")
+		require.Contains(t, logStr, "Disco ping attempt 1/10...")
+		require.Contains(t, logStr, "Direct connection check 1/30...")
+		require.Contains(t, logStr, "Connection established")
+		require.Contains(t, logStr, "Verify connection attempt 1/30...")
+		require.Contains(t, logStr, "Connection verified")
+		require.NotContains(t, logStr, "Performing initial service connections")
+		require.NotContains(t, logStr, "Starting connection loops")
+		require.Contains(t, logStr, fmt.Sprintf("Waiting for %s", testutil.WaitShort))
+	})
+
+	//nolint:paralleltest
 	t.Run("Derp+Hold+Services", func(t *testing.T) {
 		client, agentID := setupRunnerTest(t)
 		service1URL, service1Count := testServer(t)

@@ -397,15 +397,10 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		ctx            = r.Context()
 		actor, _       = dbauthz.ActorFromContext(ctx)
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
-		workspace      = httpmw.WorkspaceParam(r)
 		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
 		follow         = r.URL.Query().Has("follow")
 		afterRaw       = r.URL.Query().Get("after")
 	)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	var after int64
 	// Only fetch logs created after the time provided.
@@ -1010,11 +1005,14 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// This route accepts user API key auth and workspace proxy auth. The moon actor has
+	// full permissions so should be able to pass this authz check.
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+
 	// This is used by Enterprise code to control the functionality of this route.
 	override := api.WorkspaceClientCoordinateOverride.Load()
 	if override != nil {

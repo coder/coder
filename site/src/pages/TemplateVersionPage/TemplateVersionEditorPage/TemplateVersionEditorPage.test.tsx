@@ -36,10 +36,13 @@ test("Use custom name and set it as active when publishing", async () => {
   jest
     .spyOn(api, "getTemplateVersion")
     .mockResolvedValue({ ...MockTemplateVersion, id: "new-version-id" })
-  jest.spyOn(api, "watchBuildLogs").mockImplementation((_, onMessage) => {
-    onMessage(MockWorkspaceBuildLogs[0])
-    return Promise.resolve()
-  })
+  jest
+    .spyOn(api, "watchBuildLogsByTemplateVersionId")
+    .mockImplementation((_, options) => {
+      options.onMessage(MockWorkspaceBuildLogs[0])
+      options.onDone()
+      return jest.fn() as never
+    })
   const buildButton = within(topbar).getByRole("button", {
     name: "Build template",
   })
@@ -97,10 +100,13 @@ test("Do not mark as active if promote is not checked", async () => {
   jest
     .spyOn(api, "getTemplateVersion")
     .mockResolvedValue({ ...MockTemplateVersion, id: "new-version-id" })
-  jest.spyOn(api, "watchBuildLogs").mockImplementation((_, onMessage) => {
-    onMessage(MockWorkspaceBuildLogs[0])
-    return Promise.resolve()
-  })
+  jest
+    .spyOn(api, "watchBuildLogsByTemplateVersionId")
+    .mockImplementation((_, options) => {
+      options.onMessage(MockWorkspaceBuildLogs[0])
+      options.onDone()
+      return jest.fn() as never
+    })
   const buildButton = within(topbar).getByRole("button", {
     name: "Build template",
   })
@@ -153,10 +159,13 @@ test("Patch request is not send when the name is not updated", async () => {
   jest
     .spyOn(api, "getTemplateVersion")
     .mockResolvedValue({ ...MockTemplateVersion, id: "new-version-id" })
-  jest.spyOn(api, "watchBuildLogs").mockImplementation((_, onMessage) => {
-    onMessage(MockWorkspaceBuildLogs[0])
-    return Promise.resolve()
-  })
+  jest
+    .spyOn(api, "watchBuildLogsByTemplateVersionId")
+    .mockImplementation((_, options) => {
+      options.onMessage(MockWorkspaceBuildLogs[0])
+      options.onDone()
+      return jest.fn() as never
+    })
   const buildButton = within(topbar).getByRole("button", {
     name: "Build template",
   })

@@ -11,7 +11,7 @@ import { Stack } from "components/Stack/Stack"
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
-} from "util/deployOptions"
+} from "utils/deployOptions"
 
 export type SecuritySettingsPageViewProps = {
   options: DeploymentOption[]
@@ -36,6 +36,7 @@ export const SecuritySettingsPageView = ({
             options,
             "SSH Keygen Algorithm",
             "Secure Auth Cookie",
+            "Disable Owner Workspace Access",
           )}
         />
       </div>

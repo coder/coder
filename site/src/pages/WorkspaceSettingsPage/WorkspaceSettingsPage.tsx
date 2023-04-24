@@ -3,8 +3,9 @@ import { displayError } from "components/GlobalSnackbar/utils"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from "./data"
+import { useWorkspaceSettingsContext } from "./WorkspaceSettingsLayout"
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView"
 
 const WorkspaceSettingsPage = () => {
@@ -13,13 +14,10 @@ const WorkspaceSettingsPage = () => {
     username: string
     workspace: string
   }
-  const {
-    data: settings,
-    error,
-    isLoading,
-  } = useWorkspaceSettings(username, workspaceName)
+  const { workspace } = useWorkspaceSettingsContext()
+  const { data: settings, error, isLoading } = useWorkspaceSettings(workspace)
   const navigate = useNavigate()
-  const updateSettings = useUpdateWorkspaceSettings(settings?.workspace.id, {
+  const updateSettings = useUpdateWorkspaceSettings(workspace.id, {
     onSuccess: ({ name }) => {
       navigate(`/@${username}/${name}`)
     },
@@ -30,7 +28,7 @@ const WorkspaceSettingsPage = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(t("title"))}</title>
+        <title>{pageTitle([workspaceName, "Settings"])}</title>
       </Helmet>
 
       <WorkspaceSettingsPageView
@@ -39,7 +37,7 @@ const WorkspaceSettingsPage = () => {
         isLoading={isLoading}
         isSubmitting={updateSettings.isLoading}
         settings={settings}
-        onCancel={() => navigate(-1)}
+        onCancel={() => navigate(`/@${username}/${workspaceName}`)}
         onSubmit={updateSettings.mutate}
       />
     </>

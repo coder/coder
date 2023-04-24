@@ -152,6 +152,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -252,6 +253,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -339,6 +341,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -429,6 +432,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -558,6 +562,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - uses: hashicorp/setup-terraform@v2
@@ -634,6 +639,9 @@ jobs:
       - name: Publish to Chromatic (non-mainline)
         if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
         uses: chromaui/action@v1
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+          STORYBOOK: true
         with:
           buildScriptName: "storybook:build"
           exitOnceUploaded: true
@@ -651,6 +659,9 @@ jobs:
       - name: Publish to Chromatic (mainline)
         if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
         uses: chromaui/action@v1
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+          STORYBOOK: true
         with:
           autoAcceptChanges: true
           buildScriptName: "storybook:build"

@@ -159,6 +159,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/reconnecting-pty-signed-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Applications Enterprise"
+                ],
+                "summary": "Issue signed app token for reconnecting PTY",
+                "operationId": "issue-signed-app-token-for-reconnecting-pty",
+                "parameters": [
+                    {
+                        "description": "Issue reconnecting PTY signed token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/audit": {
             "get": {
                 "security": [
@@ -5000,7 +5042,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Enterprise"
                 ],
                 "summary": "Create workspace proxy",
                 "operationId": "create-workspace-proxy",
@@ -5020,6 +5062,125 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceproxies/me/issue-signed-app-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Issue signed workspace app token",
+                "operationId": "issue-signed-workspace-app-token",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workspaceapps.IssueTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.IssueSignedAppTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/me/register": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Register workspace proxy",
+                "operationId": "register-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/{workspaceproxy}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete workspace proxy",
+                "operationId": "delete-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -6117,7 +6278,8 @@ const docTemplate = `{
                 "start",
                 "stop",
                 "login",
-                "logout"
+                "logout",
+                "register"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -6126,7 +6288,8 @@ const docTemplate = `{
                 "AuditActionStart",
                 "AuditActionStop",
                 "AuditActionLogin",
-                "AuditActionLogout"
+                "AuditActionLogout",
+                "AuditActionRegister"
             ]
         },
         "codersdk.AuditDiff": {
@@ -6290,7 +6453,11 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "description": "ResourceType is the name of the resource.\n` + "`" + `./coderd/rbac/object.go` + "`" + ` has the list of valid resource types.",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.RBACResource"
+                        }
+                    ]
                 }
             }
         },
@@ -6315,6 +6482,10 @@ const docTemplate = `{
         "codersdk.BuildInfoResponse": {
             "type": "object",
             "properties": {
+                "dashboard_url": {
+                    "description": "DashboardURL is the URL to hit the deployment's dashboard.\nFor external workspace proxies, this is the coderd they are connected\nto.",
+                    "type": "string"
+                },
                 "external_url": {
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
@@ -6322,6 +6493,9 @@ const docTemplate = `{
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
+                },
+                "workspace_proxy": {
+                    "type": "boolean"
                 }
             }
         },
@@ -6767,12 +6941,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                },
-                "url": {
-                    "type": "string"
-                },
-                "wildcard_hostname": {
-                    "type": "string"
                 }
             }
         },
@@ -6985,6 +7153,9 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
                 },
+                "disable_owner_workspace_exec": {
+                    "type": "boolean"
+                },
                 "disable_password_auth": {
                     "type": "boolean"
                 },
@@ -7156,11 +7327,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "template_editor",
                 "moons"
             ],
             "x-enum-varnames": [
-                "ExperimentTemplateEditor",
                 "ExperimentMoons"
             ]
         },
@@ -7314,6 +7483,31 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "URL specifies the endpoint to check for the app health.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenRequest": {
+            "type": "object",
+            "required": [
+                "agentID",
+                "url"
+            ],
+            "properties": {
+                "agentID": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "url": {
+                    "description": "URL is the URL of the reconnecting-pty endpoint you are connecting to.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenResponse": {
+            "type": "object",
+            "properties": {
+                "signed_token": {
                     "type": "string"
                 }
             }
@@ -7813,6 +8007,9 @@ const docTemplate = `{
                 "address": {
                     "$ref": "#/definitions/clibase.HostPort"
                 },
+                "collect_agent_stats": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 }
@@ -8022,6 +8219,57 @@ const docTemplate = `{
                     "format": "date-time"
                 }
             }
+        },
+        "codersdk.RBACResource": {
+            "type": "string",
+            "enum": [
+                "workspace",
+                "workspace_proxy",
+                "workspace_execution",
+                "application_connect",
+                "audit_log",
+                "template",
+                "group",
+                "file",
+                "provisioner_daemon",
+                "organization",
+                "assign_role",
+                "assign_org_role",
+                "api_key",
+                "user",
+                "user_data",
+                "organization_member",
+                "license",
+                "deployment_config",
+                "deployment_stats",
+                "replicas",
+                "debug_info",
+                "system"
+            ],
+            "x-enum-varnames": [
+                "ResourceWorkspace",
+                "ResourceWorkspaceProxy",
+                "ResourceWorkspaceExecution",
+                "ResourceWorkspaceApplicationConnect",
+                "ResourceAuditLog",
+                "ResourceTemplate",
+                "ResourceGroup",
+                "ResourceFile",
+                "ResourceProvisionerDaemon",
+                "ResourceOrganization",
+                "ResourceRoleAssignment",
+                "ResourceOrgRoleAssignment",
+                "ResourceAPIKey",
+                "ResourceUser",
+                "ResourceUserData",
+                "ResourceOrganizationMember",
+                "ResourceLicense",
+                "ResourceDeploymentValues",
+                "ResourceDeploymentStats",
+                "ResourceReplicas",
+                "ResourceDebugInfo",
+                "ResourceSystem"
+            ]
         },
         "codersdk.RateLimitConfig": {
             "type": "object",
@@ -9453,10 +9701,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -9643,6 +9887,37 @@ const docTemplate = `{
                 "ParameterSourceSchemeData"
             ]
         },
+        "derp.ServerInfoMessage": {
+            "type": "object",
+            "properties": {
+                "tokenBucketBytesBurst": {
+                    "description": "TokenBucketBytesBurst is how many bytes the server will\nallow to burst, temporarily violating\nTokenBucketBytesPerSecond.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                },
+                "tokenBucketBytesPerSecond": {
+                    "description": "TokenBucketBytesPerSecond is how many bytes per second the\nserver says it will accept, including all framing bytes.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                }
+            }
+        },
+        "healthcheck.AccessURLReport": {
+            "type": "object",
+            "properties": {
+                "err": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "healthzResponse": {
+                    "type": "string"
+                },
+                "reachable": {
+                    "type": "boolean"
+                },
+                "statusCode": {
+                    "type": "integer"
+                }
+            }
+        },
         "healthcheck.DERPNodeReport": {
             "type": "object",
             "properties": {
@@ -9670,6 +9945,9 @@ const docTemplate = `{
                 },
                 "node": {
                     "$ref": "#/definitions/tailcfg.DERPNode"
+                },
+                "node_info": {
+                    "$ref": "#/definitions/derp.ServerInfoMessage"
                 },
                 "round_trip_ping": {
                     "type": "integer"
@@ -9708,6 +9986,7 @@ const docTemplate = `{
                 "netcheck": {
                     "$ref": "#/definitions/netcheck.Report"
                 },
+                "netcheck_err": {},
                 "netcheck_logs": {
                     "type": "array",
                     "items": {
@@ -9737,6 +10016,9 @@ const docTemplate = `{
         "healthcheck.Report": {
             "type": "object",
             "properties": {
+                "access_url": {
+                    "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
@@ -9993,6 +10275,103 @@ const docTemplate = `{
         },
         "url.Userinfo": {
             "type": "object"
+        },
+        "workspaceapps.AccessMethod": {
+            "type": "string",
+            "enum": [
+                "path",
+                "subdomain",
+                "terminal"
+            ],
+            "x-enum-varnames": [
+                "AccessMethodPath",
+                "AccessMethodSubdomain",
+                "AccessMethodTerminal"
+            ]
+        },
+        "workspaceapps.IssueTokenRequest": {
+            "type": "object",
+            "properties": {
+                "app_hostname": {
+                    "description": "AppHostname is the optional hostname for subdomain apps on the external\nproxy. It must start with an asterisk.",
+                    "type": "string"
+                },
+                "app_path": {
+                    "description": "AppPath is the path of the user underneath the app base path.",
+                    "type": "string"
+                },
+                "app_query": {
+                    "description": "AppQuery is the query parameters the user provided in the app request.",
+                    "type": "string"
+                },
+                "app_request": {
+                    "$ref": "#/definitions/workspaceapps.Request"
+                },
+                "path_app_base_url": {
+                    "description": "PathAppBaseURL is required.",
+                    "type": "string"
+                },
+                "session_token": {
+                    "description": "SessionToken is the session token provided by the user.",
+                    "type": "string"
+                }
+            }
+        },
+        "workspaceapps.Request": {
+            "type": "object",
+            "properties": {
+                "access_method": {
+                    "$ref": "#/definitions/workspaceapps.AccessMethod"
+                },
+                "agent_name_or_id": {
+                    "description": "AgentNameOrID is not required if the workspace has only one agent.",
+                    "type": "string"
+                },
+                "app_slug_or_port": {
+                    "type": "string"
+                },
+                "base_path": {
+                    "description": "BasePath of the app. For path apps, this is the path prefix in the router\nfor this particular app. For subdomain apps, this should be \"/\". This is\nused for setting the cookie path.",
+                    "type": "string"
+                },
+                "username_or_id": {
+                    "description": "For the following fields, if the AccessMethod is AccessMethodTerminal,\nthen only AgentNameOrID may be set and it must be a UUID. The other\nfields must be left blank.",
+                    "type": "string"
+                },
+                "workspace_name_or_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.IssueSignedAppTokenResponse": {
+            "type": "object",
+            "properties": {
+                "signed_token_str": {
+                    "description": "SignedTokenStr should be set as a cookie on the response.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "description": "AccessURL that hits the workspace proxy api.",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname that the workspace proxy api is serving for subdomain apps.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyResponse": {
+            "type": "object",
+            "properties": {
+                "app_security_key": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {

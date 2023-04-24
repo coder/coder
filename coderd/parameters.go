@@ -141,7 +141,7 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 		ScopeID: scopeID,
 		Name:    name,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

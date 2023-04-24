@@ -1,5 +1,5 @@
 import { Template } from "api/typesGenerated"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 
 export const getTemplatePageTitle = (title: string, template: Template) => {
   return pageTitle(

@@ -15,7 +15,7 @@ export interface WorkspaceScheduleContext {
    * re-fetch the workspace to ensure we're up-to-date. As a result, this
    * machine is partially influenced by workspaceXService.
    */
-  workspace?: TypesGen.Workspace
+  workspace: TypesGen.Workspace
   template?: TypesGen.Template
   getTemplateError?: Error | unknown
   permissions?: Permissions
@@ -41,7 +41,6 @@ const permissionsToCheck = (workspace: TypesGen.Workspace) => ({
 })
 
 export type WorkspaceScheduleEvent =
-  | { type: "GET_WORKSPACE"; username: string; workspaceName: string }
   | {
       type: "SUBMIT_SCHEDULE"
       autostart: TypesGen.UpdateWorkspaceAutostartRequest
@@ -63,38 +62,13 @@ export const workspaceSchedule =
         context: {} as WorkspaceScheduleContext,
         events: {} as WorkspaceScheduleEvent,
         services: {} as {
-          getWorkspace: {
-            data: TypesGen.Workspace
-          }
           getTemplate: {
             data: TypesGen.Template
           }
         },
       },
-      initial: "idle",
-      on: {
-        GET_WORKSPACE: "gettingWorkspace",
-      },
+      initial: "gettingPermissions",
       states: {
-        idle: {
-          tags: "loading",
-        },
-        gettingWorkspace: {
-          entry: ["clearGetWorkspaceError", "clearContext"],
-          invoke: {
-            src: "getWorkspace",
-            id: "getWorkspace",
-            onDone: {
-              target: "gettingPermissions",
-              actions: ["assignWorkspace"],
-            },
-            onError: {
-              target: "error",
-              actions: ["assignGetWorkspaceError"],
-            },
-          },
-          tags: "loading",
-        },
         gettingPermissions: {
           entry: "clearGetPermissionsError",
           invoke: {
@@ -167,9 +141,7 @@ export const workspaceSchedule =
           },
         },
         error: {
-          on: {
-            GET_WORKSPACE: "gettingWorkspace",
-          },
+          type: "final",
         },
         done: {
           type: "final",
@@ -183,12 +155,6 @@ export const workspaceSchedule =
       actions: {
         assignSubmissionError: assign({
           submitScheduleError: (_, event) => event.data,
-        }),
-        assignWorkspace: assign({
-          workspace: (_, event) => event.data,
-        }),
-        assignGetWorkspaceError: assign({
-          getWorkspaceError: (_, event) => event.data,
         }),
         assignPermissions: assign({
           // Setting event.data as Permissions to be more stricted. So we know
@@ -213,12 +179,7 @@ export const workspaceSchedule =
         clearGetPermissionsError: assign({
           checkPermissionsError: (_) => undefined,
         }),
-        clearContext: () => {
-          assign({ workspace: undefined, permissions: undefined })
-        },
-        clearGetWorkspaceError: (context) => {
-          assign({ ...context, getWorkspaceError: undefined })
-        },
+
         // action instead of service because we fire and forget so that the
         // user can return to the workspace page to see the restart
         restartWorkspace: (context) => {
@@ -232,12 +193,6 @@ export const workspaceSchedule =
       },
 
       services: {
-        getWorkspace: async (_, event) => {
-          return await API.getWorkspaceByOwnerAndName(
-            event.username,
-            event.workspaceName,
-          )
-        },
         getTemplate: async (context) => {
           if (context.workspace) {
             return await API.getTemplate(context.workspace.template_id)

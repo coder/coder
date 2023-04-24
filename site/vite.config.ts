@@ -25,6 +25,7 @@ export default defineConfig({
   define: {
     "process.env": {
       NODE_ENV: process.env.NODE_ENV,
+      STORYBOOK: process.env.STORYBOOK,
       INSPECT_XSTATE: process.env.INSPECT_XSTATE,
     },
   },
@@ -32,8 +33,9 @@ export default defineConfig({
     port: process.env.PORT ? Number(process.env.PORT) : 8080,
     proxy: {
       "/api": {
-        target: process.env.CODER_HOST || "http://localhost:3000",
         ws: true,
+        changeOrigin: true,
+        target: process.env.CODER_HOST || "http://localhost:3000",
         secure: process.env.NODE_ENV === "production",
       },
       "/swagger": {
@@ -51,7 +53,7 @@ export default defineConfig({
       pages: path.resolve(__dirname, "./src/pages"),
       testHelpers: path.resolve(__dirname, "./src/testHelpers"),
       theme: path.resolve(__dirname, "./src/theme"),
-      util: path.resolve(__dirname, "./src/util"),
+      utils: path.resolve(__dirname, "./src/utils"),
       xServices: path.resolve(__dirname, "./src/xServices"),
     },
   },

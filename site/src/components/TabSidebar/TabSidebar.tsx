@@ -4,7 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import { NavLink } from "react-router-dom"
 import { sidePadding } from "theme/constants"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "../../utils/combineClasses"
 
 export interface TabSidebarItem {
   path: string

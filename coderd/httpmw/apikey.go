@@ -47,9 +47,10 @@ type userAuthKey struct{}
 
 type Authorization struct {
 	Actor rbac.Subject
-	// Username is required for logging and human friendly related
-	// identification.
-	Username string
+	// ActorName is required for logging and human friendly related identification.
+	// It is usually the "username" of the user, but it can be the name of the
+	// external workspace proxy or other service type actor.
+	ActorName string
 }
 
 // UserAuthorizationOptional may return the roles and scope used for
@@ -99,6 +100,10 @@ type ExtractAPIKeyConfig struct {
 	// will be deleted and the request will continue. If the request is not a
 	// cookie-based request, the request will be rejected with a 401.
 	Optional bool
+
+	// SessionTokenFunc is a custom function that can be used to extract the API
+	// key. If nil, the default behavior is used.
+	SessionTokenFunc func(r *http.Request) string
 }
 
 // ExtractAPIKeyMW calls ExtractAPIKey with the given config on each request,
@@ -145,7 +150,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// like workspace applications.
 	write := func(code int, response codersdk.Response) (*database.APIKey, *Authorization, bool) {
 		if cfg.RedirectToLogin {
-			RedirectToLogin(rw, r, response.Message)
+			RedirectToLogin(rw, r, nil, response.Message)
 			return nil, nil, false
 		}
 
@@ -167,7 +172,11 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return nil, nil, false
 	}
 
-	token := apiTokenFromRequest(r)
+	tokenFunc := APITokenFromRequest
+	if cfg.SessionTokenFunc != nil {
+		tokenFunc = cfg.SessionTokenFunc
+	}
+	token := tokenFunc(r)
 	if token == "" {
 		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 			Message: SignedOutErrorMessage,
@@ -364,7 +373,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 	// Actor is the user's authorization context.
 	authz := Authorization{
-		Username: roles.Username,
+		ActorName: roles.Username,
 		Actor: rbac.Subject{
 			ID:     key.UserID.String(),
 			Roles:  rbac.RoleNames(roles.Roles),
@@ -376,14 +385,14 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	return &key, &authz, true
 }
 
-// apiTokenFromRequest returns the api token from the request.
+// APITokenFromRequest returns the api token from the request.
 // Find the session token from:
 // 1: The cookie
 // 1: The devurl cookie
 // 3: The old cookie
 // 4. The coder_session_token query parameter
 // 5. The custom auth header
-func apiTokenFromRequest(r *http.Request) string {
+func APITokenFromRequest(r *http.Request) string {
 	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
@@ -432,7 +441,11 @@ func SplitAPIToken(token string) (id string, secret string, err error) {
 
 // RedirectToLogin redirects the user to the login page with the `message` and
 // `redirect` query parameters set.
-func RedirectToLogin(rw http.ResponseWriter, r *http.Request, message string) {
+//
+// If dashboardURL is nil, the redirect will be relative to the current
+// request's host. If it is not nil, the redirect will be absolute with dashboard
+// url as the host.
+func RedirectToLogin(rw http.ResponseWriter, r *http.Request, dashboardURL *url.URL, message string) {
 	path := r.URL.Path
 	if r.URL.RawQuery != "" {
 		path += "?" + r.URL.RawQuery
@@ -446,6 +459,16 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, message string) {
 		Path:     "/login",
 		RawQuery: q.Encode(),
 	}
+	// If dashboardURL is provided, we want to redirect to the dashboard
+	// login page.
+	if dashboardURL != nil {
+		cpy := *dashboardURL
+		cpy.Path = u.Path
+		cpy.RawQuery = u.RawQuery
+		u = &cpy
+	}
 
-	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
+	// See other forces a GET request rather than keeping the current method
+	// (like temporary redirect does).
+	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
 }

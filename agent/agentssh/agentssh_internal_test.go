@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	gliderssh "github.com/gliderlabs/ssh"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,7 +36,7 @@ func Test_sessionStart_orphan(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 	logger := slogtest.Make(t, nil)
-	s, err := NewServer(ctx, logger, 0)
+	s, err := NewServer(ctx, logger, afero.NewMemMapFs(), 0, "")
 	require.NoError(t, err)
 
 	// Here we're going to call the handler directly with a faked SSH session

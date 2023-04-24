@@ -302,6 +302,10 @@ func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.
 	return q.db.GetWorkspaceAgentStats(ctx, createdAfter)
 }
 
+func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+}
+
 func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
@@ -433,4 +437,11 @@ func (q *querier) InsertParameterSchema(ctx context.Context, arg database.Insert
 		return database.ParameterSchema{}, err
 	}
 	return q.db.InsertParameterSchema(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, params database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceProxy{}, err
+	}
+	return q.db.GetWorkspaceProxyByHostname(ctx, params)
 }

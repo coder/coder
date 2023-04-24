@@ -1106,25 +1106,107 @@ export const watchAgentMetadata = (agentId: string): EventSource => {
   )
 }
 
-export const watchBuildLogs = (
+type WatchBuildLogsByTemplateVersionIdOptions = {
+  after?: number
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void
+  onDone: () => void
+  onError: (error: Error) => void
+}
+export const watchBuildLogsByTemplateVersionId = (
   versionId: string,
-  onMessage: (log: TypesGen.ProvisionerJobLog) => void,
+  {
+    onMessage,
+    onDone,
+    onError,
+    after,
+  }: WatchBuildLogsByTemplateVersionIdOptions,
 ) => {
-  return new Promise<void>((resolve, reject) => {
-    const proto = location.protocol === "https:" ? "wss:" : "ws:"
-    const socket = new WebSocket(
-      `${proto}//${location.host}/api/v2/templateversions/${versionId}/logs?follow=true`,
-    )
-    socket.binaryType = "blob"
-    socket.addEventListener("message", (event) =>
-      onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
-    )
-    socket.addEventListener("error", () => {
-      reject(new Error("Connection for logs failed."))
-    })
-    socket.addEventListener("close", () => {
-      // When the socket closes, logs have finished streaming!
-      resolve()
-    })
+  const searchParams = new URLSearchParams({ follow: "true" })
+  if (after !== undefined) {
+    searchParams.append("after", after.toString())
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:"
+  const socket = new WebSocket(
+    `${proto}//${
+      location.host
+    }/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
+  )
+  socket.binaryType = "blob"
+  socket.addEventListener("message", (event) =>
+    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+  )
+  socket.addEventListener("error", () => {
+    onError(new Error("Connection for logs failed."))
+    socket.close()
   })
+  socket.addEventListener("close", () => {
+    // When the socket closes, logs have finished streaming!
+    onDone()
+  })
+  return socket
+}
+
+type WatchStartupLogsOptions = {
+  after: number
+  onMessage: (logs: TypesGen.WorkspaceAgentStartupLog[]) => void
+  onDone: () => void
+  onError: (error: Error) => void
+}
+
+export const watchStartupLogs = (
+  agentId: string,
+  { after, onMessage, onDone, onError }: WatchStartupLogsOptions,
+) => {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:"
+  const socket = new WebSocket(
+    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/startup-logs?follow&after=${after}`,
+  )
+  socket.binaryType = "blob"
+  socket.addEventListener("message", (event) => {
+    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentStartupLog[]
+    onMessage(logs)
+  })
+  socket.addEventListener("error", () => {
+    onError(new Error("socket errored"))
+  })
+  socket.addEventListener("close", () => {
+    onDone()
+  })
+
+  return socket
+}
+
+type WatchBuildLogsByBuildIdOptions = {
+  after?: number
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void
+  onDone: () => void
+  onError: (error: Error) => void
+}
+export const watchBuildLogsByBuildId = (
+  buildId: string,
+  { onMessage, onDone, onError, after }: WatchBuildLogsByBuildIdOptions,
+) => {
+  const searchParams = new URLSearchParams({ follow: "true" })
+  if (after !== undefined) {
+    searchParams.append("after", after.toString())
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:"
+  const socket = new WebSocket(
+    `${proto}//${
+      location.host
+    }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
+  )
+  socket.binaryType = "blob"
+  socket.addEventListener("message", (event) =>
+    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+  )
+  socket.addEventListener("error", () => {
+    onError(new Error("Connection for logs failed."))
+    socket.close()
+  })
+  socket.addEventListener("close", () => {
+    // When the socket closes, logs have finished streaming!
+    onDone()
+  })
+  return socket
 }

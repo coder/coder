@@ -5,7 +5,7 @@ import { DAUChart } from "components/DAUChart/DAUChart"
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
-import { useDeploymentOptions } from "util/deployOptions"
+import { useDeploymentOptions } from "utils/deployOptions"
 
 export type GeneralSettingsPageViewProps = {
   deploymentOptions: DeploymentOption[]

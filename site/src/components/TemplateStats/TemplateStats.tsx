@@ -1,11 +1,11 @@
 import { Stats, StatsItem } from "components/Stats/Stats"
 import { FC } from "react"
 import { Link } from "react-router-dom"
-import { createDayString } from "util/createDayString"
+import { createDayString } from "utils/createDayString"
 import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
-} from "util/templates"
+} from "utils/templates"
 import { Template, TemplateVersion } from "../../api/typesGenerated"
 
 const Language = {

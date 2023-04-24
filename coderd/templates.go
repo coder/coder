@@ -407,7 +407,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		Name:           templateName,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -416,11 +416,6 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 			Message: "Internal error fetching template.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -498,8 +493,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Update template metadata -- empty fields are not overwritten,
-		// except for display_name, icon, and default_ttl.
-		// The exception is required to clear content of these fields with UI.
+		// except for display_name, description, icon, and default_ttl.
+		// These exceptions are required to clear content of these fields with UI.
 		name := req.Name
 		displayName := req.DisplayName
 		desc := req.Description
@@ -507,9 +502,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		if name == "" {
 			name = template.Name
-		}
-		if desc == "" {
-			desc = template.Description
 		}
 
 		var err error
@@ -583,10 +575,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	resp, _ := api.metricsCache.TemplateDAUs(template.ID)
 	if resp == nil || resp.Entries == nil {

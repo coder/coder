@@ -6,7 +6,7 @@ import TreeItem from "@material-ui/lab/TreeItem"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import { CSSProperties, FC, useState } from "react"
-import { FileTree } from "util/filetree"
+import { FileTree } from "utils/filetree"
 import { DockerIcon } from "components/Icons/DockerIcon"
 import { colors } from "theme/colors"
 

@@ -161,7 +161,7 @@ type agent struct {
 }
 
 func (a *agent) init(ctx context.Context) {
-	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.sshMaxTimeout)
+	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.filesystem, a.sshMaxTimeout, "")
 	if err != nil {
 		panic(err)
 	}
@@ -1407,5 +1407,14 @@ func expandDirectory(dir string) (string, error) {
 		}
 		dir = filepath.Join(home, dir[1:])
 	}
-	return os.ExpandEnv(dir), nil
+	dir = os.ExpandEnv(dir)
+
+	if !filepath.IsAbs(dir) {
+		home, err := userHomeDir()
+		if err != nil {
+			return "", err
+		}
+		dir = filepath.Join(home, dir)
+	}
+	return dir, nil
 }

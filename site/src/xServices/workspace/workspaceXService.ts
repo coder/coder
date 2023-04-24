@@ -117,31 +117,32 @@ export const checks = {
 const permissionsToCheck = (
   workspace: TypesGen.Workspace,
   template: TypesGen.Template,
-) => ({
-  [checks.readWorkspace]: {
-    object: {
-      resource_type: "workspace",
-      resource_id: workspace.id,
-      owner_id: workspace.owner_id,
+) =>
+  ({
+    [checks.readWorkspace]: {
+      object: {
+        resource_type: "workspace",
+        resource_id: workspace.id,
+        owner_id: workspace.owner_id,
+      },
+      action: "read",
     },
-    action: "read",
-  },
-  [checks.updateWorkspace]: {
-    object: {
-      resource_type: "workspace",
-      resource_id: workspace.id,
-      owner_id: workspace.owner_id,
+    [checks.updateWorkspace]: {
+      object: {
+        resource_type: "workspace",
+        resource_id: workspace.id,
+        owner_id: workspace.owner_id,
+      },
+      action: "update",
     },
-    action: "update",
-  },
-  [checks.updateTemplate]: {
-    object: {
-      resource_type: "template",
-      resource_id: template.id,
+    [checks.updateTemplate]: {
+      object: {
+        resource_type: "template",
+        resource_id: template.id,
+      },
+      action: "update",
     },
-    action: "update",
-  },
-})
+  } as const)
 
 export const workspaceMachine = createMachine(
   {
@@ -850,6 +851,10 @@ export const workspaceMachine = createMachine(
         // handle any sse implementation exceptions
         context.eventSource.onerror = () => {
           send({ type: "EVENT_SOURCE_ERROR", error: "sse error" })
+        }
+
+        return () => {
+          context.eventSource?.close()
         }
       },
       getBuilds: async (context) => {

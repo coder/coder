@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -19,24 +20,50 @@ const (
 	RedirectURIQueryParam = "redirect_uri"
 )
 
-// ResolveRequest calls SignedTokenProvider to use an existing signed app token in the
-// request or issue a new one. If it returns a newly minted token, it sets the
-// cookie for you.
-func ResolveRequest(log slog.Logger, dashboardURL *url.URL, p SignedTokenProvider, rw http.ResponseWriter, r *http.Request, appReq Request) (*SignedToken, bool) {
-	appReq = appReq.Normalize()
+type ResolveRequestOptions struct {
+	Logger              slog.Logger
+	SignedTokenProvider SignedTokenProvider
+
+	DashboardURL   *url.URL
+	PathAppBaseURL *url.URL
+	AppHostname    string
+
+	AppRequest Request
+	// TODO: Replace these 2 fields with a "BrowserURL" field which is used for
+	// redirecting the user back to their initial request after authenticating.
+	// AppPath is the path under the app that was hit.
+	AppPath string
+	// AppQuery is the raw query of the request.
+	AppQuery string
+}
+
+func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequestOptions) (*SignedToken, bool) {
+	appReq := opts.AppRequest.Normalize()
 	err := appReq.Validate()
 	if err != nil {
-		WriteWorkspaceApp500(log, dashboardURL, rw, r, &appReq, err, "invalid app request")
+		// This is a 500 since it's a coder server or proxy that's making this
+		// request struct based on details from the request. The values should
+		// already be validated before they are put into the struct.
+		WriteWorkspaceApp500(opts.Logger, opts.DashboardURL, rw, r, &appReq, err, "invalid app request")
 		return nil, false
 	}
 
-	token, ok := p.TokenFromRequest(r)
+	token, ok := opts.SignedTokenProvider.FromRequest(r)
 	if ok && token.MatchesRequest(appReq) {
 		// The request has a valid signed app token and it matches the request.
 		return token, true
 	}
 
-	token, tokenStr, ok := p.CreateToken(r.Context(), rw, r, appReq)
+	issueReq := IssueTokenRequest{
+		AppRequest:     appReq,
+		PathAppBaseURL: opts.PathAppBaseURL.String(),
+		AppHostname:    opts.AppHostname,
+		SessionToken:   httpmw.APITokenFromRequest(r),
+		AppPath:        opts.AppPath,
+		AppQuery:       opts.AppQuery,
+	}
+
+	token, tokenStr, ok := opts.SignedTokenProvider.Issue(r.Context(), rw, r, issueReq)
 	if !ok {
 		return nil, false
 	}
@@ -56,17 +83,17 @@ func ResolveRequest(log slog.Logger, dashboardURL *url.URL, p SignedTokenProvide
 
 // SignedTokenProvider provides signed workspace app tokens (aka. app tickets).
 type SignedTokenProvider interface {
-	// TokenFromRequest returns a parsed token from the request. If the request
-	// does not contain a signed app token or is is invalid (expired, invalid
+	// FromRequest returns a parsed token from the request. If the request does
+	// not contain a signed app token or is is invalid (expired, invalid
 	// signature, etc.), it returns false.
-	TokenFromRequest(r *http.Request) (*SignedToken, bool)
-	// CreateToken mints a new token for the given app request. It uses the
-	// long-lived session token in the HTTP request to authenticate and
-	// authorize the client for the given workspace app. The token is returned
-	// in struct and string form. The string form should be written as a cookie.
+	FromRequest(r *http.Request) (*SignedToken, bool)
+	// Issue mints a new token for the given app request. It uses the long-lived
+	// session token in the HTTP request to authenticate and authorize the
+	// client for the given workspace app. The token is returned in struct and
+	// string form. The string form should be written as a cookie.
 	//
 	// If the request is invalid or the user is not authorized to access the
 	// app, false is returned. An error page is written to the response writer
 	// in this case.
-	CreateToken(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq Request) (*SignedToken, string, bool)
+	Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq IssueTokenRequest) (*SignedToken, string, bool)
 }

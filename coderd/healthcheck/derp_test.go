@@ -19,10 +19,14 @@ import (
 
 	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/testutil"
 )
 
+//nolint:tparallel
 func TestDERP(t *testing.T) {
-	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping healthcheck test in short mode, they reach out over the network.")
+	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -55,8 +59,7 @@ func TestDERP(t *testing.T) {
 			}
 		)
 
-		err := report.Run(ctx, opts)
-		require.NoError(t, err)
+		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
 		for _, region := range report.Regions {
@@ -64,8 +67,7 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
-				// TODO: test this without serializing time.Time over the wire.
-				// assert.Positive(t, node.RoundTripPing)
+				assert.Positive(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 1)
 				assert.Len(t, node.ClientErrs[0], 0)
@@ -79,8 +81,12 @@ func TestDERP(t *testing.T) {
 		}
 	})
 
-	t.Run("OK/Tailscale/Dallas", func(t *testing.T) {
+	t.Run("Tailscale/Dallas/OK", func(t *testing.T) {
 		t.Parallel()
+
+		if testutil.InCI() {
+			t.Skip("This test depends on reaching out over the network to Tailscale servers, which is inherently flaky.")
+		}
 
 		derpSrv := derp.NewServer(key.NewNode(), func(format string, args ...any) { t.Logf(format, args...) })
 		defer derpSrv.Close()
@@ -97,8 +103,7 @@ func TestDERP(t *testing.T) {
 		// Only include the Dallas region
 		opts.DERPMap.Regions = map[int]*tailcfg.DERPRegion{9: opts.DERPMap.Regions[9]}
 
-		err := report.Run(ctx, opts)
-		require.NoError(t, err)
+		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
 		for _, region := range report.Regions {
@@ -106,8 +111,7 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
-				// TODO: test this without serializing time.Time over the wire.
-				// assert.Positive(t, node.RoundTripPing)
+				assert.Positive(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 1)
 				assert.Len(t, node.ClientErrs[0], 0)
@@ -170,13 +174,12 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.False(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
-				// TODO: test this without serializing time.Time over the wire.
-				// assert.Positive(t, node.RoundTripPing)
+				assert.Positive(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 3)
 				assert.Len(t, node.ClientLogs[1], 3)
 				assert.Len(t, node.ClientErrs, 2)
-				assert.Len(t, node.ClientErrs[0], 1)
+				assert.Len(t, node.ClientErrs[0], 1) // this
 				assert.Len(t, node.ClientErrs[1], 1)
 				assert.True(t, node.UsesWebsocket)
 
@@ -187,7 +190,7 @@ func TestDERP(t *testing.T) {
 		}
 	})
 
-	t.Run("OK/STUNOnly", func(t *testing.T) {
+	t.Run("STUNOnly/OK", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -212,8 +215,7 @@ func TestDERP(t *testing.T) {
 			}
 		)
 
-		err := report.Run(ctx, opts)
-		require.NoError(t, err)
+		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
 		for _, region := range report.Regions {

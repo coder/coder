@@ -805,15 +805,16 @@
 
 #### Enumerated Values
 
-| Value    |
-| -------- |
-| `create` |
-| `write`  |
-| `delete` |
-| `start`  |
-| `stop`   |
-| `login`  |
-| `logout` |
+| Value      |
+| ---------- |
+| `create`   |
+| `write`    |
+| `delete`   |
+| `start`    |
+| `stop`     |
+| `login`    |
+| `logout`   |
+| `register` |
 
 ## codersdk.AuditDiff
 
@@ -1042,7 +1043,7 @@
     "organization_id": "string",
     "owner_id": "string",
     "resource_id": "string",
-    "resource_type": "string"
+    "resource_type": "workspace"
   }
 }
 ```
@@ -1072,7 +1073,7 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
   "organization_id": "string",
   "owner_id": "string",
   "resource_id": "string",
-  "resource_type": "string"
+  "resource_type": "workspace"
 }
 ```
 
@@ -1080,12 +1081,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                          |
-| ----------------- | ------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `organization_id` | string | false    |              | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                   |
-| `owner_id`        | string | false    |              | Owner ID (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                  |
-| `resource_id`     | string | false    |              | Resource ID (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the owner ID and organization ID if possible. Be as specific as possible using all the fields relevant. |
-| `resource_type`   | string | false    |              | Resource type is the name of the resource. `./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                           |
+| Name              | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ---------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organization_id` | string                                         | false    |              | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                   |
+| `owner_id`        | string                                         | false    |              | Owner ID (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                  |
+| `resource_id`     | string                                         | false    |              | Resource ID (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the owner ID and organization ID if possible. Be as specific as possible using all the fields relevant. |
+| `resource_type`   | [codersdk.RBACResource](#codersdkrbacresource) | false    |              | Resource type is the name of the resource. `./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                           |
 
 ## codersdk.AuthorizationRequest
 
@@ -1098,7 +1099,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
-        "resource_type": "string"
+        "resource_type": "workspace"
       }
     },
     "property2": {
@@ -1107,7 +1108,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
-        "resource_type": "string"
+        "resource_type": "workspace"
       }
     }
   }
@@ -1140,17 +1141,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "dashboard_url": "string",
   "external_url": "string",
-  "version": "string"
+  "version": "string",
+  "workspace_proxy": true
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                                                                                                         |
-| -------------- | ------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `external_url` | string | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
-| `version`      | string | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                         |
+| ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dashboard_url`   | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
+| `external_url`    | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `version`         | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `workspace_proxy` | boolean | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
 
@@ -1552,21 +1557,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 {
   "display_name": "string",
   "icon": "string",
-  "name": "string",
-  "url": "string",
-  "wildcard_hostname": "string"
+  "name": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type   | Required | Restrictions | Description |
-| ------------------- | ------ | -------- | ------------ | ----------- |
-| `display_name`      | string | false    |              |             |
-| `icon`              | string | false    |              |             |
-| `name`              | string | false    |              |             |
-| `url`               | string | false    |              |             |
-| `wildcard_hostname` | string | false    |              |             |
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.CreateWorkspaceRequest
 
@@ -1817,6 +1818,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "stun_addresses": ["string"]
       }
     },
+    "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
@@ -1899,6 +1901,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "host": "string",
         "port": "string"
       },
+      "collect_agent_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -2159,6 +2162,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "stun_addresses": ["string"]
     }
   },
+  "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
   "disable_session_expiry_refresh": true,
@@ -2241,6 +2245,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "host": "string",
       "port": "string"
     },
+    "collect_agent_stats": true,
     "enable": true
   },
   "provisioner": {
@@ -2347,6 +2352,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                   | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
+| `disable_owner_workspace_exec`       | boolean                                                                                    | false    |              |                                                                    |
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
@@ -2441,17 +2447,16 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ## codersdk.Experiment
 
 ```json
-"template_editor"
+"moons"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value             |
-| ----------------- |
-| `template_editor` |
-| `moons`           |
+| Value   |
+| ------- |
+| `moons` |
 
 ## codersdk.Feature
 
@@ -2645,6 +2650,36 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `interval`  | integer | false    |              | Interval specifies the seconds between each health check.                                        |
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
+
+## codersdk.IssueReconnectingPTYSignedTokenRequest
+
+```json
+{
+  "agentID": "bc282582-04f9-45ce-b904-3e3bfab66958",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                            |
+| --------- | ------ | -------- | ------------ | ---------------------------------------------------------------------- |
+| `agentID` | string | true     |              |                                                                        |
+| `url`     | string | true     |              | URL is the URL of the reconnecting-pty endpoint you are connecting to. |
+
+## codersdk.IssueReconnectingPTYSignedTokenResponse
+
+```json
+{
+  "signed_token": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `signed_token` | string | false    |              |             |
 
 ## codersdk.JobErrorCode
 
@@ -3151,16 +3186,18 @@ Parameter represents a set value for the scope.
     "host": "string",
     "port": "string"
   },
+  "collect_agent_stats": true,
   "enable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type                                 | Required | Restrictions | Description |
-| --------- | ------------------------------------ | -------- | ------------ | ----------- |
-| `address` | [clibase.HostPort](#clibasehostport) | false    |              |             |
-| `enable`  | boolean                              | false    |              |             |
+| Name                  | Type                                 | Required | Restrictions | Description |
+| --------------------- | ------------------------------------ | -------- | ------------ | ----------- |
+| `address`             | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `collect_agent_stats` | boolean                              | false    |              |             |
+| `enable`              | boolean                              | false    |              |             |
 
 ## codersdk.ProvisionerConfig
 
@@ -3358,6 +3395,41 @@ Parameter represents a set value for the scope.
 | Name       | Type   | Required | Restrictions | Description |
 | ---------- | ------ | -------- | ------------ | ----------- |
 | `deadline` | string | true     |              |             |
+
+## codersdk.RBACResource
+
+```json
+"workspace"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                 |
+| --------------------- |
+| `workspace`           |
+| `workspace_proxy`     |
+| `workspace_execution` |
+| `application_connect` |
+| `audit_log`           |
+| `template`            |
+| `group`               |
+| `file`                |
+| `provisioner_daemon`  |
+| `organization`        |
+| `assign_role`         |
+| `assign_org_role`     |
+| `api_key`             |
+| `user`                |
+| `user_data`           |
+| `organization_member` |
+| `license`             |
+| `deployment_config`   |
+| `deployment_stats`    |
+| `replicas`            |
+| `debug_info`          |
+| `system`              |
 
 ## codersdk.RateLimitConfig
 
@@ -5120,7 +5192,6 @@ Parameter represents a set value for the scope.
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
   "wildcard_hostname": "string"
@@ -5136,7 +5207,6 @@ Parameter represents a set value for the scope.
 | `icon`              | string  | false    |              |                                                                                        |
 | `id`                | string  | false    |              |                                                                                        |
 | `name`              | string  | false    |              |                                                                                        |
-| `organization_id`   | string  | false    |              |                                                                                        |
 | `updated_at`        | string  | false    |              |                                                                                        |
 | `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
 | `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
@@ -5519,6 +5589,46 @@ Parameter represents a set value for the scope.
 | `none` |
 | `data` |
 
+## derp.ServerInfoMessage
+
+```json
+{
+  "tokenBucketBytesBurst": 0,
+  "tokenBucketBytesPerSecond": 0
+}
+```
+
+### Properties
+
+| Name                                                                                       | Type    | Required | Restrictions | Description                                                                                                              |
+| ------------------------------------------------------------------------------------------ | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `tokenBucketBytesBurst`                                                                    | integer | false    |              | Tokenbucketbytesburst is how many bytes the server will allow to burst, temporarily violating TokenBucketBytesPerSecond. |
+| Zero means unspecified. There might be a limit, but the client need not try to respect it. |
+| `tokenBucketBytesPerSecond`                                                                | integer | false    |              | Tokenbucketbytespersecond is how many bytes per second the server says it will accept, including all framing bytes.      |
+| Zero means unspecified. There might be a limit, but the client need not try to respect it. |
+
+## healthcheck.AccessURLReport
+
+```json
+{
+  "err": null,
+  "healthy": true,
+  "healthzResponse": "string",
+  "reachable": true,
+  "statusCode": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description |
+| ----------------- | ------- | -------- | ------------ | ----------- |
+| `err`             | any     | false    |              |             |
+| `healthy`         | boolean | false    |              |             |
+| `healthzResponse` | string  | false    |              |             |
+| `reachable`       | boolean | false    |              |             |
+| `statusCode`      | integer | false    |              |             |
+
 ## healthcheck.DERPNodeReport
 
 ```json
@@ -5541,6 +5651,10 @@ Parameter represents a set value for the scope.
     "stunport": 0,
     "stuntestIP": "string"
   },
+  "node_info": {
+    "tokenBucketBytesBurst": 0,
+    "tokenBucketBytesPerSecond": 0
+  },
   "round_trip_ping": 0,
   "stun": {
     "canSTUN": true,
@@ -5560,6 +5674,7 @@ Parameter represents a set value for the scope.
 | `client_logs`           | array of array                                           | false    |              |             |
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
+| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
 | `round_trip_ping`       | integer                                                  | false    |              |             |
 | `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
 | `uses_websocket`        | boolean                                                  | false    |              |             |
@@ -5588,6 +5703,10 @@ Parameter represents a set value for the scope.
         "stunonly": true,
         "stunport": 0,
         "stuntestIP": "string"
+      },
+      "node_info": {
+        "tokenBucketBytesBurst": 0,
+        "tokenBucketBytesPerSecond": 0
       },
       "round_trip_ping": 0,
       "stun": {
@@ -5667,6 +5786,7 @@ Parameter represents a set value for the scope.
     "udp": true,
     "upnP": "string"
   },
+  "netcheck_err": null,
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
@@ -5690,6 +5810,10 @@ Parameter represents a set value for the scope.
             "stunonly": true,
             "stunport": 0,
             "stuntestIP": "string"
+          },
+          "node_info": {
+            "tokenBucketBytesBurst": 0,
+            "tokenBucketBytesPerSecond": 0
           },
           "round_trip_ping": 0,
           "stun": {
@@ -5746,6 +5870,10 @@ Parameter represents a set value for the scope.
             "stunport": 0,
             "stuntestIP": "string"
           },
+          "node_info": {
+            "tokenBucketBytesBurst": 0,
+            "tokenBucketBytesPerSecond": 0
+          },
           "round_trip_ping": 0,
           "stun": {
             "canSTUN": true,
@@ -5789,6 +5917,7 @@ Parameter represents a set value for the scope.
 | ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
 | `healthy`          | boolean                                                      | false    |              |             |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
+| `netcheck_err`     | any                                                          | false    |              |             |
 | `netcheck_logs`    | array of string                                              | false    |              |             |
 | `regions`          | object                                                       | false    |              |             |
 | » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
@@ -5815,6 +5944,13 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "access_url": {
+    "err": null,
+    "healthy": true,
+    "healthzResponse": "string",
+    "reachable": true,
+    "statusCode": 0
+  },
   "derp": {
     "healthy": true,
     "netcheck": {
@@ -5847,6 +5983,7 @@ Parameter represents a set value for the scope.
       "udp": true,
       "upnP": "string"
     },
+    "netcheck_err": null,
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
@@ -5870,6 +6007,10 @@ Parameter represents a set value for the scope.
               "stunonly": true,
               "stunport": 0,
               "stuntestIP": "string"
+            },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
             },
             "round_trip_ping": 0,
             "stun": {
@@ -5926,6 +6067,10 @@ Parameter represents a set value for the scope.
               "stunport": 0,
               "stuntestIP": "string"
             },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
+            },
             "round_trip_ping": 0,
             "stun": {
               "canSTUN": true,
@@ -5968,11 +6113,12 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name   | Type                                             | Required | Restrictions | Description                                      |
-| ------ | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------ |
-| `derp` | [healthcheck.DERPReport](#healthcheckderpreport) | false    |              |                                                  |
-| `pass` | boolean                                          | false    |              | Healthy is true if the report returns no errors. |
-| `time` | string                                           | false    |              | Time is the time the report was generated at.    |
+| Name         | Type                                                       | Required | Restrictions | Description                                      |
+| ------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
+| `access_url` | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
+| `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
+| `pass`       | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
+| `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
 
 ## netcheck.Report
 
@@ -6244,3 +6390,118 @@ RegionIDs in range 900-999 are reserved for end users to run their own DERP node
 ### Properties
 
 _None_
+
+## workspaceapps.AccessMethod
+
+```json
+"path"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value       |
+| ----------- |
+| `path`      |
+| `subdomain` |
+| `terminal`  |
+
+## workspaceapps.IssueTokenRequest
+
+```json
+{
+  "app_hostname": "string",
+  "app_path": "string",
+  "app_query": "string",
+  "app_request": {
+    "access_method": "path",
+    "agent_name_or_id": "string",
+    "app_slug_or_port": "string",
+    "base_path": "string",
+    "username_or_id": "string",
+    "workspace_name_or_id": "string"
+  },
+  "path_app_base_url": "string",
+  "session_token": "string"
+}
+```
+
+### Properties
+
+| Name                | Type                                           | Required | Restrictions | Description                                                                                                     |
+| ------------------- | ---------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------- |
+| `app_hostname`      | string                                         | false    |              | App hostname is the optional hostname for subdomain apps on the external proxy. It must start with an asterisk. |
+| `app_path`          | string                                         | false    |              | App path is the path of the user underneath the app base path.                                                  |
+| `app_query`         | string                                         | false    |              | App query is the query parameters the user provided in the app request.                                         |
+| `app_request`       | [workspaceapps.Request](#workspaceappsrequest) | false    |              |                                                                                                                 |
+| `path_app_base_url` | string                                         | false    |              | Path app base URL is required.                                                                                  |
+| `session_token`     | string                                         | false    |              | Session token is the session token provided by the user.                                                        |
+
+## workspaceapps.Request
+
+```json
+{
+  "access_method": "path",
+  "agent_name_or_id": "string",
+  "app_slug_or_port": "string",
+  "base_path": "string",
+  "username_or_id": "string",
+  "workspace_name_or_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                     | Required | Restrictions | Description                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_method`        | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |                                                                                                                                                                                       |
+| `agent_name_or_id`     | string                                                   | false    |              | Agent name or ID is not required if the workspace has only one agent.                                                                                                                 |
+| `app_slug_or_port`     | string                                                   | false    |              |                                                                                                                                                                                       |
+| `base_path`            | string                                                   | false    |              | Base path of the app. For path apps, this is the path prefix in the router for this particular app. For subdomain apps, this should be "/". This is used for setting the cookie path. |
+| `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |
+| `workspace_name_or_id` | string                                                   | false    |              |                                                                                                                                                                                       |
+
+## wsproxysdk.IssueSignedAppTokenResponse
+
+```json
+{
+  "signed_token_str": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                                 |
+| ------------------ | ------ | -------- | ------------ | ----------------------------------------------------------- |
+| `signed_token_str` | string | false    |              | Signed token str should be set as a cookie on the response. |
+
+## wsproxysdk.RegisterWorkspaceProxyRequest
+
+```json
+{
+  "access_url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description                                                                   |
+| ------------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------- |
+| `access_url`        | string | false    |              | Access URL that hits the workspace proxy api.                                 |
+| `wildcard_hostname` | string | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps. |
+
+## wsproxysdk.RegisterWorkspaceProxyResponse
+
+```json
+{
+  "app_security_key": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `app_security_key` | string | false    |              |             |

@@ -6,8 +6,8 @@ import utc from "dayjs/plugin/utc"
 import {
   defaultSchedule,
   emptySchedule,
-} from "pages/WorkspaceSchedulePage/schedule"
-import { emptyTTL } from "pages/WorkspaceSchedulePage/ttl"
+} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
+import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
 import { makeMockApiError } from "testHelpers/entities"
 import {
   WorkspaceScheduleForm,

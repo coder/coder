@@ -106,6 +106,9 @@ func TestWorkspace(t *testing.T) {
 		defer cancel()
 
 		want := ws1.Name + "-test"
+		if len(want) > 32 {
+			want = want[:32-5] + "-test"
+		}
 		err := client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
 			Name: want,
 		})

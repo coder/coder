@@ -5,7 +5,7 @@ import { usePermissions } from "hooks/usePermissions"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams } from "react-router-dom"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { templateVersionEditorMachine } from "xServices/templateVersionEditor/templateVersionEditorXService"
 import { useTemplateVersionData } from "./data"
 
@@ -87,6 +87,19 @@ export const TemplateVersionEditorPage: FC = () => {
           }
           resources={editorState.context.resources}
           buildLogs={editorState.context.buildLogs}
+          isPromptingMissingVariables={editorState.matches("promptVariables")}
+          missingVariables={editorState.context.missingVariables}
+          onSubmitMissingVariableValues={(values) => {
+            sendEvent({
+              type: "SET_MISSING_VARIABLE_VALUES",
+              values,
+            })
+          }}
+          onCancelSubmitMissingVariableValues={() => {
+            sendEvent({
+              type: "CANCEL_MISSING_VARIABLE_VALUES",
+            })
+          }}
         />
       )}
     </>

@@ -2,7 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { createContext, FC, Suspense, useContext } from "react"
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
 import { Loader } from "components/Loader/Loader"
@@ -14,9 +14,11 @@ import {
   getTemplateVersion,
 } from "api/api"
 import { useQuery } from "@tanstack/react-query"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { AuthorizationRequest } from "api/typesGenerated"
 
-const templatePermissions = (templateId: string) => ({
+const templatePermissions = (
+  templateId: string,
+): AuthorizationRequest["checks"] => ({
   canUpdateTemplate: {
     object: {
       resource_type: "template",
@@ -69,7 +71,6 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
   })
-  const dashboard = useDashboard()
 
   if (error) {
     return (
@@ -89,7 +90,6 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
         template={data.template}
         activeVersion={data.activeVersion}
         permissions={data.permissions}
-        canEditFiles={dashboard.experiments.includes("template_editor")}
         onDeleteTemplate={() => {
           navigate("/templates")
         }}

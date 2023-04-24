@@ -10,7 +10,7 @@ import { useClickableTableRow } from "hooks/useClickableTableRow"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { colors } from "theme/colors"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 export interface VersionRowProps {
   version: TemplateVersion

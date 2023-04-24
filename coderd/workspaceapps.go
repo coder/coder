@@ -1,12 +1,18 @@
 package coderd
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -48,13 +54,6 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 // @Router /applications/auth-redirect [get]
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if api.AppHostname == "" {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "The server does not accept subdomain-based application requests.",
-		})
-		return
-	}
-
 	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(r, rbac.ActionCreate, apiKey) {
 		httpapi.ResourceNotFound(rw)
@@ -77,24 +76,26 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	// Force the redirect URI to use the same scheme as the access URL for
-	// security purposes.
-	u.Scheme = api.AccessURL.Scheme
 
-	// Ensure that the redirect URI is a subdomain of api.Hostname and is a
-	// valid app subdomain.
-	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, u.Host)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The redirect_uri query parameter must be a valid app subdomain.",
+	u.Scheme, err = api.ValidWorkspaceAppHostname(ctx, u.Host, ValidWorkspaceAppHostnameOpts{
+		// Allow all hosts except primary access URL since we don't need app
+		// tokens on the primary dashboard URL.
+		AllowPrimaryAccessURL: false,
+		AllowPrimaryWildcard:  true,
+		AllowProxyAccessURL:   true,
+		AllowProxyWildcard:    true,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to verify redirect_uri query parameter.",
+			Detail:  err.Error(),
 		})
 		return
 	}
-	_, err = httpapi.ParseSubdomainAppURL(subdomain)
-	if err != nil {
+	if u.Scheme == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The redirect_uri query parameter must be a valid app subdomain.",
-			Detail:  err.Error(),
+			Message: "Invalid redirect_uri.",
+			Detail:  "The redirect_uri query parameter must be the primary wildcard app hostname, a workspace proxy access URL or a workspace proxy wildcard app hostname.",
 		})
 		return
 	}
@@ -139,5 +140,68 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	q := u.Query()
 	q.Set(workspaceapps.SubdomainProxyAPIKeyParam, encryptedAPIKey)
 	u.RawQuery = q.Encode()
-	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
+	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
+}
+
+type ValidWorkspaceAppHostnameOpts struct {
+	AllowPrimaryAccessURL bool
+	AllowPrimaryWildcard  bool
+	AllowProxyAccessURL   bool
+	AllowProxyWildcard    bool
+}
+
+// ValidWorkspaceAppHostname checks if the given host is a valid workspace app
+// hostname based on the provided options. It returns a scheme to force on
+// success. If the hostname is not valid or doesn't match, an empty string is
+// returned. Any error returned is a 500 error.
+//
+// For hosts that match a wildcard app hostname, the scheme is forced to be the
+// corresponding access URL scheme.
+func (api *API) ValidWorkspaceAppHostname(ctx context.Context, host string, opts ValidWorkspaceAppHostnameOpts) (string, error) {
+	if opts.AllowPrimaryAccessURL && (host == api.AccessURL.Hostname() || host == api.AccessURL.Host) {
+		// Force the redirect URI to have the same scheme as the access URL for
+		// security purposes.
+		return api.AccessURL.Scheme, nil
+	}
+
+	if opts.AllowPrimaryWildcard && api.AppHostnameRegex != nil {
+		_, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, host)
+		if ok {
+			// Force the redirect URI to have the same scheme as the access URL
+			// for security purposes.
+			return api.AccessURL.Scheme, nil
+		}
+	}
+
+	// Ensure that the redirect URI is a subdomain of api.Hostname and is a
+	// valid app subdomain.
+	if opts.AllowProxyAccessURL || opts.AllowProxyWildcard {
+		// Strip the port for the database query.
+		host = strings.Split(host, ":")[0]
+
+		// nolint:gocritic // system query
+		systemCtx := dbauthz.AsSystemRestricted(ctx)
+		proxy, err := api.Database.GetWorkspaceProxyByHostname(systemCtx, database.GetWorkspaceProxyByHostnameParams{
+			Hostname:              host,
+			AllowAccessUrl:        opts.AllowProxyAccessURL,
+			AllowWildcardHostname: opts.AllowProxyWildcard,
+		})
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		if err != nil {
+			return "", xerrors.Errorf("get workspace proxy by hostname %q: %w", host, err)
+		}
+
+		proxyURL, err := url.Parse(proxy.Url)
+		if err != nil {
+			return "", xerrors.Errorf("parse proxy URL %q: %w", proxy.Url, err)
+		}
+
+		// Force the redirect URI to use the same scheme as the proxy access URL
+		// for security purposes.
+		return proxyURL.Scheme, nil
+	}
+
+	return "", nil
 }

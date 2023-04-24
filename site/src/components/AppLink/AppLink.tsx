@@ -5,9 +5,9 @@ import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
 import { FC } from "react"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import * as TypesGen from "../../api/typesGenerated"
-import { generateRandomString } from "../../util/random"
+import { generateRandomString } from "../../utils/random"
 import { BaseIcon } from "./BaseIcon"
 import { ShareIcon } from "./ShareIcon"
 
@@ -84,7 +84,6 @@ export const AppLink: FC<AppLinkProps> = ({
 
   const button = (
     <Button
-      size="small"
       startIcon={icon}
       endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
       className={styles.button}
@@ -136,9 +135,18 @@ const useStyles = makeStyles((theme) => ({
   button: {
     whiteSpace: "nowrap",
     backgroundColor: theme.palette.background.default,
+    padding: theme.spacing(0, 3),
+    height: 44,
+    borderRadius: 6,
 
     "&:hover": {
-      backgroundColor: `${theme.palette.background.default} !important`,
+      backgroundColor: `${theme.palette.background.paper} !important`,
+    },
+
+    "& .MuiButton-startIcon": {
+      width: 16,
+      height: 16,
+      marginRight: theme.spacing(1.5),
     },
   },
 

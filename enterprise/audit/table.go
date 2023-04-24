@@ -21,7 +21,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Workspace":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"WorkspaceBuild":  {codersdk.AuditActionStart, codersdk.AuditActionStop},
 	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 }
 
@@ -163,15 +163,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"uuid":        ActionTrack,
 	},
 	&database.WorkspaceProxy{}: {
-		"id":                ActionTrack,
-		"name":              ActionTrack,
-		"display_name":      ActionTrack,
-		"icon":              ActionTrack,
-		"url":               ActionTrack,
-		"wildcard_hostname": ActionTrack,
-		"created_at":        ActionTrack,
-		"updated_at":        ActionTrack,
-		"deleted":           ActionTrack,
+		"id":                  ActionTrack,
+		"name":                ActionTrack,
+		"display_name":        ActionTrack,
+		"icon":                ActionTrack,
+		"url":                 ActionTrack,
+		"wildcard_hostname":   ActionTrack,
+		"created_at":          ActionTrack,
+		"updated_at":          ActionIgnore,
+		"deleted":             ActionIgnore,
+		"token_hashed_secret": ActionSecret,
 	},
 }
 
