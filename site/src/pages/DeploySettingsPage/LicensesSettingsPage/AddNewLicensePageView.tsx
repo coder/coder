@@ -121,21 +121,4 @@ const useStyles = makeStyles((theme) => ({
   main: {
     paddingTop: theme.spacing(5),
   },
-  ctaButton: {
-    backgroundImage: `linear-gradient(90deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
-    width: theme.spacing(30),
-    marginBottom: theme.spacing(4),
-  },
-  formSectionRoot: {
-    alignItems: "center",
-  },
-  description: {
-    color: theme.palette.text.secondary,
-    lineHeight: "160%",
-  },
-  title: {
-    ...theme.typography.h5,
-    fontWeight: 600,
-    marging: theme.spacing(1),
-  },
 }))

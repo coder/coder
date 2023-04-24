@@ -9,6 +9,9 @@ export default {
 const licensesTest: GetLicensesResponse[] = [
   {
     id: 1,
+    uploaded_at: "1682346425",
+    expires_at: "1682346425",
+    uuid: "1",
     claims: {
       trial: false,
       all_features: true,
@@ -19,12 +22,21 @@ const licensesTest: GetLicensesResponse[] = [
   },
 ]
 
+const defaultArgs = {
+  showConfetti: false,
+  isLoading: false,
+  userLimitActual: 1,
+  userLimitLimit: 10,
+  licenses: licensesTest,
+}
+
 export const Default = {
+  args: defaultArgs,
+}
+
+export const Empty = {
   args: {
-    showConfetti: false,
-    isLoading: false,
-    userLimitActual: 1,
-    userLimitLimit: 10,
-    licenses: licensesTest,
+    ...defaultArgs,
+    licenses: [],
   },
 }

@@ -93,9 +93,7 @@ const useStyles = makeStyles((theme) => ({
     backgroundImage: `linear-gradient(90deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
     width: theme.spacing(30),
     marginBottom: theme.spacing(4),
-  },
-  removeButtom: {
-    color: "red",
+    marginTop: theme.spacing(4),
   },
 }))
 
