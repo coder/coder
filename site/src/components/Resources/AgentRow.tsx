@@ -218,7 +218,29 @@ export const AgentRow: FC<AgentRowProps> = ({
         </div>
 
         {agent.status === "connected" && (
-          <div className={styles.agentDefaultActions}>
+          <div className={styles.agentButtons}>
+            {shouldDisplayApps && (
+              <>
+                {!hideVSCodeDesktopButton && (
+                  <VSCodeDesktopButton
+                    userName={workspace.owner_name}
+                    workspaceName={workspace.name}
+                    agentName={agent.name}
+                    folderPath={agent.expanded_directory}
+                  />
+                )}
+                {agent.apps.map((app) => (
+                  <AppLink
+                    key={app.slug}
+                    appsHost={applicationsHost}
+                    app={app}
+                    agent={agent}
+                    workspace={workspace}
+                  />
+                ))}
+              </>
+            )}
+
             <TerminalLink
               workspaceName={workspace.name}
               agentName={agent.name}
@@ -244,7 +266,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         )}
 
         {agent.status === "connecting" && (
-          <div className={styles.agentDefaultActions}>
+          <div className={styles.agentButtons}>
             <Skeleton
               width={80}
               height={32}
@@ -262,49 +284,6 @@ export const AgentRow: FC<AgentRowProps> = ({
       </Stack>
 
       <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
-
-      {shouldDisplayApps && (
-        <div className={styles.apps}>
-          {agent.status === "connected" && (
-            <>
-              {!hideVSCodeDesktopButton && (
-                <VSCodeDesktopButton
-                  userName={workspace.owner_name}
-                  workspaceName={workspace.name}
-                  agentName={agent.name}
-                  folderPath={agent.expanded_directory}
-                />
-              )}
-              {agent.apps.map((app) => (
-                <AppLink
-                  key={app.slug}
-                  appsHost={applicationsHost}
-                  app={app}
-                  agent={agent}
-                  workspace={workspace}
-                />
-              ))}
-            </>
-          )}
-
-          {agent.status === "connecting" && (
-            <>
-              <Skeleton
-                width={80}
-                height={36}
-                variant="rect"
-                className={styles.buttonSkeleton}
-              />
-              <Skeleton
-                width={110}
-                height={36}
-                variant="rect"
-                className={styles.buttonSkeleton}
-              />
-            </>
-          )}
-        </div>
-      )}
 
       {hasStartupFeatures && (
         <div className={styles.logsPanel}>
@@ -473,7 +452,7 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(2, 4),
   },
 
-  agentDefaultActions: {
+  agentButtons: {
     display: "flex",
     gap: theme.spacing(1),
     marginLeft: "auto",
@@ -530,14 +509,6 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 500,
       color: theme.palette.text.secondary,
     },
-  },
-
-  apps: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: theme.spacing(1.5),
-    padding: theme.spacing(4),
-    borderTop: `1px solid ${theme.palette.divider}`,
   },
 
   logsPanel: {
