@@ -7,18 +7,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
-
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/stretchr/testify/require"
-
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/testutil"
 )
