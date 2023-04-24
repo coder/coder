@@ -723,6 +723,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return xerrors.Errorf("register agent stats prometheus metric: %w", err)
 					}
 					defer closeAgentStatsFunc()
+
+					var metricsAggregator prometheusmetrics.MetricsAggregator
+					options.UpdateAgentMetrics = metricsAggregator.Update
+					options.PrometheusRegistry.MustRegister(&metricsAggregator)
 				}
 
 				//nolint:revive

@@ -38,6 +38,8 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/codersdk/agentsdk"
+
 	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
@@ -146,6 +148,8 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
+
+	UpdateAgentMetrics func(ctx context.Context, workspaceID uuid.UUID, agentID uuid.UUID, metrics []agentsdk.AgentMetric)
 }
 
 // @title Coder API

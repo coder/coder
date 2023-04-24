@@ -8,7 +8,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/netip"
@@ -25,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
@@ -1214,42 +1214,47 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	}
 
 	now := database.Now()
-	_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
-		ID:                          uuid.New(),
-		CreatedAt:                   now,
-		AgentID:                     workspaceAgent.ID,
-		WorkspaceID:                 workspace.ID,
-		UserID:                      workspace.OwnerID,
-		TemplateID:                  workspace.TemplateID,
-		ConnectionsByProto:          payload,
-		ConnectionCount:             req.ConnectionCount,
-		RxPackets:                   req.RxPackets,
-		RxBytes:                     req.RxBytes,
-		TxPackets:                   req.TxPackets,
-		TxBytes:                     req.TxBytes,
-		SessionCountVSCode:          req.SessionCountVSCode,
-		SessionCountJetBrains:       req.SessionCountJetBrains,
-		SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
-		SessionCountSSH:             req.SessionCountSSH,
-		ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
+
+	var errGroup errgroup.Group
+	errGroup.Go(func() error {
+		_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
+			ID:                          uuid.New(),
+			CreatedAt:                   now,
+			AgentID:                     workspaceAgent.ID,
+			WorkspaceID:                 workspace.ID,
+			UserID:                      workspace.OwnerID,
+			TemplateID:                  workspace.TemplateID,
+			ConnectionsByProto:          payload,
+			ConnectionCount:             req.ConnectionCount,
+			RxPackets:                   req.RxPackets,
+			RxBytes:                     req.RxBytes,
+			TxPackets:                   req.TxPackets,
+			TxBytes:                     req.TxBytes,
+			SessionCountVSCode:          req.SessionCountVSCode,
+			SessionCountJetBrains:       req.SessionCountJetBrains,
+			SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
+			SessionCountSSH:             req.SessionCountSSH,
+			ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
+		})
+		return err
 	})
+	errGroup.Go(func() error {
+		return api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: now,
+		})
+	})
+	if api.Options.UpdateAgentMetrics != nil {
+		errGroup.Go(func() error {
+			api.Options.UpdateAgentMetrics(ctx, workspace.ID, workspaceAgent.ID, req.Metrics)
+			return nil
+		})
+	}
+	err = errGroup.Wait()
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
-	if req.ConnectionCount > 0 {
-		err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-	}
-
-	log.Println("Metrics: ", req.Metrics) // FIXME
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
 		ReportInterval: api.AgentStatsRefreshInterval,
