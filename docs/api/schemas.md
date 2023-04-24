@@ -21,18 +21,40 @@
 ```json
 {
   "name": "string",
-  "type": "string",
+  "type": "counter",
   "value": 0
 }
 ```
 
 ### Properties
 
-| Name    | Type   | Required | Restrictions | Description |
-| ------- | ------ | -------- | ------------ | ----------- |
-| `name`  | string | false    |              |             |
-| `type`  | string | false    |              |             |
-| `value` | number | false    |              |             |
+| Name    | Type                                                 | Required | Restrictions | Description |
+| ------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
+| `name`  | string                                               | true     |              |             |
+| `type`  | [agentsdk.AgentMetricType](#agentsdkagentmetrictype) | true     |              |             |
+| `value` | number                                               | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value     |
+| -------- | --------- |
+| `type`   | `counter` |
+| `type`   | `gauge`   |
+
+## agentsdk.AgentMetricType
+
+```json
+"counter"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| `counter` |
+| `gauge`   |
 
 ## agentsdk.AuthenticateResponse
 
@@ -347,7 +369,7 @@
   "metrics": [
     {
       "name": "string",
-      "type": "string",
+      "type": "counter",
       "value": 0
     }
   ],

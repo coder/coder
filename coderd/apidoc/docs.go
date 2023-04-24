@@ -5632,17 +5632,41 @@ const docTemplate = `{
         },
         "agentsdk.AgentMetric": {
             "type": "object",
+            "required": [
+                "name",
+                "type",
+                "value"
+            ],
             "properties": {
                 "name": {
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
+                    "enum": [
+                        "counter",
+                        "gauge"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentsdk.AgentMetricType"
+                        }
+                    ]
                 },
                 "value": {
                     "type": "number"
                 }
             }
+        },
+        "agentsdk.AgentMetricType": {
+            "type": "string",
+            "enum": [
+                "counter",
+                "gauge"
+            ],
+            "x-enum-varnames": [
+                "AgentMetricTypeCounter",
+                "AgentMetricTypeGauge"
+            ]
         },
         "agentsdk.AuthenticateResponse": {
             "type": "object",
