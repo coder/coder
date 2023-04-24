@@ -259,19 +259,19 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	output := make([]string, 0)
 	level := make([]database.LogLevel, 0)
 	outputLength := 0
-	for _, log := range req.Logs {
-		createdAt = append(createdAt, log.CreatedAt)
-		output = append(output, log.Output)
-		outputLength += len(log.Output)
-		if log.Level == "" {
+	for _, logEntry := range req.Logs {
+		createdAt = append(createdAt, logEntry.CreatedAt)
+		output = append(output, logEntry.Output)
+		outputLength += len(logEntry.Output)
+		if logEntry.Level == "" {
 			// Default to "info" to support older agents that didn't have the level field.
-			log.Level = codersdk.LogLevelInfo
+			logEntry.Level = codersdk.LogLevelInfo
 		}
-		parsedLevel := database.LogLevel(log.Level)
+		parsedLevel := database.LogLevel(logEntry.Level)
 		if !parsedLevel.Valid() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid log level provided.",
-				Detail:  fmt.Sprintf("invalid log level: %q", log.Level),
+				Detail:  fmt.Sprintf("invalid log level: %q", logEntry.Level),
 			})
 			return
 		}
