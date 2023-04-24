@@ -227,6 +227,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 
 			proxy, err := wsproxy.New(ctx, &wsproxy.Options{
 				Logger:             logger,
+				HTTPClient:         httpClient,
 				DashboardURL:       primaryAccessURL.Value(),
 				AccessURL:          cfg.AccessURL.Value(),
 				AppHostname:        appHostname,
