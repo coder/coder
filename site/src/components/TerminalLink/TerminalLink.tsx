@@ -1,8 +1,7 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
+import Link from "@material-ui/core/Link"
+import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { combineClasses } from "../../utils/combineClasses"
 import { generateRandomString } from "../../utils/random"
 
 export const Language = {
@@ -14,7 +13,6 @@ export interface TerminalLinkProps {
   agentName?: TypesGen.WorkspaceAgent["name"]
   userName?: TypesGen.User["username"]
   workspaceName: TypesGen.Workspace["name"]
-  className?: string
 }
 
 /**
@@ -28,20 +26,15 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
   agentName,
   userName = "me",
   workspaceName,
-  className = "",
 }) => {
-  const styles = useStyles()
   const href = `/@${userName}/${workspaceName}${
     agentName ? `.${agentName}` : ""
   }/terminal`
 
   return (
-    <Button
+    <Link
+      underline="none"
       href={href}
-      component="a"
-      size="small"
-      variant="outlined"
-      className={combineClasses([styles.button, className])}
       target="_blank"
       onClick={(event) => {
         event.preventDefault()
@@ -52,17 +45,9 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
         )
       }}
     >
-      {Language.linkText}
-    </Button>
+      <SecondaryAgentButton size="small" variant="outlined">
+        {Language.linkText}
+      </SecondaryAgentButton>
+    </Link>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  button: {
-    fontSize: 12,
-    fontWeight: 500,
-    height: theme.spacing(4),
-    minHeight: theme.spacing(4),
-    borderRadius: 4,
-  },
-}))
