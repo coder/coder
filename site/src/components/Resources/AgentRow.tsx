@@ -181,7 +181,7 @@ export const AgentRow: FC<AgentRowProps> = ({
     >
       <div className={styles.agentInfo}>
         <div className={styles.agentNameAndStatus}>
-          <Stack alignItems="center" direction="row" spacing={3}>
+          <div className={styles.agentNameAndInfo}>
             <AgentStatus agent={agent} />
             <div className={styles.agentName}>{agent.name}</div>
             <Stack
@@ -210,7 +210,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                 </>
               )}
             </Stack>
-          </Stack>
+          </div>
         </div>
 
         {agent.status === "connected" && (
@@ -452,19 +452,32 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(6),
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       gap: theme.spacing(2),
+    },
+  },
+
+  agentNameAndInfo: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(3),
+    flexWrap: "wrap",
+
+    [theme.breakpoints.down("sm")]: {
+      gap: theme.spacing(1.5),
     },
   },
 
   agentButtons: {
     display: "flex",
     gap: theme.spacing(1),
-    marginLeft: "auto",
+    justifyContent: "flex-end",
     flexWrap: "wrap",
+    flex: 1,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       marginLeft: 0,
+      justifyContent: "flex-start",
     },
   },
 
@@ -494,7 +507,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     gap: theme.spacing(4),
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       width: "100%",
     },
   },
@@ -506,8 +519,10 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: 260,
     fontWeight: 600,
     fontSize: theme.spacing(2),
+    flexShrink: 0,
+    width: "fit-content",
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       overflow: "unset",
     },
   },
