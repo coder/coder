@@ -162,11 +162,9 @@ const LicensesSettingsPage = lazy(
       "./pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"
     ),
 )
-const AddNewLicensePageView = lazy(
+const AddNewLicensePage = lazy(
   () =>
-    import(
-      "./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePageView"
-    ),
+    import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePage"),
 )
 
 export const AppRouter: FC = () => {
@@ -258,10 +256,7 @@ export const AppRouter: FC = () => {
               >
                 <Route path="general" element={<GeneralSettingsPage />} />
                 <Route path="licenses" element={<LicensesSettingsPage />} />
-                <Route
-                  path="licenses/add"
-                  element={<AddNewLicensePageView />}
-                />
+                <Route path="licenses/add" element={<AddNewLicensePage />} />
                 <Route path="security" element={<SecuritySettingsPage />} />
                 <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />

@@ -1,34 +1,35 @@
 import Button from "@material-ui/core/Button"
 import TextField from "@material-ui/core/TextField"
 import { makeStyles } from "@material-ui/core/styles"
-import { useMutation } from "@tanstack/react-query"
-import { createLicense } from "api/api"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { DividerWithText } from "components/DividerWithText/DividerWithText"
 import { FileUpload } from "components/FileUpload/FileUpload"
 import { Form, FormFields, FormSection } from "components/Form/Form"
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils"
+import { displayError } from "components/GlobalSnackbar/utils"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
-import { Link as RouterLink, useNavigate } from "react-router-dom"
+import { Link as RouterLink } from "react-router-dom"
 
-const AddNewLicense: FC = () => {
+type AddNewLicenseProps = {
+  onSaveLicenseKey: (license: string) => void
+  isSavingLicense: boolean
+  didSavingFailed: boolean
+}
+
+export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
+  onSaveLicenseKey,
+  isSavingLicense,
+  didSavingFailed,
+}) => {
   const styles = useStyles()
-  const navigate = useNavigate()
-
-  const {
-    mutate: saveLicenseKeyApi,
-    isLoading: isCreating,
-    isError: creationFailed,
-  } = useMutation(createLicense)
 
   function handleFileUploaded(files: File[]) {
     const fileReader = new FileReader()
     fileReader.onload = () => {
       const licenseKey = fileReader.result as string
 
-      saveLicenseKey(licenseKey)
+      onSaveLicenseKey(licenseKey)
 
       fileReader.onerror = () => {
         displayError("Failed to read file")
@@ -36,19 +37,6 @@ const AddNewLicense: FC = () => {
     }
 
     fileReader.readAsText(files[0])
-  }
-
-  function saveLicenseKey(licenseKey: string) {
-    saveLicenseKeyApi(
-      { license: licenseKey },
-      {
-        onSuccess: () => {
-          displaySuccess("You have successfully added a license")
-          navigate("/settings/deployment/licenses?success=true")
-        },
-        onError: () => displayError("Failed to save license key"),
-      },
-    )
   }
 
   const isUploading = false
@@ -99,7 +87,7 @@ const AddNewLicense: FC = () => {
 
         <Fieldset
           title="Paste your license key"
-          validation={creationFailed ? "License key is invalid" : undefined}
+          validation={didSavingFailed ? "License key is invalid" : undefined}
           onSubmit={(e) => {
             e.preventDefault()
 
@@ -108,10 +96,10 @@ const AddNewLicense: FC = () => {
 
             const licenseKey = formData.get("licenseKey")
 
-            saveLicenseKey(licenseKey?.toString() || "")
+            onSaveLicenseKey(licenseKey?.toString() || "")
           }}
           button={
-            <Button type="submit" disabled={isCreating}>
+            <Button type="submit" disabled={isSavingLicense}>
               Add license
             </Button>
           }
@@ -128,8 +116,6 @@ const AddNewLicense: FC = () => {
     </>
   )
 }
-
-export default AddNewLicense
 
 const useStyles = makeStyles((theme) => ({
   main: {

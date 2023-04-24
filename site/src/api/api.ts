@@ -976,7 +976,7 @@ type Claims = {
   require_telemetry?: boolean
 }
 
-type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
+export type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
   claims: Claims
   expires_at: string
 }
