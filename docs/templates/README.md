@@ -244,8 +244,12 @@ resource "kubernetes_pod" "podName" {
 
 ### Edit templates
 
-You can edit a template using the coder CLI. Only [template admins and
+You can edit a template using the coder CLI or the UI. Only [template admins and
 owners](../admin/users.md) can edit a template.
+
+Using the UI, navigate to the template page, click on the "three dots" button, and select the option "Edit files". In the template editor, you create, edit and remove files. After every change, you have to build the template with the new modifications, to test if they are valid, and after you can publish them make the new template version the active one (the version that is used by default) or not.
+
+> **Tip**: By not publishing a version as active, you can try them in a workspace before making it default for everybody in your organization. This is helpful to debug new changes without impacting others.
 
 Using the CLI, login to Coder and run the following command to edit a single
 template:
