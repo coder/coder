@@ -185,7 +185,7 @@ fatal() {
 			# Create the proxy
 			proxy_session_token=$("${CODER_DEV_SHIM}" proxy create --name=local-proxy --display-name="Local Proxy" --icon="/emojis/1f4bb.png" --only-token)
 			# Start the proxy
-			start_cmd PROXY "" "${CODER_DEV_SHIM}" proxy server --http-address=localhost:3010 --proxy-session-token="${proxy_session_token}" --primary-access-url=http://localhost:3000
+			start_cmd PROXY "" "${CODER_DEV_SHIM}" proxy server --access-url=http://127.0.0.1:3010 --http-address=127.0.0.1:3010 --proxy-session-token="${proxy_session_token}" --primary-access-url=http://localhost:3000
 		) || echo "Failed to create workspace proxy. No workspace proxy created."
 	fi
 

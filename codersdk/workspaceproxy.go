@@ -31,6 +31,8 @@ const (
 type WorkspaceProxyStatus struct {
 	Status ProxyHealthStatus `json:"status" table:"status"`
 	// Report provides more information about the health of the workspace proxy.
+	// This is not provided if the user does not have permission to view workspace
+	// proxy metadata.
 	Report    ProxyHealthReport `json:"report,omitempty" table:"report"`
 	CheckedAt time.Time         `json:"checked_at" table:"checked_at" format:"date-time"`
 }

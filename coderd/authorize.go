@@ -51,7 +51,7 @@ type HTTPAuthorizer struct {
 //		return
 //	}
 func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
-	return api.HTTPAuth.Authorize(r, action, object)
+	return api.HTTPAuth.Authorize(r, action, object, true)
 }
 
 // Authorize will return false if the user is not authorized to do the action.
@@ -63,27 +63,33 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 //		httpapi.Forbidden(rw)
 //		return
 //	}
-func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter, logUnauthorized bool) bool {
 	roles := httpmw.UserAuthorization(r)
 	err := h.Authorizer.Authorize(r.Context(), roles.Actor, action, object.RBACObject())
 	if err != nil {
-		// Log the errors for debugging
-		internalError := new(rbac.UnauthorizedError)
-		logger := h.Logger
-		if xerrors.As(err, internalError) {
-			logger = h.Logger.With(slog.F("internal", internalError.Internal()))
+		// Sometimes we do not want to log the unauthorized errors.
+		// Example: If an endpoint expects the normal case to return unauthorized
+		// to check a user is not an admin, we do not want to log that since it is
+		// the expected path.
+		if logUnauthorized {
+			// Log the errors for debugging
+			internalError := new(rbac.UnauthorizedError)
+			logger := h.Logger
+			if xerrors.As(err, internalError) {
+				logger = h.Logger.With(slog.F("internal", internalError.Internal()))
+			}
+			// Log information for debugging. This will be very helpful
+			// in the early days
+			logger.Warn(r.Context(), "unauthorized",
+				slog.F("roles", roles.Actor.SafeRoleNames()),
+				slog.F("actor_id", roles.Actor.ID),
+				slog.F("actor_name", roles.ActorName),
+				slog.F("scope", roles.Actor.SafeScopeName()),
+				slog.F("route", r.URL.Path),
+				slog.F("action", action),
+				slog.F("object", object),
+			)
 		}
-		// Log information for debugging. This will be very helpful
-		// in the early days
-		logger.Warn(r.Context(), "unauthorized",
-			slog.F("roles", roles.Actor.SafeRoleNames()),
-			slog.F("actor_id", roles.Actor.ID),
-			slog.F("actor_name", roles.ActorName),
-			slog.F("scope", roles.Actor.SafeScopeName()),
-			slog.F("route", r.URL.Path),
-			slog.F("action", action),
-			slog.F("object", object),
-		)
 
 		return false
 	}

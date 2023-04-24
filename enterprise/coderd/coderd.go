@@ -93,6 +93,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/", api.reconnectingPTYSignedToken)
 		})
+		// These routes are for administering and managing workspace proxies.
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
 				api.moonsEnabledMW,
@@ -512,5 +513,5 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 }
 
 func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
-	return api.AGPL.HTTPAuth.Authorize(r, action, object)
+	return api.AGPL.HTTPAuth.Authorize(r, action, object, true)
 }

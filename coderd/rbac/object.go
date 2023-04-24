@@ -36,6 +36,13 @@ var (
 		Type: "workspace_proxy",
 	}
 
+	// ResourceWorkspaceProxyMetaData is a special resource that is used to
+	// allow reading metadata for a given workspace proxy. This metadata should
+	// not be revealed to all users, only administrators of the workspace proxy.
+	ResourceWorkspaceProxyMetaData = Object{
+		Type: "workspace_proxy_data",
+	}
+
 	// ResourceWorkspaceExecution CRUD. Org + User owner
 	//	create = workspace remote execution
 	// 	read = ?

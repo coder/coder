@@ -187,7 +187,7 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = proxy
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateWorkspaceProxyResponse{
-		Proxy: convertProxy(proxy, proxyhealth.ProxyStatus{
+		Proxy: api.convertProxy(r, proxy, proxyhealth.ProxyStatus{
 			Proxy:     proxy,
 			CheckedAt: time.Now(),
 			Status:    proxyhealth.Unregistered,
