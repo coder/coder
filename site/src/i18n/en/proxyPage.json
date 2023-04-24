@@ -1,0 +1,55 @@
+{
+  "title": "Workspace Proxies",
+  "description": " Workspace proxies are used to reduce the latency of connections to a workspace. To get the best experience, choose the workspace proxy that is closest located to you.",
+  "emptyState": "No workspace proxies found",
+  "tokenActions": {
+    "addToken": "Add token",
+    "deleteToken": {
+      "delete": "Delete Token",
+      "deleteCaption": "Are you sure you want to permanently delete token <strong><4>{{tokenName}}</4></strong>?",
+      "deleteSuccess": "Token has been deleted",
+      "deleteFailure": "Failed to delete token"
+    }
+  },
+  "table": {
+    "icon": "Proxy",
+    "url": "URL",
+    "status": "Status",
+    "expiresAt": "Expires At",
+    "createdAt": "Created At"
+  },
+  "createToken": {
+    "title": "Create Token",
+    "detail": "All tokens are unscoped and therefore have full resource access.",
+    "nameSection": {
+      "title": "Name",
+      "description": "What is this token for?"
+    },
+    "lifetimeSection": {
+      "title": "Expiration",
+      "description": "The token will expire on {{date}}.",
+      "emptyDescription": "Please set a token expiration.",
+      "7": "7 days",
+      "30": "30 days",
+      "60": "60 days",
+      "90": "90 days",
+      "custom": "Custom",
+      "noExpiration": "No expiration",
+      "expiresOn": "Expires on"
+    },
+    "fields": {
+      "name": "Name",
+      "lifetime": "Lifetime"
+    },
+    "footer": {
+      "retry": "Retry",
+      "submit": "Create token"
+    },
+    "createSuccess": "Token has been created",
+    "createError": "Failed to create token",
+    "successModal": {
+      "title": "Creation successful",
+      "description": "Make sure you copy the below token before proceeding:"
+    }
+  }
+}

@@ -897,6 +897,16 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   return response.data
 }
 
+
+export const getWorkspaceProxies = async (): Promise<TypesGen.WorkspaceProxy[]> => {
+  const response = await axios.get<TypesGen.WorkspaceProxy[]>(
+    `/api/v2/workspaceproxies`,
+    {},
+  )
+  return response.data
+}
+
+
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {
     const response = await axios.get(`/api/v2/appearance`)
