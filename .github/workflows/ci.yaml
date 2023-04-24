@@ -695,3 +695,16 @@ jobs:
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
+
+  required:
+    runs-on: ubuntu-latest
+    needs: [test-go, test-go-psql, test-js]
+    # allow this job to run even if the previous jobs are skipped
+    if: |
+      always() &&
+      (needs.test-go.outputs.result == 'success' || needs.test-go.outputs.result == 'skipped') &&
+      (needs.test-go-psql.outputs.result == 'success' || needs.test-go-psql.outputs.result == 'skipped') &&
+      (needs.test-js.outputs.result == 'success' || needs.test-js.outputs.result == 'skipped')
+    steps:
+      - name: Ensure required checks
+        run: echo "Required checks have passed"
