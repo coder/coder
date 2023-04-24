@@ -3,7 +3,6 @@ package pty
 import (
 	"io"
 	"log"
-	"os"
 
 	"github.com/gliderlabs/ssh"
 	"golang.org/x/xerrors"
@@ -12,9 +11,32 @@ import (
 // ErrClosed is returned when a PTY is used after it has been closed.
 var ErrClosed = xerrors.New("pty: closed")
 
-// PTY is a minimal interface for interacting with a TTY.
+// PTYCmd is an interface for interacting with a pseudo-TTY where we control
+// only one end, and the other end has been passed to a running os.Process.
+// nolint:revive
+type PTYCmd interface {
+	io.Closer
+
+	// Resize sets the size of the PTY.
+	Resize(height uint16, width uint16) error
+
+	// OutputReader returns an io.Reader for reading the output from the process
+	// controlled by the pseudo-TTY
+	OutputReader() io.Reader
+
+	// InputWriter returns an io.Writer for writing into to the process
+	// controlled by the pseudo-TTY
+	InputWriter() io.Writer
+}
+
+// PTY is a minimal interface for interacting with pseudo-TTY where this
+// process retains access to _both_ ends of the pseudo-TTY (i.e. `ptm` & `pts`
+// on Linux).
 type PTY interface {
 	io.Closer
+
+	// Resize sets the size of the PTY.
+	Resize(height uint16, width uint16) error
 
 	// Name of the TTY. Example on Linux would be "/dev/pts/1".
 	Name() string
@@ -34,14 +56,6 @@ type PTY interface {
 	//
 	// The same stream would be used to provide user input: pty.Input().Write(...)
 	Input() ReadWriter
-
-	// Dup returns a new file descriptor for the PTY.
-	//
-	// This is useful for closing stdin and stdout separately.
-	Dup() (*os.File, error)
-
-	// Resize sets the size of the PTY.
-	Resize(height uint16, width uint16) error
 }
 
 // Process represents a process running in a PTY.  We need to trigger special processing on the PTY
@@ -108,8 +122,8 @@ func New(opts ...Option) (PTY, error) {
 // underlying file descriptors, one for reading and one for writing, and allows
 // them to be accessed separately.
 type ReadWriter struct {
-	Reader *os.File
-	Writer *os.File
+	Reader io.Reader
+	Writer io.Writer
 }
 
 func (rw ReadWriter) Read(p []byte) (int, error) {

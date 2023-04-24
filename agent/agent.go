@@ -1045,7 +1045,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		if err = a.trackConnGoroutine(func() {
 			buffer := make([]byte, 1024)
 			for {
-				read, err := rpty.ptty.Output().Read(buffer)
+				read, err := rpty.ptty.OutputReader().Read(buffer)
 				if err != nil {
 					// When the PTY is closed, this is triggered.
 					break
@@ -1138,7 +1138,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			logger.Warn(ctx, "read conn", slog.Error(err))
 			return nil
 		}
-		_, err = rpty.ptty.Input().Write([]byte(req.Data))
+		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
 			logger.Warn(ctx, "write to pty", slog.Error(err))
 			return nil
@@ -1358,7 +1358,7 @@ type reconnectingPTY struct {
 	circularBuffer      *circbuf.Buffer
 	circularBufferMutex sync.RWMutex
 	timeout             *time.Timer
-	ptty                pty.PTY
+	ptty                pty.PTYCmd
 }
 
 // Close ends all connections to the reconnecting
