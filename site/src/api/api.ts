@@ -1057,15 +1057,19 @@ const getMissingParameters = (
   const requiredParameters: TypesGen.TemplateVersionParameter[] = []
 
   templateParameters.forEach((p) => {
-    // Legacy parameters should be required. So we can migrate them.
-    const isLegacy = p.legacy_variable_name === undefined
+    // Legacy parameters should not be required. Backend can just migrate them.
+    const isLegacy = p.legacy_variable_name !== undefined
     // It is mutable and required. Mutable values can be changed after so we
     // don't need to ask them if they are not required.
     const isMutableAndRequired = p.mutable && p.required
     // Is immutable, so we can check if it is its first time on the build
     const isImmutable = !p.mutable
 
-    if (isLegacy || isMutableAndRequired || isImmutable) {
+    if (isLegacy) {
+      return
+    }
+
+    if (isMutableAndRequired || isImmutable) {
       requiredParameters.push(p)
       return
     }

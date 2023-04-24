@@ -3,15 +3,17 @@
 package pty
 
 import (
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"runtime"
 	"sync"
-	"syscall"
 
 	"github.com/creack/pty"
 	"github.com/u-root/u-root/pkg/termios"
 	"golang.org/x/sys/unix"
+	"golang.org/x/xerrors"
 )
 
 func newPty(opt ...Option) (retPTY *otherPty, err error) {
@@ -28,6 +30,7 @@ func newPty(opt ...Option) (retPTY *otherPty, err error) {
 		pty:  ptyFile,
 		tty:  ttyFile,
 		opts: opts,
+		name: ttyFile.Name(),
 	}
 	defer func() {
 		if err != nil {
@@ -53,6 +56,7 @@ type otherPty struct {
 	err      error
 	pty, tty *os.File
 	opts     ptyOptions
+	name     string
 }
 
 func (p *otherPty) control(tty *os.File, fn func(fd uintptr) error) (err error) {
@@ -85,7 +89,7 @@ func (p *otherPty) control(tty *os.File, fn func(fd uintptr) error) (err error) 
 }
 
 func (p *otherPty) Name() string {
-	return p.tty.Name()
+	return p.name
 }
 
 func (p *otherPty) Input() ReadWriter {
@@ -95,11 +99,19 @@ func (p *otherPty) Input() ReadWriter {
 	}
 }
 
+func (p *otherPty) InputWriter() io.Writer {
+	return p.pty
+}
+
 func (p *otherPty) Output() ReadWriter {
 	return ReadWriter{
-		Reader: p.pty,
+		Reader: &ptmReader{p.pty},
 		Writer: p.tty,
 	}
+}
+
+func (p *otherPty) OutputReader() io.Reader {
+	return &ptmReader{p.pty}
 }
 
 func (p *otherPty) Resize(height uint16, width uint16) error {
@@ -113,20 +125,6 @@ func (p *otherPty) Resize(height uint16, width uint16) error {
 	})
 }
 
-func (p *otherPty) Dup() (*os.File, error) {
-	var newfd int
-	err := p.control(p.pty, func(fd uintptr) error {
-		var err error
-		newfd, err = syscall.Dup(int(fd))
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return os.NewFile(uintptr(newfd), p.pty.Name()), nil
-}
-
 func (p *otherPty) Close() error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -137,9 +135,12 @@ func (p *otherPty) Close() error {
 	p.closed = true
 
 	err := p.pty.Close()
-	err2 := p.tty.Close()
-	if err == nil {
-		err = err2
+	// tty is closed & unset if we Start() a new process
+	if p.tty != nil {
+		err2 := p.tty.Close()
+		if err == nil {
+			err = err2
+		}
 	}
 
 	if err != nil {
@@ -176,4 +177,22 @@ func (p *otherProcess) waitInternal() {
 	p.cmdErr = p.cmd.Wait()
 	runtime.KeepAlive(p.pty)
 	close(p.cmdDone)
+}
+
+// ptmReader wraps a reference to the ptm side of a pseudo-TTY for portability
+type ptmReader struct {
+	ptm io.Reader
+}
+
+func (r *ptmReader) Read(p []byte) (n int, err error) {
+	n, err = r.ptm.Read(p)
+	// output from the ptm will hit a PathErr when the process hangs up the
+	// other side (typically when the process exits, but could be earlier).  For
+	// portability, and to fit with our use of io.Copy() to copy from the PTY,
+	// we want to translate this error into io.EOF
+	pathErr := &fs.PathError{}
+	if xerrors.As(err, &pathErr) {
+		return n, io.EOF
+	}
+	return n, err
 }
