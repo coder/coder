@@ -3382,6 +3382,22 @@ Parameter represents a set value for the scope.
 | ------ |
 | `file` |
 
+## codersdk.ProxyHealthReport
+
+```json
+{
+  "errors": ["string"],
+  "warnings": ["string"]
+}
+```
+
+### Properties
+
+| Name       | Type            | Required | Restrictions | Description                                                                              |
+| ---------- | --------------- | -------- | ------------ | ---------------------------------------------------------------------------------------- |
+| `errors`   | array of string | false    |              | Errors are problems that prevent the workspace proxy from being healthy                  |
+| `warnings` | array of string | false    |              | Warnings do not prevent the workspace proxy from being healthy, but should be addressed. |
+
 ## codersdk.ProxyHealthStatus
 
 ```json
@@ -3396,6 +3412,7 @@ Parameter represents a set value for the scope.
 | -------------- |
 | `reachable`    |
 | `unreachable`  |
+| `unhealthy`    |
 | `unregistered` |
 
 ## codersdk.PutExtendWorkspaceRequest
@@ -5209,10 +5226,14 @@ Parameter represents a set value for the scope.
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "status": {
-    "checked_at": "string",
+    "checked_at": "2019-08-24T14:15:22Z",
+    "report": {
+      "errors": ["string"],
+      "warnings": ["string"]
+    },
     "status": "reachable"
   },
-  "updatedAt": "2019-08-24T14:15:22Z",
+  "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
   "wildcard_hostname": "string"
 }
@@ -5228,7 +5249,7 @@ Parameter represents a set value for the scope.
 | `id`                | string                                                         | false    |              |                                                                                                                                                                               |
 | `name`              | string                                                         | false    |              |                                                                                                                                                                               |
 | `status`            | [codersdk.WorkspaceProxyStatus](#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use. |
-| `updatedAt`         | string                                                         | false    |              |                                                                                                                                                                               |
+| `updated_at`        | string                                                         | false    |              |                                                                                                                                                                               |
 | `url`               | string                                                         | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                                                                                                        |
 | `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com                                                                                        |
 
@@ -5236,17 +5257,22 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "checked_at": "string",
+  "checked_at": "2019-08-24T14:15:22Z",
+  "report": {
+    "errors": ["string"],
+    "warnings": ["string"]
+  },
   "status": "reachable"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                     | Required | Restrictions | Description |
-| ------------ | -------------------------------------------------------- | -------- | ------------ | ----------- |
-| `checked_at` | string                                                   | false    |              |             |
-| `status`     | [codersdk.ProxyHealthStatus](#codersdkproxyhealthstatus) | false    |              |             |
+| Name         | Type                                                     | Required | Restrictions | Description                                                               |
+| ------------ | -------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------- |
+| `checked_at` | string                                                   | false    |              |                                                                           |
+| `report`     | [codersdk.ProxyHealthReport](#codersdkproxyhealthreport) | false    |              | Report provides more information about the health of the workspace proxy. |
+| `status`     | [codersdk.ProxyHealthStatus](#codersdkproxyhealthstatus) | false    |              |                                                                           |
 
 ## codersdk.WorkspaceQuota
 

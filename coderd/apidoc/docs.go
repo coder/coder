@@ -8208,16 +8208,37 @@ const docTemplate = `{
                 "ProvisionerStorageMethodFile"
             ]
         },
+        "codersdk.ProxyHealthReport": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "description": "Errors are problems that prevent the workspace proxy from being healthy",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "warnings": {
+                    "description": "Warnings do not prevent the workspace proxy from being healthy, but\nshould be addressed.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.ProxyHealthStatus": {
             "type": "string",
             "enum": [
                 "reachable",
                 "unreachable",
+                "unhealthy",
                 "unregistered"
             ],
             "x-enum-varnames": [
                 "ProxyReachable",
                 "ProxyUnreachable",
+                "ProxyUnhealthy",
                 "ProxyUnregistered"
             ]
         },
@@ -9722,7 +9743,7 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "updatedAt": {
+                "updated_at": {
                     "type": "string",
                     "format": "date-time"
                 },
@@ -9740,7 +9761,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "checked_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "report": {
+                    "description": "Report provides more information about the health of the workspace proxy.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProxyHealthReport"
+                        }
+                    ]
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.ProxyHealthStatus"

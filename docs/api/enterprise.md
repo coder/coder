@@ -1186,10 +1186,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "status": {
-      "checked_at": "string",
+      "checked_at": "2019-08-24T14:15:22Z",
+      "report": {
+        "errors": ["string"],
+        "warnings": ["string"]
+      },
       "status": "reachable"
     },
-    "updatedAt": "2019-08-24T14:15:22Z",
+    "updated_at": "2019-08-24T14:15:22Z",
     "url": "string",
     "wildcard_hostname": "string"
   }
@@ -1215,9 +1219,12 @@ Status Code **200**
 | `» id`                | string(uuid)                                                             | false    |              |                                                                                                                                                                               |
 | `» name`              | string                                                                   | false    |              |                                                                                                                                                                               |
 | `» status`            | [codersdk.WorkspaceProxyStatus](schemas.md#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use. |
-| `»» checked_at`       | string                                                                   | false    |              |                                                                                                                                                                               |
+| `»» checked_at`       | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
+| `»» report`           | [codersdk.ProxyHealthReport](schemas.md#codersdkproxyhealthreport)       | false    |              | Report provides more information about the health of the workspace proxy.                                                                                                     |
+| `»»» errors`          | array                                                                    | false    |              | Errors are problems that prevent the workspace proxy from being healthy                                                                                                       |
+| `»»» warnings`        | array                                                                    | false    |              | Warnings do not prevent the workspace proxy from being healthy, but should be addressed.                                                                                      |
 | `»» status`           | [codersdk.ProxyHealthStatus](schemas.md#codersdkproxyhealthstatus)       | false    |              |                                                                                                                                                                               |
-| `» updatedAt`         | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
+| `» updated_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
 | `» url`               | string                                                                   | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                                                                                                        |
 | `» wildcard_hostname` | string                                                                   | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com                                                                                        |
 
@@ -1227,6 +1234,7 @@ Status Code **200**
 | -------- | -------------- |
 | `status` | `reachable`    |
 | `status` | `unreachable`  |
+| `status` | `unhealthy`    |
 | `status` | `unregistered` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -1273,10 +1281,14 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "status": {
-    "checked_at": "string",
+    "checked_at": "2019-08-24T14:15:22Z",
+    "report": {
+      "errors": ["string"],
+      "warnings": ["string"]
+    },
     "status": "reachable"
   },
-  "updatedAt": "2019-08-24T14:15:22Z",
+  "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
   "wildcard_hostname": "string"
 }
