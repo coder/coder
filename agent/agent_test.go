@@ -1081,9 +1081,7 @@ func TestAgentMetadata_Timing(t *testing.T) {
 
 	for start := time.Now(); time.Since(start) < testutil.WaitMedium; time.Sleep(testutil.IntervalMedium) {
 		md := client.getMetadata()
-		if len(md) != 2 {
-			panic("unexpected number of metadata entries")
-		}
+		require.Len(t, md, 2, "got: %+v", md)
 
 		require.Equal(t, "hello\n", md["greeting"].Value)
 		require.Equal(t, "run cmd: exit status 1", md["bad"].Error)
