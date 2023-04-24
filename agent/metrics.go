@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"strings"
 
 	"tailscale.com/util/clientmetric"
 
@@ -13,6 +14,10 @@ func collectMetrics() []agentsdk.AgentMetric {
 	metrics := clientmetric.Metrics()
 	collected := make([]agentsdk.AgentMetric, 0, len(metrics))
 	for _, m := range metrics {
+		if isIgnoredMetric(m.Name()) {
+			continue
+		}
+
 		collected = append(collected, agentsdk.AgentMetric{
 			Name:  m.Name(),
 			Type:  asMetricType(m.Type()),
@@ -20,6 +25,18 @@ func collectMetrics() []agentsdk.AgentMetric {
 		})
 	}
 	return collected
+}
+
+// isIgnoredMetric checks if the metric should be ignored, as Coder agent doesn't use related features.
+// Expected metric families: magicsock_*, derp_*, tstun_*, netcheck_*, portmap_*, etc.
+func isIgnoredMetric(metricName string) bool {
+	if strings.HasPrefix(metricName, "dns_") ||
+		strings.HasPrefix(metricName, "controlclient_") ||
+		strings.HasPrefix(metricName, "peerapi_") ||
+		strings.HasPrefix(metricName, "profiles_") {
+		return true
+	}
+	return false
 }
 
 func asMetricType(typ clientmetric.Type) agentsdk.AgentMetricType {

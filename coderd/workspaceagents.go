@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/netip"
@@ -1247,6 +1248,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
+
+	log.Println("Metrics: ", req.Metrics) // FIXME
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
 		ReportInterval: api.AgentStatsRefreshInterval,
