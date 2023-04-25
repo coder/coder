@@ -1038,6 +1038,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// 1. The timeout completed.
 			// 2. The parent context was canceled.
 			<-ctx.Done()
+			logger.Debug(ctx, "context done", slog.Error(ctx.Err()))
 			_ = process.Kill()
 		}()
 		// We don't need to separately monitor for the process exiting.
@@ -1049,6 +1050,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 				read, err := rpty.ptty.OutputReader().Read(buffer)
 				if err != nil {
 					// When the PTY is closed, this is triggered.
+					// Error is typically a benign EOF, so only log for debugging.
+					logger.Debug(ctx, "PTY output read error", slog.Error(err))
 					break
 				}
 				part := buffer[:read]
@@ -1060,8 +1063,14 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 					break
 				}
 				rpty.activeConnsMutex.Lock()
-				for _, conn := range rpty.activeConns {
-					_, _ = conn.Write(part)
+				for cid, conn := range rpty.activeConns {
+					_, err = conn.Write(part)
+					logger.Debug(ctx,
+						"wrote to active conn",
+						slog.F("other_conn_id", cid),
+						slog.F("data", part),
+						slog.Error(err),
+					)
 				}
 				rpty.activeConnsMutex.Unlock()
 			}
