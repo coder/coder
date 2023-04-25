@@ -1246,7 +1246,12 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 	if api.Options.UpdateAgentMetrics != nil {
 		errGroup.Go(func() error {
-			api.Options.UpdateAgentMetrics(ctx, workspace.ID, workspaceAgent.ID, req.Metrics)
+			user, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+			if err != nil {
+				return err
+			}
+
+			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, req.Metrics)
 			return nil
 		})
 	}

@@ -149,7 +149,7 @@ type Options struct {
 
 	HTTPClient *http.Client
 
-	UpdateAgentMetrics func(ctx context.Context, workspaceID uuid.UUID, agentID uuid.UUID, metrics []agentsdk.AgentMetric)
+	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
 }
 
 // @title Coder API

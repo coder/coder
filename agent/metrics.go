@@ -33,7 +33,8 @@ func isIgnoredMetric(metricName string) bool {
 	if strings.HasPrefix(metricName, "dns_") ||
 		strings.HasPrefix(metricName, "controlclient_") ||
 		strings.HasPrefix(metricName, "peerapi_") ||
-		strings.HasPrefix(metricName, "profiles_") {
+		strings.HasPrefix(metricName, "profiles_") ||
+		strings.HasPrefix(metricName, "tstun_") {
 		return true
 	}
 	return false
