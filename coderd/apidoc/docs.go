@@ -10075,7 +10075,7 @@ const docTemplate = `{
         "healthcheck.AccessURLReport": {
             "type": "object",
             "properties": {
-                "err": {},
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
@@ -10112,6 +10112,7 @@ const docTemplate = `{
                         }
                     }
                 },
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
@@ -10135,6 +10136,7 @@ const docTemplate = `{
         "healthcheck.DERPRegionReport": {
             "type": "object",
             "properties": {
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
@@ -10152,6 +10154,7 @@ const docTemplate = `{
         "healthcheck.DERPReport": {
             "type": "object",
             "properties": {
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
