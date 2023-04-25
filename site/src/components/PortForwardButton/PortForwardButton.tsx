@@ -35,18 +35,20 @@ export const portForwardURL = (
 ): string => {
   const { location } = window
 
-  const subdomain = `${
-    isNaN(port) ? 3000 : port
-  }--${agentName}--${workspaceName}--${username}`
+  const subdomain = `${isNaN(port) ? 3000 : port
+    }--${agentName}--${workspaceName}--${username}`
   return `${location.protocol}//${host}`.replace("*", subdomain)
 }
 
 const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
   const { host, workspaceName, agentName, agentId, username } = props
+  const preferredProxy = usePreferredProxy()
+  const portHost = preferredProxy ? preferredProxy.wildcard_hostname : host
+
   const styles = useStyles()
   const [port, setPort] = useState("3000")
   const urlExample = portForwardURL(
-    host,
+    portHost,
     parseInt(port),
     agentName,
     workspaceName,
@@ -104,7 +106,7 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
           {ports &&
             ports.map((p, i) => {
               const url = portForwardURL(
-                host,
+                portHost,
                 p.port,
                 agentName,
                 workspaceName,

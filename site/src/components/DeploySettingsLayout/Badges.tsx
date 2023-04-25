@@ -35,7 +35,7 @@ export const NotHealthyBadge: FC = () => {
   const styles = useStyles()
   return (
     <span className={combineClasses([styles.badge, styles.errorBadge])}>
-      Error
+      Unhealthy
     </span>
   )
 }

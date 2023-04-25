@@ -10,6 +10,7 @@ import { combineClasses } from "utils/combineClasses"
 import AccountIcon from "@material-ui/icons/Person"
 import SecurityIcon from "@material-ui/icons/LockOutlined"
 import PublicIcon from '@material-ui/icons/Public';
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -42,6 +43,7 @@ const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
 
 export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
   const styles = useStyles()
+  const dashboard = useDashboard()
 
   return (
     <nav className={styles.sidebar}>
@@ -77,13 +79,14 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
       >
         Tokens
       </SidebarNavItem>
-      {/* TODO: @emyrk this should only be shown if the 'moons' experiment is enabled */}
-      <SidebarNavItem
-        href="workspace-proxies"
-        icon={<SidebarNavItemIcon icon={PublicIcon} />}
-      >
-        Workspace Proxy
-      </SidebarNavItem>
+      {
+        dashboard.experiments.includes("moons") && <SidebarNavItem
+          href="workspace-proxies"
+          icon={<SidebarNavItemIcon icon={PublicIcon} />}
+        >
+          Workspace Proxy
+        </SidebarNavItem>
+      }
     </nav>
   )
 }

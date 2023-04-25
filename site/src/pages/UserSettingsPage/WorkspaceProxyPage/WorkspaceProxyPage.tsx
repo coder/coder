@@ -2,7 +2,7 @@ import { FC, PropsWithChildren, useState } from "react"
 import { Section } from "components/SettingsLayout/Section"
 import { WorkspaceProxyPageView } from "./WorkspaceProxyView"
 import makeStyles from "@material-ui/core/styles/makeStyles"
-import { useTranslation, Trans } from "react-i18next"
+import { Trans } from "react-i18next"
 import { useWorkspaceProxiesData } from "./hooks"
 import { Region } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
@@ -15,10 +15,9 @@ import { displayError } from "components/GlobalSnackbar/utils"
 
 export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
-  const { t } = useTranslation("proxyPage")
 
   const description = (
-    <Trans t={t} i18nKey="description" values={{}}>
+    <Trans values={{}}>
       Workspace proxies are used to reduce the latency of connections to a workspace.
       To get the best experience, choose the workspace proxy that is closest located to
       you.
@@ -37,7 +36,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
   return (
     <>
       <Section
-        title={t("title")}
+        title="Workspace Proxies"
         className={styles.section}
         description={description}
         layout="fluid"
@@ -53,8 +52,15 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
               displayError("Please select a healthy workspace proxy.")
               return
             }
-            savePreferredProxy(proxy)
-            setPreffered(proxy)
+            // normProxy is a normalized proxy to 
+            const normProxy = {
+              ...proxy,
+              // Trim trailing slashes to be consistent
+              path_app_url: proxy.path_app_url.replace(/\/$/, ''),
+            }
+
+            savePreferredProxy(normProxy)
+            setPreffered(normProxy)
           }}
         />
       </Section>
@@ -71,9 +77,6 @@ const useStyles = makeStyles((theme) => ({
       color: theme.palette.text.primary,
       borderRadius: 2,
     },
-  },
-  tokenActions: {
-    marginBottom: theme.spacing(1),
   },
 }))
 

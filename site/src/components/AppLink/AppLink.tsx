@@ -10,6 +10,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../utils/random"
 import { BaseIcon } from "./BaseIcon"
 import { ShareIcon } from "./ShareIcon"
+import { usePreferredProxy } from "hooks/usePreferredProxy"
 
 const Language = {
   appTitle: (appName: string, identifier: string): string =>
@@ -29,6 +30,11 @@ export const AppLink: FC<AppLinkProps> = ({
   workspace,
   agent,
 }) => {
+  const preferredProxy = usePreferredProxy()
+  const preferredPathBase = preferredProxy ? preferredProxy.path_app_url : ""
+  // Use the proxy host subdomain if it's configured.
+  appsHost = preferredProxy ? preferredProxy.wildcard_hostname : appsHost
+
   const styles = useStyles()
   const username = workspace.owner_name
 
@@ -43,14 +49,14 @@ export const AppLink: FC<AppLinkProps> = ({
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
-  let href = `/@${username}/${workspace.name}.${
-    agent.name
-  }/apps/${encodeURIComponent(appSlug)}/`
+  let href = `${preferredPathBase}/@${username}/${workspace.name}.${agent.name
+    }/apps/${encodeURIComponent(appSlug)}/`
   if (app.command) {
-    href = `/@${username}/${workspace.name}.${
-      agent.name
-    }/terminal?command=${encodeURIComponent(app.command)}`
+    href = `${preferredPathBase}/@${username}/${workspace.name}.${agent.name
+      }/terminal?command=${encodeURIComponent(app.command)}`
   }
+
+  // TODO: @emyrk handle proxy subdomains.
   if (appsHost && app.subdomain) {
     const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`
     href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)
@@ -104,13 +110,13 @@ export const AppLink: FC<AppLinkProps> = ({
           onClick={
             canClick
               ? (event) => {
-                  event.preventDefault()
-                  window.open(
-                    href,
-                    Language.appTitle(appDisplayName, generateRandomString(12)),
-                    "width=900,height=600",
-                  )
-                }
+                event.preventDefault()
+                window.open(
+                  href,
+                  Language.appTitle(appDisplayName, generateRandomString(12)),
+                  "width=900,height=600",
+                )
+              }
               : undefined
           }
         >

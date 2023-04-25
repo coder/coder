@@ -67,7 +67,7 @@ const ProxyStatus: FC<{
 
 const useStyles = makeStyles((theme) => ({
   preferredrow: {
-    // TODO: What color should I put here?
+    // TODO: What is the best way to show what proxy is currently being used?
     backgroundColor: theme.palette.secondary.main,
     outline: `3px solid ${theme.palette.secondary.light}`,
     outlineOffset: -3,

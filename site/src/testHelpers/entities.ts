@@ -68,6 +68,39 @@ export const MockTokens: TypesGen.APIKeyWithOwner[] = [
   },
 ]
 
+export const MockRegion: TypesGen.Region = {
+  id: "4aa23000-526a-481f-a007-0f20b98b1e12",
+  name: "primary",
+  display_name: "Default",
+  icon_url: "/emojis/1f60e.png",
+  healthy: true,
+  path_app_url: "https://coder.com",
+  wildcard_hostname: "*.coder.com",
+}
+
+export const MockRegions: TypesGen.Region[] = [
+  MockRegion,
+  {
+    id: "8444931c-0247-4171-842a-569d9f9cbadb",
+    name: "unhealthy",
+    display_name: "Unhealthy",
+    icon_url: "/emojis/1f92e.png",
+    healthy: false,
+    path_app_url: "https://unhealthy.coder.com",
+    wildcard_hostname: "*unhealthy..coder.com",
+  },
+  {
+    id: "26e84c16-db24-4636-a62d-aa1a4232b858",
+    name: "nowildcard",
+    display_name: "No wildcard",
+    icon_url: "/emojis/1f920.png",
+    healthy: true,
+    path_app_url: "https://cowboy.coder.com",
+    wildcard_hostname: "",
+  }
+]
+
+
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   external_url: "file:///mock-url",
   version: "v99.999.9999+c9cdf14",

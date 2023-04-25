@@ -1,4 +1,3 @@
-import { useTheme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -11,7 +10,6 @@ import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { FC } from "react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
-import { useTranslation } from "react-i18next"
 import { Region } from "api/typesGenerated"
 import { ProxyRow } from "./WorkspaceProxyRow"
 
@@ -38,8 +36,6 @@ export const WorkspaceProxyPageView: FC<
   selectProxyError,
   preferredProxy,
 }) => {
-    const { t } = useTranslation("proxyPage")
-
     return (
       <Stack>
         {Boolean(getWorkspaceProxiesError) && (
@@ -52,9 +48,9 @@ export const WorkspaceProxyPageView: FC<
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell width="40%">{t("table.icon")}</TableCell>
-                <TableCell width="30%">{t("table.url")}</TableCell>
-                <TableCell width="10%">{t("table.status")}</TableCell>
+                <TableCell width="40%">Proxy</TableCell>
+                <TableCell width="30%">URL</TableCell>
+                <TableCell width="10%">Status</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -63,11 +59,11 @@ export const WorkspaceProxyPageView: FC<
                   <TableLoader />
                 </Cond>
                 <Cond condition={hasLoaded && proxies?.length === 0}>
-                  <TableEmpty message={t("emptyState")} />
+                  <TableEmpty message="No workspace proxies found" />
                 </Cond>
                 <Cond>
                   {proxies?.map((proxy) => (
-                    <ProxyRow
+                    < ProxyRow
                       key={proxy.id}
                       proxy={proxy}
                       onSelectRegion={onSelect}
