@@ -465,6 +465,11 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo(api.AccessURL))
+		// /regions is overridden in the enterprise version
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/regions", api.regions)
+		})
 		r.Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)

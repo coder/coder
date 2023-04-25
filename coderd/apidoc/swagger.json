@@ -1501,6 +1501,27 @@
         }
       }
     },
+    "/regions": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["WorkspaceProxies"],
+        "summary": "Get site-wide regions for workspace connections",
+        "operationId": "get-site-wide-regions-for-workspace-connections",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.RegionsResponse"
+            }
+          }
+        }
+      }
+    },
     "/replicas": {
       "get": {
         "security": [
@@ -7484,6 +7505,46 @@
         },
         "disable_all": {
           "type": "boolean"
+        }
+      }
+    },
+    "codersdk.Region": {
+      "type": "object",
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "healthy": {
+          "type": "boolean"
+        },
+        "icon_url": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path_app_url": {
+          "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
+          "type": "string"
+        },
+        "wildcard_hostname": {
+          "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.RegionsResponse": {
+      "type": "object",
+      "properties": {
+        "regions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.Region"
+          }
         }
       }
     },

@@ -74,6 +74,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
+		// /regions overrides the AGPL /regions endpoint
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/regions", api.regions)
+		})
 		r.Route("/replicas", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.replicas)
@@ -231,7 +236,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 	if api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
 		// Proxy health is a moon feature.
-		api.proxyHealth, err = proxyhealth.New(&proxyhealth.Options{
+		api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
 			Interval:   time.Second * 5,
 			DB:         api.Database,
 			Logger:     options.Logger.Named("proxyhealth"),
@@ -241,7 +246,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		if err != nil {
 			return nil, xerrors.Errorf("initialize proxy health: %w", err)
 		}
-		go api.proxyHealth.Run(ctx)
+		go api.ProxyHealth.Run(ctx)
 		// Force the initial loading of the cache. Do this in a go routine in case
 		// the calls to the workspace proxies hang and this takes some time.
 		go api.forceWorkspaceProxyHealthUpdate(ctx)
@@ -287,8 +292,8 @@ type API struct {
 	replicaManager *replicasync.Manager
 	// Meshes DERP connections from multiple replicas.
 	derpMesh *derpmesh.Mesh
-	// proxyHealth checks the reachability of all workspace proxies.
-	proxyHealth *proxyhealth.ProxyHealth
+	// ProxyHealth checks the reachability of all workspace proxies.
+	ProxyHealth *proxyhealth.ProxyHealth
 
 	entitlementsMu sync.RWMutex
 	entitlements   codersdk.Entitlements
