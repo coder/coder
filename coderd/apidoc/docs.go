@@ -8255,15 +8255,13 @@ const docTemplate = `{
         "codersdk.ProxyHealthStatus": {
             "type": "string",
             "enum": [
-                "unknown",
-                "ok",
+                "reachable",
                 "unreachable",
                 "unhealthy",
                 "unregistered"
             ],
             "x-enum-varnames": [
-                "ProxyUnknown",
-                "ProxyHealthy",
+                "ProxyReachable",
                 "ProxyUnreachable",
                 "ProxyUnhealthy",
                 "ProxyUnregistered"
@@ -9792,9 +9790,6 @@ const docTemplate = `{
                 "deleted": {
                     "type": "boolean"
                 },
-                "display_name": {
-                    "type": "string"
-                },
                 "icon": {
                     "type": "string"
                 },
@@ -9835,7 +9830,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "report": {
-                    "description": "Report provides more information about the health of the workspace proxy.\nThis is not provided if the user does not have permission to view workspace\nproxy metadata.",
+                    "description": "Report provides more information about the health of the workspace proxy.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ProxyHealthReport"

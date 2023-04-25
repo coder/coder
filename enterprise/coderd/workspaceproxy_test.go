@@ -17,8 +17,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
@@ -245,52 +243,6 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, proxies, 0)
 	})
-}
-
-// TestWorkspaceProxyRead ensures regular uses cannot get report information.
-func TestWorkspaceProxyRead(t *testing.T) {
-	t.Parallel()
-
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{
-		string(codersdk.ExperimentMoons),
-		"*",
-	}
-	client, _, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			DeploymentValues: dv,
-		},
-	})
-	first := coderdtest.CreateFirstUser(t, client)
-	member, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-	_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureWorkspaceProxy: 1,
-		},
-	})
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-		Name: namesgenerator.GetRandomName(1),
-		Icon: "/emojis/flag.png",
-	})
-	require.NoError(t, err)
-
-	//nolint:gocritic // System func
-	_, err = api.Database.RegisterWorkspaceProxy(dbauthz.AsSystemRestricted(ctx), database.RegisterWorkspaceProxyParams{
-		ID:  proxyRes.Proxy.ID,
-		Url: "http://bad-never-resolves.random",
-	})
-	require.NoError(t, err, "failed to register workspace proxy")
-
-	proxies, err := client.WorkspaceProxies(ctx)
-	require.NoError(t, err, "failed to get workspace proxies")
-	fmt.Println(proxies)
-
-	proxies, err = member.WorkspaceProxies(ctx)
-	require.NoError(t, err, "failed to get workspace proxies")
-	fmt.Println(proxies)
-
 }
 
 func TestIssueSignedAppToken(t *testing.T) {

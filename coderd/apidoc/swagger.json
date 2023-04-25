@@ -7396,10 +7396,9 @@
     },
     "codersdk.ProxyHealthStatus": {
       "type": "string",
-      "enum": ["unknown", "ok", "unreachable", "unhealthy", "unregistered"],
+      "enum": ["reachable", "unreachable", "unhealthy", "unregistered"],
       "x-enum-varnames": [
-        "ProxyUnknown",
-        "ProxyHealthy",
+        "ProxyReachable",
         "ProxyUnreachable",
         "ProxyUnhealthy",
         "ProxyUnregistered"
@@ -8845,9 +8844,6 @@
         "deleted": {
           "type": "boolean"
         },
-        "display_name": {
-          "type": "string"
-        },
         "icon": {
           "type": "string"
         },
@@ -8888,7 +8884,7 @@
           "format": "date-time"
         },
         "report": {
-          "description": "Report provides more information about the health of the workspace proxy.\nThis is not provided if the user does not have permission to view workspace\nproxy metadata.",
+          "description": "Report provides more information about the health of the workspace proxy.",
           "allOf": [
             {
               "$ref": "#/definitions/codersdk.ProxyHealthReport"

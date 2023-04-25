@@ -3401,7 +3401,7 @@ Parameter represents a set value for the scope.
 ## codersdk.ProxyHealthStatus
 
 ```json
-"unknown"
+"reachable"
 ```
 
 ### Properties
@@ -3410,8 +3410,7 @@ Parameter represents a set value for the scope.
 
 | Value          |
 | -------------- |
-| `unknown`      |
-| `ok`           |
+| `reachable`    |
 | `unreachable`  |
 | `unhealthy`    |
 | `unregistered` |
@@ -5273,7 +5272,6 @@ Parameter represents a set value for the scope.
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
-  "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
@@ -5283,7 +5281,7 @@ Parameter represents a set value for the scope.
       "errors": ["string"],
       "warnings": ["string"]
     },
-    "status": "unknown"
+    "status": "reachable"
   },
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
@@ -5297,7 +5295,6 @@ Parameter represents a set value for the scope.
 | ------------------- | -------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `created_at`        | string                                                         | false    |              |                                                                                                                                                                               |
 | `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                               |
-| `display_name`      | string                                                         | false    |              |                                                                                                                                                                               |
 | `icon`              | string                                                         | false    |              |                                                                                                                                                                               |
 | `id`                | string                                                         | false    |              |                                                                                                                                                                               |
 | `name`              | string                                                         | false    |              |                                                                                                                                                                               |
@@ -5315,17 +5312,17 @@ Parameter represents a set value for the scope.
     "errors": ["string"],
     "warnings": ["string"]
   },
-  "status": "unknown"
+  "status": "reachable"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                     | Required | Restrictions | Description                                                                                                                                                           |
-| ------------ | -------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `checked_at` | string                                                   | false    |              |                                                                                                                                                                       |
-| `report`     | [codersdk.ProxyHealthReport](#codersdkproxyhealthreport) | false    |              | Report provides more information about the health of the workspace proxy. This is not provided if the user does not have permission to view workspace proxy metadata. |
-| `status`     | [codersdk.ProxyHealthStatus](#codersdkproxyhealthstatus) | false    |              |                                                                                                                                                                       |
+| Name         | Type                                                     | Required | Restrictions | Description                                                               |
+| ------------ | -------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------- |
+| `checked_at` | string                                                   | false    |              |                                                                           |
+| `report`     | [codersdk.ProxyHealthReport](#codersdkproxyhealthreport) | false    |              | Report provides more information about the health of the workspace proxy. |
+| `status`     | [codersdk.ProxyHealthStatus](#codersdkproxyhealthstatus) | false    |              |                                                                           |
 
 ## codersdk.WorkspaceQuota
 

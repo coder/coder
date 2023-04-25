@@ -1182,7 +1182,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
   {
     "created_at": "2019-08-24T14:15:22Z",
     "deleted": true,
-    "display_name": "string",
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
@@ -1192,7 +1191,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
         "errors": ["string"],
         "warnings": ["string"]
       },
-      "status": "unknown"
+      "status": "reachable"
     },
     "updated_at": "2019-08-24T14:15:22Z",
     "url": "string",
@@ -1216,13 +1215,12 @@ Status Code **200**
 | `[array item]`        | array                                                                    | false    |              |                                                                                                                                                                               |
 | `» created_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
 | `» deleted`           | boolean                                                                  | false    |              |                                                                                                                                                                               |
-| `» display_name`      | string                                                                   | false    |              |                                                                                                                                                                               |
 | `» icon`              | string                                                                   | false    |              |                                                                                                                                                                               |
 | `» id`                | string(uuid)                                                             | false    |              |                                                                                                                                                                               |
 | `» name`              | string                                                                   | false    |              |                                                                                                                                                                               |
 | `» status`            | [codersdk.WorkspaceProxyStatus](schemas.md#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use. |
 | `»» checked_at`       | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
-| `»» report`           | [codersdk.ProxyHealthReport](schemas.md#codersdkproxyhealthreport)       | false    |              | Report provides more information about the health of the workspace proxy. This is not provided if the user does not have permission to view workspace proxy metadata.         |
+| `»» report`           | [codersdk.ProxyHealthReport](schemas.md#codersdkproxyhealthreport)       | false    |              | Report provides more information about the health of the workspace proxy.                                                                                                     |
 | `»»» errors`          | array                                                                    | false    |              | Errors are problems that prevent the workspace proxy from being healthy                                                                                                       |
 | `»»» warnings`        | array                                                                    | false    |              | Warnings do not prevent the workspace proxy from being healthy, but should be addressed.                                                                                      |
 | `»» status`           | [codersdk.ProxyHealthStatus](schemas.md#codersdkproxyhealthstatus)       | false    |              |                                                                                                                                                                               |
@@ -1234,8 +1232,7 @@ Status Code **200**
 
 | Property | Value          |
 | -------- | -------------- |
-| `status` | `unknown`      |
-| `status` | `ok`           |
+| `status` | `reachable`    |
 | `status` | `unreachable`  |
 | `status` | `unhealthy`    |
 | `status` | `unregistered` |
@@ -1280,7 +1277,6 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
-  "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
@@ -1290,7 +1286,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
       "errors": ["string"],
       "warnings": ["string"]
     },
-    "status": "unknown"
+    "status": "reachable"
   },
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
