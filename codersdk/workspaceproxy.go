@@ -15,10 +15,9 @@ import (
 type ProxyHealthStatus string
 
 const (
-	ProxyUnknown ProxyHealthStatus = "unknown"
-	// ProxyHealthy means the proxy access url is reachable and returns a healthy
+	// ProxyReachable means the proxy access url is reachable and returns a healthy
 	// status code.
-	ProxyHealthy ProxyHealthStatus = "ok"
+	ProxyReachable ProxyHealthStatus = "reachable"
 	// ProxyUnreachable means the proxy access url is not responding.
 	ProxyUnreachable ProxyHealthStatus = "unreachable"
 	// ProxyUnhealthy means the proxy access url is responding, but there is some
@@ -32,8 +31,6 @@ const (
 type WorkspaceProxyStatus struct {
 	Status ProxyHealthStatus `json:"status" table:"status"`
 	// Report provides more information about the health of the workspace proxy.
-	// This is not provided if the user does not have permission to view workspace
-	// proxy metadata.
 	Report    ProxyHealthReport `json:"report,omitempty" table:"report"`
 	CheckedAt time.Time         `json:"checked_at" table:"checked_at" format:"date-time"`
 }
@@ -49,10 +46,9 @@ type ProxyHealthReport struct {
 }
 
 type WorkspaceProxy struct {
-	ID          uuid.UUID `json:"id" format:"uuid" table:"id"`
-	Name        string    `json:"name" table:"name,default_sort"`
-	DisplayName string    `json:"display_name" table:"display_name"`
-	Icon        string    `json:"icon" table:"icon"`
+	ID   uuid.UUID `json:"id" format:"uuid" table:"id"`
+	Name string    `json:"name" table:"name,default_sort"`
+	Icon string    `json:"icon" table:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
 	URL string `json:"url" table:"url"`
 	// WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com
