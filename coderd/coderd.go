@@ -221,7 +221,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewCoordinator()
+		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
 	}
 	if options.DERPServer == nil {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
