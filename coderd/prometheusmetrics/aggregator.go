@@ -23,15 +23,15 @@ const (
 type MetricsAggregator struct {
 	m     sync.Mutex
 	log   slog.Logger
-	queue []annotatedMetrics
+	queue []annotatedMetric
 }
 
-type annotatedMetrics struct {
+type annotatedMetric struct {
+	agentsdk.AgentMetric
+
 	username      string
 	workspaceName string
 	agentName     string
-
-	metrics []agentsdk.AgentMetric
 }
 
 var _ prometheus.Collector = new(MetricsAggregator)
@@ -47,16 +47,14 @@ func (ma *MetricsAggregator) Collect(ch chan<- prometheus.Metric) {
 	ma.m.Lock()
 	defer ma.m.Unlock()
 
-	for _, annotated := range ma.queue {
-		for _, m := range annotated.metrics {
-			desc := prometheus.NewDesc(m.Name, metricHelpForAgent, agentMetricsLabels, nil)
-			valueType, err := asPrometheusValueType(m.Type)
-			if err != nil {
-				ma.log.Error(context.Background(), "can't convert Prometheus value type", slog.F("value_type", m.Type), slog.Error(err))
-			}
-			constMetric := prometheus.MustNewConstMetric(desc, valueType, m.Value, annotated.username, annotated.workspaceName, annotated.agentName)
-			ch <- constMetric
+	for _, m := range ma.queue {
+		desc := prometheus.NewDesc(m.Name, metricHelpForAgent, agentMetricsLabels, nil)
+		valueType, err := asPrometheusValueType(m.Type)
+		if err != nil {
+			ma.log.Error(context.Background(), "can't convert Prometheus value type", slog.F("value_type", m.Type), slog.Error(err))
 		}
+		constMetric := prometheus.MustNewConstMetric(desc, valueType, m.Value, m.username, m.workspaceName, m.agentName)
+		ch <- constMetric
 	}
 }
 
@@ -66,13 +64,23 @@ func (ma *MetricsAggregator) Update(_ context.Context, username, workspaceName, 
 	ma.m.Lock()
 	defer ma.m.Unlock()
 
-	ma.queue = append(ma.queue, annotatedMetrics{
-		username:      username,
-		workspaceName: workspaceName,
-		agentName:     agentName,
+UpdateLoop:
+	for _, m := range metrics {
+		for i, q := range ma.queue {
+			if q.username == username && q.workspaceName == workspaceName && q.agentName == agentName && q.Name == m.Name {
+				ma.queue[i].AgentMetric.Value = m.Value
+				continue UpdateLoop
+			}
+		}
 
-		metrics: metrics,
-	})
+		ma.queue = append(ma.queue, annotatedMetric{
+			username:      username,
+			workspaceName: workspaceName,
+			agentName:     agentName,
+
+			AgentMetric: m,
+		})
+	}
 }
 
 func asPrometheusValueType(metricType agentsdk.AgentMetricType) (prometheus.ValueType, error) {
