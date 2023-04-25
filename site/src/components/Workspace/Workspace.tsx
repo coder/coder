@@ -41,7 +41,7 @@ export interface WorkspaceProps {
   }
   handleStart: () => void
   handleStop: () => void
-  handleRestart: () => void
+  handleRestart: any
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
