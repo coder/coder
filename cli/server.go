@@ -724,9 +724,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 					defer closeAgentStatsFunc()
 
-					var metricsAggregator prometheusmetrics.MetricsAggregator
+					metricsAggregator := prometheusmetrics.NewMetricsAggregator(logger)
+					cancelMetricsAggregator := metricsAggregator.Run(ctx)
+					defer cancelMetricsAggregator()
+
 					options.UpdateAgentMetrics = metricsAggregator.Update
-					options.PrometheusRegistry.MustRegister(&metricsAggregator)
+					options.PrometheusRegistry.MustRegister(metricsAggregator)
 				}
 
 				//nolint:revive
