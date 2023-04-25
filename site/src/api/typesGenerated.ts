@@ -707,6 +707,22 @@ export interface RateLimitConfig {
   readonly api: number
 }
 
+// From codersdk/workspaceproxy.go
+export interface Region {
+  readonly id: string
+  readonly name: string
+  readonly display_name: string
+  readonly icon_url: string
+  readonly healthy: boolean
+  readonly path_app_url: string
+  readonly wildcard_hostname: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface RegionsResponse {
+  readonly regions: Region[]
+}
+
 // From codersdk/replicas.go
 export interface Replica {
   readonly id: string

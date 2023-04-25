@@ -130,3 +130,44 @@ func (c *Client) DeleteWorkspaceProxyByName(ctx context.Context, name string) er
 func (c *Client) DeleteWorkspaceProxyByID(ctx context.Context, id uuid.UUID) error {
 	return c.DeleteWorkspaceProxyByName(ctx, id.String())
 }
+
+type RegionsResponse struct {
+	Regions []Region `json:"regions"`
+}
+
+type Region struct {
+	ID          uuid.UUID `json:"id" format:"uuid"`
+	Name        string    `json:"name"`
+	DisplayName string    `json:"display_name"`
+	IconURL     string    `json:"icon_url"`
+	Healthy     bool      `json:"healthy"`
+
+	// PathAppURL is the URL to the base path for path apps. Optional
+	// unless wildcard_hostname is set.
+	// E.g. https://us.example.com
+	PathAppURL string `json:"path_app_url"`
+
+	// WildcardHostname is the wildcard hostname for subdomain apps.
+	// E.g. *.us.example.com
+	// E.g. *--suffix.au.example.com
+	// Optional. Does not need to be on the same domain as PathAppURL.
+	WildcardHostname string `json:"wildcard_hostname"`
+}
+
+func (c *Client) Regions(ctx context.Context) ([]Region, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		"/api/v2/regions",
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var regions RegionsResponse
+	return regions.Regions, json.NewDecoder(res.Body).Decode(&regions)
+}

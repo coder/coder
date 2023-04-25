@@ -16,6 +16,7 @@ import (
 	agpl "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -29,9 +30,58 @@ import (
 // forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
 // This is useful when a proxy is created or deleted. Errors will be logged.
 func (api *API) forceWorkspaceProxyHealthUpdate(ctx context.Context) {
-	if err := api.proxyHealth.ForceUpdate(ctx); err != nil {
+	if err := api.ProxyHealth.ForceUpdate(ctx); err != nil {
 		api.Logger.Error(ctx, "force proxy health update", slog.Error(err))
 	}
+}
+
+// NOTE: this doesn't need a swagger definition since AGPL already has one, and
+// this route overrides the AGPL one.
+func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	//nolint:gocritic // this route intentionally requests resources that users
+	// cannot usually access in order to give them a full list of available
+	// regions.
+	ctx = dbauthz.AsSystemRestricted(ctx)
+
+	primaryRegion, err := api.AGPL.PrimaryRegion(ctx)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	regions := []codersdk.Region{primaryRegion}
+
+	proxies, err := api.Database.GetWorkspaceProxies(ctx)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	proxyHealth := api.ProxyHealth.HealthStatus()
+	for _, proxy := range proxies {
+		if proxy.Deleted {
+			continue
+		}
+
+		health, ok := proxyHealth[proxy.ID]
+		if !ok {
+			health.Status = proxyhealth.Unknown
+		}
+
+		regions = append(regions, codersdk.Region{
+			ID:               proxy.ID,
+			Name:             proxy.Name,
+			DisplayName:      proxy.DisplayName,
+			IconURL:          proxy.Icon,
+			Healthy:          health.Status == proxyhealth.Healthy,
+			PathAppURL:       proxy.Url,
+			WildcardHostname: proxy.WildcardHostname,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RegionsResponse{
+		Regions: regions,
+	})
 }
 
 // @Summary Delete workspace proxy
@@ -180,7 +230,7 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	statues := api.proxyHealth.HealthStatus()
+	statues := api.ProxyHealth.HealthStatus()
 	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies, statues))
 }
 

@@ -28,6 +28,152 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+func TestRegions(t *testing.T) {
+	t.Parallel()
+
+	const appHostname = "*.apps.coder.test"
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentMoons),
+			"*",
+		}
+
+		db, pubsub := dbtestutil.NewDB(t)
+		deploymentID := uuid.New()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.InsertDeploymentID(ctx, deploymentID.String())
+		require.NoError(t, err)
+
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AppHostname:      appHostname,
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: dv,
+			},
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		regions, err := client.Regions(ctx)
+		require.NoError(t, err)
+
+		require.Len(t, regions, 1)
+		require.NotEqual(t, uuid.Nil, regions[0].ID)
+		require.Equal(t, regions[0].ID, deploymentID)
+		require.Equal(t, "primary", regions[0].Name)
+		require.Equal(t, "Default", regions[0].DisplayName)
+		require.NotEmpty(t, regions[0].IconURL)
+		require.True(t, regions[0].Healthy)
+		require.Equal(t, client.URL.String(), regions[0].PathAppURL)
+		require.Equal(t, appHostname, regions[0].WildcardHostname)
+
+		// Ensure the primary region ID is constant.
+		regions2, err := client.Regions(ctx)
+		require.NoError(t, err)
+		require.Equal(t, regions[0].ID, regions2[0].ID)
+	})
+
+	t.Run("WithProxies", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentMoons),
+			"*",
+		}
+
+		db, pubsub := dbtestutil.NewDB(t)
+		deploymentID := uuid.New()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := db.InsertDeploymentID(ctx, deploymentID.String())
+		require.NoError(t, err)
+
+		client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AppHostname:      appHostname,
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: dv,
+			},
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		})
+
+		const proxyName = "hello"
+		_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+			Name:        proxyName,
+			AppHostname: appHostname + ".proxy",
+		})
+		proxy, err := db.GetWorkspaceProxyByName(ctx, proxyName)
+		require.NoError(t, err)
+
+		// Refresh proxy health.
+		err = api.ProxyHealth.ForceUpdate(ctx)
+		require.NoError(t, err)
+
+		regions, err := client.Regions(ctx)
+		require.NoError(t, err)
+		require.Len(t, regions, 2)
+
+		// Region 0 is the primary	require.Len(t, regions, 1)
+		require.NotEqual(t, uuid.Nil, regions[0].ID)
+		require.Equal(t, regions[0].ID, deploymentID)
+		require.Equal(t, "primary", regions[0].Name)
+		require.Equal(t, "Default", regions[0].DisplayName)
+		require.NotEmpty(t, regions[0].IconURL)
+		require.True(t, regions[0].Healthy)
+		require.Equal(t, client.URL.String(), regions[0].PathAppURL)
+		require.Equal(t, appHostname, regions[0].WildcardHostname)
+
+		// Region 1 is the proxy.
+		require.NotEqual(t, uuid.Nil, regions[1].ID)
+		require.Equal(t, proxy.ID, regions[1].ID)
+		require.Equal(t, proxy.Name, regions[1].Name)
+		require.Equal(t, proxy.DisplayName, regions[1].DisplayName)
+		require.Equal(t, proxy.Icon, regions[1].IconURL)
+		require.True(t, regions[1].Healthy)
+		require.Equal(t, proxy.Url, regions[1].PathAppURL)
+		require.Equal(t, proxy.WildcardHostname, regions[1].WildcardHostname)
+	})
+
+	t.Run("RequireAuth", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentMoons),
+			"*",
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AppHostname:      appHostname,
+				DeploymentValues: dv,
+			},
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		unauthedClient := codersdk.New(client.URL)
+		regions, err := unauthedClient.Regions(ctx)
+		require.Error(t, err)
+		require.Empty(t, regions)
+	})
+}
+
 func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Parallel()
 

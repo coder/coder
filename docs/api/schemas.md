@@ -3480,6 +3480,56 @@ Parameter represents a set value for the scope.
 | `api`         | integer | false    |              |             |
 | `disable_all` | boolean | false    |              |             |
 
+## codersdk.Region
+
+```json
+{
+  "display_name": "string",
+  "healthy": true,
+  "icon_url": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "path_app_url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                                                        |
+| ------------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `display_name`      | string  | false    |              |                                                                                                                                                                                    |
+| `healthy`           | boolean | false    |              |                                                                                                                                                                                    |
+| `icon_url`          | string  | false    |              |                                                                                                                                                                                    |
+| `id`                | string  | false    |              |                                                                                                                                                                                    |
+| `name`              | string  | false    |              |                                                                                                                                                                                    |
+| `path_app_url`      | string  | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                      |
+| `wildcard_hostname` | string  | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. _.us.example.com E.g. _--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
+
+## codersdk.RegionsResponse
+
+```json
+{
+  "regions": [
+    {
+      "display_name": "string",
+      "healthy": true,
+      "icon_url": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "path_app_url": "string",
+      "wildcard_hostname": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                        | Required | Restrictions | Description |
+| --------- | ------------------------------------------- | -------- | ------------ | ----------- |
+| `regions` | array of [codersdk.Region](#codersdkregion) | false    |              |             |
+
 ## codersdk.Replica
 
 ```json
