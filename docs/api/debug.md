@@ -40,13 +40,14 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 ```json
 {
   "access_url": {
-    "err": null,
+    "error": null,
     "healthy": true,
     "healthzResponse": "string",
     "reachable": true,
     "statusCode": 0
   },
   "derp": {
+    "error": null,
     "healthy": true,
     "netcheck": {
       "captivePortal": "string",
@@ -82,12 +83,14 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
+        "error": null,
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "error": null,
             "healthy": true,
             "node": {
               "certName": "string",
@@ -141,12 +144,14 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
         }
       },
       "property2": {
+        "error": null,
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "error": null,
             "healthy": true,
             "node": {
               "certName": "string",

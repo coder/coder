@@ -15,7 +15,7 @@ type AccessURLReport struct {
 	Reachable       bool
 	StatusCode      int
 	HealthzResponse string
-	Err             error
+	Error           error
 }
 
 type AccessURLOptions struct {
@@ -27,32 +27,37 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLOptions) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	if opts.AccessURL == nil {
+		r.Error = xerrors.New("access URL is nil")
+		return
+	}
+
 	if opts.Client == nil {
 		opts.Client = http.DefaultClient
 	}
 
 	accessURL, err := opts.AccessURL.Parse("/healthz")
 	if err != nil {
-		r.Err = xerrors.Errorf("parse healthz endpoint: %w", err)
+		r.Error = xerrors.Errorf("parse healthz endpoint: %w", err)
 		return
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", accessURL.String(), nil)
 	if err != nil {
-		r.Err = xerrors.Errorf("create healthz request: %w", err)
+		r.Error = xerrors.Errorf("create healthz request: %w", err)
 		return
 	}
 
 	res, err := opts.Client.Do(req)
 	if err != nil {
-		r.Err = xerrors.Errorf("get healthz endpoint: %w", err)
+		r.Error = xerrors.Errorf("get healthz endpoint: %w", err)
 		return
 	}
 	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		r.Err = xerrors.Errorf("read healthz response: %w", err)
+		r.Error = xerrors.Errorf("read healthz response: %w", err)
 		return
 	}
 

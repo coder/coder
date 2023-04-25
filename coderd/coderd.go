@@ -250,7 +250,8 @@ func New(options *Options) *API {
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
-				DERPMap: options.DERPMap.Clone(),
+				AccessURL: options.AccessURL,
+				DERPMap:   options.DERPMap.Clone(),
 			})
 		}
 	}

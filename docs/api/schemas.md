@@ -5724,7 +5724,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "err": null,
+  "error": null,
   "healthy": true,
   "healthzResponse": "string",
   "reachable": true,
@@ -5736,7 +5736,7 @@ Parameter represents a set value for the scope.
 
 | Name              | Type    | Required | Restrictions | Description |
 | ----------------- | ------- | -------- | ------------ | ----------- |
-| `err`             | any     | false    |              |             |
+| `error`           | any     | false    |              |             |
 | `healthy`         | boolean | false    |              |             |
 | `healthzResponse` | string  | false    |              |             |
 | `reachable`       | boolean | false    |              |             |
@@ -5749,6 +5749,7 @@ Parameter represents a set value for the scope.
   "can_exchange_messages": true,
   "client_errs": [[null]],
   "client_logs": [["string"]],
+  "error": null,
   "healthy": true,
   "node": {
     "certName": "string",
@@ -5785,6 +5786,7 @@ Parameter represents a set value for the scope.
 | `can_exchange_messages` | boolean                                                  | false    |              |             |
 | `client_errs`           | array of array                                           | false    |              |             |
 | `client_logs`           | array of array                                           | false    |              |             |
+| `error`                 | any                                                      | false    |              |             |
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
 | `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
@@ -5796,12 +5798,14 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "error": null,
   "healthy": true,
   "node_reports": [
     {
       "can_exchange_messages": true,
       "client_errs": [[null]],
       "client_logs": [["string"]],
+      "error": null,
       "healthy": true,
       "node": {
         "certName": "string",
@@ -5860,6 +5864,7 @@ Parameter represents a set value for the scope.
 
 | Name           | Type                                                              | Required | Restrictions | Description |
 | -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`        | any                                                               | false    |              |             |
 | `healthy`      | boolean                                                           | false    |              |             |
 | `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
@@ -5868,6 +5873,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "error": null,
   "healthy": true,
   "netcheck": {
     "captivePortal": "string",
@@ -5903,12 +5909,14 @@ Parameter represents a set value for the scope.
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
+      "error": null,
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
           "client_errs": [[null]],
           "client_logs": [["string"]],
+          "error": null,
           "healthy": true,
           "node": {
             "certName": "string",
@@ -5962,12 +5970,14 @@ Parameter represents a set value for the scope.
       }
     },
     "property2": {
+      "error": null,
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
           "client_errs": [[null]],
           "client_logs": [["string"]],
+          "error": null,
           "healthy": true,
           "node": {
             "certName": "string",
@@ -6028,6 +6038,7 @@ Parameter represents a set value for the scope.
 
 | Name               | Type                                                         | Required | Restrictions | Description |
 | ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `error`            | any                                                          | false    |              |             |
 | `healthy`          | boolean                                                      | false    |              |             |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
 | `netcheck_err`     | any                                                          | false    |              |             |
@@ -6058,13 +6069,14 @@ Parameter represents a set value for the scope.
 ```json
 {
   "access_url": {
-    "err": null,
+    "error": null,
     "healthy": true,
     "healthzResponse": "string",
     "reachable": true,
     "statusCode": 0
   },
   "derp": {
+    "error": null,
     "healthy": true,
     "netcheck": {
       "captivePortal": "string",
@@ -6100,12 +6112,14 @@ Parameter represents a set value for the scope.
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
+        "error": null,
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "error": null,
             "healthy": true,
             "node": {
               "certName": "string",
@@ -6159,12 +6173,14 @@ Parameter represents a set value for the scope.
         }
       },
       "property2": {
+        "error": null,
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "error": null,
             "healthy": true,
             "node": {
               "certName": "string",
