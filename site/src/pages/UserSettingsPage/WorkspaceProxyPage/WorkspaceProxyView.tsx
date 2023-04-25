@@ -11,13 +11,9 @@ import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { FC } from "react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
-import IconButton from "@material-ui/core/IconButton/IconButton"
 import { useTranslation } from "react-i18next"
 import { Region } from "api/typesGenerated"
-import CheckBoxOutlineBlankIcon from '@material-ui/icons/CheckBoxOutlineBlank';
-import { Avatar } from "components/Avatar/Avatar"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import { HealthyBadge, NotHealthyBadge } from "components/DeploySettingsLayout/Badges"
+import { ProxyRow } from "./WorkspaceProxyRow"
 
 
 
@@ -27,6 +23,7 @@ export interface WorkspaceProxyPageViewProps {
   isLoading: boolean
   hasLoaded: boolean
   onSelect: (proxy: Region) => void
+  preferredProxy?: Region
   selectProxyError?: Error | unknown
 }
 
@@ -39,8 +36,8 @@ export const WorkspaceProxyPageView: FC<
   hasLoaded,
   onSelect,
   selectProxyError,
+  preferredProxy,
 }) => {
-    const theme = useTheme()
     const { t } = useTranslation("proxyPage")
 
     return (
@@ -58,7 +55,6 @@ export const WorkspaceProxyPageView: FC<
                 <TableCell width="40%">{t("table.icon")}</TableCell>
                 <TableCell width="30%">{t("table.url")}</TableCell>
                 <TableCell width="10%">{t("table.status")}</TableCell>
-                <TableCell width="0%"></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -70,67 +66,14 @@ export const WorkspaceProxyPageView: FC<
                   <TableEmpty message={t("emptyState")} />
                 </Cond>
                 <Cond>
-                  {proxies?.map((proxy) => {
-                    return (
-                      <TableRow
-                        key={proxy.name}
-                        data-testid={`${proxy.name}`}
-                        tabIndex={0}
-                      >
-                        <TableCell>
-                          <AvatarData
-                            title={
-                              proxy.display_name && proxy.display_name.length > 0
-                                ? proxy.display_name
-                                : proxy.name
-                            }
-                            // subtitle={proxy.description}
-                            avatar={
-                              proxy.icon_url !== "" && <Avatar src={proxy.icon_url} variant="square" fitImage />
-                            }
-                          />
-                        </TableCell>
-
-                        {/* <TableCell>
-                          <span style={{ color: theme.palette.text.secondary }}>
-                            {proxy.name}
-                          </span>
-                        </TableCell> */}
-
-                        <TableCell>{proxy.path_app_url}</TableCell>
-                        {/* <TableCell>{lastUsedOrNever(token.last_used)}</TableCell> */}
-                        {/* <TableCell>{proxy.wildcard_hostname}</TableCell> */}
-                        {/* <TableCell>
-                          <span
-                            style={{ color: theme.palette.text.secondary }}
-                            data-chromatic="ignore"
-                          >
-                            {dayjs(token.expires_at).fromNow()}
-                          </span>
-                        </TableCell> */}
-                        <TableCell><ProxyStatus proxy={proxy} /></TableCell>
-                        {/* <TableCell>
-                          <span style={{ color: theme.palette.text.secondary }}>
-                            {dayjs(token.created_at).fromNow()}
-                          </span>
-                        </TableCell> */}
-
-                        <TableCell>
-                          <span style={{ color: theme.palette.text.secondary }}>
-                            <IconButton
-                              onClick={() => {
-                                onSelect(proxy)
-                              }}
-                              size="medium"
-                              aria-label={t("proxyActions.selectProxy.select")}
-                            >
-                              <CheckBoxOutlineBlankIcon />
-                            </IconButton>
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
+                  {proxies?.map((proxy) => (
+                    <ProxyRow
+                      key={proxy.id}
+                      proxy={proxy}
+                      onSelectRegion={onSelect}
+                      preferred={preferredProxy ? proxy.id === preferredProxy.id : false}
+                    />
+                  ))}
                 </Cond>
               </ChooseOne>
             </TableBody>
@@ -139,17 +82,3 @@ export const WorkspaceProxyPageView: FC<
       </Stack>
     )
   }
-
-
-export interface WorkspaceProxyStatusProps {
-  proxy: Region
-}
-
-const ProxyStatus: FC<React.PropsWithChildren<WorkspaceProxyStatusProps>> = ({ proxy }) => {
-  let icon = <NotHealthyBadge />
-  if (proxy.healthy) {
-    icon = <HealthyBadge />
-  }
-
-  return icon
-}
