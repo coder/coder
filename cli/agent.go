@@ -37,7 +37,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 		noReap            bool
 		sshMaxTimeout     time.Duration
 		tailnetListenPort int64
-		promAddress       string
+		prometheusAddress string
 		debugAddress      string
 	)
 	cmd := &clibase.Cmd{
@@ -129,10 +129,10 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				ignorePorts[port] = "pprof"
 			}
 
-			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), promAddress, "prometheus")
+			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
 			defer prometheusSrvClose()
 			// Do a best effort here. If this fails, it's not a big deal.
-			if port, err := urlPort(promAddress); err == nil {
+			if port, err := urlPort(prometheusAddress); err == nil {
 				ignorePorts[port] = "prometheus"
 			}
 
@@ -279,7 +279,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Flag:        "prometheus-address",
 			Default:     "127.0.0.1:2112",
 			Env:         "CODER_AGENT_PROMETHEUS_ADDRESS",
-			Value:       clibase.StringOf(&promAddress),
+			Value:       clibase.StringOf(&prometheusAddress),
 			Description: "The bind address to serve Prometheus metrics.",
 		},
 		{
