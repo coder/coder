@@ -648,6 +648,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				}
 				break
 			}
+			logger.Debug(ctx, "accepted pty conn", slog.F("remote", conn.RemoteAddr().String()))
 			wg.Add(1)
 			closed := make(chan struct{})
 			go func() {
@@ -676,6 +677,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				var msg codersdk.WorkspaceAgentReconnectingPTYInit
 				err = json.Unmarshal(data, &msg)
 				if err != nil {
+					logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
 					return
 				}
 				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
@@ -787,6 +789,7 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 }
 
 func (a *agent) runStartupScript(ctx context.Context, script string) error {
+	a.logger.Debug(ctx, "running agent startup script")
 	return a.runScript(ctx, "startup", script)
 }
 
