@@ -35,6 +35,9 @@ type MetricsAggregator struct {
 
 	collectCh chan (chan<- prometheus.Metric)
 	updateCh  chan updateRequest
+
+	updateHistogram  prometheus.Histogram
+	cleanupHistogram prometheus.Histogram
 }
 
 type updateRequest struct {
@@ -59,18 +62,46 @@ type annotatedMetric struct {
 
 var _ prometheus.Collector = new(MetricsAggregator)
 
-func NewMetricsAggregator(logger slog.Logger, duration time.Duration) *MetricsAggregator {
+func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, duration time.Duration) (*MetricsAggregator, error) {
 	metricsCleanupInterval := defaultMetricsCleanupInterval
 	if duration > 0 {
 		metricsCleanupInterval = duration
 	}
+
+	updateHistogram := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "prometheusmetrics",
+		Name:      "metrics_aggregator_execution_update_seconds",
+		Help:      "Histogram for duration of metrics aggregator update in seconds.",
+		Buckets:   []float64{0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500, 1, 5, 10, 30},
+	})
+	err := registerer.Register(updateHistogram)
+	if err != nil {
+		return nil, err
+	}
+
+	cleanupHistogram := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "prometheusmetrics",
+		Name:      "metrics_aggregator_execution_cleanup_seconds",
+		Help:      "Histogram for duration of metrics aggregator cleanup in seconds.",
+		Buckets:   []float64{0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500, 1, 5, 10, 30},
+	})
+	err = registerer.Register(cleanupHistogram)
+	if err != nil {
+		return nil, err
+	}
+
 	return &MetricsAggregator{
 		log:                    logger,
 		metricsCleanupInterval: metricsCleanupInterval,
 
 		collectCh: make(chan (chan<- prometheus.Metric), sizeCollectCh),
 		updateCh:  make(chan updateRequest, sizeUpdateCh),
-	}
+
+		updateHistogram:  updateHistogram,
+		cleanupHistogram: cleanupHistogram,
+	}, nil
 }
 
 func (ma *MetricsAggregator) Run(ctx context.Context) func() {
@@ -87,6 +118,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 			case req := <-ma.updateCh:
 				ma.log.Debug(ctx, "metrics aggregator: update metrics")
 
+				timer := prometheus.NewTimer(ma.updateHistogram)
 			UpdateLoop:
 				for _, m := range req.metrics {
 					for i, q := range ma.queue {
@@ -107,6 +139,8 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 						expiryDate: req.timestamp.Add(ma.metricsCleanupInterval),
 					})
 				}
+
+				timer.ObserveDuration()
 			case inputCh := <-ma.collectCh:
 				ma.log.Debug(ctx, "metrics aggregator: collect metrics")
 
@@ -124,6 +158,8 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 			case <-cleanupTicker.C:
 				ma.log.Debug(ctx, "metrics aggregator: clean expired metrics")
 
+				timer := prometheus.NewTimer(ma.cleanupHistogram)
+
 				now := time.Now()
 
 				var hasExpiredMetrics bool
@@ -134,20 +170,21 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 					}
 				}
 
-				if !hasExpiredMetrics {
-					continue
+				if hasExpiredMetrics {
+					var j int
+					fresh := make([]annotatedMetric, len(ma.queue))
+					for _, m := range ma.queue {
+						if m.expiryDate.After(now) {
+							fresh[j] = m
+							j++
+						}
+					}
+					fresh = fresh[:j]
+					ma.queue = fresh
 				}
 
-				var j int
-				fresh := make([]annotatedMetric, len(ma.queue))
-				for _, m := range ma.queue {
-					if m.expiryDate.After(now) {
-						fresh[j] = m
-						j++
-					}
-				}
-				fresh = fresh[:j]
-				ma.queue = fresh
+				timer.ObserveDuration()
+				cleanupTicker.Reset(ma.metricsCleanupInterval)
 			case <-ctx.Done():
 				ma.log.Debug(ctx, "metrics aggregator: is stopped")
 				return

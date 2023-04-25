@@ -724,7 +724,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 					defer closeAgentStatsFunc()
 
-					metricsAggregator := prometheusmetrics.NewMetricsAggregator(logger, 0)
+					metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, options.PrometheusRegistry, 0)
+					if err != nil {
+						return xerrors.Errorf("can't initialize metrics aggregator: %w", err)
+					}
+
 					cancelMetricsAggregator := metricsAggregator.Run(ctx)
 					defer cancelMetricsAggregator()
 
