@@ -1258,7 +1258,6 @@ export interface WorkspaceOptions {
 export interface WorkspaceProxy {
   readonly id: string
   readonly name: string
-  readonly display_name: string
   readonly icon: string
   readonly url: string
   readonly wildcard_hostname: string
@@ -1480,15 +1479,13 @@ export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
 
 // From codersdk/workspaceproxy.go
 export type ProxyHealthStatus =
-  | "ok"
+  | "reachable"
   | "unhealthy"
-  | "unknown"
   | "unreachable"
   | "unregistered"
 export const ProxyHealthStatuses: ProxyHealthStatus[] = [
-  "ok",
+  "reachable",
   "unhealthy",
-  "unknown",
   "unreachable",
   "unregistered",
 ]

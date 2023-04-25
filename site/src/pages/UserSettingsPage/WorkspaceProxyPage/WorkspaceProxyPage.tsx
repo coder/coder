@@ -13,7 +13,7 @@ import { useWorkspaceProxiesData } from "./hooks"
 
 export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspaceProxyPage")
+  const { t } = useTranslation("proxyPage")
 
   const description = (
     <Trans t={t} i18nKey="description" values={{}}>
@@ -28,7 +28,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
   // >(undefined)
 
   const {
-    data: proxies,
+    data: response,
     error: getProxiesError,
     isFetching,
     isFetched,
@@ -43,7 +43,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
         layout="fluid"
       >
         <WorkspaceProxyPageView
-          proxies={proxies}
+          proxies={response ? response.regions : []}
           isLoading={isFetching}
           hasLoaded={isFetched}
           getWorkspaceProxiesError={getProxiesError}

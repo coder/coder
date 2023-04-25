@@ -898,9 +898,9 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
 }
 
 
-export const getWorkspaceProxies = async (): Promise<TypesGen.WorkspaceProxy[]> => {
-  const response = await axios.get<TypesGen.WorkspaceProxy[]>(
-    `/api/v2/workspaceproxies`,
+export const getWorkspaceProxies = async (): Promise<TypesGen.RegionsResponse> => {
+  const response = await axios.get<TypesGen.RegionsResponse>(
+    `/api/v2/regions`,
     {},
   )
   return response.data
