@@ -63,6 +63,6 @@ Otherwise, the following information will be reported:
 - User email
 - Time the user was last modified (i.e. deleted)
 - User API key ID
-- Time the affected API key was last used.
+- Time the affected API key was last used
 
 > 💡 If your license includes the [Audit Logs](https://coder.com/docs/v2/latest/admin/audit-logs#filtering-logs) feature, you can then query all actions performed by the above users by using the filter `email:$USER_EMAIL`.
