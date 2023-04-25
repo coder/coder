@@ -45,8 +45,9 @@ import { Avatar } from "components/Avatar/Avatar"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
-    return `${formatTemplateActiveDevelopers(activeCount)} developer${activeCount !== 1 ? "s" : ""
-      }`
+    return `${formatTemplateActiveDevelopers(activeCount)} developer${
+      activeCount !== 1 ? "s" : ""
+    }`
   },
   nameLabel: "Name",
   buildTimeLabel: "Build time",

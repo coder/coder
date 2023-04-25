@@ -4,7 +4,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 export const usePreferredProxy = (): Region | undefined => {
   const dashboard = useDashboard()
   // Only use preferred proxy if the user has the moons experiment enabled
-  if(!dashboard?.experiments.includes("moons")) {
+  if (!dashboard?.experiments.includes("moons")) {
     return undefined
   }
 

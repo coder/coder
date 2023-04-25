@@ -1,6 +1,9 @@
 import { Story } from "@storybook/react"
 import { makeMockApiError, MockRegions } from "testHelpers/entities"
-import { WorkspaceProxyPageView, WorkspaceProxyPageViewProps } from "./WorkspaceProxyView"
+import {
+  WorkspaceProxyPageView,
+  WorkspaceProxyPageViewProps,
+} from "./WorkspaceProxyView"
 
 export default {
   title: "components/WorkspaceProxyPageView",
@@ -10,9 +13,9 @@ export default {
   },
 }
 
-const Template: Story<WorkspaceProxyPageViewProps> = (args: WorkspaceProxyPageViewProps) => (
-  <WorkspaceProxyPageView {...args} />
-)
+const Template: Story<WorkspaceProxyPageViewProps> = (
+  args: WorkspaceProxyPageViewProps,
+) => <WorkspaceProxyPageView {...args} />
 
 export const Example = Template.bind({})
 Example.args = {

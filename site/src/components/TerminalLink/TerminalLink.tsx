@@ -31,8 +31,9 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
   const preferredProxy = usePreferredProxy()
   const preferredPathBase = preferredProxy ? preferredProxy.path_app_url : ""
 
-  const href = `${preferredPathBase}/@${userName}/${workspaceName}${agentName ? `.${agentName}` : ""
-    }/terminal`
+  const href = `${preferredPathBase}/@${userName}/${workspaceName}${
+    agentName ? `.${agentName}` : ""
+  }/terminal`
 
   return (
     <Link

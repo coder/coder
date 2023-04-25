@@ -97,9 +97,8 @@ export const MockRegions: TypesGen.Region[] = [
     healthy: true,
     path_app_url: "https://cowboy.coder.com",
     wildcard_hostname: "",
-  }
+  },
 ]
-
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   external_url: "file:///mock-url",

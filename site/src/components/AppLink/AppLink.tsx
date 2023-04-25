@@ -49,11 +49,13 @@ export const AppLink: FC<AppLinkProps> = ({
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
-  let href = `${preferredPathBase}/@${username}/${workspace.name}.${agent.name
-    }/apps/${encodeURIComponent(appSlug)}/`
+  let href = `${preferredPathBase}/@${username}/${workspace.name}.${
+    agent.name
+  }/apps/${encodeURIComponent(appSlug)}/`
   if (app.command) {
-    href = `${preferredPathBase}/@${username}/${workspace.name}.${agent.name
-      }/terminal?command=${encodeURIComponent(app.command)}`
+    href = `${preferredPathBase}/@${username}/${workspace.name}.${
+      agent.name
+    }/terminal?command=${encodeURIComponent(app.command)}`
   }
 
   // TODO: @emyrk handle proxy subdomains.
@@ -110,13 +112,13 @@ export const AppLink: FC<AppLinkProps> = ({
           onClick={
             canClick
               ? (event) => {
-                event.preventDefault()
-                window.open(
-                  href,
-                  Language.appTitle(appDisplayName, generateRandomString(12)),
-                  "width=900,height=600",
-                )
-              }
+                  event.preventDefault()
+                  window.open(
+                    href,
+                    Language.appTitle(appDisplayName, generateRandomString(12)),
+                    "width=900,height=600",
+                  )
+                }
               : undefined
           }
         >

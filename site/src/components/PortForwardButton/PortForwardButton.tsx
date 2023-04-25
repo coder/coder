@@ -35,8 +35,9 @@ export const portForwardURL = (
 ): string => {
   const { location } = window
 
-  const subdomain = `${isNaN(port) ? 3000 : port
-    }--${agentName}--${workspaceName}--${username}`
+  const subdomain = `${
+    isNaN(port) ? 3000 : port
+  }--${agentName}--${workspaceName}--${username}`
   return `${location.protocol}//${host}`.replace("*", subdomain)
 }
 

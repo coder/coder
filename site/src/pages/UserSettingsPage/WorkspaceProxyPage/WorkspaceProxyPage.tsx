@@ -18,9 +18,9 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
 
   const description = (
     <Trans values={{}}>
-      Workspace proxies are used to reduce the latency of connections to a workspace.
-      To get the best experience, choose the workspace proxy that is closest located to
-      you.
+      Workspace proxies are used to reduce the latency of connections to a
+      workspace. To get the best experience, choose the workspace proxy that is
+      closest located to you.
     </Trans>
   )
 
@@ -52,11 +52,11 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
               displayError("Please select a healthy workspace proxy.")
               return
             }
-            // normProxy is a normalized proxy to 
+            // normProxy is a normalized proxy to
             const normProxy = {
               ...proxy,
               // Trim trailing slashes to be consistent
-              path_app_url: proxy.path_app_url.replace(/\/$/, ''),
+              path_app_url: proxy.path_app_url.replace(/\/$/, ""),
             }
 
             savePreferredProxy(normProxy)
@@ -81,7 +81,6 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 export default WorkspaceProxyPage
-
 
 // Exporting to be used in the tests
 export const savePreferredProxy = (proxy: Region): void => {

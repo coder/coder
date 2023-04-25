@@ -6,19 +6,16 @@ import {
 } from "@tanstack/react-query"
 import { deleteToken, getWorkspaceProxies } from "api/api"
 
-
 // Loads all workspace proxies
 export const useWorkspaceProxiesData = () => {
   const result = useQuery({
-    queryFn: () =>
-      getWorkspaceProxies(),
+    queryFn: () => getWorkspaceProxies(),
   })
 
   return {
     ...result,
   }
 }
-
 
 // Delete a token
 export const useDeleteToken = (queryKey: QueryKey) => {

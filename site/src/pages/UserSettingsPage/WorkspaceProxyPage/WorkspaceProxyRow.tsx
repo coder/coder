@@ -5,10 +5,12 @@ import { useClickableTableRow } from "hooks/useClickableTableRow"
 import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
 import { FC } from "react"
-import { HealthyBadge, NotHealthyBadge } from "components/DeploySettingsLayout/Badges"
+import {
+  HealthyBadge,
+  NotHealthyBadge,
+} from "components/DeploySettingsLayout/Badges"
 import { makeStyles } from "@material-ui/core/styles"
 import { combineClasses } from "utils/combineClasses"
-
 
 export const ProxyRow: FC<{
   proxy: Region
@@ -21,37 +23,41 @@ export const ProxyRow: FC<{
     onSelectRegion(proxy)
   })
 
-  const classes = [
-    clickable.className,
-  ]
+  const classes = [clickable.className]
 
   if (preferred) {
     classes.push(styles.preferredrow)
   }
 
-  return <TableRow
-    key={proxy.name}
-    data-testid={`${proxy.name}`}
-    {...clickable}
-    // Make sure to include our classname here.
-    className={combineClasses(classes)}
-  >
-    <TableCell>
-      <AvatarData
-        title={
-          proxy.display_name && proxy.display_name.length > 0
-            ? proxy.display_name
-            : proxy.name
-        }
-        avatar={
-          proxy.icon_url !== "" && <Avatar src={proxy.icon_url} variant="square" fitImage />
-        }
-      />
-    </TableCell>
+  return (
+    <TableRow
+      key={proxy.name}
+      data-testid={`${proxy.name}`}
+      {...clickable}
+      // Make sure to include our classname here.
+      className={combineClasses(classes)}
+    >
+      <TableCell>
+        <AvatarData
+          title={
+            proxy.display_name && proxy.display_name.length > 0
+              ? proxy.display_name
+              : proxy.name
+          }
+          avatar={
+            proxy.icon_url !== "" && (
+              <Avatar src={proxy.icon_url} variant="square" fitImage />
+            )
+          }
+        />
+      </TableCell>
 
-    <TableCell>{proxy.path_app_url}</TableCell>
-    <TableCell><ProxyStatus proxy={proxy} /></TableCell>
-  </TableRow>
+      <TableCell>{proxy.path_app_url}</TableCell>
+      <TableCell>
+        <ProxyStatus proxy={proxy} />
+      </TableCell>
+    </TableRow>
+  )
 }
 
 const ProxyStatus: FC<{

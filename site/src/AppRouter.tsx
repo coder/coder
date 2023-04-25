@@ -39,7 +39,8 @@ const TokensPage = lazy(
   () => import("./pages/UserSettingsPage/TokensPage/TokensPage"),
 )
 const WorkspaceProxyPage = lazy(
-  () => import("./pages/UserSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"),
+  () =>
+    import("./pages/UserSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"),
 )
 const CreateUserPage = lazy(
   () => import("./pages/UsersPage/CreateUserPage/CreateUserPage"),
@@ -262,7 +263,10 @@ export const AppRouter: FC = () => {
                   <Route index element={<TokensPage />} />
                   <Route path="new" element={<CreateTokenPage />} />
                 </Route>
-                <Route path="workspace-proxies" element={<WorkspaceProxyPage />} />
+                <Route
+                  path="workspace-proxies"
+                  element={<WorkspaceProxyPage />}
+                />
               </Route>
 
               <Route path="/@:username">
