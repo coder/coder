@@ -24,7 +24,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
     </Trans>
   )
 
-  const [preferred, setPreffered] = useState(getPreferredProxy())
+  const [preferred, setPreferred] = useState(getPreferredProxy())
 
   const {
     data: response,
@@ -60,7 +60,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
             }
 
             savePreferredProxy(normProxy)
-            setPreffered(normProxy)
+            setPreferred(normProxy)
           }}
         />
       </Section>
