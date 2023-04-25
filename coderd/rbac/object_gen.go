@@ -26,6 +26,5 @@ func AllResources() []Object {
 		ResourceWorkspaceApplicationConnect,
 		ResourceWorkspaceExecution,
 		ResourceWorkspaceProxy,
-		ResourceWorkspaceProxyMetaData,
 	}
 }

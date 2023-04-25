@@ -151,7 +151,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					ResourceRoleAssignment.Type: {ActionRead},
 					// All users can see the provisioner daemons.
 					ResourceProvisionerDaemon.Type: {ActionRead},
-					ResourceWorkspaceProxy.Type:    {ActionRead},
 				}),
 				Org:  map[string][]Permission{},
 				User: allPermsExcept(),
