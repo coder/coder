@@ -82,10 +82,11 @@ const LicensesSettingsPageView: FC<Props> = ({
         <div className={styles.root}>
           <Stack alignItems="center" spacing={1}>
             <Stack alignItems="center" spacing={0.5}>
-              <span className={styles.title}>No Licenses yet</span>
+              <span className={styles.title}>no Licenses yet</span>
               <span className={styles.description}>
-                <a href="mailto:sales@coder.com">Contact sales</a> to learn
-                more.
+                Contact <a href="mailto:sales@coder.com">sales</a> or{" "}
+                <a href="https://coder.com/trial">request a trial license</a> to
+                learn more. more.
               </span>
             </Stack>
           </Stack>
