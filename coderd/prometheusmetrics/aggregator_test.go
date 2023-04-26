@@ -38,31 +38,27 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	closeFunc := metricsAggregator.Run(ctx)
 	t.Cleanup(closeFunc)
 
-	given := []agentsdk.AgentMetric{
-		{
-			Name:  "a_counter_one",
-			Type:  agentsdk.AgentMetricTypeCounter,
-			Value: 1,
-		},
-		{
-			Name:  "b_counter_two",
-			Type:  agentsdk.AgentMetricTypeCounter,
-			Value: 2,
-		},
-		{
-			Name:  "c_gauge_three",
-			Type:  agentsdk.AgentMetricTypeCounter,
-			Value: 3,
-		},
-		{
-			Name:  "d_gauge_four",
-			Type:  agentsdk.AgentMetricTypeCounter,
-			Value: 4,
-		},
+	given1 := []agentsdk.AgentMetric{
+		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1},
+		{Name: "b_gauge_three", Type: agentsdk.AgentMetricTypeCounter, Value: 2},
+		{Name: "c_gauge_four", Type: agentsdk.AgentMetricTypeCounter, Value: 3},
+	}
+
+	given2 := []agentsdk.AgentMetric{
+		{Name: "b_gauge_three", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
+		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeCounter, Value: 6},
+	}
+
+	expected := []agentsdk.AgentMetric{
+		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1},
+		{Name: "b_gauge_three", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
+		{Name: "c_gauge_four", Type: agentsdk.AgentMetricTypeCounter, Value: 3},
+		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeCounter, Value: 6},
 	}
 
 	// when
-	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given)
+	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given1)
+	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given2)
 
 	// then
 	require.Eventually(t, func() bool {
@@ -74,7 +70,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 			}
 		}()
 		metricsAggregator.Collect(metricsCh)
-		return verifyCollectedMetrics(t, given, actual)
+		return verifyCollectedMetrics(t, expected, actual)
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
