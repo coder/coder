@@ -348,7 +348,7 @@ export const AgentRow: FC<AgentRowProps> = ({
               }}
             >
               <CodeOutlined />
-              Startup scripts
+              Startup script
             </button>
 
             <Popover
