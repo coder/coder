@@ -64,7 +64,13 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	_, _ = fmt.Fprintf(logs, "\tHeight:  %d\n", height)
 	_, _ = fmt.Fprintf(logs, "\tCommand: %q\n\n", r.cfg.Init.Command)
 
-	conn, err := r.client.WorkspaceAgentReconnectingPTY(ctx, r.cfg.AgentID, id, width, height, r.cfg.Init.Command)
+	conn, err := r.client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+		AgentID:   r.cfg.AgentID,
+		Reconnect: id,
+		Width:     width,
+		Height:    height,
+		Command:   r.cfg.Init.Command,
+	})
 	if err != nil {
 		return xerrors.Errorf("open reconnecting PTY: %w", err)
 	}

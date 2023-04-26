@@ -42,6 +42,7 @@ import { AgentLatency } from "./AgentLatency"
 import { AgentMetadata } from "./AgentMetadata"
 import { AgentVersion } from "./AgentVersion"
 import { AgentStatus } from "./AgentStatus"
+import Collapse from "@material-ui/core/Collapse"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -178,14 +179,9 @@ export const AgentRow: FC<AgentRowProps> = ({
         styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
       ])}
     >
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={6}
-        className={styles.agentInfo}
-      >
+      <div className={styles.agentInfo}>
         <div className={styles.agentNameAndStatus}>
-          <Stack alignItems="center" direction="row" spacing={3}>
+          <div className={styles.agentNameAndInfo}>
             <AgentStatus agent={agent} />
             <div className={styles.agentName}>{agent.name}</div>
             <Stack
@@ -214,11 +210,33 @@ export const AgentRow: FC<AgentRowProps> = ({
                 </>
               )}
             </Stack>
-          </Stack>
+          </div>
         </div>
 
         {agent.status === "connected" && (
-          <div className={styles.agentDefaultActions}>
+          <div className={styles.agentButtons}>
+            {shouldDisplayApps && (
+              <>
+                {!hideVSCodeDesktopButton && (
+                  <VSCodeDesktopButton
+                    userName={workspace.owner_name}
+                    workspaceName={workspace.name}
+                    agentName={agent.name}
+                    folderPath={agent.expanded_directory}
+                  />
+                )}
+                {agent.apps.map((app) => (
+                  <AppLink
+                    key={app.slug}
+                    appsHost={applicationsHost}
+                    app={app}
+                    agent={agent}
+                    workspace={workspace}
+                  />
+                ))}
+              </>
+            )}
+
             <TerminalLink
               workspaceName={workspace.name}
               agentName={agent.name}
@@ -244,7 +262,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         )}
 
         {agent.status === "connecting" && (
-          <div className={styles.agentDefaultActions}>
+          <div className={styles.agentButtons}>
             <Skeleton
               width={80}
               height={32}
@@ -259,56 +277,13 @@ export const AgentRow: FC<AgentRowProps> = ({
             />
           </div>
         )}
-      </Stack>
+      </div>
 
       <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
 
-      {shouldDisplayApps && (
-        <div className={styles.apps}>
-          {agent.status === "connected" && (
-            <>
-              {!hideVSCodeDesktopButton && (
-                <VSCodeDesktopButton
-                  userName={workspace.owner_name}
-                  workspaceName={workspace.name}
-                  agentName={agent.name}
-                  folderPath={agent.expanded_directory}
-                />
-              )}
-              {agent.apps.map((app) => (
-                <AppLink
-                  key={app.slug}
-                  appsHost={applicationsHost}
-                  app={app}
-                  agent={agent}
-                  workspace={workspace}
-                />
-              ))}
-            </>
-          )}
-
-          {agent.status === "connecting" && (
-            <>
-              <Skeleton
-                width={80}
-                height={36}
-                variant="rect"
-                className={styles.buttonSkeleton}
-              />
-              <Skeleton
-                width={110}
-                height={36}
-                variant="rect"
-                className={styles.buttonSkeleton}
-              />
-            </>
-          )}
-        </div>
-      )}
-
       {hasStartupFeatures && (
         <div className={styles.logsPanel}>
-          {showStartupLogs && (
+          <Collapse in={showStartupLogs}>
             <AutoSizer disableHeight>
               {({ width }) => (
                 <List
@@ -331,7 +306,8 @@ export const AgentRow: FC<AgentRowProps> = ({
                 </List>
               )}
             </AutoSizer>
-          )}
+          </Collapse>
+
           <div className={styles.logsPanelButtons}>
             {showStartupLogs ? (
               <button
@@ -471,12 +447,38 @@ const useStyles = makeStyles((theme) => ({
 
   agentInfo: {
     padding: theme.spacing(2, 4),
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(6),
+    flexWrap: "wrap",
+
+    [theme.breakpoints.down("sm")]: {
+      gap: theme.spacing(2),
+    },
   },
 
-  agentDefaultActions: {
+  agentNameAndInfo: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(3),
+    flexWrap: "wrap",
+
+    [theme.breakpoints.down("sm")]: {
+      gap: theme.spacing(1.5),
+    },
+  },
+
+  agentButtons: {
     display: "flex",
     gap: theme.spacing(1),
-    marginLeft: "auto",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    flex: 1,
+
+    [theme.breakpoints.down("sm")]: {
+      marginLeft: 0,
+      justifyContent: "flex-start",
+    },
   },
 
   agentDescription: {
@@ -504,6 +506,10 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(4),
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+    },
   },
 
   agentName: {
@@ -513,6 +519,12 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: 260,
     fontWeight: 600,
     fontSize: theme.spacing(2),
+    flexShrink: 0,
+    width: "fit-content",
+
+    [theme.breakpoints.down("sm")]: {
+      overflow: "unset",
+    },
   },
 
   agentDataGroup: {
@@ -530,14 +542,6 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 500,
       color: theme.palette.text.secondary,
     },
-  },
-
-  apps: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: theme.spacing(1.5),
-    padding: theme.spacing(4),
-    borderTop: `1px solid ${theme.palette.divider}`,
   },
 
   logsPanel: {

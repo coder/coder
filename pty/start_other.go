@@ -50,6 +50,25 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (retPTY *otherPty, proc Process
 		}
 		return nil, nil, xerrors.Errorf("start: %w", err)
 	}
+	if runtime.GOOS == "linux" {
+		// Now that we've started the command, and passed the TTY to it, close
+		// our file so that the other process has the only open file to the TTY.
+		// Once the process closes the TTY (usually on exit), there will be no
+		// open references and the OS kernel returns an error when trying to
+		// read or write to our PTY end.  Without this (on Linux), reading from
+		// the process output will block until we close our TTY.
+		//
+		// Note that on darwin, reads on the PTY don't block even if we keep the
+		// TTY file open, and keeping it open seems to prevent race conditions
+		// where we lose output.  Couldn't find official documentation
+		// confirming this, but I did find a thread of someone else's
+		// observations: https://developer.apple.com/forums/thread/663632
+		if err := opty.tty.Close(); err != nil {
+			_ = cmd.Process.Kill()
+			return nil, nil, xerrors.Errorf("close tty: %w", err)
+		}
+		opty.tty = nil // remove so we don't attempt to close it again.
+	}
 	oProcess := &otherProcess{
 		pty:     opty.pty,
 		cmd:     cmd,

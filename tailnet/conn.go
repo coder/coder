@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
 	"reflect"
+	"strconv"
 	"sync"
 	"time"
 
@@ -271,7 +273,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
-	netStack.GetTCPHandlerForFlow = server.forwardTCP
+	netStack.ForwardTCPIn = server.forwardTCP
+	netStack.ForwardTCPSockOpts = server.forwardTCPSockOpts
 
 	err = netStack.Start(nil)
 	if err != nil {
@@ -732,32 +735,68 @@ func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.U
 	return c.netStack.DialContextUDP(ctx, ipp)
 }
 
-func (c *Conn) forwardTCP(_, dst netip.AddrPort) (handler func(net.Conn), opts []tcpip.SettableSocketOption, intercept bool) {
+func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	c.mutex.Lock()
-	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(dst.Port())}]
+	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
 	c.mutex.Unlock()
 	if !ok {
-		return nil, nil, false
+		c.forwardTCPToLocal(conn, port)
+		return
 	}
 
+	t := time.NewTimer(time.Second)
+	defer t.Stop()
+	select {
+	case ln.conn <- conn:
+		return
+	case <-ln.closed:
+	case <-c.closed:
+	case <-t.C:
+	}
+	_ = conn.Close()
+}
+
+func (*Conn) forwardTCPSockOpts(port uint16) []tcpip.SettableSocketOption {
+	opts := []tcpip.SettableSocketOption{}
+
 	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
-	if dst.Port() == WorkspaceAgentSSHPort || dst.Port() == 22 {
+	if port == WorkspaceAgentSSHPort || port == 22 {
 		opt := tcpip.KeepaliveIdleOption(72 * time.Hour)
 		opts = append(opts, &opt)
 	}
 
-	return func(conn net.Conn) {
-		t := time.NewTimer(time.Second)
-		defer t.Stop()
-		select {
-		case ln.conn <- conn:
-			return
-		case <-ln.closed:
-		case <-c.closed:
-		case <-t.C:
-		}
-		_ = conn.Close()
-	}, opts, true
+	return opts
+}
+
+func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
+	defer conn.Close()
+	dialAddrStr := net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port)))
+	var stdDialer net.Dialer
+	server, err := stdDialer.DialContext(c.dialContext, "tcp", dialAddrStr)
+	if err != nil {
+		c.logger.Debug(c.dialContext, "dial local port", slog.F("port", port), slog.Error(err))
+		return
+	}
+	defer server.Close()
+
+	connClosed := make(chan error, 2)
+	go func() {
+		_, err := io.Copy(server, conn)
+		connClosed <- err
+	}()
+	go func() {
+		_, err := io.Copy(conn, server)
+		connClosed <- err
+	}()
+	select {
+	case err = <-connClosed:
+	case <-c.closed:
+		return
+	}
+	if err != nil {
+		c.logger.Debug(c.dialContext, "proxy connection closed with error", slog.Error(err))
+	}
+	c.logger.Debug(c.dialContext, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
 }
 
 // SetConnStatsCallback sets a callback to be called after maxPeriod or

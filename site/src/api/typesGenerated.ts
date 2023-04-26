@@ -260,8 +260,6 @@ export interface CreateWorkspaceProxyRequest {
   readonly name: string
   readonly display_name: string
   readonly icon: string
-  readonly url: string
-  readonly wildcard_hostname: string
 }
 
 // From codersdk/workspaceproxy.go
@@ -464,6 +462,17 @@ export interface Healthcheck {
   readonly url: string
   readonly interval: number
   readonly threshold: number
+}
+
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenRequest {
+  readonly url: string
+  readonly agentID: string
+}
+
+// From codersdk/workspaceagents.go
+export interface IssueReconnectingPTYSignedTokenResponse {
+  readonly signed_token: string
 }
 
 // From codersdk/licenses.go
@@ -681,6 +690,12 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
+// From codersdk/workspaceproxy.go
+export interface ProxyHealthReport {
+  readonly Errors: string[]
+  readonly Warnings: string[]
+}
+
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
@@ -690,6 +705,22 @@ export interface PutExtendWorkspaceRequest {
 export interface RateLimitConfig {
   readonly disable_all: boolean
   readonly api: number
+}
+
+// From codersdk/workspaceproxy.go
+export interface Region {
+  readonly id: string
+  readonly name: string
+  readonly display_name: string
+  readonly icon_url: string
+  readonly healthy: boolean
+  readonly path_app_url: string
+  readonly wildcard_hostname: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface RegionsResponse {
+  readonly regions: Region[]
 }
 
 // From codersdk/replicas.go
@@ -1233,12 +1264,20 @@ export interface WorkspaceProxy {
   readonly created_at: string
   readonly updated_at: string
   readonly deleted: boolean
+  readonly status?: WorkspaceProxyStatus
 }
 
 // From codersdk/deployment.go
 export interface WorkspaceProxyBuildInfo {
   readonly workspace_proxy: boolean
   readonly dashboard_url: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface WorkspaceProxyStatus {
+  readonly status: ProxyHealthStatus
+  readonly report?: ProxyHealthReport
+  readonly checked_at: string
 }
 
 // From codersdk/workspaces.go
@@ -1437,6 +1476,19 @@ export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"]
 // From codersdk/organizations.go
 export type ProvisionerType = "echo" | "terraform"
 export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
+
+// From codersdk/workspaceproxy.go
+export type ProxyHealthStatus =
+  | "reachable"
+  | "unhealthy"
+  | "unreachable"
+  | "unregistered"
+export const ProxyHealthStatuses: ProxyHealthStatus[] = [
+  "reachable",
+  "unhealthy",
+  "unreachable",
+  "unregistered",
+]
 
 // From codersdk/rbacresources.go
 export type RBACResource =

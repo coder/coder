@@ -1185,6 +1185,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
+    "status": {
+      "checked_at": "2019-08-24T14:15:22Z",
+      "report": {
+        "errors": ["string"],
+        "warnings": ["string"]
+      },
+      "status": "reachable"
+    },
     "updated_at": "2019-08-24T14:15:22Z",
     "url": "string",
     "wildcard_hostname": "string"
@@ -1202,17 +1210,32 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
 
 Status Code **200**
 
-| Name                  | Type              | Required | Restrictions | Description                                                                            |
-| --------------------- | ----------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
-| `[array item]`        | array             | false    |              |                                                                                        |
-| `» created_at`        | string(date-time) | false    |              |                                                                                        |
-| `» deleted`           | boolean           | false    |              |                                                                                        |
-| `» icon`              | string            | false    |              |                                                                                        |
-| `» id`                | string(uuid)      | false    |              |                                                                                        |
-| `» name`              | string            | false    |              |                                                                                        |
-| `» updated_at`        | string(date-time) | false    |              |                                                                                        |
-| `» url`               | string            | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
-| `» wildcard_hostname` | string            | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
+| Name                  | Type                                                                     | Required | Restrictions | Description                                                                                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`        | array                                                                    | false    |              |                                                                                                                                                                               |
+| `» created_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
+| `» deleted`           | boolean                                                                  | false    |              |                                                                                                                                                                               |
+| `» icon`              | string                                                                   | false    |              |                                                                                                                                                                               |
+| `» id`                | string(uuid)                                                             | false    |              |                                                                                                                                                                               |
+| `» name`              | string                                                                   | false    |              |                                                                                                                                                                               |
+| `» status`            | [codersdk.WorkspaceProxyStatus](schemas.md#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use. |
+| `»» checked_at`       | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
+| `»» report`           | [codersdk.ProxyHealthReport](schemas.md#codersdkproxyhealthreport)       | false    |              | Report provides more information about the health of the workspace proxy.                                                                                                     |
+| `»»» errors`          | array                                                                    | false    |              | Errors are problems that prevent the workspace proxy from being healthy                                                                                                       |
+| `»»» warnings`        | array                                                                    | false    |              | Warnings do not prevent the workspace proxy from being healthy, but should be addressed.                                                                                      |
+| `»» status`           | [codersdk.ProxyHealthStatus](schemas.md#codersdkproxyhealthstatus)       | false    |              |                                                                                                                                                                               |
+| `» updated_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
+| `» url`               | string                                                                   | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                                                                                                        |
+| `» wildcard_hostname` | string                                                                   | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com                                                                                        |
+
+#### Enumerated Values
+
+| Property | Value          |
+| -------- | -------------- |
+| `status` | `reachable`    |
+| `status` | `unreachable`  |
+| `status` | `unhealthy`    |
+| `status` | `unregistered` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1236,9 +1259,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 {
   "display_name": "string",
   "icon": "string",
-  "name": "string",
-  "url": "string",
-  "wildcard_hostname": "string"
+  "name": "string"
 }
 ```
 
@@ -1259,6 +1280,14 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
+  "status": {
+    "checked_at": "2019-08-24T14:15:22Z",
+    "report": {
+      "errors": ["string"],
+      "warnings": ["string"]
+    },
+    "status": "reachable"
+  },
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
   "wildcard_hostname": "string"

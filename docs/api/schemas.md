@@ -1557,21 +1557,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 {
   "display_name": "string",
   "icon": "string",
-  "name": "string",
-  "url": "string",
-  "wildcard_hostname": "string"
+  "name": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type   | Required | Restrictions | Description |
-| ------------------- | ------ | -------- | ------------ | ----------- |
-| `display_name`      | string | false    |              |             |
-| `icon`              | string | false    |              |             |
-| `name`              | string | false    |              |             |
-| `url`               | string | false    |              |             |
-| `wildcard_hostname` | string | false    |              |             |
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.CreateWorkspaceRequest
 
@@ -2655,6 +2651,36 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
 
+## codersdk.IssueReconnectingPTYSignedTokenRequest
+
+```json
+{
+  "agentID": "bc282582-04f9-45ce-b904-3e3bfab66958",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                            |
+| --------- | ------ | -------- | ------------ | ---------------------------------------------------------------------- |
+| `agentID` | string | true     |              |                                                                        |
+| `url`     | string | true     |              | URL is the URL of the reconnecting-pty endpoint you are connecting to. |
+
+## codersdk.IssueReconnectingPTYSignedTokenResponse
+
+```json
+{
+  "signed_token": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `signed_token` | string | false    |              |             |
+
 ## codersdk.JobErrorCode
 
 ```json
@@ -3356,6 +3382,39 @@ Parameter represents a set value for the scope.
 | ------ |
 | `file` |
 
+## codersdk.ProxyHealthReport
+
+```json
+{
+  "errors": ["string"],
+  "warnings": ["string"]
+}
+```
+
+### Properties
+
+| Name       | Type            | Required | Restrictions | Description                                                                              |
+| ---------- | --------------- | -------- | ------------ | ---------------------------------------------------------------------------------------- |
+| `errors`   | array of string | false    |              | Errors are problems that prevent the workspace proxy from being healthy                  |
+| `warnings` | array of string | false    |              | Warnings do not prevent the workspace proxy from being healthy, but should be addressed. |
+
+## codersdk.ProxyHealthStatus
+
+```json
+"reachable"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `reachable`    |
+| `unreachable`  |
+| `unhealthy`    |
+| `unregistered` |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -3420,6 +3479,56 @@ Parameter represents a set value for the scope.
 | ------------- | ------- | -------- | ------------ | ----------- |
 | `api`         | integer | false    |              |             |
 | `disable_all` | boolean | false    |              |             |
+
+## codersdk.Region
+
+```json
+{
+  "display_name": "string",
+  "healthy": true,
+  "icon_url": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "path_app_url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                                                        |
+| ------------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `display_name`      | string  | false    |              |                                                                                                                                                                                    |
+| `healthy`           | boolean | false    |              |                                                                                                                                                                                    |
+| `icon_url`          | string  | false    |              |                                                                                                                                                                                    |
+| `id`                | string  | false    |              |                                                                                                                                                                                    |
+| `name`              | string  | false    |              |                                                                                                                                                                                    |
+| `path_app_url`      | string  | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                      |
+| `wildcard_hostname` | string  | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. _.us.example.com E.g. _--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
+
+## codersdk.RegionsResponse
+
+```json
+{
+  "regions": [
+    {
+      "display_name": "string",
+      "healthy": true,
+      "icon_url": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "path_app_url": "string",
+      "wildcard_hostname": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                        | Required | Restrictions | Description |
+| --------- | ------------------------------------------- | -------- | ------------ | ----------- |
+| `regions` | array of [codersdk.Region](#codersdkregion) | false    |              |             |
 
 ## codersdk.Replica
 
@@ -5166,6 +5275,14 @@ Parameter represents a set value for the scope.
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
+  "status": {
+    "checked_at": "2019-08-24T14:15:22Z",
+    "report": {
+      "errors": ["string"],
+      "warnings": ["string"]
+    },
+    "status": "reachable"
+  },
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
   "wildcard_hostname": "string"
@@ -5174,16 +5291,38 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description                                                                            |
-| ------------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
-| `created_at`        | string  | false    |              |                                                                                        |
-| `deleted`           | boolean | false    |              |                                                                                        |
-| `icon`              | string  | false    |              |                                                                                        |
-| `id`                | string  | false    |              |                                                                                        |
-| `name`              | string  | false    |              |                                                                                        |
-| `updated_at`        | string  | false    |              |                                                                                        |
-| `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
-| `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
+| Name                | Type                                                           | Required | Restrictions | Description                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `created_at`        | string                                                         | false    |              |                                                                                                                                                                               |
+| `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                               |
+| `icon`              | string                                                         | false    |              |                                                                                                                                                                               |
+| `id`                | string                                                         | false    |              |                                                                                                                                                                               |
+| `name`              | string                                                         | false    |              |                                                                                                                                                                               |
+| `status`            | [codersdk.WorkspaceProxyStatus](#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use. |
+| `updated_at`        | string                                                         | false    |              |                                                                                                                                                                               |
+| `url`               | string                                                         | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                                                                                                        |
+| `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com                                                                                        |
+
+## codersdk.WorkspaceProxyStatus
+
+```json
+{
+  "checked_at": "2019-08-24T14:15:22Z",
+  "report": {
+    "errors": ["string"],
+    "warnings": ["string"]
+  },
+  "status": "reachable"
+}
+```
+
+### Properties
+
+| Name         | Type                                                     | Required | Restrictions | Description                                                               |
+| ------------ | -------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------- |
+| `checked_at` | string                                                   | false    |              |                                                                           |
+| `report`     | [codersdk.ProxyHealthReport](#codersdkproxyhealthreport) | false    |              | Report provides more information about the health of the workspace proxy. |
+| `status`     | [codersdk.ProxyHealthStatus](#codersdkproxyhealthstatus) | false    |              |                                                                           |
 
 ## codersdk.WorkspaceQuota
 
@@ -5585,7 +5724,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "err": null,
+  "error": null,
   "healthy": true,
   "healthzResponse": "string",
   "reachable": true,
@@ -5597,7 +5736,7 @@ Parameter represents a set value for the scope.
 
 | Name              | Type    | Required | Restrictions | Description |
 | ----------------- | ------- | -------- | ------------ | ----------- |
-| `err`             | any     | false    |              |             |
+| `error`           | any     | false    |              |             |
 | `healthy`         | boolean | false    |              |             |
 | `healthzResponse` | string  | false    |              |             |
 | `reachable`       | boolean | false    |              |             |
@@ -5610,6 +5749,7 @@ Parameter represents a set value for the scope.
   "can_exchange_messages": true,
   "client_errs": [[null]],
   "client_logs": [["string"]],
+  "error": null,
   "healthy": true,
   "node": {
     "certName": "string",
@@ -5646,6 +5786,7 @@ Parameter represents a set value for the scope.
 | `can_exchange_messages` | boolean                                                  | false    |              |             |
 | `client_errs`           | array of array                                           | false    |              |             |
 | `client_logs`           | array of array                                           | false    |              |             |
+| `error`                 | any                                                      | false    |              |             |
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
 | `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
@@ -5657,12 +5798,14 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "error": null,
   "healthy": true,
   "node_reports": [
     {
       "can_exchange_messages": true,
       "client_errs": [[null]],
       "client_logs": [["string"]],
+      "error": null,
       "healthy": true,
       "node": {
         "certName": "string",
@@ -5721,6 +5864,7 @@ Parameter represents a set value for the scope.
 
 | Name           | Type                                                              | Required | Restrictions | Description |
 | -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`        | any                                                               | false    |              |             |
 | `healthy`      | boolean                                                           | false    |              |             |
 | `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
@@ -5729,6 +5873,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "error": null,
   "healthy": true,
   "netcheck": {
     "captivePortal": "string",
@@ -5764,12 +5909,14 @@ Parameter represents a set value for the scope.
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
+      "error": null,
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
           "client_errs": [[null]],
           "client_logs": [["string"]],
+          "error": null,
           "healthy": true,
           "node": {
             "certName": "string",
@@ -5823,12 +5970,14 @@ Parameter represents a set value for the scope.
       }
     },
     "property2": {
+      "error": null,
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
           "client_errs": [[null]],
           "client_logs": [["string"]],
+          "error": null,
           "healthy": true,
           "node": {
             "certName": "string",
@@ -5889,6 +6038,7 @@ Parameter represents a set value for the scope.
 
 | Name               | Type                                                         | Required | Restrictions | Description |
 | ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `error`            | any                                                          | false    |              |             |
 | `healthy`          | boolean                                                      | false    |              |             |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
 | `netcheck_err`     | any                                                          | false    |              |             |
@@ -5919,13 +6069,14 @@ Parameter represents a set value for the scope.
 ```json
 {
   "access_url": {
-    "err": null,
+    "error": null,
     "healthy": true,
     "healthzResponse": "string",
     "reachable": true,
     "statusCode": 0
   },
   "derp": {
+    "error": null,
     "healthy": true,
     "netcheck": {
       "captivePortal": "string",
@@ -5961,12 +6112,14 @@ Parameter represents a set value for the scope.
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
+        "error": null,
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "error": null,
             "healthy": true,
             "node": {
               "certName": "string",
@@ -6020,12 +6173,14 @@ Parameter represents a set value for the scope.
         }
       },
       "property2": {
+        "error": null,
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "error": null,
             "healthy": true,
             "node": {
               "certName": "string",

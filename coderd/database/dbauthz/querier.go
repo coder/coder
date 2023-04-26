@@ -1701,10 +1701,6 @@ func (q *querier) GetWorkspaceProxyByName(ctx context.Context, name string) (dat
 	return fetch(q.log, q.auth, q.db.GetWorkspaceProxyByName)(ctx, name)
 }
 
-func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, hostname string) (database.WorkspaceProxy, error) {
-	return fetch(q.log, q.auth, q.db.GetWorkspaceProxyByHostname)(ctx, hostname)
-}
-
 func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	return insert(q.log, q.auth, rbac.ResourceWorkspaceProxy, q.db.InsertWorkspaceProxy)(ctx, arg)
 }

@@ -28,6 +28,36 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+func TestUserLogin(t *testing.T) {
+	t.Parallel()
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+	})
+	t.Run("UserDeleted", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		client.DeleteUser(context.Background(), anotherUser.ID)
+		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: "SomeSecurePassword!",
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+	})
+}
+
 func TestUserAuthMethods(t *testing.T) {
 	t.Parallel()
 	t.Run("Password", func(t *testing.T) {

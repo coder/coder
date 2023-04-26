@@ -2871,18 +2871,30 @@ WHERE
 	--
 	-- Periods don't need to be escaped because they're not special characters
 	-- in SQL matches unlike regular expressions.
-	$1 :: text SIMILAR TO '[a-zA-Z0-9.-]+' AND
+	$1 :: text SIMILAR TO '[a-zA-Z0-9._-]+' AND
 	deleted = false AND
 
 	-- Validate that the hostname matches either the wildcard hostname or the
 	-- access URL (ignoring scheme, port and path).
 	(
-		url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*' OR
-		$1 :: text LIKE replace(wildcard_hostname, '*', '%')
+		(
+			$2 :: bool = true AND
+			url SIMILAR TO '[^:]*://' || $1 :: text || '([:/]?%)*'
+		) OR
+		(
+			$3 :: bool = true AND
+			$1 :: text LIKE replace(wildcard_hostname, '*', '%')
+		)
 	)
 LIMIT
 	1
 `
+
+type GetWorkspaceProxyByHostnameParams struct {
+	Hostname              string `db:"hostname" json:"hostname"`
+	AllowAccessUrl        bool   `db:"allow_access_url" json:"allow_access_url"`
+	AllowWildcardHostname bool   `db:"allow_wildcard_hostname" json:"allow_wildcard_hostname"`
+}
 
 // Finds a workspace proxy that has an access URL or app hostname that matches
 // the provided hostname. This is to check if a hostname matches any workspace
@@ -2890,8 +2902,8 @@ LIMIT
 //
 // The hostname must be sanitized to only contain [a-zA-Z0-9.-] before calling
 // this query. The scheme, port and path should be stripped.
-func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, hostname string) (WorkspaceProxy, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByHostname, hostname)
+func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWorkspaceProxyByHostnameParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByHostname, arg.Hostname, arg.AllowAccessUrl, arg.AllowWildcardHostname)
 	var i WorkspaceProxy
 	err := row.Scan(
 		&i.ID,
@@ -2971,18 +2983,18 @@ const insertWorkspaceProxy = `-- name: InsertWorkspaceProxy :one
 INSERT INTO
 	workspace_proxies (
 		id,
+		url,
+		wildcard_hostname,
 		name,
 		display_name,
 		icon,
-		url,
-		wildcard_hostname,
 		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	($1, '', '', $2, $3, $4, $5, $6, $7, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
 `
 
 type InsertWorkspaceProxyParams struct {
@@ -2990,8 +3002,6 @@ type InsertWorkspaceProxyParams struct {
 	Name              string    `db:"name" json:"name"`
 	DisplayName       string    `db:"display_name" json:"display_name"`
 	Icon              string    `db:"icon" json:"icon"`
-	Url               string    `db:"url" json:"url"`
-	WildcardHostname  string    `db:"wildcard_hostname" json:"wildcard_hostname"`
 	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
@@ -3003,8 +3013,6 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		arg.Name,
 		arg.DisplayName,
 		arg.Icon,
-		arg.Url,
-		arg.WildcardHostname,
 		arg.TokenHashedSecret,
 		arg.CreatedAt,
 		arg.UpdatedAt,

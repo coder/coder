@@ -24,7 +24,7 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
-var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9.-]+$`)
+var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // FakeDatabase is helpful for knowing if the underlying db is an in memory fake
 // database. This is only in the databasefake package, so will only be used
@@ -931,6 +931,13 @@ func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.U
 		if u.ID == params.ID {
 			u.Deleted = params.Deleted
 			q.users[i] = u
+			// NOTE: In the real world, this is done by a trigger.
+			for i, k := range q.apiKeys {
+				if k.UserID == u.ID {
+					q.apiKeys[i] = q.apiKeys[len(q.apiKeys)-1]
+					q.apiKeys = q.apiKeys[:len(q.apiKeys)-1]
+				}
+			}
 			return nil
 		}
 	}
@@ -2766,6 +2773,12 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 
 	if arg.LifetimeSeconds == 0 {
 		arg.LifetimeSeconds = 86400
+	}
+
+	for _, u := range q.users {
+		if u.ID == arg.UserID && u.Deleted {
+			return database.APIKey{}, xerrors.Errorf("refusing to create APIKey for deleted user")
+		}
 	}
 
 	//nolint:gosimple
@@ -5142,34 +5155,36 @@ func (q *fakeQuerier) GetWorkspaceProxyByName(_ context.Context, name string) (d
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceProxyByHostname(_ context.Context, hostname string) (database.WorkspaceProxy, error) {
+func (q *fakeQuerier) GetWorkspaceProxyByHostname(_ context.Context, params database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	// Return zero rows if this is called with a non-sanitized hostname. The SQL
 	// version of this query does the same thing.
-	if !validProxyByHostnameRegex.MatchString(hostname) {
+	if !validProxyByHostnameRegex.MatchString(params.Hostname) {
 		return database.WorkspaceProxy{}, sql.ErrNoRows
 	}
 
 	// This regex matches the SQL version.
-	accessURLRegex := regexp.MustCompile(`[^:]*://` + regexp.QuoteMeta(hostname) + `([:/]?.)*`)
+	accessURLRegex := regexp.MustCompile(`[^:]*://` + regexp.QuoteMeta(params.Hostname) + `([:/]?.)*`)
 
 	for _, proxy := range q.workspaceProxies {
 		if proxy.Deleted {
 			continue
 		}
-		if accessURLRegex.MatchString(proxy.Url) {
+		if params.AllowAccessUrl && accessURLRegex.MatchString(proxy.Url) {
 			return proxy, nil
 		}
 
 		// Compile the app hostname regex. This is slow sadly.
-		wildcardRegexp, err := httpapi.CompileHostnamePattern(proxy.WildcardHostname)
-		if err != nil {
-			return database.WorkspaceProxy{}, xerrors.Errorf("compile hostname pattern %q for proxy %q (%s): %w", proxy.WildcardHostname, proxy.Name, proxy.ID.String(), err)
-		}
-		if _, ok := httpapi.ExecuteHostnamePattern(wildcardRegexp, hostname); ok {
-			return proxy, nil
+		if params.AllowWildcardHostname {
+			wildcardRegexp, err := httpapi.CompileHostnamePattern(proxy.WildcardHostname)
+			if err != nil {
+				return database.WorkspaceProxy{}, xerrors.Errorf("compile hostname pattern %q for proxy %q (%s): %w", proxy.WildcardHostname, proxy.Name, proxy.ID.String(), err)
+			}
+			if _, ok := httpapi.ExecuteHostnamePattern(wildcardRegexp, params.Hostname); ok {
+				return proxy, nil
+			}
 		}
 	}
 
@@ -5191,8 +5206,6 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 		Name:              arg.Name,
 		DisplayName:       arg.DisplayName,
 		Icon:              arg.Icon,
-		Url:               arg.Url,
-		WildcardHostname:  arg.WildcardHostname,
 		TokenHashedSecret: arg.TokenHashedSecret,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,

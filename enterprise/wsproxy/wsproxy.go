@@ -2,6 +2,7 @@ package wsproxy
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -30,6 +31,7 @@ import (
 type Options struct {
 	Logger slog.Logger
 
+	HTTPClient *http.Client
 	// DashboardURL is the URL of the primary coderd instance.
 	DashboardURL *url.URL
 	// AccessURL is the URL of the WorkspaceProxy.
@@ -118,6 +120,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	err := client.SetSessionToken(opts.ProxySessionToken)
 	if err != nil {
 		return nil, xerrors.Errorf("set client token: %w", err)
+	}
+
+	// Use the configured client if provided.
+	if opts.HTTPClient != nil {
+		client.SDKClient.HTTPClient = opts.HTTPClient
 	}
 
 	// TODO: Probably do some version checking here
@@ -224,6 +231,8 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 	r.Get("/buildinfo", s.buildInfo)
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+	// TODO: @emyrk should this be authenticated or debounced?
+	r.Get("/healthz-report", s.healthReport)
 
 	return s, nil
 }
@@ -244,6 +253,46 @@ func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 		DashboardURL:   s.DashboardURL.String(),
 		WorkspaceProxy: true,
 	})
+}
+
+// healthReport is a more thorough health check than the '/healthz' endpoint.
+// This endpoint not only responds if the server is running, but can do some
+// internal diagnostics to ensure that the server is running correctly. The
+// primary coderd will use this to determine if this workspace proxy can be used
+// by the users. This endpoint will take longer to respond than the '/healthz'.
+// Checks:
+// - Can communicate with primary coderd
+//
+// TODO: Config checks to ensure consistent with primary
+func (s *Server) healthReport(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var report codersdk.ProxyHealthReport
+
+	// Hit the build info to do basic version checking.
+	primaryBuild, err := s.SDKClient.SDKClient.BuildInfo(ctx)
+	if err != nil {
+		report.Errors = append(report.Errors, fmt.Sprintf("failed to get build info: %s", err.Error()))
+		httpapi.Write(r.Context(), rw, http.StatusOK, report)
+		return
+	}
+
+	if primaryBuild.WorkspaceProxy {
+		// This could be a simple mistake of using a proxy url as the dashboard url.
+		report.Errors = append(report.Errors,
+			fmt.Sprintf("dashboard url (%s) is a workspace proxy, must be a primary coderd", s.DashboardURL.String()))
+	}
+
+	// If we are in dev mode, never check versions.
+	if !buildinfo.IsDev() && !buildinfo.VersionsMatch(primaryBuild.Version, buildinfo.Version()) {
+		// Version mismatches are not fatal, but should be reported.
+		report.Warnings = append(report.Warnings,
+			fmt.Sprintf("version mismatch: primary coderd (%s) != workspace proxy (%s)", primaryBuild.Version, buildinfo.Version()))
+	}
+
+	// TODO: We should hit the deployment config endpoint and do some config
+	// checks. We can check the version from the X-CODER-BUILD-VERSION header
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, report)
 }
 
 type optErrors []error

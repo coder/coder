@@ -160,44 +160,74 @@ func TestProxyByHostname(t *testing.T) {
 	}
 
 	cases := []struct {
-		name           string
-		testHostname   string
-		matchProxyName string
+		name              string
+		testHostname      string
+		allowAccessURL    bool
+		allowWildcardHost bool
+		matchProxyName    string
 	}{
 		{
-			name:           "NoMatch",
-			testHostname:   "test.com",
-			matchProxyName: "",
+			name:              "NoMatch",
+			testHostname:      "test.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "",
 		},
 		{
-			name:           "MatchAccessURL",
-			testHostname:   "one.coder.com",
-			matchProxyName: "one",
+			name:              "MatchAccessURL",
+			testHostname:      "one.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "one",
 		},
 		{
-			name:           "MatchWildcard",
-			testHostname:   "something.wildcard.one.coder.com",
-			matchProxyName: "one",
+			name:              "MatchWildcard",
+			testHostname:      "something.wildcard.one.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "one",
 		},
 		{
-			name:           "MatchSuffix",
-			testHostname:   "something--suffix.two.coder.com",
-			matchProxyName: "two",
+			name:              "MatchSuffix",
+			testHostname:      "something--suffix.two.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "two",
 		},
 		{
-			name:           "ValidateHostname/1",
-			testHostname:   ".*ne.coder.com",
-			matchProxyName: "",
+			name:              "ValidateHostname/1",
+			testHostname:      ".*ne.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "",
 		},
 		{
-			name:           "ValidateHostname/2",
-			testHostname:   "https://one.coder.com",
-			matchProxyName: "",
+			name:              "ValidateHostname/2",
+			testHostname:      "https://one.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "",
 		},
 		{
-			name:           "ValidateHostname/3",
-			testHostname:   "one.coder.com:8080/hello",
-			matchProxyName: "",
+			name:              "ValidateHostname/3",
+			testHostname:      "one.coder.com:8080/hello",
+			allowAccessURL:    true,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
+			name:              "IgnoreAccessURLMatch",
+			testHostname:      "one.coder.com",
+			allowAccessURL:    false,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
+			name:              "IgnoreWildcardMatch",
+			testHostname:      "hi.wildcard.one.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "",
 		},
 	}
 
@@ -206,7 +236,11 @@ func TestProxyByHostname(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			proxy, err := db.GetWorkspaceProxyByHostname(context.Background(), c.testHostname)
+			proxy, err := db.GetWorkspaceProxyByHostname(context.Background(), database.GetWorkspaceProxyByHostnameParams{
+				Hostname:              c.testHostname,
+				AllowAccessUrl:        c.allowAccessURL,
+				AllowWildcardHostname: c.allowWildcardHost,
+			})
 			if c.matchProxyName == "" {
 				require.ErrorIs(t, err, sql.ErrNoRows)
 				require.Empty(t, proxy)

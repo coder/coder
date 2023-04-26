@@ -161,7 +161,7 @@ type agent struct {
 }
 
 func (a *agent) init(ctx context.Context) {
-	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.sshMaxTimeout)
+	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.filesystem, a.sshMaxTimeout, "")
 	if err != nil {
 		panic(err)
 	}
@@ -1036,16 +1036,13 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			<-ctx.Done()
 			_ = process.Kill()
 		}()
-		go func() {
-			// If the process dies randomly, we should
-			// close the pty.
-			_ = process.Wait()
-			rpty.Close()
-		}()
+		// We don't need to separately monitor for the process exiting.
+		// When it exits, our ptty.OutputReader() will return EOF after
+		// reading all process output.
 		if err = a.trackConnGoroutine(func() {
 			buffer := make([]byte, 1024)
 			for {
-				read, err := rpty.ptty.Output().Read(buffer)
+				read, err := rpty.ptty.OutputReader().Read(buffer)
 				if err != nil {
 					// When the PTY is closed, this is triggered.
 					break
@@ -1138,7 +1135,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			logger.Warn(ctx, "read conn", slog.Error(err))
 			return nil
 		}
-		_, err = rpty.ptty.Input().Write([]byte(req.Data))
+		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
 			logger.Warn(ctx, "write to pty", slog.Error(err))
 			return nil
@@ -1358,7 +1355,7 @@ type reconnectingPTY struct {
 	circularBuffer      *circbuf.Buffer
 	circularBufferMutex sync.RWMutex
 	timeout             *time.Timer
-	ptty                pty.PTY
+	ptty                pty.PTYCmd
 }
 
 // Close ends all connections to the reconnecting
