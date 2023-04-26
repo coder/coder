@@ -30,7 +30,7 @@ interface PreferredProxy {
   preferredWildcardHostname: string
 }
 
-const ProxyContext = createContext<ProxyContextValue | undefined>(undefined)
+export const ProxyContext = createContext<ProxyContextValue | undefined>(undefined)
 
 /**
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
@@ -82,6 +82,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     queryKey: appHostQueryKey,
     queryFn: getApplicationsHost,
   })
+
   // If the experiment is disabled, then make the setState do a noop.
   // This preserves an empty state, which is the default behavior.
   if (!dashboard?.experiments.includes("moons")) {

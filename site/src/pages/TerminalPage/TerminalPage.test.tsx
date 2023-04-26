@@ -2,13 +2,18 @@ import { waitFor } from "@testing-library/react"
 import "jest-canvas-mock"
 import WS from "jest-websocket-mock"
 import { rest } from "msw"
-import { Route, Routes } from "react-router-dom"
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities"
+import {
+  MockPrimaryRegion,
+  MockWorkspace,
+  MockWorkspaceAgent,
+} from "testHelpers/entities"
 import { TextDecoder, TextEncoder } from "util"
 import { ReconnectingPTYRequest } from "../../api/types"
-import { history, renderWithAuth } from "../../testHelpers/renderHelpers"
+import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import TerminalPage, { Language } from "./TerminalPage"
+import { Route, Routes } from "react-router-dom"
+import { ProxyContext } from "contexts/ProxyContext"
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -29,13 +34,26 @@ Object.defineProperty(window, "TextEncoder", {
 })
 
 const renderTerminal = () => {
-  return renderWithAuth(
+  // @emyrk using renderWithAuth would be best here, but I was unable to get it to work.
+  return render(
     <Routes>
       <Route
         path="/:username/:workspace/terminal"
-        element={<TerminalPage renderer="dom" />}
+        element={
+          <ProxyContext.Provider value={{
+            proxy: {
+              selectedRegion: MockPrimaryRegion,
+              preferredPathAppURL: "",
+              preferredWildcardHostname: "",
+            },
+            isLoading: false,
+            setProxy: jest.fn(),
+          }}>
+            <TerminalPage renderer="dom" />
+          </ProxyContext.Provider>
+        }
       />
-    </Routes>,
+    </Routes >,
   )
 }
 
