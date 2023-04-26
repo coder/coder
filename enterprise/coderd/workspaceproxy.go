@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -153,6 +154,20 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.CreateWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if strings.ToLower(req.Name) == "primary" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: `The name "primary" is reserved for the primary region.`,
+			Detail:  "Cannot name a workspace proxy 'primary'.",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "name",
+					Detail: "Reserved name",
+				},
+			},
+		})
 		return
 	}
 
