@@ -19,6 +19,8 @@ import {
   RouteObject,
 } from "react-router-dom"
 import { RequireAuth } from "../components/RequireAuth/RequireAuth"
+import { MockUser } from "./entities"
+import { AuthenticatedProviders } from "AppRouter"
 
 export const history = createMemoryHistory()
 
@@ -62,9 +64,14 @@ export function renderWithAuth(
       element: <RequireAuth />,
       children: [
         {
-          element: <DashboardLayout />,
-          children: [{ path, element }, ...extraRoutes],
-        },
+          element: <AuthenticatedProviders />,
+          children: [
+            {
+              element: <DashboardLayout />,
+              children: [{ path, element }, ...extraRoutes],
+            },
+          ],
+        }
       ],
     },
     ...nonAuthenticatedRoutes,
@@ -101,11 +108,16 @@ export function renderWithTemplateSettingsLayout(
       element: <RequireAuth />,
       children: [
         {
-          element: <DashboardLayout />,
+          element: <AuthenticatedProviders />,
           children: [
             {
-              element: <TemplateSettingsLayout />,
-              children: [{ path, element }, ...extraRoutes],
+              element: <DashboardLayout />,
+              children: [
+                {
+                  element: <TemplateSettingsLayout />,
+                  children: [{ path, element }, ...extraRoutes],
+                },
+              ],
             },
           ],
         },
@@ -145,11 +157,16 @@ export function renderWithWorkspaceSettingsLayout(
       element: <RequireAuth />,
       children: [
         {
-          element: <DashboardLayout />,
+          element: <AuthenticatedProviders />,
           children: [
             {
-              element: <WorkspaceSettingsLayout />,
-              children: [{ path, element }, ...extraRoutes],
+              element: <DashboardLayout />,
+              children: [
+                {
+                  element: <WorkspaceSettingsLayout />,
+                  children: [{ path, element }, ...extraRoutes],
+                },
+              ],
             },
           ],
         },

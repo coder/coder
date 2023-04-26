@@ -17,7 +17,6 @@ export const handlers = [
   }),
   // Workspace proxies
   rest.get("/api/v2/regions", async (req, res, ctx) => {
-    console.log("Hit mocked regions!!!!")
     return res(
       ctx.status(200),
       ctx.json({
