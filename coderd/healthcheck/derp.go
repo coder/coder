@@ -33,6 +33,8 @@ type DERPReport struct {
 	Netcheck     *netcheck.Report `json:"netcheck"`
 	NetcheckErr  error            `json:"netcheck_err"`
 	NetcheckLogs []string         `json:"netcheck_logs"`
+
+	Error error `json:"error"`
 }
 
 type DERPRegionReport struct {
@@ -41,6 +43,7 @@ type DERPRegionReport struct {
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*DERPNodeReport   `json:"node_reports"`
+	Error       error               `json:"error"`
 }
 type DERPNodeReport struct {
 	mu            sync.Mutex
@@ -55,6 +58,7 @@ type DERPNodeReport struct {
 	UsesWebsocket       bool                   `json:"uses_websocket"`
 	ClientLogs          [][]string             `json:"client_logs"`
 	ClientErrs          [][]error              `json:"client_errs"`
+	Error               error                  `json:"error"`
 
 	STUN DERPStunReport `json:"stun"`
 }
@@ -77,12 +81,19 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 
 	wg.Add(len(opts.DERPMap.Regions))
 	for _, region := range opts.DERPMap.Regions {
-		region := region
-		go func() {
-			defer wg.Done()
-			regionReport := DERPRegionReport{
+		var (
+			region       = region
+			regionReport = DERPRegionReport{
 				Region: region,
 			}
+		)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if err := recover(); err != nil {
+					regionReport.Error = xerrors.Errorf("%v", err)
+				}
+			}()
 
 			regionReport.Run(ctx)
 
@@ -117,14 +128,21 @@ func (r *DERPRegionReport) Run(ctx context.Context) {
 
 	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
-		node := node
-		go func() {
-			defer wg.Done()
-
-			nodeReport := DERPNodeReport{
+		var (
+			node       = node
+			nodeReport = DERPNodeReport{
 				Node:    node,
 				Healthy: true,
 			}
+		)
+
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if err := recover(); err != nil {
+					nodeReport.Error = xerrors.Errorf("%v", err)
+				}
+			}()
 
 			nodeReport.Run(ctx)
 

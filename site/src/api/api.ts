@@ -974,6 +974,37 @@ export const getWorkspaceBuildParameters = async (
   )
   return response.data
 }
+type Claims = {
+  license_expires?: jwt.NumericDate
+  account_type?: string
+  account_id?: string
+  trial: boolean
+  all_features: boolean
+  version: number
+  features: Record<string, number>
+  require_telemetry?: boolean
+}
+
+export type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
+  claims: Claims
+  expires_at: string
+}
+
+export const getLicenses = async (): Promise<GetLicensesResponse[]> => {
+  const response = await axios.get(`/api/v2/licenses`)
+  return response.data
+}
+
+export const createLicense = async (
+  data: TypesGen.AddLicenseRequest,
+): Promise<TypesGen.AddLicenseRequest> => {
+  const response = await axios.post(`/api/v2/licenses`, data)
+  return response.data
+}
+
+export const removeLicense = async (licenseId: number): Promise<void> => {
+  await axios.delete(`/api/v2/licenses/${licenseId}`)
+}
 
 export class MissingBuildParameters extends Error {
   parameters: TypesGen.TemplateVersionParameter[] = []

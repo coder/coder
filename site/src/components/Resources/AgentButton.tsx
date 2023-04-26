@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Button, { ButtonProps } from "@material-ui/core/Button"
-import { FC } from "react"
+import { FC, forwardRef } from "react"
 import { combineClasses } from "utils/combineClasses"
 
 export const PrimaryAgentButton: FC<ButtonProps> = ({
@@ -17,20 +17,21 @@ export const PrimaryAgentButton: FC<ButtonProps> = ({
   )
 }
 
-export const SecondaryAgentButton: FC<ButtonProps> = ({
-  className,
-  ...props
-}) => {
-  const styles = useStyles()
+// eslint-disable-next-line react/display-name -- Name is inferred from variable name
+export const SecondaryAgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, ...props }, ref) => {
+    const styles = useStyles()
 
-  return (
-    <Button
-      variant="outlined"
-      className={combineClasses([styles.secondaryButton, className])}
-      {...props}
-    />
-  )
-}
+    return (
+      <Button
+        ref={ref}
+        variant="outlined"
+        className={combineClasses([styles.secondaryButton, className])}
+        {...props}
+      />
+    )
+  },
+)
 
 const useStyles = makeStyles((theme) => ({
   primaryButton: {
