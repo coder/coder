@@ -9,8 +9,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary"
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar"
 import { dark } from "./theme"
 import "./theme/globalFonts"
-import { ProxyProvider } from "contexts/ProxyContext"
-import { DashboardProvider } from "components/Dashboard/DashboardProvider"
 
 const queryClient = new QueryClient({
   defaultOptions: {

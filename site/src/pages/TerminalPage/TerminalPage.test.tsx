@@ -6,7 +6,7 @@ import { Route, Routes } from "react-router-dom"
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities"
 import { TextDecoder, TextEncoder } from "util"
 import { ReconnectingPTYRequest } from "../../api/types"
-import { history, render } from "../../testHelpers/renderHelpers"
+import { history, renderWithAuth } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import TerminalPage, { Language } from "./TerminalPage"
 
@@ -29,7 +29,7 @@ Object.defineProperty(window, "TextEncoder", {
 })
 
 const renderTerminal = () => {
-  return render(
+  return renderWithAuth(
     <Routes>
       <Route
         path="/:username/:workspace/terminal"
