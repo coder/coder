@@ -79,27 +79,45 @@ const LicensesSettingsPageView: FC<Props> = ({
       )}
 
       {!isLoading && licenses === null && (
-        <Stack spacing={4} justifyContent="center" alignItems="center">
-          <Button
-            className={styles.ctaButton}
-            size="large"
-            component={Link}
-            to="/settings/deployment/licenses/add"
-          >
-            Add license
-          </Button>
-        </Stack>
+        <div className={styles.root}>
+          <Stack alignItems="center" spacing={1}>
+            <Stack alignItems="center" spacing={0.5}>
+              <span className={styles.title}>No Licenses yet</span>
+              <span className={styles.description}>
+                <a href="mailto:sales@coder.com">Contact sales</a> to learn
+                more.
+              </span>
+            </Stack>
+          </Stack>
+        </div>
       )}
     </>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  ctaButton: {
-    backgroundImage: `linear-gradient(90deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
-    width: theme.spacing(30),
-    marginBottom: theme.spacing(4),
-    marginTop: theme.spacing(4),
+  title: {
+    fontSize: theme.spacing(2),
+  },
+
+  root: {
+    minHeight: theme.spacing(30),
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
+    padding: theme.spacing(6),
+
+    "&:hover": {
+      backgroundColor: theme.palette.background.paper,
+    },
+  },
+
+  description: {
+    color: theme.palette.text.secondary,
+    textAlign: "center",
+    maxWidth: theme.spacing(50),
   },
 }))
 
