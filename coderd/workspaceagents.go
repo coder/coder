@@ -1236,7 +1236,10 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			SessionCountSSH:             req.SessionCountSSH,
 			ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
 		})
-		return xerrors.Errorf("can't insert workspace agent stat: %w", err)
+		if err != nil {
+			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
+		}
+		return nil
 	})
 	errGroup.Go(func() error {
 		err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
