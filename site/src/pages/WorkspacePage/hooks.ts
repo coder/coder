@@ -19,7 +19,6 @@ export function waitForBuild(build: WorkspaceBuild) {
           String(build.build_number),
         )
         latestJobInfo = job
-        console.log("latest job status", latestJobInfo.status)
 
         if (
           ["failed", "canceled"].some((status) =>
@@ -31,8 +30,6 @@ export function waitForBuild(build: WorkspaceBuild) {
 
         await delay(1000)
       }
-
-      console.log("resolving status status", latestJobInfo.status)
 
       return res(latestJobInfo)
     })()
@@ -58,6 +55,7 @@ export const useRestartWorkspace = (
         setLoading(false)
       } catch (error) {
         if ((error as WorkspaceBuild).status === "canceled") {
+          setLoading(false)
           return
         }
         setBuildError(error)
