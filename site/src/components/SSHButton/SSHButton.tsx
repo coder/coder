@@ -42,62 +42,64 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
       >
         Connect SSH
       </SecondaryAgentButton>
-      <Popover
-        classes={{ paper: styles.popoverPaper }}
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onClose={onClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "left",
-        }}
-      >
-        <HelpTooltipText>
-          Run the following commands to connect with SSH:
-        </HelpTooltipText>
+      <div>
+        <Popover
+          classes={{ paper: styles.popoverPaper }}
+          id={id}
+          open={isOpen}
+          anchorEl={anchorRef.current}
+          onClose={onClose}
+          anchorOrigin={{
+            vertical: "bottom",
+            horizontal: "left",
+          }}
+          transformOrigin={{
+            vertical: "top",
+            horizontal: "left",
+          }}
+        >
+          <HelpTooltipText>
+            Run the following commands to connect with SSH:
+          </HelpTooltipText>
 
-        <Stack spacing={0.5} className={styles.codeExamples}>
-          <div>
-            <HelpTooltipText>
-              <strong className={styles.codeExampleLabel}>
-                Configure SSH hosts on machine:
-              </strong>
-            </HelpTooltipText>
-            <CodeExample code="coder config-ssh" />
-          </div>
+          <Stack spacing={0.5} className={styles.codeExamples}>
+            <div>
+              <HelpTooltipText>
+                <strong className={styles.codeExampleLabel}>
+                  Configure SSH hosts on machine:
+                </strong>
+              </HelpTooltipText>
+              <CodeExample code="coder config-ssh" />
+            </div>
 
-          <div>
-            <HelpTooltipText>
-              <strong className={styles.codeExampleLabel}>
-                Connect to the agent:
-              </strong>
-            </HelpTooltipText>
-            <CodeExample
-              code={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
-            />
-          </div>
-        </Stack>
+            <div>
+              <HelpTooltipText>
+                <strong className={styles.codeExampleLabel}>
+                  Connect to the agent:
+                </strong>
+              </HelpTooltipText>
+              <CodeExample
+                code={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+              />
+            </div>
+          </Stack>
 
-        <HelpTooltipLinksGroup>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/install">
-            Install Coder CLI
-          </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#vs-code-remote">
-            Connect via VS Code Remote SSH
-          </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#jetbrains-gateway">
-            Connect via JetBrains Gateway
-          </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#ssh-configuration">
-            SSH configuration
-          </HelpTooltipLink>
-        </HelpTooltipLinksGroup>
-      </Popover>
+          <HelpTooltipLinksGroup>
+            <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/install">
+              Install Coder CLI
+            </HelpTooltipLink>
+            <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#vs-code-remote">
+              Connect via VS Code Remote SSH
+            </HelpTooltipLink>
+            <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#jetbrains-gateway">
+              Connect via JetBrains Gateway
+            </HelpTooltipLink>
+            <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#ssh-configuration">
+              SSH configuration
+            </HelpTooltipLink>
+          </HelpTooltipLinksGroup>
+        </Popover>
+      </div>
     </>
   )
 }
