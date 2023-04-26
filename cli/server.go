@@ -733,7 +733,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer cancelMetricsAggregator()
 
 					options.UpdateAgentMetrics = metricsAggregator.Update
-					options.PrometheusRegistry.MustRegister(metricsAggregator)
+					err = options.PrometheusRegistry.Register(metricsAggregator)
+					if err != nil {
+						return xerrors.Errorf("can't register metrics aggregator as collector: %w", err)
+					}
 				}
 
 				//nolint:revive

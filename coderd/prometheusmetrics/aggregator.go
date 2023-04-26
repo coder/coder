@@ -17,7 +17,7 @@ const (
 	// messages. This is because a registry cannot have conflicting
 	// help messages for the same metric in a "gather". If our coder agents are
 	// on different versions, this is a possible scenario.
-	metricHelpForAgent = "Metric is forwarded from workspace agent connected to this instance of coderd."
+	metricHelpForAgent = "Metrics are forwarded from workspace agents connected to this instance of coderd."
 )
 
 const (
@@ -172,14 +172,13 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				if hasExpiredMetrics {
 					var j int
-					fresh := make([]annotatedMetric, len(ma.queue))
+					fresh := make([]annotatedMetric, 0, len(ma.queue))
 					for _, m := range ma.queue {
 						if m.expiryDate.After(now) {
 							fresh[j] = m
 							j++
 						}
 					}
-					fresh = fresh[:j]
 					ma.queue = fresh
 				}
 
