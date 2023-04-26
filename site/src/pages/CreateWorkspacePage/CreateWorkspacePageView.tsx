@@ -149,73 +149,68 @@ export const CreateWorkspacePageView: FC<
     return <Loader />
   }
 
-  if (props.hasTemplateErrors) {
-    return (
-      <Stack>
-        {Boolean(
-          props.createWorkspaceErrors[
-            CreateWorkspaceErrors.GET_TEMPLATES_ERROR
-          ],
-        ) && (
-          <AlertBanner
-            severity="error"
-            error={
-              props.createWorkspaceErrors[
-                CreateWorkspaceErrors.GET_TEMPLATES_ERROR
-              ]
-            }
-          />
-        )}
-        {Boolean(
-          props.createWorkspaceErrors[
-            CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
-          ],
-        ) && (
-          <AlertBanner
-            severity="error"
-            error={
-              props.createWorkspaceErrors[
-                CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
-              ]
-            }
-          />
-        )}
-        {Boolean(
-          props.createWorkspaceErrors[
-            CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
-          ],
-        ) && (
-          <AlertBanner
-            severity="error"
-            error={
-              props.createWorkspaceErrors[
-                CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
-              ]
-            }
-          />
-        )}
-      </Stack>
-    )
-  }
-
-  if (
-    props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]
-  ) {
-    return (
-      <AlertBanner
-        severity="error"
-        error={
-          props.createWorkspaceErrors[
-            CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
-          ]
-        }
-      />
-    )
-  }
-
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={props.onCancel}>
+
       <HorizontalForm onSubmit={form.handleSubmit}>
+
+        {Boolean(props.hasTemplateErrors) && (<Stack>
+          {Boolean(
+            props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+            ],
+          ) && (
+              <AlertBanner
+                severity="error"
+                error={
+                  props.createWorkspaceErrors[
+                  CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+                  ]
+                }
+              />
+            )}
+          {Boolean(
+            props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+            ],
+          ) && (
+              <AlertBanner
+                severity="error"
+                error={
+                  props.createWorkspaceErrors[
+                  CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+                  ]
+                }
+              />
+            )}
+          {Boolean(
+            props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
+            ],
+          ) && (
+              <AlertBanner
+                severity="error"
+                error={
+                  props.createWorkspaceErrors[
+                  CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
+                  ]
+                }
+              />
+            )}
+        </Stack>
+        )}
+
+        {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]) && (
+          <AlertBanner
+            severity="error"
+            error={
+              props.createWorkspaceErrors[
+              CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+              ]
+            }
+          />
+        )}
+
         {/* General info */}
         <FormSection
           title="General info"
