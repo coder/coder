@@ -151,61 +151,64 @@ export const CreateWorkspacePageView: FC<
 
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={props.onCancel}>
-
       <HorizontalForm onSubmit={form.handleSubmit}>
-
-        {Boolean(props.hasTemplateErrors) && (<Stack>
-          {Boolean(
-            props.createWorkspaceErrors[
-            CreateWorkspaceErrors.GET_TEMPLATES_ERROR
-            ],
-          ) && (
+        {Boolean(props.hasTemplateErrors) && (
+          <Stack>
+            {Boolean(
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+              ],
+            ) && (
               <AlertBanner
                 severity="error"
                 error={
                   props.createWorkspaceErrors[
-                  CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+                    CreateWorkspaceErrors.GET_TEMPLATES_ERROR
                   ]
                 }
               />
             )}
-          {Boolean(
-            props.createWorkspaceErrors[
-            CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
-            ],
-          ) && (
+            {Boolean(
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+              ],
+            ) && (
               <AlertBanner
                 severity="error"
                 error={
                   props.createWorkspaceErrors[
-                  CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+                    CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
                   ]
                 }
               />
             )}
-          {Boolean(
-            props.createWorkspaceErrors[
-            CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
-            ],
-          ) && (
+            {Boolean(
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
+              ],
+            ) && (
               <AlertBanner
                 severity="error"
                 error={
                   props.createWorkspaceErrors[
-                  CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
+                    CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
                   ]
                 }
               />
             )}
-        </Stack>
+          </Stack>
         )}
 
-        {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]) && (
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+          ],
+        ) && (
           <AlertBanner
             severity="error"
             error={
               props.createWorkspaceErrors[
-              CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+                CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
               ]
             }
           />
