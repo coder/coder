@@ -40,20 +40,22 @@ const renderTerminal = () => {
       <Route
         path="/:username/:workspace/terminal"
         element={
-          <ProxyContext.Provider value={{
-            proxy: {
-              selectedRegion: MockPrimaryRegion,
-              preferredPathAppURL: "",
-              preferredWildcardHostname: "",
-            },
-            isLoading: false,
-            setProxy: jest.fn(),
-          }}>
+          <ProxyContext.Provider
+            value={{
+              proxy: {
+                selectedRegion: MockPrimaryRegion,
+                preferredPathAppURL: "",
+                preferredWildcardHostname: "",
+              },
+              isLoading: false,
+              setProxy: jest.fn(),
+            }}
+          >
             <TerminalPage renderer="dom" />
           </ProxyContext.Provider>
         }
       />
-    </Routes >,
+    </Routes>,
   )
 }
 

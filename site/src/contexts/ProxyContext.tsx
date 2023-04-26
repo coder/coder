@@ -30,7 +30,9 @@ interface PreferredProxy {
   preferredWildcardHostname: string
 }
 
-export const ProxyContext = createContext<ProxyContextValue | undefined>(undefined)
+export const ProxyContext = createContext<ProxyContextValue | undefined>(
+  undefined,
+)
 
 /**
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
