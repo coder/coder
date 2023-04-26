@@ -34,8 +34,7 @@ export const UpdateBuildParametersDialog: FC<
   const styles = useStyles()
   const form = useFormik({
     initialValues: {
-      rich_parameter_values:
-        selectInitialRichParametersValues(missedParameters),
+      rich_parameter_values: []
     },
     validationSchema: Yup.object({
       rich_parameter_values: useValidationSchemaForRichParameters(
@@ -47,6 +46,12 @@ export const UpdateBuildParametersDialog: FC<
       onUpdate(values.rich_parameter_values)
     },
   })
+
+  // Set initial values for missing parameters, once fetched
+  if (missedParameters && form.values.rich_parameter_values.length === 0) {
+    form.setFieldValue("rich_parameter_values", selectInitialRichParametersValues(missedParameters))
+  }
+
   const getFieldHelpers = getFormHelpers(form)
   const { t } = useTranslation("workspacePage")
 
@@ -83,7 +88,7 @@ export const UpdateBuildParametersDialog: FC<
                     )}
                     key={parameter.name}
                     parameter={parameter}
-                    initialValue=""
+                    initialValue={parameter.default_value}
                     index={index}
                     onChange={async (value) => {
                       await form.setFieldValue(
