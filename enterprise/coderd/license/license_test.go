@@ -37,6 +37,15 @@ func TestEntitlements(t *testing.T) {
 			require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
 		}
 	})
+	t.Run("Always return the current user count", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.False(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+		require.Equal(t, *entitlements.Features[codersdk.FeatureUserLimit].Actual, int64(0))
+	})
 	t.Run("SingleLicenseNothing", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()

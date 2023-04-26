@@ -53,6 +53,13 @@ func Entitlements(
 		return entitlements, xerrors.Errorf("query active user count: %w", err)
 	}
 
+	// always shows active user count regardless of license
+	entitlements.Features[codersdk.FeatureUserLimit] = codersdk.Feature{
+		Entitlement: codersdk.EntitlementNotEntitled,
+		Enabled:     enablements[codersdk.FeatureUserLimit],
+		Actual:      &activeUserCount,
+	}
+
 	allFeatures := false
 
 	// Here we loop through licenses to detect enabled features.
