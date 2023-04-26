@@ -10,7 +10,6 @@ export interface TerminalContext {
   workspaceAgentError?: Error | unknown
   websocket?: WebSocket
   websocketError?: Error | unknown
-  applicationsHost?: string
 
   // Assigned by connecting!
   // The workspace agent is entirely optional.  If the agent is omitted the
@@ -48,9 +47,6 @@ export const terminalMachine =
           getWorkspace: {
             data: TypesGen.Workspace
           }
-          getApplicationsHost: {
-            data: TypesGen.AppHostResponse
-          }
           getWorkspaceAgent: {
             data: TypesGen.WorkspaceAgent
           }
@@ -64,27 +60,6 @@ export const terminalMachine =
         setup: {
           type: "parallel",
           states: {
-            getApplicationsHost: {
-              initial: "gettingApplicationsHost",
-              states: {
-                gettingApplicationsHost: {
-                  invoke: {
-                    src: "getApplicationsHost",
-                    id: "getApplicationsHost",
-                    onDone: {
-                      actions: [
-                        "assignApplicationsHost",
-                        "clearApplicationsHostError",
-                      ],
-                      target: "success",
-                    },
-                  },
-                },
-                success: {
-                  type: "final",
-                },
-              },
-            },
             getWorkspace: {
               initial: "gettingWorkspace",
               states: {
@@ -187,9 +162,6 @@ export const terminalMachine =
             context.workspaceName,
           )
         },
-        getApplicationsHost: async () => {
-          return API.getApplicationsHost()
-        },
         getWorkspaceAgent: async (context) => {
           if (!context.workspace || !context.workspaceName) {
             throw new Error("workspace or workspace name is not set")
@@ -261,13 +233,6 @@ export const terminalMachine =
         clearWorkspaceError: assign((context) => ({
           ...context,
           workspaceError: undefined,
-        })),
-        assignApplicationsHost: assign({
-          applicationsHost: (_, { data }) => data.host,
-        }),
-        clearApplicationsHostError: assign((context) => ({
-          ...context,
-          applicationsHostError: undefined,
         })),
         assignWorkspaceAgent: assign({
           workspaceAgent: (_, event) => event.data,

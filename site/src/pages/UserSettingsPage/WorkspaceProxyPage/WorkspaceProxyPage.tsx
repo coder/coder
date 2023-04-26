@@ -1,10 +1,9 @@
-import { FC, PropsWithChildren, useState } from "react"
+import { FC, PropsWithChildren } from "react"
 import { Section } from "components/SettingsLayout/Section"
 import { WorkspaceProxyPageView } from "./WorkspaceProxyView"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { Trans } from "react-i18next"
 import { useWorkspaceProxiesData } from "./hooks"
-import { Region } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { useProxy } from "contexts/ProxyContext"
 // import { ConfirmDeleteDialog } from "./components"
@@ -25,7 +24,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
     </Trans>
   )
 
-  const { value, setValue } = useProxy()
+  const { proxy, setProxy } = useProxy()
 
   const {
     data: response,
@@ -47,7 +46,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
           isLoading={isFetching}
           hasLoaded={isFetched}
           getWorkspaceProxiesError={getProxiesError}
-          preferredProxy={value.selectedRegion}
+          preferredProxy={proxy.selectedRegion}
           onSelect={(proxy) => {
             if (!proxy.healthy) {
               displayError("Please select a healthy workspace proxy.")
@@ -55,7 +54,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
             }
 
             // Set the fetched regions + the selected proxy 
-            setValue(response ? response.regions : [], proxy)
+            setProxy(response ? response.regions : [], proxy)
           }}
         />
       </Section>

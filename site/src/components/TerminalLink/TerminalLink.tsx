@@ -3,7 +3,7 @@ import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../utils/random"
-import { usePreferredProxy } from "hooks/usePreferredProxy"
+import { useProxy } from "contexts/ProxyContext"
 
 export const Language = {
   linkText: "Terminal",
@@ -28,12 +28,10 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
   userName = "me",
   workspaceName,
 }) => {
-  const preferredProxy = usePreferredProxy()
-  const preferredPathBase = preferredProxy ? preferredProxy.path_app_url : ""
+  const { proxy } = useProxy()
 
-  const href = `${preferredPathBase}/@${userName}/${workspaceName}${
-    agentName ? `.${agentName}` : ""
-  }/terminal`
+  const href = `${proxy.preferredPathAppURL}/@${userName}/${workspaceName}${agentName ? `.${agentName}` : ""
+    }/terminal`
 
   return (
     <Link

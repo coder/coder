@@ -43,11 +43,11 @@ import { AgentMetadata } from "./AgentMetadata"
 import { AgentVersion } from "./AgentVersion"
 import { AgentStatus } from "./AgentStatus"
 import Collapse from "@material-ui/core/Collapse"
+import { useProxy } from "contexts/ProxyContext"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
   workspace: Workspace
-  applicationsHost: string | undefined
   showApps: boolean
   hideSSHButton?: boolean
   sshPrefix?: string
@@ -61,7 +61,6 @@ export interface AgentRowProps {
 export const AgentRow: FC<AgentRowProps> = ({
   agent,
   workspace,
-  applicationsHost,
   showApps,
   hideSSHButton,
   hideVSCodeDesktopButton,
@@ -96,6 +95,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   const hasStartupFeatures =
     Boolean(agent.startup_logs_length) ||
     Boolean(logsMachine.context.startupLogs?.length)
+  const { proxy } = useProxy()
 
   const [showStartupLogs, setShowStartupLogs] = useState(
     agent.lifecycle_state !== "ready" && hasStartupFeatures,
@@ -228,7 +228,6 @@ export const AgentRow: FC<AgentRowProps> = ({
                 {agent.apps.map((app) => (
                   <AppLink
                     key={app.slug}
-                    appsHost={applicationsHost}
                     app={app}
                     agent={agent}
                     workspace={workspace}
@@ -249,9 +248,9 @@ export const AgentRow: FC<AgentRowProps> = ({
                 sshPrefix={sshPrefix}
               />
             )}
-            {applicationsHost !== undefined && applicationsHost !== "" && (
+            {proxy.preferredWildcardHostname !== undefined && proxy.preferredWildcardHostname !== "" && (
               <PortForwardButton
-                host={applicationsHost}
+                host={proxy.preferredWildcardHostname}
                 workspaceName={workspace.name}
                 agentId={agent.id}
                 agentName={agent.name}

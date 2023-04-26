@@ -1,25 +1,26 @@
+import { useQuery } from "@tanstack/react-query"
+import { getApplicationsHost, getWorkspaceProxies } from "api/api"
 import { Region } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { createContext, FC, PropsWithChildren, useContext, useState } from "react"
 
 interface ProxyContextValue {
-  value: PreferredProxy
-  setValue: (regions: Region[], selectedRegion: Region | undefined) => void
+  proxy: PreferredProxy
+  isLoading: boolean
+  error?: Error | unknown
+  setProxy: (regions: Region[], selectedRegion: Region | undefined) => void
 }
 
 interface PreferredProxy {
-  // Regions is a list of all the regions returned by coderd.
-  regions: Region[]
   // SelectedRegion is the region the user has selected.
+  // Do not use the fields 'path_app_url' or 'wildcard_hostname' from this
+  // object. Use the preferred fields.
   selectedRegion: Region | undefined
   // PreferredPathAppURL is the URL of the proxy or it is the empty string
   // to indicte using relative paths. To add a path to this:
   //  PreferredPathAppURL + "/path/to/app"
   preferredPathAppURL: string
   // PreferredWildcardHostname is a hostname that includes a wildcard.
-  // TODO: If the preferred proxy does not have this set, should we default to'
-  //    the primary's?
-  //  Example: "*.example.com"
   preferredWildcardHostname: string
 }
 
@@ -32,24 +33,56 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   // Try to load the preferred proxy from local storage.
   let savedProxy = loadPreferredProxy()
   if (!savedProxy) {
-    savedProxy = getURLs([], undefined)
+    savedProxy = getURLs([])
   }
 
   // The initial state is no regions and no selected region.
-  const [state, setState] = useState<PreferredProxy>(savedProxy)
+  const [proxy, setProxy] = useState<PreferredProxy>(savedProxy)
+  const setAndSaveProxy = (regions: Region[], selectedRegion: Region | undefined) => {
+    const preferred = getURLs(regions, selectedRegion)
+    // Save to local storage to persist the user's preference across reloads
+    // and other tabs.
+    savePreferredProxy(preferred)
+    // Set the state for the current context.
+    setProxy(preferred)
+  }
+
+  const queryKey = ["get-regions"]
+  const { error: regionsError, isLoading: regionsLoading } = useQuery({
+    queryKey,
+    queryFn: getWorkspaceProxies,
+    // This onSucccess ensures the local storage is synchronized with the 
+    // regions returned by coderd. If the selected region is not in the list,
+    // then the user selection is removed.
+    onSuccess: (data) => {
+      setAndSaveProxy(data.regions, proxy.selectedRegion)
+    },
+  })
 
   // ******************************* //
   // ** This code can be removed  **
   // ** when the experimental is  ** 
   // **       dropped             ** //
   const dashboard = useDashboard()
+  const appHostQueryKey = ["get-application-host"]
+  const { data: applicationHostResult, error: appHostError, isLoading: appHostLoading } = useQuery({
+    queryKey: appHostQueryKey,
+    queryFn: getApplicationsHost,
+  })
   // If the experiment is disabled, then make the setState do a noop.
   // This preserves an empty state, which is the default behavior.
   if (!dashboard?.experiments.includes("moons")) {
+    const value = getURLs([])
+
     return (
       <ProxyContext.Provider value={{
-        value: getURLs([], undefined),
-        setValue: () => {
+        proxy: {
+          ...value,
+          preferredWildcardHostname: applicationHostResult?.host || value.preferredWildcardHostname,
+        },
+        isLoading: appHostLoading,
+        error: appHostError,
+        setProxy: () => {
           // Does a noop
         },
       }}>
@@ -64,17 +97,12 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   return (
     <ProxyContext.Provider value={{
-      value: state,
+      proxy: proxy,
+      isLoading: regionsLoading,
+      error: regionsError,
       // A function that takes the new regions and selected region and updates
       // the state with the appropriate urls.
-      setValue: (regions, selectedRegion) => {
-        const preferred = getURLs(regions, selectedRegion)
-        // Save to local storage to persist the user's preference across reloads
-        // and other tabs.
-        savePreferredProxy(preferred)
-        // Set the state for the current context.
-        setState(preferred)
-      },
+      setProxy: setAndSaveProxy,
     }}>
       {children}
     </ProxyContext.Provider >
@@ -99,19 +127,19 @@ export const useProxy = (): ProxyContextValue => {
  * @param regions Is the list of regions returned by coderd. If this is empty, default behavior is used.
  * @param selectedRegion Is the region the user has selected. If this is undefined, default behavior is used.
  */
-const getURLs = (regions: Region[], selectedRegion: Region | undefined): PreferredProxy => {
+const getURLs = (regions: Region[], selectedRegion?: Region): PreferredProxy => {
   // By default we set the path app to relative and disable wilcard hostnames.
   // We will set these values if we find a proxy we can use that supports them.
   let pathAppURL = ""
   let wildcardHostname = ""
 
-  if (selectedRegion === undefined) {
+  // If a region is selected, make sure it is in the list of regions. If it is not
+  // we should default to the primary.
+  selectedRegion = regions.find((region) => selectedRegion && region.id === selectedRegion.id)
+
+  if (!selectedRegion) {
     // If no region is selected, default to the primary region.
     selectedRegion = regions.find((region) => region.name === "primary")
-  } else {
-    // If a region is selected, make sure it is in the list of regions. If it is not
-    // we should default to the primary.
-    selectedRegion = regions.find((region) => region.id === selectedRegion?.id)
   }
 
   // Only use healthy regions.
@@ -126,10 +154,8 @@ const getURLs = (regions: Region[], selectedRegion: Region | undefined): Preferr
 
   // TODO: @emyrk Should we notify the user if they had an unhealthy region selected?
 
-
   return {
-    regions: regions,
-    selectedRegion: selectedRegion,
+    selectedRegion,
     // Trim trailing slashes to be consistent
     preferredPathAppURL: pathAppURL.replace(/\/$/, ""),
     preferredWildcardHostname: wildcardHostname,
