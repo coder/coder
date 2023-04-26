@@ -4,7 +4,7 @@ import DialogContent from "@material-ui/core/DialogContent"
 import DialogContentText from "@material-ui/core/DialogContentText"
 import DialogTitle from "@material-ui/core/DialogTitle"
 import { DialogProps } from "components/Dialogs/Dialog"
-import { FC } from "react"
+import { FC, useEffect } from "react"
 import { getFormHelpers } from "utils/formUtils"
 import { FormFields, VerticalForm } from "components/Form/Form"
 import {
@@ -47,13 +47,14 @@ export const UpdateBuildParametersDialog: FC<
     },
   })
 
-  // Set initial values for missing parameters, once fetched
-  if (missedParameters && form.values.rich_parameter_values.length === 0) {
-    form.setFieldValue(
-      "rich_parameter_values",
-      selectInitialRichParametersValues(missedParameters),
-    )
-  }
+  useEffect(() => {
+    if (missedParameters && form.values.rich_parameter_values.length === 0) {
+      void form.setFieldValue(
+        "rich_parameter_values",
+        selectInitialRichParametersValues(missedParameters),
+      )
+    }
+  }, [form, missedParameters])
 
   const getFieldHelpers = getFormHelpers(form)
   const { t } = useTranslation("workspacePage")
