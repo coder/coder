@@ -487,14 +487,22 @@ export const postWorkspaceBuild = async (
   return response.data
 }
 
-export const startWorkspace = (
-  workspaceId: string,
-  templateVersionID: string,
-  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
-) =>
+// it is necessary to create an interface here for react query
+// as startWorkspace requires multiple parameters
+interface StartWorkspaceParams {
+  workspaceId: string
+  templateVersionId: string
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"]
+}
+
+export const startWorkspace = ({
+  workspaceId,
+  templateVersionId,
+  logLevel,
+}: StartWorkspaceParams) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
-    template_version_id: templateVersionID,
+    template_version_id: templateVersionId,
     log_level: logLevel,
   })
 export const stopWorkspace = (
@@ -505,6 +513,7 @@ export const stopWorkspace = (
     transition: "stop",
     log_level: logLevel,
   })
+
 export const deleteWorkspace = (
   workspaceId: string,
   logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
@@ -954,7 +963,10 @@ export const updateWorkspaceVersion = async (
   workspace: TypesGen.Workspace,
 ): Promise<TypesGen.WorkspaceBuild> => {
   const template = await getTemplate(workspace.template_id)
-  return startWorkspace(workspace.id, template.active_version_id)
+  return startWorkspace({
+    workspaceId: workspace.id,
+    templateVersionId: template.active_version_id,
+  })
 }
 
 export const getWorkspaceBuildParameters = async (
