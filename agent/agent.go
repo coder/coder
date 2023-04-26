@@ -1035,12 +1035,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			<-ctx.Done()
 			_ = process.Kill()
 		}()
-		go func() {
-			// If the process dies randomly, we should
-			// close the pty.
-			_ = process.Wait()
-			rpty.Close()
-		}()
+		// We don't need to separately monitor for the process exiting.
+		// When it exits, our ptty.OutputReader() will return EOF after
+		// reading all process output.
 		if err = a.trackConnGoroutine(func() {
 			buffer := make([]byte, 1024)
 			for {
