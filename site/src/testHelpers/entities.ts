@@ -68,7 +68,7 @@ export const MockTokens: TypesGen.APIKeyWithOwner[] = [
   },
 ]
 
-export const MockRegion: TypesGen.Region = {
+export const MockPrimaryRegion: TypesGen.Region = {
   id: "4aa23000-526a-481f-a007-0f20b98b1e12",
   name: "primary",
   display_name: "Default",
@@ -79,7 +79,7 @@ export const MockRegion: TypesGen.Region = {
 }
 
 export const MockRegions: TypesGen.Region[] = [
-  MockRegion,
+  MockPrimaryRegion,
   {
     id: "8444931c-0247-4171-842a-569d9f9cbadb",
     name: "unhealthy",
@@ -103,6 +103,8 @@ export const MockRegions: TypesGen.Region[] = [
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   external_url: "file:///mock-url",
   version: "v99.999.9999+c9cdf14",
+  dashboard_url: "https:///mock-url",
+  workspace_proxy: false,
 }
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [

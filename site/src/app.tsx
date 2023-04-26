@@ -31,12 +31,8 @@ export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <DashboardProvider>
-                <ProxyProvider>
-                  {children}
-                  <GlobalSnackbar />
-                </ProxyProvider>
-              </DashboardProvider>
+              {children}
+              <GlobalSnackbar />
             </AuthProvider>
           </QueryClientProvider>
         </ErrorBoundary>

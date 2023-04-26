@@ -148,7 +148,7 @@ const getURLs = (
   regions: Region[],
   selectedRegion?: Region,
 ): PreferredProxy => {
-  // By default we set the path app to relative and disable wilcard hostnames.
+  // By default we set the path app to relative and disable wildcard hostnames.
   // We will set these values if we find a proxy we can use that supports them.
   let pathAppURL = ""
   let wildcardHostname = ""

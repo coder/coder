@@ -19,7 +19,6 @@ import {
   RouteObject,
 } from "react-router-dom"
 import { RequireAuth } from "../components/RequireAuth/RequireAuth"
-import { MockUser } from "./entities"
 
 export const history = createMemoryHistory()
 
