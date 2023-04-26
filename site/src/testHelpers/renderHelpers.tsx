@@ -71,7 +71,7 @@ export function renderWithAuth(
               children: [{ path, element }, ...extraRoutes],
             },
           ],
-        }
+        },
       ],
     },
     ...nonAuthenticatedRoutes,
