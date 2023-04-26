@@ -41,13 +41,14 @@ export interface WorkspaceProps {
   }
   handleStart: () => void
   handleStop: () => void
-  handleRestart: any
+  handleRestart: () => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
   handleSettings: () => void
   handleChangeVersion: () => void
   isUpdating: boolean
+  isRestarting: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
@@ -81,6 +82,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleChangeVersion,
   workspace,
   isUpdating,
+  isRestarting,
   resources,
   builds,
   canUpdateWorkspace,
@@ -142,6 +144,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleChangeVersion={handleChangeVersion}
               canChangeVersions={canChangeVersions}
               isUpdating={isUpdating}
+              isRestarting={isRestarting}
             />
           </Stack>
         }

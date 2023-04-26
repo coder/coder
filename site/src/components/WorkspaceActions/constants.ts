@@ -8,6 +8,7 @@ export enum ButtonTypesEnum {
   stop = "stop",
   stopping = "stopping",
   restart = "restart",
+  restarting = "restarting",
   deleting = "deleting",
   update = "update",
   updating = "updating",

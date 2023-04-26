@@ -7,7 +7,7 @@ import { delay } from "utils/delay"
 import { ProvisionerJob, WorkspaceBuild } from "api/typesGenerated"
 import { useMutation } from "@tanstack/react-query"
 
-export function waitForStop(build: WorkspaceBuild) {
+export function waitForBuild(build: WorkspaceBuild) {
   return new Promise((res, reject) => {
     void (async () => {
       let latestJobInfo: ProvisionerJob | undefined = undefined
@@ -40,22 +40,28 @@ export function waitForStop(build: WorkspaceBuild) {
 }
 
 export const useRestartWorkspace = (
-  setRestartBuildError: (arg: Error | unknown | undefined) => void,
+  setBuildError: (arg: Error | unknown | undefined) => void,
+  setLoading: (arg: boolean) => void,
 ) => {
   return useMutation({
     mutationFn: stopWorkspace,
-    onSuccess: async (data) => {
+    onMutate: () => setLoading(true),
+    onSuccess: async (data: WorkspaceBuild) => {
       try {
-        await waitForStop(data)
-        await startWorkspace({
+        await waitForBuild(data)
+        const startBuild = await startWorkspace({
           workspaceId: data.workspace_id,
           templateVersionId: data.template_version_id,
         })
+        await waitForBuild(startBuild)
+
+        setLoading(false)
       } catch (error) {
         if ((error as WorkspaceBuild).status === "canceled") {
           return
         }
-        setRestartBuildError(error)
+        setBuildError(error)
+        setLoading(false)
       }
     },
   })

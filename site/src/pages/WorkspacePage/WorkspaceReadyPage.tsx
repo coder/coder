@@ -82,7 +82,12 @@ export const WorkspaceReadyPage = ({
     Error | unknown | undefined
   >(undefined)
 
-  const { mutate: restartWorkspace } = useRestartWorkspace(setRestartBuildError)
+  const [isRestarting, setIsRestarting] = useState<boolean>(false)
+
+  const { mutate: restartWorkspace } = useRestartWorkspace(
+    setRestartBuildError,
+    setIsRestarting,
+  )
 
   // keep banner machine in sync with workspace
   useEffect(() => {
@@ -127,6 +132,7 @@ export const WorkspaceReadyPage = ({
           ),
         }}
         isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
+        isRestarting={isRestarting}
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}

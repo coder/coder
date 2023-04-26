@@ -8,8 +8,6 @@ import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { FC, PropsWithChildren } from "react"
 import { useTranslation } from "react-i18next"
 import { makeStyles } from "@material-ui/core/styles"
-// import { UseMutateFunction } from "@tanstack/react-query"
-// import { WorkspaceBuild } from "api/typesGenerated"
 
 interface WorkspaceAction {
   handleAction: () => void
@@ -69,7 +67,9 @@ export const StopButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   )
 }
 
-export const RestartButton: FC<PropsWithChildren<any>> = ({ handleAction }) => {
+export const RestartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
 
