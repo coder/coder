@@ -1,26 +1,27 @@
 import Button from "@material-ui/core/Button"
 import TextField from "@material-ui/core/TextField"
 import { makeStyles } from "@material-ui/core/styles"
+import { ApiErrorResponse } from "api/errors"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
-import { DividerWithText } from "components/DividerWithText/DividerWithText"
 import { FileUpload } from "components/FileUpload/FileUpload"
-import { Form, FormFields, FormSection } from "components/Form/Form"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { Stack } from "components/Stack/Stack"
+import { DividerWithText } from "pages/DeploySettingsPage/LicensesSettingsPage/DividerWithText"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 
 type AddNewLicenseProps = {
   onSaveLicenseKey: (license: string) => void
   isSavingLicense: boolean
-  didSavingFailed: boolean
+  savingLicenseError?: ApiErrorResponse
 }
 
 export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
   onSaveLicenseKey,
   isSavingLicense,
-  didSavingFailed,
+  savingLicenseError,
 }) => {
   const styles = useStyles()
 
@@ -65,29 +66,23 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         </Button>
       </Stack>
 
-      <Form direction="horizontal">
-        <FormSection
-          title="Upload your license"
-          description="Upload a text file containing your license key"
-        >
-          <FormFields>
-            <FileUpload
-              isUploading={isUploading}
-              onUpload={onUpload}
-              file={undefined}
-              removeLabel="Remove File"
-              title="Upload a license"
-            />
-          </FormFields>
-        </FormSection>
-      </Form>
+      {savingLicenseError && (
+        <AlertBanner severity="error" error={savingLicenseError}></AlertBanner>
+      )}
+
+      <FileUpload
+        isUploading={isUploading}
+        onUpload={onUpload}
+        removeLabel="Remove File"
+        title="Upload your license"
+        description="Upload a text file containing your license key"
+      />
 
       <Stack className={styles.main}>
         <DividerWithText>or</DividerWithText>
 
         <Fieldset
           title="Paste your license key"
-          validation={didSavingFailed ? "License key is invalid" : undefined}
           onSubmit={(e) => {
             e.preventDefault()
 

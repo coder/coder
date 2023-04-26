@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles, useTheme } from "@material-ui/core/styles"
 import Skeleton from "@material-ui/lab/Skeleton"
-import { GetLicensesResponse, removeLicense } from "api/api"
+import { GetLicensesResponse } from "api/api"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { LicenseCard } from "components/LicenseCard/LicenseCard"
 import { Stack } from "components/Stack/Stack"
@@ -27,6 +27,7 @@ const LicensesSettingsPageView: FC<Props> = ({
   userLimitLimit,
   licenses,
   isRemovingLicense,
+  removeLicense,
 }) => {
   const styles = useStyles()
   const { width, height } = useWindowSize()
@@ -77,9 +78,14 @@ const LicensesSettingsPageView: FC<Props> = ({
         </Stack>
       )}
 
-      {!isLoading && licenses && licenses.length === 0 && (
+      {!isLoading && licenses === null && (
         <Stack spacing={4} justifyContent="center" alignItems="center">
-          <Button className={styles.ctaButton} size="large">
+          <Button
+            className={styles.ctaButton}
+            size="large"
+            component={Link}
+            to="/settings/deployment/licenses/add"
+          >
             Add license
           </Button>
         </Stack>

@@ -13,7 +13,7 @@ const AddNewLicensePage: FC = () => {
   const {
     mutate: saveLicenseKeyApi,
     isLoading: isCreating,
-    isError: creationFailed,
+    error: savingLicenseError,
   } = useMutation(createLicense, {
     onSuccess: () => {
       displaySuccess("You have successfully added a license")
@@ -43,7 +43,7 @@ const AddNewLicensePage: FC = () => {
 
       <AddNewLicensePageView
         isSavingLicense={isCreating}
-        didSavingFailed={creationFailed}
+        savingLicenseError={savingLicenseError}
         onSaveLicenseKey={saveLicenseKey}
       />
     </>
