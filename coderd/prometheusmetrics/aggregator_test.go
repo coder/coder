@@ -27,9 +27,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 
 	// given
 	registry := prometheus.NewRegistry()
-	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}), registry, time.Hour) // time.Hour, so metrics won't expire
+	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour) // time.Hour, so metrics won't expire
 	require.NoError(t, err)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -104,4 +102,41 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		}
 	}
 	return true
+}
+
+func TestUpdateMetrics_MetricsExpire(t *testing.T) {
+	t.Parallel()
+
+	// given
+	registry := prometheus.NewRegistry()
+	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Millisecond)
+	require.NoError(t, err)
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
+
+	closeFunc := metricsAggregator.Run(ctx)
+	t.Cleanup(closeFunc)
+
+	given := []agentsdk.AgentMetric{
+		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1},
+	}
+
+	// when
+	metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, given)
+
+	time.Sleep(time.Millisecond * 10) // Ensure that metric is expired
+
+	// then
+	require.Eventually(t, func() bool {
+		var actual []prometheus.Metric
+		metricsCh := make(chan prometheus.Metric)
+		go func() {
+			for m := range metricsCh {
+				actual = append(actual, m)
+			}
+		}()
+		metricsAggregator.Collect(metricsCh)
+		return len(actual) == 0
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
