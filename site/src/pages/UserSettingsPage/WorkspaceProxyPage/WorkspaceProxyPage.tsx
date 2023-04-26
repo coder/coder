@@ -6,6 +6,7 @@ import { Trans } from "react-i18next"
 import { useWorkspaceProxiesData } from "./hooks"
 import { Region } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
+import { useProxy } from "contexts/ProxyContext"
 // import { ConfirmDeleteDialog } from "./components"
 // import { Stack } from "components/Stack/Stack"
 // import Button from "@material-ui/core/Button"
@@ -24,7 +25,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
     </Trans>
   )
 
-  const [preferred, setPreferred] = useState(getPreferredProxy())
+  const { value, setValue } = useProxy()
 
   const {
     data: response,
@@ -46,21 +47,15 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
           isLoading={isFetching}
           hasLoaded={isFetched}
           getWorkspaceProxiesError={getProxiesError}
-          preferredProxy={preferred}
+          preferredProxy={value.selectedRegion}
           onSelect={(proxy) => {
             if (!proxy.healthy) {
               displayError("Please select a healthy workspace proxy.")
               return
             }
-            // normProxy is a normalized proxy to
-            const normProxy = {
-              ...proxy,
-              // Trim trailing slashes to be consistent
-              path_app_url: proxy.path_app_url.replace(/\/$/, ""),
-            }
 
-            savePreferredProxy(normProxy)
-            setPreferred(normProxy)
+            // Set the fetched regions + the selected proxy 
+            setValue(response ? response.regions : [], proxy)
           }}
         />
       </Section>
@@ -81,24 +76,3 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 export default WorkspaceProxyPage
-
-// Exporting to be used in the tests
-export const savePreferredProxy = (proxy: Region): void => {
-  window.localStorage.setItem("preferred-proxy", JSON.stringify(proxy))
-}
-
-export const getPreferredProxy = (): Region | undefined => {
-  const str = localStorage.getItem("preferred-proxy")
-  if (str === undefined || str === null) {
-    return undefined
-  }
-  const proxy = JSON.parse(str)
-  if (proxy.id === undefined || proxy.id === null) {
-    return undefined
-  }
-  return proxy
-}
-
-export const clearPreferredProxy = (): void => {
-  localStorage.removeItem("preferred-proxy")
-}
