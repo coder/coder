@@ -156,18 +156,16 @@ $ kubectl create secret docker-registry <name> \
   --docker-email=<service-account-email>
 ```
 
-```yaml
-# An example of referencing a secret in an environment variable.
-kind: Pod
-spec:
-  containers:
-    - name: envbox
-      env:
-        - name: CODER_IMAGE_PULL_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: <name>
-              key: .dockerconfigjson
+```hcl
+env {
+  name = "CODER_IMAGE_PULL_SECRET"
+  value_from {
+    secret_key_ref {
+      name = "<name>"
+      key = ".dockerconfigjson"
+    }
+  }
+}
 ```
 
 ## Rootless podman

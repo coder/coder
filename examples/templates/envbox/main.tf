@@ -143,9 +143,6 @@ resource "kubernetes_pod" "main" {
     namespace = var.namespace
   }
   spec {
-    node_selector = {
-      sreya-test = true
-    }
     container {
       name              = "dev"
       image             = "ghcr.io/coder/envbox:latest"
