@@ -6,6 +6,9 @@ Starts the Coder workspace agent.
       --auth string, $CODER_AGENT_AUTH (default: token)
           Specify the authentication type to use for the agent.
 
+      --debug-address string, $CODER_AGENT_DEBUG_ADDRESS (default: 127.0.0.1:2113)
+          The bind address to serve a debug HTTP server.
+
       --log-dir string, $CODER_AGENT_LOG_DIR (default: /tmp)
           Specify the location for the agent log files.
 
