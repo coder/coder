@@ -1236,19 +1236,23 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			SessionCountSSH:             req.SessionCountSSH,
 			ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
 		})
-		return err
+		return xerrors.Errorf("can't insert workspace agent stat: %w", err)
 	})
 	errGroup.Go(func() error {
-		return api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+		err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
 			ID:         workspace.ID,
 			LastUsedAt: now,
 		})
+		if err != nil {
+			return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
+		}
+		return nil
 	})
 	if api.Options.UpdateAgentMetrics != nil {
 		errGroup.Go(func() error {
 			user, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
 			if err != nil {
-				return err
+				return xerrors.Errorf("can't get user: %w", err)
 			}
 
 			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, req.Metrics)
