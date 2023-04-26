@@ -1,5 +1,5 @@
 import { useActor } from "@xstate/react"
-import { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated"
+import { ProvisionerJobLog } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import dayjs from "dayjs"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
@@ -28,9 +28,9 @@ import {
 } from "../../xServices/workspace/workspaceXService"
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog"
 import { ChangeVersionDialog } from "./ChangeVersionDialog"
-import { useQuery, useMutation } from "@tanstack/react-query"
-import { getTemplateVersions, stopWorkspace, startWorkspace } from "api/api"
-import { waitForStop } from "./utils"
+import { useQuery } from "@tanstack/react-query"
+import { getTemplateVersions } from "api/api"
+import { useRestartWorkspace } from "./hooks"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -82,31 +82,7 @@ export const WorkspaceReadyPage = ({
     Error | unknown | undefined
   >(undefined)
 
-  const requestStopWorkspace = useMutation({ mutationFn: stopWorkspace })
-  const requestStartWorkspace = useMutation({ mutationFn: startWorkspace })
-
-  const restartWorkspace = async () => {
-    try {
-      await requestStopWorkspace.mutateAsync(workspace.id)
-
-      if (!requestStopWorkspace.data) {
-        throw new Error("No stop build returned!")
-      }
-
-      await waitForStop(requestStopWorkspace.data)
-      await requestStartWorkspace.mutateAsync({
-        workspaceId: workspace.id,
-        templateVersionId: workspace.latest_build.template_version_id,
-      })
-    } catch (error) {
-      // No error handling needed if the build has been canceled
-      if ((error as WorkspaceBuild).status === "canceled") {
-        return
-      }
-
-      setRestartBuildError(error)
-    }
-  }
+  const { mutate: restartWorkspace } = useRestartWorkspace(setRestartBuildError)
 
   // keep banner machine in sync with workspace
   useEffect(() => {
@@ -154,7 +130,7 @@ export const WorkspaceReadyPage = ({
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
-        handleRestart={restartWorkspace}
+        handleRestart={() => restartWorkspace(workspace.id)}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
