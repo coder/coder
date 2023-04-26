@@ -59,7 +59,7 @@ type Options struct {
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
-	AgentPorts             map[int]string
+	IgnorePorts            map[int]string
 	SSHMaxTimeout          time.Duration
 	TailnetListenPort      uint16
 }
@@ -75,7 +75,12 @@ type Client interface {
 	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
 }
 
-func New(options Options) io.Closer {
+type Agent interface {
+	HTTPDebug() http.Handler
+	io.Closer
+}
+
+func New(options Options) Agent {
 	if options.ReconnectingPTYTimeout == 0 {
 		options.ReconnectingPTYTimeout = 5 * time.Minute
 	}
@@ -111,7 +116,7 @@ func New(options Options) io.Closer {
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		ignorePorts:            options.AgentPorts,
+		ignorePorts:            options.IgnorePorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 		sshMaxTimeout:          options.SSHMaxTimeout,
 	}
@@ -1261,6 +1266,27 @@ func (a *agent) isClosed() bool {
 	default:
 		return false
 	}
+}
+
+func (a *agent) HTTPDebug() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		a.closeMutex.Lock()
+		network := a.network
+		a.closeMutex.Unlock()
+
+		if network == nil {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("network is not ready yet"))
+			return
+		}
+
+		if r.URL.Path == "/debug/magicsock" {
+			network.MagicsockServeHTTPDebug(w, r)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte("404 not found"))
+		}
+	})
 }
 
 func (a *agent) Close() error {
