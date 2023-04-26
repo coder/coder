@@ -38,20 +38,20 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 
 	given1 := []agentsdk.AgentMetric{
 		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1},
-		{Name: "b_gauge_three", Type: agentsdk.AgentMetricTypeCounter, Value: 2},
-		{Name: "c_gauge_four", Type: agentsdk.AgentMetricTypeCounter, Value: 3},
+		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 2},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 3},
 	}
 
 	given2 := []agentsdk.AgentMetric{
-		{Name: "b_gauge_three", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
-		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeCounter, Value: 6},
+		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
+		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6},
 	}
 
 	expected := []agentsdk.AgentMetric{
 		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1},
-		{Name: "b_gauge_three", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
-		{Name: "c_gauge_four", Type: agentsdk.AgentMetricTypeCounter, Value: 3},
-		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeCounter, Value: 6},
+		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 3},
+		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6},
 	}
 
 	// when
@@ -62,14 +62,20 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	require.Eventually(t, func() bool {
 		var actual []prometheus.Metric
 		metricsCh := make(chan prometheus.Metric)
+
+		done := make(chan struct{}, 1)
+		defer close(done)
 		go func() {
 			for m := range metricsCh {
 				actual = append(actual, m)
 			}
+			done <- struct{}{}
 		}()
 		metricsAggregator.Collect(metricsCh)
+		close(metricsCh)
+		<-done
 		return verifyCollectedMetrics(t, expected, actual)
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.WaitMedium, testutil.IntervalSlow)
 }
 
 func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actual []prometheus.Metric) bool {
@@ -131,12 +137,18 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 	require.Eventually(t, func() bool {
 		var actual []prometheus.Metric
 		metricsCh := make(chan prometheus.Metric)
+
+		done := make(chan struct{}, 1)
+		defer close(done)
 		go func() {
 			for m := range metricsCh {
 				actual = append(actual, m)
 			}
+			done <- struct{}{}
 		}()
 		metricsAggregator.Collect(metricsCh)
+		close(metricsCh)
+		<-done
 		return len(actual) == 0
 	}, testutil.WaitShort, testutil.IntervalFast)
 }

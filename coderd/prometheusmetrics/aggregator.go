@@ -164,7 +164,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				var hasExpiredMetrics bool
 				for _, m := range ma.queue {
-					if m.expiryDate.After(now) {
+					if now.After(m.expiryDate) {
 						hasExpiredMetrics = true
 						break
 					}
