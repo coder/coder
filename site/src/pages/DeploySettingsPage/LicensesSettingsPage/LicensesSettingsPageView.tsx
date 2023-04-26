@@ -86,7 +86,7 @@ const LicensesSettingsPageView: FC<Props> = ({
               <span className={styles.description}>
                 Contact <a href="mailto:sales@coder.com">sales</a> or{" "}
                 <a href="https://coder.com/trial">request a trial license</a> to
-                learn more. more.
+                learn more.
               </span>
             </Stack>
           </Stack>
