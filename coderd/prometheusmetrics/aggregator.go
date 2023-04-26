@@ -185,6 +185,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				timer.ObserveDuration()
 				cleanupTicker.Reset(ma.metricsCleanupInterval)
+
 			case <-ctx.Done():
 				ma.log.Debug(ctx, "metrics aggregator: is stopped")
 				return
