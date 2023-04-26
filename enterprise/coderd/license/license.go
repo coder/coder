@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -70,6 +71,23 @@ func Entitlements(
 			// LicenseExpires we must be in grace period.
 			entitlement = codersdk.EntitlementGracePeriod
 		}
+
+		// Add warning if license is expiring soon
+		daysToExpire := int(math.Ceil(claims.LicenseExpires.Sub(now).Hours() / 24))
+		isTrial := entitlements.Trial
+		showWarningDays := 30
+		if isTrial {
+			showWarningDays = 7
+		}
+		isExpiringSoon := daysToExpire > 0 && daysToExpire < showWarningDays
+		if isExpiringSoon {
+			day := "day"
+			if daysToExpire > 1 {
+				day = "days"
+			}
+			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf("Your license expires in %d %s.", daysToExpire, day))
+		}
+
 		for featureName, featureValue := range claims.Features {
 			// Can this be negative?
 			if featureValue <= 0 {
