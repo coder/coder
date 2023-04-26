@@ -10,6 +10,7 @@ import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar"
 import { dark } from "./theme"
 import "./theme/globalFonts"
 import { ProxyProvider } from "contexts/ProxyContext"
+import { DashboardProvider } from "components/Dashboard/DashboardProvider"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,10 +31,12 @@ export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <ProxyProvider>
-                {children}
-                <GlobalSnackbar />
-              </ProxyProvider>
+              <DashboardProvider>
+                <ProxyProvider>
+                  {children}
+                  <GlobalSnackbar />
+                </ProxyProvider>
+              </DashboardProvider>
             </AuthProvider>
           </QueryClientProvider>
         </ErrorBoundary>

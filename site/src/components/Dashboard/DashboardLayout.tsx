@@ -13,7 +13,6 @@ import { Outlet } from "react-router-dom"
 import { dashboardContentBottomPadding } from "theme/constants"
 import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService"
 import { Navbar } from "../Navbar/Navbar"
-import { DashboardProvider } from "./DashboardProvider"
 
 export const DashboardLayout: FC = () => {
   const styles = useStyles()
@@ -26,7 +25,7 @@ export const DashboardLayout: FC = () => {
   const { error: updateCheckError, updateCheck } = updateCheckState.context
 
   return (
-    <DashboardProvider>
+    <>
       <ServiceBanner />
       <LicenseBanner />
 
@@ -55,7 +54,7 @@ export const DashboardLayout: FC = () => {
 
         <DeploymentBanner />
       </div>
-    </DashboardProvider>
+    </>
   )
 }
 
