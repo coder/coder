@@ -828,6 +828,10 @@ func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump 
 	c.tunDevice.SetStatistics(connStats)
 }
 
+func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
+	c.magicConn.ServeHTTPDebug(w, r)
+}
+
 type listenKey struct {
 	network string
 	host    string
