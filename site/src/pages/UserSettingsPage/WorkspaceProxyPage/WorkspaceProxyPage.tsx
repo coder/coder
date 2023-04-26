@@ -53,7 +53,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
               return
             }
 
-            // Set the fetched regions + the selected proxy 
+            // Set the fetched regions + the selected proxy
             setProxy(response ? response.regions : [], proxy)
           }}
         />

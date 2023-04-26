@@ -23,11 +23,7 @@ export interface AppLinkProps {
   agent: TypesGen.WorkspaceAgent
 }
 
-export const AppLink: FC<AppLinkProps> = ({
-  app,
-  workspace,
-  agent,
-}) => {
+export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   const { proxy } = useProxy()
   const preferredPathBase = proxy.preferredPathAppURL
   const appsHost = proxy.preferredWildcardHostname
@@ -46,11 +42,13 @@ export const AppLink: FC<AppLinkProps> = ({
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
-  let href = `${preferredPathBase}/@${username}/${workspace.name}.${agent.name
-    }/apps/${encodeURIComponent(appSlug)}/`
+  let href = `${preferredPathBase}/@${username}/${workspace.name}.${
+    agent.name
+  }/apps/${encodeURIComponent(appSlug)}/`
   if (app.command) {
-    href = `${preferredPathBase}/@${username}/${workspace.name}.${agent.name
-      }/terminal?command=${encodeURIComponent(app.command)}`
+    href = `${preferredPathBase}/@${username}/${workspace.name}.${
+      agent.name
+    }/terminal?command=${encodeURIComponent(app.command)}`
   }
 
   // TODO: @emyrk handle proxy subdomains.

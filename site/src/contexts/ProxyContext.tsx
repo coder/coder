@@ -2,7 +2,13 @@ import { useQuery } from "@tanstack/react-query"
 import { getApplicationsHost, getWorkspaceProxies } from "api/api"
 import { Region } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { createContext, FC, PropsWithChildren, useContext, useState } from "react"
+import {
+  createContext,
+  FC,
+  PropsWithChildren,
+  useContext,
+  useState,
+} from "react"
 
 interface ProxyContextValue {
   proxy: PreferredProxy
@@ -17,7 +23,7 @@ interface PreferredProxy {
   // object. Use the preferred fields.
   selectedRegion: Region | undefined
   // PreferredPathAppURL is the URL of the proxy or it is the empty string
-  // to indicte using relative paths. To add a path to this:
+  // to indicate using relative paths. To add a path to this:
   //  PreferredPathAppURL + "/path/to/app"
   preferredPathAppURL: string
   // PreferredWildcardHostname is a hostname that includes a wildcard.
@@ -38,7 +44,10 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   // The initial state is no regions and no selected region.
   const [proxy, setProxy] = useState<PreferredProxy>(savedProxy)
-  const setAndSaveProxy = (regions: Region[], selectedRegion: Region | undefined) => {
+  const setAndSaveProxy = (
+    regions: Region[],
+    selectedRegion: Region | undefined,
+  ) => {
     const preferred = getURLs(regions, selectedRegion)
     // Save to local storage to persist the user's preference across reloads
     // and other tabs.
@@ -51,7 +60,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   const { error: regionsError, isLoading: regionsLoading } = useQuery({
     queryKey,
     queryFn: getWorkspaceProxies,
-    // This onSucccess ensures the local storage is synchronized with the 
+    // This onSuccess ensures the local storage is synchronized with the
     // regions returned by coderd. If the selected region is not in the list,
     // then the user selection is removed.
     onSuccess: (data) => {
@@ -61,11 +70,15 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   // ******************************* //
   // ** This code can be removed  **
-  // ** when the experimental is  ** 
+  // ** when the experimental is  **
   // **       dropped             ** //
   const dashboard = useDashboard()
   const appHostQueryKey = ["get-application-host"]
-  const { data: applicationHostResult, error: appHostError, isLoading: appHostLoading } = useQuery({
+  const {
+    data: applicationHostResult,
+    error: appHostError,
+    isLoading: appHostLoading,
+  } = useQuery({
     queryKey: appHostQueryKey,
     queryFn: getApplicationsHost,
   })
@@ -75,19 +88,22 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     const value = getURLs([])
 
     return (
-      <ProxyContext.Provider value={{
-        proxy: {
-          ...value,
-          preferredWildcardHostname: applicationHostResult?.host || value.preferredWildcardHostname,
-        },
-        isLoading: appHostLoading,
-        error: appHostError,
-        setProxy: () => {
-          // Does a noop
-        },
-      }}>
+      <ProxyContext.Provider
+        value={{
+          proxy: {
+            ...value,
+            preferredWildcardHostname:
+              applicationHostResult?.host || value.preferredWildcardHostname,
+          },
+          isLoading: appHostLoading,
+          error: appHostError,
+          setProxy: () => {
+            // Does a noop
+          },
+        }}
+      >
         {children}
-      </ProxyContext.Provider >
+      </ProxyContext.Provider>
     )
   }
   // ******************************* //
@@ -96,16 +112,18 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   // regions list.
 
   return (
-    <ProxyContext.Provider value={{
-      proxy: proxy,
-      isLoading: regionsLoading,
-      error: regionsError,
-      // A function that takes the new regions and selected region and updates
-      // the state with the appropriate urls.
-      setProxy: setAndSaveProxy,
-    }}>
+    <ProxyContext.Provider
+      value={{
+        proxy: proxy,
+        isLoading: regionsLoading,
+        error: regionsError,
+        // A function that takes the new regions and selected region and updates
+        // the state with the appropriate urls.
+        setProxy: setAndSaveProxy,
+      }}
+    >
       {children}
-    </ProxyContext.Provider >
+    </ProxyContext.Provider>
   )
 }
 
@@ -119,15 +137,17 @@ export const useProxy = (): ProxyContextValue => {
   return context
 }
 
-
 /**
  * getURLs is a helper function to calculate the urls to use for a given proxy configuration. By default, it is
  * assumed no proxy is configured and relative paths should be used.
- * 
+ *
  * @param regions Is the list of regions returned by coderd. If this is empty, default behavior is used.
  * @param selectedRegion Is the region the user has selected. If this is undefined, default behavior is used.
  */
-const getURLs = (regions: Region[], selectedRegion?: Region): PreferredProxy => {
+const getURLs = (
+  regions: Region[],
+  selectedRegion?: Region,
+): PreferredProxy => {
   // By default we set the path app to relative and disable wilcard hostnames.
   // We will set these values if we find a proxy we can use that supports them.
   let pathAppURL = ""
@@ -135,7 +155,9 @@ const getURLs = (regions: Region[], selectedRegion?: Region): PreferredProxy => 
 
   // If a region is selected, make sure it is in the list of regions. If it is not
   // we should default to the primary.
-  selectedRegion = regions.find((region) => selectedRegion && region.id === selectedRegion.id)
+  selectedRegion = regions.find(
+    (region) => selectedRegion && region.id === selectedRegion.id,
+  )
 
   if (!selectedRegion) {
     // If no region is selected, default to the primary region.

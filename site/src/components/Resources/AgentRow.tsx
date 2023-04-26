@@ -248,15 +248,16 @@ export const AgentRow: FC<AgentRowProps> = ({
                 sshPrefix={sshPrefix}
               />
             )}
-            {proxy.preferredWildcardHostname !== undefined && proxy.preferredWildcardHostname !== "" && (
-              <PortForwardButton
-                host={proxy.preferredWildcardHostname}
-                workspaceName={workspace.name}
-                agentId={agent.id}
-                agentName={agent.name}
-                username={workspace.owner_name}
-              />
-            )}
+            {proxy.preferredWildcardHostname !== undefined &&
+              proxy.preferredWildcardHostname !== "" && (
+                <PortForwardButton
+                  host={proxy.preferredWildcardHostname}
+                  workspaceName={workspace.name}
+                  agentId={agent.id}
+                  agentName={agent.name}
+                  username={workspace.owner_name}
+                />
+              )}
           </div>
         )}
 

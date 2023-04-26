@@ -1,6 +1,4 @@
-import {
-  useQuery,
-} from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { getWorkspaceProxies } from "api/api"
 
 // Loads all workspace proxies

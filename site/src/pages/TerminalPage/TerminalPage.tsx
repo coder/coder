@@ -105,7 +105,12 @@ const TerminalPage: FC<
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
     (uri: string) => {
-      if (!workspaceAgent || !workspace || !username || !proxy.preferredWildcardHostname) {
+      if (
+        !workspaceAgent ||
+        !workspace ||
+        !username ||
+        !proxy.preferredWildcardHostname
+      ) {
         return
       }
 
@@ -243,7 +248,7 @@ const TerminalPage: FC<
       if (workspaceAgentError instanceof Error) {
         terminal.writeln(
           Language.workspaceAgentErrorMessagePrefix +
-          workspaceAgentError.message,
+            workspaceAgentError.message,
         )
       }
       if (websocketError instanceof Error) {
@@ -291,8 +296,8 @@ const TerminalPage: FC<
         <title>
           {terminalState.context.workspace
             ? pageTitle(
-              `Terminal · ${terminalState.context.workspace.owner_name}/${terminalState.context.workspace.name}`,
-            )
+                `Terminal · ${terminalState.context.workspace.owner_name}/${terminalState.context.workspace.name}`,
+              )
             : ""}
         </title>
       </Helmet>
