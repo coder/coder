@@ -37,6 +37,6 @@ export const Default = {
 export const Empty = {
   args: {
     ...defaultArgs,
-    licenses: [],
+    licenses: null,
   },
 }
