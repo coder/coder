@@ -40,7 +40,7 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
           setIsOpen(true)
         }}
       >
-        Connect SSH
+        SSH
       </SecondaryAgentButton>
       <div>
         <Popover
