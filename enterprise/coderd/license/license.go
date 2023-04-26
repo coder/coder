@@ -74,7 +74,13 @@ func Entitlements(
 
 		// Add warning if license is expiring soon
 		daysToExpire := int(math.Ceil(claims.LicenseExpires.Sub(now).Hours() / 24))
-		if daysToExpire > 0 && daysToExpire < 30 {
+		isTrial := entitlements.Trial
+		showWarningDays := 30
+		if isTrial {
+			showWarningDays = 7
+		}
+		isExpiringSoon := daysToExpire > 0 && daysToExpire < showWarningDays
+		if isExpiringSoon {
 			day := "day"
 			if daysToExpire > 1 {
 				day = "days"

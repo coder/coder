@@ -130,6 +130,95 @@ func TestEntitlements(t *testing.T) {
 			"Your license expires in 2 days.",
 		)
 	})
+
+	t.Run("Expiration warning for license expiring in 1 day", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 100,
+					codersdk.FeatureAuditLog:  1,
+				},
+
+				GraceAt:   time.Now().AddDate(0, 0, 1),
+				ExpiresAt: time.Now().AddDate(0, 0, 5),
+			}),
+			Exp: time.Now().AddDate(0, 0, 5),
+		})
+
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
+
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+
+		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
+		require.Contains(
+			t, entitlements.Warnings,
+			"Your license expires in 1 day.",
+		)
+	})
+
+	t.Run("Expiration warning for trials", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 100,
+					codersdk.FeatureAuditLog:  1,
+				},
+
+				Trial:     true,
+				GraceAt:   time.Now().AddDate(0, 0, 8),
+				ExpiresAt: time.Now().AddDate(0, 0, 5),
+			}),
+			Exp: time.Now().AddDate(0, 0, 5),
+		})
+
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
+
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.True(t, entitlements.Trial)
+
+		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
+		require.NotContains( // it should not contain a warning since it is a trial license
+			t, entitlements.Warnings,
+			"Your license expires in 8 days.",
+		)
+	})
+
+	t.Run("Expiration warning for non trials", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 100,
+					codersdk.FeatureAuditLog:  1,
+				},
+
+				GraceAt:   time.Now().AddDate(0, 0, 30),
+				ExpiresAt: time.Now().AddDate(0, 0, 5),
+			}),
+			Exp: time.Now().AddDate(0, 0, 5),
+		})
+
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
+
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+
+		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
+		require.NotContains( // it should not contain a warning since it is a trial license
+			t, entitlements.Warnings,
+			"Your license expires in 30 days.",
+		)
+	})
+
 	t.Run("SingleLicenseNotEntitled", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
