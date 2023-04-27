@@ -34,47 +34,47 @@ export const WorkspaceProxyView: FC<
   selectProxyError,
   preferredProxy,
 }) => {
-    return (
-      <Stack>
-        {Boolean(getWorkspaceProxiesError) && (
-          <AlertBanner severity="error" error={getWorkspaceProxiesError} />
-        )}
-        {Boolean(selectProxyError) && (
-          <AlertBanner severity="error" error={selectProxyError} />
-        )}
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell width="40%">Proxy</TableCell>
-                <TableCell width="30%">URL</TableCell>
-                <TableCell width="10%">Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <ChooseOne>
-                <Cond condition={isLoading}>
-                  <TableLoader />
-                </Cond>
-                <Cond condition={hasLoaded && proxies?.length === 0}>
-                  <TableEmpty message="No workspace proxies found" />
-                </Cond>
-                <Cond>
-                  {proxies?.map((proxy) => (
-                    <ProxyRow
-                      key={proxy.id}
-                      proxy={proxy}
-                      onSelectRegion={onSelect}
-                      preferred={
-                        preferredProxy ? proxy.id === preferredProxy.id : false
-                      }
-                    />
-                  ))}
-                </Cond>
-              </ChooseOne>
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Stack>
-    )
-  }
+  return (
+    <Stack>
+      {Boolean(getWorkspaceProxiesError) && (
+        <AlertBanner severity="error" error={getWorkspaceProxiesError} />
+      )}
+      {Boolean(selectProxyError) && (
+        <AlertBanner severity="error" error={selectProxyError} />
+      )}
+      <TableContainer>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell width="40%">Proxy</TableCell>
+              <TableCell width="30%">URL</TableCell>
+              <TableCell width="10%">Status</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            <ChooseOne>
+              <Cond condition={isLoading}>
+                <TableLoader />
+              </Cond>
+              <Cond condition={hasLoaded && proxies?.length === 0}>
+                <TableEmpty message="No workspace proxies found" />
+              </Cond>
+              <Cond>
+                {proxies?.map((proxy) => (
+                  <ProxyRow
+                    key={proxy.id}
+                    proxy={proxy}
+                    onSelectRegion={onSelect}
+                    preferred={
+                      preferredProxy ? proxy.id === preferredProxy.id : false
+                    }
+                  />
+                ))}
+              </Cond>
+            </ChooseOne>
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Stack>
+  )
+}

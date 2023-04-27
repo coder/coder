@@ -48,20 +48,25 @@ const TemplateWithPortForward: Story<AgentRowProps> = (args) => {
   return TemplateFC(args, MockRegions, MockPrimaryRegion)
 }
 
-const TemplateFC = (args: AgentRowProps, regions: Region[], selectedRegion?: Region) => {
-  return <ProxyContext.Provider
-    value={{
-      proxy: getURLs(regions, selectedRegion),
-      isLoading: false,
-      setProxy: () => {
-        return
-      },
-    }}
-  >
-    <AgentRow {...args} />
-  </ProxyContext.Provider>
+const TemplateFC = (
+  args: AgentRowProps,
+  regions: Region[],
+  selectedRegion?: Region,
+) => {
+  return (
+    <ProxyContext.Provider
+      value={{
+        proxy: getURLs(regions, selectedRegion),
+        isLoading: false,
+        setProxy: () => {
+          return
+        },
+      }}
+    >
+      <AgentRow {...args} />
+    </ProxyContext.Provider>
+  )
 }
-
 
 const defaultAgentMetadata = [
   {
