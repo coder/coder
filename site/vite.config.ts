@@ -41,11 +41,11 @@ export default defineConfig({
           // Vite does not catch socket errors, and stops the webserver.
           // As /startup-logs endpoint can return HTTP 4xx status, we need to embrace
           // Vite with a custom error handler to prevent from quitting.
-          proxy.on('proxyReqWs', (proxyReq, req, socket) => {
-            socket.on('error', (error) => {
-              console.error(error);
-            });
-          });
+          proxy.on("proxyReqWs", (proxyReq, req, socket) => {
+            socket.on("error", (error) => {
+              console.error(error)
+            })
+          })
         },
       },
       "/swagger": {
