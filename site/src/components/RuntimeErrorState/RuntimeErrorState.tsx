@@ -1,125 +1,107 @@
-import Box from "@material-ui/core/Box"
+import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
-import { useEffect, useReducer, FC } from "react"
-import { mapStackTrace } from "sourcemapped-stacktrace"
+import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
+import { CoderIcon } from "components/Icons/CoderIcon"
+import { FullScreenLoader } from "components/Loader/FullScreenLoader"
+import { Stack } from "components/Stack/Stack"
+import { FC, useEffect, useState } from "react"
+import { Helmet } from "react-helmet-async"
 import { Margins } from "../Margins/Margins"
-import { Section } from "../Section/Section"
-import { Typography } from "../Typography/Typography"
-import {
-  createFormattedStackTrace,
-  reducer,
-  RuntimeErrorReport,
-  stackTraceAvailable,
-  stackTraceUnavailable,
-} from "./RuntimeErrorReport"
 
-export const Language = {
-  title: "Coder encountered an error",
-  body: "Please copy the crash log using the button below and",
-  link: "send it to us.",
-}
+const fetchDynamicallyImportedModuleError =
+  "Failed to fetch dynamically imported module" as const
 
-export interface RuntimeErrorStateProps {
-  error: Error
-}
-
-/**
- * A title for our error boundary UI
- */
-const ErrorStateTitle = () => {
+export const RuntimeErrorState: FC<{ error: Error }> = ({ error }) => {
   const styles = useStyles()
-  return (
-    <Box className={styles.title} display="flex" alignItems="center">
-      <ErrorOutlineIcon />
-      <span>{Language.title}</span>
-    </Box>
-  )
-}
+  const [shouldDisplayMessage, setShouldDisplayMessage] = useState(false)
 
-/**
- * A description for our error boundary UI
- */
-const ErrorStateDescription = ({ emailBody }: { emailBody?: string }) => {
-  const styles = useStyles()
-  return (
-    <Typography variant="body2" color="textSecondary">
-      {Language.body}&nbsp;
-      <Link
-        href={`mailto:support@coder.com?subject=Error Report from Coder&body=${
-          emailBody && emailBody.replace(/\r\n|\r|\n/g, "%0D%0A") // preserving line breaks
-        }`}
-        className={styles.link}
-      >
-        {Language.link}
-      </Link>
-    </Typography>
-  )
-}
-
-/**
- * An error UI that is displayed when our error boundary (ErrorBoundary.tsx) is triggered
- */
-export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
-  const styles = useStyles()
-  const [reportState, dispatch] = useReducer(reducer, {
-    error,
-    mappedStack: null,
-  })
-
+  // We use an effect to show a loading state if the page is trying to reload
   useEffect(() => {
-    try {
-      mapStackTrace(error.stack, (mappedStack) =>
-        dispatch(stackTraceAvailable(mappedStack)),
-      )
-    } catch {
-      dispatch(stackTraceUnavailable)
+    const isImportError = error.message.includes(
+      fetchDynamicallyImportedModuleError,
+    )
+    const isRetried = window.location.search.includes("retries=1")
+
+    if (isImportError && !isRetried) {
+      const url = new URL(location.href)
+      // Add a retry to avoid loops
+      url.searchParams.set("retries", "1")
+      location.assign(url.search)
+      return
     }
-  }, [error])
+
+    setShouldDisplayMessage(true)
+  }, [error.message])
 
   return (
-    <Box display="flex" flexDirection="column">
-      <Margins>
-        <Section
-          className={styles.reportContainer}
-          title={<ErrorStateTitle />}
-          description={
-            <ErrorStateDescription
-              emailBody={createFormattedStackTrace(
-                reportState.error,
-                reportState.mappedStack,
-              ).join("\r\n")}
-            />
-          }
-        >
-          <RuntimeErrorReport
-            error={reportState.error}
-            mappedStack={reportState.mappedStack}
-          />
-        </Section>
-      </Margins>
-    </Box>
+    <>
+      <Helmet>
+        <title>Something went wrong...</title>
+      </Helmet>
+      {shouldDisplayMessage ? (
+        <Margins size="small" className={styles.root}>
+          <div>
+            <CoderIcon className={styles.logo} />
+            <h1 className={styles.title}>Something went wrong...</h1>
+            <p className={styles.text}>
+              Please try reloading the page, if that doesn&lsquo;t work, you can
+              ask for help in the{" "}
+              <Link href="https://discord.gg/coder">
+                Coder Discord community
+              </Link>{" "}
+              or{" "}
+              <Link href="https://github.com/coder/coder/issues/new">
+                open an issue
+              </Link>
+              .
+            </p>
+            <Stack direction="row" justifyContent="center">
+              <Button
+                startIcon={<RefreshOutlined />}
+                onClick={() => {
+                  window.location.reload()
+                }}
+              >
+                Reload page
+              </Button>
+              <Button component="a" href="/" variant="outlined">
+                Go to dashboard
+              </Button>
+            </Stack>
+          </div>
+        </Margins>
+      ) : (
+        <FullScreenLoader />
+      )}
+    </>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  title: {
-    "& span": {
-      paddingLeft: theme.spacing(1),
-    },
-
-    "& .MuiSvgIcon-root": {
-      color: theme.palette.error.main,
-    },
-  },
-  link: {
-    textDecoration: "none",
-    color: theme.palette.primary.main,
-  },
-  reportContainer: {
+  root: {
+    paddingTop: theme.spacing(4),
+    paddingBottom: theme.spacing(4),
+    textAlign: "center",
     display: "flex",
+    alignItems: "center",
     justifyContent: "center",
-    marginTop: theme.spacing(5),
+    minHeight: "100vh",
+  },
+
+  logo: {
+    fontSize: theme.spacing(8),
+  },
+
+  title: {
+    fontSize: theme.spacing(4),
+    fontWeight: 400,
+  },
+
+  text: {
+    fontSize: 16,
+    color: theme.palette.text.secondary,
+    lineHeight: "160%",
+    marginBottom: theme.spacing(4),
   },
 }))
