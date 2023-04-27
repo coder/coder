@@ -20,7 +20,8 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "./out"),
     // We need to keep the /bin folder and GITKEEP files
     emptyOutDir: false,
-    sourcemap: process.env.NODE_ENV === "development",
+    // 'hidden' works like true except that the corresponding sourcemap comments in the bundled files are suppressed
+    sourcemap: "hidden",
   },
   define: {
     "process.env": {
