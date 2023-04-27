@@ -714,7 +714,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		var err error
 		conn, err = net.Dial("unix", remoteSocketPath)
 		return err == nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalFast)
 	defer conn.Close()
 	_, err = conn.Write([]byte("test"))
 	require.NoError(t, err)

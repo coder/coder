@@ -1064,12 +1064,13 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 				rpty.activeConnsMutex.Lock()
 				for cid, conn := range rpty.activeConns {
 					_, err = conn.Write(part)
-					logger.Debug(ctx,
-						"wrote to active conn",
-						slog.F("other_conn_id", cid),
-						slog.F("data", part),
-						slog.Error(err),
-					)
+					if err != nil {
+						logger.Debug(ctx,
+							"error writing to active conn",
+							slog.F("other_conn_id", cid),
+							slog.Error(err),
+						)
+					}
 				}
 				rpty.activeConnsMutex.Unlock()
 			}
