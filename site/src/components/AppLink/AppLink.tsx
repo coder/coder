@@ -51,7 +51,6 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
     }/terminal?command=${encodeURIComponent(app.command)}`
   }
 
-  // TODO: @emyrk handle proxy subdomains.
   if (appsHost && app.subdomain) {
     const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`
     href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)

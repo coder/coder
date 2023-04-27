@@ -86,7 +86,7 @@ export const MockHealthyWildRegion: TypesGen.Region = {
   healthy: true,
   path_app_url: "https://external.com",
   wildcard_hostname: "*.external.com",
-} 
+}
 
 export const MockRegions: TypesGen.Region[] = [
   MockPrimaryRegion,

@@ -224,7 +224,6 @@ Off.args = {
 export const ShowingPortForward = Template.bind({})
 ShowingPortForward.args = {
   ...Example.args,
-  // TODO: @emyrk fix this from the proxy context
 }
 
 export const Outdated = Template.bind({})
