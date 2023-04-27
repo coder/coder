@@ -75,6 +75,17 @@ export const CreateWorkspacePageView: FC<
     // to disappear.
     setGitAuthErrors({})
   }, [props.templateGitAuth])
+
+  const workspaceErrors =
+    props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]
+
+  // Scroll to top of page if errors are present
+  useEffect(() => {
+    if (props.hasTemplateErrors || Boolean(workspaceErrors)) {
+      window.scrollTo(0, 0)
+    }
+  }, [props.hasTemplateErrors, workspaceErrors])
+
   const { t } = useTranslation("createWorkspacePage")
   const styles = useStyles()
 
