@@ -25,10 +25,12 @@ export const RequireAuth: FC = () => {
   } else {
     // Authenticated pages have access to some contexts for knowing enabled experiments
     // and where to route workspace connections.
-    return <DashboardProvider>
-      <ProxyProvider>
-        <Outlet />
-      </ProxyProvider>
-    </DashboardProvider>
+    return (
+      <DashboardProvider>
+        <ProxyProvider>
+          <Outlet />
+        </ProxyProvider>
+      </DashboardProvider>
+    )
   }
 }

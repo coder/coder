@@ -11,11 +11,7 @@ import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
 import { FC, lazy, Suspense } from "react"
-import {
-  Route,
-  Routes,
-  BrowserRouter as Router,
-} from "react-router-dom"
+import { Route, Routes, BrowserRouter as Router } from "react-router-dom"
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
@@ -205,10 +201,7 @@ export const AppRouter: FC = () => {
                     <Route index element={<TemplateSummaryPage />} />
                     <Route path="docs" element={<TemplateDocsPage />} />
                     <Route path="files" element={<TemplateFilesPage />} />
-                    <Route
-                      path="versions"
-                      element={<TemplateVersionsPage />}
-                    />
+                    <Route path="versions" element={<TemplateVersionsPage />} />
                   </Route>
 
                   <Route path="workspace" element={<CreateWorkspacePage />} />
@@ -223,10 +216,7 @@ export const AppRouter: FC = () => {
                       path="variables"
                       element={<TemplateVariablesPage />}
                     />
-                    <Route
-                      path="schedule"
-                      element={<TemplateSchedulePage />}
-                    />
+                    <Route path="schedule" element={<TemplateSchedulePage />} />
                   </Route>
 
                   <Route path="versions">
@@ -272,10 +262,7 @@ export const AppRouter: FC = () => {
                 <Route path="licenses" element={<LicensesSettingsPage />} />
                 <Route path="licenses/add" element={<AddNewLicensePage />} />
                 <Route path="security" element={<SecuritySettingsPage />} />
-                <Route
-                  path="appearance"
-                  element={<AppearanceSettingsPage />}
-                />
+                <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />
                 <Route path="userauth" element={<UserAuthSettingsPage />} />
                 <Route path="gitauth" element={<GitAuthSettingsPage />} />
@@ -302,10 +289,7 @@ export const AppRouter: FC = () => {
                     path="builds/:buildNumber"
                     element={<WorkspaceBuildPage />}
                   />
-                  <Route
-                    path="settings"
-                    element={<WorkspaceSettingsLayout />}
-                  >
+                  <Route path="settings" element={<WorkspaceSettingsLayout />}>
                     <Route index element={<WorkspaceSettingsPage />} />
                     <Route
                       path="schedule"
