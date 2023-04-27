@@ -96,11 +96,11 @@ func (r *RootCmd) trafficGen() *clibase.Cmd {
 				close(wch)
 			}()
 
-			if rErr := <-rch; rErr != nil {
-				return xerrors.Errorf("read from pty: %w", rErr)
-			}
 			if wErr := <-wch; wErr != nil {
 				return xerrors.Errorf("write to pty: %w", wErr)
+			}
+			if rErr := <-rch; rErr != nil {
+				return xerrors.Errorf("read from pty: %w", rErr)
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Test results:\n")
