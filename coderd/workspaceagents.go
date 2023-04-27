@@ -63,7 +63,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -88,7 +88,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -162,7 +162,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		Apps:                  convertApps(dbApps),
-		DERPMap:               api.DERPMap,
+		DERPMap:               api.DERPMap(),
 		GitAuthConfigs:        len(api.GitAuthConfigs),
 		EnvironmentVariables:  apiAgent.EnvironmentVariables,
 		StartupScript:         apiAgent.StartupScript,
@@ -190,7 +190,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -567,7 +567,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -663,7 +663,7 @@ func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspac
 	clientConn, serverConn := net.Pipe()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   api.DERPMap,
+		DERPMap:   api.DERPMap(),
 		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
@@ -732,7 +732,7 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
-		DERPMap: api.DERPMap,
+		DERPMap: api.DERPMap(),
 	})
 }
 

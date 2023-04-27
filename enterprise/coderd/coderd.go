@@ -5,11 +5,15 @@ import (
 	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
@@ -429,9 +433,80 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
+	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); changed {
+		if enabled {
+			fn := derpMapper(api.ProxyHealth)
+			api.AGPL.DERPMapper.Store(&fn)
+		} else {
+			api.AGPL.DERPMapper.Store(nil)
+		}
+	}
+
 	api.entitlements = entitlements
 
 	return nil
+}
+
+func derpMapper(proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
+	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
+		derpMap = derpMap.Clone()
+
+		// Add all healthy proxies to the DERP map.
+		// TODO: @dean proxies should be able to disable DERP and report that
+		// when they register, and this should respect that.
+		statusMap := proxyHealth.HealthStatus()
+		for _, status := range statusMap {
+			// TODO: @dean region ID should be constant and unique for each
+			// proxy. Make the proxies report these values (from a flag like the
+			// primary) when they register.
+			const (
+				regionID   = -999
+				regionCode = "proxy"
+			)
+
+			if status.Status != proxyhealth.Healthy {
+				// Only add healthy proxies to the DERP map.
+				continue
+			}
+
+			u, err := url.Parse(status.Proxy.Url)
+			if err != nil {
+				// Not really any need to log, the proxy should be unreachable
+				// anyways and filtered out by the above condition.
+				continue
+			}
+			port := u.Port()
+			if port == "" {
+				port = "80"
+				if u.Scheme == "https" {
+					port = "443"
+				}
+			}
+			portInt, err := strconv.Atoi(port)
+			if err != nil {
+				// Not really any need to log, the proxy should be unreachable
+				// anyways and filtered out by the above condition.
+				continue
+			}
+
+			derpMap.Regions[regionID] = &tailcfg.DERPRegion{
+				EmbeddedRelay: true,
+				RegionID:      regionID,
+				RegionCode:    regionCode,
+				RegionName:    status.Proxy.Name,
+				Nodes: []*tailcfg.DERPNode{{
+					Name:      fmt.Sprintf("%db", regionID),
+					RegionID:  regionID,
+					HostName:  u.Hostname(),
+					DERPPort:  portInt,
+					STUNPort:  -1,
+					ForceHTTP: u.Scheme == "http",
+				}},
+			}
+		}
+
+		return derpMap
+	}
 }
 
 // @Summary Get entitlements

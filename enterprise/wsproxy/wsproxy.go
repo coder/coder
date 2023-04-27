@@ -10,22 +10,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/coderd/httpapi"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
+	"tailscale.com/derp"
+	"tailscale.com/derp/derphttp"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
+	"github.com/coder/coder/tailnet"
 )
 
 type Options struct {
@@ -49,8 +52,8 @@ type Options struct {
 	// options.AppHostname is set.
 	AppHostnameRegex *regexp.Regexp
 
-	RealIPConfig *httpmw.RealIPConfig
-
+	RealIPConfig       *httpmw.RealIPConfig
+	DERPServer         *derp.Server
 	Tracing            trace.TracerProvider
 	PrometheusRegistry *prometheus.Registry
 
@@ -96,12 +99,10 @@ type Server struct {
 	// the moon's token.
 	SDKClient *wsproxysdk.Client
 
-	// TODO: Missing:
-	//		- derpserver
-
 	// Used for graceful shutdown. Required for the dialer.
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx           context.Context
+	cancel        context.CancelFunc
+	derpCloseFunc func()
 }
 
 // New creates a new workspace proxy server. This requires a primary coderd
@@ -185,6 +186,12 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		SecureAuthCookie: opts.SecureAuthCookie,
 	}
 
+	if opts.DERPServer == nil {
+		opts.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("derp")))
+	}
+	derpHandler := derphttp.Handler(opts.DERPServer)
+	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupport(opts.DERPServer, derpHandler)
+
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)
 	// Persistent middlewares to all routes
@@ -229,6 +236,14 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		s.AppServer.Attach(r)
 	})
 
+	r.Route("/derp", func(r chi.Router) {
+		r.Get("/", derpHandler.ServeHTTP)
+		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
+		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+	})
+
 	r.Get("/buildinfo", s.buildInfo)
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 	// TODO: @emyrk should this be authenticated or debounced?
@@ -239,6 +254,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 func (s *Server) Close() error {
 	s.cancel()
+	s.derpCloseFunc()
 	return s.AppServer.Close()
 }
 

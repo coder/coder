@@ -35,13 +35,11 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"cdr.dev/slog"
-
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/codersdk/agentsdk"
-
 	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
+
+	"cdr.dev/slog"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
@@ -63,6 +61,7 @@ import (
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/site"
@@ -251,14 +250,6 @@ func New(options *Options) *API {
 		v := schedule.NewAGPLTemplateScheduleStore()
 		options.TemplateScheduleStore.Store(&v)
 	}
-	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
-			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
-				AccessURL: options.AccessURL,
-				DERPMap:   options.DERPMap.Clone(),
-			})
-		}
-	}
 	if options.HealthcheckTimeout == 0 {
 		options.HealthcheckTimeout = 30 * time.Second
 	}
@@ -324,6 +315,14 @@ func New(options *Options) *API {
 		TemplateScheduleStore: options.TemplateScheduleStore,
 		Experiments:           experiments,
 		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
+	}
+	if options.HealthcheckFunc == nil {
+		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
+			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				AccessURL: options.AccessURL,
+				DERPMap:   api.DERPMap().Clone(),
+			})
+		}
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -814,6 +813,7 @@ type API struct {
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
+	DERPMapper                        atomic.Pointer[func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -952,6 +952,15 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
+}
+
+func (api *API) DERPMap() *tailcfg.DERPMap {
+	fn := api.DERPMapper.Load()
+	if fn != nil {
+		return (*fn)(api.Options.DERPMap)
+	}
+
+	return api.Options.DERPMap
 }
 
 // nolint:revive
