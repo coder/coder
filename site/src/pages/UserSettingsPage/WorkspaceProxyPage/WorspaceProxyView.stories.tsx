@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { makeMockApiError, MockRegions } from "testHelpers/entities"
+import { makeMockApiError, MockRegions, MockPrimaryRegion, MockHealthyWildRegion } from "testHelpers/entities"
 import {
   WorkspaceProxyPageView,
   WorkspaceProxyPageViewProps,
@@ -17,12 +17,23 @@ const Template: Story<WorkspaceProxyPageViewProps> = (
   args: WorkspaceProxyPageViewProps,
 ) => <WorkspaceProxyPageView {...args} />
 
+export const PrimarySelected = Template.bind({})
+PrimarySelected.args = {
+  isLoading: false,
+  hasLoaded: true,
+  proxies: MockRegions,
+  preferredProxy: MockPrimaryRegion,
+  onSelect: () => {
+    return Promise.resolve()
+  },
+}
+
 export const Example = Template.bind({})
 Example.args = {
   isLoading: false,
   hasLoaded: true,
   proxies: MockRegions,
-  preferredProxy: MockRegions[0],
+  preferredProxy: MockHealthyWildRegion,
   onSelect: () => {
     return Promise.resolve()
   },
