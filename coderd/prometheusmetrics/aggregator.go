@@ -96,7 +96,7 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 		log:                    logger,
 		metricsCleanupInterval: metricsCleanupInterval,
 
-		collectCh: make(chan (chan []prometheus.Metric)),
+		collectCh: make(chan (chan []prometheus.Metric), sizeCollectCh),
 		updateCh:  make(chan updateRequest, sizeUpdateCh),
 
 		updateHistogram:  updateHistogram,
