@@ -143,11 +143,12 @@ export const useProxy = (): ProxyContextValue => {
 /**
  * getURLs is a helper function to calculate the urls to use for a given proxy configuration. By default, it is
  * assumed no proxy is configured and relative paths should be used.
+ * Exported for testing.
  *
  * @param regions Is the list of regions returned by coderd. If this is empty, default behavior is used.
  * @param selectedRegion Is the region the user has selected. If this is undefined, default behavior is used.
  */
-const getURLs = (
+export const getURLs = (
   regions: Region[],
   selectedRegion?: Region,
 ): PreferredProxy => {

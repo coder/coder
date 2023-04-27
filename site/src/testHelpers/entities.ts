@@ -78,8 +78,19 @@ export const MockPrimaryRegion: TypesGen.Region = {
   wildcard_hostname: "*.coder.com",
 }
 
+export const MockHealthyWildRegion: TypesGen.Region = {
+  id: "5e2c1ab7-479b-41a9-92ce-aa85625de52c",
+  name: "haswildcard",
+  display_name: "Subdomain Supported",
+  icon_url: "/emojis/1f319.png",
+  healthy: true,
+  path_app_url: "https://external.com",
+  wildcard_hostname: "*.external.com",
+} 
+
 export const MockRegions: TypesGen.Region[] = [
   MockPrimaryRegion,
+  MockHealthyWildRegion,
   {
     id: "8444931c-0247-4171-842a-569d9f9cbadb",
     name: "unhealthy",
