@@ -171,12 +171,10 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				}
 
 				if hasExpiredMetrics {
-					var j int
 					fresh := make([]annotatedMetric, 0, len(ma.queue))
 					for _, m := range ma.queue {
 						if m.expiryDate.After(now) {
-							fresh[j] = m
-							j++
+							fresh = append(fresh, m)
 						}
 					}
 					ma.queue = fresh
