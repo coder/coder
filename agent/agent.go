@@ -969,7 +969,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 
 	connectionID := uuid.NewString()
 	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
-	logger.Debug(ctx, "handling ReconnectingPTY")
+	logger.Debug(ctx, "starting handler")
 
 	defer func() {
 		if err := retErr; err != nil {
