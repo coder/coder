@@ -78,16 +78,11 @@ export const WorkspaceReadyPage = ({
     enabled: changeVersionDialogOpen,
   })
 
-  const [restartBuildError, setRestartBuildError] = useState<
-    Error | unknown | undefined
-  >(undefined)
-
-  const [isRestarting, setIsRestarting] = useState<boolean>(false)
-
-  const { mutate: restartWorkspace } = useRestartWorkspace(
-    setRestartBuildError,
-    setIsRestarting,
-  )
+  const {
+    mutate: restartWorkspace,
+    error: restartBuildError,
+    isLoading: isRestarting,
+  } = useRestartWorkspace()
 
   // keep banner machine in sync with workspace
   useEffect(() => {
@@ -136,7 +131,7 @@ export const WorkspaceReadyPage = ({
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
-        handleRestart={() => restartWorkspace(workspace.id)}
+        handleRestart={() => restartWorkspace(workspace)}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}

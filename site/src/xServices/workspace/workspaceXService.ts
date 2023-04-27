@@ -779,12 +779,11 @@ export const workspaceMachine = createMachine(
         },
       startWorkspace: (context) => async (send) => {
         if (context.workspace) {
-          const startWorkspacePromise = await API.startWorkspace({
-            workspaceId: context.workspace.id,
-            templateVersionId:
-              context.workspace.latest_build.template_version_id,
-            logLevel: context.createBuildLogLevel,
-          })
+          const startWorkspacePromise = await API.startWorkspace(
+            context.workspace.id,
+            context.workspace.latest_build.template_version_id,
+            context.createBuildLogLevel,
+          )
           send({ type: "REFRESH_TIMELINE" })
           return startWorkspacePromise
         } else {

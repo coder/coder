@@ -3,6 +3,7 @@ import dayjs from "dayjs"
 import * as Types from "./types"
 import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
+import { delay } from "utils/delay"
 
 // Adds 304 for the default axios validateStatus function
 // https://github.com/axios/axios#handling-errors Check status here
@@ -476,6 +477,35 @@ export const getWorkspaceByOwnerAndName = async (
   return response.data
 }
 
+export function waitForBuild(build: TypesGen.WorkspaceBuild) {
+  return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
+    void (async () => {
+      let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined
+
+      while (
+        !["succeeded", "canceled"].some((status) =>
+          latestJobInfo?.status.includes(status),
+        )
+      ) {
+        const { job } = await getWorkspaceBuildByNumber(
+          build.workspace_owner_name,
+          build.workspace_name,
+          String(build.build_number),
+        )
+        latestJobInfo = job
+
+        if (latestJobInfo.status === "failed") {
+          return reject(latestJobInfo)
+        }
+
+        await delay(1000)
+      }
+
+      return res(latestJobInfo)
+    })()
+  })
+}
+
 export const postWorkspaceBuild = async (
   workspaceId: string,
   data: TypesGen.CreateWorkspaceBuildRequest,
@@ -487,19 +517,11 @@ export const postWorkspaceBuild = async (
   return response.data
 }
 
-// it is necessary to create an interface here for react query
-// as startWorkspace requires multiple parameters
-interface StartWorkspaceParams {
-  workspaceId: string
-  templateVersionId: string
-  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"]
-}
-
-export const startWorkspace = ({
-  workspaceId,
-  templateVersionId,
-  logLevel,
-}: StartWorkspaceParams) =>
+export const startWorkspace = (
+  workspaceId: string,
+  templateVersionId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
     template_version_id: templateVersionId,
@@ -530,6 +552,22 @@ export const cancelWorkspaceBuild = async (
     `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
   )
   return response.data
+}
+
+export const restartWorkspace = async (workspace: TypesGen.Workspace) => {
+  const stopBuild = await stopWorkspace(workspace.id)
+  const awaitedStopBuild = await waitForBuild(stopBuild)
+
+  // If the restart is canceled halfway through, make sure we bail
+  if (awaitedStopBuild?.status === "canceled") {
+    return
+  }
+
+  const startBuild = await startWorkspace(
+    workspace.id,
+    workspace.latest_build.template_version_id,
+  )
+  await waitForBuild(startBuild)
 }
 
 export const cancelTemplateVersionBuild = async (
@@ -963,10 +1001,7 @@ export const updateWorkspaceVersion = async (
   workspace: TypesGen.Workspace,
 ): Promise<TypesGen.WorkspaceBuild> => {
   const template = await getTemplate(workspace.template_id)
-  return startWorkspace({
-    workspaceId: workspace.id,
-    templateVersionId: template.active_version_id,
-  })
+  return startWorkspace(workspace.id, template.active_version_id)
 }
 
 export const getWorkspaceBuildParameters = async (
