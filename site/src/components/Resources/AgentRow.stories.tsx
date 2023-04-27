@@ -1,5 +1,7 @@
 import { Story } from "@storybook/react"
 import {
+  MockPrimaryRegion,
+  MockRegions,
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceAgentConnecting,
@@ -17,6 +19,7 @@ import {
 } from "testHelpers/entities"
 import { AgentRow, AgentRowProps } from "./AgentRow"
 import { ProxyContext, getURLs } from "contexts/ProxyContext"
+import { Region } from "api/typesGenerated"
 
 export default {
   title: "components/AgentRow",
@@ -37,10 +40,18 @@ export default {
   },
 }
 
-const Template: Story<AgentRowProps> = (args) => (
-  <ProxyContext.Provider
+const Template: Story<AgentRowProps> = (args) => {
+  return TemplateFC(args, [], undefined)
+}
+
+const TemplateWithPortForward: Story<AgentRowProps> = (args) => {
+  return TemplateFC(args, MockRegions, MockPrimaryRegion)
+}
+
+const TemplateFC = (args: AgentRowProps, regions: Region[], selectedRegion?: Region) => {
+  return <ProxyContext.Provider
     value={{
-      proxy: getURLs([], undefined),
+      proxy: getURLs(regions, selectedRegion),
       isLoading: false,
       setProxy: () => {
         return
@@ -49,7 +60,8 @@ const Template: Story<AgentRowProps> = (args) => (
   >
     <AgentRow {...args} />
   </ProxyContext.Provider>
-)
+}
+
 
 const defaultAgentMetadata = [
   {
@@ -234,7 +246,7 @@ Off.args = {
   agent: MockWorkspaceAgentOff,
 }
 
-export const ShowingPortForward = Template.bind({})
+export const ShowingPortForward = TemplateWithPortForward.bind({})
 ShowingPortForward.args = {
   ...Example.args,
 }
