@@ -648,7 +648,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				}
 				break
 			}
-			logger.Debug(ctx, "accepted pty conn", slog.F("remote", conn.RemoteAddr().String()))
+			logger.Debug(ctx, "accepted conn", slog.F("remote", conn.RemoteAddr().String()))
 			wg.Add(1)
 			closed := make(chan struct{})
 			go func() {
