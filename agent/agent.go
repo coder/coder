@@ -1050,7 +1050,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 				if err != nil {
 					// When the PTY is closed, this is triggered.
 					// Error is typically a benign EOF, so only log for debugging.
-					logger.Debug(ctx, "PTY output read error", slog.Error(err))
+					logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
 					break
 				}
 				part := buffer[:read]
