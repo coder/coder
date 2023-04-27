@@ -25,7 +25,7 @@ const useStyles = makeStyles(() => ({
   },
 }))
 
-export const Margins: FC<JSX.IntrinsicElements["div"] & { size: Size }> = ({
+export const Margins: FC<JSX.IntrinsicElements["div"] & { size?: Size }> = ({
   size = "regular",
   ...divProps
 }) => {

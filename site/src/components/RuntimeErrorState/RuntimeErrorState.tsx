@@ -2,6 +2,7 @@ import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
+import { BuildInfoResponse } from "api/typesGenerated"
 import { CoderIcon } from "components/Icons/CoderIcon"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { Stack } from "components/Stack/Stack"
@@ -51,7 +52,16 @@ export const RuntimeErrorState: FC<{ error: Error }> = ({ error }) => {
                 Coder Discord community
               </Link>{" "}
               or{" "}
-              <Link href="https://github.com/coder/coder/issues/new">
+              <Link
+                href={`https://github.com/coder/coder/issues/new?body=${encodeURIComponent(
+                  [
+                    ["**Version**", getStaticBuildInfo()].join("\n"),
+                    ["**Path**", "`" + location.pathname + "`"].join("\n"),
+                    ["**Error**", "```\n" + error.stack + "\n```"].join("\n"),
+                  ].join("\n\n"),
+                )}`}
+                target="_blank"
+              >
                 open an issue
               </Link>
               .
@@ -76,6 +86,21 @@ export const RuntimeErrorState: FC<{ error: Error }> = ({ error }) => {
       )}
     </>
   )
+}
+
+// During the build process, we inject the build info into the HTML
+const getStaticBuildInfo = () => {
+  const buildInfoJson = document
+    .querySelector("meta[property=build-info]")
+    ?.getAttribute("content")
+
+  if (buildInfoJson) {
+    try {
+      return JSON.parse(buildInfoJson) as BuildInfoResponse
+    } catch {
+      return "-- Set the version --"
+    }
+  }
 }
 
 const useStyles = makeStyles((theme) => ({
