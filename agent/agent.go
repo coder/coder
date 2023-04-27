@@ -653,6 +653,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				}
 				break
 			}
+			logger.Debug(ctx, "accepted conn", slog.F("remote", conn.RemoteAddr().String()))
 			wg.Add(1)
 			closed := make(chan struct{})
 			go func() {
@@ -681,6 +682,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				var msg codersdk.WorkspaceAgentReconnectingPTYInit
 				err = json.Unmarshal(data, &msg)
 				if err != nil {
+					logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
 					return
 				}
 				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
@@ -972,6 +974,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 
 	connectionID := uuid.NewString()
 	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
+	logger.Debug(ctx, "starting handler")
 
 	defer func() {
 		if err := retErr; err != nil {
@@ -1039,6 +1042,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// 1. The timeout completed.
 			// 2. The parent context was canceled.
 			<-ctx.Done()
+			logger.Debug(ctx, "context done", slog.Error(ctx.Err()))
 			_ = process.Kill()
 		}()
 		// We don't need to separately monitor for the process exiting.
@@ -1050,6 +1054,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 				read, err := rpty.ptty.OutputReader().Read(buffer)
 				if err != nil {
 					// When the PTY is closed, this is triggered.
+					// Error is typically a benign EOF, so only log for debugging.
+					logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
 					break
 				}
 				part := buffer[:read]
@@ -1061,8 +1067,15 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 					break
 				}
 				rpty.activeConnsMutex.Lock()
-				for _, conn := range rpty.activeConns {
-					_, _ = conn.Write(part)
+				for cid, conn := range rpty.activeConns {
+					_, err = conn.Write(part)
+					if err != nil {
+						logger.Debug(ctx,
+							"error writing to active conn",
+							slog.F("other_conn_id", cid),
+							slog.Error(err),
+						)
+					}
 				}
 				rpty.activeConnsMutex.Unlock()
 			}

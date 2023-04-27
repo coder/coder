@@ -879,6 +879,7 @@ func TestAgent_StartupScript(t *testing.T) {
 	}
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		client := &client{
 			t:       t,
 			agentID: uuid.New(),
@@ -887,12 +888,12 @@ func TestAgent_StartupScript(t *testing.T) {
 				DERPMap:       &tailcfg.DERPMap{},
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: tailnet.NewCoordinator(logger),
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
 			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			Logger:                 logger.Named("agent"),
 			ReconnectingPTYTimeout: 0,
 		})
 		t.Cleanup(func() {
@@ -910,6 +911,7 @@ func TestAgent_StartupScript(t *testing.T) {
 	// script has written too many lines it will still succeed!
 	t.Run("OverflowsAndSkips", func(t *testing.T) {
 		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		client := &client{
 			t:       t,
 			agentID: uuid.New(),
@@ -927,12 +929,12 @@ func TestAgent_StartupScript(t *testing.T) {
 				return codersdk.ReadBodyAsError(res)
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: tailnet.NewCoordinator(logger),
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
 			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			Logger:                 logger.Named("agent"),
 			ReconnectingPTYTimeout: 0,
 		})
 		t.Cleanup(func() {
@@ -1282,7 +1284,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 	t.Run("ShutdownScriptOnce", func(t *testing.T) {
 		t.Parallel()
-
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		expected := "this-is-shutdown"
 		client := &client{
 			t:       t,
@@ -1293,13 +1295,13 @@ func TestAgent_Lifecycle(t *testing.T) {
 				ShutdownScript: "echo " + expected,
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: tailnet.NewCoordinator(logger),
 		}
 
 		fs := afero.NewMemMapFs()
 		agent := agent.New(agent.Options{
 			Client:     client,
-			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+			Logger:     logger.Named("agent"),
 			Filesystem: fs,
 		})
 
@@ -1548,9 +1550,10 @@ func TestAgent_Speedtest(t *testing.T) {
 
 func TestAgent_Reconnect(t *testing.T) {
 	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
-	coordinator := tailnet.NewCoordinator()
+	coordinator := tailnet.NewCoordinator(logger)
 	defer coordinator.Close()
 
 	agentID := uuid.New()
@@ -1572,7 +1575,7 @@ func TestAgent_Reconnect(t *testing.T) {
 			return "", nil
 		},
 		Client: client,
-		Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+		Logger: logger.Named("agent"),
 	})
 	defer closer.Close()
 
@@ -1587,8 +1590,8 @@ func TestAgent_Reconnect(t *testing.T) {
 
 func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	t.Parallel()
-
-	coordinator := tailnet.NewCoordinator()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator := tailnet.NewCoordinator(logger)
 	defer coordinator.Close()
 
 	client := &client{
@@ -1607,7 +1610,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 			return "", nil
 		},
 		Client:     client,
-		Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+		Logger:     logger.Named("agent"),
 		Filesystem: filesystem,
 	})
 	defer closer.Close()
@@ -1698,10 +1701,11 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	afero.Fs,
 	io.Closer,
 ) {
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {
 		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 	}
-	coordinator := tailnet.NewCoordinator()
+	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
 		_ = coordinator.Close()
 	})
@@ -1718,7 +1722,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	closer := agent.New(agent.Options{
 		Client:                 c,
 		Filesystem:             fs,
-		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
 	t.Cleanup(func() {
@@ -1727,7 +1731,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   metadata.DERPMap,
-		Logger:    slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		Logger:    logger.Named("client"),
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()
