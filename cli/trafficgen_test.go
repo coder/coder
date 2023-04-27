@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -13,8 +16,6 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 // This test pretends to stand up a workspace and run a no-op traffic generation test.

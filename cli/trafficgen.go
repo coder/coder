@@ -8,11 +8,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 func (r *RootCmd) trafficGen() *clibase.Cmd {
@@ -76,9 +77,12 @@ func (r *RootCmd) trafficGen() *clibase.Cmd {
 				Data: "#",
 			})
 			if err != nil {
-				return xerrors.Errorf("write comment to pty: %w", err)
+				return xerrors.Errorf("serialize request: %w", err)
 			}
 			_, err = crw.Write(data)
+			if err != nil {
+				return xerrors.Errorf("write comment to pty: %w", err)
+			}
 			// Now we begin writing random data to the pty.
 			writeSize := int(bps / 10)
 			rch := make(chan error)
@@ -176,7 +180,7 @@ func copyContext(ctx context.Context, dst io.Writer, src []byte) error {
 		default:
 			_, err := dst.Write(src[idx : idx+1])
 			if err != nil {
-				if err == io.EOF {
+				if xerrors.Is(err, io.EOF) {
 					return nil
 				}
 				return err
