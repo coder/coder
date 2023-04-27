@@ -3,6 +3,9 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"strings"
+	"testing"
+
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -12,8 +15,6 @@ import (
 	"github.com/coder/coder/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"strings"
-	"testing"
 )
 
 // This test pretends to stand up a workspace and run a no-op traffic generation test.

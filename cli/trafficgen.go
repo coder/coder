@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"sync/atomic"
+	"time"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"io"
-	"sync/atomic"
-	"time"
 )
 
 func (r *RootCmd) trafficGen() *clibase.Cmd {
