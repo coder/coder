@@ -1,5 +1,10 @@
 import { Story } from "@storybook/react"
-import { makeMockApiError, MockRegions, MockPrimaryRegion, MockHealthyWildRegion } from "testHelpers/entities"
+import {
+  makeMockApiError,
+  MockRegions,
+  MockPrimaryRegion,
+  MockHealthyWildRegion,
+} from "testHelpers/entities"
 import {
   WorkspaceProxyPageView,
   WorkspaceProxyPageViewProps,

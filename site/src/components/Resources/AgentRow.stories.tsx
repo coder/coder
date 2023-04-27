@@ -1,5 +1,7 @@
 import { Story } from "@storybook/react"
 import {
+  MockPrimaryRegion,
+  MockRegions,
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceAgentConnecting,
@@ -16,6 +18,7 @@ import {
   MockWorkspaceApp,
 } from "testHelpers/entities"
 import { AgentRow, AgentRowProps } from "./AgentRow"
+import { ProxyContext, getURLs } from "contexts/ProxyContext"
 
 export default {
   title: "components/AgentRow",
@@ -36,7 +39,19 @@ export default {
   },
 }
 
-const Template: Story<AgentRowProps> = (args) => <AgentRow {...args} />
+const Template: Story<AgentRowProps> = (args) => (
+  <ProxyContext.Provider
+    value={{
+      proxy: getURLs(MockRegions, MockPrimaryRegion),
+      isLoading: false,
+      setProxy: () => {
+        return
+      },
+    }}
+  >
+    <AgentRow {...args} />
+  </ProxyContext.Provider>
+)
 
 const defaultAgentMetadata = [
   {

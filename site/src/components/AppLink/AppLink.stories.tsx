@@ -1,17 +1,33 @@
 import { Story } from "@storybook/react"
 import {
+  MockPrimaryRegion,
+  MockRegions,
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceApp,
 } from "testHelpers/entities"
 import { AppLink, AppLinkProps } from "./AppLink"
+import { ProxyContext } from "contexts/ProxyContext"
+import { getURLs } from "contexts/ProxyContext"
 
 export default {
   title: "components/AppLink",
   component: AppLink,
 }
 
-const Template: Story<AppLinkProps> = (args) => <AppLink {...args} />
+const Template: Story<AppLinkProps> = (args) => (
+  <ProxyContext.Provider
+    value={{
+      proxy: getURLs(MockRegions, MockPrimaryRegion),
+      isLoading: false,
+      setProxy: () => {
+        return
+      },
+    }}
+  >
+    <AppLink {...args} />
+  </ProxyContext.Provider>
+)
 
 export const WithIcon = Template.bind({})
 WithIcon.args = {
