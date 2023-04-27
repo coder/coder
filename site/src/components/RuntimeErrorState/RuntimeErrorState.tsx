@@ -3,6 +3,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
 import { BuildInfoResponse } from "api/typesGenerated"
+import { CopyButton } from "components/CopyButton/CopyButton"
 import { CoderIcon } from "components/Icons/CoderIcon"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { Stack } from "components/Stack/Stack"
@@ -17,7 +18,9 @@ export type RuntimeErrorStateProps = { error: Error }
 
 export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
   const styles = useStyles()
-  const [shouldDisplayMessage, setShouldDisplayMessage] = useState(false)
+  const [checkingError, setCheckingError] = useState(true)
+  const [staticBuildInfo, setStaticBuildInfo] = useState<BuildInfoResponse>()
+  const coderVersion = staticBuildInfo?.version
 
   // We use an effect to show a loading state if the page is trying to reload
   useEffect(() => {
@@ -34,17 +37,23 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
       return
     }
 
-    setShouldDisplayMessage(true)
+    setCheckingError(false)
   }, [error.message])
+
+  useEffect(() => {
+    if (!checkingError) {
+      setStaticBuildInfo(getStaticBuildInfo())
+    }
+  }, [checkingError])
 
   return (
     <>
       <Helmet>
         <title>Something went wrong...</title>
       </Helmet>
-      {shouldDisplayMessage ? (
-        <Margins size="small" className={styles.root}>
-          <div>
+      {!checkingError ? (
+        <Margins className={styles.root}>
+          <div className={styles.innerRoot}>
             <CoderIcon className={styles.logo} />
             <h1 className={styles.title}>Something went wrong...</h1>
             <p className={styles.text}>
@@ -57,7 +66,9 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
               <Link
                 href={`https://github.com/coder/coder/issues/new?body=${encodeURIComponent(
                   [
-                    ["**Version**", getStaticBuildInfo()].join("\n"),
+                    ["**Version**", coderVersion ?? "-- Set version --"].join(
+                      "\n",
+                    ),
                     ["**Path**", "`" + location.pathname + "`"].join("\n"),
                     ["**Error**", "```\n" + error.stack + "\n```"].join("\n"),
                   ].join("\n\n"),
@@ -81,6 +92,22 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
                 Go to dashboard
               </Button>
             </Stack>
+            {error.stack && (
+              <div className={styles.stack}>
+                <div className={styles.stackHeader}>
+                  Stacktrace
+                  <CopyButton
+                    buttonClassName={styles.copyButton}
+                    text={error.stack}
+                    tooltipTitle="Copy stacktrace"
+                  />
+                </div>
+                <pre className={styles.stackCode}>{error.stack}</pre>
+              </div>
+            )}
+            {coderVersion && (
+              <div className={styles.version}>Version: {coderVersion}</div>
+            )}
           </div>
         </Margins>
       ) : (
@@ -100,7 +127,7 @@ const getStaticBuildInfo = () => {
     try {
       return JSON.parse(buildInfoJson) as BuildInfoResponse
     } catch {
-      return "-- Set the version --"
+      return undefined
     }
   }
 }
@@ -114,7 +141,10 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     justifyContent: "center",
     minHeight: "100vh",
+    maxWidth: theme.spacing(75),
   },
+
+  innerRoot: { width: "100%" },
 
   logo: {
     fontSize: theme.spacing(8),
@@ -130,5 +160,57 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     lineHeight: "160%",
     marginBottom: theme.spacing(4),
+  },
+
+  stack: {
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: 4,
+    marginTop: theme.spacing(8),
+    display: "block",
+    textAlign: "left",
+  },
+
+  stackHeader: {
+    fontSize: 10,
+    textTransform: "uppercase",
+    fontWeight: 600,
+    letterSpacing: 1,
+    padding: theme.spacing(1, 1, 1, 2),
+    backgroundColor: theme.palette.background.paperLight,
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.secondary,
+    display: "flex",
+    flexAlign: "center",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  stackCode: {
+    padding: theme.spacing(2),
+    margin: 0,
+    wordWrap: "break-word",
+    whiteSpace: "break-spaces",
+  },
+
+  copyButton: {
+    backgroundColor: "transparent",
+    border: 0,
+    borderRadius: 999,
+    minHeight: theme.spacing(4),
+    minWidth: theme.spacing(4),
+    height: theme.spacing(4),
+    width: theme.spacing(4),
+
+    "& svg": {
+      width: 16,
+      height: 16,
+    },
+  },
+
+  version: {
+    marginTop: theme.spacing(4),
+    fontSize: 12,
+    color: theme.palette.text.secondary,
   },
 }))
