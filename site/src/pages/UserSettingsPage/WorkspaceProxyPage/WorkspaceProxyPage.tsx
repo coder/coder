@@ -17,7 +17,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
   const { proxy, setProxy } = useProxy()
 
   const {
-    data: proxiesResposne,
+    data: proxiesResponse,
     error: getProxiesError,
     isFetching,
     isFetched,
@@ -31,7 +31,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
       layout="fluid"
     >
       <WorkspaceProxyView
-        proxies={proxiesResposne?.regions}
+        proxies={proxiesResponse?.regions}
         isLoading={isFetching}
         hasLoaded={isFetched}
         getWorkspaceProxiesError={getProxiesError}
@@ -43,7 +43,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
           }
 
           // Set the fetched regions + the selected proxy
-          setProxy(proxiesResposne ? proxiesResposne.regions : [], proxy)
+          setProxy(proxiesResponse ? proxiesResponse.regions : [], proxy)
         }}
       />
     </Section>
