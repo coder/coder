@@ -28,7 +28,7 @@ interface PreferredProxy {
   preferredPathAppURL: string
   // PreferredWildcardHostname is a hostname that includes a wildcard.
   preferredWildcardHostname: string
-}
+}0
 
 export const ProxyContext = createContext<ProxyContextValue | undefined>(
   undefined,

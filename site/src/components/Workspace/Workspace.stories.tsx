@@ -26,7 +26,7 @@ export default {
 const Template: Story<WorkspaceProps> = (args) => (
   <ProxyContext.Provider
     value={{
-      proxy: getURLs(Mocks.MockRegions, Mocks.MockPrimaryRegion),
+      proxy: getURLs([], undefined),
       isLoading: false,
       setProxy: () => {
         return

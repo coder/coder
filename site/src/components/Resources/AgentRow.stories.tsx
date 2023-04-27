@@ -1,7 +1,5 @@
 import { Story } from "@storybook/react"
 import {
-  MockPrimaryRegion,
-  MockRegions,
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceAgentConnecting,
@@ -42,7 +40,7 @@ export default {
 const Template: Story<AgentRowProps> = (args) => (
   <ProxyContext.Provider
     value={{
-      proxy: getURLs(MockRegions, MockPrimaryRegion),
+      proxy: getURLs([], undefined),
       isLoading: false,
       setProxy: () => {
         return
