@@ -1,6 +1,6 @@
 import { FC, PropsWithChildren } from "react"
 import { Section } from "components/SettingsLayout/Section"
-import { WorkspaceProxyPageView } from "./WorkspaceProxyView"
+import { WorkspaceProxyView } from "./WorkspaceProxyView"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { Trans } from "react-i18next"
 import { useWorkspaceProxiesData } from "./hooks"
@@ -41,7 +41,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
         description={description}
         layout="fluid"
       >
-        <WorkspaceProxyPageView
+        <WorkspaceProxyView
           proxies={response ? response.regions : []}
           isLoading={isFetching}
           hasLoaded={isFetched}

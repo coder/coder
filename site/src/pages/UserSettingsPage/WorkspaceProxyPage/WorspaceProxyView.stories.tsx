@@ -6,21 +6,21 @@ import {
   MockHealthyWildRegion,
 } from "testHelpers/entities"
 import {
-  WorkspaceProxyPageView,
-  WorkspaceProxyPageViewProps,
+  WorkspaceProxyView,
+  WorkspaceProxyViewProps,
 } from "./WorkspaceProxyView"
 
 export default {
-  title: "components/WorkspaceProxyPageView",
-  component: WorkspaceProxyPageView,
+  title: "components/WorkspaceProxyView",
+  component: WorkspaceProxyView,
   args: {
     onRegenerateClick: { action: "Submit" },
   },
 }
 
-const Template: Story<WorkspaceProxyPageViewProps> = (
-  args: WorkspaceProxyPageViewProps,
-) => <WorkspaceProxyPageView {...args} />
+const Template: Story<WorkspaceProxyViewProps> = (
+  args: WorkspaceProxyViewProps,
+) => <WorkspaceProxyView {...args} />
 
 export const PrimarySelected = Template.bind({})
 PrimarySelected.args = {
