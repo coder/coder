@@ -33,7 +33,7 @@ type MetricsAggregator struct {
 	log                    slog.Logger
 	metricsCleanupInterval time.Duration
 
-	collectCh chan (chan<- prometheus.Metric)
+	collectCh chan (chan []prometheus.Metric)
 	updateCh  chan updateRequest
 
 	updateHistogram  prometheus.Histogram
@@ -96,7 +96,7 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 		log:                    logger,
 		metricsCleanupInterval: metricsCleanupInterval,
 
-		collectCh: make(chan (chan<- prometheus.Metric), sizeCollectCh),
+		collectCh: make(chan (chan []prometheus.Metric)),
 		updateCh:  make(chan updateRequest, sizeUpdateCh),
 
 		updateHistogram:  updateHistogram,
@@ -141,9 +141,10 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				}
 
 				timer.ObserveDuration()
-			case inputCh := <-ma.collectCh:
+			case outputCh := <-ma.collectCh:
 				ma.log.Debug(ctx, "metrics aggregator: collect metrics")
 
+				output := make([]prometheus.Metric, 0, len(ma.queue))
 				for _, m := range ma.queue {
 					desc := prometheus.NewDesc(m.Name, metricHelpForAgent, agentMetricsLabels, nil)
 					valueType, err := asPrometheusValueType(m.Type)
@@ -152,9 +153,10 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 						continue
 					}
 					constMetric := prometheus.MustNewConstMetric(desc, valueType, m.Value, m.username, m.workspaceName, m.agentName)
-					inputCh <- constMetric
+					output = append(output, constMetric)
 				}
-				close(inputCh)
+				outputCh <- output
+				close(outputCh)
 			case <-cleanupTicker.C:
 				ma.log.Debug(ctx, "metrics aggregator: clean expired metrics")
 
@@ -203,17 +205,19 @@ func (*MetricsAggregator) Describe(_ chan<- *prometheus.Desc) {
 var agentMetricsLabels = []string{usernameLabel, workspaceNameLabel, agentNameLabel}
 
 func (ma *MetricsAggregator) Collect(ch chan<- prometheus.Metric) {
-	collect := make(chan prometheus.Metric, 128)
+	output := make(chan []prometheus.Metric, 1)
 
 	select {
-	case ma.collectCh <- collect:
+	case ma.collectCh <- output:
 	default:
 		ma.log.Error(context.Background(), "metrics aggregator: collect queue is full")
 		return
 	}
 
-	for m := range collect {
-		ch <- m
+	for s := range output {
+		for _, m := range s {
+			ch <- m
+		}
 	}
 }
 
