@@ -67,8 +67,8 @@ func Test_NilToDefault(t *testing.T) {
 	assert.True(t, ptr.NilToDefault(ptr.Ref(true), false))
 	assert.True(t, ptr.NilToDefault((*bool)(nil), true))
 
-	assert.Equal(t, 4, ptr.NilToDefault(ptr.Ref(4), 5))
-	assert.Equal(t, 5, ptr.NilToDefault((*int64)(nil), 5))
+	assert.Equal(t, int64(4), ptr.NilToDefault(ptr.Ref[int64](4), 5))
+	assert.Equal(t, int64(5), ptr.NilToDefault((*int64)(nil), 5))
 
 	assert.Equal(t, "hi", ptr.NilToDefault((*string)(nil), "hi"))
 	assert.Equal(t, "hello", ptr.NilToDefault(ptr.Ref("hello"), "hi"))
