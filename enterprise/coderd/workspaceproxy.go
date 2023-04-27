@@ -58,26 +58,31 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proxyHealth := api.ProxyHealth.HealthStatus()
-	for _, proxy := range proxies {
-		if proxy.Deleted {
-			continue
-		}
+	// Only add additional regions if the proxy health is enabled.
+	// If it is nil, it is because the moons feature flag is not on.
+	// By default, we still want to return the primary region.
+	if api.ProxyHealth != nil {
+		proxyHealth := api.ProxyHealth.HealthStatus()
+		for _, proxy := range proxies {
+			if proxy.Deleted {
+				continue
+			}
 
-		health, ok := proxyHealth[proxy.ID]
-		if !ok {
-			health.Status = proxyhealth.Unknown
-		}
+			health, ok := proxyHealth[proxy.ID]
+			if !ok {
+				health.Status = proxyhealth.Unknown
+			}
 
-		regions = append(regions, codersdk.Region{
-			ID:               proxy.ID,
-			Name:             proxy.Name,
-			DisplayName:      proxy.DisplayName,
-			IconURL:          proxy.Icon,
-			Healthy:          health.Status == proxyhealth.Healthy,
-			PathAppURL:       proxy.Url,
-			WildcardHostname: proxy.WildcardHostname,
-		})
+			regions = append(regions, codersdk.Region{
+				ID:               proxy.ID,
+				Name:             proxy.Name,
+				DisplayName:      proxy.DisplayName,
+				IconURL:          proxy.Icon,
+				Healthy:          health.Status == proxyhealth.Healthy,
+				PathAppURL:       proxy.Url,
+				WildcardHostname: proxy.WildcardHostname,
+			})
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RegionsResponse{
