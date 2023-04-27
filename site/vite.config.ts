@@ -43,7 +43,10 @@ export default defineConfig({
           // Vite with a custom error handler to prevent from quitting.
           proxy.on("proxyReqWs", (proxyReq, req, socket) => {
             if (process.env.NODE_ENV === "development") {
-              proxyReq.setHeader('origin', process.env.CODER_HOST || "http://localhost:3000");
+              proxyReq.setHeader(
+                "origin",
+                process.env.CODER_HOST || "http://localhost:3000",
+              )
             }
 
             socket.on("error", (error) => {
