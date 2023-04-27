@@ -3,7 +3,6 @@ import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../utils/random"
-import { useProxy } from "contexts/ProxyContext"
 
 export const Language = {
   linkText: "Terminal",
