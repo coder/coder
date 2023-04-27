@@ -198,8 +198,8 @@ export const loadPreferredProxy = (): PreferredProxy | undefined => {
   if (str === undefined || str === null) {
     return undefined
   }
-  const proxy = JSON.parse(str)
-  if (proxy.id === undefined || proxy.id === null) {
+  const proxy: PreferredProxy = JSON.parse(str)
+  if (proxy.selectedRegion === undefined || proxy.selectedRegion === null) {
     return undefined
   }
   return proxy
