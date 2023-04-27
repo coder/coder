@@ -4,6 +4,9 @@ import (
 	"net"
 	"testing"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +19,8 @@ func TestCoordinator(t *testing.T) {
 	t.Parallel()
 	t.Run("ClientWithoutAgent", func(t *testing.T) {
 		t.Parallel()
-		coordinator := tailnet.NewCoordinator()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		coordinator := tailnet.NewCoordinator(logger)
 		client, server := net.Pipe()
 		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
 			return nil
@@ -40,7 +44,8 @@ func TestCoordinator(t *testing.T) {
 
 	t.Run("AgentWithoutClients", func(t *testing.T) {
 		t.Parallel()
-		coordinator := tailnet.NewCoordinator()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		coordinator := tailnet.NewCoordinator(logger)
 		client, server := net.Pipe()
 		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
 			return nil
@@ -64,7 +69,8 @@ func TestCoordinator(t *testing.T) {
 
 	t.Run("AgentWithClient", func(t *testing.T) {
 		t.Parallel()
-		coordinator := tailnet.NewCoordinator()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		coordinator := tailnet.NewCoordinator(logger)
 
 		agentWS, agentServerWS := net.Pipe()
 		defer agentWS.Close()
@@ -148,7 +154,8 @@ func TestCoordinator(t *testing.T) {
 
 	t.Run("AgentDoubleConnect", func(t *testing.T) {
 		t.Parallel()
-		coordinator := tailnet.NewCoordinator()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		coordinator := tailnet.NewCoordinator(logger)
 
 		agentWS1, agentServerWS1 := net.Pipe()
 		defer agentWS1.Close()

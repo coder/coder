@@ -600,6 +600,8 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	log := s.Logger.With(slog.F("agent_id", appToken.AgentID))
+	log.Debug(ctx, "resolved PTY request")
 
 	values := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
@@ -638,19 +640,22 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	agentConn, release, err := s.WorkspaceConnCache.Acquire(appToken.AgentID)
 	if err != nil {
-		s.Logger.Debug(ctx, "dial workspace agent", slog.Error(err))
+		log.Debug(ctx, "dial workspace agent", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
 	defer release()
+	log.Debug(ctx, "dialed workspace agent")
 	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
 	if err != nil {
-		s.Logger.Debug(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err))
+		log.Debug(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
 		return
 	}
 	defer ptNetConn.Close()
+	log.Debug(ctx, "obtained PTY")
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
+	log.Debug(ctx, "pty Bicopy finished")
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

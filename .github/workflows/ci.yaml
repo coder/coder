@@ -301,6 +301,7 @@ jobs:
             echo "cover=false" >> $GITHUB_OUTPUT
           fi
 
+          export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" --packages="./..." -- -parallel=8 -timeout=7m -short -failfast $COVERAGE_FLAGS
 
       - name: Print test stats
@@ -377,6 +378,7 @@ jobs:
 
       - name: Test with PostgreSQL Database
         run: |
+          export TS_DEBUG_DISCO=true
           make test-postgres
 
       - name: Print test stats

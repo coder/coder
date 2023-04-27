@@ -390,7 +390,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
-		coordinator := agpltailnet.NewCoordinator()
+		coordinator := agpltailnet.NewCoordinator(api.Logger)
 		if enabled {
 			haCoordinator, err := tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			if err != nil {

@@ -5655,6 +5655,44 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.AgentMetric": {
+            "type": "object",
+            "required": [
+                "name",
+                "type",
+                "value"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "counter",
+                        "gauge"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentsdk.AgentMetricType"
+                        }
+                    ]
+                },
+                "value": {
+                    "type": "number"
+                }
+            }
+        },
+        "agentsdk.AgentMetricType": {
+            "type": "string",
+            "enum": [
+                "counter",
+                "gauge"
+            ],
+            "x-enum-varnames": [
+                "AgentMetricTypeCounter",
+                "AgentMetricTypeGauge"
+            ]
+        },
         "agentsdk.AuthenticateResponse": {
             "type": "object",
             "properties": {
@@ -5856,6 +5894,13 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "integer"
+                    }
+                },
+                "metrics": {
+                    "description": "Metrics collected by the agent",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetric"
                     }
                 },
                 "rx_bytes": {
