@@ -152,8 +152,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	// Make a temporary struct to represent the template. This is used for
-	// auditing if any of the following checks fails. It will be overwritten
-	// when the template is inserted into the db.
+	// auditing if any of the following checks fail. It will be overwritten when
+	// the template is inserted into the db.
 	templateAudit.New = database.Template{
 		OrganizationID: organization.ID,
 		Name:           createTemplate.Name,
