@@ -15,7 +15,6 @@ import {
   Route,
   Routes,
   BrowserRouter as Router,
-  Outlet,
 } from "react-router-dom"
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
@@ -23,8 +22,6 @@ import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout"
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout"
-import { DashboardProvider } from "components/Dashboard/DashboardProvider"
-import { ProxyProvider } from "contexts/ProxyContext"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed

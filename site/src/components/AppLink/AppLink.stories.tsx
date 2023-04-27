@@ -7,8 +7,7 @@ import {
   MockWorkspaceApp,
 } from "testHelpers/entities"
 import { AppLink, AppLinkProps } from "./AppLink"
-import { ProxyContext } from "contexts/ProxyContext"
-import { getURLs } from "contexts/ProxyContext"
+import { ProxyContext, getURLs } from "contexts/ProxyContext"
 
 export default {
   title: "components/AppLink",
