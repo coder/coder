@@ -1,8 +1,10 @@
 package tailnet_test
 
 import (
+	"encoding/json"
 	"net"
 	"testing"
+	"time"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -246,4 +248,88 @@ func TestCoordinator(t *testing.T) {
 		<-agentErrChan1
 		<-closeAgentChan1
 	})
+}
+
+// TestCoordinator_AgentUpdateWhileClientConnects tests for regression on
+// https://github.com/coder/coder/issues/7295
+func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator := tailnet.NewCoordinator(logger)
+	agentWS, agentServerWS := net.Pipe()
+	defer agentWS.Close()
+
+	agentID := uuid.New()
+	go func() {
+		err := coordinator.ServeAgent(agentServerWS, agentID, "")
+		assert.NoError(t, err)
+	}()
+
+	// send an agent update before the client connects so that there is
+	// node data available to send right away.
+	aNode := tailnet.Node{PreferredDERP: 0}
+	aData, err := json.Marshal(&aNode)
+	require.NoError(t, err)
+	err = agentWS.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
+	require.NoError(t, err)
+	_, err = agentWS.Write(aData)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return coordinator.Node(agentID) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Connect from the client
+	clientWS, clientServerWS := net.Pipe()
+	defer clientWS.Close()
+	clientID := uuid.New()
+	go func() {
+		err := coordinator.ServeClient(clientServerWS, clientID, agentID)
+		assert.NoError(t, err)
+	}()
+
+	// peek one byte from the node update, so we know the coordinator is
+	// trying to write to the client.
+	// buffer needs to be 2 characters longer because return value is a list
+	// so, it needs [ and ]
+	buf := make([]byte, len(aData)+2)
+	err = clientWS.SetReadDeadline(time.Now().Add(testutil.WaitShort))
+	require.NoError(t, err)
+	n, err := clientWS.Read(buf[:1])
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	// send a second update
+	aNode.PreferredDERP = 1
+	require.NoError(t, err)
+	aData, err = json.Marshal(&aNode)
+	err = agentWS.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
+	require.NoError(t, err)
+	_, err = agentWS.Write(aData)
+	require.NoError(t, err)
+
+	// read the rest of the update from the client, should be initial node.
+	err = clientWS.SetReadDeadline(time.Now().Add(testutil.WaitShort))
+	require.NoError(t, err)
+	n, err = clientWS.Read(buf[1:])
+	require.NoError(t, err)
+	require.Equal(t, len(buf)-1, n)
+	var cNodes []*tailnet.Node
+	err = json.Unmarshal(buf, &cNodes)
+	require.NoError(t, err)
+	require.Len(t, cNodes, 1)
+	require.Equal(t, 0, cNodes[0].PreferredDERP)
+
+	// read second update
+	// without a fix for https://github.com/coder/coder/issues/7295 our
+	// read would time out here.
+	err = clientWS.SetReadDeadline(time.Now().Add(testutil.WaitShort))
+	require.NoError(t, err)
+	n, err = clientWS.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, len(buf), n)
+	err = json.Unmarshal(buf, &cNodes)
+	require.NoError(t, err)
+	require.Len(t, cNodes, 1)
+	require.Equal(t, 1, cNodes[0].PreferredDERP)
 }
