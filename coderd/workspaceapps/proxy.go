@@ -616,6 +616,10 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
+		OriginPatterns: []string{
+			s.DashboardURL.Host,
+			s.AccessURL.Host,
+		},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

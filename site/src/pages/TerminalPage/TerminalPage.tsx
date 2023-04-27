@@ -78,6 +78,7 @@ const TerminalPage: FC<
       workspaceName: workspaceNameParts?.[0],
       username: username,
       command: command,
+      baseURL: proxy.preferredPathAppURL,
     },
     actions: {
       readMessage: (_, event) => {

@@ -319,7 +319,8 @@ func cspHeaders(next http.Handler) http.Handler {
 		cspSrcs := CSPDirectives{
 			// All omitted fetch csp srcs default to this.
 			CSPDirectiveDefaultSrc: {"'self'"},
-			CSPDirectiveConnectSrc: {"'self'"},
+			// TODO: @emyrk fix this to only include the primary and proxy domains.
+			CSPDirectiveConnectSrc: {"'self' ws: wss:"},
 			CSPDirectiveChildSrc:   {"'self'"},
 			// https://github.com/suren-atoyan/monaco-react/issues/168
 			CSPDirectiveScriptSrc: {"'self'"},

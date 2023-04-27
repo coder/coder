@@ -1254,3 +1254,13 @@ export const watchBuildLogsByBuildId = (
   })
   return socket
 }
+
+export const issueReconnectingPTYSignedToken = async (
+  params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
+): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
+  const response = await axios.post(
+    "/api/v2/applications/reconnecting-pty-signed-token",
+    params,
+  )
+  return response.data
+}
