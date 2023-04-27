@@ -447,7 +447,10 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
-	conn, err := websocket.Accept(rw, r, nil)
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		// Vite in development mode can't cross-access this port.
+		OriginPatterns: []string{"localhost:8080"},
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket.",
