@@ -4,12 +4,8 @@ import { getWorkspaceProxies } from "api/api"
 // Loads all workspace proxies
 export const useWorkspaceProxiesData = () => {
   const queryKey = ["workspace-proxies"]
-  const result = useQuery({
+  return useQuery({
     queryKey,
-    queryFn: () => getWorkspaceProxies(),
+    queryFn: getWorkspaceProxies,
   })
-
-  return {
-    ...result,
-  }
 }

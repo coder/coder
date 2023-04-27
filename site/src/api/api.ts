@@ -901,7 +901,6 @@ export const getWorkspaceProxies =
   async (): Promise<TypesGen.RegionsResponse> => {
     const response = await axios.get<TypesGen.RegionsResponse>(
       `/api/v2/regions`,
-      {},
     )
     return response.data
   }
