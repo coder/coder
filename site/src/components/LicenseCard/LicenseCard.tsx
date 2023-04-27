@@ -70,19 +70,21 @@ export const LicenseCard = ({
           alignItems="self-end"
         >
           <div className={styles.userLimit}>
-            <span className={styles.userLimitActual}>{userLimitActual}</span>
+            <span className={styles.userLimitActual}>
+              {userLimitActual} users
+            </span>
             <span className={styles.userLimitLimit}>
-              / {userLimitLimit || "Unlimited"} users
+              / {userLimitLimit || "Unlimited"}
             </span>
           </div>
 
           <Stack direction="column" spacing={0} alignItems="center">
+            <span className={styles.expirationDateLabel}>Valid until</span>
             <span className={styles.expirationDate}>
               {dayjs
                 .unix(license.claims.license_expires)
                 .format("MMMM D, YYYY")}
             </span>
-            <span className={styles.expirationDateLabel}>Valid until</span>
           </Stack>
           <div className={styles.actions}>
             <Button
