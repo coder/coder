@@ -789,7 +789,6 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 }
 
 func (a *agent) runStartupScript(ctx context.Context, script string) error {
-	a.logger.Debug(ctx, "running agent startup script")
 	return a.runScript(ctx, "startup", script)
 }
 
