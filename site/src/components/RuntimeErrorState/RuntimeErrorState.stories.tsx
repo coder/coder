@@ -1,4 +1,4 @@
-import { ComponentMeta, Story } from "@storybook/react"
+import { Story } from "@storybook/react"
 import { RuntimeErrorState, RuntimeErrorStateProps } from "./RuntimeErrorState"
 
 const error = new Error("An error occurred")
@@ -6,12 +6,10 @@ const error = new Error("An error occurred")
 export default {
   title: "components/RuntimeErrorState",
   component: RuntimeErrorState,
-  argTypes: {
-    error: {
-      defaultValue: error,
-    },
+  args: {
+    error,
   },
-} as ComponentMeta<typeof RuntimeErrorState>
+}
 
 const Template: Story<RuntimeErrorStateProps> = (args) => (
   <RuntimeErrorState {...args} />

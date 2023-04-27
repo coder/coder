@@ -13,7 +13,9 @@ import { Margins } from "../Margins/Margins"
 const fetchDynamicallyImportedModuleError =
   "Failed to fetch dynamically imported module" as const
 
-export const RuntimeErrorState: FC<{ error: Error }> = ({ error }) => {
+export type RuntimeErrorStateProps = { error: Error }
+
+export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
   const styles = useStyles()
   const [shouldDisplayMessage, setShouldDisplayMessage] = useState(false)
 
