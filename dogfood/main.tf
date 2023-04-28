@@ -24,19 +24,19 @@ locals {
 }
 
 data "coder_parameter" "repo_dir" {
-  type = "string"
-  name = "Coder Repository Directory"
-  default = "~/coder"
+  type        = "string"
+  name        = "Coder Repository Directory"
+  default     = "~/coder"
   description = "The directory specified will be created and [coder/coder](https://github.com/coder/coder) will be automatically cloned into it 🪄."
-  mutable = true
+  mutable     = true
 }
 
 data "coder_parameter" "dotfiles_url" {
-  type = "string"
-  name = "Dotfiles URL"
+  type        = "string"
+  name        = "Dotfiles URL"
   description = "A path to your dotfiles. See: https://dotfiles.github.io"
-  default = " "
-  mutable = true
+  default     = " "
+  mutable     = true
 }
 
 data "coder_parameter" "region" {
@@ -44,23 +44,23 @@ data "coder_parameter" "region" {
   name = "Region"
   icon = "/emojis/1f30e.png"
   option {
-    icon = "/emojis/1f1fa-1f1f8.png"
-    name = "Pittsburgh"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+    name  = "Pittsburgh"
     value = "us-pittsburgh"
   }
   option {
-    icon = "/emojis/1f1eb-1f1ee.png"
-    name = "Helsinki"
+    icon  = "/emojis/1f1eb-1f1ee.png"
+    name  = "Helsinki"
     value = "eu-helsinki"
   }
   option {
-    icon = "/emojis/1f1e6-1f1fa.png"
-    name = "Sydney"
+    icon  = "/emojis/1f1e6-1f1fa.png"
+    name  = "Sydney"
     value = "ap-sydney"
   }
   option {
-    icon = "/emojis/1f1e7-1f1f7.png"
-    name = "São Paulo"
+    icon  = "/emojis/1f1e7-1f1f7.png"
+    name  = "São Paulo"
     value = "sa-saopaulo"
   }
   # option {
@@ -88,56 +88,56 @@ resource "coder_agent" "dev" {
 
   dir = data.coder_parameter.repo_dir.value
   env = {
-    GITHUB_TOKEN: data.coder_git_auth.github.access_token,
-    OIDC_TOKEN: data.coder_workspace.me.owner_oidc_access_token,
+    GITHUB_TOKEN : data.coder_git_auth.github.access_token,
+    OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
   }
-  login_before_ready     = false
+  login_before_ready = false
 
   metadata {
     display_name = "CPU Usage"
-    key  = "cpu"
-    script = <<EOT
+    key          = "cpu"
+    script       = <<EOT
     vmstat | awk 'FNR==3 {printf "%2.0f%%", $13+$14+$16}'
     EOT
-    interval = 1
-    timeout = 1
+    interval     = 1
+    timeout      = 1
   }
 
   metadata {
     display_name = "Load Average"
-    key  = "load"
-    script = "awk '{print $1}' /proc/loadavg"
-    interval = 1
-    timeout = 1
+    key          = "load"
+    script       = "awk '{print $1}' /proc/loadavg"
+    interval     = 1
+    timeout      = 1
   }
 
   metadata {
     display_name = "Disk Usage"
-    key  = "disk"
-    script = "df -h | awk '$6 ~ /^\\/$/ { print $5 }'"
-    interval = 1
-    timeout = 1
+    key          = "disk"
+    script       = "df -h | awk '$6 ~ /^\\/$/ { print $5 }'"
+    interval     = 1
+    timeout      = 1
   }
 
   metadata {
-	display_name = "Memory Usage"
-	key  = "mem"
-	script = <<EOT
+    display_name = "Memory Usage"
+    key          = "mem"
+    script       = <<EOT
 	free | awk '/^Mem/ { printf("%.0f%%", $4/$2 * 100.0) }'
 	EOT
-	interval = 1
-	timeout = 1
+    interval     = 1
+    timeout      = 1
   }
 
 
   metadata {
-	display_name = "Word of the Day"
-	key  = "word"
-	script = <<EOT
+    display_name = "Word of the Day"
+    key          = "word"
+    script       = <<EOT
 	curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
 	EOT
-	interval = 60
-	timeout = 5
+    interval     = 60
+    timeout      = 5
   }
 
 
@@ -238,7 +238,7 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
   # Use the docker gateway if the access URL is 127.0.0.1
-  entrypoint = ["sh", "-c", replace(coder_agent.dev.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
+  entrypoint = ["sh", "-c", coder_agent.dev.init_script]
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = 32768
   runtime = "sysbox-runc"
