@@ -10,7 +10,8 @@ export interface TerminalContext {
   workspaceAgentError?: Error | unknown
   websocket?: WebSocket
   websocketError?: Error | unknown
-  applicationsHost?: string
+  websocketURL?: string
+  websocketURLError?: Error | unknown
 
   // Assigned by connecting!
   // The workspace agent is entirely optional.  If the agent is omitted the
@@ -20,6 +21,8 @@ export interface TerminalContext {
   workspaceName?: string
   reconnection?: string
   command?: string
+  // If baseURL is not.....
+  baseURL?: string
 }
 
 export type TerminalEvent =
@@ -35,7 +38,7 @@ export type TerminalEvent =
   | { type: "DISCONNECT" }
 
 export const terminalMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QBcwCcC2BLAdgQwBsBlZPVAOhmWVygHk0o8csAvMrAex1gGIJuYcrgBunANZCqDJi3Y1u8JCAAOnWFgU5EoAB6IA7AE4AzOSMBGAEwBWCyYAsANgs2bVgDQgAnohNGbcgsnEIcHCwAOBwAGCKMHAF8Er1RMXEISMikwaloZZjYORV50NE40chUCMgAzcoxKHPy5Ip4dVXVNLm1lfQQIiLMIpxMbQYjYo2jXL18EawtyAwGwk1HTMdGklPRsfGJSCioaHCgAdXLxWBU8AGMwfkFhHDFJRuQLtCub+-a1DS07T69icVnILisDhspiccQ2sz8y3INmiqNGsMcBmiNm2IFSewyh2yuVOn2+dwepXKlWqyDqmHeZOuFL+nUBvUQILBEKhMLhowRCAMTkCIzWDkcEyMBhsBlx+PSByy7xO50uzPuAEEYDhkI8cEJRBJiUyfmBtWBdayAd0gZyjCFyFZbKjnC4jKYLIK7GYYqirCYBk5olYDIlknjdorMkccqrTRSLbqSmgyhUqrV6oz1Wak8hrV1uHb5g6nE6XdE3RYPSYvT5EWCA2s7E4sbZhfKo-sY0JbtwDbdVfrDS9jeQ+zgB-nlP9Cz09IhIcLyCZIUYotEDCZNxEDN7peY1ms4gYrNNBp20t2ieP+2BB7QU2maZmGROpwX2QuEEuy6uHOuMRbjue71ggdiLPY4phiYMoWNYl4EkqFDvveqAQLwZwAEoAJIACoAKKfraHI-gYkTkCGAFYmG0TbnWcw2A4YKmGskJno44RWIh0Y3qhg6QLwWEEZqAAixFFqRobViusKngYMpWEGgpQmWUFsSEcSOHRPHXsq-Hobwok4UQADCdAAHIWQRpl4RJ84gH0SmtuQDgTNWMJTDKJgqUEq4RNCljTOs3ERgqekUBAWCwAZgnmVZNl2TObIkd+zplrEYanvY0SwrCESCs6BiuaidGrgGTgekYSQRjgnAQHA7ThYSyrHHkjAFPI3RKKAs5fo5iAxIEXHMSMErWNiTiFa4K6ldi1ayu4FjhjsV4tbGJJql8GpgPZxYWNMDiubBdh2Ju7pGIK-jFW6rYiq4bZOLp63EvGOaJjq069Slknfq4jrOii51udiMpXbC5ATKi1ghNEljNs9yG9neD6nHtUlnhErmgqeIyosKazejNZ7+qMi3BiYiM9rek5oZA6NpeR0ROmGpgnhT0qCmNSxHhKW4BiGERUzeUUxSj6EMwN4HM5ukLLXBViRKGNhXVj64etM0JOG5YTC1kktORlp7hA4CtK2DYEALQQ8M5FKQd27OJTNVAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QBcwCcC2BLAdgQwBsBlZPVAOljGQFcAHAYggHscxLSLVNdCSz2VWnQDaABgC6iUHWawsyLK2kgAHogAcAVgCM5MQGYdAJgMaALOYDsV8zq0AaEAE9ExgGwHyATmPf3VmI6Yub+5gYAvhFO3Nj4xJyC1PTkMMgA6sxoANawdHgAxuxpijhQmTl5hWBMrOy4AG7M2cXUFbn5ReJSSCCy8orKveoI5qbkOhq23hozflruxuZOrghGXuZaRsFiWlbeWuYa7lEx6HF8iZTJdKltWR3Vd8il5Q9VRQzoaFnkdARkABmWQwz3aHzA3RU-QUShwKhGYy8k2msw080WyxcbmMYnIoW8hO8ZkMYisOlOIFivASAmer3BnTAAEEYDhkLU2ORGs1Whl3kzWWB2VDejDBvDhogdAYrFoJuYxJjdmJvCENCs3Fo8e4glpjFptWSDhpKdT4vwKCVcG9KoK2Rzvr9-kCQWCBdUhSLJNC5LChqARotNQgpniNAYtAdjFYDL4pidolTzjTLXyGWAAEZEZgFFrIACqACUADKc+o4JotZ45vPUYsl0UyP0ShGIWVWchGA27Akzbwh4LjDQmAk6AmBbxmlMWq7WsrpLO1-MNr5oH5oP4A5DAzA13Mr0tNvotuFthBWYyDo56ULGewWHTk0zGac8Wd0gqsNgFV7l7mVry5BfjgP7IMe4pnlKobmO45D3mG7ihFMBgBIOhgaPoizar4xIRv4b4XLSFAgWBNprhuW6unupFgL+EGngGaiIMG2IIPYtj4psMYaGIxh+Do9iEamVy0b+kAMOkRYAJIACoAKIMQMUGBogdiYZs3Z+N444GqYg42F4kY6LqmxWLMUaREm5qXJ+350agEAMEW8nMgAIkp-qSqpow6N45BIRYkYRgsBxyoOASdnG2gyu43jcUhwkfiR9niU5bnSUQADCADyAByeXyVlsmea20F+Zho6EksgU6WIGpsZMuj6OZfimLB0bmEltkUBAWCwGJjkMLlBVFSVPpiox3nMexV6Na+lI4MwEBwCoNnEWAvrKUxIwALRjCGu1yuQRpiCEBpyrshLdRt1zCFtXnnu4IabCdZ1nWMezalGFLWTOPVJMI7p2tUD1lT5hyDgYXjvR9KrxSZXV-e+AN3SkaSMk8862o8RRgypM1DiGL4+FY7iGvqniXvYSNnCjt1COj9wg0UlA0AURSwPAk3bdNQbQ-o3YLCYHGwcTRwBeE-GYjToRWDdab0jamNFF6yD4ztiD+PKgTdtYljuAEBjE3G+J+HFI7ah45IK3O1AZtmB71qWGt84gezofe+j2Lq7h+XxSFWXTRGK4NNqu09fFYUssyLPxCyOI1hjyh4CzW1b3jy8jIeialjkR9BhzweTiwBPqOm2Asg5TOYXbqmY6xISEtt0n1A155ABc+aheiGCYfhGAnthWIO33kOSxwRn3vgBFEURAA */
   createMachine(
     {
       id: "terminalState",
@@ -48,11 +51,11 @@ export const terminalMachine =
           getWorkspace: {
             data: TypesGen.Workspace
           }
-          getApplicationsHost: {
-            data: TypesGen.AppHostResponse
-          }
           getWorkspaceAgent: {
             data: TypesGen.WorkspaceAgent
+          }
+          getWebsocketURL: {
+            data: string
           }
           connect: {
             data: WebSocket
@@ -64,27 +67,6 @@ export const terminalMachine =
         setup: {
           type: "parallel",
           states: {
-            getApplicationsHost: {
-              initial: "gettingApplicationsHost",
-              states: {
-                gettingApplicationsHost: {
-                  invoke: {
-                    src: "getApplicationsHost",
-                    id: "getApplicationsHost",
-                    onDone: {
-                      actions: [
-                        "assignApplicationsHost",
-                        "clearApplicationsHostError",
-                      ],
-                      target: "success",
-                    },
-                  },
-                },
-                success: {
-                  type: "final",
-                },
-              },
-            },
             getWorkspace: {
               initial: "gettingWorkspace",
               states: {
@@ -123,12 +105,30 @@ export const terminalMachine =
             onDone: [
               {
                 actions: ["assignWorkspaceAgent", "clearWorkspaceAgentError"],
-                target: "connecting",
+                target: "gettingWebSocketURL",
               },
             ],
             onError: [
               {
                 actions: "assignWorkspaceAgentError",
+                target: "disconnected",
+              },
+            ],
+          },
+        },
+        gettingWebSocketURL: {
+          invoke: {
+            src: "getWebsocketURL",
+            id: "getWebsocketURL",
+            onDone: [
+              {
+                actions: ["assignWebsocketURL", "clearWebsocketURLError"],
+                target: "connecting",
+              },
+            ],
+            onError: [
+              {
+                actions: "assignWebsocketURLError",
                 target: "disconnected",
               },
             ],
@@ -187,9 +187,6 @@ export const terminalMachine =
             context.workspaceName,
           )
         },
-        getApplicationsHost: async () => {
-          return API.getApplicationsHost()
-        },
         getWorkspaceAgent: async (context) => {
           if (!context.workspace || !context.workspaceName) {
             throw new Error("workspace or workspace name is not set")
@@ -213,17 +210,60 @@ export const terminalMachine =
           }
           return agent
         },
+        getWebsocketURL: async (context) => {
+          if (!context.workspaceAgent) {
+            throw new Error("workspace agent is not set")
+          }
+          if (!context.reconnection) {
+            throw new Error("reconnection ID is not set")
+          }
+
+          let baseURL = context.baseURL || ""
+          if (!baseURL) {
+            baseURL = `${location.protocol}//${location.host}`
+          }
+
+          const query = new URLSearchParams({
+            reconnect: context.reconnection,
+          })
+          if (context.command) {
+            query.set("command", context.command)
+          }
+
+          const url = new URL(baseURL)
+          url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
+          if (!url.pathname.endsWith("/")) {
+            url.pathname + "/"
+          }
+          url.pathname += `api/v2/workspaceagents/${context.workspaceAgent.id}/pty`
+          url.search = "?" + query.toString()
+
+          // If the URL is just the primary API, we don't need a signed token to
+          // connect.
+          if (!context.baseURL) {
+            return url.toString()
+          }
+
+          // Do ticket issuance and set the query parameter.
+          const tokenRes = await API.issueReconnectingPTYSignedToken({
+            url: url.toString(),
+            agentID: context.workspaceAgent.id,
+          })
+          query.set("coder_signed_app_token_23db1dde", tokenRes.signed_token)
+          url.search = "?" + query.toString()
+
+          return url.toString()
+        },
         connect: (context) => (send) => {
           return new Promise<WebSocket>((resolve, reject) => {
             if (!context.workspaceAgent) {
               return reject("workspace agent is not set")
             }
-            const proto = location.protocol === "https:" ? "wss:" : "ws:"
-            const commandQuery = context.command
-              ? `&command=${encodeURIComponent(context.command)}`
-              : ""
-            const url = `${proto}//${location.host}/api/v2/workspaceagents/${context.workspaceAgent.id}/pty?reconnect=${context.reconnection}${commandQuery}`
-            const socket = new WebSocket(url)
+            if (!context.websocketURL) {
+              return reject("websocket URL is not set")
+            }
+
+            const socket = new WebSocket(context.websocketURL)
             socket.binaryType = "arraybuffer"
             socket.addEventListener("open", () => {
               resolve(socket)
@@ -262,13 +302,6 @@ export const terminalMachine =
           ...context,
           workspaceError: undefined,
         })),
-        assignApplicationsHost: assign({
-          applicationsHost: (_, { data }) => data.host,
-        }),
-        clearApplicationsHostError: assign((context) => ({
-          ...context,
-          applicationsHostError: undefined,
-        })),
         assignWorkspaceAgent: assign({
           workspaceAgent: (_, event) => event.data,
         }),
@@ -288,6 +321,16 @@ export const terminalMachine =
         clearWebsocketError: assign((context: TerminalContext) => ({
           ...context,
           webSocketError: undefined,
+        })),
+        assignWebsocketURL: assign({
+          websocketURL: (context, event) => event.data ?? context.websocketURL,
+        }),
+        assignWebsocketURLError: assign({
+          websocketURLError: (_, event) => event.data,
+        }),
+        clearWebsocketURLError: assign((context: TerminalContext) => ({
+          ...context,
+          websocketURLError: undefined,
         })),
         sendMessage: (context, event) => {
           if (!context.websocket) {

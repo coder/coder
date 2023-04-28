@@ -944,6 +944,14 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   return response.data
 }
 
+export const getWorkspaceProxies =
+  async (): Promise<TypesGen.RegionsResponse> => {
+    const response = await axios.get<TypesGen.RegionsResponse>(
+      `/api/v2/regions`,
+    )
+    return response.data
+  }
+
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {
     const response = await axios.get(`/api/v2/appearance`)
@@ -1291,4 +1299,14 @@ export const watchBuildLogsByBuildId = (
     onDone()
   })
   return socket
+}
+
+export const issueReconnectingPTYSignedToken = async (
+  params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
+): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
+  const response = await axios.post(
+    "/api/v2/applications/reconnecting-pty-signed-token",
+    params,
+  )
+  return response.data
 }

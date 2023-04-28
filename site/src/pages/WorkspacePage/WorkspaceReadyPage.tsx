@@ -57,7 +57,6 @@ export const WorkspaceReadyPage = ({
     getBuildsError,
     buildError,
     cancellationError,
-    applicationsHost,
     sshPrefix,
     permissions,
     missedParameters,
@@ -153,7 +152,6 @@ export const WorkspaceReadyPage = ({
           [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
         }}
         buildInfo={buildInfo}
-        applicationsHost={applicationsHost}
         sshPrefix={sshPrefix}
         template={template}
         quota_budget={quotaState.context.quota?.budget}

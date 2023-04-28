@@ -43,6 +43,7 @@ export const portForwardURL = (
 
 const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
   const { host, workspaceName, agentName, agentId, username } = props
+
   const styles = useStyles()
   const [port, setPort] = useState("3000")
   const urlExample = portForwardURL(
