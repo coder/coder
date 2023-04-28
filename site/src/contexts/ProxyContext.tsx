@@ -56,6 +56,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     setProxy(preferred)
   }
 
+  const dashboard = useDashboard()
+  const experimentEnabled = !dashboard?.experiments.includes("moons")
   const queryKey = ["get-regions"]
   const { error: regionsError, isLoading: regionsLoading } = useQuery({
     queryKey,
@@ -66,13 +68,13 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     onSuccess: (data) => {
       setAndSaveProxy(data.regions, proxy.selectedProxy)
     },
+    enabled: experimentEnabled,
   })
 
   // ******************************* //
   // ** This code can be removed  **
   // ** when the experimental is  **
   // **       dropped             ** //
-  const dashboard = useDashboard()
   const appHostQueryKey = ["get-application-host"]
   const {
     data: applicationHostResult,
@@ -81,11 +83,12 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   } = useQuery({
     queryKey: appHostQueryKey,
     queryFn: getApplicationsHost,
+    enabled: !experimentEnabled,
   })
 
   // If the experiment is disabled, then make the setState do a noop.
   // This preserves an empty state, which is the default behavior.
-  if (!dashboard?.experiments.includes("moons")) {
+  if (!experimentEnabled) {
     const value = getPreferredProxy([])
 
     return (
