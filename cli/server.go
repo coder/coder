@@ -88,6 +88,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/retry"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
@@ -1733,24 +1734,43 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 
 func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (*sql.DB, error) {
 	logger.Debug(ctx, "connecting to postgresql")
-	sqlDB, err := sql.Open(driver, dbURL)
-	if err != nil {
-		return nil, xerrors.Errorf("dial postgres: %w", err)
-	}
 
-	ok := false
+	// Try to connect for 30 seconds.
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var (
+		sqlDB *sql.DB
+		err   error
+		ok    = false
+		tries int
+	)
+	for r := retry.New(time.Second, 3*time.Second); r.Wait(ctx); {
+		tries++
+
+		sqlDB, err = sql.Open(driver, dbURL)
+		if err != nil {
+			logger.Warn(ctx, "connect to postgres; retrying", slog.Error(err), slog.F("try", tries))
+			continue
+		}
+
+		err = pingPostgres(ctx, sqlDB)
+		if err != nil {
+			logger.Warn(ctx, "ping postgres; retrying", slog.Error(err), slog.F("try", tries))
+			continue
+		}
+
+		break
+	}
+	// Make sure we close the DB in case it opened but the ping failed for some
+	// reason.
 	defer func() {
-		if !ok {
+		if !ok && sqlDB != nil {
 			_ = sqlDB.Close()
 		}
 	}()
-
-	pingCtx, pingCancel := context.WithTimeout(ctx, 15*time.Second)
-	defer pingCancel()
-
-	err = sqlDB.PingContext(pingCtx)
 	if err != nil {
-		return nil, xerrors.Errorf("ping postgres: %w", err)
+		return nil, xerrors.Errorf("connect to postgres; tries %d; last error: %w", tries, err)
 	}
 
 	// Ensure the PostgreSQL version is >=13.0.0!
@@ -1797,6 +1817,12 @@ func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 	ok = true
 	return sqlDB, nil
+}
+
+func pingPostgres(ctx context.Context, db *sql.DB) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return db.PingContext(ctx)
 }
 
 type HTTPServers struct {
