@@ -2,7 +2,6 @@ import { FC, PropsWithChildren } from "react"
 import { Section } from "components/SettingsLayout/Section"
 import { WorkspaceProxyView } from "./WorkspaceProxyView"
 import makeStyles from "@material-ui/core/styles/makeStyles"
-import { useWorkspaceProxiesData } from "./hooks"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { useProxy } from "contexts/ProxyContext"
 
@@ -14,14 +13,8 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
     "workspace. To get the best experience, choose the workspace proxy that is" +
     "closest located to you."
 
-  const { proxy, setProxy } = useProxy()
+  const { proxies, error: proxiesError, isFetched: proxiesFetched, isLoading: proxiesLoading, proxy, setProxy } = useProxy()
 
-  const {
-    data: proxiesResponse,
-    error: getProxiesError,
-    isFetching,
-    isFetched,
-  } = useWorkspaceProxiesData()
 
   return (
     <Section
@@ -31,10 +24,10 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
       layout="fluid"
     >
       <WorkspaceProxyView
-        proxies={proxiesResponse?.regions}
-        isLoading={isFetching}
-        hasLoaded={isFetched}
-        getWorkspaceProxiesError={getProxiesError}
+        proxies={proxies}
+        isLoading={proxiesLoading}
+        hasLoaded={proxiesFetched}
+        getWorkspaceProxiesError={proxiesError}
         preferredProxy={proxy.selectedProxy}
         onSelect={(proxy) => {
           if (!proxy.healthy) {
@@ -42,8 +35,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
             return
           }
 
-          // Set the fetched regions + the selected proxy
-          setProxy(proxiesResponse ? proxiesResponse.regions : [], proxy)
+          setProxy(proxy)
         }}
       />
     </Section>
