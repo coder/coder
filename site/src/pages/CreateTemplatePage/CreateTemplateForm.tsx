@@ -234,7 +234,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
     if (jobError) {
       window.scrollTo(0, document.body.scrollHeight)
     }
-  }, [logs])
+  }, [logs, jobError])
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
