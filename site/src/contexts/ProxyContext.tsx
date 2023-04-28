@@ -53,27 +53,31 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 
   const dashboard = useDashboard()
-  const experimentEnabled = !dashboard?.experiments.includes("moons")
+  const experimentEnabled = dashboard?.experiments.includes("moons")
   const queryKey = ["get-proxies"]
-  const { data: proxies, error: proxiesError, isLoading: proxiesLoading, isFetched: proxiesFetched } = useQuery({
+  const { data: proxiesResp, error: proxiesError, isLoading: proxiesLoading, isFetched: proxiesFetched } = useQuery({
     queryKey,
     queryFn: getWorkspaceProxies,
     // This onSuccess ensures the local storage is synchronized with the
     // proxies returned by coderd. If the selected proxy is not in the list,
     // then the user selection is removed.
-    onSuccess: () => {
-      setAndSaveProxy(proxy.selectedProxy)
+    onSuccess: (resp) => {
+      setAndSaveProxy(proxy.selectedProxy, resp.regions)
     },
     enabled: experimentEnabled,
   })
 
   const setAndSaveProxy = (
     selectedProxy?: Region,
+    // By default the proxies come from the api call above.
+    // Allow the caller to override this if they have a more up
+    // to date list of proxies.
+    proxies: Region[] = proxiesResp?.regions || [],
   ) => {
     if (!proxies) {
       throw new Error("proxies are not yet loaded, so selecting a proxy makes no sense. How did you get here?")
     }
-    const preferred = getPreferredProxy(proxies.regions, selectedProxy)
+    const preferred = getPreferredProxy(proxies, selectedProxy)
     // Save to local storage to persist the user's preference across reloads
     // and other tabs.
     savePreferredProxy(preferred)
@@ -105,7 +109,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
           preferredWildcardHostname:
             applicationHostResult?.host || "",
         },
-        proxies: experimentEnabled ? proxies?.regions : [],
+        proxies: experimentEnabled ? proxiesResp?.regions : [],
         isLoading: experimentEnabled ? proxiesLoading : appHostLoading,
         isFetched: experimentEnabled ? proxiesFetched : appHostFetched,
         error: experimentEnabled ? proxiesError : appHostError,
