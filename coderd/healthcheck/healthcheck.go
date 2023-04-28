@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 )
 
@@ -38,6 +39,12 @@ func Run(ctx context.Context, opts *ReportOptions) (*Report, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer func() {
+			if err := recover(); err != nil {
+				report.DERP.Error = xerrors.Errorf("%v", err)
+			}
+		}()
+
 		report.DERP.Run(ctx, &DERPReportOptions{
 			DERPMap: opts.DERPMap,
 		})
@@ -46,6 +53,12 @@ func Run(ctx context.Context, opts *ReportOptions) (*Report, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer func() {
+			if err := recover(); err != nil {
+				report.AccessURL.Error = xerrors.Errorf("%v", err)
+			}
+		}()
+
 		report.AccessURL.Run(ctx, &AccessURLOptions{
 			AccessURL: opts.AccessURL,
 			Client:    opts.Client,

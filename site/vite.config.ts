@@ -33,9 +33,27 @@ export default defineConfig({
     port: process.env.PORT ? Number(process.env.PORT) : 8080,
     proxy: {
       "/api": {
-        target: process.env.CODER_HOST || "http://localhost:3000",
         ws: true,
+        changeOrigin: true,
+        target: process.env.CODER_HOST || "http://localhost:3000",
         secure: process.env.NODE_ENV === "production",
+        configure: (proxy) => {
+          // Vite does not catch socket errors, and stops the webserver.
+          // As /startup-logs endpoint can return HTTP 4xx status, we need to embrace
+          // Vite with a custom error handler to prevent from quitting.
+          proxy.on("proxyReqWs", (proxyReq, req, socket) => {
+            if (process.env.NODE_ENV === "development") {
+              proxyReq.setHeader(
+                "origin",
+                process.env.CODER_HOST || "http://localhost:3000",
+              )
+            }
+
+            socket.on("error", (error) => {
+              console.error(error)
+            })
+          })
+        },
       },
       "/swagger": {
         target: process.env.CODER_HOST || "http://localhost:3000",

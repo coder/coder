@@ -108,21 +108,18 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	}
 
 	proxyRes, err := owner.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-		Name:             options.Name,
-		Icon:             "/emojis/flag.png",
-		URL:              accessURL.String(),
-		WildcardHostname: options.AppHostname,
+		Name: options.Name,
+		Icon: "/emojis/flag.png",
 	})
 	require.NoError(t, err, "failed to create workspace proxy")
 
-	wssrv, err := wsproxy.New(&wsproxy.Options{
+	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{
 		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		DashboardURL:      coderdAPI.AccessURL,
 		AccessURL:         accessURL,
 		AppHostname:       options.AppHostname,
 		AppHostnameRegex:  appHostnameRegex,
 		RealIPConfig:      coderdAPI.RealIPConfig,
-		AppSecurityKey:    coderdAPI.AppSecurityKey,
 		Tracing:           coderdAPI.TracerProvider,
 		APIRateLimit:      coderdAPI.APIRateLimit,
 		SecureAuthCookie:  coderdAPI.SecureAuthCookie,

@@ -43,22 +43,71 @@ const defaultAgentMetadata = [
     result: {
       collected_at: "2021-05-05T00:00:00Z",
       error: "",
-      value: "defvalue",
+      value: "Master",
       age: 5,
     },
     description: {
-      display_name: "DisPlay",
-      key: "defkey",
+      display_name: "Branch",
+      key: "branch",
       interval: 10,
       timeout: 10,
-      script: "some command",
+      script: "git branch",
+    },
+  },
+  {
+    result: {
+      collected_at: "2021-05-05T00:00:00Z",
+      error: "",
+      value: "No changes",
+      age: 5,
+    },
+    description: {
+      display_name: "Changes",
+      key: "changes",
+      interval: 10,
+      timeout: 10,
+      script: "git diff",
+    },
+  },
+  {
+    result: {
+      collected_at: "2021-05-05T00:00:00Z",
+      error: "",
+      value: "2%",
+      age: 5,
+    },
+    description: {
+      display_name: "CPU Usage",
+      key: "cpuUsage",
+      interval: 10,
+      timeout: 10,
+      script: "cpu.sh",
+    },
+  },
+  {
+    result: {
+      collected_at: "2021-05-05T00:00:00Z",
+      error: "",
+      value: "3%",
+      age: 5,
+    },
+    description: {
+      display_name: "Disk Usage",
+      key: "diskUsage",
+      interval: 10,
+      timeout: 10,
+      script: "disk.sh",
     },
   },
 ]
 
 export const Example = Template.bind({})
 Example.args = {
-  agent: MockWorkspaceAgent,
+  agent: {
+    ...MockWorkspaceAgent,
+    startup_script:
+      'set -eux -o pipefail\n\n# install and start code-server\ncurl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3\n/tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &\n\n\nif [ ! -d ~/coder ]; then\n  mkdir -p ~/coder\n\n  git clone https://github.com/coder/coder ~/coder\nfi\n\nsudo service docker start\nDOTFILES_URI=" "\nrm -f ~/.personalize.log\nif [ -n "${DOTFILES_URI// }" ]; then\n  coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log\nfi\nif [ -x ~/personalize ]; then\n  ~/personalize 2>&1 | tee -a ~/.personalize.log\nelif [ -f ~/personalize ]; then\n  echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log\nfi\n',
+  },
   workspace: MockWorkspace,
   applicationsHost: "",
   showApps: true,

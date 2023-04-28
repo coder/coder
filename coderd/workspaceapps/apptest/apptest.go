@@ -46,43 +46,9 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
-		appDetails := setupProxyTest(t, nil)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// Run the test against the path app hostname since that's where the
-		// reconnecting-pty proxy server we want to test is mounted.
-		client := appDetails.AppClient(t)
-		conn, err := client.WorkspaceAgentReconnectingPTY(ctx, appDetails.Agent.ID, uuid.New(), 80, 80, "/bin/bash")
-		require.NoError(t, err)
-		defer conn.Close()
-
-		// First attempt to resize the TTY.
-		// The websocket will close if it fails!
-		data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-			Height: 250,
-			Width:  250,
-		})
-		require.NoError(t, err)
-		_, err = conn.Write(data)
-		require.NoError(t, err)
-		bufRead := bufio.NewReader(conn)
-
-		// Brief pause to reduce the likelihood that we send keystrokes while
-		// the shell is simultaneously sending a prompt.
-		time.Sleep(100 * time.Millisecond)
-
-		data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-			Data: "echo test\r\n",
-		})
-		require.NoError(t, err)
-		_, err = conn.Write(data)
-		require.NoError(t, err)
-
-		expectLine := func(matcher func(string) bool) {
+		expectLine := func(t *testing.T, r *bufio.Reader, matcher func(string) bool) {
 			for {
-				line, err := bufRead.ReadString('\n')
+				line, err := r.ReadString('\n')
 				require.NoError(t, err)
 				if matcher(line) {
 					break
@@ -96,8 +62,112 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			return strings.Contains(line, "test") && !strings.Contains(line, "echo")
 		}
 
-		expectLine(matchEchoCommand)
-		expectLine(matchEchoOutput)
+		t.Run("OK", func(t *testing.T) {
+			appDetails := setupProxyTest(t, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Run the test against the path app hostname since that's where the
+			// reconnecting-pty proxy server we want to test is mounted.
+			client := appDetails.AppClient(t)
+			conn, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+				AgentID:   appDetails.Agent.ID,
+				Reconnect: uuid.New(),
+				Height:    80,
+				Width:     80,
+				Command:   "/bin/bash",
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			// First attempt to resize the TTY.
+			// The websocket will close if it fails!
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Height: 250,
+				Width:  250,
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+			bufRead := bufio.NewReader(conn)
+
+			// Brief pause to reduce the likelihood that we send keystrokes while
+			// the shell is simultaneously sending a prompt.
+			time.Sleep(100 * time.Millisecond)
+
+			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "echo test\r\n",
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+
+			expectLine(t, bufRead, matchEchoCommand)
+			expectLine(t, bufRead, matchEchoOutput)
+		})
+
+		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails := setupProxyTest(t, nil)
+			if appDetails.AppHostIsPrimary {
+				t.Skip("Tickets are not used for terminal requests on the primary.")
+			}
+
+			u := *appDetails.PathAppBaseURL
+			if u.Scheme == "http" {
+				u.Scheme = "ws"
+			} else {
+				u.Scheme = "wss"
+			}
+			u.Path = fmt.Sprintf("/api/v2/workspaceagents/%s/pty", appDetails.Agent.ID.String())
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			issueRes, err := appDetails.SDKClient.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+				URL:     u.String(),
+				AgentID: appDetails.Agent.ID,
+			})
+			require.NoError(t, err)
+
+			// Make an unauthenticated client.
+			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
+			conn, err := unauthedAppClient.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+				AgentID:     appDetails.Agent.ID,
+				Reconnect:   uuid.New(),
+				Height:      80,
+				Width:       80,
+				Command:     "/bin/bash",
+				SignedToken: issueRes.SignedToken,
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			// First attempt to resize the TTY.
+			// The websocket will close if it fails!
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Height: 250,
+				Width:  250,
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+			bufRead := bufio.NewReader(conn)
+
+			// Brief pause to reduce the likelihood that we send keystrokes while
+			// the shell is simultaneously sending a prompt.
+			time.Sleep(100 * time.Millisecond)
+
+			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "echo test\r\n",
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+
+			expectLine(t, bufRead, matchEchoCommand)
+			expectLine(t, bufRead, matchEchoOutput)
+		})
 	})
 
 	t.Run("WorkspaceAppsProxyPath", func(t *testing.T) {

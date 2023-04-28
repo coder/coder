@@ -159,6 +159,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/reconnecting-pty-signed-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Applications Enterprise"
+                ],
+                "summary": "Issue signed app token for reconnecting PTY",
+                "operationId": "issue-signed-app-token-for-reconnecting-pty",
+                "parameters": [
+                    {
+                        "description": "Issue reconnecting PTY signed token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/audit": {
             "get": {
                 "security": [
@@ -1680,6 +1722,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/regions": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "WorkspaceProxies"
+                ],
+                "summary": "Get site-wide regions for workspace connections",
+                "operationId": "get-site-wide-regions-for-workspace-connections",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RegionsResponse"
                         }
                     }
                 }
@@ -5067,6 +5134,83 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/register": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Register workspace proxy",
+                "operationId": "register-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/{workspaceproxy}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete workspace proxy",
+                "operationId": "delete-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces": {
             "get": {
                 "security": [
@@ -5511,6 +5655,44 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.AgentMetric": {
+            "type": "object",
+            "required": [
+                "name",
+                "type",
+                "value"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "counter",
+                        "gauge"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentsdk.AgentMetricType"
+                        }
+                    ]
+                },
+                "value": {
+                    "type": "number"
+                }
+            }
+        },
+        "agentsdk.AgentMetricType": {
+            "type": "string",
+            "enum": [
+                "counter",
+                "gauge"
+            ],
+            "x-enum-varnames": [
+                "AgentMetricTypeCounter",
+                "AgentMetricTypeGauge"
+            ]
+        },
         "agentsdk.AuthenticateResponse": {
             "type": "object",
             "properties": {
@@ -5712,6 +5894,13 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "integer"
+                    }
+                },
+                "metrics": {
+                    "description": "Metrics collected by the agent",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetric"
                     }
                 },
                 "rx_bytes": {
@@ -6822,12 +7011,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                },
-                "url": {
-                    "type": "string"
-                },
-                "wildcard_hostname": {
-                    "type": "string"
                 }
             }
         },
@@ -7370,6 +7553,31 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "URL specifies the endpoint to check for the app health.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenRequest": {
+            "type": "object",
+            "required": [
+                "agentID",
+                "url"
+            ],
+            "properties": {
+                "agentID": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "url": {
+                    "description": "URL is the URL of the reconnecting-pty endpoint you are connecting to.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenResponse": {
+            "type": "object",
+            "properties": {
+                "signed_token": {
                     "type": "string"
                 }
             }
@@ -8070,6 +8278,40 @@ const docTemplate = `{
                 "ProvisionerStorageMethodFile"
             ]
         },
+        "codersdk.ProxyHealthReport": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "description": "Errors are problems that prevent the workspace proxy from being healthy",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "warnings": {
+                    "description": "Warnings do not prevent the workspace proxy from being healthy, but\nshould be addressed.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.ProxyHealthStatus": {
+            "type": "string",
+            "enum": [
+                "reachable",
+                "unreachable",
+                "unhealthy",
+                "unregistered"
+            ],
+            "x-enum-varnames": [
+                "ProxyReachable",
+                "ProxyUnreachable",
+                "ProxyUnhealthy",
+                "ProxyUnregistered"
+            ]
+        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -8141,6 +8383,46 @@ const docTemplate = `{
                 },
                 "disable_all": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.Region": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path_app_url": {
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.RegionsResponse": {
+            "type": "object",
+            "properties": {
+                "regions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Region"
+                    }
                 }
             }
         },
@@ -9563,6 +9845,14 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "status": {
+                    "description": "Status is the latest status check of the proxy. This will be empty for deleted\nproxies. This value can be used to determine if a workspace proxy is healthy\nand ready to use.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxyStatus"
+                        }
+                    ]
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -9574,6 +9864,26 @@ const docTemplate = `{
                 "wildcard_hostname": {
                     "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceProxyStatus": {
+            "type": "object",
+            "properties": {
+                "checked_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "report": {
+                    "description": "Report provides more information about the health of the workspace proxy.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProxyHealthReport"
+                        }
+                    ]
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ProxyHealthStatus"
                 }
             }
         },
@@ -9765,7 +10075,7 @@ const docTemplate = `{
         "healthcheck.AccessURLReport": {
             "type": "object",
             "properties": {
-                "err": {},
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
@@ -9802,6 +10112,7 @@ const docTemplate = `{
                         }
                     }
                 },
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
@@ -9825,6 +10136,7 @@ const docTemplate = `{
         "healthcheck.DERPRegionReport": {
             "type": "object",
             "properties": {
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
@@ -9842,6 +10154,7 @@ const docTemplate = `{
         "healthcheck.DERPReport": {
             "type": "object",
             "properties": {
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
@@ -10210,6 +10523,27 @@ const docTemplate = `{
             "properties": {
                 "signed_token_str": {
                     "description": "SignedTokenStr should be set as a cookie on the response.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "description": "AccessURL that hits the workspace proxy api.",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname that the workspace proxy api is serving for subdomain apps.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyResponse": {
+            "type": "object",
+            "properties": {
+                "app_security_key": {
                     "type": "string"
                 }
             }

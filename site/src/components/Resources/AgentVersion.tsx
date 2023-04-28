@@ -13,13 +13,10 @@ export const AgentVersion: FC<{
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "version-outdated-popover" : undefined
-  const { displayVersion, outdated } = getDisplayVersionStatus(
-    agent.version,
-    serverVersion,
-  )
+  const { outdated } = getDisplayVersionStatus(agent.version, serverVersion)
 
   if (!outdated) {
-    return <span data-testid="agent-version">{displayVersion}</span>
+    return <span data-testid="agent-version">Updated</span>
   }
 
   return (
@@ -33,7 +30,7 @@ export const AgentVersion: FC<{
         className={styles.trigger}
         data-testid="agent-version"
       >
-        Agent Outdated
+        Outdated
       </span>
       <AgentOutdatedTooltip
         id={id}

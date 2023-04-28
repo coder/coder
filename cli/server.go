@@ -723,6 +723,20 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return xerrors.Errorf("register agent stats prometheus metric: %w", err)
 					}
 					defer closeAgentStatsFunc()
+
+					metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, options.PrometheusRegistry, 0)
+					if err != nil {
+						return xerrors.Errorf("can't initialize metrics aggregator: %w", err)
+					}
+
+					cancelMetricsAggregator := metricsAggregator.Run(ctx)
+					defer cancelMetricsAggregator()
+
+					options.UpdateAgentMetrics = metricsAggregator.Update
+					err = options.PrometheusRegistry.Register(metricsAggregator)
+					if err != nil {
+						return xerrors.Errorf("can't register metrics aggregator as collector: %w", err)
+					}
 				}
 
 				//nolint:revive

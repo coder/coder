@@ -38,6 +38,8 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/codersdk/agentsdk"
+
 	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
@@ -146,6 +148,8 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
+
+	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
 }
 
 // @title Coder API
@@ -221,7 +225,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewCoordinator()
+		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
 	}
 	if options.DERPServer == nil {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
@@ -250,7 +254,8 @@ func New(options *Options) *API {
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
-				DERPMap: options.DERPMap.Clone(),
+				AccessURL: options.AccessURL,
+				DERPMap:   options.DERPMap.Clone(),
 			})
 		}
 	}
@@ -461,6 +466,11 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo(api.AccessURL))
+		// /regions is overridden in the enterprise version
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/regions", api.regions)
+		})
 		r.Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)

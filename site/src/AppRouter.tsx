@@ -156,6 +156,17 @@ const TemplateSchedulePage = lazy(
     ),
 )
 
+const LicensesSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"
+    ),
+)
+const AddNewLicensePage = lazy(
+  () =>
+    import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePage"),
+)
+
 export const AppRouter: FC = () => {
   return (
     <Suspense fallback={<FullScreenLoader />}>
@@ -244,6 +255,8 @@ export const AppRouter: FC = () => {
                 element={<DeploySettingsLayout />}
               >
                 <Route path="general" element={<GeneralSettingsPage />} />
+                <Route path="licenses" element={<LicensesSettingsPage />} />
+                <Route path="licenses/add" element={<AddNewLicensePage />} />
                 <Route path="security" element={<SecuritySettingsPage />} />
                 <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />

@@ -41,7 +41,6 @@ export interface WorkspaceProps {
   }
   handleStart: () => void
   handleStop: () => void
-  handleRestart: () => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
@@ -73,7 +72,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   scheduleProps,
   handleStart,
   handleStop,
-  handleRestart,
   handleDelete,
   handleUpdate,
   handleCancel,
@@ -134,7 +132,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
-              handleRestart={handleRestart}
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}

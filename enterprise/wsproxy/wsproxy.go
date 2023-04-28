@@ -2,6 +2,7 @@ package wsproxy
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -30,10 +31,10 @@ import (
 type Options struct {
 	Logger slog.Logger
 
+	HTTPClient *http.Client
 	// DashboardURL is the URL of the primary coderd instance.
 	DashboardURL *url.URL
-	// AccessURL is the URL of the WorkspaceProxy. This is the url to communicate
-	// with this server.
+	// AccessURL is the URL of the WorkspaceProxy.
 	AccessURL *url.URL
 
 	// TODO: @emyrk We use these two fields in many places with this comment.
@@ -49,9 +50,6 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 
 	RealIPConfig *httpmw.RealIPConfig
-	// TODO: @emyrk this key needs to be provided via a file or something?
-	//		Maybe we should curl it from the primary over some secure connection?
-	AppSecurityKey workspaceapps.SecurityKey
 
 	Tracing            trace.TracerProvider
 	PrometheusRegistry *prometheus.Registry
@@ -72,7 +70,6 @@ func (o *Options) Validate() error {
 	errs.Required("RealIPConfig", o.RealIPConfig)
 	errs.Required("PrometheusRegistry", o.PrometheusRegistry)
 	errs.NotEmpty("ProxySessionToken", o.ProxySessionToken)
-	errs.NotEmpty("AppSecurityKey", o.AppSecurityKey)
 
 	if len(errs) > 0 {
 		return errs
@@ -107,7 +104,10 @@ type Server struct {
 	cancel context.CancelFunc
 }
 
-func New(opts *Options) (*Server, error) {
+// New creates a new workspace proxy server. This requires a primary coderd
+// instance to be reachable and the correct authorization access token to be
+// provided. If the proxy cannot authenticate with the primary, this will fail.
+func New(ctx context.Context, opts *Options) (*Server, error) {
 	if opts.PrometheusRegistry == nil {
 		opts.PrometheusRegistry = prometheus.NewRegistry()
 	}
@@ -116,11 +116,37 @@ func New(opts *Options) (*Server, error) {
 		return nil, err
 	}
 
-	// TODO: implement some ping and registration logic
 	client := wsproxysdk.New(opts.DashboardURL)
 	err := client.SetSessionToken(opts.ProxySessionToken)
 	if err != nil {
 		return nil, xerrors.Errorf("set client token: %w", err)
+	}
+
+	// Use the configured client if provided.
+	if opts.HTTPClient != nil {
+		client.SDKClient.HTTPClient = opts.HTTPClient
+	}
+
+	// TODO: Probably do some version checking here
+	info, err := client.SDKClient.BuildInfo(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to fetch build info from %q: %w", opts.DashboardURL, err)
+	}
+	if info.WorkspaceProxy {
+		return nil, xerrors.Errorf("%q is a workspace proxy, not a primary coderd instance", opts.DashboardURL)
+	}
+
+	regResp, err := client.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+		AccessURL:        opts.AccessURL.String(),
+		WildcardHostname: opts.AppHostname,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("register proxy: %w", err)
+	}
+
+	secKey, err := workspaceapps.KeyFromString(regResp.AppSecurityKey)
+	if err != nil {
+		return nil, xerrors.Errorf("parse app security key: %w", err)
 	}
 
 	r := chi.NewRouter()
@@ -149,11 +175,11 @@ func New(opts *Options) (*Server, error) {
 			AccessURL:    opts.AccessURL,
 			AppHostname:  opts.AppHostname,
 			Client:       client,
-			SecurityKey:  s.Options.AppSecurityKey,
+			SecurityKey:  secKey,
 			Logger:       s.Logger.Named("proxy_token_provider"),
 		},
 		WorkspaceConnCache: wsconncache.New(s.DialWorkspaceAgent, 0),
-		AppSecurityKey:     opts.AppSecurityKey,
+		AppSecurityKey:     secKey,
 
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
@@ -205,6 +231,8 @@ func New(opts *Options) (*Server, error) {
 
 	r.Get("/buildinfo", s.buildInfo)
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+	// TODO: @emyrk should this be authenticated or debounced?
+	r.Get("/healthz-report", s.healthReport)
 
 	return s, nil
 }
@@ -220,10 +248,51 @@ func (s *Server) DialWorkspaceAgent(id uuid.UUID) (*codersdk.WorkspaceAgentConn,
 
 func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-		ExternalURL:  buildinfo.ExternalURL(),
-		Version:      buildinfo.Version(),
-		DashboardURL: s.DashboardURL.String(),
+		ExternalURL:    buildinfo.ExternalURL(),
+		Version:        buildinfo.Version(),
+		DashboardURL:   s.DashboardURL.String(),
+		WorkspaceProxy: true,
 	})
+}
+
+// healthReport is a more thorough health check than the '/healthz' endpoint.
+// This endpoint not only responds if the server is running, but can do some
+// internal diagnostics to ensure that the server is running correctly. The
+// primary coderd will use this to determine if this workspace proxy can be used
+// by the users. This endpoint will take longer to respond than the '/healthz'.
+// Checks:
+// - Can communicate with primary coderd
+//
+// TODO: Config checks to ensure consistent with primary
+func (s *Server) healthReport(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var report codersdk.ProxyHealthReport
+
+	// Hit the build info to do basic version checking.
+	primaryBuild, err := s.SDKClient.SDKClient.BuildInfo(ctx)
+	if err != nil {
+		report.Errors = append(report.Errors, fmt.Sprintf("failed to get build info: %s", err.Error()))
+		httpapi.Write(r.Context(), rw, http.StatusOK, report)
+		return
+	}
+
+	if primaryBuild.WorkspaceProxy {
+		// This could be a simple mistake of using a proxy url as the dashboard url.
+		report.Errors = append(report.Errors,
+			fmt.Sprintf("dashboard url (%s) is a workspace proxy, must be a primary coderd", s.DashboardURL.String()))
+	}
+
+	// If we are in dev mode, never check versions.
+	if !buildinfo.IsDev() && !buildinfo.VersionsMatch(primaryBuild.Version, buildinfo.Version()) {
+		// Version mismatches are not fatal, but should be reported.
+		report.Warnings = append(report.Warnings,
+			fmt.Sprintf("version mismatch: primary coderd (%s) != workspace proxy (%s)", primaryBuild.Version, buildinfo.Version()))
+	}
+
+	// TODO: We should hit the deployment config endpoint and do some config
+	// checks. We can check the version from the X-CODER-BUILD-VERSION header
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, report)
 }
 
 type optErrors []error

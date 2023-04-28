@@ -152,6 +152,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -252,6 +253,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -299,6 +301,7 @@ jobs:
             echo "cover=false" >> $GITHUB_OUTPUT
           fi
 
+          export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" --packages="./..." -- -parallel=8 -timeout=7m -short -failfast $COVERAGE_FLAGS
 
       - name: Print test stats
@@ -339,6 +342,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -374,6 +378,7 @@ jobs:
 
       - name: Test with PostgreSQL Database
         run: |
+          export TS_DEBUG_DISCO=true
           make test-postgres
 
       - name: Print test stats
@@ -429,6 +434,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - name: Echo Go Cache Paths
@@ -558,6 +564,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: "~1.20"
 
       - uses: hashicorp/setup-terraform@v2

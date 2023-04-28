@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
 )
@@ -149,6 +150,19 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if !httpapi.Read(ctx, rw, r, &createTemplate) {
 		return
 	}
+
+	// Make a temporary struct to represent the template. This is used for
+	// auditing if any of the following checks fail. It will be overwritten when
+	// the template is inserted into the db.
+	templateAudit.New = database.Template{
+		OrganizationID: organization.ID,
+		Name:           createTemplate.Name,
+		Description:    createTemplate.Description,
+		CreatedBy:      apiKey.UserID,
+		Icon:           createTemplate.Icon,
+		DisplayName:    createTemplate.DisplayName,
+	}
+
 	_, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           createTemplate.Name,
@@ -170,6 +184,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+
 	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, createTemplate.VersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -228,22 +243,14 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		allowUserCancelWorkspaceJobs bool
-		allowUserAutostart           = true
-		allowUserAutostop            = true
-	)
-	if createTemplate.AllowUserCancelWorkspaceJobs != nil {
-		allowUserCancelWorkspaceJobs = *createTemplate.AllowUserCancelWorkspaceJobs
-	}
-	if createTemplate.AllowUserAutostart != nil {
-		allowUserAutostart = *createTemplate.AllowUserAutostart
-	}
-	if createTemplate.AllowUserAutostop != nil {
-		allowUserAutostop = *createTemplate.AllowUserAutostop
-	}
+		dbTemplate database.Template
+		template   codersdk.Template
 
-	var dbTemplate database.Template
-	var template codersdk.Template
+		allowUserCancelWorkspaceJobs = ptr.NilToDefault(createTemplate.AllowUserCancelWorkspaceJobs, false)
+		allowUserAutostart           = ptr.NilToDefault(createTemplate.AllowUserAutostart, true)
+		allowUserAutostop            = ptr.NilToDefault(createTemplate.AllowUserAutostop, true)
+	)
+
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := database.Now()
 		dbTemplate, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
@@ -493,8 +500,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Update template metadata -- empty fields are not overwritten,
-		// except for display_name, icon, and default_ttl.
-		// The exception is required to clear content of these fields with UI.
+		// except for display_name, description, icon, and default_ttl.
+		// These exceptions are required to clear content of these fields with UI.
 		name := req.Name
 		displayName := req.DisplayName
 		desc := req.Description
@@ -502,9 +509,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		if name == "" {
 			name = template.Name
-		}
-		if desc == "" {
-			desc = template.Description
 		}
 
 		var err error

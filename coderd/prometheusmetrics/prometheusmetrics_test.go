@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -298,7 +299,7 @@ func TestAgents(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// given
-	coordinator := tailnet.NewCoordinator()
+	coordinator := tailnet.NewCoordinator(slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	coordinatorPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordinatorPtr.Store(&coordinator)
 	derpMap := tailnettest.RunDERPAndSTUN(t)
