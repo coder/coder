@@ -1,7 +1,8 @@
+import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import WarningIcon from "@material-ui/icons/ErrorOutlineRounded"
+import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
 import { useMachine } from "@xstate/react"
-import { WorkspaceAgent } from "api/typesGenerated"
 import { portForwardURL } from "components/PortForwardButton/PortForwardButton"
 import { Stack } from "components/Stack/Stack"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
@@ -74,7 +75,11 @@ const TerminalPage: FC<
     applicationsHost,
   } = terminalState.context
   const reloading = useReloading(isDisconnected)
-  const startupWarning = useStartupWarning(workspaceAgent)
+  const shouldDisplayStartupWarning = workspaceAgent
+    ? ["starting", "starting_timeout", "start_error"].includes(
+        workspaceAgent.lifecycle_state,
+      )
+    : false
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -284,7 +289,7 @@ const TerminalPage: FC<
           </Stack>
         )}
       </div>
-      {startupWarning.shouldDisplay && (
+      {shouldDisplayStartupWarning && (
         <div className={styles.alert} role="alert">
           <WarningIcon className={styles.alertIcon} />
           <div>
@@ -295,30 +300,22 @@ const TerminalPage: FC<
               You can use it but dotfiles aren&lsquo;t setup yet
             </div>
           </div>
+          <div className={styles.alertActions}>
+            <Button
+              startIcon={<RefreshOutlined />}
+              size="small"
+              onClick={() => {
+                window.location.reload()
+              }}
+            >
+              Refresh
+            </Button>
+          </div>
         </div>
       )}
       <div className={styles.terminal} ref={xtermRef} data-testid="terminal" />
     </>
   )
-}
-
-const useStartupWarning = (agent?: WorkspaceAgent) => {
-  const [shouldDisplay, setShouldDisplay] = useState(false)
-
-  useEffect(() => {
-    if (agent) {
-      setShouldDisplay(
-        ["starting", "starting_timeout", "start_error"].includes(
-          agent.lifecycle_state,
-        ),
-      )
-    }
-  }, [agent])
-
-  return {
-    shouldDisplay,
-    dismiss: () => setShouldDisplay(false),
-  }
 }
 
 const useReloading = (isDisconnected: boolean) => {
@@ -424,6 +421,9 @@ const useStyles = makeStyles((theme) => ({
   alertMessage: {
     fontSize: 14,
     color: theme.palette.text.secondary,
+  },
+  alertActions: {
+    marginLeft: "auto",
   },
 }))
 
