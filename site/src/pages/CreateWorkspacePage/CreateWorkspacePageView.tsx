@@ -162,13 +162,10 @@ export const CreateWorkspacePageView: FC<
 
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={props.onCancel}>
-<<<<<<< HEAD
       <HorizontalForm
         onSubmit={form.handleSubmit}
         data-testid="form-create-workspace"
       >
-=======
-      <HorizontalForm onSubmit={form.handleSubmit}>
         {Boolean(props.hasTemplateErrors) && (
           <Stack>
             {Boolean(
@@ -231,7 +228,6 @@ export const CreateWorkspacePageView: FC<
           />
         )}
 
->>>>>>> main
         {/* General info */}
         <FormSection
           title="General info"
