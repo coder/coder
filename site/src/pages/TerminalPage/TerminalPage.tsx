@@ -1,5 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
+import WarningIcon from "@material-ui/icons/ErrorOutlineRounded"
 import { useMachine } from "@xstate/react"
+import { WorkspaceAgent } from "api/typesGenerated"
 import { portForwardURL } from "components/PortForwardButton/PortForwardButton"
 import { Stack } from "components/Stack/Stack"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
@@ -19,34 +21,6 @@ export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
   workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
   websocketErrorMessagePrefix: "WebSocket failed: ",
-}
-
-const useReloading = (isDisconnected: boolean) => {
-  const [status, setStatus] = useState<"reloading" | "notReloading">(
-    "notReloading",
-  )
-
-  // Retry connection on key press when it is disconnected
-  useEffect(() => {
-    if (!isDisconnected) {
-      return
-    }
-
-    const keyDownHandler = () => {
-      setStatus("reloading")
-      window.location.reload()
-    }
-
-    document.addEventListener("keydown", keyDownHandler)
-
-    return () => {
-      document.removeEventListener("keydown", keyDownHandler)
-    }
-  }, [isDisconnected])
-
-  return {
-    status,
-  }
 }
 
 const TerminalPage: FC<
@@ -100,6 +74,7 @@ const TerminalPage: FC<
     applicationsHost,
   } = terminalState.context
   const reloading = useReloading(isDisconnected)
+  const startupWarning = useStartupWarning(workspaceAgent)
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -309,12 +284,70 @@ const TerminalPage: FC<
           </Stack>
         )}
       </div>
+      {startupWarning.shouldDisplay && (
+        <div className={styles.alert} role="alert">
+          <WarningIcon className={styles.alertIcon} />
+          <div>
+            <div className={styles.alertTitle}>
+              Startup script is still running
+            </div>
+            <div className={styles.alertMessage}>
+              You can use it but dotfiles aren&lsquo;t setup yet
+            </div>
+          </div>
+        </div>
+      )}
       <div className={styles.terminal} ref={xtermRef} data-testid="terminal" />
     </>
   )
 }
 
-export default TerminalPage
+const useStartupWarning = (agent?: WorkspaceAgent) => {
+  const [shouldDisplay, setShouldDisplay] = useState(false)
+
+  useEffect(() => {
+    if (agent) {
+      setShouldDisplay(
+        ["starting", "starting_timeout", "start_error"].includes(
+          agent.lifecycle_state,
+        ),
+      )
+    }
+  }, [agent])
+
+  return {
+    shouldDisplay,
+    dismiss: () => setShouldDisplay(false),
+  }
+}
+
+const useReloading = (isDisconnected: boolean) => {
+  const [status, setStatus] = useState<"reloading" | "notReloading">(
+    "notReloading",
+  )
+
+  // Retry connection on key press when it is disconnected
+  useEffect(() => {
+    if (!isDisconnected) {
+      return
+    }
+
+    const keyDownHandler = () => {
+      setStatus("reloading")
+      window.location.reload()
+    }
+
+    document.addEventListener("keydown", keyDownHandler)
+
+    return () => {
+      document.removeEventListener("keydown", keyDownHandler)
+    }
+  }, [isDisconnected])
+
+  return {
+    status,
+  }
+}
 
 const useStyles = makeStyles((theme) => ({
   overlay: {
@@ -348,6 +381,8 @@ const useStyles = makeStyles((theme) => ({
     width: "100vw",
     height: "100vh",
     overflow: "hidden",
+    padding: theme.spacing(1),
+    backgroundColor: theme.palette.background.paper,
     // These styles attempt to mimic the VS Code scrollbar.
     "& .xterm": {
       padding: 4,
@@ -370,4 +405,26 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: "rgba(255, 255, 255, 0.18)",
     },
   },
+  alert: {
+    display: "flex",
+    background: theme.palette.background.paperLight,
+    alignItems: "center",
+    padding: theme.spacing(2),
+    gap: theme.spacing(2),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+  },
+  alertIcon: {
+    color: theme.palette.warning.light,
+    fontSize: theme.spacing(3),
+  },
+  alertTitle: {
+    fontWeight: 600,
+    color: theme.palette.text.primary,
+  },
+  alertMessage: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
 }))
+
+export default TerminalPage
