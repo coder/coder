@@ -20,7 +20,7 @@ while :; do
 	# will have available.
 	status=""
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL --compressed "${BINARY_URL}" -o "${BINARY_NAME}" 2>>/tmp/coder-startup-script.log && break
+		curl -fsSL --compressed "${BINARY_URL}" -o "${BINARY_NAME}" -v 2>>/tmp/coder-startup-script.log && break
 		status=$?
 	elif command -v wget >/dev/null 2>&1; then
 		wget -q "${BINARY_URL}" -O "${BINARY_NAME}" && break
