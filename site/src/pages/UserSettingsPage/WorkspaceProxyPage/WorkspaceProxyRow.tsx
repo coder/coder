@@ -23,19 +23,16 @@ export const ProxyRow: FC<{
     onSelectRegion(proxy)
   })
 
-  const classes = [clickable.className]
-
-  if (preferred) {
-    classes.push(styles.preferredrow)
-  }
-
   return (
     <TableRow
       key={proxy.name}
       data-testid={`${proxy.name}`}
       {...clickable}
       // Make sure to include our classname here.
-      className={combineClasses(classes)}
+      className={combineClasses({
+        [clickable.className]: true,
+        [styles.preferredrow]: preferred,
+      })}
     >
       <TableCell>
         <AvatarData

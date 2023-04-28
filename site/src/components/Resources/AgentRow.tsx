@@ -248,7 +248,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                 sshPrefix={sshPrefix}
               />
             )}
-            {proxy.preferredWildcardHostname !== undefined &&
+            {proxy.preferredWildcardHostname &&
               proxy.preferredWildcardHostname !== "" && (
                 <PortForwardButton
                   host={proxy.preferredWildcardHostname}
