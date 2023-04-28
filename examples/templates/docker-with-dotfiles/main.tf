@@ -53,7 +53,6 @@ data "coder_parameter" "dotfiles_uri" {
 resource "coder_agent" "main" {
   arch                   = data.coder_provisioner.me.arch
   os                     = "linux"
-  login_before_ready     = false
   startup_script_timeout = 180
   env                    = { "DOTFILES_URI" = data.coder_parameter.dotfiles_uri.value != "" ? data.coder_parameter.dotfiles_uri.value : null }
   startup_script         = <<-EOT

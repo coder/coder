@@ -108,7 +108,6 @@ data "coder_workspace" "me" {}
 resource "coder_agent" "main" {
   os                     = "linux"
   arch                   = "amd64"
-  login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
     set -e
