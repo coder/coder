@@ -24,12 +24,16 @@ type QueryParamParser struct {
 	// Parsed is a map of all query params that were parsed. This is useful
 	// for checking if extra query params were passed in.
 	Parsed map[string]bool
+	// RequiredParams is a map of all query params that are required. This is useful
+	// for forcing a value to be provided.
+	RequiredParams map[string]bool
 }
 
 func NewQueryParamParser() *QueryParamParser {
 	return &QueryParamParser{
-		Errors: []codersdk.ValidationError{},
-		Parsed: map[string]bool{},
+		Errors:         []codersdk.ValidationError{},
+		Parsed:         map[string]bool{},
+		RequiredParams: map[string]bool{},
 	}
 }
 
@@ -51,6 +55,20 @@ func (p *QueryParamParser) addParsed(key string) {
 	p.Parsed[key] = true
 }
 
+func (p *QueryParamParser) UInt(vals url.Values, def uint64, queryParam string) uint64 {
+	v, err := parseQueryParam(p, vals, func(v string) (uint64, error) {
+		return strconv.ParseUint(v, 10, 64)
+	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid positive integer (%s)", queryParam, err.Error()),
+		})
+		return 0
+	}
+	return v
+}
+
 func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int {
 	v, err := parseQueryParam(p, vals, strconv.Atoi, def, queryParam)
 	if err != nil {
@@ -60,6 +78,11 @@ func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int 
 		})
 	}
 	return v
+}
+
+func (p *QueryParamParser) Required(queryParam string) *QueryParamParser {
+	p.RequiredParams[queryParam] = true
+	return p
 }
 
 func (p *QueryParamParser) UUIDorMe(vals url.Values, def uuid.UUID, me uuid.UUID, queryParam string) uuid.UUID {
@@ -178,6 +201,16 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
 	parser.addParsed(queryParam)
+	// If the query param is required and not present, return an error.
+	if parser.RequiredParams[queryParam] && (!vals.Has(queryParam)) {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q is required", queryParam),
+		})
+		return def, nil
+	}
+
+	// If the query param is not present, return the default value.
 	if !vals.Has(queryParam) || vals.Get(queryParam) == "" {
 		return def, nil
 	}

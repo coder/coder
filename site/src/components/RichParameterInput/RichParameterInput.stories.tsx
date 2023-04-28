@@ -175,3 +175,15 @@ DescriptionWithLinks.args = {
     options: [],
   }),
 }
+
+export const BasicWithDisplayName = Template.bind({})
+BasicWithDisplayName.args = {
+  initialValue: "initial-value",
+  id: "project_name",
+  parameter: createTemplateVersionParameter({
+    name: "project_name",
+    display_name: "Project Name",
+    description:
+      "Customize the name of a Google Cloud project that will be created!",
+  }),
+}

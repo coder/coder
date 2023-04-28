@@ -15,8 +15,9 @@ set -euo pipefail
 
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
+use_proxy=0
 
-args="$(getopt -o "" -l agpl,password: -- "$@")"
+args="$(getopt -o "" -l use-proxy,agpl,password: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -28,6 +29,10 @@ while true; do
 		password="$2"
 		shift 2
 		;;
+	--use-proxy)
+		use_proxy=1
+		shift
+		;;
 	--)
 		shift
 		break
@@ -37,6 +42,10 @@ while true; do
 		;;
 	esac
 done
+
+if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ] && [ "${use_proxy}" -gt "0" ]; then
+	echo '== ERROR: cannot use both external proxies and APGL build.' && exit 1
+fi
 
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
 dependencies curl git go make yarn
@@ -122,7 +131,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" "$@"
+	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" --experiments "*" "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
@@ -151,7 +160,6 @@ fatal() {
 
 	# If we have docker available and the "docker" template doesn't already
 	# exist, then let's try to create a template!
-	example_template="code-server"
 	template_name="docker"
 	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
 		# sometimes terraform isn't installed yet when we go to create the
@@ -159,7 +167,7 @@ fatal() {
 		sleep 5
 
 		temp_template_dir="$(mktemp -d)"
-		echo "${example_template}" | "${CODER_DEV_SHIM}" templates init "${temp_template_dir}"
+		"${CODER_DEV_SHIM}" templates init --id "${template_name}" "${temp_template_dir}"
 
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
@@ -167,6 +175,18 @@ fatal() {
 			"${CODER_DEV_SHIM}" templates create "${template_name}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
 			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
 		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
+	fi
+
+	if [ "${use_proxy}" -gt "0" ]; then
+		log "Using external workspace proxy"
+		(
+			# Attempt to delete the proxy first, in case it already exists.
+			"${CODER_DEV_SHIM}" proxy delete local-proxy || true
+			# Create the proxy
+			proxy_session_token=$("${CODER_DEV_SHIM}" proxy create --name=local-proxy --display-name="Local Proxy" --icon="/emojis/1f4bb.png" --only-token)
+			# Start the proxy
+			start_cmd PROXY "" "${CODER_DEV_SHIM}" proxy server --http-address=localhost:3010 --proxy-session-token="${proxy_session_token}" --primary-access-url=http://localhost:3000
+		) || echo "Failed to create workspace proxy. No workspace proxy created."
 	fi
 
 	# Start the frontend once we have a template up and running
@@ -193,6 +213,11 @@ fatal() {
 	for iface in "${interfaces[@]}"; do
 		log "$(printf "==                  Web UI: http://%s:8080%$((space_padding - ${#iface}))s==" "$iface" "")"
 	done
+	if [ "${use_proxy}" -gt "0" ]; then
+		for iface in "${interfaces[@]}"; do
+			log "$(printf "==                  Proxy:  http://%s:3010%$((space_padding - ${#iface}))s==" "$iface" "")"
+		done
+	fi
 	log "==                                                                =="
 	log "==      Use ./scripts/coder-dev.sh to talk to this instance!      =="
 	log "$(printf "==       alias cdr=%s/scripts/coder-dev.sh%$((space_padding - ${#PWD}))s==" "$PWD" "")"

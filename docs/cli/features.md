@@ -16,6 +16,6 @@ coder features
 
 ## Subcommands
 
-| Name                                 | Purpose |
-| ------------------------------------ | ------- |
-| [<code>list</code>](./features_list) |         |
+| Name                                    | Purpose |
+| --------------------------------------- | ------- |
+| [<code>list</code>](./features_list.md) |         |

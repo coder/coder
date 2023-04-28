@@ -423,6 +423,7 @@ gen: \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
+	coderd/rbac/object_gen.go \
 	docs/admin/prometheus.md \
 	docs/cli.md \
 	docs/admin/audit-logs.md \
@@ -443,6 +444,7 @@ gen/mark-fresh:
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		site/src/api/typesGenerated.ts \
+		coderd/rbac/object_gen.go \
 		docs/admin/prometheus.md \
 		docs/cli.md \
 		docs/admin/audit-logs.md \
@@ -495,6 +497,9 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./coders
 	cd site
 	yarn run format:types
 
+coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
+	go run scripts/rbacgen/main.go ./coderd/rbac > coderd/rbac/object_gen.go
+
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
 	cd site
@@ -505,24 +510,28 @@ docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
 	cd site
 	yarn run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json
 
-docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go
+docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
 	cd site
 	yarn run format:write:only ../docs/admin/audit-logs.md
 
-coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo docs/manifest.json
+coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) coderd/database/querier.go .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
 	yarn run --cwd=site format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
-update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden
+update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES)
-	go test ./cli -run=TestCommandHelp -update
+	go test ./cli -run="Test(CommandHelp|ServerYAML)" -update
 	touch "$@"
 
 helm/tests/testdata/.gen-golden: $(wildcard helm/tests/testdata/*.golden) $(GO_SRC_FILES)
 	go test ./helm/tests -run=TestUpdateGoldenFiles -update
+	touch "$@"
+
+scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*) $(wildcard scripts/ci-report/*.go)
+	go test ./scripts/ci-report -run=TestOutputMatchesGoldenFile -update
 	touch "$@"
 
 # Generate a prettierrc for the site package that uses relative paths for
@@ -596,6 +605,7 @@ test-postgres: test-clean test-postgres-docker
 	# more consistent execution.
 	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
 		--junitfile="gotests.xml" \
+		--jsonfile="gotests.json" \
 		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
 		-parallel=4 \

@@ -118,4 +118,52 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, "defname", workspaceName)
 	})
+
+	t.Run("StringSlice", func(t *testing.T) {
+		t.Parallel()
+
+		var actual clibase.StringArray
+		expected := []string{"foo", "bar", "baz"}
+
+		os := clibase.OptionSet{
+			clibase.Option{
+				Name:  "name",
+				Value: &actual,
+				Env:   "NAMES",
+			},
+		}
+
+		err := os.SetDefaults()
+		require.NoError(t, err)
+
+		err = os.ParseEnv([]clibase.EnvVar{
+			{Name: "NAMES", Value: "foo,bar,baz"},
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, expected, actual)
+	})
+
+	t.Run("StructMapStringString", func(t *testing.T) {
+		t.Parallel()
+
+		var actual clibase.Struct[map[string]string]
+		expected := map[string]string{"foo": "bar", "baz": "zap"}
+
+		os := clibase.OptionSet{
+			clibase.Option{
+				Name:  "labels",
+				Value: &actual,
+				Env:   "LABELS",
+			},
+		}
+
+		err := os.SetDefaults()
+		require.NoError(t, err)
+
+		err = os.ParseEnv([]clibase.EnvVar{
+			{Name: "LABELS", Value: `{"foo":"bar","baz":"zap"}`},
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, expected, actual.Value)
+	})
 }

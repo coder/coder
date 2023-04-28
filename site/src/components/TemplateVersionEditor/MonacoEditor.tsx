@@ -1,9 +1,12 @@
 import { useTheme } from "@material-ui/core/styles"
-import Editor from "@monaco-editor/react"
+import Editor, { loader } from "@monaco-editor/react"
+import * as monaco from "monaco-editor"
 import { FC, useLayoutEffect, useMemo, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import { hslToHex } from "util/colors"
+import { hslToHex } from "utils/colors"
 import type { editor } from "monaco-editor"
+
+loader.config({ monaco })
 
 export const MonacoEditor: FC<{
   value?: string
@@ -73,7 +76,7 @@ export const MonacoEditor: FC<{
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Private type in Monaco!
         ;(editor as any)._standaloneKeybindingService.addDynamicKeybinding(
           `-editor.action.insertLineAfter`,
-          undefined,
+          monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
           () => {
             //
           },

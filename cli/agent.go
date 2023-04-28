@@ -18,6 +18,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -30,11 +31,14 @@ import (
 
 func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	var (
-		auth          string
-		logDir        string
-		pprofAddress  string
-		noReap        bool
-		sshMaxTimeout time.Duration
+		auth              string
+		logDir            string
+		pprofAddress      string
+		noReap            bool
+		sshMaxTimeout     time.Duration
+		tailnetListenPort int64
+		prometheusAddress string
+		debugAddress      string
 	)
 	cmd := &clibase.Cmd{
 		Use:   "agent",
@@ -45,7 +49,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			agentPorts := map[int]string{}
+			ignorePorts := map[int]string{}
 
 			isLinux := runtime.GOOS == "linux"
 
@@ -87,9 +91,9 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ctx, stopNotify := signal.NotifyContext(ctx, InterruptSignals...)
 			defer stopNotify()
 
-			// dumpHandler does signal handling, so we call it after the
+			// DumpHandler does signal handling, so we call it after the
 			// reaper.
-			go dumpHandler(ctx)
+			go DumpHandler(ctx)
 
 			ljLogger := &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
@@ -118,11 +122,18 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			pprofSrvClose := serveHandler(ctx, logger, nil, pprofAddress, "pprof")
+			pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
 			defer pprofSrvClose()
 			// Do a best effort here. If this fails, it's not a big deal.
 			if port, err := urlPort(pprofAddress); err == nil {
-				agentPorts[port] = "pprof"
+				ignorePorts[port] = "pprof"
+			}
+
+			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
+			defer prometheusSrvClose()
+			// Do a best effort here. If this fails, it's not a big deal.
+			if port, err := urlPort(prometheusAddress); err == nil {
+				ignorePorts[port] = "prometheus"
 			}
 
 			// exchangeToken returns a session token.
@@ -186,10 +197,11 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
-			closer := agent.New(agent.Options{
-				Client: client,
-				Logger: logger,
-				LogDir: logDir,
+			agnt := agent.New(agent.Options{
+				Client:            client,
+				Logger:            logger,
+				LogDir:            logDir,
+				TailnetListenPort: uint16(tailnetListenPort),
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
 						return client.SDK.SessionToken(), nil
@@ -204,11 +216,19 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				EnvironmentVariables: map[string]string{
 					"GIT_ASKPASS": executablePath,
 				},
-				AgentPorts:    agentPorts,
+				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
 			})
+
+			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
+			defer debugSrvClose()
+			// Do a best effort here. If this fails, it's not a big deal.
+			if port, err := urlPort(debugAddress); err == nil {
+				ignorePorts[port] = "debug"
+			}
+
 			<-ctx.Done()
-			return closer.Close()
+			return agnt.Close()
 		},
 	}
 
@@ -248,12 +268,33 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Description: "Specify the max timeout for a SSH connection.",
 			Value:       clibase.DurationOf(&sshMaxTimeout),
 		},
+		{
+			Flag:        "tailnet-listen-port",
+			Default:     "0",
+			Env:         "CODER_AGENT_TAILNET_LISTEN_PORT",
+			Description: "Specify a static port for Tailscale to use for listening.",
+			Value:       clibase.Int64Of(&tailnetListenPort),
+		},
+		{
+			Flag:        "prometheus-address",
+			Default:     "127.0.0.1:2112",
+			Env:         "CODER_AGENT_PROMETHEUS_ADDRESS",
+			Value:       clibase.StringOf(&prometheusAddress),
+			Description: "The bind address to serve Prometheus metrics.",
+		},
+		{
+			Flag:        "debug-address",
+			Default:     "127.0.0.1:2113",
+			Env:         "CODER_AGENT_DEBUG_ADDRESS",
+			Value:       clibase.StringOf(&debugAddress),
+			Description: "The bind address to serve a debug HTTP server.",
+		},
 	}
 
 	return cmd
 }
 
-func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
+func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
 	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
 
 	// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
@@ -327,10 +368,19 @@ func urlPort(u string) (int, error) {
 		return -1, xerrors.Errorf("invalid url %q: %w", u, err)
 	}
 	if parsed.Port() != "" {
-		port, err := strconv.ParseInt(parsed.Port(), 10, 64)
-		if err == nil && port > 0 {
+		port, err := strconv.ParseUint(parsed.Port(), 10, 16)
+		if err == nil && port > 0 && port < 1<<16 {
 			return int(port), nil
 		}
 	}
 	return -1, xerrors.Errorf("invalid port: %s", u)
+}
+
+func prometheusMetricsHandler() http.Handler {
+	// We don't have any other internal metrics so far, so it's safe to expose metrics this way.
+	// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		clientmetric.WritePrometheusExpositionFormat(w)
+	})
 }

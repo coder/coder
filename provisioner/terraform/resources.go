@@ -14,6 +14,14 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+type agentMetadata struct {
+	Key         string `mapstructure:"key"`
+	DisplayName string `mapstructure:"display_name"`
+	Script      string `mapstructure:"script"`
+	Interval    int64  `mapstructure:"interval"`
+	Timeout     int64  `mapstructure:"timeout"`
+}
+
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
 	Auth                         string            `mapstructure:"auth"`
@@ -31,6 +39,7 @@ type agentAttributes struct {
 	StartupScriptTimeoutSeconds  int32             `mapstructure:"startup_script_timeout"`
 	ShutdownScript               string            `mapstructure:"shutdown_script"`
 	ShutdownScriptTimeoutSeconds int32             `mapstructure:"shutdown_script_timeout"`
+	Metadata                     []agentMetadata   `mapstructure:"metadata"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -59,15 +68,15 @@ type appHealthcheckAttributes struct {
 }
 
 // A mapping of attributes on the "coder_metadata" resource.
-type metadataAttributes struct {
-	ResourceID string         `mapstructure:"resource_id"`
-	Hide       bool           `mapstructure:"hide"`
-	Icon       string         `mapstructure:"icon"`
-	DailyCost  int32          `mapstructure:"daily_cost"`
-	Items      []metadataItem `mapstructure:"item"`
+type resourceMetadataAttributes struct {
+	ResourceID string                 `mapstructure:"resource_id"`
+	Hide       bool                   `mapstructure:"hide"`
+	Icon       string                 `mapstructure:"icon"`
+	DailyCost  int32                  `mapstructure:"daily_cost"`
+	Items      []resourceMetadataItem `mapstructure:"item"`
 }
 
-type metadataItem struct {
+type resourceMetadataItem struct {
 	Key       string `mapstructure:"key"`
 	Value     string `mapstructure:"value"`
 	Sensitive bool   `mapstructure:"sensitive"`
@@ -148,6 +157,17 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 				loginBeforeReady = attrs.LoginBeforeReady
 			}
 
+			var metadata []*proto.Agent_Metadata
+			for _, item := range attrs.Metadata {
+				metadata = append(metadata, &proto.Agent_Metadata{
+					Key:         item.Key,
+					DisplayName: item.DisplayName,
+					Script:      item.Script,
+					Interval:    item.Interval,
+					Timeout:     item.Timeout,
+				})
+			}
+
 			agent := &proto.Agent{
 				Name:                         tfResource.Name,
 				Id:                           attrs.ID,
@@ -163,6 +183,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 				StartupScriptTimeoutSeconds:  attrs.StartupScriptTimeoutSeconds,
 				ShutdownScript:               attrs.ShutdownScript,
 				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
+				Metadata:                     metadata,
 			}
 			switch attrs.Auth {
 			case "token":
@@ -356,7 +377,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 				continue
 			}
 
-			var attrs metadataAttributes
+			var attrs resourceMetadataAttributes
 			err = mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
 				return nil, xerrors.Errorf("decode metadata attributes: %w", err)
@@ -450,6 +471,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 		}
 		protoParam := &proto.RichParameter{
 			Name:               param.Name,
+			DisplayName:        param.DisplayName,
 			Description:        param.Description,
 			Type:               param.Type,
 			Mutable:            param.Mutable,

@@ -53,8 +53,10 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 
 ```json
 {
+  "dashboard_url": "string",
   "external_url": "string",
-  "version": "string"
+  "version": "string",
+  "workspace_proxy": true
 }
 ```
 
@@ -150,7 +152,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
-    "audit_logging": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
@@ -189,6 +190,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "stun_addresses": ["string"]
       }
     },
+    "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
@@ -252,6 +254,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "user": {}
       },
       "ignore_email_verified": true,
+      "ignore_user_info": true,
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
@@ -270,6 +273,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "host": "string",
         "port": "string"
       },
+      "collect_agent_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -371,27 +375,21 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "flag": "string",
       "flag_shorthand": "string",
       "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {}
-          }
-        ],
         "description": "string",
         "name": "string",
         "parent": {
-          "children": [{}],
           "description": "string",
           "name": "string",
-          "parent": {}
-        }
+          "parent": {},
+          "yaml": "string"
+        },
+        "yaml": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [{}],
       "value": null,
+      "value_source": "",
       "yaml": "string"
     }
   ]
@@ -511,7 +509,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["template_editor"]
+["moons"]
 ```
 
 ### Responses

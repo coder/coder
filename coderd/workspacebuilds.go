@@ -227,7 +227,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		OwnerID: owner.ID,
 		Name:    workspaceName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -243,7 +243,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		WorkspaceID: workspace.ID,
 		BuildNumber: int32(buildNumber),
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Workspace %q Build %d does not exist.", workspaceName, buildNumber),
 		})
@@ -530,10 +530,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		// Check if parameter value is in request
 		if buildParameter, found := findWorkspaceBuildParameter(createBuild.RichParameterValues, templateVersionParameter.Name); found {
 			if !templateVersionParameter.Mutable {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", templateVersionParameter.Name),
-				})
-				return
+				if _, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", templateVersionParameter.Name),
+					})
+					return
+				}
 			}
 			parameters = append(parameters, *buildParameter)
 			continue
@@ -542,6 +544,15 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		// Check if parameter is defined in previous build
 		if buildParameter, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
 			parameters = append(parameters, *buildParameter)
+			continue
+		}
+
+		// Check if default parameter value is in schema
+		if templateVersionParameter.DefaultValue != "" {
+			parameters = append(parameters, codersdk.WorkspaceBuildParameter{
+				Name:  templateVersionParameter.Name,
+				Value: templateVersionParameter.DefaultValue,
+			})
 		}
 	}
 

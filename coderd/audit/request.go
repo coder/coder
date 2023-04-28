@@ -36,6 +36,10 @@ type Request[T Auditable] struct {
 	// This optional field can be passed in when the userID cannot be determined from the API Key
 	// such as in the case of login, when the audit log is created prior the API Key's existence.
 	UserID uuid.UUID
+
+	// This optional field can be passed in if the AuditAction must be overridden
+	// such as in the case of new user authentication when the Audit Action is 'register', not 'login'.
+	Action database.AuditAction
 }
 
 type BuildAuditParams[T Auditable] struct {
@@ -78,6 +82,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return ""
 	case database.License:
 		return strconv.Itoa(int(typed.ID))
+	case database.WorkspaceProxy:
+		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -103,13 +109,15 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.License:
 		return typed.UUID
+	case database.WorkspaceProxy:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
 }
 
 func ResourceType[T Auditable](tgt T) database.ResourceType {
-	switch any(tgt).(type) {
+	switch typed := any(tgt).(type) {
 	case database.Template:
 		return database.ResourceTypeTemplate
 	case database.TemplateVersion:
@@ -128,8 +136,10 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeApiKey
 	case database.License:
 		return database.ResourceTypeLicense
+	case database.WorkspaceProxy:
+		return database.ResourceTypeWorkspaceProxy
 	default:
-		panic(fmt.Sprintf("unknown resource %T", tgt))
+		panic(fmt.Sprintf("unknown resource %T", typed))
 	}
 }
 
@@ -192,6 +202,11 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			return
 		}
 
+		action := p.Action
+		if req.Action != "" {
+			action = req.Action
+		}
+
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
@@ -202,7 +217,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			ResourceType:     either(req.Old, req.New, ResourceType[T], req.params.Action),
 			ResourceID:       either(req.Old, req.New, ResourceID[T], req.params.Action),
 			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T], req.params.Action),
-			Action:           p.Action,
+			Action:           action,
 			Diff:             diffRaw,
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),

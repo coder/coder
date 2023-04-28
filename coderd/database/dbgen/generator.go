@@ -77,12 +77,23 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 	secret, _ := cryptorand.String(22)
 	hashed := sha256.Sum256([]byte(secret))
 
+	ip := seed.IPAddress
+	if !ip.Valid {
+		ip = pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(127, 0, 0, 1),
+				Mask: net.IPv4Mask(255, 255, 255, 255),
+			},
+			Valid: true,
+		}
+	}
+
 	key, err := db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 		ID: takeFirst(seed.ID, id),
 		// 0 defaults to 86400 at the db layer
 		LifetimeSeconds: takeFirst(seed.LifetimeSeconds, 0),
 		HashedSecret:    takeFirstSlice(seed.HashedSecret, hashed[:]),
-		IPAddress:       pqtype.Inet{},
+		IPAddress:       ip,
 		UserID:          takeFirst(seed.UserID, uuid.New()),
 		LastUsed:        takeFirst(seed.LastUsed, database.Now()),
 		ExpiresAt:       takeFirst(seed.ExpiresAt, database.Now().Add(time.Hour)),
@@ -145,6 +156,7 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 		OrganizationID:    takeFirst(orig.OrganizationID, uuid.New()),
 		TemplateID:        takeFirst(orig.TemplateID, uuid.New()),
+		LastUsedAt:        takeFirst(orig.LastUsedAt, database.Now()),
 		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		AutostartSchedule: orig.AutostartSchedule,
 		Ttl:               orig.Ttl,
@@ -324,6 +336,34 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 	})
 	require.NoError(t, err, "insert meta data")
 	return meta
+}
+
+func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) (database.WorkspaceProxy, string) {
+	secret, err := cryptorand.HexString(64)
+	require.NoError(t, err, "generate secret")
+	hashedSecret := sha256.Sum256([]byte(secret))
+
+	proxy, err := db.InsertWorkspaceProxy(context.Background(), database.InsertWorkspaceProxyParams{
+		ID:                takeFirst(orig.ID, uuid.New()),
+		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName:       takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		Icon:              takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		TokenHashedSecret: hashedSecret[:],
+		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
+	})
+	require.NoError(t, err, "insert proxy")
+
+	// Also set these fields if the caller wants them.
+	if orig.Url != "" || orig.WildcardHostname != "" {
+		proxy, err = db.RegisterWorkspaceProxy(context.Background(), database.RegisterWorkspaceProxyParams{
+			Url:              orig.Url,
+			WildcardHostname: orig.WildcardHostname,
+			ID:               proxy.ID,
+		})
+		require.NoError(t, err, "update proxy")
+	}
+	return proxy, secret
 }
 
 func File(t testing.TB, db database.Store, orig database.File) database.File {

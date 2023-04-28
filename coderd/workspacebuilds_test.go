@@ -572,8 +572,7 @@ func TestWorkspaceBuildState(t *testing.T) {
 
 func TestWorkspaceBuildStatus(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+
 	auditor := audit.NewMock()
 	numLogs := len(auditor.AuditLogs())
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
@@ -597,6 +596,10 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	closeDaemon = coderdtest.NewProvisionerDaemon(t, api)
 	// after successful build is "running"
 	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	workspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
@@ -780,6 +783,212 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			RichParameterValues: nextBuildParameters,
 		})
 		require.Error(t, err)
+	})
+
+	t.Run("NewImmutableRequiredParameterAdded", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = initialBuildParameters
+		})
+
+		workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+		// Push new template revision
+		const newImmutableParameterName = "new_immutable_parameter"
+		const newImmutableParameterDescription = "This is also an immutable parameter"
+		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Provision_Response{
+				{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Parameters: []*proto.RichParameter{
+								{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+								{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+								{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+								{Name: newImmutableParameterName, Description: newImmutableParameterDescription, Mutable: false, Required: true},
+							},
+						},
+					},
+				},
+			},
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		}, template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
+		err := client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err)
+
+		// Update build parameters
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		nextBuildParameters := []codersdk.WorkspaceBuildParameter{
+			{Name: newImmutableParameterName, Value: "good"},
+		}
+		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID:   version2.ID,
+			Transition:          codersdk.WorkspaceTransitionStart,
+			RichParameterValues: nextBuildParameters,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("NewImmutableOptionalParameterAdded", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = initialBuildParameters
+		})
+
+		workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+		// Push new template revision
+		const newImmutableParameterName = "new_immutable_parameter"
+		const newImmutableParameterDescription = "This is also an immutable parameter"
+		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Provision_Response{
+				{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Parameters: []*proto.RichParameter{
+								{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+								{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+								{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+								{Name: newImmutableParameterName, Description: newImmutableParameterDescription, Mutable: false, DefaultValue: "12345"},
+							},
+						},
+					},
+				},
+			},
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		}, template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
+		err := client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err)
+
+		// Update build parameters
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		nextBuildParameters := []codersdk.WorkspaceBuildParameter{
+			{Name: newImmutableParameterName, Value: "good"},
+		}
+		nextWorkspaceBuild, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID:   version2.ID,
+			Transition:          codersdk.WorkspaceTransitionStart,
+			RichParameterValues: nextBuildParameters,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, workspaceBuild, nextWorkspaceBuild)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, nextWorkspaceBuild.ID)
+
+		workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, nextWorkspaceBuild.ID)
+		require.NoError(t, err)
+
+		expectedNextBuildParameters := append(initialBuildParameters, codersdk.WorkspaceBuildParameter{
+			Name:  newImmutableParameterName,
+			Value: "good",
+		})
+		require.ElementsMatch(t, expectedNextBuildParameters, workspaceBuildParameters)
+	})
+
+	t.Run("NewImmutableOptionalParameterUsesDefault", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = initialBuildParameters
+		})
+
+		workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+		// Push new template revision
+		const newImmutableParameterName = "new_immutable_parameter"
+		const newImmutableParameterDescription = "This is also an immutable parameter"
+		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Provision_Response{
+				{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Parameters: []*proto.RichParameter{
+								{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+								{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+								{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+								{Name: newImmutableParameterName, Description: newImmutableParameterDescription, Mutable: false, DefaultValue: "12345"},
+							},
+						},
+					},
+				},
+			},
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		}, template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
+		err := client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err)
+
+		// Update build parameters
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		var nextBuildParameters []codersdk.WorkspaceBuildParameter
+		nextWorkspaceBuild, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID:   version2.ID,
+			Transition:          codersdk.WorkspaceTransitionStart,
+			RichParameterValues: nextBuildParameters,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, workspaceBuild, nextWorkspaceBuild)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, nextWorkspaceBuild.ID)
+
+		workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, nextWorkspaceBuild.ID)
+		require.NoError(t, err)
+
+		expectedNextBuildParameters := append(initialBuildParameters, codersdk.WorkspaceBuildParameter{
+			Name:  newImmutableParameterName,
+			Value: "12345",
+		})
+		require.ElementsMatch(t, expectedNextBuildParameters, workspaceBuildParameters)
 	})
 }
 

@@ -1,5 +1,5 @@
 // package schedule provides utilities for managing template and workspace
-// auto-start and auto-stop schedules. This includes utilities for parsing and
+// autostart and autostop schedules. This includes utilities for parsing and
 // deserializing cron-style expressions.
 package schedule
 

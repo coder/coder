@@ -13,11 +13,11 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
 import { useNavigate, Link as RouterLink } from "react-router-dom"
-import { createDayString } from "util/createDayString"
+import { createDayString } from "utils/createDayString"
 import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
-} from "util/templates"
+} from "utils/templates"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { Margins } from "../../components/Margins/Margins"
 import {
@@ -38,7 +38,7 @@ import { EmptyTemplates } from "./EmptyTemplates"
 import { TemplatesContext } from "xServices/templates/templatesXService"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
 import { Template } from "api/typesGenerated"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import { colors } from "theme/colors"
 import ArrowForwardOutlined from "@material-ui/icons/ArrowForwardOutlined"
 import { Avatar } from "components/Avatar/Avatar"

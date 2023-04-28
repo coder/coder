@@ -279,3 +279,24 @@ func (api *API) templateRBACEnabledMW(next http.Handler) http.Handler {
 		next.ServeHTTP(rw, r)
 	})
 }
+
+func (api *API) moonsEnabledMW(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		// The experiment must be enabled.
+		if !api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
+			httpapi.RouteNotFound(rw)
+			return
+		}
+
+		// Entitlement must be enabled.
+		api.entitlementsMu.RLock()
+		proxy := api.entitlements.Features[codersdk.FeatureWorkspaceProxy].Enabled
+		api.entitlementsMu.RUnlock()
+		if !proxy {
+			httpapi.RouteNotFound(rw)
+			return
+		}
+
+		next.ServeHTTP(rw, r)
+	})
+}

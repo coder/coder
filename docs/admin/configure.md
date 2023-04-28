@@ -1,5 +1,4 @@
-Coder server's primary configuration is done via environment variables. For a full list
-of the options, run `coder server --help` on the host.
+Coder server's primary configuration is done via environment variables. For a full list of the options, run `coder server --help` or see our [CLI documentation](../cli/server.md).
 
 ## Access URL
 
@@ -36,7 +35,7 @@ coder server
 ## Wildcard access URL
 
 `CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard)
-via the dashboard or running [coder_apps](../templates.md#coder-apps) on an absolute path. Set this to a wildcard
+via the dashboard or running [coder_apps](../templates/README.md#coder-apps) on an absolute path. Set this to a wildcard
 subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
 > If you are providing TLS certificates directly to the Coder server, you must use a single certificate for the
@@ -121,5 +120,4 @@ respected in this case.
 
 ## Up Next
 
-- [Get started using Coder](../quickstart.md).
 - [Learn how to upgrade Coder](./upgrade.md).

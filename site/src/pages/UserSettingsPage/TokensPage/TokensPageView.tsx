@@ -16,6 +16,9 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import IconButton from "@material-ui/core/IconButton/IconButton"
 import { useTranslation } from "react-i18next"
 import { APIKeyWithOwner } from "api/typesGenerated"
+import relativeTime from "dayjs/plugin/relativeTime"
+
+dayjs.extend(relativeTime)
 
 const lastUsedOrNever = (lastUsed: string) => {
   const t = dayjs(lastUsed)

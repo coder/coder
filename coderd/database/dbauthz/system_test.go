@@ -230,6 +230,15 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			WorkspaceResourceID: uuid.New(),
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
+	s.Run("UpdateWorkspaceAgentConnectionByID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		check.Args(database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID: agt.ID,
+		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate).Returns()
+	}))
 	s.Run("AcquireProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: we need to create a ProvisionerJob resource
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{

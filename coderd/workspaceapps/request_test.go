@@ -117,7 +117,7 @@ func Test_RequestValidate(t *testing.T) {
 			errContains: `username cannot be "me"`,
 		},
 		{
-			name: "InvalidWorkspaceAndAgent/Empty1",
+			name: "InvalidWorkspaceAndAgent/EmptyWorkspace",
 			req: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
@@ -125,53 +125,7 @@ func Test_RequestValidate(t *testing.T) {
 				WorkspaceAndAgent: ".bar",
 				AppSlugOrPort:     "baz",
 			},
-			errContains: "invalid workspace and agent",
-		},
-		{
-			name: "InvalidWorkspaceAndAgent/Empty2",
-			req: workspaceapps.Request{
-				AccessMethod:      workspaceapps.AccessMethodPath,
-				BasePath:          "/",
-				UsernameOrID:      "foo",
-				WorkspaceAndAgent: "bar.",
-				AppSlugOrPort:     "baz",
-			},
-			errContains: "invalid workspace and agent",
-		},
-		{
-			name: "InvalidWorkspaceAndAgent/TwoDots",
-			req: workspaceapps.Request{
-				AccessMethod:      workspaceapps.AccessMethodPath,
-				BasePath:          "/",
-				UsernameOrID:      "foo",
-				WorkspaceAndAgent: "bar.baz.qux",
-				AppSlugOrPort:     "baz",
-			},
-			errContains: "invalid workspace and agent",
-		},
-		{
-			name: "AmbiguousWorkspaceAndAgent/1",
-			req: workspaceapps.Request{
-				AccessMethod:      workspaceapps.AccessMethodPath,
-				BasePath:          "/",
-				UsernameOrID:      "foo",
-				WorkspaceAndAgent: "bar.baz",
-				WorkspaceNameOrID: "bar",
-				AppSlugOrPort:     "qux",
-			},
-			errContains: "cannot specify both",
-		},
-		{
-			name: "AmbiguousWorkspaceAndAgent/2",
-			req: workspaceapps.Request{
-				AccessMethod:      workspaceapps.AccessMethodPath,
-				BasePath:          "/",
-				UsernameOrID:      "foo",
-				WorkspaceAndAgent: "bar.baz",
-				AgentNameOrID:     "baz",
-				AppSlugOrPort:     "qux",
-			},
-			errContains: "cannot specify both",
+			errContains: "workspace name or ID is required",
 		},
 		{
 			name: "NoWorkspaceNameOrID",
@@ -261,12 +215,13 @@ func Test_RequestValidate(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			err := c.req.Validate()
+			req := c.req.Normalize()
+			err := req.Validate()
 			if c.errContains == "" {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), c.errContains)
+				require.ErrorContains(t, err, c.errContains)
 			}
 		})
 	}

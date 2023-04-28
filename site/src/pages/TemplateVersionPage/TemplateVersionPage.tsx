@@ -1,12 +1,11 @@
 import { useMachine } from "@xstate/react"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { useTab } from "hooks/useTab"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
-import { pageTitle } from "util/page"
+import { pageTitle } from "utils/page"
 import { templateVersionMachine } from "xServices/templateVersion/templateVersionXService"
 import TemplateVersionPageView from "./TemplateVersionPageView"
 
@@ -23,7 +22,6 @@ export const TemplateVersionPage: FC = () => {
   })
   const tab = useTab("file", "0")
   const { t } = useTranslation("templateVersionPage")
-  const dashboard = useDashboard()
 
   return (
     <>
@@ -38,7 +36,6 @@ export const TemplateVersionPage: FC = () => {
         versionName={versionName}
         templateName={templateName}
         tab={tab}
-        canEdit={dashboard.experiments.includes("template_editor")}
       />
     </>
   )

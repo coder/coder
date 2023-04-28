@@ -19,6 +19,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
 )
@@ -73,6 +74,31 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 	WorkspaceAgentLifecycleShutdownTimeout,
 	WorkspaceAgentLifecycleShutdownError,
 	WorkspaceAgentLifecycleOff,
+}
+
+type WorkspaceAgentMetadataResult struct {
+	CollectedAt time.Time `json:"collected_at" format:"date-time"`
+	// Age is the number of seconds since the metadata was collected.
+	// It is provided in addition to CollectedAt to protect against clock skew.
+	Age   int64  `json:"age"`
+	Value string `json:"value"`
+	Error string `json:"error"`
+}
+
+// WorkspaceAgentMetadataDescription is a description of dynamic metadata the agent should report
+// back to coderd. It is provided via the `metadata` list in the `coder_agent`
+// block.
+type WorkspaceAgentMetadataDescription struct {
+	DisplayName string `json:"display_name"`
+	Key         string `json:"key"`
+	Script      string `json:"script"`
+	Interval    int64  `json:"interval"`
+	Timeout     int64  `json:"timeout"`
+}
+
+type WorkspaceAgentMetadata struct {
+	Result      WorkspaceAgentMetadataResult      `json:"result"`
+	Description WorkspaceAgentMetadataDescription `json:"description"`
 }
 
 type WorkspaceAgent struct {
@@ -174,18 +200,12 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	coordinateHeaders := make(http.Header)
+	tokenHeader := SessionTokenHeader
+	if c.SessionTokenHeader != "" {
+		tokenHeader = c.SessionTokenHeader
 	}
-	jar.SetCookies(coordinateURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
-	httpClient := &http.Client{
-		Jar:       jar,
-		Transport: c.HTTPClient.Transport,
-	}
+	coordinateHeaders.Set(tokenHeader, c.SessionToken())
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		if err != nil {
@@ -201,7 +221,8 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 			options.Logger.Debug(ctx, "connecting")
 			// nolint:bodyclose
 			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
-				HTTPClient: httpClient,
+				HTTPClient: c.HTTPClient,
+				HTTPHeader: coordinateHeaders,
 				// Need to disable compression to avoid a data-race.
 				CompressionMode: websocket.CompressionDisabled,
 			})
@@ -258,6 +279,75 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	return agentConn, nil
 }
 
+// WatchWorkspaceAgentMetadata watches the metadata of a workspace agent.
+// The returned channel will be closed when the context is canceled. Exactly
+// one error will be sent on the error channel. The metadata channel is never closed.
+func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) (<-chan []WorkspaceAgentMetadata, <-chan error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	metadataChan := make(chan []WorkspaceAgentMetadata, 256)
+
+	watch := func() error {
+		res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
+		if err != nil {
+			return err
+		}
+		if res.StatusCode != http.StatusOK {
+			return ReadBodyAsError(res)
+		}
+
+		nextEvent := ServerSentEventReader(ctx, res.Body)
+		defer res.Body.Close()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				break
+			}
+
+			sse, err := nextEvent()
+			if err != nil {
+				return err
+			}
+
+			b, ok := sse.Data.([]byte)
+			if !ok {
+				return xerrors.Errorf("unexpected data type: %T", sse.Data)
+			}
+
+			switch sse.Type {
+			case ServerSentEventTypeData:
+				var met []WorkspaceAgentMetadata
+				err = json.Unmarshal(b, &met)
+				if err != nil {
+					return xerrors.Errorf("unmarshal metadata: %w", err)
+				}
+				metadataChan <- met
+			case ServerSentEventTypeError:
+				var r Response
+				err = json.Unmarshal(b, &r)
+				if err != nil {
+					return xerrors.Errorf("unmarshal error: %w", err)
+				}
+				return xerrors.Errorf("%+v", r)
+			default:
+				return xerrors.Errorf("unexpected event type: %s", sse.Type)
+			}
+		}
+	}
+
+	errorChan := make(chan error, 1)
+	go func() {
+		defer close(errorChan)
+		errorChan <- watch()
+	}()
+
+	return metadataChan, errorChan
+}
+
 // WorkspaceAgent returns an agent by ID.
 func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s", id), nil)
@@ -272,32 +362,78 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
 }
 
+type IssueReconnectingPTYSignedTokenRequest struct {
+	// URL is the URL of the reconnecting-pty endpoint you are connecting to.
+	URL     string    `json:"url" validate:"required"`
+	AgentID uuid.UUID `json:"agentID" format:"uuid" validate:"required"`
+}
+
+type IssueReconnectingPTYSignedTokenResponse struct {
+	SignedToken string `json:"signed_token"`
+}
+
+func (c *Client) IssueReconnectingPTYSignedToken(ctx context.Context, req IssueReconnectingPTYSignedTokenRequest) (IssueReconnectingPTYSignedTokenResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/applications/reconnecting-pty-signed-token", req)
+	if err != nil {
+		return IssueReconnectingPTYSignedTokenResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return IssueReconnectingPTYSignedTokenResponse{}, ReadBodyAsError(res)
+	}
+	var resp IssueReconnectingPTYSignedTokenResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// @typescript-ignore:WorkspaceAgentReconnectingPTYOpts
+type WorkspaceAgentReconnectingPTYOpts struct {
+	AgentID   uuid.UUID
+	Reconnect uuid.UUID
+	Width     uint16
+	Height    uint16
+	Command   string
+
+	// SignedToken is an optional signed token from the
+	// issue-reconnecting-pty-signed-token endpoint. If set, the session token
+	// on the client will not be sent.
+	SignedToken string
+}
+
 // WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.
 // It communicates using `agent.ReconnectingPTYRequest` marshaled as JSON.
 // Responses are PTY output that can be rendered.
-func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, reconnect uuid.UUID, height, width uint16, command string) (net.Conn, error) {
-	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty", agentID))
+func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentReconnectingPTYOpts) (net.Conn, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty", opts.AgentID))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := serverURL.Query()
-	q.Set("reconnect", reconnect.String())
-	q.Set("height", strconv.Itoa(int(height)))
-	q.Set("width", strconv.Itoa(int(width)))
-	q.Set("command", command)
+	q.Set("reconnect", opts.Reconnect.String())
+	q.Set("width", strconv.Itoa(int(opts.Width)))
+	q.Set("height", strconv.Itoa(int(opts.Height)))
+	q.Set("command", opts.Command)
+	// If we're using a signed token, set the query parameter.
+	if opts.SignedToken != "" {
+		q.Set(SignedAppTokenQueryParameter, opts.SignedToken)
+	}
 	serverURL.RawQuery = q.Encode()
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
-	httpClient := &http.Client{
-		Jar:       jar,
-		Transport: c.HTTPClient.Transport,
+	// If we're not using a signed token, we need to set the session token as a
+	// cookie.
+	httpClient := c.HTTPClient
+	if opts.SignedToken == "" {
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			return nil, xerrors.Errorf("create cookie jar: %w", err)
+		}
+		jar.SetCookies(serverURL, []*http.Cookie{{
+			Name:  SessionTokenCookie,
+			Value: c.SessionToken(),
+		}})
+		httpClient = &http.Client{
+			Jar:       jar,
+			Transport: c.HTTPClient.Transport,
+		}
 	}
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
@@ -415,4 +551,5 @@ type WorkspaceAgentStartupLog struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Output    string    `json:"output"`
+	Level     LogLevel  `json:"level"`
 }

@@ -40,7 +40,7 @@ It offers the following services along with much more:
 - Liveness checks
 - `startup_script` automation
 
-Templates are responsible for [creating and running agents](../templates.md#coder-agent) within workspaces.
+Templates are responsible for [creating and running agents](../templates/README.md#coder-agent) within workspaces.
 
 ## Service Bundling
 

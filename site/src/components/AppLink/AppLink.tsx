@@ -1,13 +1,13 @@
-import Button from "@material-ui/core/Button"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
+import { PrimaryAgentButton } from "components/Resources/AgentButton"
 import { FC } from "react"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 import * as TypesGen from "../../api/typesGenerated"
-import { generateRandomString } from "../../util/random"
+import { generateRandomString } from "../../utils/random"
 import { BaseIcon } from "./BaseIcon"
 import { ShareIcon } from "./ShareIcon"
 
@@ -83,17 +83,15 @@ export const AppLink: FC<AppLinkProps> = ({
   const isPrivateApp = app.sharing_level === "owner"
 
   const button = (
-    <Button
-      size="small"
+    <PrimaryAgentButton
       startIcon={icon}
       endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
-      className={styles.button}
       disabled={!canClick}
     >
       <span className={combineClasses({ [styles.appName]: !isPrivateApp })}>
         {appDisplayName}
       </span>
-    </Button>
+    </PrimaryAgentButton>
   )
 
   return (
@@ -131,15 +129,6 @@ const useStyles = makeStyles((theme) => ({
   disabledLink: {
     pointerEvents: "none",
     textDecoration: "none !important",
-  },
-
-  button: {
-    whiteSpace: "nowrap",
-    backgroundColor: theme.palette.background.default,
-
-    "&:hover": {
-      backgroundColor: `${theme.palette.background.default} !important`,
-    },
   },
 
   unhealthyIcon: {

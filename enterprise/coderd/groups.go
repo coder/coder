@@ -22,7 +22,7 @@ import (
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Tags Templates
+// @Tags Enterprise
 // @Param request body codersdk.CreateGroupRequest true "Create group request"
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.Group
@@ -231,7 +231,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to add or remove non-existent group member",
 			Detail:  err.Error(),
@@ -350,14 +350,6 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	api.groups(rw, r)
 }
 
-// @Summary Get groups
-// @ID get-groups
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Success 200 {array} codersdk.Group
-// @Router /groups [get]
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()

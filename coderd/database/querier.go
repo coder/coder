@@ -28,6 +28,7 @@ type sqlcQuerier interface {
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
@@ -46,7 +47,7 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
-	GetAppSigningKey(ctx context.Context) (string, error)
+	GetAppSecurityKey(ctx context.Context) (string, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
 	GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error)
@@ -126,8 +127,10 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
+	GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentMetadatum, error)
 	GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg GetWorkspaceAgentStartupLogsAfterParams) ([]WorkspaceAgentStartupLog, error)
 	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
+	GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error)
 	GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error)
 	GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error)
 	GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgent, error)
@@ -145,6 +148,17 @@ type sqlcQuerier interface {
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
+	GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
+	// Finds a workspace proxy that has an access URL or app hostname that matches
+	// the provided hostname. This is to check if a hostname matches any workspace
+	// proxy.
+	//
+	// The hostname must be sanitized to only contain [a-zA-Z0-9.-] before calling
+	// this query. The scheme, port and path should be stripped.
+	//
+	GetWorkspaceProxyByHostname(ctx context.Context, arg GetWorkspaceProxyByHostnameParams) (WorkspaceProxy, error)
+	GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (WorkspaceProxy, error)
+	GetWorkspaceProxyByName(ctx context.Context, name string) (WorkspaceProxy, error)
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
 	GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResourceMetadatum, error)
 	GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResourceMetadatum, error)
@@ -152,12 +166,12 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
+	GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
 	// every member of the org.
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
-	InsertAppSigningKey(ctx context.Context, value string) error
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertDERPMeshKey(ctx context.Context, value string) error
 	InsertDeploymentID(ctx context.Context, value string) error
@@ -185,15 +199,18 @@ type sqlcQuerier interface {
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
+	InsertWorkspaceAgentMetadata(ctx context.Context, arg InsertWorkspaceAgentMetadataParams) error
 	InsertWorkspaceAgentStartupLogs(ctx context.Context, arg InsertWorkspaceAgentStartupLogsParams) ([]WorkspaceAgentStartupLog, error)
 	InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error)
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error)
 	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
+	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
 	ParameterValue(ctx context.Context, id uuid.UUID) (ParameterValue, error)
 	ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error)
+	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -229,6 +246,7 @@ type sqlcQuerier interface {
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error
+	UpdateWorkspaceAgentMetadata(ctx context.Context, arg UpdateWorkspaceAgentMetadataParams) error
 	UpdateWorkspaceAgentStartupByID(ctx context.Context, arg UpdateWorkspaceAgentStartupByIDParams) error
 	UpdateWorkspaceAgentStartupLogOverflowByID(ctx context.Context, arg UpdateWorkspaceAgentStartupLogOverflowByIDParams) error
 	UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error
@@ -237,8 +255,10 @@ type sqlcQuerier interface {
 	UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) (WorkspaceBuild, error)
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 	UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error
+	UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error
+	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
 	UpsertServiceBanner(ctx context.Context, value string) error

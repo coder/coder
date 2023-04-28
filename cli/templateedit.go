@@ -21,6 +21,8 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		defaultTTL                   time.Duration
 		maxTTL                       time.Duration
 		allowUserCancelWorkspaceJobs bool
+		allowUserAutostart           bool
+		allowUserAutostop            bool
 	)
 	client := new(codersdk.Client)
 
@@ -32,17 +34,17 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
-			if maxTTL != 0 {
+			if maxTTL != 0 || !allowUserAutostart || !allowUserAutostop {
 				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error
 				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --max-ttl")
+					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --max-ttl, --allow-user-autostart=false or --allow-user-autostop=false")
 				} else if err != nil {
 					return xerrors.Errorf("get entitlements: %w", err)
 				}
 
 				if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl")
+					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl, --allow-user-autostart=false or --allow-user-autostop=false")
 				}
 			}
 
@@ -64,6 +66,8 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				DefaultTTLMillis:             defaultTTL.Milliseconds(),
 				MaxTTLMillis:                 maxTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
+				AllowUserAutostart:           allowUserAutostart,
+				AllowUserAutostop:            allowUserAutostop,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
@@ -111,6 +115,18 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Description: "Allow users to cancel in-progress workspace jobs.",
 			Default:     "true",
 			Value:       clibase.BoolOf(&allowUserCancelWorkspaceJobs),
+		},
+		{
+			Flag:        "allow-user-autostart",
+			Description: "Allow users to configure autostart for workspaces on this template. This can only be disabled in enterprise.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&allowUserAutostart),
+		},
+		{
+			Flag:        "allow-user-autostop",
+			Description: "Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled in enterprise.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&allowUserAutostop),
 		},
 		cliui.SkipPromptOption(),
 	}

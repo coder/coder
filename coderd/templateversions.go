@@ -737,7 +737,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	}
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, jobUUID)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Provisioner job %q not found.", jobUUID),
 		})
@@ -905,7 +905,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		},
 		Name: templateVersionName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 		})
@@ -959,7 +959,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		Name:           templateName,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -979,7 +979,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		},
 		Name: templateVersionName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 		})
@@ -1032,7 +1032,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		Name:           templateName,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -1053,7 +1053,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		Name: templateVersionName,
 	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 			})
@@ -1073,7 +1073,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		TemplateID:     templateVersion.TemplateID,
 	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No previous template version found for %q.", templateVersionName),
 			})
@@ -1138,7 +1138,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 	version, err := api.Database.GetTemplateVersionByID(ctx, req.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Template version not found.",
 		})
@@ -1222,7 +1222,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	if req.TemplateID != uuid.Nil {
 		_, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Template does not exist.",
 			})
@@ -1318,7 +1318,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	if req.FileID != uuid.Nil {
 		file, err = api.Database.GetFileByID(ctx, req.FileID)
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "File not found.",
 			})
@@ -1596,6 +1596,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 	}
 	return codersdk.TemplateVersionParameter{
 		Name:                 param.Name,
+		DisplayName:          param.DisplayName,
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,

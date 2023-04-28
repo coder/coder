@@ -25,7 +25,7 @@ func TestWorkspaceAgentMetadata(t *testing.T) {
 	// This test ensures that the DERP map returned properly
 	// mutates built-in DERPs with the client access URL.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.Metadata{
+		httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.Manifest{
 			DERPMap: &tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
 					1: {
@@ -43,9 +43,9 @@ func TestWorkspaceAgentMetadata(t *testing.T) {
 	parsed, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 	client := agentsdk.New(parsed)
-	metadata, err := client.Metadata(context.Background())
+	manifest, err := client.Manifest(context.Background())
 	require.NoError(t, err)
-	region := metadata.DERPMap.Regions[1]
+	region := manifest.DERPMap.Regions[1]
 	require.True(t, region.EmbeddedRelay)
 	require.Len(t, region.Nodes, 1)
 	node := region.Nodes[0]

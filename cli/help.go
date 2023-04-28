@@ -267,10 +267,13 @@ var usageWantsArgRe = regexp.MustCompile(`<.*>`)
 // output for a given command.
 func helpFn() clibase.HandlerFunc {
 	return func(inv *clibase.Invocation) error {
-		// We buffer writes to stderr because the newlineLimiter writes one
+		// We use stdout for help and not stderr since there's no straightforward
+		// way to distinguish between a user error and a help request.
+		//
+		// We buffer writes to stdout because the newlineLimiter writes one
 		// rune at a time.
-		stderrBuf := bufio.NewWriter(inv.Stderr)
-		out := newlineLimiter{w: stderrBuf, limit: 2}
+		outBuf := bufio.NewWriter(inv.Stdout)
+		out := newlineLimiter{w: outBuf, limit: 2}
 		tabwriter := tabwriter.NewWriter(&out, 0, 0, 2, ' ', 0)
 		err := usageTemplate.Execute(tabwriter, inv.Command)
 		if err != nil {
@@ -280,7 +283,7 @@ func helpFn() clibase.HandlerFunc {
 		if err != nil {
 			return err
 		}
-		err = stderrBuf.Flush()
+		err = outBuf.Flush()
 		if err != nil {
 			return err
 		}

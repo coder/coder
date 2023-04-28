@@ -3,8 +3,8 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
 import { ChangeEvent, FC, useState } from "react"
 import Typography from "@material-ui/core/Typography"
-import { allowedExtensions, isAllowedFile } from "util/templateVersion"
-import { FileTree, validatePath } from "util/filetree"
+import { allowedExtensions, isAllowedFile } from "utils/templateVersion"
+import { FileTree, isFolder, validatePath } from "utils/filetree"
 
 export const CreateFileDialog: FC<{
   onClose: () => void
@@ -140,6 +140,12 @@ export const RenameFileDialog: FC<{
       setError(
         `This extension is not allowed. You only can rename files with the following extensions: ${extensions}.`,
       )
+      return
+    }
+    //Check if a folder is renamed to a file
+    const [_, extension] = pathValue.split(".")
+    if (isFolder(filename, fileTree) && extension) {
+      setError(`A folder can't be renamed to a file.`)
       return
     }
     const pathError = validatePath(pathValue, fileTree)

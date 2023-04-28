@@ -13,6 +13,7 @@ export const Closed = Template.bind({})
 Closed.args = {
   workspaceName: MockWorkspace.name,
   agentName: MockWorkspaceAgent.name,
+  sshPrefix: "coder.",
 }
 
 export const Opened = Template.bind({})
@@ -20,4 +21,5 @@ Opened.args = {
   workspaceName: MockWorkspace.name,
   agentName: MockWorkspaceAgent.name,
   defaultIsOpen: true,
+  sshPrefix: "coder.",
 }

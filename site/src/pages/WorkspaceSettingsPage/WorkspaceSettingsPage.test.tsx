@@ -1,6 +1,6 @@
 import userEvent from "@testing-library/user-event"
 import {
-  renderWithAuth,
+  renderWithWorkspaceSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
 import WorkspaceSettingsPage from "./WorkspaceSettingsPage"
@@ -41,7 +41,7 @@ test("Submit the workspace settings page successfully", async () => {
     .mockResolvedValue(MockWorkspaceBuild)
   // Setup event and rendering
   const user = userEvent.setup()
-  renderWithAuth(<WorkspaceSettingsPage />, {
+  renderWithWorkspaceSettingsLayout(<WorkspaceSettingsPage />, {
     route: "/@test-user/test-workspace/settings",
     path: "/@:username/:workspace/settings",
     // Need this because after submit the user is redirected

@@ -37,14 +37,6 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 			}
 
 			var state []byte
-
-			if orphan {
-				cliui.Warn(
-					inv.Stderr,
-					"Orphaning workspace requires template edit permission",
-				)
-			}
-
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition:       codersdk.WorkspaceTransitionDelete,
 				ProvisionerState: state,

@@ -302,8 +302,16 @@ func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.
 	return q.db.GetWorkspaceAgentStats(ctx, createdAfter)
 }
 
+func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+}
+
 func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceStats(ctx)
+}
+
+func (q *querier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+	return q.db.GetWorkspacesEligibleForAutoStartStop(ctx, now)
 }
 
 func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
@@ -342,6 +350,13 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAgentConnectionByID(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type
@@ -422,4 +437,11 @@ func (q *querier) InsertParameterSchema(ctx context.Context, arg database.Insert
 		return database.ParameterSchema{}, err
 	}
 	return q.db.InsertParameterSchema(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, params database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceProxy{}, err
+	}
+	return q.db.GetWorkspaceProxyByHostname(ctx, params)
 }

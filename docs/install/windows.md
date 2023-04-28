@@ -30,6 +30,5 @@ Use the Windows installer to download the CLI and add Coder to `PATH`. Alternati
 
 ## Next steps
 
-- [Quickstart](../quickstart.md)
 - [Configuring Coder](../admin/configure.md)
-- [Templates](../templates.md)
+- [Templates](../templates/README.md)

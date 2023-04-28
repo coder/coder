@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
@@ -213,6 +214,7 @@ type prepWorkspaceBuildArgs struct {
 	NewWorkspaceName   string
 
 	UpdateWorkspace bool
+	WorkspaceID     uuid.UUID
 }
 
 type buildParameters struct {
@@ -340,8 +342,17 @@ PromptRichParamLoop:
 		}
 
 		if args.UpdateWorkspace && !templateVersionParameter.Mutable {
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
-			continue
+			// Check if the immutable parameter was used in the previous build. If so, then it isn't a fresh one
+			// and the user should be warned.
+			exists, err := workspaceBuildParameterExists(ctx, client, args.WorkspaceID, templateVersionParameter)
+			if err != nil {
+				return nil, err
+			}
+
+			if exists {
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
+				continue
+			}
 		}
 
 		parameterValue, err := getWorkspaceBuildParameterValueFromMapOrInput(inv, parameterMapFromFile, templateVersionParameter)
@@ -413,4 +424,18 @@ PromptRichParamLoop:
 		parameters:     legacyParameters,
 		richParameters: richParameters,
 	}, nil
+}
+
+func workspaceBuildParameterExists(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, templateVersionParameter codersdk.TemplateVersionParameter) (bool, error) {
+	lastBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceID)
+	if err != nil {
+		return false, xerrors.Errorf("can't fetch last workspace build parameters: %w", err)
+	}
+
+	for _, p := range lastBuildParameters {
+		if p.Name == templateVersionParameter.Name {
+			return true, nil
+		}
+	}
+	return false, nil
 }

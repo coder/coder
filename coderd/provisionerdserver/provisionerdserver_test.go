@@ -828,11 +828,12 @@ func TestCompleteJob(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
-			name               string
-			templateDefaultTTL time.Duration
-			templateMaxTTL     time.Duration
-			workspaceTTL       time.Duration
-			transition         database.WorkspaceTransition
+			name                  string
+			templateAllowAutostop bool
+			templateDefaultTTL    time.Duration
+			templateMaxTTL        time.Duration
+			workspaceTTL          time.Duration
+			transition            database.WorkspaceTransition
 			// The TTL is actually a deadline time on the workspace_build row,
 			// so during the test this will be compared to be within 15 seconds
 			// of the expected value.
@@ -840,76 +841,94 @@ func TestCompleteJob(t *testing.T) {
 			expectedMaxTTL time.Duration
 		}{
 			{
-				name:               "OK",
-				templateDefaultTTL: 0,
-				templateMaxTTL:     0,
-				workspaceTTL:       0,
-				transition:         database.WorkspaceTransitionStart,
-				expectedTTL:        0,
-				expectedMaxTTL:     0,
+				name:                  "OK",
+				templateAllowAutostop: true,
+				templateDefaultTTL:    0,
+				templateMaxTTL:        0,
+				workspaceTTL:          0,
+				transition:            database.WorkspaceTransitionStart,
+				expectedTTL:           0,
+				expectedMaxTTL:        0,
 			},
 			{
-				name:               "Delete",
-				templateDefaultTTL: 0,
-				templateMaxTTL:     0,
-				workspaceTTL:       0,
-				transition:         database.WorkspaceTransitionDelete,
-				expectedTTL:        0,
-				expectedMaxTTL:     0,
+				name:                  "Delete",
+				templateAllowAutostop: true,
+				templateDefaultTTL:    0,
+				templateMaxTTL:        0,
+				workspaceTTL:          0,
+				transition:            database.WorkspaceTransitionDelete,
+				expectedTTL:           0,
+				expectedMaxTTL:        0,
 			},
 			{
-				name:               "WorkspaceTTL",
-				templateDefaultTTL: 0,
-				templateMaxTTL:     0,
-				workspaceTTL:       time.Hour,
-				transition:         database.WorkspaceTransitionStart,
-				expectedTTL:        time.Hour,
-				expectedMaxTTL:     0,
+				name:                  "WorkspaceTTL",
+				templateAllowAutostop: true,
+				templateDefaultTTL:    0,
+				templateMaxTTL:        0,
+				workspaceTTL:          time.Hour,
+				transition:            database.WorkspaceTransitionStart,
+				expectedTTL:           time.Hour,
+				expectedMaxTTL:        0,
 			},
 			{
-				name:               "TemplateDefaultTTLIgnored",
-				templateDefaultTTL: time.Hour,
-				templateMaxTTL:     0,
-				workspaceTTL:       0,
-				transition:         database.WorkspaceTransitionStart,
-				expectedTTL:        0,
-				expectedMaxTTL:     0,
+				name:                  "TemplateDefaultTTLIgnored",
+				templateAllowAutostop: true,
+				templateDefaultTTL:    time.Hour,
+				templateMaxTTL:        0,
+				workspaceTTL:          0,
+				transition:            database.WorkspaceTransitionStart,
+				expectedTTL:           0,
+				expectedMaxTTL:        0,
 			},
 			{
-				name:               "WorkspaceTTLOverridesTemplateDefaultTTL",
-				templateDefaultTTL: 2 * time.Hour,
-				templateMaxTTL:     0,
-				workspaceTTL:       time.Hour,
-				transition:         database.WorkspaceTransitionStart,
-				expectedTTL:        time.Hour,
-				expectedMaxTTL:     0,
+				name:                  "WorkspaceTTLOverridesTemplateDefaultTTL",
+				templateAllowAutostop: true,
+				templateDefaultTTL:    2 * time.Hour,
+				templateMaxTTL:        0,
+				workspaceTTL:          time.Hour,
+				transition:            database.WorkspaceTransitionStart,
+				expectedTTL:           time.Hour,
+				expectedMaxTTL:        0,
 			},
 			{
-				name:               "TemplateMaxTTL",
-				templateDefaultTTL: 0,
-				templateMaxTTL:     time.Hour,
-				workspaceTTL:       0,
-				transition:         database.WorkspaceTransitionStart,
-				expectedTTL:        time.Hour,
-				expectedMaxTTL:     time.Hour,
+				name:                  "TemplateMaxTTL",
+				templateAllowAutostop: true,
+				templateDefaultTTL:    0,
+				templateMaxTTL:        time.Hour,
+				workspaceTTL:          0,
+				transition:            database.WorkspaceTransitionStart,
+				expectedTTL:           time.Hour,
+				expectedMaxTTL:        time.Hour,
 			},
 			{
-				name:               "TemplateMaxTTLOverridesWorkspaceTTL",
-				templateDefaultTTL: 0,
-				templateMaxTTL:     2 * time.Hour,
-				workspaceTTL:       3 * time.Hour,
-				transition:         database.WorkspaceTransitionStart,
-				expectedTTL:        2 * time.Hour,
-				expectedMaxTTL:     2 * time.Hour,
+				name:                  "TemplateMaxTTLOverridesWorkspaceTTL",
+				templateAllowAutostop: true,
+				templateDefaultTTL:    0,
+				templateMaxTTL:        2 * time.Hour,
+				workspaceTTL:          3 * time.Hour,
+				transition:            database.WorkspaceTransitionStart,
+				expectedTTL:           2 * time.Hour,
+				expectedMaxTTL:        2 * time.Hour,
 			},
 			{
-				name:               "TemplateMaxTTLOverridesTemplateDefaultTTL",
-				templateDefaultTTL: 3 * time.Hour,
-				templateMaxTTL:     2 * time.Hour,
-				workspaceTTL:       0,
-				transition:         database.WorkspaceTransitionStart,
-				expectedTTL:        2 * time.Hour,
-				expectedMaxTTL:     2 * time.Hour,
+				name:                  "TemplateMaxTTLOverridesTemplateDefaultTTL",
+				templateAllowAutostop: true,
+				templateDefaultTTL:    3 * time.Hour,
+				templateMaxTTL:        2 * time.Hour,
+				workspaceTTL:          0,
+				transition:            database.WorkspaceTransitionStart,
+				expectedTTL:           2 * time.Hour,
+				expectedMaxTTL:        2 * time.Hour,
+			},
+			{
+				name:                  "TemplateBlockWorkspaceTTL",
+				templateAllowAutostop: false,
+				templateDefaultTTL:    3 * time.Hour,
+				templateMaxTTL:        6 * time.Hour,
+				workspaceTTL:          4 * time.Hour,
+				transition:            database.WorkspaceTransitionStart,
+				expectedTTL:           3 * time.Hour,
+				expectedMaxTTL:        6 * time.Hour,
 			},
 		}
 
@@ -921,12 +940,13 @@ func TestCompleteJob(t *testing.T) {
 
 				srv := setup(t, false)
 
-				var store schedule.TemplateScheduleStore = mockTemplateScheduleStore{
+				var store schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
-							UserSchedulingEnabled: true,
-							DefaultTTL:            c.templateDefaultTTL,
-							MaxTTL:                c.templateMaxTTL,
+							UserAutostartEnabled: false,
+							UserAutostopEnabled:  c.templateAllowAutostop,
+							DefaultTTL:           c.templateDefaultTTL,
+							MaxTTL:               c.templateMaxTTL,
 						}, nil
 					},
 				}
@@ -938,10 +958,11 @@ func TestCompleteJob(t *testing.T) {
 					Provisioner: database.ProvisionerTypeEcho,
 				})
 				template, err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-					ID:         template.ID,
-					UpdatedAt:  database.Now(),
-					DefaultTTL: int64(c.templateDefaultTTL),
-					MaxTTL:     int64(c.templateMaxTTL),
+					ID:                 template.ID,
+					UpdatedAt:          database.Now(),
+					AllowUserAutostart: c.templateAllowAutostop,
+					DefaultTTL:         int64(c.templateDefaultTTL),
+					MaxTTL:             int64(c.templateMaxTTL),
 				})
 				require.NoError(t, err)
 				file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
@@ -1189,18 +1210,4 @@ func must[T any](value T, err error) T {
 		panic(err)
 	}
 	return value
-}
-
-type mockTemplateScheduleStore struct {
-	GetFn func(ctx context.Context, db database.Store, id uuid.UUID) (schedule.TemplateScheduleOptions, error)
-}
-
-var _ schedule.TemplateScheduleStore = mockTemplateScheduleStore{}
-
-func (mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
-	return schedule.NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, opts)
-}
-
-func (m mockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, id uuid.UUID) (schedule.TemplateScheduleOptions, error) {
-	return m.GetFn(ctx, db, id)
 }

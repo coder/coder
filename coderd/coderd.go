@@ -33,11 +33,14 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
 
-	// Used to serve the Swagger endpoint
+	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/codersdk/agentsdk"
+
+	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
@@ -46,6 +49,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
@@ -120,10 +124,13 @@ type Options struct {
 	DERPMap               *tailcfg.DERPMap
 	SwaggerEndpoint       bool
 	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
-	TemplateScheduleStore schedule.TemplateScheduleStore
-	// AppSigningKey denotes the symmetric key to use for signing app tickets.
-	// The key must be 64 bytes long.
-	AppSigningKey []byte
+	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
+	// workspace applications. It consists of both a signing and encryption key.
+	AppSecurityKey     workspaceapps.SecurityKey
+	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckTimeout time.Duration
+	HealthcheckRefresh time.Duration
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -134,7 +141,6 @@ type Options struct {
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
-	Experimental                bool
 	DeploymentValues            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
@@ -142,6 +148,8 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
+
+	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
 }
 
 // @title Coder API
@@ -167,6 +175,12 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 
+	if options.DeploymentValues.DisableOwnerWorkspaceExec {
+		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
+			NoOwnerWorkspaceExec: true,
+		})
+	}
+
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
@@ -182,7 +196,7 @@ func New(options *Options) *API {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
 	if options.AgentConnectionUpdateFrequency == 0 {
-		options.AgentConnectionUpdateFrequency = 3 * time.Second
+		options.AgentConnectionUpdateFrequency = 15 * time.Second
 	}
 	if options.AgentInactiveDisconnectTimeout == 0 {
 		// Multiply the update by two to allow for some lag-time.
@@ -211,7 +225,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewCoordinator()
+		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
 	}
 	if options.DERPServer == nil {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
@@ -231,10 +245,25 @@ func New(options *Options) *API {
 		}
 	}
 	if options.TemplateScheduleStore == nil {
-		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
+		options.TemplateScheduleStore = &atomic.Pointer[schedule.TemplateScheduleStore]{}
 	}
-	if len(options.AppSigningKey) != 64 {
-		panic("coderd: AppSigningKey must be 64 bytes long")
+	if options.TemplateScheduleStore.Load() == nil {
+		v := schedule.NewAGPLTemplateScheduleStore()
+		options.TemplateScheduleStore.Store(&v)
+	}
+	if options.HealthcheckFunc == nil {
+		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
+			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				AccessURL: options.AccessURL,
+				DERPMap:   options.DERPMap.Clone(),
+			})
+		}
+	}
+	if options.HealthcheckTimeout == 0 {
+		options.HealthcheckTimeout = 30 * time.Second
+	}
+	if options.HealthcheckRefresh == 0 {
+		options.HealthcheckRefresh = 10 * time.Minute
 	}
 
 	siteCacheDir := options.CacheDir
@@ -266,8 +295,8 @@ func New(options *Options) *API {
 		OIDC:   options.OIDCConfig,
 	}
 
-	r := chi.NewRouter()
 	ctx, cancel := context.WithCancel(context.Background())
+	r := chi.NewRouter()
 	api := &API{
 		ctx:    ctx,
 		cancel: cancel,
@@ -280,7 +309,7 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.New(
+		WorkspaceAppsProvider: workspaceapps.NewDBTokenProvider(
 			options.Logger.Named("workspaceapps"),
 			options.AccessURL,
 			options.Authorizer,
@@ -288,12 +317,13 @@ func New(options *Options) *API {
 			options.DeploymentValues,
 			oauthConfigs,
 			options.AgentInactiveDisconnectTimeout,
-			options.AppSigningKey,
+			options.AppSecurityKey,
 		),
 		metricsCache:          metricsCache,
 		Auditor:               atomic.Pointer[audit.Auditor]{},
-		TemplateScheduleStore: atomic.Pointer[schedule.TemplateScheduleStore]{},
+		TemplateScheduleStore: options.TemplateScheduleStore,
 		Experiments:           experiments,
+		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -309,9 +339,25 @@ func New(options *Options) *API {
 	}
 
 	api.Auditor.Store(&options.Auditor)
-	api.TemplateScheduleStore.Store(&options.TemplateScheduleStore)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
+
+	api.workspaceAppServer = &workspaceapps.Server{
+		Logger: options.Logger.Named("workspaceapps"),
+
+		DashboardURL:  api.AccessURL,
+		AccessURL:     api.AccessURL,
+		Hostname:      api.AppHostname,
+		HostnameRegex: api.AppHostnameRegex,
+		RealIPConfig:  options.RealIPConfig,
+
+		SignedTokenProvider: api.WorkspaceAppsProvider,
+		WorkspaceConnCache:  api.workspaceAgentCache,
+		AppSecurityKey:      options.AppSecurityKey,
+
+		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
+	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                          options.Database,
@@ -327,6 +373,14 @@ func New(options *Options) *API {
 		RedirectToLogin:             true,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+	})
+	// Same as the first but it's optional.
+	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    true,
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -345,11 +399,12 @@ func New(options *Options) *API {
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
-		// handleSubdomainApplications checks if the first subdomain is a valid
-		// app URL. If it is, it will serve that application.
+		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
+		// it is, it will serve that application.
 		//
-		// Workspace apps do their own auth.
-		api.handleSubdomainApplications(apiRateLimiter),
+		// Workspace apps do their own auth and must be BEFORE the auth
+		// middleware.
+		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -372,16 +427,12 @@ func New(options *Options) *API {
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 
-	apps := func(r chi.Router) {
-		// Workspace apps do their own auth.
+	// Attach workspace apps routes.
+	r.Group(func(r chi.Router) {
 		r.Use(apiRateLimiter)
-		r.HandleFunc("/*", api.workspaceAppsProxyPath)
-	}
-	// %40 is the encoded character of the @ symbol. VS Code Web does
-	// not handle character encoding properly, so it's safe to assume
-	// other applications might not as well.
-	r.Route("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
-	r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
+		api.workspaceAppServer.Attach(r)
+	})
+
 	r.Route("/derp", func(r chi.Router) {
 		r.Get("/", derpHandler.ServeHTTP)
 		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
@@ -414,7 +465,12 @@ func New(options *Options) *API {
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
-		r.Get("/buildinfo", buildInfo)
+		r.Get("/buildinfo", buildInfo(api.AccessURL))
+		// /regions is overridden in the enterprise version
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/regions", api.regions)
+		})
 		r.Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
@@ -609,7 +665,10 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/metadata", api.workspaceAgentMetadata)
+				r.Get("/manifest", api.workspaceAgentManifest)
+				// This route is deprecated and will be removed in a future release.
+				// New agents will use /me/manifest instead.
+				r.Get("/metadata", api.workspaceAgentManifest)
 				r.Post("/startup", api.postWorkspaceAgentStartup)
 				r.Patch("/startup-logs", api.patchWorkspaceAgentStartupLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
@@ -618,21 +677,29 @@ func New(options *Options) *API {
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
+				r.Post("/metadata/{key}", api.workspaceAgentPostMetadata)
 			})
-			// No middleware on the PTY endpoint since it uses workspace
-			// application auth and tickets.
-			r.Get("/{workspaceagent}/pty", api.workspaceAgentPTY)
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
-					apiKeyMiddleware,
+					// Allow either API key or external workspace proxy auth and require it.
+					apiKeyMiddlewareOptional,
+					httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
+						DB:       options.Database,
+						Optional: true,
+					}),
+					httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
+
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
+				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadata)
 				r.Get("/startup-logs", api.workspaceAgentStartupLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+
+				// PTY is part of workspaceAppServer.
 			})
 		})
 		r.Route("/workspaces", func(r chi.Router) {
@@ -713,6 +780,7 @@ func New(options *Options) *API {
 			)
 
 			r.Get("/coordinator", api.debugCoordinator)
+			r.Get("/health", api.debugDeploymentHealth)
 		})
 	})
 
@@ -745,7 +813,7 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	TemplateScheduleStore             atomic.Pointer[schedule.TemplateScheduleStore]
+	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -763,11 +831,14 @@ type API struct {
 	metricsCache          *metricscache.Cache
 	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
-	WorkspaceAppsProvider *workspaceapps.Provider
+	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
+	workspaceAppServer    *workspaceapps.Server
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
+
+	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -855,7 +926,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,
 		Auditor:               &api.Auditor,
-		TemplateScheduleStore: &api.TemplateScheduleStore,
+		TemplateScheduleStore: api.TemplateScheduleStore,
 		AcquireJobDebounce:    debounce,
 		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})

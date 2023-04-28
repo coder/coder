@@ -13,8 +13,7 @@ export const severityConstants: Record<
     color: colors.orange[7],
     icon: (
       <ReportProblemOutlinedIcon
-        fontSize="small"
-        style={{ color: colors.orange[7] }}
+        style={{ color: colors.orange[7], fontSize: 16 }}
       />
     ),
   },
@@ -22,15 +21,12 @@ export const severityConstants: Record<
     color: colors.red[7],
     icon: (
       <ErrorOutlineOutlinedIcon
-        fontSize="small"
-        style={{ color: colors.red[7] }}
+        style={{ color: colors.red[7], fontSize: 16 }}
       />
     ),
   },
   info: {
     color: colors.blue[7],
-    icon: (
-      <InfoOutlinedIcon fontSize="small" style={{ color: colors.blue[7] }} />
-    ),
+    icon: <InfoOutlinedIcon style={{ color: colors.blue[7], fontSize: 16 }} />,
   },
 }

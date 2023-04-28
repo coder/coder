@@ -17,6 +17,7 @@ import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout"
+import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -45,7 +46,10 @@ const WorkspaceBuildPage = lazy(
 )
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
 const WorkspaceSchedulePage = lazy(
-  () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
+  () =>
+    import(
+      "./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
+    ),
 )
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const TemplatePermissionsPage = lazy(
@@ -132,14 +136,35 @@ const WorkspaceSettingsPage = lazy(
 const CreateTokenPage = lazy(
   () => import("./pages/CreateTokenPage/CreateTokenPage"),
 )
+
+const TemplateDocsPage = lazy(
+  () => import("./pages/TemplatePage/TemplateDocsPage/TemplateDocsPage"),
+)
+
 const TemplateFilesPage = lazy(
   () => import("./pages/TemplatePage/TemplateFilesPage/TemplateFilesPage"),
+)
+
+const TemplateVersionsPage = lazy(
+  () =>
+    import("./pages/TemplatePage/TemplateVersionsPage/TemplateVersionsPage"),
 )
 const TemplateSchedulePage = lazy(
   () =>
     import(
       "./pages/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"
     ),
+)
+
+const LicensesSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"
+    ),
+)
+const AddNewLicensePage = lazy(
+  () =>
+    import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePage"),
 )
 
 export const AppRouter: FC = () => {
@@ -170,8 +195,9 @@ export const AppRouter: FC = () => {
                 <Route path=":template">
                   <Route element={<TemplateLayout />}>
                     <Route index element={<TemplateSummaryPage />} />
-
+                    <Route path="docs" element={<TemplateDocsPage />} />
                     <Route path="files" element={<TemplateFilesPage />} />
+                    <Route path="versions" element={<TemplateVersionsPage />} />
                   </Route>
 
                   <Route path="workspace" element={<CreateWorkspacePage />} />
@@ -229,6 +255,8 @@ export const AppRouter: FC = () => {
                 element={<DeploySettingsLayout />}
               >
                 <Route path="general" element={<GeneralSettingsPage />} />
+                <Route path="licenses" element={<LicensesSettingsPage />} />
+                <Route path="licenses/add" element={<AddNewLicensePage />} />
                 <Route path="security" element={<SecuritySettingsPage />} />
                 <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />
@@ -249,12 +277,17 @@ export const AppRouter: FC = () => {
               <Route path="/@:username">
                 <Route path=":workspace">
                   <Route index element={<WorkspacePage />} />
-                  <Route path="schedule" element={<WorkspaceSchedulePage />} />
                   <Route
                     path="builds/:buildNumber"
                     element={<WorkspaceBuildPage />}
                   />
-                  <Route path="settings" element={<WorkspaceSettingsPage />} />
+                  <Route path="settings" element={<WorkspaceSettingsLayout />}>
+                    <Route index element={<WorkspaceSettingsPage />} />
+                    <Route
+                      path="schedule"
+                      element={<WorkspaceSchedulePage />}
+                    />
+                  </Route>
                 </Route>
               </Route>
             </Route>

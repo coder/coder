@@ -10,14 +10,14 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"sync"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
-	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/tracing"
@@ -42,10 +42,20 @@ const (
 	// token on app domains.
 	//nolint:gosec
 	DevURLSessionTokenCookie = "coder_devurl_session_token"
-	// DevURLSessionTicketCookie is the name of the cookie that stores a
+	// DevURLSignedAppTokenCookie is the name of the cookie that stores a
 	// temporary JWT that can be used to authenticate instead of the session
 	// token.
-	DevURLSessionTicketCookie = "coder_devurl_session_ticket"
+	//nolint:gosec
+	DevURLSignedAppTokenCookie = "coder_devurl_signed_app_token"
+	// SignedAppTokenQueryParameter is the name of the query parameter that
+	// stores a temporary JWT that can be used to authenticate instead of the
+	// session token. This is only acceptable on reconnecting-pty requests, not
+	// apps.
+	//
+	// It has a random suffix to avoid conflict with user query parameters on
+	// apps.
+	//nolint:gosec
+	SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde"
 
 	// BypassRatelimitHeader is the custom header to use to bypass ratelimits.
 	// Only owners can bypass rate limits. This is typically used for scale testing.
@@ -79,12 +89,20 @@ type Client struct {
 	HTTPClient *http.Client
 	URL        *url.URL
 
+	// SessionTokenHeader is an optional custom header to use for setting tokens. By
+	// default 'Coder-Session-Token' is used.
+	SessionTokenHeader string
+
 	// Logger is optionally provided to log requests.
 	// Method, URL, and response code will be logged by default.
 	Logger slog.Logger
 
 	// LogBodies can be enabled to print request and response bodies to the logger.
 	LogBodies bool
+
+	// PlainLogger may be set to log HTTP traffic in a human-readable form.
+	// It uses the LogBodies option.
+	PlainLogger io.Writer
 
 	// Trace can be enabled to propagate tracing spans to the Coder API.
 	// This is useful for tracking a request end-to-end.
@@ -103,6 +121,16 @@ func (c *Client) SetSessionToken(token string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sessionToken = token
+}
+
+func prefixLines(prefix, s []byte) []byte {
+	ss := bytes.NewBuffer(make([]byte, 0, len(s)*2))
+	for _, line := range bytes.Split(s, []byte("\n")) {
+		_, _ = ss.Write(prefix)
+		_, _ = ss.Write(line)
+		_ = ss.WriteByte('\n')
+	}
+	return ss.Bytes()
 }
 
 // Request performs a HTTP request with the body provided. The caller is
@@ -150,7 +178,21 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
-	req.Header.Set(SessionTokenHeader, c.SessionToken())
+
+	if c.PlainLogger != nil {
+		out, err := httputil.DumpRequest(req, c.LogBodies)
+		if err != nil {
+			return nil, xerrors.Errorf("dump request: %w", err)
+		}
+		out = prefixLines([]byte("http --> "), out)
+		_, _ = c.PlainLogger.Write(out)
+	}
+
+	tokenHeader := c.SessionTokenHeader
+	if tokenHeader == "" {
+		tokenHeader = SessionTokenHeader
+	}
+	req.Header.Set(tokenHeader, c.SessionToken())
 
 	if r != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -159,8 +201,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		opt(req)
 	}
 
-	span.SetAttributes(semconv.NetAttributesFromHTTPRequest("tcp", req)...)
-	span.SetAttributes(semconv.HTTPClientAttributesFromHTTPRequest(req)...)
+	span.SetAttributes(httpconv.ClientRequest(req)...)
 
 	// Inject tracing headers if enabled.
 	if c.Trace {
@@ -184,8 +225,17 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, err
 	}
 
-	span.SetAttributes(semconv.HTTPStatusCodeKey.Int(resp.StatusCode))
-	span.SetStatus(semconv.SpanStatusFromHTTPStatusCodeAndSpanKind(resp.StatusCode, trace.SpanKindClient))
+	if c.PlainLogger != nil {
+		out, err := httputil.DumpResponse(resp, c.LogBodies)
+		if err != nil {
+			return nil, xerrors.Errorf("dump response: %w", err)
+		}
+		out = prefixLines([]byte("http <-- "), out)
+		_, _ = c.PlainLogger.Write(out)
+	}
+
+	span.SetAttributes(httpconv.ClientResponse(resp)...)
+	span.SetStatus(httpconv.ClientStatus(resp.StatusCode))
 
 	// Copy the response body so we can log it if it's a loggable mime type.
 	var respBody []byte
@@ -248,8 +298,8 @@ func ReadBodyAsError(res *http.Response) error {
 
 	mimeType := parseMimeType(contentType)
 	if mimeType != "application/json" {
-		if len(resp) > 1024 {
-			resp = append(resp[:1024], []byte("...")...)
+		if len(resp) > 2048 {
+			resp = append(resp[:2048], []byte("...")...)
 		}
 		if len(resp) == 0 {
 			resp = []byte("no response body")

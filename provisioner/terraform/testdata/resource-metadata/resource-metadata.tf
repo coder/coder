@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.3"
+      version = "0.7.0"
     }
   }
 }
@@ -10,9 +10,20 @@ terraform {
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
+  metadata {
+    key          = "process_count"
+    display_name = "Process Count"
+    script       = "ps -ef | wc -l"
+    interval     = 5
+    timeout      = 1
+  }
 }
 
-resource "null_resource" "about" {}
+resource "null_resource" "about" {
+  depends_on = [
+    coder_agent.main,
+  ]
+}
 
 resource "coder_metadata" "about_info" {
   resource_id = null_resource.about.id

@@ -159,6 +159,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/reconnecting-pty-signed-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Applications Enterprise"
+                ],
+                "summary": "Issue signed app token for reconnecting PTY",
+                "operationId": "issue-signed-app-token-for-reconnecting-pty",
+                "parameters": [
+                    {
+                        "description": "Issue reconnecting PTY signed token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/audit": {
             "get": {
                 "security": [
@@ -355,6 +397,31 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                }
+            }
+        },
+        "/debug/health": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Deployment Health",
+                "operationId": "debug-info-deployment-health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/healthcheck.Report"
+                        }
                     }
                 }
             }
@@ -558,44 +625,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
-                    }
-                }
-            }
-        },
-        "/groups": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get groups",
-                "operationId": "get-groups",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Group"
-                            }
-                        }
                     }
                 }
             }
@@ -944,7 +973,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Enterprise"
                 ],
                 "summary": "Create group for organization",
                 "operationId": "create-group-for-organization",
@@ -1693,6 +1722,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/regions": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "WorkspaceProxies"
+                ],
+                "summary": "Get site-wide regions for workspace connections",
+                "operationId": "get-site-wide-regions-for-workspace-connections",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RegionsResponse"
                         }
                     }
                 }
@@ -4263,7 +4317,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/metadata": {
+        "/workspaceagents/me/manifest": {
             "get": {
                 "security": [
                     {
@@ -4276,15 +4330,59 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get authorized workspace agent metadata",
-                "operationId": "get-authorized-workspace-agent-metadata",
+                "summary": "Get authorized workspace agent manifest",
+                "operationId": "get-authorized-workspace-agent-manifest",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.Metadata"
+                            "$ref": "#/definitions/agentsdk.Manifest"
                         }
                     }
+                }
+            }
+        },
+        "/workspaceagents/me/metadata/{key}": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace agent metadata",
+                "operationId": "submit-workspace-agent-metadata",
+                "parameters": [
+                    {
+                        "description": "Workspace agent metadata request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PostMetadataRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "metadata key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -4360,6 +4458,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -4663,6 +4764,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/watch-metadata": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Watch for workspace agent metadata updates",
+                "operationId": "watch-for-workspace-agent-metadata-updates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspacebuilds/{workspacebuild}": {
             "get": {
                 "security": [
@@ -4889,6 +5022,190 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceproxies": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxies",
+                "operationId": "get-workspace-proxies",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Create workspace proxy",
+                "operationId": "create-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Create workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceproxies/me/issue-signed-app-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Issue signed workspace app token",
+                "operationId": "issue-signed-workspace-app-token",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workspaceapps.IssueTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.IssueSignedAppTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/me/register": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Register workspace proxy",
+                "operationId": "register-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/{workspaceproxy}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete workspace proxy",
+                "operationId": "delete-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -5338,6 +5655,44 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.AgentMetric": {
+            "type": "object",
+            "required": [
+                "name",
+                "type",
+                "value"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "counter",
+                        "gauge"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentsdk.AgentMetricType"
+                        }
+                    ]
+                },
+                "value": {
+                    "type": "number"
+                }
+            }
+        },
+        "agentsdk.AgentMetricType": {
+            "type": "string",
+            "enum": [
+                "counter",
+                "gauge"
+            ],
+            "x-enum-varnames": [
+                "AgentMetricTypeCounter",
+                "AgentMetricTypeGauge"
+            ]
+        },
         "agentsdk.AuthenticateResponse": {
             "type": "object",
             "properties": {
@@ -5397,7 +5752,7 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.Metadata": {
+        "agentsdk.Manifest": {
             "type": "object",
             "properties": {
                 "apps": {
@@ -5421,6 +5776,12 @@ const docTemplate = `{
                 "git_auth_configs": {
                     "description": "GitAuthConfigs stores the number of Git configurations\nthe Coder deployment has. If this number is \u003e0, we\nset up special configuration in the workspace.",
                     "type": "integer"
+                },
+                "metadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentMetadataDescription"
+                    }
                 },
                 "motd_file": {
                     "type": "string"
@@ -5473,6 +5834,25 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.PostMetadataRequest": {
+            "type": "object",
+            "properties": {
+                "age": {
+                    "description": "Age is the number of seconds since the metadata was collected.\nIt is provided in addition to CollectedAt to protect against clock skew.",
+                    "type": "integer"
+                },
+                "collected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "agentsdk.PostStartupRequest": {
             "type": "object",
             "properties": {
@@ -5489,6 +5869,9 @@ const docTemplate = `{
             "properties": {
                 "created_at": {
                     "type": "string"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
                 },
                 "output": {
                     "type": "string"
@@ -5511,6 +5894,13 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "integer"
+                    }
+                },
+                "metrics": {
+                    "description": "Metrics collected by the agent",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetric"
                     }
                 },
                 "rx_bytes": {
@@ -5565,12 +5955,6 @@ const docTemplate = `{
         "clibase.Group": {
             "type": "object",
             "properties": {
-                "children": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/clibase.Group"
-                    }
-                },
                 "description": {
                     "type": "string"
                 },
@@ -5579,6 +5963,9 @@ const docTemplate = `{
                 },
                 "parent": {
                     "$ref": "#/definitions/clibase.Group"
+                },
+                "yaml": {
+                    "type": "string"
                 }
             }
         },
@@ -5646,6 +6033,9 @@ const docTemplate = `{
                 },
                 "value": {
                     "description": "Value includes the types listed in values.go."
+                },
+                "value_source": {
+                    "$ref": "#/definitions/clibase.ValueSource"
                 },
                 "yaml": {
                     "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
@@ -5726,6 +6116,23 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "clibase.ValueSource": {
+            "type": "string",
+            "enum": [
+                "",
+                "flag",
+                "env",
+                "yaml",
+                "default"
+            ],
+            "x-enum-varnames": [
+                "ValueSourceNone",
+                "ValueSourceFlag",
+                "ValueSourceEnv",
+                "ValueSourceYAML",
+                "ValueSourceDefault"
+            ]
         },
         "coderd.SCIMUser": {
             "type": "object",
@@ -5941,7 +6348,8 @@ const docTemplate = `{
                 "start",
                 "stop",
                 "login",
-                "logout"
+                "logout",
+                "register"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -5950,7 +6358,8 @@ const docTemplate = `{
                 "AuditActionStart",
                 "AuditActionStop",
                 "AuditActionLogin",
-                "AuditActionLogout"
+                "AuditActionLogout",
+                "AuditActionRegister"
             ]
         },
         "codersdk.AuditDiff": {
@@ -6114,7 +6523,11 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "description": "ResourceType is the name of the resource.\n` + "`" + `./coderd/rbac/object.go` + "`" + ` has the list of valid resource types.",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.RBACResource"
+                        }
+                    ]
                 }
             }
         },
@@ -6139,6 +6552,10 @@ const docTemplate = `{
         "codersdk.BuildInfoResponse": {
             "type": "object",
             "properties": {
+                "dashboard_url": {
+                    "description": "DashboardURL is the URL to hit the deployment's dashboard.\nFor external workspace proxies, this is the coderd they are connected\nto.",
+                    "type": "string"
+                },
                 "external_url": {
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
@@ -6146,6 +6563,9 @@ const docTemplate = `{
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
+                },
+                "workspace_proxy": {
+                    "type": "boolean"
                 }
             }
         },
@@ -6275,6 +6695,14 @@ const docTemplate = `{
                 "template_version_id"
             ],
             "properties": {
+                "allow_user_autostart": {
+                    "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
+                    "type": "boolean"
+                },
+                "allow_user_autostop": {
+                    "description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled when\nusing an enterprise license.",
+                    "type": "boolean"
+                },
                 "allow_user_cancel_workspace_jobs": {
                     "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
                     "type": "boolean"
@@ -6572,6 +7000,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -6760,9 +7202,6 @@ const docTemplate = `{
                 "agent_stat_refresh_interval": {
                     "type": "integer"
                 },
-                "audit_logging": {
-                    "type": "boolean"
-                },
                 "autobuild_poll_interval": {
                     "type": "integer"
                 },
@@ -6783,6 +7222,9 @@ const docTemplate = `{
                 },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
+                },
+                "disable_owner_workspace_exec": {
+                    "type": "boolean"
                 },
                 "disable_password_auth": {
                     "type": "boolean"
@@ -6955,10 +7397,10 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "template_editor"
+                "moons"
             ],
             "x-enum-varnames": [
-                "ExperimentTemplateEditor"
+                "ExperimentMoons"
             ]
         },
         "codersdk.Feature": {
@@ -7111,6 +7553,31 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "URL specifies the endpoint to check for the app health.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenRequest": {
+            "type": "object",
+            "required": [
+                "agentID",
+                "url"
+            ],
+            "properties": {
+                "agentID": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "url": {
+                    "description": "URL is the URL of the reconnecting-pty endpoint you are connecting to.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenResponse": {
+            "type": "object",
+            "properties": {
+                "signed_token": {
                     "type": "string"
                 }
             }
@@ -7333,6 +7800,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/clibase.URL"
                 },
                 "ignore_email_verified": {
+                    "type": "boolean"
+                },
+                "ignore_user_info": {
                     "type": "boolean"
                 },
                 "issuer_url": {
@@ -7607,6 +8077,9 @@ const docTemplate = `{
                 "address": {
                     "$ref": "#/definitions/clibase.HostPort"
                 },
+                "collect_agent_stats": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 }
@@ -7805,6 +8278,40 @@ const docTemplate = `{
                 "ProvisionerStorageMethodFile"
             ]
         },
+        "codersdk.ProxyHealthReport": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "description": "Errors are problems that prevent the workspace proxy from being healthy",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "warnings": {
+                    "description": "Warnings do not prevent the workspace proxy from being healthy, but\nshould be addressed.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.ProxyHealthStatus": {
+            "type": "string",
+            "enum": [
+                "reachable",
+                "unreachable",
+                "unhealthy",
+                "unregistered"
+            ],
+            "x-enum-varnames": [
+                "ProxyReachable",
+                "ProxyUnreachable",
+                "ProxyUnhealthy",
+                "ProxyUnregistered"
+            ]
+        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -7817,6 +8324,57 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.RBACResource": {
+            "type": "string",
+            "enum": [
+                "workspace",
+                "workspace_proxy",
+                "workspace_execution",
+                "application_connect",
+                "audit_log",
+                "template",
+                "group",
+                "file",
+                "provisioner_daemon",
+                "organization",
+                "assign_role",
+                "assign_org_role",
+                "api_key",
+                "user",
+                "user_data",
+                "organization_member",
+                "license",
+                "deployment_config",
+                "deployment_stats",
+                "replicas",
+                "debug_info",
+                "system"
+            ],
+            "x-enum-varnames": [
+                "ResourceWorkspace",
+                "ResourceWorkspaceProxy",
+                "ResourceWorkspaceExecution",
+                "ResourceWorkspaceApplicationConnect",
+                "ResourceAuditLog",
+                "ResourceTemplate",
+                "ResourceGroup",
+                "ResourceFile",
+                "ResourceProvisionerDaemon",
+                "ResourceOrganization",
+                "ResourceRoleAssignment",
+                "ResourceOrgRoleAssignment",
+                "ResourceAPIKey",
+                "ResourceUser",
+                "ResourceUserData",
+                "ResourceOrganizationMember",
+                "ResourceLicense",
+                "ResourceDeploymentValues",
+                "ResourceDeploymentStats",
+                "ResourceReplicas",
+                "ResourceDebugInfo",
+                "ResourceSystem"
+            ]
+        },
         "codersdk.RateLimitConfig": {
             "type": "object",
             "properties": {
@@ -7825,6 +8383,46 @@ const docTemplate = `{
                 },
                 "disable_all": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.Region": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path_app_url": {
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.RegionsResponse": {
+            "type": "object",
+            "properties": {
+                "regions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Region"
+                    }
                 }
             }
         },
@@ -8061,6 +8659,13 @@ const docTemplate = `{
                 "active_version_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "allow_user_autostart": {
+                    "description": "AllowUserAutostart and AllowUserAutostop are enterprise-only. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "type": "boolean"
+                },
+                "allow_user_autostop": {
+                    "type": "boolean"
                 },
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
@@ -8311,6 +8916,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "description_plaintext": {
+                    "type": "string"
+                },
+                "display_name": {
                     "type": "string"
                 },
                 "icon": {
@@ -8915,6 +9523,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentMetadataDescription": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "script": {
+                    "type": "string"
+                },
+                "timeout": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.WorkspaceAgentStartupLog": {
             "type": "object",
             "properties": {
@@ -8924,6 +9552,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
                 },
                 "output": {
                     "type": "string"
@@ -9194,6 +9825,68 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceProxy": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "deleted": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status is the latest status check of the proxy. This will be empty for deleted\nproxies. This value can be used to determine if a workspace proxy is healthy\nand ready to use.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxyStatus"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "description": "Full url including scheme of the proxy api url: https://us.example.com",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceProxyStatus": {
+            "type": "object",
+            "properties": {
+                "checked_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "report": {
+                    "description": "Report provides more information about the health of the workspace proxy.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProxyHealthReport"
+                        }
+                    ]
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ProxyHealthStatus"
+                }
+            }
+        },
         "codersdk.WorkspaceQuota": {
             "type": "object",
             "properties": {
@@ -9366,6 +10059,244 @@ const docTemplate = `{
                 "ParameterSourceSchemeData"
             ]
         },
+        "derp.ServerInfoMessage": {
+            "type": "object",
+            "properties": {
+                "tokenBucketBytesBurst": {
+                    "description": "TokenBucketBytesBurst is how many bytes the server will\nallow to burst, temporarily violating\nTokenBucketBytesPerSecond.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                },
+                "tokenBucketBytesPerSecond": {
+                    "description": "TokenBucketBytesPerSecond is how many bytes per second the\nserver says it will accept, including all framing bytes.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                }
+            }
+        },
+        "healthcheck.AccessURLReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "healthzResponse": {
+                    "type": "string"
+                },
+                "reachable": {
+                    "type": "boolean"
+                },
+                "statusCode": {
+                    "type": "integer"
+                }
+            }
+        },
+        "healthcheck.DERPNodeReport": {
+            "type": "object",
+            "properties": {
+                "can_exchange_messages": {
+                    "type": "boolean"
+                },
+                "client_errs": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    }
+                },
+                "client_logs": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "node": {
+                    "$ref": "#/definitions/tailcfg.DERPNode"
+                },
+                "node_info": {
+                    "$ref": "#/definitions/derp.ServerInfoMessage"
+                },
+                "round_trip_ping": {
+                    "type": "integer"
+                },
+                "stun": {
+                    "$ref": "#/definitions/healthcheck.DERPStunReport"
+                },
+                "uses_websocket": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "healthcheck.DERPRegionReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "node_reports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/healthcheck.DERPNodeReport"
+                    }
+                },
+                "region": {
+                    "$ref": "#/definitions/tailcfg.DERPRegion"
+                }
+            }
+        },
+        "healthcheck.DERPReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "netcheck": {
+                    "$ref": "#/definitions/netcheck.Report"
+                },
+                "netcheck_err": {},
+                "netcheck_logs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "regions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/healthcheck.DERPRegionReport"
+                    }
+                }
+            }
+        },
+        "healthcheck.DERPStunReport": {
+            "type": "object",
+            "properties": {
+                "canSTUN": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "error": {}
+            }
+        },
+        "healthcheck.Report": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
+                "derp": {
+                    "$ref": "#/definitions/healthcheck.DERPReport"
+                },
+                "pass": {
+                    "description": "Healthy is true if the report returns no errors.",
+                    "type": "boolean"
+                },
+                "time": {
+                    "description": "Time is the time the report was generated at.",
+                    "type": "string"
+                }
+            }
+        },
+        "netcheck.Report": {
+            "type": "object",
+            "properties": {
+                "captivePortal": {
+                    "description": "CaptivePortal is set when we think there's a captive portal that is\nintercepting HTTP traffic.",
+                    "type": "string"
+                },
+                "globalV4": {
+                    "description": "ip:port of global IPv4",
+                    "type": "string"
+                },
+                "globalV6": {
+                    "description": "[ip]:port of global IPv6",
+                    "type": "string"
+                },
+                "hairPinning": {
+                    "description": "HairPinning is whether the router supports communicating\nbetween two local devices through the NATted public IP address\n(on IPv4).",
+                    "type": "string"
+                },
+                "icmpv4": {
+                    "description": "an ICMPv4 round trip completed",
+                    "type": "boolean"
+                },
+                "ipv4": {
+                    "description": "an IPv4 STUN round trip completed",
+                    "type": "boolean"
+                },
+                "ipv4CanSend": {
+                    "description": "an IPv4 packet was able to be sent",
+                    "type": "boolean"
+                },
+                "ipv6": {
+                    "description": "an IPv6 STUN round trip completed",
+                    "type": "boolean"
+                },
+                "ipv6CanSend": {
+                    "description": "an IPv6 packet was able to be sent",
+                    "type": "boolean"
+                },
+                "mappingVariesByDestIP": {
+                    "description": "MappingVariesByDestIP is whether STUN results depend which\nSTUN server you're talking to (on IPv4).",
+                    "type": "string"
+                },
+                "oshasIPv6": {
+                    "description": "could bind a socket to ::1",
+                    "type": "boolean"
+                },
+                "pcp": {
+                    "description": "PCP is whether PCP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                },
+                "pmp": {
+                    "description": "PMP is whether NAT-PMP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                },
+                "preferredDERP": {
+                    "description": "or 0 for unknown",
+                    "type": "integer"
+                },
+                "regionLatency": {
+                    "description": "keyed by DERP Region ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "regionV4Latency": {
+                    "description": "keyed by DERP Region ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "regionV6Latency": {
+                    "description": "keyed by DERP Region ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "udp": {
+                    "description": "a UDP STUN round trip completed",
+                    "type": "boolean"
+                },
+                "upnP": {
+                    "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                }
+            }
+        },
         "parameter.ComputedValue": {
             "type": "object",
             "properties": {
@@ -9519,6 +10450,103 @@ const docTemplate = `{
         },
         "url.Userinfo": {
             "type": "object"
+        },
+        "workspaceapps.AccessMethod": {
+            "type": "string",
+            "enum": [
+                "path",
+                "subdomain",
+                "terminal"
+            ],
+            "x-enum-varnames": [
+                "AccessMethodPath",
+                "AccessMethodSubdomain",
+                "AccessMethodTerminal"
+            ]
+        },
+        "workspaceapps.IssueTokenRequest": {
+            "type": "object",
+            "properties": {
+                "app_hostname": {
+                    "description": "AppHostname is the optional hostname for subdomain apps on the external\nproxy. It must start with an asterisk.",
+                    "type": "string"
+                },
+                "app_path": {
+                    "description": "AppPath is the path of the user underneath the app base path.",
+                    "type": "string"
+                },
+                "app_query": {
+                    "description": "AppQuery is the query parameters the user provided in the app request.",
+                    "type": "string"
+                },
+                "app_request": {
+                    "$ref": "#/definitions/workspaceapps.Request"
+                },
+                "path_app_base_url": {
+                    "description": "PathAppBaseURL is required.",
+                    "type": "string"
+                },
+                "session_token": {
+                    "description": "SessionToken is the session token provided by the user.",
+                    "type": "string"
+                }
+            }
+        },
+        "workspaceapps.Request": {
+            "type": "object",
+            "properties": {
+                "access_method": {
+                    "$ref": "#/definitions/workspaceapps.AccessMethod"
+                },
+                "agent_name_or_id": {
+                    "description": "AgentNameOrID is not required if the workspace has only one agent.",
+                    "type": "string"
+                },
+                "app_slug_or_port": {
+                    "type": "string"
+                },
+                "base_path": {
+                    "description": "BasePath of the app. For path apps, this is the path prefix in the router\nfor this particular app. For subdomain apps, this should be \"/\". This is\nused for setting the cookie path.",
+                    "type": "string"
+                },
+                "username_or_id": {
+                    "description": "For the following fields, if the AccessMethod is AccessMethodTerminal,\nthen only AgentNameOrID may be set and it must be a UUID. The other\nfields must be left blank.",
+                    "type": "string"
+                },
+                "workspace_name_or_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.IssueSignedAppTokenResponse": {
+            "type": "object",
+            "properties": {
+                "signed_token_str": {
+                    "description": "SignedTokenStr should be set as a cookie on the response.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "description": "AccessURL that hits the workspace proxy api.",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname that the workspace proxy api is serving for subdomain apps.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyResponse": {
+            "type": "object",
+            "properties": {
+                "app_security_key": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {

@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,11 +19,12 @@ import (
 
 // Executor automatically starts or stops workspaces.
 type Executor struct {
-	ctx     context.Context
-	db      database.Store
-	log     slog.Logger
-	tick    <-chan time.Time
-	statsCh chan<- Stats
+	ctx                   context.Context
+	db                    database.Store
+	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	log                   slog.Logger
+	tick                  <-chan time.Time
+	statsCh               chan<- Stats
 }
 
 // Stats contains information about one run of Executor.
@@ -33,13 +35,14 @@ type Stats struct {
 }
 
 // New returns a new autobuild executor.
-func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan time.Time) *Executor {
+func New(ctx context.Context, db database.Store, tss *atomic.Pointer[schedule.TemplateScheduleStore], log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
-		ctx:  dbauthz.AsAutostart(ctx),
-		db:   db,
-		tick: tick,
-		log:  log,
+		ctx:                   dbauthz.AsAutostart(ctx),
+		db:                    db,
+		templateScheduleStore: tss,
+		tick:                  tick,
+		log:                   log,
 	}
 	return le
 }
@@ -102,20 +105,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	workspaceRows, err := e.db.GetWorkspaces(e.ctx, database.GetWorkspacesParams{
-		Deleted: false,
-	})
+	workspaces, err := e.db.GetWorkspacesEligibleForAutoStartStop(e.ctx, t)
 	if err != nil {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
-	}
-	workspaces := database.ConvertWorkspaceRows(workspaceRows)
-
-	var eligibleWorkspaceIDs []uuid.UUID
-	for _, ws := range workspaces {
-		if isEligibleForAutoStartStop(ws) {
-			eligibleWorkspaceIDs = append(eligibleWorkspaceIDs, ws.ID)
-		}
 	}
 
 	// We only use errgroup here for convenience of API, not for early
@@ -124,8 +117,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// Limit the concurrency to avoid overloading the database.
 	eg.SetLimit(10)
 
-	for _, wsID := range eligibleWorkspaceIDs {
-		wsID := wsID
+	for _, ws := range workspaces {
+		wsID := ws.ID
 		log := e.log.With(slog.F("workspace_id", wsID))
 
 		eg.Go(func() error {
@@ -137,14 +130,21 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					log.Error(e.ctx, "get workspace autostart failed", slog.Error(err))
 					return nil
 				}
-				if !isEligibleForAutoStartStop(ws) {
-					return nil
-				}
 
 				// Determine the workspace state based on its latest build.
 				priorHistory, err := db.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
 				if err != nil {
 					log.Warn(e.ctx, "get latest workspace build", slog.Error(err))
+					return nil
+				}
+
+				templateSchedule, err := (*(e.templateScheduleStore.Load())).GetTemplateScheduleOptions(e.ctx, db, ws.TemplateID)
+				if err != nil {
+					log.Warn(e.ctx, "get template schedule options", slog.Error(err))
+					return nil
+				}
+
+				if !isEligibleForAutoStartStop(ws, priorHistory, templateSchedule) {
 					return nil
 				}
 
@@ -198,8 +198,20 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	return stats
 }
 
-func isEligibleForAutoStartStop(ws database.Workspace) bool {
-	return !ws.Deleted && (ws.AutostartSchedule.String != "" || ws.Ttl.Int64 > 0)
+func isEligibleForAutoStartStop(ws database.Workspace, priorHistory database.WorkspaceBuild, templateSchedule schedule.TemplateScheduleOptions) bool {
+	if ws.Deleted {
+		return false
+	}
+	if templateSchedule.UserAutostartEnabled && ws.AutostartSchedule.Valid && ws.AutostartSchedule.String != "" {
+		return true
+	}
+	// Don't check the template schedule to see whether it allows autostop, this
+	// is done during the build when determining the deadline.
+	if priorHistory.Transition == database.WorkspaceTransitionStart && !priorHistory.Deadline.IsZero() {
+		return true
+	}
+
+	return false
 }
 
 func getNextTransition(
@@ -296,7 +308,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 			CreatedAt:         now,
 			UpdatedAt:         now,
 			WorkspaceID:       workspace.ID,
-			TemplateVersionID: template.ActiveVersionID,
+			TemplateVersionID: priorHistory.TemplateVersionID,
 			BuildNumber:       priorBuildNumber + 1,
 			ProvisionerState:  priorHistory.ProvisionerState,
 			InitiatorID:       workspace.OwnerID,

@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -40,9 +41,11 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/tailnet/tailnettest"
@@ -61,7 +64,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 	defer cancel()
 
 	//nolint:dogsled
-	conn, _, stats, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
@@ -94,7 +97,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	defer cancel()
 
 	//nolint:dogsled
-	conn, _, stats, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
 	ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "/bin/bash")
 	require.NoError(t, err)
@@ -124,19 +127,19 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		//nolint:dogsled
-		conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agent.MagicSSHSessionTypeEnvironmentVariable, agent.MagicSSHSessionTypeVSCode)
+		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, agentssh.MagicSessionTypeVSCode)
 		defer session.Close()
 
-		command := "sh -c 'echo $" + agent.MagicSSHSessionTypeEnvironmentVariable + "'"
+		command := "sh -c 'echo $" + agentssh.MagicSessionTypeEnvironmentVariable + "'"
 		expected := ""
 		if runtime.GOOS == "windows" {
-			expected = "%" + agent.MagicSSHSessionTypeEnvironmentVariable + "%"
+			expected = "%" + agentssh.MagicSessionTypeEnvironmentVariable + "%"
 			command = "cmd.exe /c echo " + expected
 		}
 		output, err := session.Output(command)
@@ -151,13 +154,13 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		//nolint:dogsled
-		conn, _, stats, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
-		session.Setenv(agent.MagicSSHSessionTypeEnvironmentVariable, agent.MagicSSHSessionTypeVSCode)
+		session.Setenv(agentssh.MagicSessionTypeEnvironmentVariable, agentssh.MagicSessionTypeVSCode)
 		defer session.Close()
 		stdin, err := session.StdinPipe()
 		require.NoError(t, err)
@@ -186,7 +189,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 func TestAgent_SessionExec(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Metadata{})
+	session := setupSSHSession(t, agentsdk.Manifest{})
 
 	command := "echo test"
 	if runtime.GOOS == "windows" {
@@ -199,7 +202,7 @@ func TestAgent_SessionExec(t *testing.T) {
 
 func TestAgent_GitSSH(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Metadata{})
+	session := setupSSHSession(t, agentsdk.Manifest{})
 	command := "sh -c 'echo $GIT_SSH_COMMAND'"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe /c echo %GIT_SSH_COMMAND%"
@@ -219,7 +222,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	session := setupSSHSession(t, agentsdk.Metadata{})
+	session := setupSSHSession(t, agentsdk.Manifest{})
 	command := "sh"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe"
@@ -242,7 +245,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 
 func TestAgent_SessionTTYExitCode(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Metadata{})
+	session := setupSSHSession(t, agentsdk.Manifest{})
 	command := "areallynotrealcommand"
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
@@ -281,7 +284,7 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 	// Set HOME so we can ensure no ~/.hushlogin is present.
 	t.Setenv("HOME", tmpdir)
 
-	session := setupSSHSession(t, agentsdk.Metadata{
+	session := setupSSHSession(t, agentsdk.Manifest{
 		MOTDFile: name,
 	})
 	err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
@@ -327,7 +330,7 @@ func TestAgent_Session_TTY_Hushlogin(t *testing.T) {
 	// Set HOME so we can ensure ~/.hushlogin is present.
 	t.Setenv("HOME", tmpdir)
 
-	session := setupSSHSession(t, agentsdk.Metadata{
+	session := setupSSHSession(t, agentsdk.Manifest{
 		MOTDFile: name,
 	})
 	err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
@@ -357,7 +360,7 @@ func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -407,7 +410,7 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -479,9 +482,16 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "5"})
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "5"})
+
+	go func() {
+		err := proc.Wait()
+		select {
+		case <-done:
+		default:
+			assert.NoError(t, err)
+		}
+	}()
 
 	require.Eventually(t, func() bool {
 		conn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(randomPort))
@@ -507,7 +517,7 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 //nolint:paralleltest // This test reserves a port.
@@ -546,9 +556,16 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "5"})
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "5"})
+
+	go func() {
+		err := proc.Wait()
+		select {
+		case <-done:
+		default:
+			assert.NoError(t, err)
+		}
+	}()
 
 	require.Eventually(t, func() bool {
 		conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", randomPort))
@@ -574,7 +591,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 func TestAgent_UnixLocalForwarding(t *testing.T) {
@@ -611,9 +628,16 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "5"})
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "5"})
+
+	go func() {
+		err := proc.Wait()
+		select {
+		case <-done:
+		default:
+			assert.NoError(t, err)
+		}
+	}()
 
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(localSocketPath)
@@ -632,7 +656,7 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 	_ = conn.Close()
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 func TestAgent_UnixRemoteForwarding(t *testing.T) {
@@ -669,18 +693,28 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "5"})
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "5"})
+
+	go func() {
+		err := proc.Wait()
+		select {
+		case <-done:
+		default:
+			assert.NoError(t, err)
+		}
+	}()
 
 	// It's possible that the socket is created but the server is not ready to
 	// accept connections yet. We need to retry until we can connect.
+	//
+	// Note that we wait long here because if the tailnet connection has trouble
+	// connecting, it could take 5 seconds or more to reconnect.
 	var conn net.Conn
 	require.Eventually(t, func() bool {
 		var err error
 		conn, err = net.Dial("unix", remoteSocketPath)
 		return err == nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalFast)
 	defer conn.Close()
 	_, err = conn.Write([]byte("test"))
 	require.NoError(t, err)
@@ -692,7 +726,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 func TestAgent_SFTP(t *testing.T) {
@@ -706,7 +740,7 @@ func TestAgent_SFTP(t *testing.T) {
 		home = "/" + strings.ReplaceAll(home, "\\", "/")
 	}
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -738,7 +772,7 @@ func TestAgent_SCP(t *testing.T) {
 	defer cancel()
 
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -757,7 +791,7 @@ func TestAgent_EnvironmentVariables(t *testing.T) {
 	t.Parallel()
 	key := "EXAMPLE"
 	value := "value"
-	session := setupSSHSession(t, agentsdk.Metadata{
+	session := setupSSHSession(t, agentsdk.Manifest{
 		EnvironmentVariables: map[string]string{
 			key: value,
 		},
@@ -774,7 +808,7 @@ func TestAgent_EnvironmentVariables(t *testing.T) {
 func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 	t.Parallel()
 	key := "EXAMPLE"
-	session := setupSSHSession(t, agentsdk.Metadata{
+	session := setupSSHSession(t, agentsdk.Manifest{
 		EnvironmentVariables: map[string]string{
 			key: "$SOMETHINGNOTSET",
 		},
@@ -801,7 +835,7 @@ func TestAgent_CoderEnvVars(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			session := setupSSHSession(t, agentsdk.Metadata{})
+			session := setupSSHSession(t, agentsdk.Manifest{})
 			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
 				command = "cmd.exe /c echo %" + key + "%"
@@ -824,7 +858,7 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			session := setupSSHSession(t, agentsdk.Metadata{})
+			session := setupSSHSession(t, agentsdk.Manifest{})
 			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
 				command = "cmd.exe /c echo %" + key + "%"
@@ -845,20 +879,21 @@ func TestAgent_StartupScript(t *testing.T) {
 	}
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		client := &client{
 			t:       t,
 			agentID: uuid.New(),
-			metadata: agentsdk.Metadata{
+			manifest: agentsdk.Manifest{
 				StartupScript: command,
 				DERPMap:       &tailcfg.DERPMap{},
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: tailnet.NewCoordinator(logger),
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
 			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			Logger:                 logger.Named("agent"),
 			ReconnectingPTYTimeout: 0,
 		})
 		t.Cleanup(func() {
@@ -876,10 +911,11 @@ func TestAgent_StartupScript(t *testing.T) {
 	// script has written too many lines it will still succeed!
 	t.Run("OverflowsAndSkips", func(t *testing.T) {
 		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		client := &client{
 			t:       t,
 			agentID: uuid.New(),
-			metadata: agentsdk.Metadata{
+			manifest: agentsdk.Manifest{
 				StartupScript: command,
 				DERPMap:       &tailcfg.DERPMap{},
 			},
@@ -893,12 +929,12 @@ func TestAgent_StartupScript(t *testing.T) {
 				return codersdk.ReadBodyAsError(res)
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: tailnet.NewCoordinator(logger),
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
 			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			Logger:                 logger.Named("agent"),
 			ReconnectingPTYTimeout: 0,
 		})
 		t.Cleanup(func() {
@@ -912,13 +948,125 @@ func TestAgent_StartupScript(t *testing.T) {
 	})
 }
 
+func TestAgent_Metadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Once", func(t *testing.T) {
+		t.Parallel()
+		script := "echo -n hello"
+		if runtime.GOOS == "windows" {
+			script = "powershell " + script
+		}
+		//nolint:dogsled
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
+				{
+					Key:      "greeting",
+					Interval: 0,
+					Script:   script,
+				},
+			},
+		}, 0)
+
+		var gotMd map[string]agentsdk.PostMetadataRequest
+		require.Eventually(t, func() bool {
+			gotMd = client.getMetadata()
+			return len(gotMd) == 1
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		collectedAt := gotMd["greeting"].CollectedAt
+
+		require.Never(t, func() bool {
+			gotMd = client.getMetadata()
+			if len(gotMd) != 1 {
+				panic("unexpected number of metadata")
+			}
+			return !gotMd["greeting"].CollectedAt.Equal(collectedAt)
+		}, testutil.WaitShort, testutil.IntervalMedium)
+	})
+
+	t.Run("Many", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// Shell scripting in Windows is a pain, and we have already tested
+			// that the OS logic works in the simpler "Once" test above.
+			t.Skip()
+		}
+		t.Parallel()
+
+		dir := t.TempDir()
+
+		const reportInterval = 2
+		const intervalUnit = 100 * time.Millisecond
+		var (
+			greetingPath = filepath.Join(dir, "greeting")
+			script       = "echo hello | tee -a " + greetingPath
+		)
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
+				{
+					Key:      "greeting",
+					Interval: reportInterval,
+					Script:   script,
+				},
+				{
+					Key:      "bad",
+					Interval: reportInterval,
+					Script:   "exit 1",
+				},
+			},
+		}, 0)
+
+		require.Eventually(t, func() bool {
+			return len(client.getMetadata()) == 2
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		for start := time.Now(); time.Since(start) < testutil.WaitMedium; time.Sleep(testutil.IntervalMedium) {
+			md := client.getMetadata()
+			if len(md) != 2 {
+				panic("unexpected number of metadata entries")
+			}
+
+			require.Equal(t, "hello\n", md["greeting"].Value)
+			require.Equal(t, "exit status 1", md["bad"].Error)
+
+			greetingByt, err := os.ReadFile(greetingPath)
+			require.NoError(t, err)
+
+			var (
+				numGreetings      = bytes.Count(greetingByt, []byte("hello"))
+				idealNumGreetings = time.Since(start) / (reportInterval * intervalUnit)
+				// We allow a 50% error margin because the report loop may backlog
+				// in CI and other toasters. In production, there is no hard
+				// guarantee on timing either, and the frontend gives similar
+				// wiggle room to the staleness of the value.
+				upperBound = int(idealNumGreetings) + 1
+				lowerBound = (int(idealNumGreetings) / 2)
+			)
+
+			if idealNumGreetings < 50 {
+				// There is an insufficient sample size.
+				continue
+			}
+
+			t.Logf("numGreetings: %d, idealNumGreetings: %d", numGreetings, idealNumGreetings)
+			// The report loop may slow down on load, but it should never, ever
+			// speed up.
+			if numGreetings > upperBound {
+				t.Fatalf("too many greetings: %d > %d in %v", numGreetings, upperBound, time.Since(start))
+			} else if numGreetings < lowerBound {
+				t.Fatalf("too few greetings: %d < %d", numGreetings, lowerBound)
+			}
+		}
+	})
+}
+
 func TestAgent_Lifecycle(t *testing.T) {
 	t.Parallel()
 
 	t.Run("StartTimeout", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			StartupScript:        "sleep 5",
 			StartupScriptTimeout: time.Nanosecond,
 		}, 0)
@@ -947,7 +1095,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 	t.Run("StartError", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			StartupScript:        "false",
 			StartupScriptTimeout: 30 * time.Second,
 		}, 0)
@@ -976,7 +1124,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 	t.Run("Ready", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			StartupScript:        "true",
 			StartupScriptTimeout: 30 * time.Second,
 		}, 0)
@@ -1005,7 +1153,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 	t.Run("ShuttingDown", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _, closer := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			ShutdownScript:       "sleep 5",
 			StartupScriptTimeout: 30 * time.Second,
 		}, 0)
@@ -1043,7 +1191,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 	t.Run("ShutdownTimeout", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _, closer := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			ShutdownScript:        "sleep 5",
 			ShutdownScriptTimeout: time.Nanosecond,
 		}, 0)
@@ -1090,7 +1238,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 	t.Run("ShutdownError", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _, closer := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			ShutdownScript:        "false",
 			ShutdownScriptTimeout: 30 * time.Second,
 		}, 0)
@@ -1136,24 +1284,24 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 	t.Run("ShutdownScriptOnce", func(t *testing.T) {
 		t.Parallel()
-
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		expected := "this-is-shutdown"
 		client := &client{
 			t:       t,
 			agentID: uuid.New(),
-			metadata: agentsdk.Metadata{
+			manifest: agentsdk.Manifest{
 				DERPMap:        tailnettest.RunDERPAndSTUN(t),
 				StartupScript:  "echo 1",
 				ShutdownScript: "echo " + expected,
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: tailnet.NewCoordinator(logger),
 		}
 
 		fs := afero.NewMemMapFs()
 		agent := agent.New(agent.Options{
 			Client:     client,
-			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+			Logger:     logger.Named("agent"),
 			Filesystem: fs,
 		})
 
@@ -1194,7 +1342,7 @@ func TestAgent_Startup(t *testing.T) {
 	t.Run("EmptyDirectory", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			StartupScript:        "true",
 			StartupScriptTimeout: 30 * time.Second,
 			Directory:            "",
@@ -1208,7 +1356,7 @@ func TestAgent_Startup(t *testing.T) {
 	t.Run("HomeDirectory", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			StartupScript:        "true",
 			StartupScriptTimeout: 30 * time.Second,
 			Directory:            "~",
@@ -1221,10 +1369,26 @@ func TestAgent_Startup(t *testing.T) {
 		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
 	})
 
+	t.Run("NotAbsoluteDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "coder/coder",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.Equal(t, filepath.Join(homeDir, "coder/coder"), client.getStartup().ExpandedDirectory)
+	})
+
 	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			StartupScript:        "true",
 			StartupScriptTimeout: 30 * time.Second,
 			Directory:            "$HOME",
@@ -1251,7 +1415,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	defer cancel()
 
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	id := uuid.New()
 	netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
 	require.NoError(t, err)
@@ -1353,7 +1517,7 @@ func TestAgent_Dial(t *testing.T) {
 			}()
 
 			//nolint:dogsled
-			conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 			require.True(t, conn.AwaitReachable(context.Background()))
 			conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
 			require.NoError(t, err)
@@ -1375,7 +1539,7 @@ func TestAgent_Speedtest(t *testing.T) {
 	defer cancel()
 	derpMap := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
 		DERPMap: derpMap,
 	}, 0)
 	defer conn.Close()
@@ -1386,9 +1550,10 @@ func TestAgent_Speedtest(t *testing.T) {
 
 func TestAgent_Reconnect(t *testing.T) {
 	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
-	coordinator := tailnet.NewCoordinator()
+	coordinator := tailnet.NewCoordinator(logger)
 	defer coordinator.Close()
 
 	agentID := uuid.New()
@@ -1397,7 +1562,7 @@ func TestAgent_Reconnect(t *testing.T) {
 	client := &client{
 		t:       t,
 		agentID: agentID,
-		metadata: agentsdk.Metadata{
+		manifest: agentsdk.Manifest{
 			DERPMap: derpMap,
 		},
 		statsChan:   statsCh,
@@ -1410,7 +1575,7 @@ func TestAgent_Reconnect(t *testing.T) {
 			return "", nil
 		},
 		Client: client,
-		Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+		Logger: logger.Named("agent"),
 	})
 	defer closer.Close()
 
@@ -1425,14 +1590,14 @@ func TestAgent_Reconnect(t *testing.T) {
 
 func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	t.Parallel()
-
-	coordinator := tailnet.NewCoordinator()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator := tailnet.NewCoordinator(logger)
 	defer coordinator.Close()
 
 	client := &client{
 		t:       t,
 		agentID: uuid.New(),
-		metadata: agentsdk.Metadata{
+		manifest: agentsdk.Manifest{
 			GitAuthConfigs: 1,
 			DERPMap:        &tailcfg.DERPMap{},
 		},
@@ -1445,7 +1610,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 			return "", nil
 		},
 		Client:     client,
-		Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+		Logger:     logger.Named("agent"),
 		Filesystem: filesystem,
 	})
 	defer closer.Close()
@@ -1459,9 +1624,9 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
+func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) (*ptytest.PTYCmd, pty.Process) {
 	//nolint:dogsled
-	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	waitGroup := sync.WaitGroup{}
@@ -1482,7 +1647,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 			}
 			waitGroup.Add(1)
 			go func() {
-				agent.Bicopy(context.Background(), conn, ssh)
+				agentssh.Bicopy(context.Background(), conn, ssh)
 				waitGroup.Done()
 			}()
 		}
@@ -1501,10 +1666,11 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 		"host",
 	)
 	args = append(args, afterArgs...)
-	return exec.Command("ssh", args...)
+	cmd := exec.Command("ssh", args...)
+	return ptytest.Start(t, cmd)
 }
 
-func setupSSHSession(t *testing.T, options agentsdk.Metadata) *ssh.Session {
+func setupSSHSession(t *testing.T, options agentsdk.Manifest) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled
@@ -1528,17 +1694,18 @@ func (c closeFunc) Close() error {
 	return c()
 }
 
-func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Duration) (
+func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration) (
 	*codersdk.WorkspaceAgentConn,
 	*client,
 	<-chan *agentsdk.Stats,
 	afero.Fs,
 	io.Closer,
 ) {
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {
 		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 	}
-	coordinator := tailnet.NewCoordinator()
+	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
 		_ = coordinator.Close()
 	})
@@ -1548,14 +1715,14 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	c := &client{
 		t:           t,
 		agentID:     agentID,
-		metadata:    metadata,
+		manifest:    metadata,
 		statsChan:   statsCh,
 		coordinator: coordinator,
 	}
 	closer := agent.New(agent.Options{
 		Client:                 c,
 		Filesystem:             fs,
-		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
 	t.Cleanup(func() {
@@ -1564,7 +1731,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   metadata.DERPMap,
-		Logger:    slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		Logger:    logger.Named("client"),
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()
@@ -1589,7 +1756,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	t.Cleanup(func() {
 		_ = agentConn.Close()
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	// Ideally we wouldn't wait too long here, but sometimes the the
+	// networking needs more time to resolve itself.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	if !agentConn.AwaitReachable(ctx) {
 		t.Fatal("agent not reachable")
@@ -1631,7 +1800,8 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 type client struct {
 	t                  *testing.T
 	agentID            uuid.UUID
-	metadata           agentsdk.Metadata
+	manifest           agentsdk.Manifest
+	metadata           map[string]agentsdk.PostMetadataRequest
 	statsChan          chan *agentsdk.Stats
 	coordinator        tailnet.Coordinator
 	lastWorkspaceAgent func()
@@ -1643,8 +1813,8 @@ type client struct {
 	logs            []agentsdk.StartupLog
 }
 
-func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
-	return c.metadata, nil
+func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
+	return c.manifest, nil
 }
 
 func (c *client) Listen(_ context.Context) (net.Conn, error) {
@@ -1716,6 +1886,22 @@ func (c *client) getStartup() agentsdk.PostStartupRequest {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.startup
+}
+
+func (c *client) getMetadata() map[string]agentsdk.PostMetadataRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return maps.Clone(c.metadata)
+}
+
+func (c *client) PostMetadata(_ context.Context, key string, req agentsdk.PostMetadataRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.metadata == nil {
+		c.metadata = make(map[string]agentsdk.PostMetadataRequest)
+	}
+	c.metadata[key] = req
+	return nil
 }
 
 func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequest) error {

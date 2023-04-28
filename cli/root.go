@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"golang.org/x/exp/slices"
@@ -82,7 +83,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.templates(),
 		r.users(),
 		r.tokens(),
-		r.version(),
+		r.version(defaultVersionInfo),
 
 		// Workspace Commands
 		r.configSSH(),
@@ -250,6 +251,26 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 		return nil, merr
 	}
 
+	var debugOptions bool
+
+	// Add a wrapper to every command to enable debugging options.
+	cmd.Walk(func(cmd *clibase.Cmd) {
+		h := cmd.Handler
+		cmd.Handler = func(i *clibase.Invocation) error {
+			if !debugOptions {
+				return h(i)
+			}
+
+			tw := tabwriter.NewWriter(i.Stdout, 0, 0, 4, ' ', 0)
+			_, _ = fmt.Fprintf(tw, "Option\tValue Source\n")
+			for _, opt := range cmd.Options {
+				_, _ = fmt.Fprintf(tw, "%q\t%v\n", opt.Name, opt.ValueSource)
+			}
+			tw.Flush()
+			return nil
+		}
+	})
+
 	if r.agentURL == nil {
 		r.agentURL = new(url.URL)
 	}
@@ -267,6 +288,12 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Env:         envURL,
 			Description: "URL to a deployment.",
 			Value:       clibase.URLOf(r.clientURL),
+			Group:       globalGroup,
+		},
+		{
+			Flag:        "debug-options",
+			Description: "Print all options, how they're set, then exit.",
+			Value:       clibase.BoolOf(&debugOptions),
 			Group:       globalGroup,
 		},
 		{
@@ -338,6 +365,13 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:         globalGroup,
 		},
 		{
+			Flag:        "debug-http",
+			Description: "Debug codersdk HTTP requests.",
+			Value:       clibase.BoolOf(&r.debugHTTP),
+			Group:       globalGroup,
+			Hidden:      true,
+		},
+		{
 			Flag:        config.FlagName,
 			Env:         "CODER_CONFIG_DIR",
 			Description: "Path to the global `coder` config directory.",
@@ -370,36 +404,6 @@ func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 	return l, ok
 }
 
-// version prints the coder version
-func (*RootCmd) version() *clibase.Cmd {
-	return &clibase.Cmd{
-		Use:   "version",
-		Short: "Show coder version",
-		Handler: func(inv *clibase.Invocation) error {
-			var str strings.Builder
-			_, _ = str.WriteString("Coder ")
-			if buildinfo.IsAGPL() {
-				_, _ = str.WriteString("(AGPL) ")
-			}
-			_, _ = str.WriteString(buildinfo.Version())
-			buildTime, valid := buildinfo.Time()
-			if valid {
-				_, _ = str.WriteString(" " + buildTime.Format(time.UnixDate))
-			}
-			_, _ = str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n\r\n")
-
-			if buildinfo.IsSlim() {
-				_, _ = str.WriteString(fmt.Sprintf("Slim build of Coder, does not support the %s subcommand.\n", cliui.Styles.Code.Render("server")))
-			} else {
-				_, _ = str.WriteString(fmt.Sprintf("Full build of Coder, supports the %s subcommand.\n", cliui.Styles.Code.Render("server")))
-			}
-
-			_, _ = fmt.Fprint(inv.Stdout, str.String())
-			return nil
-		},
-	}
-}
-
 func isTest() bool {
 	return flag.Lookup("test.v") != nil
 }
@@ -415,6 +419,7 @@ type RootCmd struct {
 	forceTTY     bool
 	noOpen       bool
 	verbose      bool
+	debugHTTP    bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
@@ -466,6 +471,11 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 			}
 
 			client.SetSessionToken(r.token)
+
+			if r.debugHTTP {
+				client.PlainLogger = os.Stderr
+				client.LogBodies = true
+			}
 
 			// We send these requests in parallel to minimize latency.
 			var (
@@ -714,7 +724,7 @@ func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return h.transport.RoundTrip(req)
 }
 
-// dumpHandler provides a custom SIGQUIT and SIGTRAP handler that dumps the
+// DumpHandler provides a custom SIGQUIT and SIGTRAP handler that dumps the
 // stacktrace of all goroutines to stderr and a well-known file in the home
 // directory. This is useful for debugging deadlock issues that may occur in
 // production in workspaces, since the default Go runtime will only dump to
@@ -726,7 +736,7 @@ func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // A SIGQUIT handler will not be registered if GOTRACEBACK=crash.
 //
 // On Windows this immediately returns.
-func dumpHandler(ctx context.Context) {
+func DumpHandler(ctx context.Context) {
 	if runtime.GOOS == "windows" {
 		// free up the goroutine since it'll be permanently blocked anyways
 		return

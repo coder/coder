@@ -41,6 +41,7 @@ const (
 // TemplateVersionParameter represents a parameter for a template version.
 type TemplateVersionParameter struct {
 	Name                 string                           `json:"name"`
+	DisplayName          string                           `json:"display_name,omitempty"`
 	Description          string                           `json:"description"`
 	DescriptionPlaintext string                           `json:"description_plaintext"`
 	Type                 string                           `json:"type" enums:"string,number,bool,list(string)"`

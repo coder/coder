@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
 )
@@ -149,6 +150,19 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if !httpapi.Read(ctx, rw, r, &createTemplate) {
 		return
 	}
+
+	// Make a temporary struct to represent the template. This is used for
+	// auditing if any of the following checks fail. It will be overwritten when
+	// the template is inserted into the db.
+	templateAudit.New = database.Template{
+		OrganizationID: organization.ID,
+		Name:           createTemplate.Name,
+		Description:    createTemplate.Description,
+		CreatedBy:      apiKey.UserID,
+		Icon:           createTemplate.Icon,
+		DisplayName:    createTemplate.DisplayName,
+	}
+
 	_, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           createTemplate.Name,
@@ -170,6 +184,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+
 	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, createTemplate.VersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -227,13 +242,15 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var allowUserCancelWorkspaceJobs bool
-	if createTemplate.AllowUserCancelWorkspaceJobs != nil {
-		allowUserCancelWorkspaceJobs = *createTemplate.AllowUserCancelWorkspaceJobs
-	}
+	var (
+		dbTemplate database.Template
+		template   codersdk.Template
 
-	var dbTemplate database.Template
-	var template codersdk.Template
+		allowUserCancelWorkspaceJobs = ptr.NilToDefault(createTemplate.AllowUserCancelWorkspaceJobs, false)
+		allowUserAutostart           = ptr.NilToDefault(createTemplate.AllowUserAutostart, true)
+		allowUserAutostop            = ptr.NilToDefault(createTemplate.AllowUserAutostop, true)
+	)
+
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := database.Now()
 		dbTemplate, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
@@ -259,9 +276,10 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
-			UserSchedulingEnabled: true,
-			DefaultTTL:            defaultTTL,
-			MaxTTL:                maxTTL,
+			UserAutostartEnabled: allowUserAutostart,
+			UserAutostopEnabled:  allowUserAutostop,
+			DefaultTTL:           defaultTTL,
+			MaxTTL:               maxTTL,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)
@@ -396,7 +414,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		Name:           templateName,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -405,11 +423,6 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 			Message: "Internal error fetching template.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -478,6 +491,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Description == template.Description &&
 			req.DisplayName == template.DisplayName &&
 			req.Icon == template.Icon &&
+			req.AllowUserAutostart == template.AllowUserAutostart &&
+			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() {
@@ -485,19 +500,15 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Update template metadata -- empty fields are not overwritten,
-		// except for display_name, icon, and default_ttl.
-		// The exception is required to clear content of these fields with UI.
+		// except for display_name, description, icon, and default_ttl.
+		// These exceptions are required to clear content of these fields with UI.
 		name := req.Name
 		displayName := req.DisplayName
 		desc := req.Description
 		icon := req.Icon
-		allowUserCancelWorkspaceJobs := req.AllowUserCancelWorkspaceJobs
 
 		if name == "" {
 			name = template.Name
-		}
-		if desc == "" {
-			desc = template.Description
 		}
 
 		var err error
@@ -508,7 +519,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisplayName:                  displayName,
 			Description:                  desc,
 			Icon:                         icon,
-			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
+			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -516,11 +527,18 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
-		if defaultTTL != time.Duration(template.DefaultTTL) || maxTTL != time.Duration(template.MaxTTL) {
+		if defaultTTL != time.Duration(template.DefaultTTL) ||
+			maxTTL != time.Duration(template.MaxTTL) ||
+			req.AllowUserAutostart != template.AllowUserAutostart ||
+			req.AllowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, updated, schedule.TemplateScheduleOptions{
-				UserSchedulingEnabled: true,
-				DefaultTTL:            defaultTTL,
-				MaxTTL:                maxTTL,
+				// Some of these values are enterprise-only, but the
+				// TemplateScheduleStore will handle avoiding setting them if
+				// unlicensed.
+				UserAutostartEnabled: req.AllowUserAutostart,
+				UserAutostopEnabled:  req.AllowUserAutostop,
+				DefaultTTL:           defaultTTL,
+				MaxTTL:               maxTTL,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)
@@ -564,10 +582,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	resp, _ := api.metricsCache.TemplateDAUs(template.ID)
 	if resp == nil || resp.Entries == nil {
@@ -661,6 +675,8 @@ func (api *API) convertTemplate(
 		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                  template.CreatedBy,
 		CreatedByName:                createdByName,
+		AllowUserAutostart:           template.AllowUserAutostart,
+		AllowUserAutostop:            template.AllowUserAutostop,
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 	}
 }

@@ -2,9 +2,11 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -13,6 +15,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 var provisionCompleteWithAgent = []*proto.Provision_Response{
@@ -290,11 +293,23 @@ func TestTemplateCreate(t *testing.T) {
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
 		_, _ = variablesFile.WriteString(`second_variable: foobar`)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
 		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
 		clitest.SetupConfig(t, client, root)
+		inv = inv.WithContext(ctx)
 		pty := ptytest.New(t).Attach(inv)
 
-		clitest.Start(t, inv)
+		// We expect the cli to return an error, so we have to handle it
+		// ourselves.
+		go func() {
+			cancel()
+			err := inv.Run()
+			assert.Error(t, err)
+		}()
+
 		matches := []struct {
 			match string
 			write string
@@ -307,6 +322,8 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
+
+		<-ctx.Done()
 	})
 
 	t.Run("WithVariablesFileWithTheRequiredValue", func(t *testing.T) {
@@ -390,7 +407,9 @@ func TestTemplateCreate(t *testing.T) {
 		}
 		for _, m := range matches {
 			pty.ExpectMatch(m.match)
-			pty.WriteLine(m.write)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
 		}
 	})
 }

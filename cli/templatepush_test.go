@@ -156,9 +156,9 @@ func TestTemplatePush(t *testing.T) {
 		require.Equal(t, "example", templateVersions[1].Name)
 	})
 
-	// This test modifies the working directory.
-	//nolint:paralleltest
 	t.Run("UseWorkingDir", func(t *testing.T) {
+		t.Parallel()
+
 		if runtime.GOOS == "windows" {
 			t.Skip(`On Windows this test flakes with: "The process cannot access the file because it is being used by another process"`)
 		}
@@ -179,15 +179,9 @@ func TestTemplatePush(t *testing.T) {
 				r.Name = filepath.Base(source)
 			})
 
-		oldDir, err := os.Getwd()
-		require.NoError(t, err)
-
-		os.Chdir(source)
-		defer os.Chdir(oldDir)
-
 		// Don't pass the name of the template, it should use the
 		// directory of the source.
-		inv, root := clitest.New(t, "templates", "push", "--test.provisioner", string(database.ProvisionerTypeEcho))
+		inv, root := clitest.New(t, "templates", "push", "--test.provisioner", string(database.ProvisionerTypeEcho), "--test.workdir", source)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,50 @@ const (
 	AccessMethodTerminal AccessMethod = "terminal"
 )
 
+type IssueTokenRequest struct {
+	AppRequest Request `json:"app_request"`
+	// PathAppBaseURL is required.
+	PathAppBaseURL string `json:"path_app_base_url"`
+	// AppHostname is the optional hostname for subdomain apps on the external
+	// proxy. It must start with an asterisk.
+	AppHostname string `json:"app_hostname"`
+	// AppPath is the path of the user underneath the app base path.
+	AppPath string `json:"app_path"`
+	// AppQuery is the query parameters the user provided in the app request.
+	AppQuery string `json:"app_query"`
+	// SessionToken is the session token provided by the user.
+	SessionToken string `json:"session_token"`
+}
+
+// AppBaseURL returns the base URL of this specific app request. An error is
+// returned if a subdomain app hostname is not provided but the app is a
+// subdomain app.
+func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
+	u, err := url.Parse(r.PathAppBaseURL)
+	if err != nil {
+		return nil, xerrors.Errorf("parse path app base URL: %w", err)
+	}
+
+	switch r.AppRequest.AccessMethod {
+	case AccessMethodPath, AccessMethodTerminal:
+		u.Path = r.AppRequest.BasePath
+		if !strings.HasSuffix(u.Path, "/") {
+			u.Path += "/"
+		}
+		return u, nil
+	case AccessMethodSubdomain:
+		if r.AppHostname == "" {
+			return nil, xerrors.New("subdomain app hostname is required to generate subdomain app URL")
+		}
+		appHost := fmt.Sprintf("%s--%s--%s--%s", r.AppRequest.AppSlugOrPort, r.AppRequest.AgentNameOrID, r.AppRequest.WorkspaceNameOrID, r.AppRequest.UsernameOrID)
+		u.Host = strings.Replace(r.AppHostname, "*", appHost, 1)
+		u.Path = r.AppRequest.BasePath
+		return u, nil
+	default:
+		return nil, xerrors.Errorf("invalid access method: %q", r.AppRequest.AccessMethod)
+	}
+}
+
 type Request struct {
 	AccessMethod AccessMethod `json:"access_method"`
 	// BasePath of the app. For path apps, this is the path prefix in the router
@@ -44,6 +89,25 @@ type Request struct {
 	AppSlugOrPort string `json:"app_slug_or_port"`
 }
 
+// Normalize replaces WorkspaceAndAgent with WorkspaceNameOrID and
+// AgentNameOrID. This must be called before Validate.
+func (r Request) Normalize() Request {
+	req := r
+	if req.WorkspaceAndAgent != "" {
+		// workspace.agent
+		workspaceAndAgent := strings.SplitN(req.WorkspaceAndAgent, ".", 2)
+		req.WorkspaceAndAgent = ""
+		req.WorkspaceNameOrID = workspaceAndAgent[0]
+		if len(workspaceAndAgent) > 1 {
+			req.AgentNameOrID = workspaceAndAgent[1]
+		}
+	}
+
+	return req
+}
+
+// Validate ensures the request is correct and contains the necessary
+// parameters.
 func (r Request) Validate() error {
 	switch r.AccessMethod {
 	case AccessMethodPath, AccessMethodSubdomain, AccessMethodTerminal:
@@ -54,8 +118,12 @@ func (r Request) Validate() error {
 		return xerrors.New("base path is required")
 	}
 
+	if r.WorkspaceAndAgent != "" {
+		return xerrors.New("dev error: appReq.Validate() called before appReq.Normalize()")
+	}
+
 	if r.AccessMethod == AccessMethodTerminal {
-		if r.UsernameOrID != "" || r.WorkspaceAndAgent != "" || r.WorkspaceNameOrID != "" || r.AppSlugOrPort != "" {
+		if r.UsernameOrID != "" || r.WorkspaceNameOrID != "" || r.AppSlugOrPort != "" {
 			return xerrors.New("dev error: cannot specify any fields other than r.AccessMethod, r.BasePath and r.AgentNameOrID for terminal access method")
 		}
 
@@ -75,25 +143,16 @@ func (r Request) Validate() error {
 	if r.UsernameOrID == codersdk.Me {
 		// We block "me" for workspace app auth to avoid any security issues
 		// caused by having an identical workspace name on yourself and a
-		// different user and potentially reusing a ticket.
+		// different user and potentially reusing a token.
 		//
 		// This is also mitigated by storing the workspace/agent ID in the
-		// ticket, but we block it here to be double safe.
+		// token, but we block it here to be double safe.
 		//
 		// Subdomain apps have never been used with "me" from our code, and path
 		// apps now have a redirect to remove the "me" from the URL.
 		return xerrors.New(`username cannot be "me" in app requests`)
 	}
-	if r.WorkspaceAndAgent != "" {
-		split := strings.Split(r.WorkspaceAndAgent, ".")
-		if split[0] == "" || (len(split) == 2 && split[1] == "") || len(split) > 2 {
-			return xerrors.Errorf("invalid workspace and agent: %q", r.WorkspaceAndAgent)
-		}
-		if r.WorkspaceNameOrID != "" || r.AgentNameOrID != "" {
-			return xerrors.New("dev error: cannot specify both WorkspaceAndAgent and (WorkspaceNameOrID and AgentNameOrID)")
-		}
-	}
-	if r.WorkspaceAndAgent == "" && r.WorkspaceNameOrID == "" {
+	if r.WorkspaceNameOrID == "" {
 		return xerrors.New("workspace name or ID is required")
 	}
 	if r.AppSlugOrPort == "" {
@@ -114,7 +173,7 @@ type databaseRequest struct {
 
 	// AppURL is the resolved URL to the workspace app. This is only set for non
 	// terminal requests.
-	AppURL string
+	AppURL *url.URL
 	// AppHealth is the health of the app. For terminal requests, this is always
 	// database.WorkspaceAppHealthHealthy.
 	AppHealth database.WorkspaceAppHealth
@@ -276,12 +335,17 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		}
 	}
 
+	appURLParsed, err := url.Parse(appURL)
+	if err != nil {
+		return nil, xerrors.Errorf("parse app URL %q: %w", appURL, err)
+	}
+
 	return &databaseRequest{
 		Request:         r,
 		User:            user,
 		Workspace:       workspace,
 		Agent:           agent,
-		AppURL:          appURL,
+		AppURL:          appURLParsed,
 		AppHealth:       appHealth,
 		AppSharingLevel: appSharingLevel,
 	}, nil
@@ -334,7 +398,7 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 		User:            user,
 		Workspace:       workspace,
 		Agent:           agent,
-		AppURL:          "",
+		AppURL:          nil,
 		AppHealth:       database.WorkspaceAppHealthHealthy,
 		AppSharingLevel: database.AppSharingLevelOwner,
 	}, nil

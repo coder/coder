@@ -47,6 +47,9 @@ Aliases:
 {{- with $opt.Env }}
 | Environment | {{ (print "$" .) | wrapCode }} |
 {{- end }}
+{{- with $opt.YAMLPath }}
+| YAML | {{ . | wrapCode }} |
+{{- end }}
 {{- with $opt.Default }}
 | Default | {{- . | wrapCode }} |
 {{ "" }}

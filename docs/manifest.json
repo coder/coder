@@ -74,41 +74,58 @@
       ]
     },
     {
-      "title": "Quickstart",
-      "description": "Create your first template and workspace",
-      "path": "./quickstart.md",
+      "title": "Platforms",
+      "description": "Platform-specific guides using Coder",
+      "path": "./platforms/README.md",
       "icon_path": "./images/icons/star.svg",
       "children": [
         {
-          "title": "Docker",
-          "description": "Setup Coder with Docker",
-          "path": "./quickstart/docker.md",
-          "icon_path": "./images/icons/docker.svg"
-        },
-        {
-          "title": "Google Cloud Platform",
-          "description": "Setup Coder on a GCP Compute Engine VM",
-          "path": "./quickstart/google-cloud-platform.md",
-          "icon_path": "./images/google-cloud.svg"
-        },
-        {
           "title": "AWS",
-          "description": "Setup Coder on an AWS EC2 VM",
-          "path": "./quickstart/aws.md",
+          "description": "Set up Coder on an AWS EC2 VM",
+          "path": "./platforms/aws.md",
           "icon_path": "./images/aws.svg"
         },
         {
+          "title": "GCP",
+          "description": "Set up Coder on a GCP Compute Engine VM",
+          "path": "./platforms/google-cloud-platform.md",
+          "icon_path": "./images/google-cloud.svg"
+        },
+        {
           "title": "Azure",
-          "description": "Setup Coder on an Azure VM",
-          "path": "./quickstart/azure.md",
+          "description": "Set up Coder on an Azure VM",
+          "path": "./platforms/azure.md",
           "icon_path": "./images/azure.svg"
+        },
+        {
+          "title": "Kubernetes",
+          "description": "Set up Coder on Kubernetes",
+          "path": "./platforms/kubernetes/index.md",
+          "children": [
+            {
+              "title": "Additional clusters",
+              "description": "Deploy workspaces on additional Kubernetes clusters",
+              "path": "./platforms/kubernetes/additional-clusters.md"
+            }
+          ]
+        },
+        {
+          "title": "Docker",
+          "description": "Set up Coder with Docker",
+          "path": "./platforms/docker.md",
+          "icon_path": "./images/icons/docker.svg"
+        },
+        {
+          "title": "Other platforms",
+          "description": "Set up Coder on an another provider",
+          "path": "./platforms/other.md"
         }
       ]
     },
     {
       "title": "Templates",
       "description": "Learn about templates, which define the infrastructure underlying workspaces",
-      "path": "./templates.md",
+      "path": "./templates/README.md",
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
@@ -136,10 +153,11 @@
           "icon_path": "./images/icons/table-rows.svg"
         },
         {
-          "title": "Docker in Docker",
-          "description": "Use docker inside containerized templates",
-          "path": "./templates/docker-in-docker.md",
-          "icon_path": "./images/icons/docker.svg"
+          "title": "Agent Metadata",
+          "description": "Learn how to expose live agent information to users",
+          "path": "./templates/agent-metadata.md",
+          "icon_path": "./images/icons/table-rows.svg",
+          "state": "alpha"
         },
         {
           "title": "Parameters",
@@ -152,6 +170,12 @@
           "description": "Learn how to add an \"Open in Coder\" button to your repos",
           "path": "./templates/open-in-coder.md",
           "icon_path": "./images/icons/key.svg"
+        },
+        {
+          "title": "Docker in Workspaces",
+          "description": "Use docker inside containerized templates",
+          "path": "./templates/docker-in-workspaces.md",
+          "icon_path": "./images/icons/docker.svg"
         }
       ]
     },
@@ -192,7 +216,7 @@
     {
       "title": "Networking",
       "description": "Learn about networking in Coder",
-      "path": "./networking.md",
+      "path": "./networking/README.md",
       "icon_path": "./images/icons/networking.svg",
       "children": [
         {
@@ -217,7 +241,7 @@
     {
       "title": "Administration",
       "description": "How to install and deploy Coder",
-      "path": "./admin/index.md",
+      "path": "./admin/README.md",
       "icon_path": "./images/icons/wrench.svg",
       "children": [
         {
@@ -311,9 +335,9 @@
           "icon_path": "./images/icons/speed.svg"
         },
         {
-          "title": "Service Banners",
-          "description": "Learn how to configure Service Banners",
-          "path": "./admin/service-banners.md",
+          "title": "Appearance",
+          "description": "Learn how to configure the appearance of Coder",
+          "path": "./admin/appearance.md",
           "icon_path": "./images/icons/info.svg",
           "state": "enterprise"
         },
@@ -322,13 +346,6 @@
           "description": "Learn what usage telemetry Coder collects",
           "path": "./admin/telemetry.md",
           "icon_path": "./images/icons/science.svg"
-        },
-        {
-          "title": "Support Links",
-          "description": "Learn how to configure Support Links",
-          "path": "./admin/support-links.md",
-          "icon_path": "./images/icons/link.svg",
-          "state": "enterprise"
         }
       ]
     },
@@ -390,6 +407,10 @@
           "path": "./api/applications.md"
         },
         {
+          "title": "Applications Enterprise",
+          "path": "./api/applications enterprise.md"
+        },
+        {
           "title": "Audit",
           "path": "./api/audit.md"
         },
@@ -444,6 +465,10 @@
         {
           "title": "Users",
           "path": "./api/users.md"
+        },
+        {
+          "title": "WorkspaceProxies",
+          "path": "./api/workspaceproxies.md"
         },
         {
           "title": "Workspaces",
@@ -802,6 +827,19 @@
           "title": "version",
           "description": "Show coder version",
           "path": "cli/version.md"
+        }
+      ]
+    },
+    {
+      "title": "Security",
+      "description": "Security advisories",
+      "path": "./security/index.md",
+      "icon_path": "./images/icons/security.svg",
+      "children": [
+        {
+          "title": "API tokens of deleted users not invalidated",
+          "description": "Fixed in v0.23.0 (Apr 25, 2023)",
+          "path": "./security/0001_user_apikeys_invalidation.md"
         }
       ]
     }

@@ -31,7 +31,7 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
     >
       {avatar}
 
-      <Stack spacing={0}>
+      <Stack spacing={0} className={styles.info}>
         <span className={styles.title}>{title}</span>
         {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
       </Stack>
@@ -42,6 +42,11 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
 const useStyles = makeStyles((theme) => ({
   root: {
     minHeight: theme.spacing(5), // Make it predictable for the skeleton
+    width: "100%",
+  },
+
+  info: {
+    width: "100%",
   },
 
   title: {

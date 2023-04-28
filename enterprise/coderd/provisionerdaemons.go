@@ -227,7 +227,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		Provisioners:          daemon.Provisioners,
 		Telemetry:             api.Telemetry,
 		Auditor:               &api.AGPL.Auditor,
-		TemplateScheduleStore: &api.AGPL.TemplateScheduleStore,
+		TemplateScheduleStore: api.AGPL.TemplateScheduleStore,
 		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 		Tags:                  rawTags,
 	})
@@ -318,19 +318,29 @@ func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 	}
 
 	return schedule.TemplateScheduleOptions{
-		// TODO: make configurable at template level
-		UserSchedulingEnabled: true,
-		DefaultTTL:            time.Duration(tpl.DefaultTTL),
-		MaxTTL:                time.Duration(tpl.MaxTTL),
+		UserAutostartEnabled: tpl.AllowUserAutostart,
+		UserAutostopEnabled:  tpl.AllowUserAutostop,
+		DefaultTTL:           time.Duration(tpl.DefaultTTL),
+		MaxTTL:               time.Duration(tpl.MaxTTL),
 	}, nil
 }
 
 func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
+	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
+		int64(opts.MaxTTL) == tpl.MaxTTL &&
+		opts.UserAutostartEnabled == tpl.AllowUserAutostart &&
+		opts.UserAutostopEnabled == tpl.AllowUserAutostop {
+		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
+		return tpl, nil
+	}
+
 	template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-		ID:         tpl.ID,
-		UpdatedAt:  database.Now(),
-		DefaultTTL: int64(opts.DefaultTTL),
-		MaxTTL:     int64(opts.MaxTTL),
+		ID:                 tpl.ID,
+		UpdatedAt:          database.Now(),
+		AllowUserAutostart: opts.UserAutostartEnabled,
+		AllowUserAutostop:  opts.UserAutostopEnabled,
+		DefaultTTL:         int64(opts.DefaultTTL),
+		MaxTTL:             int64(opts.MaxTTL),
 	})
 	if err != nil {
 		return database.Template{}, xerrors.Errorf("update template schedule: %w", err)

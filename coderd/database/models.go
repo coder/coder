@@ -139,13 +139,14 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 type AuditAction string
 
 const (
-	AuditActionCreate AuditAction = "create"
-	AuditActionWrite  AuditAction = "write"
-	AuditActionDelete AuditAction = "delete"
-	AuditActionStart  AuditAction = "start"
-	AuditActionStop   AuditAction = "stop"
-	AuditActionLogin  AuditAction = "login"
-	AuditActionLogout AuditAction = "logout"
+	AuditActionCreate   AuditAction = "create"
+	AuditActionWrite    AuditAction = "write"
+	AuditActionDelete   AuditAction = "delete"
+	AuditActionStart    AuditAction = "start"
+	AuditActionStop     AuditAction = "stop"
+	AuditActionLogin    AuditAction = "login"
+	AuditActionLogout   AuditAction = "logout"
+	AuditActionRegister AuditAction = "register"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -191,7 +192,8 @@ func (e AuditAction) Valid() bool {
 		AuditActionStart,
 		AuditActionStop,
 		AuditActionLogin,
-		AuditActionLogout:
+		AuditActionLogout,
+		AuditActionRegister:
 		return true
 	}
 	return false
@@ -206,6 +208,7 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionStop,
 		AuditActionLogin,
 		AuditActionLogout,
+		AuditActionRegister,
 	}
 }
 
@@ -884,6 +887,7 @@ const (
 	ResourceTypeGroup           ResourceType = "group"
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
 	ResourceTypeLicense         ResourceType = "license"
+	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -932,7 +936,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeApiKey,
 		ResourceTypeGroup,
 		ResourceTypeWorkspaceBuild,
-		ResourceTypeLicense:
+		ResourceTypeLicense,
+		ResourceTypeWorkspaceProxy:
 		return true
 	}
 	return false
@@ -950,6 +955,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeGroup,
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
+		ResourceTypeWorkspaceProxy,
 	}
 }
 
@@ -1415,7 +1421,7 @@ type Template struct {
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 	Description     string          `db:"description" json:"description"`
-	// The default duration for auto-stop for workspaces created from this template.
+	// The default duration for autostop for workspaces created from this template.
 	DefaultTTL int64       `db:"default_ttl" json:"default_ttl"`
 	CreatedBy  uuid.UUID   `db:"created_by" json:"created_by"`
 	Icon       string      `db:"icon" json:"icon"`
@@ -1426,6 +1432,10 @@ type Template struct {
 	// Allow users to cancel in-progress workspace jobs.
 	AllowUserCancelWorkspaceJobs bool  `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	MaxTTL                       int64 `db:"max_ttl" json:"max_ttl"`
+	// Allow users to specify an autostart schedule for workspaces (enterprise).
+	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
+	// Allow users to specify custom autostop values for workspaces (enterprise).
+	AllowUserAutostop bool `db:"allow_user_autostop" json:"allow_user_autostop"`
 }
 
 type TemplateVersion struct {
@@ -1472,6 +1482,8 @@ type TemplateVersionParameter struct {
 	Required bool `db:"required" json:"required"`
 	// Name of the legacy variable for migration purposes
 	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
+	// Display name of the rich parameter
+	DisplayName string `db:"display_name" json:"display_name"`
 }
 
 type TemplateVersionVariable struct {
@@ -1575,11 +1587,24 @@ type WorkspaceAgent struct {
 	StartupLogsOverflowed bool `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
 }
 
+type WorkspaceAgentMetadatum struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	Key              string    `db:"key" json:"key"`
+	Script           string    `db:"script" json:"script"`
+	Value            string    `db:"value" json:"value"`
+	Error            string    `db:"error" json:"error"`
+	Timeout          int64     `db:"timeout" json:"timeout"`
+	Interval         int64     `db:"interval" json:"interval"`
+	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+}
+
 type WorkspaceAgentStartupLog struct {
 	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	Output    string    `db:"output" json:"output"`
 	ID        int64     `db:"id" json:"id"`
+	Level     LogLevel  `db:"level" json:"level"`
 }
 
 type WorkspaceAgentStat struct {
@@ -1643,6 +1668,24 @@ type WorkspaceBuildParameter struct {
 	Name string `db:"name" json:"name"`
 	// Parameter value
 	Value string `db:"value" json:"value"`
+}
+
+type WorkspaceProxy struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	// Expects an emoji character. (/emojis/1f1fa-1f1f8.png)
+	Icon string `db:"icon" json:"icon"`
+	// Full url including scheme of the proxy api url: https://us.example.com
+	Url string `db:"url" json:"url"`
+	// Hostname with the wildcard for subdomain based app hosting: *.us.example.com
+	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	// Boolean indicator of a deleted workspace proxy. Proxies are soft-deleted.
+	Deleted bool `db:"deleted" json:"deleted"`
+	// Hashed secret is used to authenticate the workspace proxy using a session token.
+	TokenHashedSecret []byte `db:"token_hashed_secret" json:"token_hashed_secret"`
 }
 
 type WorkspaceResource struct {

@@ -32,7 +32,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			tokenValue := apiTokenFromRequest(r)
+			tokenValue := APITokenFromRequest(r)
 			if tokenValue == "" {
 				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.SessionTokenCookie),

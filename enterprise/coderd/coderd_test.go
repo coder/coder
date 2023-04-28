@@ -53,7 +53,9 @@ func TestEntitlements(t *testing.T) {
 				codersdk.FeatureTemplateRBAC:               1,
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 				codersdk.FeatureAdvancedTemplateScheduling: 1,
+				codersdk.FeatureWorkspaceProxy:             1,
 			},
+			GraceAt: time.Now().Add(59 * 24 * time.Hour),
 		})
 		res, err := client.Entitlements(context.Background())
 		require.NoError(t, err)

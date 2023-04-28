@@ -7,7 +7,6 @@ metadata:
   annotations: {{ toYaml .Values.coder.serviceAccount.annotations | nindent 4 }}
   labels:
     {{- include "coder.labels" . | nindent 4 }}
-
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -15,6 +14,9 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+    {{- with .Values.coder.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
   replicas: {{ .Values.coder.replicaCount }}
@@ -25,6 +27,9 @@ spec:
     metadata:
       labels:
         {{- include "coder.labels" . | nindent 8 }}
+        {{- with .Values.coder.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         {{- toYaml .Values.coder.podAnnotations | nindent 8  }}
     spec:

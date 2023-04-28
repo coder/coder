@@ -1,6 +1,10 @@
-Usage: coder version
+Usage: coder version [flags]
 
 Show coder version
+
+[1mOptions[0m
+  -o, --output string (default: text)
+          Output format. Available formats: text, json.
 
 ---
 Run `coder --help` for a list of global options.

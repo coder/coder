@@ -25,10 +25,12 @@ export const DashboardLayout: FC = () => {
   })
   const { error: updateCheckError, updateCheck } = updateCheckState.context
 
+  const canViewDeployment = Boolean(permissions.viewDeploymentValues)
+
   return (
     <DashboardProvider>
       <ServiceBanner />
-      <LicenseBanner />
+      {canViewDeployment && <LicenseBanner />}
 
       <div className={styles.site}>
         <Navbar />

@@ -15,13 +15,14 @@ import (
 	"github.com/spf13/afero"
 	"github.com/valyala/fasthttp/fasthttputil"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionerd/runner"
@@ -77,7 +78,7 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		opts.ForceCancelInterval = 10 * time.Minute
 	}
 	if opts.LogBufferInterval == 0 {
-		opts.LogBufferInterval = 50 * time.Millisecond
+		opts.LogBufferInterval = 250 * time.Millisecond
 	}
 	if opts.Filesystem == nil {
 		opts.Filesystem = afero.NewOsFs()
@@ -113,7 +114,7 @@ type Server struct {
 	tracer trace.Tracer
 
 	clientDialer Dialer
-	clientValue  atomic.Value
+	clientValue  atomic.Pointer[proto.DRPCProvisionerDaemonClient]
 
 	// Locked when closing the daemon, shutting down, or starting a new job.
 	mutex        sync.Mutex
@@ -194,7 +195,7 @@ func (p *Server) connect(ctx context.Context) {
 			p.mutex.Unlock()
 			break
 		}
-		p.clientValue.Store(client)
+		p.clientValue.Store(ptr.Ref(client))
 		p.mutex.Unlock()
 
 		p.opts.Logger.Debug(context.Background(), "connected")
@@ -260,12 +261,11 @@ func (p *Server) nextInterval() time.Duration {
 }
 
 func (p *Server) client() (proto.DRPCProvisionerDaemonClient, bool) {
-	rawClient := p.clientValue.Load()
-	if rawClient == nil {
+	client := p.clientValue.Load()
+	if client == nil {
 		return nil, false
 	}
-	client, ok := rawClient.(proto.DRPCProvisionerDaemonClient)
-	return client, ok
+	return *client, true
 }
 
 // isRunningJob returns true if a job is running.  Caller must hold the mutex.
@@ -417,14 +417,15 @@ func retryable(err error) bool {
 		xerrors.Is(err, context.Canceled)
 }
 
-// clientDoWithRetries runs the function f with a client, and retries with backoff until either the error returned
-// is not retryable() or the context expires.
-func (p *Server) clientDoWithRetries(
-	ctx context.Context, f func(context.Context, proto.DRPCProvisionerDaemonClient) (any, error)) (
-	any, error,
-) {
+// clientDoWithRetries runs the function f with a client, and retries with
+// backoff until either the error returned is not retryable() or the context
+// expires.
+func clientDoWithRetries[T any](ctx context.Context,
+	getClient func() (proto.DRPCProvisionerDaemonClient, bool),
+	f func(context.Context, proto.DRPCProvisionerDaemonClient) (T, error),
+) (ret T, _ error) {
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(ctx); {
-		client, ok := p.client()
+		client, ok := getClient()
 		if !ok {
 			continue
 		}
@@ -434,40 +435,38 @@ func (p *Server) clientDoWithRetries(
 		}
 		return resp, err
 	}
-	return nil, ctx.Err()
+	return ret, ctx.Err()
 }
 
 func (p *Server) CommitQuota(ctx context.Context, in *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
-	out, err := p.clientDoWithRetries(ctx, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (any, error) {
+	out, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.CommitQuotaResponse, error) {
 		return client.CommitQuota(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	// nolint: forcetypeassert
-	return out.(*proto.CommitQuotaResponse), nil
+	return out, nil
 }
 
 func (p *Server) UpdateJob(ctx context.Context, in *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-	out, err := p.clientDoWithRetries(ctx, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (any, error) {
+	out, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.UpdateJobResponse, error) {
 		return client.UpdateJob(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	// nolint: forcetypeassert
-	return out.(*proto.UpdateJobResponse), nil
+	return out, nil
 }
 
 func (p *Server) FailJob(ctx context.Context, in *proto.FailedJob) error {
-	_, err := p.clientDoWithRetries(ctx, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (any, error) {
+	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
 		return client.FailJob(ctx, in)
 	})
 	return err
 }
 
 func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error {
-	_, err := p.clientDoWithRetries(ctx, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (any, error) {
+	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
 		return client.CompleteJob(ctx, in)
 	})
 	return err
@@ -552,7 +551,7 @@ func (p *Server) closeWithError(err error) error {
 
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
 
-	if c, ok := p.clientValue.Load().(proto.DRPCProvisionerDaemonClient); ok {
+	if c, ok := p.client(); ok {
 		_ = c.DRPCConn().Close()
 	}
 

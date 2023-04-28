@@ -115,8 +115,10 @@ UPDATE
 	templates
 SET
 	updated_at = $2,
-	default_ttl = $3,
-	max_ttl = $4
+	allow_user_autostart = $3,
+	allow_user_autostop = $4,
+	default_ttl = $5,
+	max_ttl = $6
 WHERE
 	id = $1
 RETURNING

@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -26,7 +25,6 @@ import (
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/searchquery"
 	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -227,7 +225,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 			Deleted: includeDeleted,
 		})
 	}
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -480,6 +478,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Name:              createWorkspace.Name,
 			AutostartSchedule: dbAutostartSchedule,
 			Ttl:               dbTTL,
+			// The workspaces page will sort by last used at, and it's useful to
+			// have the newly created workspace at the top of the list!
+			LastUsedAt: database.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
@@ -735,6 +736,23 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if the template allows users to configure autostart.
+	templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, api.Database, workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting template schedule options.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !templateSchedule.UserAutostartEnabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Autostart is not allowed for workspaces using this template.",
+			Validations: []codersdk.ValidationError{{Field: "schedule", Detail: "Autostart is not allowed for workspaces using this template."}},
+		})
+		return
+	}
+
 	err = api.Database.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{
 		ID:                workspace.ID,
 		AutostartSchedule: dbSched,
@@ -790,9 +808,12 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get template schedule: %w", err)
 		}
+		if !templateSchedule.UserAutostopEnabled {
+			return codersdk.ValidationError{Field: "ttl_ms", Detail: "Custom autostop TTL is not allowed for workspaces using this template."}
+		}
 
 		// don't override 0 ttl with template default here because it indicates
-		// disabled auto-stop
+		// disabled autostop
 		var validityErr error
 		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0, templateSchedule.MaxTTL)
 		if validityErr != nil {
@@ -946,9 +967,6 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	defer func() {
 		<-senderClosed
 	}()
-
-	// Ignore all trace spans after this, they're not too useful.
-	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
 	sendUpdate := func(_ context.Context, _ []byte) {
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspace.ID)

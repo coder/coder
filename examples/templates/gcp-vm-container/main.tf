@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     google = {
       source  = "hashicorp/google"
@@ -20,11 +20,13 @@ variable "project_id" {
 }
 
 data "coder_parameter" "zone" {
-  name    = "What region should your workspace live in?"
-  type    = "string"
-  default = "us-central1-a"
-  icon    = "/emojis/1f30e.png"
-  mutable = false
+  name         = "zone"
+  display_name = "Zone"
+  description  = "Which zone should your workspace live in?"
+  type         = "string"
+  default      = "us-central1-a"
+  icon         = "/emojis/1f30e.png"
+  mutable      = false
   option {
     name  = "North America (Northeast)"
     value = "northamerica-northeast1-a"
@@ -74,7 +76,7 @@ resource "coder_agent" "main" {
     set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 }

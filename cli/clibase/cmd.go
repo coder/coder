@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+	"gopkg.in/yaml.v3"
 )
 
 // Cmd describes an executable command.
@@ -76,10 +77,8 @@ func (c *Cmd) PrepareAll() error {
 	}
 	var merr error
 
-	slices.SortFunc(c.Options, func(a, b Option) bool {
-		return a.Flag < b.Flag
-	})
-	for _, opt := range c.Options {
+	for i := range c.Options {
+		opt := &c.Options[i]
 		if opt.Name == "" {
 			switch {
 			case opt.Flag != "":
@@ -102,6 +101,10 @@ func (c *Cmd) PrepareAll() error {
 			}
 		}
 	}
+
+	slices.SortFunc(c.Options, func(a, b Option) bool {
+		return a.Name < b.Name
+	})
 	slices.SortFunc(c.Children, func(a, b *Cmd) bool {
 		return a.Name() < b.Name()
 	})
@@ -172,8 +175,8 @@ type Invocation struct {
 
 // WithOS returns the invocation as a main package, filling in the invocation's unset
 // fields with OS defaults.
-func (i *Invocation) WithOS() *Invocation {
-	return i.with(func(i *Invocation) {
+func (inv *Invocation) WithOS() *Invocation {
+	return inv.with(func(i *Invocation) {
 		i.Stdout = os.Stdout
 		i.Stderr = os.Stderr
 		i.Stdin = os.Stdin
@@ -182,18 +185,18 @@ func (i *Invocation) WithOS() *Invocation {
 	})
 }
 
-func (i *Invocation) Context() context.Context {
-	if i.ctx == nil {
+func (inv *Invocation) Context() context.Context {
+	if inv.ctx == nil {
 		return context.Background()
 	}
-	return i.ctx
+	return inv.ctx
 }
 
-func (i *Invocation) ParsedFlags() *pflag.FlagSet {
-	if i.parsedFlags == nil {
+func (inv *Invocation) ParsedFlags() *pflag.FlagSet {
+	if inv.parsedFlags == nil {
 		panic("flags not parsed, has Run() been called?")
 	}
-	return i.parsedFlags
+	return inv.parsedFlags
 }
 
 type runState struct {
@@ -218,30 +221,8 @@ func copyFlagSetWithout(fs *pflag.FlagSet, without string) *pflag.FlagSet {
 // run recursively executes the command and its children.
 // allArgs is wired through the stack so that global flags can be accepted
 // anywhere in the command invocation.
-func (i *Invocation) run(state *runState) error {
-	err := i.Command.Options.SetDefaults()
-	if err != nil {
-		return xerrors.Errorf("setting defaults: %w", err)
-	}
-
-	// If we set the Default of an array but later see a flag for it, we
-	// don't want to append, we want to replace. So, we need to keep the state
-	// of defaulted array options.
-	defaultedArrays := make(map[string]int)
-	for _, opt := range i.Command.Options {
-		sv, ok := opt.Value.(pflag.SliceValue)
-		if !ok {
-			continue
-		}
-
-		if opt.Flag == "" {
-			continue
-		}
-
-		defaultedArrays[opt.Flag] = len(sv.GetSlice())
-	}
-
-	err = i.Command.Options.ParseEnv(i.Environ)
+func (inv *Invocation) run(state *runState) error {
+	err := inv.Command.Options.ParseEnv(inv.Environ)
 	if err != nil {
 		return xerrors.Errorf("parsing env: %w", err)
 	}
@@ -249,8 +230,8 @@ func (i *Invocation) run(state *runState) error {
 	// Now the fun part, argument parsing!
 
 	children := make(map[string]*Cmd)
-	for _, child := range i.Command.Children {
-		child.Parent = i.Command
+	for _, child := range inv.Command.Children {
+		child.Parent = inv.Command
 		for _, name := range append(child.Aliases, child.Name()) {
 			if _, ok := children[name]; ok {
 				return xerrors.Errorf("duplicate command name: %s", name)
@@ -259,57 +240,65 @@ func (i *Invocation) run(state *runState) error {
 		}
 	}
 
-	if i.parsedFlags == nil {
-		i.parsedFlags = pflag.NewFlagSet(i.Command.Name(), pflag.ContinueOnError)
+	if inv.parsedFlags == nil {
+		inv.parsedFlags = pflag.NewFlagSet(inv.Command.Name(), pflag.ContinueOnError)
 		// We handle Usage ourselves.
-		i.parsedFlags.Usage = func() {}
+		inv.parsedFlags.Usage = func() {}
 	}
 
 	// If we find a duplicate flag, we want the deeper command's flag to override
 	// the shallow one. Unfortunately, pflag has no way to remove a flag, so we
 	// have to create a copy of the flagset without a value.
-	i.Command.Options.FlagSet().VisitAll(func(f *pflag.Flag) {
-		if i.parsedFlags.Lookup(f.Name) != nil {
-			i.parsedFlags = copyFlagSetWithout(i.parsedFlags, f.Name)
+	inv.Command.Options.FlagSet().VisitAll(func(f *pflag.Flag) {
+		if inv.parsedFlags.Lookup(f.Name) != nil {
+			inv.parsedFlags = copyFlagSetWithout(inv.parsedFlags, f.Name)
 		}
-		i.parsedFlags.AddFlag(f)
+		inv.parsedFlags.AddFlag(f)
 	})
 
 	var parsedArgs []string
 
-	if !i.Command.RawArgs {
+	if !inv.Command.RawArgs {
 		// Flag parsing will fail on intermediate commands in the command tree,
 		// so we check the error after looking for a child command.
-		state.flagParseErr = i.parsedFlags.Parse(state.allArgs)
-		parsedArgs = i.parsedFlags.Args()
+		state.flagParseErr = inv.parsedFlags.Parse(state.allArgs)
+		parsedArgs = inv.parsedFlags.Args()
+	}
 
-		i.parsedFlags.VisitAll(func(f *pflag.Flag) {
-			i, ok := defaultedArrays[f.Name]
-			if !ok {
-				return
-			}
+	// Set value sources for flags.
+	for i, opt := range inv.Command.Options {
+		if fl := inv.parsedFlags.Lookup(opt.Flag); fl != nil && fl.Changed {
+			inv.Command.Options[i].ValueSource = ValueSourceFlag
+		}
+	}
 
-			if !f.Changed {
-				return
-			}
+	// Read YAML configs, if any.
+	for _, opt := range inv.Command.Options {
+		path, ok := opt.Value.(*YAMLConfigPath)
+		if !ok || path.String() == "" {
+			continue
+		}
 
-			// If flag was changed, we need to remove the default values.
-			sv, ok := f.Value.(pflag.SliceValue)
-			if !ok {
-				panic("defaulted array option is not a slice value")
-			}
-			ss := sv.GetSlice()
-			if len(ss) == 0 {
-				// Slice likely zeroed by a flag.
-				// E.g. "--fruit" may default to "apples,oranges" but the user
-				// provided "--fruit=""".
-				return
-			}
-			err := sv.Replace(ss[i:])
-			if err != nil {
-				panic(err)
-			}
-		})
+		byt, err := os.ReadFile(path.String())
+		if err != nil {
+			return xerrors.Errorf("reading yaml: %w", err)
+		}
+
+		var n yaml.Node
+		err = yaml.Unmarshal(byt, &n)
+		if err != nil {
+			return xerrors.Errorf("decoding yaml: %w", err)
+		}
+
+		err = inv.Command.Options.UnmarshalYAML(&n)
+		if err != nil {
+			return xerrors.Errorf("applying yaml: %w", err)
+		}
+	}
+
+	err = inv.Command.Options.SetDefaults()
+	if err != nil {
+		return xerrors.Errorf("setting defaults: %w", err)
 	}
 
 	// Run child command if found (next child only)
@@ -318,64 +307,64 @@ func (i *Invocation) run(state *runState) error {
 	if len(parsedArgs) > state.commandDepth {
 		nextArg := parsedArgs[state.commandDepth]
 		if child, ok := children[nextArg]; ok {
-			child.Parent = i.Command
-			i.Command = child
+			child.Parent = inv.Command
+			inv.Command = child
 			state.commandDepth++
-			return i.run(state)
+			return inv.run(state)
 		}
 	}
 
 	// Flag parse errors are irrelevant for raw args commands.
-	if !i.Command.RawArgs && state.flagParseErr != nil && !errors.Is(state.flagParseErr, pflag.ErrHelp) {
+	if !inv.Command.RawArgs && state.flagParseErr != nil && !errors.Is(state.flagParseErr, pflag.ErrHelp) {
 		return xerrors.Errorf(
 			"parsing flags (%v) for %q: %w",
 			state.allArgs,
-			i.Command.FullName(), state.flagParseErr,
+			inv.Command.FullName(), state.flagParseErr,
 		)
 	}
 
-	if i.Command.RawArgs {
+	if inv.Command.RawArgs {
 		// If we're at the root command, then the name is omitted
 		// from the arguments, so we can just use the entire slice.
 		if state.commandDepth == 0 {
-			i.Args = state.allArgs
+			inv.Args = state.allArgs
 		} else {
-			argPos, err := findArg(i.Command.Name(), state.allArgs, i.parsedFlags)
+			argPos, err := findArg(inv.Command.Name(), state.allArgs, inv.parsedFlags)
 			if err != nil {
 				panic(err)
 			}
-			i.Args = state.allArgs[argPos+1:]
+			inv.Args = state.allArgs[argPos+1:]
 		}
 	} else {
 		// In non-raw-arg mode, we want to skip over flags.
-		i.Args = parsedArgs[state.commandDepth:]
+		inv.Args = parsedArgs[state.commandDepth:]
 	}
 
-	mw := i.Command.Middleware
+	mw := inv.Command.Middleware
 	if mw == nil {
 		mw = Chain()
 	}
 
-	ctx := i.ctx
+	ctx := inv.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	i = i.WithContext(ctx)
+	inv = inv.WithContext(ctx)
 
-	if i.Command.Handler == nil || errors.Is(state.flagParseErr, pflag.ErrHelp) {
-		if i.Command.HelpHandler == nil {
-			return xerrors.Errorf("no handler or help for command %s", i.Command.FullName())
+	if inv.Command.Handler == nil || errors.Is(state.flagParseErr, pflag.ErrHelp) {
+		if inv.Command.HelpHandler == nil {
+			return xerrors.Errorf("no handler or help for command %s", inv.Command.FullName())
 		}
-		return i.Command.HelpHandler(i)
+		return inv.Command.HelpHandler(inv)
 	}
 
-	err = mw(i.Command.Handler)(i)
+	err = mw(inv.Command.Handler)(inv)
 	if err != nil {
 		return &RunCommandError{
-			Cmd: i.Command,
+			Cmd: inv.Command,
 			Err: err,
 		}
 	}
@@ -438,33 +427,33 @@ func findArg(want string, args []string, fs *pflag.FlagSet) (int, error) {
 // If two command share a flag name, the first command wins.
 //
 //nolint:revive
-func (i *Invocation) Run() (err error) {
+func (inv *Invocation) Run() (err error) {
 	defer func() {
 		// Pflag is panicky, so additional context is helpful in tests.
 		if flag.Lookup("test.v") == nil {
 			return
 		}
 		if r := recover(); r != nil {
-			err = xerrors.Errorf("panic recovered for %s: %v", i.Command.FullName(), r)
+			err = xerrors.Errorf("panic recovered for %s: %v", inv.Command.FullName(), r)
 			panic(err)
 		}
 	}()
-	err = i.run(&runState{
-		allArgs: i.Args,
+	err = inv.run(&runState{
+		allArgs: inv.Args,
 	})
 	return err
 }
 
 // WithContext returns a copy of the Invocation with the given context.
-func (i *Invocation) WithContext(ctx context.Context) *Invocation {
-	return i.with(func(i *Invocation) {
+func (inv *Invocation) WithContext(ctx context.Context) *Invocation {
+	return inv.with(func(i *Invocation) {
 		i.ctx = ctx
 	})
 }
 
 // with returns a copy of the Invocation with the given function applied.
-func (i *Invocation) with(fn func(*Invocation)) *Invocation {
-	i2 := *i
+func (inv *Invocation) with(fn func(*Invocation)) *Invocation {
+	i2 := *inv
 	fn(&i2)
 	return &i2
 }

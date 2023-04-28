@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Brush from "@material-ui/icons/Brush"
 import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
+import ApprovalIcon from "@material-ui/icons/VerifiedUserOutlined"
 import LockRounded from "@material-ui/icons/LockOutlined"
 import Globe from "@material-ui/icons/PublicOutlined"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
@@ -8,7 +9,7 @@ import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
 import { ElementType, PropsWithChildren, ReactNode, FC } from "react"
 import { NavLink } from "react-router-dom"
-import { combineClasses } from "util/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -47,6 +48,12 @@ export const Sidebar: React.FC = () => {
         icon={<SidebarNavItemIcon icon={LaunchOutlined} />}
       >
         General
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="licenses"
+        icon={<SidebarNavItemIcon icon={ApprovalIcon} />}
+      >
+        Licenses
       </SidebarNavItem>
       <SidebarNavItem
         href="appearance"

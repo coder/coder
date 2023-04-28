@@ -62,7 +62,12 @@ func ParameterSchema(inv *clibase.Invocation, parameterSchema codersdk.Parameter
 }
 
 func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
-	_, _ = fmt.Fprintln(inv.Stdout, Styles.Bold.Render(templateVersionParameter.Name))
+	label := templateVersionParameter.Name
+	if templateVersionParameter.DisplayName != "" {
+		label = templateVersionParameter.DisplayName
+	}
+
+	_, _ = fmt.Fprintln(inv.Stdout, Styles.Bold.Render(label))
 	if templateVersionParameter.DescriptionPlaintext != "" {
 		_, _ = fmt.Fprintln(inv.Stdout, "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")
 	}

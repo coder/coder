@@ -7,11 +7,9 @@ export enum ButtonTypesEnum {
   starting = "starting",
   stop = "stop",
   stopping = "stopping",
-  delete = "delete",
   deleting = "deleting",
   update = "update",
   updating = "updating",
-  settings = "settings",
   // disabled buttons
   canceling = "canceling",
   deleted = "deleted",
@@ -28,24 +26,20 @@ interface WorkspaceAbilities {
   canAcceptJobs: boolean
 }
 
-export const buttonAbilities = (
+export const actionsByWorkspaceStatus = (
   status: WorkspaceStatus,
 ): WorkspaceAbilities => {
-  return statusToAbilities[status]
+  return statusToActions[status]
 }
 
-const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
+const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
   starting: {
     actions: [ButtonTypesEnum.starting],
     canCancel: true,
     canAcceptJobs: false,
   },
   running: {
-    actions: [
-      ButtonTypesEnum.stop,
-      ButtonTypesEnum.settings,
-      ButtonTypesEnum.delete,
-    ],
+    actions: [ButtonTypesEnum.stop],
     canCancel: false,
     canAcceptJobs: true,
   },
@@ -55,32 +49,18 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
     canAcceptJobs: false,
   },
   stopped: {
-    actions: [
-      ButtonTypesEnum.start,
-      ButtonTypesEnum.settings,
-      ButtonTypesEnum.delete,
-    ],
+    actions: [ButtonTypesEnum.start],
     canCancel: false,
     canAcceptJobs: true,
   },
   canceled: {
-    actions: [
-      ButtonTypesEnum.start,
-      ButtonTypesEnum.stop,
-      ButtonTypesEnum.settings,
-      ButtonTypesEnum.delete,
-    ],
+    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
     canCancel: false,
     canAcceptJobs: true,
   },
   // in the case of an error
   failed: {
-    actions: [
-      ButtonTypesEnum.start,
-      ButtonTypesEnum.stop,
-      ButtonTypesEnum.settings,
-      ButtonTypesEnum.delete,
-    ],
+    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
     canCancel: false,
     canAcceptJobs: true,
   },
@@ -100,7 +80,7 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
   deleted: {
     actions: [ButtonTypesEnum.deleted],
     canCancel: false,
-    canAcceptJobs: true,
+    canAcceptJobs: false,
   },
   pending: {
     actions: [ButtonTypesEnum.pending],

@@ -20,41 +20,115 @@ import { AgentRow, AgentRowProps } from "./AgentRow"
 export default {
   title: "components/AgentRow",
   component: AgentRow,
+  args: {
+    storybookStartupLogs: [
+      "\x1b[91mCloning Git repository...",
+      "\x1b[2;37;41mStarting Docker Daemon...",
+      "\x1b[1;95mAdding some 🧙magic🧙...",
+      "Starting VS Code...",
+      "\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100  1475    0  1475    0     0   4231      0 --:--:-- --:--:-- --:--:--  4238",
+    ].map((line, index) => ({
+      id: index,
+      level: "info",
+      output: line,
+      time: "",
+    })),
+  },
 }
 
 const Template: Story<AgentRowProps> = (args) => <AgentRow {...args} />
 
+const defaultAgentMetadata = [
+  {
+    result: {
+      collected_at: "2021-05-05T00:00:00Z",
+      error: "",
+      value: "Master",
+      age: 5,
+    },
+    description: {
+      display_name: "Branch",
+      key: "branch",
+      interval: 10,
+      timeout: 10,
+      script: "git branch",
+    },
+  },
+  {
+    result: {
+      collected_at: "2021-05-05T00:00:00Z",
+      error: "",
+      value: "No changes",
+      age: 5,
+    },
+    description: {
+      display_name: "Changes",
+      key: "changes",
+      interval: 10,
+      timeout: 10,
+      script: "git diff",
+    },
+  },
+  {
+    result: {
+      collected_at: "2021-05-05T00:00:00Z",
+      error: "",
+      value: "2%",
+      age: 5,
+    },
+    description: {
+      display_name: "CPU Usage",
+      key: "cpuUsage",
+      interval: 10,
+      timeout: 10,
+      script: "cpu.sh",
+    },
+  },
+  {
+    result: {
+      collected_at: "2021-05-05T00:00:00Z",
+      error: "",
+      value: "3%",
+      age: 5,
+    },
+    description: {
+      display_name: "Disk Usage",
+      key: "diskUsage",
+      interval: 10,
+      timeout: 10,
+      script: "disk.sh",
+    },
+  },
+]
+
 export const Example = Template.bind({})
 Example.args = {
-  agent: MockWorkspaceAgent,
+  agent: {
+    ...MockWorkspaceAgent,
+    startup_script:
+      'set -eux -o pipefail\n\n# install and start code-server\ncurl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3\n/tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &\n\n\nif [ ! -d ~/coder ]; then\n  mkdir -p ~/coder\n\n  git clone https://github.com/coder/coder ~/coder\nfi\n\nsudo service docker start\nDOTFILES_URI=" "\nrm -f ~/.personalize.log\nif [ -n "${DOTFILES_URI// }" ]; then\n  coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log\nfi\nif [ -x ~/personalize ]; then\n  ~/personalize 2>&1 | tee -a ~/.personalize.log\nelif [ -f ~/personalize ]; then\n  echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log\nfi\n',
+  },
   workspace: MockWorkspace,
   applicationsHost: "",
   showApps: true,
+  storybookAgentMetadata: defaultAgentMetadata,
 }
 
 export const HideSSHButton = Template.bind({})
 HideSSHButton.args = {
-  agent: MockWorkspaceAgent,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
+  ...Example.args,
   hideSSHButton: true,
 }
 
 export const HideVSCodeDesktopButton = Template.bind({})
 HideVSCodeDesktopButton.args = {
-  agent: MockWorkspaceAgent,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
+  ...Example.args,
   hideVSCodeDesktopButton: true,
 }
 
 export const NotShowingApps = Template.bind({})
 NotShowingApps.args = {
-  agent: MockWorkspaceAgent,
-  workspace: MockWorkspace,
-  applicationsHost: "",
+  ...Example.args,
   showApps: false,
 }
 
@@ -81,124 +155,84 @@ BunchOfApps.args = {
 
 export const Connecting = Template.bind({})
 Connecting.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentConnecting,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
+  storybookAgentMetadata: [],
 }
 
 export const Timeout = Template.bind({})
 Timeout.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentTimeout,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
 }
 
 export const Starting = Template.bind({})
 Starting.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentStarting,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
-
-  storybookStartupLogs: [
-    "Cloning Git repository...",
-    "Starting Docker Daemon...",
-    "Adding some 🧙magic🧙...",
-    "Starting VS Code...",
-  ].map((line, index) => ({
-    id: index,
-    level: "info",
-    output: line,
-    time: "",
-  })),
 }
 
 export const Started = Template.bind({})
 Started.args = {
+  ...Example.args,
   agent: {
     ...MockWorkspaceAgentReady,
     startup_logs_length: 1,
   },
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
+}
 
-  storybookStartupLogs: [
-    "Cloning Git repository...",
-    "Starting Docker Daemon...",
-    "Adding some 🧙magic🧙...",
-    "Starting VS Code...",
-  ].map((line, index) => ({
-    id: index,
-    level: "info",
-    output: line,
-    time: "",
-  })),
+export const StartedNoMetadata = Template.bind({})
+StartedNoMetadata.args = {
+  ...Started.args,
+  storybookAgentMetadata: [],
 }
 
 export const StartTimeout = Template.bind({})
 StartTimeout.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentStartTimeout,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
 }
 
 export const StartError = Template.bind({})
 StartError.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentStartError,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
 }
 
 export const ShuttingDown = Template.bind({})
 ShuttingDown.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentShuttingDown,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
 }
 
 export const ShutdownTimeout = Template.bind({})
 ShutdownTimeout.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentShutdownTimeout,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
 }
 
 export const ShutdownError = Template.bind({})
 ShutdownError.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentShutdownError,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
 }
 
 export const Off = Template.bind({})
 Off.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentOff,
-  workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
 }
 
 export const ShowingPortForward = Template.bind({})
 ShowingPortForward.args = {
-  agent: MockWorkspaceAgent,
-  workspace: MockWorkspace,
+  ...Example.args,
   applicationsHost: "https://coder.com",
-  showApps: true,
 }
 
 export const Outdated = Template.bind({})
 Outdated.args = {
+  ...Example.args,
   agent: MockWorkspaceAgentOutdated,
   workspace: MockWorkspace,
-  applicationsHost: "",
-  showApps: true,
   serverVersion: "v99.999.9999+c1cdf14",
 }

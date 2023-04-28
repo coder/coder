@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,24 +19,24 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bep/debounce"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/workspaceapps"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/tailnet"
@@ -76,14 +77,14 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
 }
 
-// @Summary Get authorized workspace agent metadata
-// @ID get-authorized-workspace-agent-metadata
+// @Summary Get authorized workspace agent manifest
+// @ID get-authorized-workspace-agent-manifest
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Success 200 {object} agentsdk.Metadata
-// @Router /workspaceagents/me/metadata [get]
-func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {object} agentsdk.Manifest
+// @Router /workspaceagents/me/manifest [get]
+func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
@@ -105,6 +106,16 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+
+	metadata, err := api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -149,7 +160,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		vscodeProxyURI += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Metadata{
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		Apps:                  convertApps(dbApps),
 		DERPMap:               api.DERPMap,
 		GitAuthConfigs:        len(api.GitAuthConfigs),
@@ -161,6 +172,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		StartupScriptTimeout:  time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
 		ShutdownScript:        apiAgent.ShutdownScript,
 		ShutdownScriptTimeout: time.Duration(apiAgent.ShutdownScriptTimeoutSeconds) * time.Second,
+		Metadata:              convertWorkspaceAgentMetadataDesc(metadata),
 	})
 }
 
@@ -245,16 +257,31 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	}
 	createdAt := make([]time.Time, 0)
 	output := make([]string, 0)
+	level := make([]database.LogLevel, 0)
 	outputLength := 0
-	for _, log := range req.Logs {
-		createdAt = append(createdAt, log.CreatedAt)
-		output = append(output, log.Output)
-		outputLength += len(log.Output)
+	for _, logEntry := range req.Logs {
+		createdAt = append(createdAt, logEntry.CreatedAt)
+		output = append(output, logEntry.Output)
+		outputLength += len(logEntry.Output)
+		if logEntry.Level == "" {
+			// Default to "info" to support older agents that didn't have the level field.
+			logEntry.Level = codersdk.LogLevelInfo
+		}
+		parsedLevel := database.LogLevel(logEntry.Level)
+		if !parsedLevel.Valid() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid log level provided.",
+				Detail:  fmt.Sprintf("invalid log level: %q", logEntry.Level),
+			})
+			return
+		}
+		level = append(level, parsedLevel)
 	}
 	logs, err := api.Database.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
 		AgentID:      workspaceAgent.ID,
 		CreatedAt:    createdAt,
 		Output:       output,
+		Level:        level,
 		OutputLength: int32(outputLength),
 	})
 	if err != nil {
@@ -371,15 +398,10 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		ctx            = r.Context()
 		actor, _       = dbauthz.ActorFromContext(ctx)
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
-		workspace      = httpmw.WorkspaceParam(r)
 		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
 		follow         = r.URL.Query().Has("follow")
 		afterRaw       = r.URL.Query().Get("after")
 	)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	var after int64
 	// Only fetch logs created after the time provided.
@@ -530,83 +552,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 			}
 		}
 	}
-}
-
-// workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
-// This is used for the web terminal.
-//
-// @Summary Open PTY to workspace agent
-// @ID open-pty-to-workspace-agent
-// @Security CoderSessionToken
-// @Tags Agents
-// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Success 101
-// @Router /workspaceagents/{workspaceagent}/pty [get]
-func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
-
-	ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
-		AccessMethod:  workspaceapps.AccessMethodTerminal,
-		BasePath:      r.URL.Path,
-		AgentNameOrID: chi.URLParam(r, "workspaceagent"),
-	})
-	if !ok {
-		return
-	}
-
-	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query param 'reconnect' must be a valid UUID.",
-			Validations: []codersdk.ValidationError{
-				{Field: "reconnect", Detail: "invalid UUID"},
-			},
-		})
-		return
-	}
-	height, err := strconv.ParseUint(r.URL.Query().Get("height"), 10, 16)
-	if err != nil {
-		height = 80
-	}
-	width, err := strconv.ParseUint(r.URL.Query().Get("width"), 10, 16)
-	if err != nil {
-		width = 80
-	}
-
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	defer wsNetConn.Close() // Also closes conn.
-
-	go httpapi.Heartbeat(ctx, conn)
-
-	agentConn, release, err := api.workspaceAgentCache.Acquire(ticket.AgentID)
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
-		return
-	}
-	defer release()
-	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
-		return
-	}
-	defer ptNetConn.Close()
-	agent.Bicopy(ctx, wsNetConn, ptNetConn)
 }
 
 // @Summary Get listening ports for workspace agent
@@ -883,8 +828,9 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	// We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
 	// because we want to log the agent's last ping time.
-	lastPing := time.Now() // Since the agent initiated the request, assume it's alive.
-	var pingMu sync.Mutex
+	var lastPing atomic.Pointer[time.Time]
+	lastPing.Store(ptr.Ref(time.Now())) // Since the agent initiated the request, assume it's alive.
+
 	go pprof.Do(ctx, pprof.Labels("agent", workspaceAgent.ID.String()), func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
 		t := time.NewTicker(api.AgentConnectionUpdateFrequency)
@@ -905,9 +851,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			if err != nil {
 				return
 			}
-			pingMu.Lock()
-			lastPing = time.Now()
-			pingMu.Unlock()
+			lastPing.Store(ptr.Ref(time.Now()))
 		}
 	})
 
@@ -924,7 +868,8 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 	disconnectedAt := workspaceAgent.DisconnectedAt
 	updateConnectionTimes := func(ctx context.Context) error {
-		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+		//nolint:gocritic // We only update ourself.
+		err = api.Database.UpdateWorkspaceAgentConnectionByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentConnectionByIDParams{
 			ID:               workspaceAgent.ID,
 			FirstConnectedAt: firstConnectedAt,
 			LastConnectedAt:  lastConnectedAt,
@@ -985,11 +930,6 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 
-	// End span so we don't get long lived trace data.
-	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
-	// Ignore all trace spans after this.
-	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
-
 	api.Logger.Info(ctx, "accepting agent", slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
@@ -1015,9 +955,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		case <-ticker.C:
 		}
 
-		pingMu.Lock()
-		lastPing := lastPing
-		pingMu.Unlock()
+		lastPing := *lastPing.Load()
 
 		var connectionStatusChanged bool
 		if time.Since(lastPing) > api.AgentInactiveDisconnectTimeout {
@@ -1068,11 +1006,14 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// This route accepts user API key auth and workspace proxy auth. The moon actor has
+	// full permissions so should be able to pass this authz check.
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+
 	// This is used by Enterprise code to control the functionality of this route.
 	override := api.WorkspaceClientCoordinateOverride.Load()
 	if override != nil {
@@ -1131,6 +1072,20 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 		})
 	}
 	return apps
+}
+
+func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadataDescription {
+	metadata := make([]codersdk.WorkspaceAgentMetadataDescription, 0)
+	for _, datum := range mds {
+		metadata = append(metadata, codersdk.WorkspaceAgentMetadataDescription{
+			DisplayName: datum.DisplayName,
+			Key:         datum.Key,
+			Script:      datum.Script,
+			Interval:    datum.Interval,
+			Timeout:     datum.Timeout,
+		})
+	}
+	return metadata
 }
 
 func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator, dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string) (codersdk.WorkspaceAgent, error) {
@@ -1214,6 +1169,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @Param request body agentsdk.Stats true "Stats request"
 // @Success 200 {object} agentsdk.StatsResponse
 // @Router /workspaceagents/me/report-stats [post]
+// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -1258,44 +1214,281 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	}
 
 	now := database.Now()
-	_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
-		ID:                          uuid.New(),
-		CreatedAt:                   now,
-		AgentID:                     workspaceAgent.ID,
-		WorkspaceID:                 workspace.ID,
-		UserID:                      workspace.OwnerID,
-		TemplateID:                  workspace.TemplateID,
-		ConnectionsByProto:          payload,
-		ConnectionCount:             req.ConnectionCount,
-		RxPackets:                   req.RxPackets,
-		RxBytes:                     req.RxBytes,
-		TxPackets:                   req.TxPackets,
-		TxBytes:                     req.TxBytes,
-		SessionCountVSCode:          req.SessionCountVSCode,
-		SessionCountJetBrains:       req.SessionCountJetBrains,
-		SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
-		SessionCountSSH:             req.SessionCountSSH,
-		ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
+
+	var errGroup errgroup.Group
+	errGroup.Go(func() error {
+		_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
+			ID:                          uuid.New(),
+			CreatedAt:                   now,
+			AgentID:                     workspaceAgent.ID,
+			WorkspaceID:                 workspace.ID,
+			UserID:                      workspace.OwnerID,
+			TemplateID:                  workspace.TemplateID,
+			ConnectionsByProto:          payload,
+			ConnectionCount:             req.ConnectionCount,
+			RxPackets:                   req.RxPackets,
+			RxBytes:                     req.RxBytes,
+			TxPackets:                   req.TxPackets,
+			TxBytes:                     req.TxBytes,
+			SessionCountVSCode:          req.SessionCountVSCode,
+			SessionCountJetBrains:       req.SessionCountJetBrains,
+			SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
+			SessionCountSSH:             req.SessionCountSSH,
+			ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
+		})
+		if err != nil {
+			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
+		}
+		return nil
 	})
+	errGroup.Go(func() error {
+		err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: now,
+		})
+		if err != nil {
+			return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
+		}
+		return nil
+	})
+	if api.Options.UpdateAgentMetrics != nil {
+		errGroup.Go(func() error {
+			user, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+			if err != nil {
+				return xerrors.Errorf("can't get user: %w", err)
+			}
+
+			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, req.Metrics)
+			return nil
+		})
+	}
+	err = errGroup.Wait()
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	if req.ConnectionCount > 0 {
-		err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
 		ReportInterval: api.AgentStatsRefreshInterval,
 	})
+}
+
+// @Summary Submit workspace agent metadata
+// @ID submit-workspace-agent-metadata
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Agents
+// @Param request body agentsdk.PostMetadataRequest true "Workspace agent metadata request"
+// @Param key path string true "metadata key" format(string)
+// @Success 204 "Success"
+// @Router /workspaceagents/me/metadata/{key} [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req agentsdk.PostMetadataRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to get workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	key := chi.URLParam(r, "key")
+
+	const (
+		maxValueLen = 32 << 10
+		maxErrorLen = maxValueLen
+	)
+
+	metadataError := req.Error
+
+	// We overwrite the error if the provided payload is too long.
+	if len(req.Value) > maxValueLen {
+		metadataError = fmt.Sprintf("value of %d bytes exceeded %d bytes", len(req.Value), maxValueLen)
+		req.Value = req.Value[:maxValueLen]
+	}
+
+	if len(req.Error) > maxErrorLen {
+		metadataError = fmt.Sprintf("error of %d bytes exceeded %d bytes", len(req.Error), maxErrorLen)
+		req.Error = req.Error[:maxErrorLen]
+	}
+
+	datum := database.UpdateWorkspaceAgentMetadataParams{
+		WorkspaceAgentID: workspaceAgent.ID,
+		// We don't want a misconfigured agent to fill the database.
+		Key:   key,
+		Value: req.Value,
+		Error: metadataError,
+		// We ignore the CollectedAt from the agent to avoid bugs caused by
+		// clock skew.
+		CollectedAt: time.Now(),
+	}
+
+	err = api.Database.UpdateWorkspaceAgentMetadata(ctx, datum)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	api.Logger.Debug(
+		ctx, "accepted metadata report",
+		slog.F("agent", workspaceAgent.ID),
+		slog.F("workspace", workspace.ID),
+		slog.F("collected_at", datum.CollectedAt),
+		slog.F("key", datum.Key),
+	)
+
+	err = api.Pubsub.Publish(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), []byte(datum.Key))
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// @Summary Watch for workspace agent metadata updates
+// @ID watch-for-workspace-agent-metadata-updates
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 200 "Success"
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Router /workspaceagents/{workspaceagent}/watch-metadata [get]
+// @x-apidocgen {"skip": true}
+func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx            = r.Context()
+		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+	)
+
+	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting up server-sent events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Prevent handler from returning until the sender is closed.
+	defer func() {
+		<-senderClosed
+	}()
+
+	const refreshInterval = time.Second * 5
+	refreshTicker := time.NewTicker(refreshInterval)
+	defer refreshTicker.Stop()
+
+	var (
+		lastDBMetaMu sync.Mutex
+		lastDBMeta   []database.WorkspaceAgentMetadatum
+	)
+
+	sendMetadata := func(pull bool) {
+		lastDBMetaMu.Lock()
+		defer lastDBMetaMu.Unlock()
+
+		var err error
+		if pull {
+			// We always use the original Request context because it contains
+			// the RBAC actor.
+			lastDBMeta, err = api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
+			if err != nil {
+				_ = sendEvent(ctx, codersdk.ServerSentEvent{
+					Type: codersdk.ServerSentEventTypeError,
+					Data: codersdk.Response{
+						Message: "Internal error getting metadata.",
+						Detail:  err.Error(),
+					},
+				})
+				return
+			}
+			slices.SortFunc(lastDBMeta, func(i, j database.WorkspaceAgentMetadatum) bool {
+				return i.Key < j.Key
+			})
+
+			// Avoid sending refresh if the client is about to get a
+			// fresh update.
+			refreshTicker.Reset(refreshInterval)
+		}
+
+		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeData,
+			Data: convertWorkspaceAgentMetadata(lastDBMeta),
+		})
+	}
+
+	// Send initial metadata.
+	sendMetadata(true)
+
+	// We debounce metadata updates to avoid overloading the frontend when
+	// an agent is sending a lot of updates.
+	pubsubDebounce := debounce.New(time.Second)
+	if flag.Lookup("test.v") != nil {
+		pubsubDebounce = debounce.New(time.Millisecond * 100)
+	}
+
+	// Send metadata on updates.
+	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
+		pubsubDebounce(func() {
+			sendMetadata(true)
+		})
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	defer cancelSub()
+
+	for {
+		select {
+		case <-senderClosed:
+			return
+		case <-refreshTicker.C:
+			break
+		}
+
+		// Avoid spamming the DB with reads we know there are no updates. We want
+		// to continue sending updates to the frontend so that "Result.Age"
+		// is always accurate. This way, the frontend doesn't need to
+		// sync its own clock with the backend.
+		sendMetadata(false)
+	}
+}
+
+func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
+	// An empty array is easier for clients to handle than a null.
+	result := []codersdk.WorkspaceAgentMetadata{}
+	for _, datum := range db {
+		result = append(result, codersdk.WorkspaceAgentMetadata{
+			Result: codersdk.WorkspaceAgentMetadataResult{
+				Value:       datum.Value,
+				Error:       datum.Error,
+				CollectedAt: datum.CollectedAt,
+				Age:         int64(time.Since(datum.CollectedAt).Seconds()),
+			},
+			Description: codersdk.WorkspaceAgentMetadataDescription{
+				DisplayName: datum.DisplayName,
+				Key:         datum.Key,
+				Script:      datum.Script,
+				Interval:    datum.Interval,
+				Timeout:     datum.Timeout,
+			},
+		})
+	}
+	return result
+}
+
+func watchWorkspaceAgentMetadataChannel(id uuid.UUID) string {
+	return "workspace_agent_metadata:" + id.String()
 }
 
 // @Summary Submit workspace agent lifecycle state
@@ -1800,16 +1993,17 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 
 func convertWorkspaceAgentStartupLogs(logs []database.WorkspaceAgentStartupLog) []codersdk.WorkspaceAgentStartupLog {
 	sdk := make([]codersdk.WorkspaceAgentStartupLog, 0, len(logs))
-	for _, log := range logs {
-		sdk = append(sdk, convertWorkspaceAgentStartupLog(log))
+	for _, logEntry := range logs {
+		sdk = append(sdk, convertWorkspaceAgentStartupLog(logEntry))
 	}
 	return sdk
 }
 
-func convertWorkspaceAgentStartupLog(log database.WorkspaceAgentStartupLog) codersdk.WorkspaceAgentStartupLog {
+func convertWorkspaceAgentStartupLog(logEntry database.WorkspaceAgentStartupLog) codersdk.WorkspaceAgentStartupLog {
 	return codersdk.WorkspaceAgentStartupLog{
-		ID:        log.ID,
-		CreatedAt: log.CreatedAt,
-		Output:    log.Output,
+		ID:        logEntry.ID,
+		CreatedAt: logEntry.CreatedAt,
+		Output:    logEntry.Output,
+		Level:     codersdk.LogLevel(logEntry.Level),
 	}
 }

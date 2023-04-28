@@ -1,11 +1,8 @@
-import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
-import ComputerIcon from "@material-ui/icons/Computer"
+import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { combineClasses } from "../../util/combineClasses"
-import { generateRandomString } from "../../util/random"
+import { generateRandomString } from "../../utils/random"
 
 export const Language = {
   linkText: "Terminal",
@@ -16,7 +13,6 @@ export interface TerminalLinkProps {
   agentName?: TypesGen.WorkspaceAgent["name"]
   userName?: TypesGen.User["username"]
   workspaceName: TypesGen.Workspace["name"]
-  className?: string
 }
 
 /**
@@ -30,17 +26,15 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
   agentName,
   userName = "me",
   workspaceName,
-  className,
 }) => {
-  const styles = useStyles()
   const href = `/@${userName}/${workspaceName}${
     agentName ? `.${agentName}` : ""
   }/terminal`
 
   return (
     <Link
+      underline="none"
       href={href}
-      className={combineClasses([styles.link, className])}
       target="_blank"
       onClick={(event) => {
         event.preventDefault()
@@ -51,28 +45,9 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
         )
       }}
     >
-      <Button
-        startIcon={<ComputerIcon />}
-        size="small"
-        className={styles.button}
-      >
+      <SecondaryAgentButton size="small" variant="outlined">
         {Language.linkText}
-      </Button>
+      </SecondaryAgentButton>
     </Link>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  link: {
-    textDecoration: "none !important",
-  },
-
-  button: {
-    whiteSpace: "nowrap",
-    backgroundColor: theme.palette.background.default,
-
-    "&:hover": {
-      backgroundColor: `${theme.palette.background.default} !important`,
-    },
-  },
-}))

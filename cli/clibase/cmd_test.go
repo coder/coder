@@ -3,6 +3,8 @@ package clibase_test
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -247,6 +249,7 @@ func TestCommand_FlagOverride(t *testing.T) {
 		Use: "1",
 		Options: clibase.OptionSet{
 			{
+				Name:  "flag",
 				Flag:  "f",
 				Value: clibase.DiscardValue,
 			},
@@ -256,6 +259,7 @@ func TestCommand_FlagOverride(t *testing.T) {
 				Use: "2",
 				Options: clibase.OptionSet{
 					{
+						Name:  "flag",
 						Flag:  "f",
 						Value: clibase.StringOf(&flag),
 					},
@@ -515,7 +519,7 @@ func TestCommand_EmptySlice(t *testing.T) {
 				{
 					Name:    "arr",
 					Flag:    "arr",
-					Default: "bad,bad,bad",
+					Default: "def,def,def",
 					Env:     "ARR",
 					Value:   clibase.StringArrayOf(&got),
 				},
@@ -527,11 +531,105 @@ func TestCommand_EmptySlice(t *testing.T) {
 		}
 	}
 
-	// Base-case
-	err := cmd("bad", "bad", "bad").Invoke().Run()
+	// Base-case, uses default.
+	err := cmd("def", "def", "def").Invoke().Run()
 	require.NoError(t, err)
 
-	inv := cmd().Invoke("--arr", "")
+	// Empty-env uses default, too.
+	inv := cmd("def", "def", "def").Invoke()
+	inv.Environ.Set("ARR", "")
+	require.NoError(t, err)
+
+	// Reset to nothing at all via flag.
+	inv = cmd().Invoke("--arr", "")
+	inv.Environ.Set("ARR", "cant see")
 	err = inv.Run()
 	require.NoError(t, err)
+
+	// Reset to a specific value with flag.
+	inv = cmd("great").Invoke("--arr", "great")
+	inv.Environ.Set("ARR", "")
+	err = inv.Run()
+	require.NoError(t, err)
+}
+
+func TestCommand_DefaultsOverride(t *testing.T) {
+	t.Parallel()
+
+	test := func(name string, want string, fn func(t *testing.T, inv *clibase.Invocation)) {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				got    string
+				config clibase.YAMLConfigPath
+			)
+			cmd := &clibase.Cmd{
+				Options: clibase.OptionSet{
+					{
+						Name:    "url",
+						Flag:    "url",
+						Default: "def.com",
+						Env:     "URL",
+						Value:   clibase.StringOf(&got),
+						YAML:    "url",
+					},
+					{
+						Name:    "config",
+						Flag:    "config",
+						Default: "",
+						Value:   &config,
+					},
+				},
+				Handler: (func(i *clibase.Invocation) error {
+					_, _ = fmt.Fprintf(i.Stdout, "%s", got)
+					return nil
+				}),
+			}
+
+			inv := cmd.Invoke()
+			stdio := fakeIO(inv)
+			fn(t, inv)
+			err := inv.Run()
+			require.NoError(t, err)
+			require.Equal(t, want, stdio.Stdout.String())
+		})
+	}
+
+	test("DefaultOverNothing", "def.com", func(t *testing.T, inv *clibase.Invocation) {})
+
+	test("FlagOverDefault", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		inv.Args = []string{"--url", "good.com"}
+	})
+
+	test("EnvOverDefault", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		inv.Environ.Set("URL", "good.com")
+	})
+
+	test("FlagOverEnv", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		inv.Environ.Set("URL", "bad.com")
+		inv.Args = []string{"--url", "good.com"}
+	})
+
+	test("FlagOverYAML", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		fi, err := os.CreateTemp(t.TempDir(), "config.yaml")
+		require.NoError(t, err)
+		defer fi.Close()
+
+		_, err = fi.WriteString("url: bad.com")
+		require.NoError(t, err)
+
+		inv.Args = []string{"--config", fi.Name(), "--url", "good.com"}
+	})
+
+	test("YAMLOverDefault", "good.com", func(t *testing.T, inv *clibase.Invocation) {
+		fi, err := os.CreateTemp(t.TempDir(), "config.yaml")
+		require.NoError(t, err)
+		defer fi.Close()
+
+		_, err = fi.WriteString("url: good.com")
+		require.NoError(t, err)
+
+		inv.Args = []string{"--config", fi.Name()}
+	})
 }

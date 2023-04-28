@@ -6,8 +6,8 @@ import utc from "dayjs/plugin/utc"
 import {
   defaultSchedule,
   emptySchedule,
-} from "pages/WorkspaceSchedulePage/schedule"
-import { emptyTTL } from "pages/WorkspaceSchedulePage/ttl"
+} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
+import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
 import { makeMockApiError } from "testHelpers/entities"
 import {
   WorkspaceScheduleForm,
@@ -36,28 +36,28 @@ const Template: Story<WorkspaceScheduleFormProps> = (args) => (
 )
 
 const defaultInitialValues = {
-  autoStartEnabled: true,
+  autostartEnabled: true,
   ...defaultSchedule(),
-  autoStopEnabled: true,
+  autostopEnabled: true,
   ttl: 24,
 }
 
 export const AllDisabled = Template.bind({})
 AllDisabled.args = {
   initialValues: {
-    autoStartEnabled: false,
+    autostartEnabled: false,
     ...emptySchedule,
-    autoStopEnabled: false,
+    autostopEnabled: false,
     ttl: emptyTTL,
   },
 }
 
-export const AutoStart = Template.bind({})
-AutoStart.args = {
+export const Autostart = Template.bind({})
+Autostart.args = {
   initialValues: {
-    autoStartEnabled: true,
+    autostartEnabled: true,
     ...defaultSchedule(),
-    autoStopEnabled: false,
+    autostopEnabled: false,
     ttl: emptyTTL,
   },
 }

@@ -50,6 +50,9 @@ func Test_OutputFormatter(t *testing.T) {
 		require.Panics(t, func() {
 			cliui.NewOutputFormatter(cliui.JSONFormat())
 		})
+		require.NotPanics(t, func() {
+			cliui.NewOutputFormatter(cliui.JSONFormat(), cliui.TextFormat())
+		})
 	})
 
 	t.Run("NoMissingFormatID", func(t *testing.T) {

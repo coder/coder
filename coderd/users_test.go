@@ -285,7 +285,7 @@ func TestDeleteUser(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authz := coderdtest.AssertRBAC(t, api, client)
 
-		_, another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		anotherClient, another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		err := client.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
 		// Attempt to create a user with the same email and username, and delete them again.
@@ -298,6 +298,13 @@ func TestDeleteUser(t *testing.T) {
 		require.NoError(t, err)
 		err = client.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
+
+		// IMPORTANT: assert that the deleted user's session is no longer valid.
+		_, err = anotherClient.User(context.Background(), codersdk.Me)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 
 		// RBAC checks
 		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceUser)
@@ -1570,7 +1577,6 @@ func TestPaginatedUsers(t *testing.T) {
 		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
 		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
 	}
-	//nolint:paralleltest // Does not detect range value.
 	for _, tt := range tests {
 		tt := tt
 		t.Run(fmt.Sprintf("%s %d", tt.name, tt.limit), func(t *testing.T) {

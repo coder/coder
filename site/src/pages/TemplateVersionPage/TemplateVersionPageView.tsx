@@ -16,7 +16,7 @@ import { UseTabResult } from "hooks/useTab"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Link as RouterLink } from "react-router-dom"
-import { createDayString } from "util/createDayString"
+import { createDayString } from "utils/createDayString"
 import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
 
 export interface TemplateVersionPageViewProps {
@@ -25,7 +25,6 @@ export interface TemplateVersionPageViewProps {
    */
   versionName: string
   templateName: string
-  canEdit: boolean
   tab: UseTabResult
   context: TemplateVersionMachineContext
 }
@@ -35,7 +34,6 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   tab,
   versionName,
   templateName,
-  canEdit,
 }) => {
   const { currentFiles, error, currentVersion, previousFiles } = context
   const { t } = useTranslation("templateVersionPage")
@@ -44,17 +42,15 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
     <Margins>
       <PageHeader
         actions={
-          canEdit ? (
-            <Link
-              underline="none"
-              component={RouterLink}
-              to={`/templates/${templateName}/versions/${versionName}/edit`}
-            >
-              <Button variant="outlined" startIcon={<EditIcon />}>
-                Edit
-              </Button>
-            </Link>
-          ) : undefined
+          <Link
+            underline="none"
+            component={RouterLink}
+            to={`/templates/${templateName}/versions/${versionName}/edit`}
+          >
+            <Button variant="outlined" startIcon={<EditIcon />}>
+              Edit
+            </Button>
+          </Link>
         }
       >
         <PageHeaderCaption>{t("header.caption")}</PageHeaderCaption>

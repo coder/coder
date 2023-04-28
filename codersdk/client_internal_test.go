@@ -174,7 +174,7 @@ func Test_readBodyAsError(t *testing.T) {
 	}
 
 	longResponse := ""
-	for i := 0; i < 2000; i++ {
+	for i := 0; i < 4000; i++ {
 		longResponse += "a"
 	}
 
@@ -258,7 +258,7 @@ func Test_readBodyAsError(t *testing.T) {
 
 				assert.Contains(t, sdkErr.Response.Message, "unexpected non-JSON response")
 
-				expected := longResponse[0:1024] + "..."
+				expected := longResponse[0:2048] + "..."
 				assert.Equal(t, expected, sdkErr.Response.Detail)
 			},
 		},

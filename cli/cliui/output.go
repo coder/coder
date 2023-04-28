@@ -3,6 +3,7 @@ package cliui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -170,4 +171,56 @@ func (jsonFormat) Format(_ context.Context, data any) (string, error) {
 	}
 
 	return string(outBytes), nil
+}
+
+type textFormat struct{}
+
+var _ OutputFormat = textFormat{}
+
+// TextFormat is a formatter that just outputs unstructured text.
+// It uses fmt.Sprintf under the hood.
+func TextFormat() OutputFormat {
+	return textFormat{}
+}
+
+func (textFormat) ID() string {
+	return "text"
+}
+
+func (textFormat) AttachOptions(_ *clibase.OptionSet) {}
+
+func (textFormat) Format(_ context.Context, data any) (string, error) {
+	return fmt.Sprintf("%s", data), nil
+}
+
+// DataChangeFormat allows manipulating the data passed to an output format.
+// This is because sometimes the data needs to be manipulated before it can be
+// passed to the output format.
+// For example, you may want to pass something different to the text formatter
+// than what you pass to the json formatter.
+type DataChangeFormat struct {
+	format OutputFormat
+	change func(data any) (any, error)
+}
+
+// ChangeFormatterData allows manipulating the data passed to an output
+// format.
+func ChangeFormatterData(format OutputFormat, change func(data any) (any, error)) *DataChangeFormat {
+	return &DataChangeFormat{format: format, change: change}
+}
+
+func (d *DataChangeFormat) ID() string {
+	return d.format.ID()
+}
+
+func (d *DataChangeFormat) AttachOptions(opts *clibase.OptionSet) {
+	d.format.AttachOptions(opts)
+}
+
+func (d *DataChangeFormat) Format(ctx context.Context, data any) (string, error) {
+	newData, err := d.change(data)
+	if err != nil {
+		return "", err
+	}
+	return d.format.Format(ctx, newData)
 }

@@ -21,8 +21,8 @@
     "incorrectName": "Incorrect {{entity}} name."
   },
   "schedule": {
-    "autoStartLabel": "Starts at",
-    "autoStopLabel": "Stops at"
+    "autostartLabel": "Starts at",
+    "autostopLabel": "Stops at"
   },
   "ctas": {
     "dismissCta": "Dismiss",

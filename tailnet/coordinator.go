@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"cdr.dev/slog"
+
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/slices"
@@ -111,16 +113,19 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 	}, errChan
 }
 
+const loggerName = "coord"
+
 // NewCoordinator constructs a new in-memory connection coordinator. This
 // coordinator is incompatible with multiple Coder replicas as all node data is
 // in-memory.
-func NewCoordinator() Coordinator {
+func NewCoordinator(logger slog.Logger) Coordinator {
 	nameCache, err := lru.New[uuid.UUID, string](512)
 	if err != nil {
 		panic("make lru cache: " + err.Error())
 	}
 
 	return &coordinator{
+		logger:                   logger.Named(loggerName),
 		closed:                   false,
 		nodes:                    map[uuid.UUID]*Node{},
 		agentSockets:             map[uuid.UUID]*TrackedConn{},
@@ -137,6 +142,7 @@ func NewCoordinator() Coordinator {
 // This coordinator is incompatible with multiple Coder
 // replicas as all node data is in-memory.
 type coordinator struct {
+	logger slog.Logger
 	mutex  sync.RWMutex
 	closed bool
 
@@ -194,6 +200,8 @@ func (c *coordinator) AgentCount() int {
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
 // with the specified ID.
 func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+	logger := c.logger.With(slog.F("client_id", id), slog.F("agent_id", agent))
+	logger.Debug(context.Background(), "coordinating client")
 	c.mutex.Lock()
 	if c.closed {
 		c.mutex.Unlock()
@@ -210,6 +218,7 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 			return xerrors.Errorf("marshal node: %w", err)
 		}
 		_, err = conn.Write(data)
+		logger.Debug(context.Background(), "wrote initial node")
 		if err != nil {
 			return xerrors.Errorf("write nodes: %w", err)
 		}
@@ -230,20 +239,24 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 		LastWrite: now,
 	}
 	c.mutex.Unlock()
+	logger.Debug(context.Background(), "added tracked connection")
 	defer func() {
 		c.mutex.Lock()
 		defer c.mutex.Unlock()
 		// Clean all traces of this connection from the map.
 		delete(c.nodes, id)
+		logger.Debug(context.Background(), "deleted client node")
 		connectionSockets, ok := c.agentToConnectionSockets[agent]
 		if !ok {
 			return
 		}
 		delete(connectionSockets, id)
+		logger.Debug(context.Background(), "deleted client connectionSocket from map")
 		if len(connectionSockets) != 0 {
 			return
 		}
 		delete(c.agentToConnectionSockets, agent)
+		logger.Debug(context.Background(), "deleted last client connectionSocket from map")
 	}()
 
 	decoder := json.NewDecoder(conn)
@@ -259,11 +272,13 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 }
 
 func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json.Decoder) error {
+	logger := c.logger.With(slog.F("client_id", id), slog.F("agent_id", agent))
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
 		return xerrors.Errorf("read json: %w", err)
 	}
+	logger.Debug(context.Background(), "got client node update", slog.F("node", node))
 
 	c.mutex.Lock()
 	// Update the node of this client in our in-memory map. If an agent entirely
@@ -274,6 +289,7 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 	agentSocket, ok := c.agentSockets[agent]
 	if !ok {
 		c.mutex.Unlock()
+		logger.Debug(context.Background(), "no agent socket, unable to send node")
 		return nil
 	}
 	c.mutex.Unlock()
@@ -291,6 +307,7 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 		}
 		return xerrors.Errorf("write json: %w", err)
 	}
+	logger.Debug(context.Background(), "sent client node to agent")
 
 	return nil
 }
@@ -298,6 +315,8 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 // ServeAgent accepts a WebSocket connection to an agent that
 // listens to incoming connections and publishes node updates.
 func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
+	logger := c.logger.With(slog.F("agent_id", id))
+	logger.Debug(context.Background(), "coordinating agent")
 	c.mutex.Lock()
 	if c.closed {
 		c.mutex.Unlock()
@@ -324,6 +343,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 			return xerrors.Errorf("marshal json: %w", err)
 		}
 		_, err = conn.Write(data)
+		logger.Debug(context.Background(), "wrote initial client(s) to agent", slog.F("nodes", nodes))
 		if err != nil {
 			return xerrors.Errorf("write nodes: %w", err)
 		}
@@ -356,6 +376,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	}
 
 	c.mutex.Unlock()
+	logger.Debug(context.Background(), "added agent socket")
 	defer func() {
 		c.mutex.Lock()
 		defer c.mutex.Unlock()
@@ -365,6 +386,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 		if idConn, ok := c.agentSockets[id]; ok && idConn.ID == unique {
 			delete(c.agentSockets, id)
 			delete(c.nodes, id)
+			logger.Debug(context.Background(), "deleted agent socket")
 		}
 	}()
 
@@ -381,17 +403,20 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 }
 
 func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder) error {
+	logger := c.logger.With(slog.F("agent_id", id))
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
 		return xerrors.Errorf("read json: %w", err)
 	}
+	logger.Debug(context.Background(), "decoded agent node", slog.F("node", node))
 
 	c.mutex.Lock()
 	c.nodes[id] = &node
 	connectionSockets, ok := c.agentToConnectionSockets[id]
 	if !ok {
 		c.mutex.Unlock()
+		logger.Debug(context.Background(), "no client sockets; unable to send node")
 		return nil
 	}
 	data, err := json.Marshal([]*Node{&node})
@@ -403,11 +428,14 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 	// Publish the new node to every listening socket.
 	var wg sync.WaitGroup
 	wg.Add(len(connectionSockets))
-	for _, connectionSocket := range connectionSockets {
+	for clientID, connectionSocket := range connectionSockets {
+		clientID := clientID
 		connectionSocket := connectionSocket
 		go func() {
 			_ = connectionSocket.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			_, _ = connectionSocket.Write(data)
+			_, err := connectionSocket.Write(data)
+			logger.Debug(context.Background(), "sent agent node to client",
+				slog.F("client_id", clientID), slog.Error(err))
 			wg.Done()
 		}()
 	}

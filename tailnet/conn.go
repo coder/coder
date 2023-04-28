@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"go4.org/netipx"
 	"golang.org/x/xerrors"
+	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/hostinfo"
 	"tailscale.com/ipn/ipnstate"
@@ -44,6 +45,12 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
+const (
+	WorkspaceAgentSSHPort             = 1
+	WorkspaceAgentReconnectingPTYPort = 2
+	WorkspaceAgentSpeedtestPort       = 3
+)
+
 func init() {
 	// Globally disable network namespacing. All networking happens in
 	// userspace.
@@ -59,6 +66,7 @@ type Options struct {
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool
 	Logger         slog.Logger
+	ListenPort     uint16
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -137,6 +145,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("wgengine")), wgengine.Config{
 		LinkMonitor: wireguardMonitor,
 		Dialer:      dialer,
+		ListenPort:  options.ListenPort,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
@@ -265,6 +274,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		server.sendNode()
 	})
 	netStack.ForwardTCPIn = server.forwardTCP
+	netStack.ForwardTCPSockOpts = server.forwardTCPSockOpts
 
 	err = netStack.Start(nil)
 	if err != nil {
@@ -299,17 +309,16 @@ type Conn struct {
 	logger         slog.Logger
 	blockEndpoints bool
 
-	dialer             *tsdial.Dialer
-	tunDevice          *tstun.Wrapper
-	peerMap            map[tailcfg.NodeID]*tailcfg.Node
-	netMap             *netmap.NetworkMap
-	netStack           *netstack.Impl
-	magicConn          *magicsock.Conn
-	wireguardMonitor   *monitor.Mon
-	wireguardRouter    *router.Config
-	wireguardEngine    wgengine.Engine
-	listeners          map[listenKey]*listener
-	forwardTCPCallback func(conn net.Conn, listenerExists bool) net.Conn
+	dialer           *tsdial.Dialer
+	tunDevice        *tstun.Wrapper
+	peerMap          map[tailcfg.NodeID]*tailcfg.Node
+	netMap           *netmap.NetworkMap
+	netStack         *netstack.Impl
+	magicConn        *magicsock.Conn
+	wireguardMonitor *monitor.Mon
+	wireguardRouter  *router.Config
+	wireguardEngine  wgengine.Engine
+	listeners        map[listenKey]*listener
 
 	lastMutex   sync.Mutex
 	nodeSending bool
@@ -323,17 +332,6 @@ type Conn struct {
 	nodeCallback             func(node *Node)
 
 	trafficStats *connstats.Statistics
-}
-
-// SetForwardTCPCallback is called every time a TCP connection is initiated inbound.
-// listenerExists is true if a listener is registered for the target port. If there
-// isn't one, traffic is forwarded to the local listening port.
-//
-// This allows wrapping a Conn to track reads and writes.
-func (c *Conn) SetForwardTCPCallback(callback func(conn net.Conn, listenerExists bool) net.Conn) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	c.forwardTCPCallback = callback
 }
 
 func (c *Conn) SetNodeCallback(callback func(node *Node)) {
@@ -697,12 +695,11 @@ func (c *Conn) selfNode() *Node {
 // This and below is taken _mostly_ verbatim from Tailscale:
 // https://github.com/tailscale/tailscale/blob/c88bd53b1b7b2fcf7ba302f2e53dd1ce8c32dad4/tsnet/tsnet.go#L459-L494
 
-// Listen announces only on the Tailscale network.
-// It will start the server if it has not been started yet.
+// Listen listens for connections only on the Tailscale network.
 func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return nil, xerrors.Errorf("wgnet: %w", err)
+		return nil, xerrors.Errorf("tailnet: split host port for listen: %w", err)
 	}
 	lk := listenKey{network, host, port}
 	ln := &listener{
@@ -723,7 +720,7 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 	}
 	if _, ok := c.listeners[lk]; ok {
 		c.mutex.Unlock()
-		return nil, xerrors.Errorf("wgnet: listener already open for %s, %s", network, addr)
+		return nil, xerrors.Errorf("tailnet: listener already open for %s, %s", network, addr)
 	}
 	c.listeners[lk] = ln
 	c.mutex.Unlock()
@@ -741,14 +738,12 @@ func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.U
 func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	c.mutex.Lock()
 	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
-	if c.forwardTCPCallback != nil {
-		conn = c.forwardTCPCallback(conn, ok)
-	}
 	c.mutex.Unlock()
 	if !ok {
 		c.forwardTCPToLocal(conn, port)
 		return
 	}
+
 	t := time.NewTimer(time.Second)
 	defer t.Stop()
 	select {
@@ -759,6 +754,18 @@ func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	case <-t.C:
 	}
 	_ = conn.Close()
+}
+
+func (*Conn) forwardTCPSockOpts(port uint16) []tcpip.SettableSocketOption {
+	opts := []tcpip.SettableSocketOption{}
+
+	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
+	if port == WorkspaceAgentSSHPort || port == 22 {
+		opt := tcpip.KeepaliveIdleOption(72 * time.Hour)
+		opts = append(opts, &opt)
+	}
+
+	return opts
 }
 
 func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
@@ -821,6 +828,10 @@ func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump 
 	c.tunDevice.SetStatistics(connStats)
 }
 
+func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
+	c.magicConn.ServeHTTPDebug(w, r)
+}
+
 type listenKey struct {
 	network string
 	host    string
@@ -840,7 +851,7 @@ func (ln *listener) Accept() (net.Conn, error) {
 	select {
 	case c = <-ln.conn:
 	case <-ln.closed:
-		return nil, xerrors.Errorf("wgnet: %w", net.ErrClosed)
+		return nil, xerrors.Errorf("tailnet: %w", net.ErrClosed)
 	}
 	return c, nil
 }

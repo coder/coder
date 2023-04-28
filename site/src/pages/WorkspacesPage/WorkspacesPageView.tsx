@@ -15,7 +15,7 @@ import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/Search
 import { Stack } from "../../components/Stack/Stack"
 import { WorkspaceHelpTooltip } from "../../components/Tooltips"
 import { WorkspacesTable } from "../../components/WorkspacesTable/WorkspacesTable"
-import { workspaceFilterQuery } from "../../util/filters"
+import { workspaceFilterQuery } from "../../utils/filters"
 
 export const Language = {
   pageTitle: "Workspaces",

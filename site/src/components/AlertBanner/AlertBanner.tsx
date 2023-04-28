@@ -60,9 +60,14 @@ export const AlertBanner: FC<React.PropsWithChildren<AlertBannerProps>> = ({
         spacing={0}
         justifyContent="space-between"
       >
-        <Stack direction="row" alignItems="center" spacing={1}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={2}
+          className={classes.fullWidth}
+        >
           {severityConstants[severity].icon}
-          <Stack spacing={0}>
+          <Stack spacing={0} className={classes.fullWidth}>
             {children}
             {alertMessage}
             {detail && (
@@ -94,11 +99,11 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     borderColor: severityConstants[props.severity].color,
     border: `1px solid ${colors.orange[7]}`,
     borderRadius: theme.shape.borderRadius,
-    padding: `${theme.spacing(1)}px ${theme.spacing(2)}px`,
+    padding: theme.spacing(2),
     backgroundColor: `${colors.gray[16]}`,
     textAlign: "left",
 
-    "& span": {
+    "& > span": {
       paddingTop: `${theme.spacing(0.25)}px`,
     },
 
@@ -108,4 +113,8 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
       marginRight: `${theme.spacing(1)}px`,
     },
   }),
+
+  fullWidth: {
+    width: "100%",
+  },
 }))

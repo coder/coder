@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -14,10 +14,11 @@ terraform {
 # Last updated 2023-03-14
 # aws ec2 describe-regions | jq -r '[.Regions[].RegionName] | sort'
 data "coder_parameter" "region" {
-  name        = "Region"
-  description = "The region to deploy the workspace in."
-  default     = "us-east-1"
-  mutable     = false
+  name         = "region"
+  display_name = "Region"
+  description  = "The region to deploy the workspace in."
+  default      = "us-east-1"
+  mutable      = false
   option {
     name  = "Asia Pacific (Tokyo)"
     value = "ap-northeast-1"
@@ -106,10 +107,11 @@ data "coder_parameter" "region" {
 }
 
 data "coder_parameter" "instance_type" {
-  name        = "Instance Type"
-  description = "What instance type should your workspace use?"
-  default     = "t3.micro"
-  mutable     = false
+  name         = "instance_type"
+  display_name = "Instance type"
+  description  = "What instance type should your workspace use?"
+  default      = "t3.micro"
+  mutable      = false
   option {
     name  = "2 vCPU, 1 GiB RAM"
     value = "t3.micro"
@@ -166,9 +168,43 @@ resource "coder_agent" "main" {
     set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
+
+  metadata {
+    key          = "cpu"
+    display_name = "CPU Usage"
+    interval     = 5
+    timeout      = 5
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
+    EOT
+  }
+  metadata {
+    key          = "memory"
+    display_name = "Memory Usage"
+    interval     = 5
+    timeout      = 5
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      free -m | awk 'NR==2{printf "%.2f%%\t", $3*100/$2 }'
+    EOT
+  }
+  metadata {
+    key          = "disk"
+    display_name = "Disk Usage"
+    interval     = 600 # every 10 minutes
+    timeout      = 30  # df can take a while on large filesystems
+    script       = <<-EOT
+      #!/bin/bash
+      set -e
+      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
+    EOT
+  }
 }
 
 resource "coder_app" "code-server" {

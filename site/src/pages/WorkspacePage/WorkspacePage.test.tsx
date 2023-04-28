@@ -98,7 +98,7 @@ describe("WorkspacePage", () => {
     await renderWorkspacePage()
 
     // open the workspace action popover so we have access to all available ctas
-    const trigger = screen.getByTestId("workspace-actions-button")
+    const trigger = screen.getByTestId("workspace-options-button")
     await user.click(trigger)
     const buttonText = t("actionButton.delete", { ns: "workspacePage" })
 
@@ -168,7 +168,7 @@ describe("WorkspacePage", () => {
 
     const workspaceActions = screen.getByTestId("workspace-actions")
     const cancelButton = within(workspaceActions).getByRole("button", {
-      name: "cancel action",
+      name: "Cancel",
     })
 
     await userEvent.setup().click(cancelButton)

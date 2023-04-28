@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -20,19 +20,21 @@ variable "ecs-cluster" {
 }
 
 data "coder_parameter" "cpu" {
-  name        = "cpu"
-  description = "The number of CPU units to reserve for the container"
-  type        = "number"
-  default     = "1024"
-  mutable     = true
+  name         = "cpu"
+  display_name = "CPU"
+  description  = "The number of CPU units to reserve for the container"
+  type         = "number"
+  default      = "1024"
+  mutable      = true
 }
 
 data "coder_parameter" "memory" {
-  name        = "memory"
-  description = "The amount of memory (in MiB) to allow the container to use"
-  type        = "number"
-  default     = "2048"
-  mutable     = true
+  name         = "memory"
+  display_name = "Memory"
+  description  = "The amount of memory (in MiB) to allow the container to use"
+  type         = "number"
+  default      = "2048"
+  mutable      = true
 }
 
 # configure AWS provider with creds present on Coder server host
@@ -114,7 +116,7 @@ resource "coder_agent" "coder" {
     set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 }

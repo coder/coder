@@ -116,5 +116,8 @@ It is recommended that all rate limits are disabled on the server before running
           if the server is configured with the exact same tracing configuration
           as the client.
 
+      --use-host-login bool, $CODER_SCALETEST_USE_HOST_LOGIN (default: false)
+          Use the use logged in on the host machine, instead of creating users.
+
 ---
 Run `coder --help` for a list of global options.

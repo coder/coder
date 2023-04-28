@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,7 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		},
 		"Write Config": {
 			yaml: true,
+			env:  true,
 		},
 		// Dangerous values? Not sure we should help users
 		// persistent their configuration.
@@ -99,6 +101,12 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 			t.Errorf("Option %q should have an env name", opt.Name)
 		case opt.Env != "" && excluded.env:
 			t.Errorf("Option %q is excluded but has an env name", opt.Name)
+		}
+
+		// Also check all env vars are prefixed with CODER_
+		const prefix = "CODER_"
+		if opt.Env != "" && !strings.HasPrefix(opt.Env, prefix) {
+			t.Errorf("Option %q has an env name (%q) that is not prefixed with %s", opt.Name, opt.Env, prefix)
 		}
 
 		delete(excludes, opt.Name)

@@ -24,4 +24,5 @@ extend-exclude = [
     # These files contain base64 strings that confuse the detector
     "**XService**.ts",
     "**identity.go",
+    "scripts/ci-report/testdata/**",
 ]
