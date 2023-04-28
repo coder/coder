@@ -2,7 +2,7 @@ import { GetLicensesResponse } from "api/api"
 import LicensesSettingsPageView from "./LicensesSettingsPageView"
 
 export default {
-  title: "pages/LicensesSettingsPage",
+  title: "pages/LicensesSettingsPageView",
   component: LicensesSettingsPageView,
 }
 
