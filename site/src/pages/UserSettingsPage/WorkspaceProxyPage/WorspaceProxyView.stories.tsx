@@ -1,9 +1,9 @@
 import { Story } from "@storybook/react"
 import {
   makeMockApiError,
-  MockRegions,
-  MockPrimaryRegion,
-  MockHealthyWildRegion,
+  MockWorkspaceProxies,
+  MockPrimaryWorkspaceProxy,
+  MockHealthyWildWorkspaceProxy,
 } from "testHelpers/entities"
 import {
   WorkspaceProxyView,
@@ -26,8 +26,8 @@ export const PrimarySelected = Template.bind({})
 PrimarySelected.args = {
   isLoading: false,
   hasLoaded: true,
-  proxies: MockRegions,
-  preferredProxy: MockPrimaryRegion,
+  proxies: MockWorkspaceProxies,
+  preferredProxy: MockPrimaryWorkspaceProxy,
   onSelect: () => {
     return Promise.resolve()
   },
@@ -37,8 +37,8 @@ export const Example = Template.bind({})
 Example.args = {
   isLoading: false,
   hasLoaded: true,
-  proxies: MockRegions,
-  preferredProxy: MockHealthyWildRegion,
+  proxies: MockWorkspaceProxies,
+  preferredProxy: MockHealthyWildWorkspaceProxy,
   onSelect: () => {
     return Promise.resolve()
   },

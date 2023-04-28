@@ -68,7 +68,7 @@ export const MockTokens: TypesGen.APIKeyWithOwner[] = [
   },
 ]
 
-export const MockPrimaryRegion: TypesGen.Region = {
+export const MockPrimaryWorkspaceProxy: TypesGen.Region = {
   id: "4aa23000-526a-481f-a007-0f20b98b1e12",
   name: "primary",
   display_name: "Default",
@@ -78,7 +78,7 @@ export const MockPrimaryRegion: TypesGen.Region = {
   wildcard_hostname: "*.coder.com",
 }
 
-export const MockHealthyWildRegion: TypesGen.Region = {
+export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
   id: "5e2c1ab7-479b-41a9-92ce-aa85625de52c",
   name: "haswildcard",
   display_name: "Subdomain Supported",
@@ -88,9 +88,9 @@ export const MockHealthyWildRegion: TypesGen.Region = {
   wildcard_hostname: "*.external.com",
 }
 
-export const MockRegions: TypesGen.Region[] = [
-  MockPrimaryRegion,
-  MockHealthyWildRegion,
+export const MockWorkspaceProxies: TypesGen.Region[] = [
+  MockPrimaryWorkspaceProxy,
+  MockHealthyWildWorkspaceProxy,
   {
     id: "8444931c-0247-4171-842a-569d9f9cbadb",
     name: "unhealthy",

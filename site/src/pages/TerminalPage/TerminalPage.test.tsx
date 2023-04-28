@@ -3,7 +3,7 @@ import "jest-canvas-mock"
 import WS from "jest-websocket-mock"
 import { rest } from "msw"
 import {
-  MockPrimaryRegion,
+  MockPrimaryWorkspaceProxy,
   MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities"
@@ -43,7 +43,7 @@ const renderTerminal = () => {
           <ProxyContext.Provider
             value={{
               proxy: {
-                selectedRegion: MockPrimaryRegion,
+                selectedProxy: MockPrimaryWorkspaceProxy,
                 preferredPathAppURL: "",
                 preferredWildcardHostname: "",
               },

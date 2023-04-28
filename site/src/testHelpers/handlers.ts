@@ -20,7 +20,7 @@ export const handlers = [
     return res(
       ctx.status(200),
       ctx.json({
-        regions: M.MockRegions,
+        regions: M.MockWorkspaceProxies,
       }),
     )
   }),

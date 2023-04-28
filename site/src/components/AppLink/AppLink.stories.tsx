@@ -1,7 +1,7 @@
 import { Story } from "@storybook/react"
 import {
-  MockPrimaryRegion,
-  MockRegions,
+  MockPrimaryWorkspaceProxy,
+  MockWorkspaceProxies,
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceApp,
@@ -17,7 +17,7 @@ export default {
 const Template: Story<AppLinkProps> = (args) => (
   <ProxyContext.Provider
     value={{
-      proxy: getPreferredProxy(MockRegions, MockPrimaryRegion),
+      proxy: getPreferredProxy(MockWorkspaceProxies, MockPrimaryWorkspaceProxy),
       isLoading: false,
       setProxy: () => {
         return

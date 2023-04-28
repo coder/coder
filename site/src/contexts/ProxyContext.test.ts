@@ -1,7 +1,7 @@
 import {
-  MockPrimaryRegion,
-  MockRegions,
-  MockHealthyWildRegion,
+  MockPrimaryWorkspaceProxy,
+  MockWorkspaceProxies,
+  MockHealthyWildWorkspaceProxy,
 } from "testHelpers/entities"
 import { getPreferredProxy } from "./ProxyContext"
 
@@ -11,35 +11,35 @@ describe("ProxyContextGetURLs", () => {
     // Primary has no path app URL. Uses relative links
     [
       "primary",
-      [MockPrimaryRegion],
-      MockPrimaryRegion,
+      [MockPrimaryWorkspaceProxy],
+      MockPrimaryWorkspaceProxy,
       "",
-      MockPrimaryRegion.wildcard_hostname,
+      MockPrimaryWorkspaceProxy.wildcard_hostname,
     ],
     [
       "regions selected",
-      MockRegions,
-      MockHealthyWildRegion,
-      MockHealthyWildRegion.path_app_url,
-      MockHealthyWildRegion.wildcard_hostname,
+      MockWorkspaceProxies,
+      MockHealthyWildWorkspaceProxy,
+      MockHealthyWildWorkspaceProxy.path_app_url,
+      MockHealthyWildWorkspaceProxy.wildcard_hostname,
     ],
     // Primary is the default if none selected
     [
       "no selected",
-      [MockPrimaryRegion],
+      [MockPrimaryWorkspaceProxy],
       undefined,
       "",
-      MockPrimaryRegion.wildcard_hostname,
+      MockPrimaryWorkspaceProxy.wildcard_hostname,
     ],
     [
       "regions no select primary default",
-      MockRegions,
+      MockWorkspaceProxies,
       undefined,
       "",
-      MockPrimaryRegion.wildcard_hostname,
+      MockPrimaryWorkspaceProxy.wildcard_hostname,
     ],
     // This should never happen, when there is no primary
-    ["no primary", [MockHealthyWildRegion], undefined, "", ""],
+    ["no primary", [MockHealthyWildWorkspaceProxy], undefined, "", ""],
   ])(
     `%p`,
     (_, regions, selected, preferredPathAppURL, preferredWildcardHostname) => {

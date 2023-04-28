@@ -1,7 +1,7 @@
 import { Story } from "@storybook/react"
 import {
-  MockPrimaryRegion,
-  MockRegions,
+  MockPrimaryWorkspaceProxy,
+  MockWorkspaceProxies,
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceAgentConnecting,
@@ -45,18 +45,18 @@ const Template: Story<AgentRowProps> = (args) => {
 }
 
 const TemplateWithPortForward: Story<AgentRowProps> = (args) => {
-  return TemplateFC(args, MockRegions, MockPrimaryRegion)
+  return TemplateFC(args, MockWorkspaceProxies, MockPrimaryWorkspaceProxy)
 }
 
 const TemplateFC = (
   args: AgentRowProps,
-  regions: Region[],
-  selectedRegion?: Region,
+  proxies: Region[],
+  selectedProxy?: Region,
 ) => {
   return (
     <ProxyContext.Provider
       value={{
-        proxy: getPreferredProxy(regions, selectedRegion),
+        proxy: getPreferredProxy(proxies, selectedProxy),
         isLoading: false,
         setProxy: () => {
           return

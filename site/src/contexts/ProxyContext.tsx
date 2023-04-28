@@ -14,14 +14,14 @@ interface ProxyContextValue {
   proxy: PreferredProxy
   isLoading: boolean
   error?: Error | unknown
-  setProxy: (regions: Region[], selectedRegion: Region | undefined) => void
+  setProxy: (proxies: Region[], selectedProxy: Region | undefined) => void
 }
 
 interface PreferredProxy {
-  // SelectedRegion is the region the user has selected.
+  // selectedProxy is the region the user has selected.
   // Do not use the fields 'path_app_url' or 'wildcard_hostname' from this
   // object. Use the preferred fields.
-  selectedRegion: Region | undefined
+  selectedProxy: Region | undefined
   // PreferredPathAppURL is the URL of the proxy or it is the empty string
   // to indicate using relative paths. To add a path to this:
   //  PreferredPathAppURL + "/path/to/app"
@@ -29,10 +29,6 @@ interface PreferredProxy {
   // PreferredWildcardHostname is a hostname that includes a wildcard.
   preferredWildcardHostname: string
 }
-
-export const ProxyContext = createContext<ProxyContextValue | undefined>(
-  undefined,
-)
 
 /**
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
@@ -49,10 +45,10 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const [proxy, setProxy] = useState<PreferredProxy>(savedProxy)
   const setAndSaveProxy = (
-    regions: Region[],
-    selectedRegion: Region | undefined,
+    proxies: Region[],
+    selectedProxy: Region | undefined,
   ) => {
-    const preferred = getPreferredProxy(regions, selectedRegion)
+    const preferred = getPreferredProxy(proxies, selectedProxy)
     // Save to local storage to persist the user's preference across reloads
     // and other tabs.
     savePreferredProxy(preferred)
@@ -68,7 +64,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     // regions returned by coderd. If the selected region is not in the list,
     // then the user selection is removed.
     onSuccess: (data) => {
-      setAndSaveProxy(data.regions, proxy.selectedRegion)
+      setAndSaveProxy(data.regions, proxy.selectedProxy)
     },
   })
 
@@ -183,12 +179,20 @@ export const getPreferredProxy = (
   // TODO: @emyrk Should we notify the user if they had an unhealthy region selected?
 
   return {
-    selectedRegion,
+    selectedProxy: selectedRegion,
     // Trim trailing slashes to be consistent
     preferredPathAppURL: pathAppURL.replace(/\/$/, ""),
     preferredWildcardHostname: wildcardHostname,
   }
 }
+
+export const ProxyContext = createContext<ProxyContextValue>({
+  proxy: getPreferredProxy([]),
+  isLoading: false,
+  setProxy: () => {
+    // Does a noop
+  },
+})
 
 // Local storage functions
 
@@ -203,7 +207,7 @@ const loadPreferredProxy = (): PreferredProxy | undefined => {
   }
 
   const proxy: PreferredProxy = JSON.parse(str)
-  if (proxy.selectedRegion === undefined || proxy.selectedRegion === null) {
+  if (proxy.selectedProxy === undefined || proxy.selectedProxy === null) {
     return undefined
   }
   return proxy
