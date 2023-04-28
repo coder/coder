@@ -616,9 +616,11 @@ jobs:
           retention-days: 7
 
       - run: docker ps -a
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
         working-directory: site
 
       - run: docker cp coder-admin-my-first-workspace:/tmp/ logs
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
         working-directory: site
 
       - name: Upload docker logs
