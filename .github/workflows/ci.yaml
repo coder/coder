@@ -608,6 +608,20 @@ jobs:
           path: ./site/test-results/**/*.webm
           retention-days: 7
 
+      - run: docker ps -a
+        working-directory: site
+
+      - run: docker cp coder-admin-my-first-workspace:/tmp/ logs
+        working-directory: site
+
+      - name: Upload docker logs
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-logs
+          path: ./site/logs/*.log
+          retention-days: 7
+
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest
