@@ -6,7 +6,7 @@ import * as Mocks from "../../testHelpers/entities"
 import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
 import { withReactContext } from "storybook-react-context"
 import EventSource from "eventsourcemock"
-import { ProxyContext, getURLs } from "contexts/ProxyContext"
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
 
 export default {
   title: "components/Workspace",
@@ -26,7 +26,7 @@ export default {
 const Template: Story<WorkspaceProps> = (args) => (
   <ProxyContext.Provider
     value={{
-      proxy: getURLs([], undefined),
+      proxy: getPreferredProxy([], undefined),
       isLoading: false,
       setProxy: () => {
         return

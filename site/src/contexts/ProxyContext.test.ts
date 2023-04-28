@@ -3,7 +3,7 @@ import {
   MockRegions,
   MockHealthyWildRegion,
 } from "testHelpers/entities"
-import { getURLs } from "./ProxyContext"
+import { getPreferredProxy } from "./ProxyContext"
 
 describe("ProxyContextGetURLs", () => {
   it.each([
@@ -43,7 +43,7 @@ describe("ProxyContextGetURLs", () => {
   ])(
     `%p`,
     (_, regions, selected, preferredPathAppURL, preferredWildcardHostname) => {
-      const preferred = getURLs(regions, selected)
+      const preferred = getPreferredProxy(regions, selected)
       expect(preferred.preferredPathAppURL).toBe(preferredPathAppURL)
       expect(preferred.preferredWildcardHostname).toBe(
         preferredWildcardHostname,

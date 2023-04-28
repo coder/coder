@@ -41,16 +41,18 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   // Try to load the preferred proxy from local storage.
   let savedProxy = loadPreferredProxy()
   if (!savedProxy) {
-    savedProxy = getURLs([])
+    // If no preferred proxy is saved, then default to using relative paths
+    // and no subdomain support until the regions are properly loaded.
+    // This is the same as a user not selecting any proxy.
+    savedProxy = getPreferredProxy([])
   }
 
-  // The initial state is no regions and no selected region.
   const [proxy, setProxy] = useState<PreferredProxy>(savedProxy)
   const setAndSaveProxy = (
     regions: Region[],
     selectedRegion: Region | undefined,
   ) => {
-    const preferred = getURLs(regions, selectedRegion)
+    const preferred = getPreferredProxy(regions, selectedRegion)
     // Save to local storage to persist the user's preference across reloads
     // and other tabs.
     savePreferredProxy(preferred)
@@ -88,7 +90,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   // If the experiment is disabled, then make the setState do a noop.
   // This preserves an empty state, which is the default behavior.
   if (!dashboard?.experiments.includes("moons")) {
-    const value = getURLs([])
+    const value = getPreferredProxy([])
 
     return (
       <ProxyContext.Provider
@@ -148,7 +150,7 @@ export const useProxy = (): ProxyContextValue => {
  * @param regions Is the list of regions returned by coderd. If this is empty, default behavior is used.
  * @param selectedRegion Is the region the user has selected. If this is undefined, default behavior is used.
  */
-export const getURLs = (
+export const getPreferredProxy = (
   regions: Region[],
   selectedRegion?: Region,
 ): PreferredProxy => {
@@ -194,18 +196,15 @@ export const savePreferredProxy = (saved: PreferredProxy): void => {
   window.localStorage.setItem("preferred-proxy", JSON.stringify(saved))
 }
 
-export const loadPreferredProxy = (): PreferredProxy | undefined => {
+const loadPreferredProxy = (): PreferredProxy | undefined => {
   const str = localStorage.getItem("preferred-proxy")
-  if (str === undefined || str === null) {
+  if (!str) {
     return undefined
   }
+
   const proxy: PreferredProxy = JSON.parse(str)
   if (proxy.selectedRegion === undefined || proxy.selectedRegion === null) {
     return undefined
   }
   return proxy
-}
-
-export const clearPreferredProxy = (): void => {
-  localStorage.removeItem("preferred-proxy")
 }

@@ -3,7 +3,7 @@ import { Story } from "@storybook/react"
 import { MockWorkspace, MockWorkspaceResource } from "testHelpers/entities"
 import { AgentRow } from "./AgentRow"
 import { ResourceCard, ResourceCardProps } from "./ResourceCard"
-import { ProxyContext, getURLs } from "contexts/ProxyContext"
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
 
 export default {
   title: "components/ResourceCard",
@@ -18,7 +18,7 @@ Example.args = {
   agentRow: (agent) => (
     <ProxyContext.Provider
       value={{
-        proxy: getURLs([], undefined),
+        proxy: getPreferredProxy([], undefined),
         isLoading: false,
         setProxy: () => {
           return
@@ -82,7 +82,7 @@ BunchOfMetadata.args = {
   agentRow: (agent) => (
     <ProxyContext.Provider
       value={{
-        proxy: getURLs([], undefined),
+        proxy: getPreferredProxy([], undefined),
         isLoading: false,
         setProxy: () => {
           return

@@ -18,7 +18,7 @@ import {
   MockWorkspaceApp,
 } from "testHelpers/entities"
 import { AgentRow, AgentRowProps } from "./AgentRow"
-import { ProxyContext, getURLs } from "contexts/ProxyContext"
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
 import { Region } from "api/typesGenerated"
 
 export default {
@@ -56,7 +56,7 @@ const TemplateFC = (
   return (
     <ProxyContext.Provider
       value={{
-        proxy: getURLs(regions, selectedRegion),
+        proxy: getPreferredProxy(regions, selectedRegion),
         isLoading: false,
         setProxy: () => {
           return
