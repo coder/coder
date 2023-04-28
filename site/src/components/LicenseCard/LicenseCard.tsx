@@ -69,18 +69,19 @@ export const LicenseCard = ({
           justifyContent="space-between"
           alignItems="self-end"
         >
-          <div className={styles.userLimit}>
-            <span className={styles.userLimitActual}>
-              {userLimitActual} users
-            </span>
-            <span className={styles.userLimitLimit}>
-              / {userLimitLimit || "Unlimited"}
-            </span>
-          </div>
+          <Stack direction="column" spacing={0} className={styles.userLimit}>
+            <span className={styles.secondaryMaincolor}>Users</span>
+            <div className={styles.primaryMainColor}>
+              <span className={styles.userLimitActual}>{userLimitActual}</span>
+              <span className={styles.userLimitLimit}>
+                {` / ${userLimitLimit || "Unlimited"}`}
+              </span>
+            </div>
+          </Stack>
 
           <Stack direction="column" spacing={0} alignItems="center">
-            <span className={styles.expirationDateLabel}>Valid until</span>
-            <span className={styles.expirationDate}>
+            <span className={styles.secondaryMaincolor}>Valid until</span>
+            <span className={styles.primaryMainColor}>
               {dayjs
                 .unix(license.claims.license_expires)
                 .format("MMMM D, YYYY")}
@@ -111,13 +112,10 @@ const useStyles = makeStyles((theme) => ({
     textAlign: "right",
   },
   userLimitActual: {
-    // fontWeight: 600,
-    paddingRight: "5px",
     color: theme.palette.primary.main,
   },
   userLimitLimit: {
     color: theme.palette.secondary.main,
-    // fontSize: theme.typography.h5.fontSize,
     fontWeight: 600,
   },
   licenseCard: {
@@ -129,7 +127,6 @@ const useStyles = makeStyles((theme) => ({
   licenseId: {
     color: theme.palette.secondary.main,
     fontWeight: 600,
-    // fontSize: theme.typography.h5.fontSize,
   },
   accountType: {
     fontWeight: 600,
@@ -138,11 +135,10 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     textTransform: "capitalize",
   },
-  expirationDate: {
-    // fontWeight: 600,
+  primaryMainColor: {
     color: theme.palette.primary.main,
   },
-  expirationDateLabel: {
+  secondaryMaincolor: {
     color: theme.palette.secondary.main,
   },
   removeButton: {
