@@ -30,6 +30,7 @@ import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog"
 import { ChangeVersionDialog } from "./ChangeVersionDialog"
 import { useQuery } from "@tanstack/react-query"
 import { getTemplateVersions } from "api/api"
+import { useRestartWorkspace } from "./hooks"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -77,6 +78,12 @@ export const WorkspaceReadyPage = ({
     enabled: changeVersionDialogOpen,
   })
 
+  const {
+    mutate: restartWorkspace,
+    error: restartBuildError,
+    isLoading: isRestarting,
+  } = useRestartWorkspace()
+
   // keep banner machine in sync with workspace
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })
@@ -120,9 +127,11 @@ export const WorkspaceReadyPage = ({
           ),
         }}
         isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
+        isRestarting={isRestarting}
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
+        handleRestart={() => restartWorkspace(workspace)}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
@@ -140,7 +149,7 @@ export const WorkspaceReadyPage = ({
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
           [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
-          [WorkspaceErrors.BUILD_ERROR]: buildError,
+          [WorkspaceErrors.BUILD_ERROR]: buildError || restartBuildError,
           [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
         }}
         buildInfo={buildInfo}
