@@ -12,7 +12,7 @@ import { Helmet } from "react-helmet-async"
 import { Margins } from "../Margins/Margins"
 
 const fetchDynamicallyImportedModuleError =
-  "Failed to fetch dynamically imported module" as const
+  "Failed to fetch dynamically imported module"
 
 export type RuntimeErrorStateProps = { error: Error }
 
