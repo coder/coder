@@ -6,6 +6,7 @@ import {
   MockPrimaryWorkspaceProxy,
   MockWorkspace,
   MockWorkspaceAgent,
+  MockWorkspaceProxies,
 } from "testHelpers/entities"
 import { TextDecoder, TextEncoder } from "util"
 import { ReconnectingPTYRequest } from "../../api/types"
@@ -47,6 +48,8 @@ const renderTerminal = () => {
                 preferredPathAppURL: "",
                 preferredWildcardHostname: "",
               },
+              proxies: MockWorkspaceProxies,
+              isFetched: true,
               isLoading: false,
               setProxy: jest.fn(),
             }}

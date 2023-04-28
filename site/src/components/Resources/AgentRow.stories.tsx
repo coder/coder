@@ -57,7 +57,9 @@ const TemplateFC = (
     <ProxyContext.Provider
       value={{
         proxy: getPreferredProxy(proxies, selectedProxy),
+        proxies: proxies,
         isLoading: false,
+        isFetched: true,
         setProxy: () => {
           return
         },

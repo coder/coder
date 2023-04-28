@@ -27,7 +27,9 @@ const Template: Story<WorkspaceProps> = (args) => (
   <ProxyContext.Provider
     value={{
       proxy: getPreferredProxy([], undefined),
+      proxies: [],
       isLoading: false,
+      isFetched: true,
       setProxy: () => {
         return
       },

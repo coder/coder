@@ -18,7 +18,9 @@ const Template: Story<AppLinkProps> = (args) => (
   <ProxyContext.Provider
     value={{
       proxy: getPreferredProxy(MockWorkspaceProxies, MockPrimaryWorkspaceProxy),
+      proxies: MockWorkspaceProxies,
       isLoading: false,
+      isFetched: true,
       setProxy: () => {
         return
       },
