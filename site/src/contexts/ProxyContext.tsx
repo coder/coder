@@ -34,54 +34,6 @@ interface PreferredProxy {
   preferredWildcardHostname: string
 }
 
-/**
- * getURLs is a helper function to calculate the urls to use for a given proxy configuration. By default, it is
- * assumed no proxy is configured and relative paths should be used.
- * Exported for testing.
- *
- * @param proxies Is the list of proxies returned by coderd. If this is empty, default behavior is used.
- * @param selectedProxy Is the proxy the user has selected. If this is undefined, default behavior is used.
- */
-export const getPreferredProxy = (
-  proxies: Region[],
-  selectedProxy?: Region,
-): PreferredProxy => {
-  // By default we set the path app to relative and disable wildcard hostnames.
-  // We will set these values if we find a proxy we can use that supports them.
-  let pathAppURL = ""
-  let wildcardHostname = ""
-
-  // If a proxy is selected, make sure it is in the list of proxies. If it is not
-  // we should default to the primary.
-  selectedProxy = proxies.find(
-    (proxy) => selectedProxy && proxy.id === selectedProxy.id,
-  )
-
-  if (!selectedProxy) {
-    // If no proxy is selected, default to the primary proxy.
-    selectedProxy = proxies.find((proxy) => proxy.name === "primary")
-  }
-
-  // Only use healthy proxies.
-  if (selectedProxy && selectedProxy.healthy) {
-    // By default use relative links for the primary proxy.
-    // This is the default, and we should not change it.
-    if (selectedProxy.name !== "primary") {
-      pathAppURL = selectedProxy.path_app_url
-    }
-    wildcardHostname = selectedProxy.wildcard_hostname
-  }
-
-  // TODO: @emyrk Should we notify the user if they had an unhealthy proxy selected?
-
-  return {
-    selectedProxy: selectedProxy,
-    // Trim trailing slashes to be consistent
-    preferredPathAppURL: pathAppURL.replace(/\/$/, ""),
-    preferredWildcardHostname: wildcardHostname,
-  }
-}
-
 export const ProxyContext = createContext<ProxyContextValue | undefined>(undefined)
 
 /**
@@ -176,6 +128,55 @@ export const useProxy = (): ProxyContextValue => {
 
   return context
 }
+
+/**
+ * getURLs is a helper function to calculate the urls to use for a given proxy configuration. By default, it is
+ * assumed no proxy is configured and relative paths should be used.
+ * Exported for testing.
+ *
+ * @param proxies Is the list of proxies returned by coderd. If this is empty, default behavior is used.
+ * @param selectedProxy Is the proxy the user has selected. If this is undefined, default behavior is used.
+ */
+export const getPreferredProxy = (
+  proxies: Region[],
+  selectedProxy?: Region,
+): PreferredProxy => {
+  // By default we set the path app to relative and disable wildcard hostnames.
+  // We will set these values if we find a proxy we can use that supports them.
+  let pathAppURL = ""
+  let wildcardHostname = ""
+
+  // If a proxy is selected, make sure it is in the list of proxies. If it is not
+  // we should default to the primary.
+  selectedProxy = proxies.find(
+    (proxy) => selectedProxy && proxy.id === selectedProxy.id,
+  )
+
+  if (!selectedProxy) {
+    // If no proxy is selected, default to the primary proxy.
+    selectedProxy = proxies.find((proxy) => proxy.name === "primary")
+  }
+
+  // Only use healthy proxies.
+  if (selectedProxy && selectedProxy.healthy) {
+    // By default use relative links for the primary proxy.
+    // This is the default, and we should not change it.
+    if (selectedProxy.name !== "primary") {
+      pathAppURL = selectedProxy.path_app_url
+    }
+    wildcardHostname = selectedProxy.wildcard_hostname
+  }
+
+  // TODO: @emyrk Should we notify the user if they had an unhealthy proxy selected?
+
+  return {
+    selectedProxy: selectedProxy,
+    // Trim trailing slashes to be consistent
+    preferredPathAppURL: pathAppURL.replace(/\/$/, ""),
+    preferredWildcardHostname: wildcardHostname,
+  }
+}
+
 
 // Local storage functions
 
