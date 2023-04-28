@@ -22,7 +22,7 @@ interface ProxyContextValue {
 }
 
 interface PreferredProxy {
-  // selectedProxy is the region the user has selected.
+  // selectedProxy is the proxy the user has selected.
   // Do not use the fields 'path_app_url' or 'wildcard_hostname' from this
   // object. Use the preferred fields.
   selectedProxy: Region | undefined
@@ -44,7 +44,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   let savedProxy = loadPreferredProxy()
   if (!savedProxy) {
     // If no preferred proxy is saved, then default to using relative paths
-    // and no subdomain support until the regions are properly loaded.
+    // and no subdomain support until the proxies are properly loaded.
     // This is the same as a user not selecting any proxy.
     savedProxy = getPreferredProxy([])
   }
@@ -59,7 +59,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     queryKey,
     queryFn: getWorkspaceProxies,
     // This onSuccess ensures the local storage is synchronized with the
-    // regions returned by coderd. If the selected region is not in the list,
+    // proxies returned by coderd. If the selected proxy is not in the list,
     // then the user selection is removed.
     onSuccess: () => {
       setAndSaveProxy(proxy.selectedProxy)
@@ -71,7 +71,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     selectedProxy?: Region,
   ) => {
     if (!proxies) {
-      throw new Error("proxies are not yet loaded, so selecting a region makes no sense. How did you get here?")
+      throw new Error("proxies are not yet loaded, so selecting a proxy makes no sense. How did you get here?")
     }
     const preferred = getPreferredProxy(proxies.regions, selectedProxy)
     // Save to local storage to persist the user's preference across reloads
@@ -126,7 +126,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   // ******************************* //
 
   // TODO: @emyrk Should make an api call to /regions endpoint to update the
-  // regions list.
+  // proxies list.
 
   return (
     <ProxyContext.Provider
@@ -136,7 +136,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
         isLoading: proxiesLoading,
         isFetched: proxiesFetched,
         error: proxiesError,
-        // A function that takes the new regions and selected region and updates
+        // A function that takes the new proxies and selected proxy and updates
         // the state with the appropriate urls.
         setProxy: setAndSaveProxy,
       }}
@@ -161,8 +161,8 @@ export const useProxy = (): ProxyContextValue => {
  * assumed no proxy is configured and relative paths should be used.
  * Exported for testing.
  *
- * @param proxies Is the list of regions returned by coderd. If this is empty, default behavior is used.
- * @param selectedProxy Is the region the user has selected. If this is undefined, default behavior is used.
+ * @param proxies Is the list of proxies returned by coderd. If this is empty, default behavior is used.
+ * @param selectedProxy Is the proxy the user has selected. If this is undefined, default behavior is used.
  */
 export const getPreferredProxy = (
   proxies: Region[],
