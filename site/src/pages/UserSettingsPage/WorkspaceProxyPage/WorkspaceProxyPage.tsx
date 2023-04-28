@@ -13,8 +13,14 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
     "workspace. To get the best experience, choose the workspace proxy that is" +
     "closest located to you."
 
-  const { proxies, error: proxiesError, isFetched: proxiesFetched, isLoading: proxiesLoading, proxy, setProxy } = useProxy()
-
+  const {
+    proxies,
+    error: proxiesError,
+    isFetched: proxiesFetched,
+    isLoading: proxiesLoading,
+    proxy,
+    setProxy,
+  } = useProxy()
 
   return (
     <Section

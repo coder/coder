@@ -34,7 +34,9 @@ interface PreferredProxy {
   preferredWildcardHostname: string
 }
 
-export const ProxyContext = createContext<ProxyContextValue | undefined>(undefined)
+export const ProxyContext = createContext<ProxyContextValue | undefined>(
+  undefined,
+)
 
 /**
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
@@ -51,11 +53,15 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const [proxy, setProxy] = useState<PreferredProxy>(savedProxy)
 
-
   const dashboard = useDashboard()
   const experimentEnabled = dashboard?.experiments.includes("moons")
   const queryKey = ["get-proxies"]
-  const { data: proxiesResp, error: proxiesError, isLoading: proxiesLoading, isFetched: proxiesFetched } = useQuery({
+  const {
+    data: proxiesResp,
+    error: proxiesError,
+    isLoading: proxiesLoading,
+    isFetched: proxiesFetched,
+  } = useQuery({
     queryKey,
     queryFn: getWorkspaceProxies,
     // This onSuccess ensures the local storage is synchronized with the
@@ -75,7 +81,9 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     proxies: Region[] = proxiesResp?.regions || [],
   ) => {
     if (!proxies) {
-      throw new Error("proxies are not yet loaded, so selecting a proxy makes no sense. How did you get here?")
+      throw new Error(
+        "proxies are not yet loaded, so selecting a proxy makes no sense. How did you get here?",
+      )
     }
     const preferred = getPreferredProxy(proxies, selectedProxy)
     // Save to local storage to persist the user's preference across reloads
@@ -104,11 +112,12 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <ProxyContext.Provider
       value={{
-        proxy: experimentEnabled ? proxy : {
-          ...getPreferredProxy([]),
-          preferredWildcardHostname:
-            applicationHostResult?.host || "",
-        },
+        proxy: experimentEnabled
+          ? proxy
+          : {
+              ...getPreferredProxy([]),
+              preferredWildcardHostname: applicationHostResult?.host || "",
+            },
         proxies: experimentEnabled ? proxiesResp?.regions : [],
         isLoading: experimentEnabled ? proxiesLoading : appHostLoading,
         isFetched: experimentEnabled ? proxiesFetched : appHostFetched,
@@ -119,7 +128,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
       }}
     >
       {children}
-    </ProxyContext.Provider >
+    </ProxyContext.Provider>
   )
 }
 
@@ -180,7 +189,6 @@ export const getPreferredProxy = (
     preferredWildcardHostname: wildcardHostname,
   }
 }
-
 
 // Local storage functions
 
