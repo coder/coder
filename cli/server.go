@@ -1762,15 +1762,16 @@ func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 		break
 	}
-	if err != nil {
-		return nil, xerrors.Errorf("connect to postgres; tries %d; last error: %w", tries, err)
-	}
-
+	// Make sure we close the DB in case it opened but the ping failed for some
+	// reason.
 	defer func() {
 		if !ok && sqlDB != nil {
 			_ = sqlDB.Close()
 		}
 	}()
+	if err != nil {
+		return nil, xerrors.Errorf("connect to postgres; tries %d; last error: %w", tries, err)
+	}
 
 	// Ensure the PostgreSQL version is >=13.0.0!
 	version, err := sqlDB.QueryContext(ctx, "SHOW server_version_num;")
