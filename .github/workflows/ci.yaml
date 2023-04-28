@@ -619,17 +619,25 @@ jobs:
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
         working-directory: site
 
-      - run: docker cp coder-admin-my-first-workspace:/tmp/ logs
+      - run: docker exec -it coder-admin-my-first-workspace ps aux
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
         working-directory: site
 
-      - name: Upload docker logs
+      - run: docker exec -it coder-admin-my-first-workspace ls -la /tmp/
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
-        uses: actions/upload-artifact@v3
-        with:
-          name: docker-logs
-          path: ./site/logs/*.log
-          retention-days: 7
+        working-directory: site
+
+      - run: docker exec -it coder-admin-my-first-workspace cat '/tmp/coder-agent-init.log'
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        working-directory: site
+
+      - run: docker exec -it coder-admin-my-first-workspace cat '/tmp/coder-agent.log'
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        working-directory: site
+
+      - run: docker exec -it coder-admin-my-first-workspace cat '/tmp/coder-startup-script.log'
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        working-directory: site
 
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
