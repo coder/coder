@@ -6613,8 +6613,8 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["moons"],
-      "x-enum-varnames": ["ExperimentMoons"]
+      "enum": ["moons", "workspace_actions"],
+      "x-enum-varnames": ["ExperimentMoons", "ExperimentWorkspaceActions"]
     },
     "codersdk.Feature": {
       "type": "object",

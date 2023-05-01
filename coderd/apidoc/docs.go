@@ -7397,10 +7397,12 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "moons"
+                "moons",
+                "workspace_actions"
             ],
             "x-enum-varnames": [
-                "ExperimentMoons"
+                "ExperimentMoons",
+                "ExperimentWorkspaceActions"
             ]
         },
         "codersdk.Feature": {
