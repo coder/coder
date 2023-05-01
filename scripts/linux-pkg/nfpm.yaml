@@ -25,5 +25,5 @@ contents:
     type: "config|noreplace"
   - src: coder.service
     dst: /usr/lib/systemd/system/coder.service
-  - src: coder-proxy.service
-    dst: /usr/lib/systemd/system/coder-proxy.service
+  - src: coder-workspace-proxy.service
+    dst: /usr/lib/systemd/system/coder-workspace-proxy.service
