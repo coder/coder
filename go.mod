@@ -166,7 +166,7 @@ require (
 	google.golang.org/api v0.108.0
 	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.28.2-0.20230118093459-a9481185b34d
-	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20221203005347-703fd9b7fbc0
 	nhooyr.io/websocket v1.8.7
