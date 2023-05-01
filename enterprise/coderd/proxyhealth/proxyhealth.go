@@ -152,7 +152,6 @@ func (p *ProxyHealth) storeProxyHealth(statuses map[uuid.UUID]ProxyStatus) {
 
 	// Store the statuses in the cache before any other quick values.
 	p.cache.Store(&statuses)
-	fmt.Println(healthyHosts)
 	p.heathyHosts.Store(&healthyHosts)
 }
 

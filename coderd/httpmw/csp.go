@@ -98,10 +98,11 @@ func CSPHeaders(websocketHosts func() []string) func(next http.Handler) http.Han
 				cspSrcs.Append(cspDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", host))
 			}
 
+			// The terminal requires a websocket connection to the workspace proxy.
+			// Make sure we allow this connection to healthy proxies.
 			extraConnect := websocketHosts()
 			if len(extraConnect) > 0 {
 				for _, extraHost := range extraConnect {
-					fmt.Println("extraHost", extraHost)
 					cspSrcs.Append(cspDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", extraHost))
 				}
 			}

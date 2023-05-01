@@ -822,7 +822,7 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	// HealthyWorkspaceProxyHosts returns the hostnames of healthy workspace proxies
+	// HealthyWorkspaceProxyHosts returns the hosts of healthy workspace proxies
 	// for header reasons.
 	HealthyWorkspaceProxyHosts atomic.Pointer[func() []string]
 	// TemplateScheduleStore is a pointer to an atomic pointer because this is
