@@ -793,7 +793,16 @@ func New(options *Options) *API {
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	}
 
-	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
+	// Add CSP headers to all static assets and pages. CSP headers only affect
+	// browsers, so these don't make sense on api routes.
+	cspMW := httpmw.CSPHeaders(func() []string {
+		if f := api.HealthyWorkspaceProxyHosts.Load(); f != nil {
+			// By default we do not add extra websocket connections to the CSP
+			return []string{}
+		}
+		return nil
+	})
+	r.NotFound(cspMW(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP))).ServeHTTP)
 	return api
 }
 
@@ -813,7 +822,12 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
+	// HealthyWorkspaceProxyHosts returns the hostnames of healthy workspace proxies
+	// for header reasons.
+	HealthyWorkspaceProxyHosts atomic.Pointer[func() []string]
+	// TemplateScheduleStore is a pointer to an atomic pointer because this is
+	// passed to another struct, and we want them all to be the same reference.
+	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	HTTPAuth *HTTPAuthorizer
 

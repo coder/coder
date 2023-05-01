@@ -125,11 +125,6 @@ func Handler(siteFS fs.FS, binFS http.FileSystem, binHashes map[string]string) h
 type handler struct {
 	fs fs.FS
 	// htmlFiles is the text/template for all *.html files.
-	// This is needed to support Content Security Policy headers.
-	// Due to material UI, we are forced to use a nonce to allow inline
-	// scripts, and that nonce is passed through a template.
-	// We only do this for html files to reduce the amount of in memory caching
-	// of duplicate files as `fs`.
 	htmlFiles     *htmlTemplates
 	h             http.Handler
 	buildInfoJSON string
@@ -152,13 +147,8 @@ func (h *handler) exists(filePath string) bool {
 }
 
 type htmlState struct {
-	CSP       cspState
 	CSRF      csrfState
 	BuildInfo string
-}
-
-type cspState struct {
-	Nonce string
 }
 
 type csrfState struct {

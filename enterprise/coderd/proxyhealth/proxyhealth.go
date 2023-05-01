@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -59,7 +60,9 @@ type ProxyHealth struct {
 	logger   slog.Logger
 	client   *http.Client
 
-	cache *atomic.Pointer[map[uuid.UUID]ProxyStatus]
+	// Cached values for quick access to the health of proxies.
+	cache       *atomic.Pointer[map[uuid.UUID]ProxyStatus]
+	heathyHosts *atomic.Pointer[[]string]
 
 	// PromMetrics
 	healthCheckDuration prometheus.Histogram
@@ -112,6 +115,7 @@ func New(opts *Options) (*ProxyHealth, error) {
 		logger:              opts.Logger,
 		client:              client,
 		cache:               &atomic.Pointer[map[uuid.UUID]ProxyStatus]{},
+		heathyHosts:         &atomic.Pointer[[]string]{},
 		healthCheckDuration: healthCheckDuration,
 		healthCheckResults:  healthCheckResults,
 	}, nil
@@ -133,10 +137,23 @@ func (p *ProxyHealth) Run(ctx context.Context) {
 				p.logger.Error(ctx, "proxy health check failed", slog.Error(err))
 				continue
 			}
-			// Store the statuses in the cache.
-			p.cache.Store(&statuses)
+			p.storeProxyHealth(statuses)
 		}
 	}
+}
+
+func (p *ProxyHealth) storeProxyHealth(statuses map[uuid.UUID]ProxyStatus) {
+	var healthyHosts []string
+	for _, s := range statuses {
+		if s.Status == Healthy {
+			healthyHosts = append(healthyHosts, s.ProxyHostname)
+		}
+	}
+
+	fmt.Println("healthyHosts", healthyHosts)
+	// Store the statuses in the cache before any other quick values.
+	p.cache.Store(&statuses)
+	p.heathyHosts.Store(&healthyHosts)
 }
 
 // ForceUpdate runs a single health check and updates the cache. If the health
@@ -148,8 +165,7 @@ func (p *ProxyHealth) ForceUpdate(ctx context.Context) error {
 		return err
 	}
 
-	// Store the statuses in the cache.
-	p.cache.Store(&statuses)
+	p.storeProxyHealth(statuses)
 	return nil
 }
 
@@ -163,15 +179,31 @@ func (p *ProxyHealth) HealthStatus() map[uuid.UUID]ProxyStatus {
 	return *ptr
 }
 
+// HealthyHostnames returns the hostnames of all healthy proxies.
+// This can be computed from HealthStatus, but is cached to avoid the
+// caller needing to loop over all proxies to compute this on all
+// static web requests.
+func (p *ProxyHealth) HealthyHostnames() []string {
+	ptr := p.heathyHosts.Load()
+	if ptr == nil {
+		return []string{}
+	}
+	return *ptr
+}
+
 type ProxyStatus struct {
 	// ProxyStatus includes the value of the proxy at the time of checking. This is
 	// useful to know as it helps determine if the proxy checked has different values
 	// then the proxy in hand. AKA if the proxy was updated, and the status was for
 	// an older proxy.
-	Proxy     database.WorkspaceProxy
-	Status    Status
-	Report    codersdk.ProxyHealthReport
-	CheckedAt time.Time
+	Proxy database.WorkspaceProxy
+	// ProxyHostname is the hostname of the proxy url. This is included in the status
+	// to make sure the proxy url is a valid URL. It also makes it easier to
+	// escalate errors if the url.Parse errors (should never happen).
+	ProxyHostname string
+	Status        Status
+	Report        codersdk.ProxyHealthReport
+	CheckedAt     time.Time
 }
 
 // runOnce runs the health check for all workspace proxies. If there is an
@@ -248,7 +280,16 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 					status.Status = Unhealthy
 					break
 				}
+				u, err := url.Parse(proxy.Url)
+				if err != nil {
+					// This should never happen. This would mean the proxy sent
+					// us an invalid url?
+					status.Report.Errors = append(status.Report.Errors, fmt.Sprintf("failed to parse proxy url: %s", err.Error()))
+					status.Status = Unhealthy
+					break
+				}
 				status.Status = Healthy
+				status.ProxyHostname = u.Hostname()
 			case err == nil && resp.StatusCode != http.StatusOK:
 				// Unhealthy as we did reach the proxy but it got an unexpected response.
 				status.Status = Unhealthy
