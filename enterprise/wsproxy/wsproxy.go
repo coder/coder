@@ -237,7 +237,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       404,
 			Title:        "Route Not Found",
-			Description:  fmt.Sprintf("The route you requested does not exist on this workspace proxy. Maybe you intended to make this request to the primary dashboard? Click below to be redirected to the primary site."),
+			Description:  "The route you requested does not exist on this workspace proxy. Maybe you intended to make this request to the primary dashboard? Click below to be redirected to the primary site.",
 			RetryEnabled: false,
 			DashboardURL: opts.DashboardURL.String(),
 		})
