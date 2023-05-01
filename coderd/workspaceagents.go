@@ -1737,32 +1737,8 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	if listen {
-		// If listening we await a new token...
-		authChan := make(chan struct{}, 1)
-		cancelFunc, err := api.Pubsub.Subscribe("gitauth", func(ctx context.Context, message []byte) {
-			ids := strings.Split(string(message), "|")
-			if len(ids) != 2 {
-				return
-			}
-			if ids[0] != gitAuthConfig.ID {
-				return
-			}
-			if ids[1] != workspace.OwnerID.String() {
-				return
-			}
-			select {
-			case authChan <- struct{}{}:
-			default:
-			}
-		})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to listen for git auth token.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		defer cancelFunc()
+		// Since we're ticking frequently and this sign-in operation is rare,
+		// we are OK with polling to avoid the complexity of pubsub.
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
@@ -1770,7 +1746,6 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-			case <-authChan:
 			}
 			gitAuthLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
 				ProviderID: gitAuthConfig.ID,
@@ -1786,7 +1761,12 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 				})
 				return
 			}
-			if gitAuthLink.OAuthExpiry.Before(database.Now()) {
+
+			// Expiry may be unset if the application doesn't configure tokens
+			// to expire.
+			// See
+			// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app.
+			if gitAuthLink.OAuthExpiry.Before(database.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
 			if gitAuthConfig.ValidateURL != "" {
@@ -1932,20 +1912,11 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			}
 		}
 
-		err = api.Pubsub.Publish("gitauth", []byte(fmt.Sprintf("%s|%s", gitAuthConfig.ID, apiKey.UserID)))
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to publish auth update.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
 		redirect := state.Redirect
 		if redirect == "" {
+			// This is a nicely rendered screen on the frontend
 			redirect = "/gitauth"
 		}
-		// This is a nicely rendered screen on the frontend
 		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}
 }
