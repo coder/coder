@@ -101,6 +101,7 @@ func CSPHeaders(websocketHosts func() []string) func(next http.Handler) http.Han
 			extraConnect := websocketHosts()
 			if len(extraConnect) > 0 {
 				for _, extraHost := range extraConnect {
+					fmt.Println("extraHost", extraHost)
 					cspSrcs.Append(cspDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", extraHost))
 				}
 			}

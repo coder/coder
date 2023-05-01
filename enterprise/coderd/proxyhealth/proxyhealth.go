@@ -146,12 +146,13 @@ func (p *ProxyHealth) storeProxyHealth(statuses map[uuid.UUID]ProxyStatus) {
 	var healthyHosts []string
 	for _, s := range statuses {
 		if s.Status == Healthy {
-			healthyHosts = append(healthyHosts, s.ProxyHostname)
+			healthyHosts = append(healthyHosts, s.ProxyHost)
 		}
 	}
 
 	// Store the statuses in the cache before any other quick values.
 	p.cache.Store(&statuses)
+	fmt.Println(healthyHosts)
 	p.heathyHosts.Store(&healthyHosts)
 }
 
@@ -178,11 +179,11 @@ func (p *ProxyHealth) HealthStatus() map[uuid.UUID]ProxyStatus {
 	return *ptr
 }
 
-// HealthyHostnames returns the hostnames of all healthy proxies.
+// HealthyHosts returns the host:port of all healthy proxies.
 // This can be computed from HealthStatus, but is cached to avoid the
 // caller needing to loop over all proxies to compute this on all
 // static web requests.
-func (p *ProxyHealth) HealthyHostnames() []string {
+func (p *ProxyHealth) HealthyHosts() []string {
 	ptr := p.heathyHosts.Load()
 	if ptr == nil {
 		return []string{}
@@ -196,13 +197,13 @@ type ProxyStatus struct {
 	// then the proxy in hand. AKA if the proxy was updated, and the status was for
 	// an older proxy.
 	Proxy database.WorkspaceProxy
-	// ProxyHostname is the hostname of the proxy url. This is included in the status
+	// ProxyHost is the host:port of the proxy url. This is included in the status
 	// to make sure the proxy url is a valid URL. It also makes it easier to
 	// escalate errors if the url.Parse errors (should never happen).
-	ProxyHostname string
-	Status        Status
-	Report        codersdk.ProxyHealthReport
-	CheckedAt     time.Time
+	ProxyHost string
+	Status    Status
+	Report    codersdk.ProxyHealthReport
+	CheckedAt time.Time
 }
 
 // runOnce runs the health check for all workspace proxies. If there is an
@@ -288,7 +289,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 					break
 				}
 				status.Status = Healthy
-				status.ProxyHostname = u.Hostname()
+				status.ProxyHost = u.Host
 			case err == nil && resp.StatusCode != http.StatusOK:
 				// Unhealthy as we did reach the proxy but it got an unexpected response.
 				status.Status = Unhealthy

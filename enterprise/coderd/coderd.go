@@ -252,7 +252,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		go api.forceWorkspaceProxyHealthUpdate(ctx)
 
 		// Use proxy health to return the healthy workspace proxy hostnames.
-		f := api.ProxyHealth.HealthyHostnames
+		f := api.ProxyHealth.HealthyHosts
 		api.AGPL.HealthyWorkspaceProxyHosts.Store(&f)
 	}
 
