@@ -94,7 +94,7 @@
     "yup": "0.32.11"
   },
   "devDependencies": {
-    "@playwright/test": "1.29.2",
+    "@playwright/test": "1.33.0",
     "@storybook/addon-actions": "7.0.4",
     "@storybook/addon-essentials": "7.0.4",
     "@storybook/addon-links": "7.0.4",
