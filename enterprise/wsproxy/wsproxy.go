@@ -229,7 +229,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		s.AppServer.Attach(r)
 	})
 
-	r.Get("/buildinfo", s.buildInfo)
+	r.Get("/api/v2/buildinfo", s.buildInfo)
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 	// TODO: @emyrk should this be authenticated or debounced?
 	r.Get("/healthz-report", s.healthReport)

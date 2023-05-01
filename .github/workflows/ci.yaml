@@ -487,14 +487,27 @@ jobs:
 
       - name: Install Release
         run: |
-          gcloud config set project coder-dogfood
-          gcloud config set compute/zone us-central1-a
-          gcloud compute scp ./build/coder_*_linux_amd64.deb coder:/tmp/coder.deb
-          gcloud compute ssh coder -- sudo dpkg -i --force-confdef /tmp/coder.deb
-          gcloud compute ssh coder -- sudo systemctl daemon-reload
+          set -euo pipefail
 
-      - name: Start
-        run: gcloud compute ssh coder -- sudo service coder restart
+          regions=(
+            # gcp-region-id instance-name systemd-service-name
+            "us-central1-a coder coder"
+            "australia-southeast1-b coder-sydney coder-proxy"
+            "europe-west3-c coder-europe coder-proxy"
+            "southamerica-east1-b coder-brazil coder-proxy"
+          )
+
+          gcloud config set project coder-dogfood
+          for region in "${regions[@]}"; do
+            echo "::group::$region"
+            set -- $region
+
+            gcloud config set compute/zone "$1"
+            gcloud compute scp ./build/coder_*_linux_amd64.deb "$2":/tmp/coder.deb
+            gcloud compute ssh "$2" -- /bin/sh -c "set -eux; sudo dpkg -i --force-confdef /tmp/coder.deb; sudo systemctl daemon-reload; sudo service '$3' restart"
+
+            echo "::endgroup::"
+          done
 
       - uses: actions/upload-artifact@v3
         with:
