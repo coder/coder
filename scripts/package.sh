@@ -84,9 +84,10 @@ cdroot
 temp_dir="$(TMPDIR="$(dirname "$input_file")" mktemp -d)"
 ln "$input_file" "$temp_dir/coder"
 ln "$(realpath coder.env)" "$temp_dir/"
-ln "$(realpath coder.service)" "$temp_dir/"
-ln "$(realpath preinstall.sh)" "$temp_dir/"
-ln "$(realpath scripts/nfpm.yaml)" "$temp_dir/"
+ln "$(realpath scripts/linux-pkg/coder-workspace-proxy.service)" "$temp_dir/"
+ln "$(realpath scripts/linux-pkg/coder.service)" "$temp_dir/"
+ln "$(realpath scripts/linux-pkg/nfpm.yaml)" "$temp_dir/"
+ln "$(realpath scripts/linux-pkg/preinstall.sh)" "$temp_dir/"
 
 pushd "$temp_dir"
 GOARCH="$arch" CODER_VERSION="$version" nfpm package \
