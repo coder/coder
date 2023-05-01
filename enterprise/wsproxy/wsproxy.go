@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/coderd/httpapi"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,12 +18,14 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
+	"github.com/coder/coder/site"
 )
 
 type Options struct {
@@ -233,6 +233,15 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 	// TODO: @emyrk should this be authenticated or debounced?
 	r.Get("/healthz-report", s.healthReport)
+	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       404,
+			Title:        "Route Not Found",
+			Description:  fmt.Sprintf("The route you requested does not exist on this workspace proxy. Maybe you intended to make this request to the primary dashboard? Click below to be redirected to the primary site."),
+			RetryEnabled: false,
+			DashboardURL: opts.DashboardURL.String(),
+		})
+	})
 
 	return s, nil
 }
