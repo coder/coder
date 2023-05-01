@@ -9835,6 +9835,12 @@ const docTemplate = `{
                 "deleted": {
                     "type": "boolean"
                 },
+                "derp_enabled": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
                 "icon": {
                     "type": "string"
                 },
@@ -10533,6 +10539,10 @@ const docTemplate = `{
                 "access_url": {
                     "description": "AccessURL that hits the workspace proxy api.",
                     "type": "string"
+                },
+                "derp_enabled": {
+                    "description": "DerpEnabled indicates whether the proxy should be included in the DERP\nmap or not.",
+                    "type": "boolean"
                 },
                 "wildcard_hostname": {
                     "description": "WildcardHostname that the workspace proxy api is serving for subdomain apps.",

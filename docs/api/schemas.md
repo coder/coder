@@ -5320,6 +5320,8 @@ Parameter represents a set value for the scope.
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
+  "derp_enabled": true,
+  "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
@@ -5343,6 +5345,8 @@ Parameter represents a set value for the scope.
 | ------------------- | -------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `created_at`        | string                                                         | false    |              |                                                                                                                                                                               |
 | `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                               |
+| `derp_enabled`      | boolean                                                        | false    |              |                                                                                                                                                                               |
+| `display_name`      | string                                                         | false    |              |                                                                                                                                                                               |
 | `icon`              | string                                                         | false    |              |                                                                                                                                                                               |
 | `id`                | string                                                         | false    |              |                                                                                                                                                                               |
 | `name`              | string                                                         | false    |              |                                                                                                                                                                               |
@@ -6658,16 +6662,18 @@ _None_
 ```json
 {
   "access_url": "string",
+  "derp_enabled": true,
   "wildcard_hostname": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type   | Required | Restrictions | Description                                                                   |
-| ------------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------- |
-| `access_url`        | string | false    |              | Access URL that hits the workspace proxy api.                                 |
-| `wildcard_hostname` | string | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps. |
+| Name                | Type    | Required | Restrictions | Description                                                                         |
+| ------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `access_url`        | string  | false    |              | Access URL that hits the workspace proxy api.                                       |
+| `derp_enabled`      | boolean | false    |              | Derp enabled indicates whether the proxy should be included in the DERP map or not. |
+| `wildcard_hostname` | string  | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps.       |
 
 ## wsproxysdk.RegisterWorkspaceProxyResponse
 

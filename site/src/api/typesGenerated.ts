@@ -1258,9 +1258,11 @@ export interface WorkspaceOptions {
 export interface WorkspaceProxy {
   readonly id: string
   readonly name: string
+  readonly display_name: string
   readonly icon: string
   readonly url: string
   readonly wildcard_hostname: string
+  readonly derp_enabled: boolean
   readonly created_at: string
   readonly updated_at: string
   readonly deleted: boolean

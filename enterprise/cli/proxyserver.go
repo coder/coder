@@ -238,6 +238,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				APIRateLimit:       int(cfg.RateLimit.API.Value()),
 				SecureAuthCookie:   cfg.SecureAuthCookie.Value(),
 				DisablePathApps:    cfg.DisablePathApps.Value(),
+				DERPEnabled:        cfg.DERP.Server.Enable.Value(),
 				ProxySessionToken:  proxySessionToken.Value(),
 			})
 			if err != nil {

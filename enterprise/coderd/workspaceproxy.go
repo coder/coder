@@ -171,10 +171,13 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		DisplayName:       req.DisplayName,
 		Icon:              req.Icon,
 		TokenHashedSecret: hashedSecret[:],
-		CreatedAt:         database.Now(),
-		UpdatedAt:         database.Now(),
+		// Enabled by default, but will be disabled on register if the proxy has
+		// it disabled.
+		DerpEnabled: true,
+		CreatedAt:   database.Now(),
+		UpdatedAt:   database.Now(),
 	})
-	if database.IsUniqueViolation(err) {
+	if database.IsUniqueViolation(err, database.UniqueWorkspaceProxiesLowerNameIndex) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: fmt.Sprintf("Workspace proxy with name %q already exists.", req.Name),
 		})
@@ -333,6 +336,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	_, err := api.Database.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
 		ID:               proxy.ID,
 		Url:              req.AccessURL,
+		DerpEnabled:      req.DerpEnabled,
 		WildcardHostname: req.WildcardHostname,
 	})
 	if httpapi.Is404Error(err) {
@@ -459,9 +463,11 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 	return codersdk.WorkspaceProxy{
 		ID:               p.ID,
 		Name:             p.Name,
+		DisplayName:      p.DisplayName,
 		Icon:             p.Icon,
 		URL:              p.Url,
 		WildcardHostname: p.WildcardHostname,
+		DerpEnabled:      p.DerpEnabled,
 		CreatedAt:        p.CreatedAt,
 		UpdatedAt:        p.UpdatedAt,
 		Deleted:          p.Deleted,

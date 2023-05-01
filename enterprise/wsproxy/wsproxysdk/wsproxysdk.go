@@ -148,6 +148,9 @@ type RegisterWorkspaceProxyRequest struct {
 	AccessURL string `json:"access_url"`
 	// WildcardHostname that the workspace proxy api is serving for subdomain apps.
 	WildcardHostname string `json:"wildcard_hostname"`
+	// DerpEnabled indicates whether the proxy should be included in the DERP
+	// map or not.
+	DerpEnabled bool `json:"derp_enabled"`
 }
 
 type RegisterWorkspaceProxyResponse struct {

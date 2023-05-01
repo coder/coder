@@ -53,13 +53,13 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 
 	RealIPConfig       *httpmw.RealIPConfig
-	DERPServer         *derp.Server
 	Tracing            trace.TracerProvider
 	PrometheusRegistry *prometheus.Registry
 
 	APIRateLimit     int
 	SecureAuthCookie bool
 	DisablePathApps  bool
+	DERPEnabled      bool
 
 	ProxySessionToken string
 }
@@ -140,6 +140,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	regResp, err := client.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
 		AccessURL:        opts.AccessURL.String(),
 		WildcardHostname: opts.AppHostname,
+		DerpEnabled:      opts.DERPEnabled,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("register proxy: %w", err)
@@ -186,11 +187,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		SecureAuthCookie: opts.SecureAuthCookie,
 	}
 
-	if opts.DERPServer == nil {
-		opts.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("derp")))
-	}
-	derpHandler := derphttp.Handler(opts.DERPServer)
-	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupport(opts.DERPServer, derpHandler)
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("derp")))
+	// TODO: mesh and derpmesh package stuff
+	// derpServer.SetMeshKey(regResp.DERPMeshKey)
+	derpHandler := derphttp.Handler(derpServer)
+	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupport(derpServer, derpHandler)
 
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)

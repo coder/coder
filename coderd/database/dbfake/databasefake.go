@@ -5206,6 +5206,7 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 		Name:              arg.Name,
 		DisplayName:       arg.DisplayName,
 		Icon:              arg.Icon,
+		DerpEnabled:       arg.DerpEnabled,
 		TokenHashedSecret: arg.TokenHashedSecret,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
@@ -5223,6 +5224,7 @@ func (q *fakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 		if p.ID == arg.ID {
 			p.Url = arg.Url
 			p.WildcardHostname = arg.WildcardHostname
+			p.DerpEnabled = arg.DerpEnabled
 			p.UpdatedAt = database.Now()
 			q.workspaceProxies[i] = p
 			return p, nil

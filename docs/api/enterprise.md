@@ -1182,6 +1182,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
   {
     "created_at": "2019-08-24T14:15:22Z",
     "deleted": true,
+    "derp_enabled": true,
+    "display_name": "string",
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
@@ -1215,6 +1217,8 @@ Status Code **200**
 | `[array item]`        | array                                                                    | false    |              |                                                                                                                                                                               |
 | `» created_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
 | `» deleted`           | boolean                                                                  | false    |              |                                                                                                                                                                               |
+| `» derp_enabled`      | boolean                                                                  | false    |              |                                                                                                                                                                               |
+| `» display_name`      | string                                                                   | false    |              |                                                                                                                                                                               |
 | `» icon`              | string                                                                   | false    |              |                                                                                                                                                                               |
 | `» id`                | string(uuid)                                                             | false    |              |                                                                                                                                                                               |
 | `» name`              | string                                                                   | false    |              |                                                                                                                                                                               |
@@ -1277,6 +1281,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
+  "derp_enabled": true,
+  "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",

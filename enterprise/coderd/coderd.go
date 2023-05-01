@@ -6,9 +6,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -435,7 +437,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); changed {
 		if enabled {
-			fn := derpMapper(api.ProxyHealth)
+			fn := derpMapper(api.Logger, api.ProxyHealth)
 			api.AGPL.DERPMapper.Store(&fn)
 		} else {
 			api.AGPL.DERPMapper.Store(nil)
@@ -447,25 +449,62 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	return nil
 }
 
-func derpMapper(proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
+var (
+	lastDerpConflictMutex sync.Mutex
+	lastDerpConflictLog   time.Time
+)
+
+func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
 	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		derpMap = derpMap.Clone()
 
-		// Add all healthy proxies to the DERP map.
-		// TODO: @dean proxies should be able to disable DERP and report that
-		// when they register, and this should respect that.
-		statusMap := proxyHealth.HealthStatus()
-		for _, status := range statusMap {
-			// TODO: @dean region ID should be constant and unique for each
-			// proxy. Make the proxies report these values (from a flag like the
-			// primary) when they register.
-			const (
-				regionID   = -999
-				regionCode = "proxy"
-			)
+		// Find the starting region ID that we'll use for proxies. This must be
+		// deterministic based on the derp map.
+		startingRegionID := 0
+		for _, region := range derpMap.Regions {
+			if region.RegionID > startingRegionID {
+				startingRegionID = region.RegionID
+			}
+		}
+		if startingRegionID < 0 {
+			startingRegionID = 0
+		}
+		if startingRegionID >= 1<<32 {
+			// Enforce an upper bound on the region ID. This shouldn't be hit in
+			// practice, but it's a good sanity check.
+			lastDerpConflictMutex.Lock()
+			shouldLog := lastDerpConflictLog.IsZero() || time.Since(lastDerpConflictLog) > time.Minute
+			if shouldLog {
+				lastDerpConflictLog = time.Now()
+			}
+			lastDerpConflictMutex.Unlock()
+			if shouldLog {
+				logger.Warn(
+					context.Background(),
+					"existing DERP region IDs are too large, proxy region IDs will not be populated in the derp map. Please ensure that all DERP region IDs are less than 2^32.",
+					slog.F("starting_region_id", startingRegionID),
+					slog.F("max_region_id", 1<<32-1),
+				)
+				return derpMap
+			}
+		}
 
-			if status.Status != proxyhealth.Healthy {
-				// Only add healthy proxies to the DERP map.
+		// Round to the nearest 10,000 with a sufficient buffer of at least
+		// 2,000.
+		const roundStartingRegionID = 10_000
+		const startingRegionIDBuffer = 2_000
+		startingRegionID += startingRegionIDBuffer
+		startingRegionID = int(math.Ceil(float64(startingRegionID)/roundStartingRegionID) * roundStartingRegionID)
+		if startingRegionID < roundStartingRegionID {
+			startingRegionID = roundStartingRegionID
+		}
+
+		// Add all healthy proxies to the DERP map.
+		statusMap := proxyHealth.HealthStatus()
+	statusLoop:
+		for _, status := range statusMap {
+			if status.Status != proxyhealth.Healthy || !status.Proxy.DerpEnabled {
+				// Only add healthy proxies with DERP enabled to the DERP map.
 				continue
 			}
 
@@ -487,6 +526,40 @@ func derpMapper(proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *ta
 				// Not really any need to log, the proxy should be unreachable
 				// anyways and filtered out by the above condition.
 				continue
+			}
+
+			// Sanity check that the region ID and code is unique.
+			//
+			// This should be impossible to hit as the IDs are enforced to be
+			// unique by the database and the computed ID is greater than any
+			// existing ID in the DERP map.
+			regionID := startingRegionID + int(status.Proxy.RegionID)
+			regionCode := fmt.Sprintf("coder_%s", strings.ToLower(status.Proxy.Name))
+			for _, r := range derpMap.Regions {
+				if r.RegionID == regionID || r.RegionCode == regionCode {
+					// Log a warning if we haven't logged one in the last
+					// minute.
+					lastDerpConflictMutex.Lock()
+					shouldLog := lastDerpConflictLog.IsZero() || time.Since(lastDerpConflictLog) > time.Minute
+					if shouldLog {
+						lastDerpConflictLog = time.Now()
+					}
+					lastDerpConflictMutex.Unlock()
+					if shouldLog {
+						logger.Warn(context.Background(),
+							"proxy region ID or code conflict, ignoring workspace proxy for DERP map. Please change the flags on the affected proxy to use a different region ID and code.",
+							slog.F("proxy_id", status.Proxy.ID),
+							slog.F("proxy_name", status.Proxy.Name),
+							slog.F("proxy_display_name", status.Proxy.DisplayName),
+							slog.F("proxy_url", status.Proxy.Url),
+							slog.F("proxy_region_id", status.Proxy.RegionID),
+							slog.F("proxy_computed_region_id", regionID),
+							slog.F("proxy_computed_region_code", regionCode),
+						)
+					}
+
+					continue statusLoop
+				}
 			}
 
 			derpMap.Regions[regionID] = &tailcfg.DERPRegion{

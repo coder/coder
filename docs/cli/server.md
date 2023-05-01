@@ -128,7 +128,7 @@ Whether to enable or disable the embedded DERP relay server.
 | YAML        | <code>networking.derp.regionCode</code>     |
 | Default     | <code>coder</code>                          |
 
-Region code to use for the embedded DERP server.
+Region code to use for the embedded DERP server. On external proxies, an empty string or "coder" will use the previous (or randomly generated) value.
 
 ### --derp-server-region-id
 
@@ -139,7 +139,7 @@ Region code to use for the embedded DERP server.
 | YAML        | <code>networking.derp.regionID</code>     |
 | Default     | <code>999</code>                          |
 
-Region ID to use for the embedded DERP server.
+Region ID to use for the embedded DERP server. On external proxies, a value of < 0 or 999 will use the previous (or randomly generated) value.
 
 ### --derp-server-region-name
 
