@@ -797,10 +797,10 @@ func New(options *Options) *API {
 	// browsers, so these don't make sense on api routes.
 	cspMW := httpmw.CSPHeaders(func() []string {
 		if f := api.HealthyWorkspaceProxyHosts.Load(); f != nil {
-			// By default we do not add extra websocket connections to the CSP
-			return []string{}
+			return (*f)()
 		}
-		return nil
+		// By default we do not add extra websocket connections to the CSP
+		return []string{}
 	})
 	r.NotFound(cspMW(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP))).ServeHTTP)
 	return api
