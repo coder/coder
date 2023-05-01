@@ -103,7 +103,7 @@ require (
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/golang-lru/v2 v2.0.1
-	github.com/hashicorp/hc-install v0.4.1-0.20220912074615-4487b02cbcbb
+	github.com/hashicorp/hc-install v0.5.1
 	github.com/hashicorp/hcl/v2 v2.14.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.14.0
@@ -155,7 +155,7 @@ require (
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf
 	golang.org/x/crypto v0.7.0
 	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db
-	golang.org/x/mod v0.8.0
+	golang.org/x/mod v0.9.0
 	golang.org/x/oauth2 v0.5.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.7.0
