@@ -46,6 +46,7 @@ const (
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureWorkspaceActions           FeatureName = "workspace_actions"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -61,6 +62,7 @@ var FeatureNames = []FeatureName{
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
+	FeatureWorkspaceActions,
 }
 
 // Humanize returns the feature name in a human-readable format.

@@ -322,6 +322,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			codersdk.FeatureWorkspaceProxy:             true,
+			codersdk.FeatureWorkspaceActions:           true,
 		})
 	if err != nil {
 		return err
