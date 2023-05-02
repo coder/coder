@@ -105,7 +105,6 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		// Hidden
 		r.gitssh(),
 		r.scaletest(),
-		r.trafficGen(),
 		r.vscodeSSH(),
 		r.workspaceAgent(),
 	}
