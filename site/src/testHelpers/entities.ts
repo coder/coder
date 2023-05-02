@@ -1532,6 +1532,11 @@ export const MockWorkspaceBuildParameter2: TypesGen.WorkspaceBuildParameter = {
   value: "3",
 }
 
+export const MockWorkspaceBuildParameter3: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter3.name,
+  value: "my-database",
+}
+
 export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
   name: MockTemplateVersionParameter5.name,
   value: "5",

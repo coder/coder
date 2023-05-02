@@ -19,7 +19,9 @@ import {
   WorkspaceBuildParameter,
 } from "api/typesGenerated"
 
-export type FormValues = { rich_parameter_values: WorkspaceBuildParameter[] }
+export type WorkspaceParametersFormValues = {
+  rich_parameter_values: WorkspaceBuildParameter[]
+}
 
 export const WorkspaceParametersForm: FC<{
   isSubmitting: boolean
@@ -27,7 +29,7 @@ export const WorkspaceParametersForm: FC<{
   buildParameters: WorkspaceBuildParameter[]
   error: unknown
   onCancel: () => void
-  onSubmit: (values: FormValues) => void
+  onSubmit: (values: WorkspaceParametersFormValues) => void
 }> = ({
   onCancel,
   onSubmit,
@@ -43,7 +45,7 @@ export const WorkspaceParametersForm: FC<{
   const immutableParameters = templateVersionRichParameters.filter(
     (param) => param.mutable === false,
   )
-  const form = useFormik<FormValues>({
+  const form = useFormik<WorkspaceParametersFormValues>({
     onSubmit,
     initialValues: {
       rich_parameter_values: mutableParameters.map((parameter) => {
@@ -67,7 +69,10 @@ export const WorkspaceParametersForm: FC<{
       ),
     }),
   })
-  const getFieldHelpers = getFormHelpers<FormValues>(form, error)
+  const getFieldHelpers = getFormHelpers<WorkspaceParametersFormValues>(
+    form,
+    error,
+  )
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
