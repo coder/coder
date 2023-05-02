@@ -4,16 +4,17 @@
 
 Workspace Proxies are a feature to provide low latency experiences for geo-distributed teams.
 
-Coder's networking does a best effort to make direct connections to a workspace. In situtions where this is not possible, such as [dashboard connections](../networking/README.md#dashboard-connections), workspace proxies are able to reduce the amount of distance the network traffic needs to travel. 
+Coder's networking does a best effort to make direct connections to a workspace. In situtions where this is not possible, such as [dashboard connections](../networking/README.md#dashboard-connections), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
 
 A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over ssh, a workspace app, port forwarding, etc.
 
 <!-- TODO: Might want to modify this diagram? -->
+
 ![ProxyDiagram](../images/workspaceproxy/proxydiagram.png)
 
 # Deploy a workspace proxy
 
-Each workspace proxy should be a unique instance. At no point should 2 workspace proxy instances share the same authentication token. 
+Each workspace proxy should be a unique instance. At no point should 2 workspace proxy instances share the same authentication token.
 
 Workspace proxies can be used in the browser by navigating to the user `Account -> Workspace Proxy`
 
@@ -35,7 +36,7 @@ To verify it was created.
 
 ```bash
 $ coder proxy ls
-NAME         URL                    STATUS STATUS  
+NAME         URL                    STATUS STATUS
 newyork                             unregistered
 ```
 
@@ -45,13 +46,14 @@ Deploying the workspace proxy will also register the proxy with coderd and make 
 
 ```
 $ coder proxy lsPM
-NAME              URL                           STATUS STATUS  
-brazil-saopaulo   https://brazil.example.com  ok             
-europe-frankfurt  https://europe.example.com  ok             
+NAME              URL                           STATUS STATUS
+brazil-saopaulo   https://brazil.example.com  ok
+europe-frankfurt  https://europe.example.com  ok
 sydney            https://sydney.example.com  ok
 ```
 
 Other Status codes:
+
 - `unregistered` : The workspace proxy was created, and not yet deployed
 - `unreachable` : The workspace proxy was registered, but is not responding. Likely the proxy went offline.
 - `unhealthy` : The workspace proxy is reachable, but has some issue that is preventing the proxy from being used. `coder proxy ls` should show the error message.
@@ -63,6 +65,7 @@ Other Status codes:
  I am not sure the best way to present this.
  Ideally in the future we can auto sync some of the settings with coderd.
  -->
+
 Workspace proxy configuration overlaps with a subset of the coderd configuration. To see the full list of configuration options: `coder proxy server --help`
 
 ```bash
@@ -97,4 +100,3 @@ coder proxy server
 ```
 
 <!-- Additional run options? -->
-
