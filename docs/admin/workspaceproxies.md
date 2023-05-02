@@ -1,5 +1,7 @@
 # Workspace Proxies
 
+> Workspace proxies are in an [experimental state](../contributing/feature-stages.md#experimental-features) and the behavior is subject to change. Use [GitHub issues](https://github.com/coder/coder) to leave feedback. This experiment must be specifially enabled with the `--experiments="moons"` option.
+
 Workspace Proxies are a feature to provide low latency experiences for geo-distributed teams.
 
 Coder's networking does a best effort to make direct connections to a workspace. In situtions where this is not possible, such as [dashboard connections](../networking/README.md#dashboard-connections), workspace proxies are able to reduce the amount of distance the network traffic needs to travel. 
