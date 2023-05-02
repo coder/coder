@@ -256,7 +256,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// which is caught by goleaks.
 			defer http.DefaultClient.CloseIdleConnections()
 
-			tracerProvider, sqlDriver := ConfigureTraceProvider(ctx, logger, inv, cfg)
+			tracerProvider, sqlDriver, closeTracing := ConfigureTraceProvider(ctx, logger, inv, cfg)
+			defer func() {
+				logger.Debug(ctx, "closing tracing")
+				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
+				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
+			}()
+
 			httpServers, err := ConfigureHTTPServers(inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("configure http(s): %w", err)
@@ -1863,9 +1869,15 @@ func (s *HTTPServers) Close() {
 	}
 }
 
-func ConfigureTraceProvider(ctx context.Context, logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (trace.TracerProvider, string) {
+func ConfigureTraceProvider(
+	ctx context.Context,
+	logger slog.Logger,
+	inv *clibase.Invocation,
+	cfg *codersdk.DeploymentValues,
+) (trace.TracerProvider, string, func(context.Context) error) {
 	var (
-		tracerProvider trace.TracerProvider
+		tracerProvider = trace.NewNoopTracerProvider()
+		closeTracing   = func(context.Context) error { return nil }
 		sqlDriver      = "postgres"
 	)
 	// Coder tracing should be disabled if telemetry is disabled unless
@@ -1878,7 +1890,7 @@ func ConfigureTraceProvider(ctx context.Context, logger slog.Logger, inv *clibas
 	}
 
 	if cfg.Trace.Enable.Value() || shouldCoderTrace || cfg.Trace.HoneycombAPIKey != "" {
-		sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
+		sdkTracerProvider, _closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 			Default:   cfg.Trace.Enable.Value(),
 			Coder:     shouldCoderTrace,
 			Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
@@ -1886,11 +1898,6 @@ func ConfigureTraceProvider(ctx context.Context, logger slog.Logger, inv *clibas
 		if err != nil {
 			logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
 		} else {
-			// allow time for traces to flush even if command context is canceled
-			defer func() {
-				_ = shutdownWithTimeout(closeTracing, 5*time.Second)
-			}()
-
 			d, err := tracing.PostgresDriver(sdkTracerProvider, "coderd.database")
 			if err != nil {
 				logger.Warn(ctx, "start postgres tracing driver", slog.Error(err))
@@ -1899,9 +1906,10 @@ func ConfigureTraceProvider(ctx context.Context, logger slog.Logger, inv *clibas
 			}
 
 			tracerProvider = sdkTracerProvider
+			closeTracing = _closeTracing
 		}
 	}
-	return tracerProvider, sqlDriver
+	return tracerProvider, sqlDriver, closeTracing
 }
 
 func ConfigureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (_ *HTTPServers, err error) {
