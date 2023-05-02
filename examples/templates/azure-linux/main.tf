@@ -225,10 +225,9 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch               = "amd64"
-  os                 = "linux"
-  auth               = "azure-instance-identity"
-  login_before_ready = false
+  arch = "amd64"
+  os   = "linux"
+  auth = "azure-instance-identity"
 
   metadata {
     key          = "cpu"

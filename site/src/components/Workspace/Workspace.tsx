@@ -41,12 +41,14 @@ export interface WorkspaceProps {
   }
   handleStart: () => void
   handleStop: () => void
+  handleRestart: () => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
   handleSettings: () => void
   handleChangeVersion: () => void
   isUpdating: boolean
+  isRestarting: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
@@ -57,7 +59,6 @@ export interface WorkspaceProps {
   hideVSCodeDesktopButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
-  applicationsHost?: string
   sshPrefix?: string
   template?: TypesGen.Template
   quota_budget?: number
@@ -72,6 +73,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   scheduleProps,
   handleStart,
   handleStop,
+  handleRestart,
   handleDelete,
   handleUpdate,
   handleCancel,
@@ -79,6 +81,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleChangeVersion,
   workspace,
   isUpdating,
+  isRestarting,
   resources,
   builds,
   canUpdateWorkspace,
@@ -88,7 +91,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   hideSSHButton,
   hideVSCodeDesktopButton,
   buildInfo,
-  applicationsHost,
   sshPrefix,
   template,
   quota_budget,
@@ -132,6 +134,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
+              handleRestart={handleRestart}
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
@@ -139,6 +142,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleChangeVersion={handleChangeVersion}
               canChangeVersions={canChangeVersions}
               isUpdating={isUpdating}
+              isRestarting={isRestarting}
             />
           </Stack>
         }
@@ -240,7 +244,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 key={agent.id}
                 agent={agent}
                 workspace={workspace}
-                applicationsHost={applicationsHost}
                 sshPrefix={sshPrefix}
                 showApps={canUpdateWorkspace}
                 hideSSHButton={hideSSHButton}

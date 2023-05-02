@@ -134,7 +134,7 @@ Some drawbacks include:
 Envbox requires the same kernel requirements as running sysbox directly on the nodes. Refer
 to sysbox's [compatibility matrix](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility) to ensure your nodes are compliant.
 
-To get started with `envbox` check out the [starter template](../../examples/templates/envbox) or visit the [repo](https://github.com/coder/envbox).
+To get started with `envbox` check out the [starter template](https://github.com/coder/coder/tree/main/examples/templates/envbox) or visit the [repo](https://github.com/coder/envbox).
 
 ### Authenticating with a Private Registry
 

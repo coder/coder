@@ -68,9 +68,54 @@ export const MockTokens: TypesGen.APIKeyWithOwner[] = [
   },
 ]
 
+export const MockPrimaryWorkspaceProxy: TypesGen.Region = {
+  id: "4aa23000-526a-481f-a007-0f20b98b1e12",
+  name: "primary",
+  display_name: "Default",
+  icon_url: "/emojis/1f60e.png",
+  healthy: true,
+  path_app_url: "https://coder.com",
+  wildcard_hostname: "*.coder.com",
+}
+
+export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
+  id: "5e2c1ab7-479b-41a9-92ce-aa85625de52c",
+  name: "haswildcard",
+  display_name: "Subdomain Supported",
+  icon_url: "/emojis/1f319.png",
+  healthy: true,
+  path_app_url: "https://external.com",
+  wildcard_hostname: "*.external.com",
+}
+
+export const MockWorkspaceProxies: TypesGen.Region[] = [
+  MockPrimaryWorkspaceProxy,
+  MockHealthyWildWorkspaceProxy,
+  {
+    id: "8444931c-0247-4171-842a-569d9f9cbadb",
+    name: "unhealthy",
+    display_name: "Unhealthy",
+    icon_url: "/emojis/1f92e.png",
+    healthy: false,
+    path_app_url: "https://unhealthy.coder.com",
+    wildcard_hostname: "*unhealthy..coder.com",
+  },
+  {
+    id: "26e84c16-db24-4636-a62d-aa1a4232b858",
+    name: "nowildcard",
+    display_name: "No wildcard",
+    icon_url: "/emojis/1f920.png",
+    healthy: true,
+    path_app_url: "https://cowboy.coder.com",
+    wildcard_hostname: "",
+  },
+]
+
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   external_url: "file:///mock-url",
   version: "v99.999.9999+c9cdf14",
+  dashboard_url: "https:///mock-url",
+  workspace_proxy: false,
 }
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [

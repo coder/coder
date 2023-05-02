@@ -5,13 +5,14 @@ import { makeStyles } from "@material-ui/core/styles"
 import MoreVertOutlined from "@material-ui/icons/MoreVertOutlined"
 import { FC, ReactNode, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { WorkspaceStatus } from "../../api/typesGenerated"
+import { WorkspaceStatus } from "api/typesGenerated"
 import {
   ActionLoadingButton,
   CancelButton,
   DisabledButton,
   StartButton,
   StopButton,
+  RestartButton,
   UpdateButton,
 } from "./Buttons"
 import {
@@ -28,12 +29,14 @@ export interface WorkspaceActionsProps {
   isOutdated: boolean
   handleStart: () => void
   handleStop: () => void
+  handleRestart: () => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
   handleSettings: () => void
   handleChangeVersion: () => void
   isUpdating: boolean
+  isRestarting: boolean
   children?: ReactNode
   canChangeVersions: boolean
 }
@@ -43,12 +46,14 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isOutdated,
   handleStart,
   handleStop,
+  handleRestart,
   handleDelete,
   handleUpdate,
   handleCancel,
   handleSettings,
   handleChangeVersion,
   isUpdating,
+  isRestarting,
   canChangeVersions,
 }) => {
   const styles = useStyles()
@@ -91,6 +96,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         key={ButtonTypesEnum.stopping}
       />
     ),
+    [ButtonTypesEnum.restart]: <RestartButton handleAction={handleRestart} />,
+    [ButtonTypesEnum.restarting]: (
+      <ActionLoadingButton
+        label="Restarting"
+        key={ButtonTypesEnum.restarting}
+      />
+    ),
     [ButtonTypesEnum.deleting]: (
       <ActionLoadingButton
         label={t("actionButton.deleting")}
@@ -129,7 +141,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         (isUpdating
           ? buttonMapping[ButtonTypesEnum.updating]
           : buttonMapping[ButtonTypesEnum.update])}
-      {actionsByStatus.map((action) => buttonMapping[action])}
+      {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
+      {!isRestarting &&
+        actionsByStatus.map((action) => (
+          <span key={action}>{buttonMapping[action]}</span>
+        ))}
       {canCancel && <CancelButton handleAction={handleCancel} />}
       <div>
         <Button

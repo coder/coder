@@ -1,0 +1,76 @@
+import { Story } from "@storybook/react"
+import {
+  makeMockApiError,
+  MockWorkspaceProxies,
+  MockPrimaryWorkspaceProxy,
+  MockHealthyWildWorkspaceProxy,
+} from "testHelpers/entities"
+import {
+  WorkspaceProxyView,
+  WorkspaceProxyViewProps,
+} from "./WorkspaceProxyView"
+
+export default {
+  title: "components/WorkspaceProxyView",
+  component: WorkspaceProxyView,
+  args: {
+    onRegenerateClick: { action: "Submit" },
+  },
+}
+
+const Template: Story<WorkspaceProxyViewProps> = (
+  args: WorkspaceProxyViewProps,
+) => <WorkspaceProxyView {...args} />
+
+export const PrimarySelected = Template.bind({})
+PrimarySelected.args = {
+  isLoading: false,
+  hasLoaded: true,
+  proxies: MockWorkspaceProxies,
+  preferredProxy: MockPrimaryWorkspaceProxy,
+  onSelect: () => {
+    return Promise.resolve()
+  },
+}
+
+export const Example = Template.bind({})
+Example.args = {
+  isLoading: false,
+  hasLoaded: true,
+  proxies: MockWorkspaceProxies,
+  preferredProxy: MockHealthyWildWorkspaceProxy,
+  onSelect: () => {
+    return Promise.resolve()
+  },
+}
+
+export const Loading = Template.bind({})
+Loading.args = {
+  ...Example.args,
+  isLoading: true,
+  hasLoaded: false,
+}
+
+export const Empty = Template.bind({})
+Empty.args = {
+  ...Example.args,
+  proxies: [],
+}
+
+export const WithProxiesError = Template.bind({})
+WithProxiesError.args = {
+  ...Example.args,
+  hasLoaded: false,
+  getWorkspaceProxiesError: makeMockApiError({
+    message: "Failed to get proxies.",
+  }),
+}
+
+export const WithSelectProxyError = Template.bind({})
+WithSelectProxyError.args = {
+  ...Example.args,
+  hasLoaded: false,
+  selectProxyError: makeMockApiError({
+    message: "Failed to select proxy.",
+  }),
+}

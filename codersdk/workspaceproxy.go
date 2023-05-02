@@ -39,10 +39,10 @@ type WorkspaceProxyStatus struct {
 // A healthy report will have no errors. Warnings are not fatal.
 type ProxyHealthReport struct {
 	// Errors are problems that prevent the workspace proxy from being healthy
-	Errors []string
+	Errors []string `json:"errors"`
 	// Warnings do not prevent the workspace proxy from being healthy, but
 	// should be addressed.
-	Warnings []string
+	Warnings []string `json:"warnings"`
 }
 
 type WorkspaceProxy struct {

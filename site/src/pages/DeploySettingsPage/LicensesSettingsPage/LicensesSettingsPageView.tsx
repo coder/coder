@@ -57,7 +57,7 @@ const LicensesSettingsPageView: FC<Props> = ({
           component={Link}
           to="/settings/deployment/licenses/add"
         >
-          Add new License
+          Add new license
         </Button>
       </Stack>
 

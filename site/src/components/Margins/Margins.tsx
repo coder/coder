@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
+import { combineClasses } from "utils/combineClasses"
 import {
   containerWidth,
   containerWidthMedium,
@@ -24,14 +25,15 @@ const useStyles = makeStyles(() => ({
   },
 }))
 
-interface MarginsProps {
-  size?: Size
-}
-
-export const Margins: FC<React.PropsWithChildren<MarginsProps>> = ({
-  children,
+export const Margins: FC<JSX.IntrinsicElements["div"] & { size?: Size }> = ({
   size = "regular",
+  ...divProps
 }) => {
   const styles = useStyles({ maxWidth: widthBySize[size] })
-  return <div className={styles.margins}>{children}</div>
+  return (
+    <div
+      {...divProps}
+      className={combineClasses([styles.margins, divProps.className])}
+    />
+  )
 }
