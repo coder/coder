@@ -150,32 +150,30 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 }
 
 func (r *RootCmd) listProxies() *clibase.Cmd {
-	var (
-		formatter = cliui.NewOutputFormatter(
-			cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"name", "url", "status status"}),
-			cliui.JSONFormat(),
-			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
-				resp, ok := data.([]codersdk.WorkspaceProxy)
-				if !ok {
-					return nil, xerrors.Errorf("unexpected type %T", data)
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"name", "url", "status status"}),
+		cliui.JSONFormat(),
+		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+			resp, ok := data.([]codersdk.WorkspaceProxy)
+			if !ok {
+				return nil, xerrors.Errorf("unexpected type %T", data)
+			}
+			var str strings.Builder
+			_, _ = str.WriteString("Workspace Proxies:\n")
+			sep := ""
+			for i, proxy := range resp {
+				_, _ = str.WriteString(sep)
+				_, _ = str.WriteString(fmt.Sprintf("%d: %s %s %s", i, proxy.Name, proxy.URL, proxy.Status.Status))
+				for _, errMsg := range proxy.Status.Report.Errors {
+					_, _ = str.WriteString(color.RedString("\n\tErr: %s", errMsg))
 				}
-				var str strings.Builder
-				str.WriteString("Workspace Proxies:\n")
-				sep := ""
-				for i, proxy := range resp {
-					str.WriteString(sep)
-					str.WriteString(fmt.Sprintf("%d: %s %s %s", i, proxy.Name, proxy.URL, proxy.Status.Status))
-					for _, errMsg := range proxy.Status.Report.Errors {
-						str.WriteString(color.RedString("\n\tErr: %s", errMsg))
-					}
-					for _, warnMsg := range proxy.Status.Report.Errors {
-						str.WriteString(color.YellowString("\n\tWarn: %s", warnMsg))
-					}
-					sep = "\n"
+				for _, warnMsg := range proxy.Status.Report.Errors {
+					_, _ = str.WriteString(color.YellowString("\n\tWarn: %s", warnMsg))
 				}
-				return str.String(), nil
-			}),
-		)
+				sep = "\n"
+			}
+			return str.String(), nil
+		}),
 	)
 
 	client := new(codersdk.Client)
