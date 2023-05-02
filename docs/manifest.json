@@ -308,6 +308,13 @@
           "state": "enterprise"
         },
         {
+          "title": "External Workspace Proxies",
+          "description": "Run geo distributed workspace proxies",
+          "path": "./admin/workspaceproxies.md",
+          "icon_path": "./images/icons/networking.svg",
+          "state": "enterprise"
+        },
+        {
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment",
           "path": "./admin/audit-logs.md",
