@@ -16,6 +16,7 @@ import {
 import { Maybe } from "components/Conditionals/Maybe"
 import { useMachine } from "@xstate/react"
 import { portForwardMachine } from "xServices/portForward/portForwardXService"
+import { SecondaryAgentButton } from "components/Resources/AgentButton"
 
 export interface PortForwardButtonProps {
   host: string
@@ -42,6 +43,7 @@ export const portForwardURL = (
 
 const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
   const { host, workspaceName, agentName, agentId, username } = props
+
   const styles = useStyles()
   const [port, setPort] = useState("3000")
   const urlExample = portForwardURL(
@@ -147,17 +149,14 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
 
   return (
     <>
-      <Button
-        variant="outlined"
-        className={styles.button}
-        size="small"
+      <SecondaryAgentButton
         ref={anchorRef}
         onClick={() => {
           setIsOpen(true)
         }}
       >
         Port forward
-      </Button>
+      </SecondaryAgentButton>
       <Popover
         classes={{ paper: styles.popoverPaper }}
         id={id}
@@ -207,13 +206,5 @@ const useStyles = makeStyles((theme) => ({
 
   form: {
     margin: theme.spacing(1.5, 0, 0),
-  },
-
-  button: {
-    fontSize: 12,
-    fontWeight: 500,
-    height: theme.spacing(4),
-    minHeight: theme.spacing(4),
-    borderRadius: 4,
   },
 }))

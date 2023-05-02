@@ -3,6 +3,7 @@ import dayjs from "dayjs"
 import * as Types from "./types"
 import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
+import { delay } from "utils/delay"
 
 // Adds 304 for the default axios validateStatus function
 // https://github.com/axios/axios#handling-errors Check status here
@@ -476,6 +477,35 @@ export const getWorkspaceByOwnerAndName = async (
   return response.data
 }
 
+export function waitForBuild(build: TypesGen.WorkspaceBuild) {
+  return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
+    void (async () => {
+      let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined
+
+      while (
+        !["succeeded", "canceled"].some((status) =>
+          latestJobInfo?.status.includes(status),
+        )
+      ) {
+        const { job } = await getWorkspaceBuildByNumber(
+          build.workspace_owner_name,
+          build.workspace_name,
+          String(build.build_number),
+        )
+        latestJobInfo = job
+
+        if (latestJobInfo.status === "failed") {
+          return reject(latestJobInfo)
+        }
+
+        await delay(1000)
+      }
+
+      return res(latestJobInfo)
+    })()
+  })
+}
+
 export const postWorkspaceBuild = async (
   workspaceId: string,
   data: TypesGen.CreateWorkspaceBuildRequest,
@@ -489,12 +519,12 @@ export const postWorkspaceBuild = async (
 
 export const startWorkspace = (
   workspaceId: string,
-  templateVersionID: string,
+  templateVersionId: string,
   logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
-    template_version_id: templateVersionID,
+    template_version_id: templateVersionId,
     log_level: logLevel,
   })
 export const stopWorkspace = (
@@ -505,6 +535,7 @@ export const stopWorkspace = (
     transition: "stop",
     log_level: logLevel,
   })
+
 export const deleteWorkspace = (
   workspaceId: string,
   logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
@@ -521,6 +552,22 @@ export const cancelWorkspaceBuild = async (
     `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
   )
   return response.data
+}
+
+export const restartWorkspace = async (workspace: TypesGen.Workspace) => {
+  const stopBuild = await stopWorkspace(workspace.id)
+  const awaitedStopBuild = await waitForBuild(stopBuild)
+
+  // If the restart is canceled halfway through, make sure we bail
+  if (awaitedStopBuild?.status === "canceled") {
+    return
+  }
+
+  const startBuild = await startWorkspace(
+    workspace.id,
+    workspace.latest_build.template_version_id,
+  )
+  await waitForBuild(startBuild)
 }
 
 export const cancelTemplateVersionBuild = async (
@@ -897,6 +944,14 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   return response.data
 }
 
+export const getWorkspaceProxies =
+  async (): Promise<TypesGen.RegionsResponse> => {
+    const response = await axios.get<TypesGen.RegionsResponse>(
+      `/api/v2/regions`,
+    )
+    return response.data
+  }
+
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {
     const response = await axios.get(`/api/v2/appearance`)
@@ -964,6 +1019,37 @@ export const getWorkspaceBuildParameters = async (
     `/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
   )
   return response.data
+}
+type Claims = {
+  license_expires?: jwt.NumericDate
+  account_type?: string
+  account_id?: string
+  trial: boolean
+  all_features: boolean
+  version: number
+  features: Record<string, number>
+  require_telemetry?: boolean
+}
+
+export type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
+  claims: Claims
+  expires_at: string
+}
+
+export const getLicenses = async (): Promise<GetLicensesResponse[]> => {
+  const response = await axios.get(`/api/v2/licenses`)
+  return response.data
+}
+
+export const createLicense = async (
+  data: TypesGen.AddLicenseRequest,
+): Promise<TypesGen.AddLicenseRequest> => {
+  const response = await axios.post(`/api/v2/licenses`, data)
+  return response.data
+}
+
+export const removeLicense = async (licenseId: number): Promise<void> => {
+  await axios.delete(`/api/v2/licenses/${licenseId}`)
 }
 
 export class MissingBuildParameters extends Error {
@@ -1057,15 +1143,19 @@ const getMissingParameters = (
   const requiredParameters: TypesGen.TemplateVersionParameter[] = []
 
   templateParameters.forEach((p) => {
-    // Legacy parameters should be required. So we can migrate them.
-    const isLegacy = p.legacy_variable_name === undefined
+    // Legacy parameters should not be required. Backend can just migrate them.
+    const isLegacy = p.legacy_variable_name !== undefined
     // It is mutable and required. Mutable values can be changed after so we
     // don't need to ask them if they are not required.
     const isMutableAndRequired = p.mutable && p.required
     // Is immutable, so we can check if it is its first time on the build
     const isImmutable = !p.mutable
 
-    if (isLegacy || isMutableAndRequired || isImmutable) {
+    if (isLegacy) {
+      return
+    }
+
+    if (isMutableAndRequired || isImmutable) {
       requiredParameters.push(p)
       return
     }
@@ -1209,4 +1299,14 @@ export const watchBuildLogsByBuildId = (
     onDone()
   })
   return socket
+}
+
+export const issueReconnectingPTYSignedToken = async (
+  params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
+): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
+  const response = await axios.post(
+    "/api/v2/applications/reconnecting-pty-signed-token",
+    params,
+  )
+  return response.data
 }

@@ -26,7 +26,7 @@ func parseUUID(rw http.ResponseWriter, r *http.Request, param string) (uuid.UUID
 	parsed, err := uuid.Parse(rawID)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Invalid UUID %q.", param),
+			Message: fmt.Sprintf("Invalid UUID %q.", rawID),
 			Detail:  err.Error(),
 		})
 		return uuid.UUID{}, false

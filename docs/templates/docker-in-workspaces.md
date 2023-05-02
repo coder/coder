@@ -2,11 +2,12 @@
 
 There are a few ways to run Docker within container-based Coder workspaces.
 
-| Method                                                     | Description                                                                                                                              | Limitations                                                                                                                                                                                                 |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Sysbox container runtime](#sysbox-container-runtime)      | Install the sysbox runtime on your Kubernetes nodes for secure docker-in-docker and systemd-in-docker. Works with GKE, EKS, AKS.         | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). Max of 16 sysbox pods per node. [See all](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/limitations.md) |
-| [Rootless Podman](#rootless-podman)                        | Run podman inside Coder workspaces. Does not require a custom runtime or privileged containers. Works with GKE, EKS, AKS, RKE, OpenShift | Requires smarter-device-manager for FUSE mounts. [See all](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)                                                      |
-| [Privileged docker sidecar](#privileged-sidecar-container) | Run docker as a privileged sidecar container.                                                                                            | Requires a privileged container. Workspaces can break out to root on the host machine.                                                                                                                      |
+| Method                                                     | Description                                                                                                                                                        | Limitations                                                                                                                                                                                                                                        |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Sysbox container runtime](#sysbox-container-runtime)      | Install the sysbox runtime on your Kubernetes nodes for secure docker-in-docker and systemd-in-docker. Works with GKE, EKS, AKS.                                   | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). Max of 16 sysbox pods per node. [See all](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/limitations.md)                                        |
+| [Envbox](#envbox)                                          | A container image with all the packages necessary to run an inner sysbox container. Removes the need to setup sysbox-runc on your nodes. Works with GKE, EKS, AKS. | Requires running the outer container as privileged (the inner container that acts as the workspace is locked down). Requires compatible [nodes](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility). |
+| [Rootless Podman](#rootless-podman)                        | Run podman inside Coder workspaces. Does not require a custom runtime or privileged containers. Works with GKE, EKS, AKS, RKE, OpenShift                           | Requires smarter-device-manager for FUSE mounts. [See all](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)                                                                                             |
+| [Privileged docker sidecar](#privileged-sidecar-container) | Run docker as a privileged sidecar container.                                                                                                                      | Requires a privileged container. Workspaces can break out to root on the host machine.                                                                                                                                                             |
 
 ## Sysbox container runtime
 
@@ -109,6 +110,63 @@ resource "kubernetes_pod" "dev" {
 ```
 
 > Sysbox CE (Community Edition) supports a maximum of 16 pods (workspaces) per node on Kubernetes. See the [Sysbox documentation](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md#limitations) for more details.
+
+## Envbox
+
+[Envbox](https://github.com/coder/envbox) is an image developed and maintained by Coder that bundles the sysbox runtime. It works
+by starting an outer container that manages the various sysbox daemons and spawns an unprivileged
+inner container that acts as the user's workspace. The inner container is able to run system-level
+software similar to a regular virtual machine (e.g. `systemd`, `dockerd`, etc). Envbox offers the
+following benefits over running sysbox directly on the nodes:
+
+- No custom runtime installation or management on your Kubernetes nodes.
+- No limit to the number of pods that run envbox.
+
+Some drawbacks include:
+
+- The outer container must be run as privileged
+  - Note: the inner container is _not_ privileged. For more information on the security of sysbox
+    containers see sysbox's [official documentation](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/security.md).
+- Initial workspace startup is slower than running `sysbox-runc` directly on the nodes. This is due
+  to `envbox` having to pull the image to its own Docker cache on its initial startup. Once the image
+  is cached in `envbox`, startup performance is similar.
+
+Envbox requires the same kernel requirements as running sysbox directly on the nodes. Refer
+to sysbox's [compatibility matrix](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility) to ensure your nodes are compliant.
+
+To get started with `envbox` check out the [starter template](https://github.com/coder/coder/tree/main/examples/templates/envbox) or visit the [repo](https://github.com/coder/envbox).
+
+### Authenticating with a Private Registry
+
+Authenticating with a private container registry can be done by referencing the credentials
+via the `CODER_IMAGE_PULL_SECRET` environment variable. It is encouraged to populate this
+[environment variable](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/#define-container-environment-variables-using-secret-data) by using a Kubernetes [secret](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#registry-secret-existing-credentials).
+
+Refer to your container registry documentation to understand how to best create this secret.
+
+The following shows a minimal example using a the JSON API key from a GCP service account to pull
+a private image:
+
+```bash
+# Create the secret
+$ kubectl create secret docker-registry <name> \
+  --docker-server=us.gcr.io \
+  --docker-username=_json_key \
+  --docker-password="$(cat ./json-key-file.yaml)" \
+  --docker-email=<service-account-email>
+```
+
+```hcl
+env {
+  name = "CODER_IMAGE_PULL_SECRET"
+  value_from {
+    secret_key_ref {
+      name = "<name>"
+      key = ".dockerconfigjson"
+    }
+  }
+}
+```
 
 ## Rootless podman
 

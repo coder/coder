@@ -467,6 +467,10 @@
           "path": "./api/users.md"
         },
         {
+          "title": "WorkspaceProxies",
+          "path": "./api/workspaceproxies.md"
+        },
+        {
           "title": "Workspaces",
           "path": "./api/workspaces.md"
         }
@@ -823,6 +827,19 @@
           "title": "version",
           "description": "Show coder version",
           "path": "cli/version.md"
+        }
+      ]
+    },
+    {
+      "title": "Security",
+      "description": "Security advisories",
+      "path": "./security/index.md",
+      "icon_path": "./images/icons/security.svg",
+      "children": [
+        {
+          "title": "API tokens of deleted users not invalidated",
+          "description": "Fixed in v0.23.0 (Apr 25, 2023)",
+          "path": "./security/0001_user_apikeys_invalidation.md"
         }
       ]
     }

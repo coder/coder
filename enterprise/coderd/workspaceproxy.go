@@ -1,26 +1,94 @@
 package coderd
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	agpl "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 )
+
+// forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
+// This is useful when a proxy is created or deleted. Errors will be logged.
+func (api *API) forceWorkspaceProxyHealthUpdate(ctx context.Context) {
+	if err := api.ProxyHealth.ForceUpdate(ctx); err != nil {
+		api.Logger.Error(ctx, "force proxy health update", slog.Error(err))
+	}
+}
+
+// NOTE: this doesn't need a swagger definition since AGPL already has one, and
+// this route overrides the AGPL one.
+func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	//nolint:gocritic // this route intentionally requests resources that users
+	// cannot usually access in order to give them a full list of available
+	// regions.
+	ctx = dbauthz.AsSystemRestricted(ctx)
+
+	primaryRegion, err := api.AGPL.PrimaryRegion(ctx)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	regions := []codersdk.Region{primaryRegion}
+
+	proxies, err := api.Database.GetWorkspaceProxies(ctx)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Only add additional regions if the proxy health is enabled.
+	// If it is nil, it is because the moons feature flag is not on.
+	// By default, we still want to return the primary region.
+	if api.ProxyHealth != nil {
+		proxyHealth := api.ProxyHealth.HealthStatus()
+		for _, proxy := range proxies {
+			if proxy.Deleted {
+				continue
+			}
+
+			health, ok := proxyHealth[proxy.ID]
+			if !ok {
+				health.Status = proxyhealth.Unknown
+			}
+
+			regions = append(regions, codersdk.Region{
+				ID:               proxy.ID,
+				Name:             proxy.Name,
+				DisplayName:      proxy.DisplayName,
+				IconURL:          proxy.Icon,
+				Healthy:          health.Status == proxyhealth.Healthy,
+				PathAppURL:       proxy.Url,
+				WildcardHostname: proxy.WildcardHostname,
+			})
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RegionsResponse{
+		Regions: regions,
+	})
+}
 
 // @Summary Delete workspace proxy
 // @ID delete-workspace-proxy
@@ -62,6 +130,9 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Proxy has been deleted!",
 	})
+
+	// Update the proxy health cache to remove this proxy.
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
 // @Summary Create workspace proxy
@@ -88,6 +159,20 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.CreateWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if strings.ToLower(req.Name) == "primary" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: `The name "primary" is reserved for the primary region.`,
+			Detail:  "Cannot name a workspace proxy 'primary'.",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "name",
+					Detail: "Reserved name",
+				},
+			},
+		})
 		return
 	}
 
@@ -122,9 +207,16 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = proxy
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateWorkspaceProxyResponse{
-		Proxy:      convertProxy(proxy),
+		Proxy: convertProxy(proxy, proxyhealth.ProxyStatus{
+			Proxy:     proxy,
+			CheckedAt: time.Now(),
+			Status:    proxyhealth.Unregistered,
+		}),
 		ProxyToken: fullToken,
 	})
+
+	// Update the proxy health cache to include this new proxy.
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
 // nolint:revive
@@ -158,28 +250,8 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies))
-}
-
-func convertProxies(p []database.WorkspaceProxy) []codersdk.WorkspaceProxy {
-	resp := make([]codersdk.WorkspaceProxy, 0, len(p))
-	for _, proxy := range p {
-		resp = append(resp, convertProxy(proxy))
-	}
-	return resp
-}
-
-func convertProxy(p database.WorkspaceProxy) codersdk.WorkspaceProxy {
-	return codersdk.WorkspaceProxy{
-		ID:               p.ID,
-		Name:             p.Name,
-		Icon:             p.Icon,
-		URL:              p.Url,
-		WildcardHostname: p.WildcardHostname,
-		CreatedAt:        p.CreatedAt,
-		UpdatedAt:        p.UpdatedAt,
-		Deleted:          p.Deleted,
-	}
+	statues := api.ProxyHealth.HealthStatus()
+	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies, statues))
 }
 
 // @Summary Issue signed workspace app token
@@ -295,6 +367,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey: api.AppSecurityKey.String(),
 	})
+
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
 // reconnectingPTYSignedToken issues a signed app token for use when connecting
@@ -391,4 +465,30 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.IssueReconnectingPTYSignedTokenResponse{
 		SignedToken: tokenStr,
 	})
+}
+
+func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhealth.ProxyStatus) []codersdk.WorkspaceProxy {
+	resp := make([]codersdk.WorkspaceProxy, 0, len(p))
+	for _, proxy := range p {
+		resp = append(resp, convertProxy(proxy, statuses[proxy.ID]))
+	}
+	return resp
+}
+
+func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.WorkspaceProxy {
+	return codersdk.WorkspaceProxy{
+		ID:               p.ID,
+		Name:             p.Name,
+		Icon:             p.Icon,
+		URL:              p.Url,
+		WildcardHostname: p.WildcardHostname,
+		CreatedAt:        p.CreatedAt,
+		UpdatedAt:        p.UpdatedAt,
+		Deleted:          p.Deleted,
+		Status: codersdk.WorkspaceProxyStatus{
+			Status:    codersdk.ProxyHealthStatus(status.Status),
+			Report:    status.Report,
+			CheckedAt: status.CheckedAt,
+		},
+	}
 }

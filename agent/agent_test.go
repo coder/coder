@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/tailnet/tailnettest"
@@ -481,17 +482,10 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	pty := ptytest.New(t)
-
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "5"})
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
-	cmd.Stderr = pty.Output()
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "5"})
 
 	go func() {
-		err := cmd.Wait()
+		err := proc.Wait()
 		select {
 		case <-done:
 		default:
@@ -523,7 +517,7 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 //nolint:paralleltest // This test reserves a port.
@@ -562,17 +556,10 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	pty := ptytest.New(t)
-
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "5"})
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
-	cmd.Stderr = pty.Output()
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "5"})
 
 	go func() {
-		err := cmd.Wait()
+		err := proc.Wait()
 		select {
 		case <-done:
 		default:
@@ -604,7 +591,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 func TestAgent_UnixLocalForwarding(t *testing.T) {
@@ -641,17 +628,10 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	pty := ptytest.New(t)
-
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "5"})
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
-	cmd.Stderr = pty.Output()
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "5"})
 
 	go func() {
-		err := cmd.Wait()
+		err := proc.Wait()
 		select {
 		case <-done:
 		default:
@@ -676,7 +656,7 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 	_ = conn.Close()
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 func TestAgent_UnixRemoteForwarding(t *testing.T) {
@@ -713,17 +693,10 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	pty := ptytest.New(t)
-
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "5"})
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
-	cmd.Stderr = pty.Output()
-	err = cmd.Start()
-	require.NoError(t, err)
+	_, proc := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "5"})
 
 	go func() {
-		err := cmd.Wait()
+		err := proc.Wait()
 		select {
 		case <-done:
 		default:
@@ -753,7 +726,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 
 	<-done
 
-	_ = cmd.Process.Kill()
+	_ = proc.Kill()
 }
 
 func TestAgent_SFTP(t *testing.T) {
@@ -906,6 +879,7 @@ func TestAgent_StartupScript(t *testing.T) {
 	}
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		client := &client{
 			t:       t,
 			agentID: uuid.New(),
@@ -914,12 +888,12 @@ func TestAgent_StartupScript(t *testing.T) {
 				DERPMap:       &tailcfg.DERPMap{},
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: tailnet.NewCoordinator(logger),
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
 			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			Logger:                 logger.Named("agent"),
 			ReconnectingPTYTimeout: 0,
 		})
 		t.Cleanup(func() {
@@ -937,6 +911,7 @@ func TestAgent_StartupScript(t *testing.T) {
 	// script has written too many lines it will still succeed!
 	t.Run("OverflowsAndSkips", func(t *testing.T) {
 		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		client := &client{
 			t:       t,
 			agentID: uuid.New(),
@@ -954,12 +929,12 @@ func TestAgent_StartupScript(t *testing.T) {
 				return codersdk.ReadBodyAsError(res)
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: tailnet.NewCoordinator(logger),
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
 			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			Logger:                 logger.Named("agent"),
 			ReconnectingPTYTimeout: 0,
 		})
 		t.Cleanup(func() {
@@ -1340,7 +1315,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 	t.Run("ShutdownScriptOnce", func(t *testing.T) {
 		t.Parallel()
-
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		expected := "this-is-shutdown"
 		client := &client{
 			t:       t,
@@ -1351,13 +1326,13 @@ func TestAgent_Lifecycle(t *testing.T) {
 				ShutdownScript: "echo " + expected,
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: tailnet.NewCoordinator(logger),
 		}
 
 		fs := afero.NewMemMapFs()
 		agent := agent.New(agent.Options{
 			Client:     client,
-			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+			Logger:     logger.Named("agent"),
 			Filesystem: fs,
 		})
 
@@ -1606,9 +1581,10 @@ func TestAgent_Speedtest(t *testing.T) {
 
 func TestAgent_Reconnect(t *testing.T) {
 	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
-	coordinator := tailnet.NewCoordinator()
+	coordinator := tailnet.NewCoordinator(logger)
 	defer coordinator.Close()
 
 	agentID := uuid.New()
@@ -1630,7 +1606,7 @@ func TestAgent_Reconnect(t *testing.T) {
 			return "", nil
 		},
 		Client: client,
-		Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+		Logger: logger.Named("agent"),
 	})
 	defer closer.Close()
 
@@ -1645,8 +1621,8 @@ func TestAgent_Reconnect(t *testing.T) {
 
 func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	t.Parallel()
-
-	coordinator := tailnet.NewCoordinator()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator := tailnet.NewCoordinator(logger)
 	defer coordinator.Close()
 
 	client := &client{
@@ -1665,7 +1641,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 			return "", nil
 		},
 		Client:     client,
-		Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+		Logger:     logger.Named("agent"),
 		Filesystem: filesystem,
 	})
 	defer closer.Close()
@@ -1679,7 +1655,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
+func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) (*ptytest.PTYCmd, pty.Process) {
 	//nolint:dogsled
 	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -1721,7 +1697,8 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 		"host",
 	)
 	args = append(args, afterArgs...)
-	return exec.Command("ssh", args...)
+	cmd := exec.Command("ssh", args...)
+	return ptytest.Start(t, cmd)
 }
 
 func setupSSHSession(t *testing.T, options agentsdk.Manifest) *ssh.Session {
@@ -1755,10 +1732,11 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	afero.Fs,
 	io.Closer,
 ) {
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {
 		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 	}
-	coordinator := tailnet.NewCoordinator()
+	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
 		_ = coordinator.Close()
 	})
@@ -1775,7 +1753,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	closer := agent.New(agent.Options{
 		Client:                 c,
 		Filesystem:             fs,
-		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
 	t.Cleanup(func() {
@@ -1784,7 +1762,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   metadata.DERPMap,
-		Logger:    slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		Logger:    logger.Named("client"),
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()
@@ -1809,7 +1787,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	t.Cleanup(func() {
 		_ = agentConn.Close()
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	// Ideally we wouldn't wait too long here, but sometimes the the
+	// networking needs more time to resolve itself.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	if !agentConn.AwaitReachable(ctx) {
 		t.Fatal("agent not reachable")

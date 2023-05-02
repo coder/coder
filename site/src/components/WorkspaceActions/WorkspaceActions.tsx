@@ -5,7 +5,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import MoreVertOutlined from "@material-ui/icons/MoreVertOutlined"
 import { FC, ReactNode, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { WorkspaceStatus } from "../../api/typesGenerated"
+import { WorkspaceStatus } from "api/typesGenerated"
 import {
   ActionLoadingButton,
   CancelButton,
@@ -36,6 +36,7 @@ export interface WorkspaceActionsProps {
   handleSettings: () => void
   handleChangeVersion: () => void
   isUpdating: boolean
+  isRestarting: boolean
   children?: ReactNode
   canChangeVersions: boolean
 }
@@ -52,6 +53,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleSettings,
   handleChangeVersion,
   isUpdating,
+  isRestarting,
   canChangeVersions,
 }) => {
   const styles = useStyles()
@@ -95,6 +97,12 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       />
     ),
     [ButtonTypesEnum.restart]: <RestartButton handleAction={handleRestart} />,
+    [ButtonTypesEnum.restarting]: (
+      <ActionLoadingButton
+        label="Restarting"
+        key={ButtonTypesEnum.restarting}
+      />
+    ),
     [ButtonTypesEnum.deleting]: (
       <ActionLoadingButton
         label={t("actionButton.deleting")}
@@ -133,7 +141,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         (isUpdating
           ? buttonMapping[ButtonTypesEnum.updating]
           : buttonMapping[ButtonTypesEnum.update])}
-      {actionsByStatus.map((action) => buttonMapping[action])}
+      {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
+      {!isRestarting &&
+        actionsByStatus.map((action) => (
+          <span key={action}>{buttonMapping[action]}</span>
+        ))}
       {canCancel && <CancelButton handleAction={handleCancel} />}
       <div>
         <Button

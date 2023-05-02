@@ -68,6 +68,6 @@
     "updateWorkspaceLabel": "Update workspace"
   },
   "askParametersDialog": {
-    "message": "It looks like the new version has new parameters that need to be filled in to update the workspace."
+    "message": "The new version has parameters that need to be filled in to update the workspace."
   }
 }

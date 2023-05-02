@@ -22,6 +22,24 @@ export const EntitledBadge: FC = () => {
   )
 }
 
+export const HealthyBadge: FC = () => {
+  const styles = useStyles()
+  return (
+    <span className={combineClasses([styles.badge, styles.enabledBadge])}>
+      Healthy
+    </span>
+  )
+}
+
+export const NotHealthyBadge: FC = () => {
+  const styles = useStyles()
+  return (
+    <span className={combineClasses([styles.badge, styles.errorBadge])}>
+      Unhealthy
+    </span>
+  )
+}
+
 export const DisabledBadge: FC = () => {
   const styles = useStyles()
   return (
@@ -90,6 +108,11 @@ const useStyles = makeStyles((theme) => ({
   enabledBadge: {
     border: `1px solid ${theme.palette.success.light}`,
     backgroundColor: theme.palette.success.dark,
+  },
+
+  errorBadge: {
+    border: `1px solid ${theme.palette.error.light}`,
+    backgroundColor: theme.palette.error.dark,
   },
 
   disabledBadge: {

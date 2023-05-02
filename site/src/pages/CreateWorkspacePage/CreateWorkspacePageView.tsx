@@ -75,6 +75,17 @@ export const CreateWorkspacePageView: FC<
     // to disappear.
     setGitAuthErrors({})
   }, [props.templateGitAuth])
+
+  const workspaceErrors =
+    props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]
+
+  // Scroll to top of page if errors are present
+  useEffect(() => {
+    if (props.hasTemplateErrors || Boolean(workspaceErrors)) {
+      window.scrollTo(0, 0)
+    }
+  }, [props.hasTemplateErrors, workspaceErrors])
+
   const { t } = useTranslation("createWorkspacePage")
   const styles = useStyles()
 
@@ -135,6 +146,10 @@ export const CreateWorkspacePageView: FC<
     })
 
   const isLoading = props.loadingTemplateSchema || props.loadingTemplates
+  // We only want to show schema that have redisplay_value equals true
+  const schemaToBeDisplayed = props.templateSchema?.filter(
+    (schema) => schema.redisplay_value,
+  )
 
   const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
     form,
@@ -145,73 +160,71 @@ export const CreateWorkspacePageView: FC<
     return <Loader />
   }
 
-  if (props.hasTemplateErrors) {
-    return (
-      <Stack>
-        {Boolean(
-          props.createWorkspaceErrors[
-            CreateWorkspaceErrors.GET_TEMPLATES_ERROR
-          ],
-        ) && (
-          <AlertBanner
-            severity="error"
-            error={
-              props.createWorkspaceErrors[
-                CreateWorkspaceErrors.GET_TEMPLATES_ERROR
-              ]
-            }
-          />
-        )}
-        {Boolean(
-          props.createWorkspaceErrors[
-            CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
-          ],
-        ) && (
-          <AlertBanner
-            severity="error"
-            error={
-              props.createWorkspaceErrors[
-                CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
-              ]
-            }
-          />
-        )}
-        {Boolean(
-          props.createWorkspaceErrors[
-            CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
-          ],
-        ) && (
-          <AlertBanner
-            severity="error"
-            error={
-              props.createWorkspaceErrors[
-                CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
-              ]
-            }
-          />
-        )}
-      </Stack>
-    )
-  }
-
-  if (
-    props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]
-  ) {
-    return (
-      <AlertBanner
-        severity="error"
-        error={
-          props.createWorkspaceErrors[
-            CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
-          ]
-        }
-      />
-    )
-  }
-
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={props.onCancel}>
       <HorizontalForm onSubmit={form.handleSubmit}>
+        {Boolean(props.hasTemplateErrors) && (
+          <Stack>
+            {Boolean(
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+              ],
+            ) && (
+              <AlertBanner
+                severity="error"
+                error={
+                  props.createWorkspaceErrors[
+                    CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+                  ]
+                }
+              />
+            )}
+            {Boolean(
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+              ],
+            ) && (
+              <AlertBanner
+                severity="error"
+                error={
+                  props.createWorkspaceErrors[
+                    CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+                  ]
+                }
+              />
+            )}
+            {Boolean(
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
+              ],
+            ) && (
+              <AlertBanner
+                severity="error"
+                error={
+                  props.createWorkspaceErrors[
+                    CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
+                  ]
+                }
+              />
+            )}
+          </Stack>
+        )}
+
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+          ],
+        ) && (
+          <AlertBanner
+            severity="error"
+            error={
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+              ]
+            }
+          />
+        )}
+
         {/* General info */}
         <FormSection
           title="General info"
@@ -271,29 +284,26 @@ export const CreateWorkspacePageView: FC<
         )}
 
         {/* Template params */}
-        {props.templateSchema && props.templateSchema.length > 0 && (
+        {schemaToBeDisplayed && schemaToBeDisplayed.length > 0 && (
           <FormSection
             title="Template params"
             description="These values are provided by your template's Terraform configuration."
           >
             <FormFields>
-              {props.templateSchema
-                // We only want to show schema that have redisplay_value equals true
-                .filter((schema) => schema.redisplay_value)
-                .map((schema) => (
-                  <ParameterInput
-                    disabled={form.isSubmitting}
-                    key={schema.id}
-                    defaultValue={parameterValues[schema.name]}
-                    onChange={(value) => {
-                      setParameterValues({
-                        ...parameterValues,
-                        [schema.name]: value,
-                      })
-                    }}
-                    schema={schema}
-                  />
-                ))}
+              {schemaToBeDisplayed.map((schema) => (
+                <ParameterInput
+                  disabled={form.isSubmitting}
+                  key={schema.id}
+                  defaultValue={parameterValues[schema.name]}
+                  onChange={(value) => {
+                    setParameterValues({
+                      ...parameterValues,
+                      [schema.name]: value,
+                    })
+                  }}
+                  schema={schema}
+                />
+              ))}
             </FormFields>
           </FormSection>
         )}

@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
@@ -72,7 +71,13 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			// Run the test against the path app hostname since that's where the
 			// reconnecting-pty proxy server we want to test is mounted.
 			client := appDetails.AppClient(t)
-			conn, err := client.WorkspaceAgentReconnectingPTY(ctx, appDetails.Agent.ID, uuid.New(), 80, 80, "/bin/bash")
+			conn, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+				AgentID:   appDetails.Agent.ID,
+				Reconnect: uuid.New(),
+				Height:    80,
+				Width:     80,
+				Command:   "/bin/bash",
+			})
 			require.NoError(t, err)
 			defer conn.Close()
 
@@ -125,29 +130,42 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			})
 			require.NoError(t, err)
 
-			// Try to connect to the endpoint with the signed token and no other
-			// authentication.
-			q := u.Query()
-			q.Set("reconnect", uuid.NewString())
-			q.Set("height", strconv.Itoa(24))
-			q.Set("width", strconv.Itoa(80))
-			q.Set("command", `/bin/sh -c "echo test"`)
-			q.Set(codersdk.SignedAppTokenQueryParameter, issueRes.SignedToken)
-			u.RawQuery = q.Encode()
+			// Make an unauthenticated client.
+			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
+			conn, err := unauthedAppClient.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+				AgentID:     appDetails.Agent.ID,
+				Reconnect:   uuid.New(),
+				Height:      80,
+				Width:       80,
+				Command:     "/bin/bash",
+				SignedToken: issueRes.SignedToken,
+			})
+			require.NoError(t, err)
+			defer conn.Close()
 
-			//nolint:bodyclose
-			wsConn, res, err := websocket.Dial(ctx, u.String(), nil)
-			if !assert.NoError(t, err) {
-				dump, err := httputil.DumpResponse(res, true)
-				if err == nil {
-					t.Log(string(dump))
-				}
-				return
-			}
-			defer wsConn.Close(websocket.StatusNormalClosure, "")
-			conn := websocket.NetConn(ctx, wsConn, websocket.MessageBinary)
+			// First attempt to resize the TTY.
+			// The websocket will close if it fails!
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Height: 250,
+				Width:  250,
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
 			bufRead := bufio.NewReader(conn)
 
+			// Brief pause to reduce the likelihood that we send keystrokes while
+			// the shell is simultaneously sending a prompt.
+			time.Sleep(100 * time.Millisecond)
+
+			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "echo test\r\n",
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+
+			expectLine(t, bufRead, matchEchoCommand)
 			expectLine(t, bufRead, matchEchoOutput)
 		})
 	})

@@ -181,7 +181,10 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(2.5, 4),
     borderTop: `1px solid ${theme.palette.divider}`,
     background: theme.palette.background.paper,
+    overflowX: "auto",
+    scrollPadding: theme.spacing(0, 4),
   },
+
   metadata: {
     fontSize: 12,
     lineHeight: "normal",
@@ -189,6 +192,11 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "column",
     gap: theme.spacing(0.5),
     overflow: "visible",
+
+    // Because of scrolling
+    "&:last-child": {
+      paddingRight: theme.spacing(4),
+    },
   },
 
   metadataLabel: {

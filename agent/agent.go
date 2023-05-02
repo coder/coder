@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -60,7 +59,7 @@ type Options struct {
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
-	AgentPorts             map[int]string
+	IgnorePorts            map[int]string
 	SSHMaxTimeout          time.Duration
 	TailnetListenPort      uint16
 }
@@ -76,7 +75,12 @@ type Client interface {
 	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
 }
 
-func New(options Options) io.Closer {
+type Agent interface {
+	HTTPDebug() http.Handler
+	io.Closer
+}
+
+func New(options Options) Agent {
 	if options.ReconnectingPTYTimeout == 0 {
 		options.ReconnectingPTYTimeout = 5 * time.Minute
 	}
@@ -112,7 +116,7 @@ func New(options Options) io.Closer {
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		ignorePorts:            options.AgentPorts,
+		ignorePorts:            options.IgnorePorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 		sshMaxTimeout:          options.SSHMaxTimeout,
 	}
@@ -658,6 +662,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				}
 				break
 			}
+			logger.Debug(ctx, "accepted conn", slog.F("remote", conn.RemoteAddr().String()))
 			wg.Add(1)
 			closed := make(chan struct{})
 			go func() {
@@ -686,6 +691,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				var msg codersdk.WorkspaceAgentReconnectingPTYInit
 				err = json.Unmarshal(data, &msg)
 				if err != nil {
+					logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
 					return
 				}
 				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
@@ -977,6 +983,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 
 	connectionID := uuid.NewString()
 	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
+	logger.Debug(ctx, "starting handler")
 
 	defer func() {
 		if err := retErr; err != nil {
@@ -1044,20 +1051,20 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// 1. The timeout completed.
 			// 2. The parent context was canceled.
 			<-ctx.Done()
+			logger.Debug(ctx, "context done", slog.Error(ctx.Err()))
 			_ = process.Kill()
 		}()
-		go func() {
-			// If the process dies randomly, we should
-			// close the pty.
-			_ = process.Wait()
-			rpty.Close()
-		}()
+		// We don't need to separately monitor for the process exiting.
+		// When it exits, our ptty.OutputReader() will return EOF after
+		// reading all process output.
 		if err = a.trackConnGoroutine(func() {
 			buffer := make([]byte, 1024)
 			for {
-				read, err := rpty.ptty.Output().Read(buffer)
+				read, err := rpty.ptty.OutputReader().Read(buffer)
 				if err != nil {
 					// When the PTY is closed, this is triggered.
+					// Error is typically a benign EOF, so only log for debugging.
+					logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
 					break
 				}
 				part := buffer[:read]
@@ -1069,8 +1076,15 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 					break
 				}
 				rpty.activeConnsMutex.Lock()
-				for _, conn := range rpty.activeConns {
-					_, _ = conn.Write(part)
+				for cid, conn := range rpty.activeConns {
+					_, err = conn.Write(part)
+					if err != nil {
+						logger.Debug(ctx,
+							"error writing to active conn",
+							slog.F("other_conn_id", cid),
+							slog.Error(err),
+						)
+					}
 				}
 				rpty.activeConnsMutex.Unlock()
 			}
@@ -1148,7 +1162,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			logger.Warn(ctx, "read conn", slog.Error(err))
 			return nil
 		}
-		_, err = rpty.ptty.Input().Write([]byte(req.Data))
+		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
 			logger.Warn(ctx, "write to pty", slog.Error(err))
 			return nil
@@ -1231,11 +1245,11 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		// Convert from microseconds to milliseconds.
 		stats.ConnectionMedianLatencyMS /= 1000
 
-		lastStat := a.latestStat.Load()
-		if lastStat != nil && reflect.DeepEqual(lastStat, stats) {
-			a.logger.Info(ctx, "skipping stat because nothing changed")
-			return
-		}
+		// Collect agent metrics.
+		// Agent metrics are changing all the time, so there is no need to perform
+		// reflect.DeepEqual to see if stats should be transferred.
+		stats.Metrics = collectMetrics()
+
 		a.latestStat.Store(stats)
 
 		select {
@@ -1275,6 +1289,27 @@ func (a *agent) isClosed() bool {
 	default:
 		return false
 	}
+}
+
+func (a *agent) HTTPDebug() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		a.closeMutex.Lock()
+		network := a.network
+		a.closeMutex.Unlock()
+
+		if network == nil {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("network is not ready yet"))
+			return
+		}
+
+		if r.URL.Path == "/debug/magicsock" {
+			network.MagicsockServeHTTPDebug(w, r)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte("404 not found"))
+		}
+	})
 }
 
 func (a *agent) Close() error {
@@ -1368,7 +1403,7 @@ type reconnectingPTY struct {
 	circularBuffer      *circbuf.Buffer
 	circularBufferMutex sync.RWMutex
 	timeout             *time.Timer
-	ptty                pty.PTY
+	ptty                pty.PTYCmd
 }
 
 // Close ends all connections to the reconnecting

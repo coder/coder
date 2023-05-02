@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Brush from "@material-ui/icons/Brush"
 import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
+import ApprovalIcon from "@material-ui/icons/VerifiedUserOutlined"
 import LockRounded from "@material-ui/icons/LockOutlined"
 import Globe from "@material-ui/icons/PublicOutlined"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
@@ -47,6 +48,12 @@ export const Sidebar: React.FC = () => {
         icon={<SidebarNavItemIcon icon={LaunchOutlined} />}
       >
         General
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="licenses"
+        icon={<SidebarNavItemIcon icon={ApprovalIcon} />}
+      >
+        Licenses
       </SidebarNavItem>
       <SidebarNavItem
         href="appearance"

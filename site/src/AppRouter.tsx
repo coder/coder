@@ -38,6 +38,10 @@ const SSHKeysPage = lazy(
 const TokensPage = lazy(
   () => import("./pages/UserSettingsPage/TokensPage/TokensPage"),
 )
+const WorkspaceProxyPage = lazy(
+  () =>
+    import("./pages/UserSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"),
+)
 const CreateUserPage = lazy(
   () => import("./pages/UsersPage/CreateUserPage/CreateUserPage"),
 )
@@ -156,6 +160,17 @@ const TemplateSchedulePage = lazy(
     ),
 )
 
+const LicensesSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"
+    ),
+)
+const AddNewLicensePage = lazy(
+  () =>
+    import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePage"),
+)
+
 export const AppRouter: FC = () => {
   return (
     <Suspense fallback={<FullScreenLoader />}>
@@ -244,6 +259,8 @@ export const AppRouter: FC = () => {
                 element={<DeploySettingsLayout />}
               >
                 <Route path="general" element={<GeneralSettingsPage />} />
+                <Route path="licenses" element={<LicensesSettingsPage />} />
+                <Route path="licenses/add" element={<AddNewLicensePage />} />
                 <Route path="security" element={<SecuritySettingsPage />} />
                 <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />
@@ -259,6 +276,10 @@ export const AppRouter: FC = () => {
                   <Route index element={<TokensPage />} />
                   <Route path="new" element={<CreateTokenPage />} />
                 </Route>
+                <Route
+                  path="workspace-proxies"
+                  element={<WorkspaceProxyPage />}
+                />
               </Route>
 
               <Route path="/@:username">

@@ -80,7 +80,6 @@ resource "coder_agent" "main" {
   arch = "amd64"
   os   = "windows"
 
-  login_before_ready = false
 }
 
 resource "google_compute_instance" "dev" {

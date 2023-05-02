@@ -108,7 +108,6 @@ data "coder_workspace" "me" {}
 resource "coder_agent" "main" {
   os                     = "linux"
   arch                   = "amd64"
-  login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
     set -e
@@ -117,7 +116,6 @@ resource "coder_agent" "main" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
-
 }
 
 # code-server

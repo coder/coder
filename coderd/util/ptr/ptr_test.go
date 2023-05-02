@@ -52,6 +52,28 @@ func Test_NilOrEmpty(t *testing.T) {
 	assert.False(t, ptr.NilOrEmpty(&nonEmptyString))
 }
 
+func Test_NilToEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.False(t, ptr.NilToEmpty((*bool)(nil)))
+	assert.Empty(t, ptr.NilToEmpty((*int64)(nil)))
+	assert.Empty(t, ptr.NilToEmpty((*string)(nil)))
+	assert.Equal(t, true, ptr.NilToEmpty(ptr.Ref(true)))
+}
+
+func Test_NilToDefault(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, ptr.NilToDefault(ptr.Ref(true), false))
+	assert.True(t, ptr.NilToDefault((*bool)(nil), true))
+
+	assert.Equal(t, int64(4), ptr.NilToDefault(ptr.Ref[int64](4), 5))
+	assert.Equal(t, int64(5), ptr.NilToDefault((*int64)(nil), 5))
+
+	assert.Equal(t, "hi", ptr.NilToDefault((*string)(nil), "hi"))
+	assert.Equal(t, "hello", ptr.NilToDefault(ptr.Ref("hello"), "hi"))
+}
+
 func Test_NilOrZero(t *testing.T) {
 	t.Parallel()
 

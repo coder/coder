@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
@@ -258,19 +259,19 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	output := make([]string, 0)
 	level := make([]database.LogLevel, 0)
 	outputLength := 0
-	for _, log := range req.Logs {
-		createdAt = append(createdAt, log.CreatedAt)
-		output = append(output, log.Output)
-		outputLength += len(log.Output)
-		if log.Level == "" {
+	for _, logEntry := range req.Logs {
+		createdAt = append(createdAt, logEntry.CreatedAt)
+		output = append(output, logEntry.Output)
+		outputLength += len(logEntry.Output)
+		if logEntry.Level == "" {
 			// Default to "info" to support older agents that didn't have the level field.
-			log.Level = codersdk.LogLevelInfo
+			logEntry.Level = codersdk.LogLevelInfo
 		}
-		parsedLevel := database.LogLevel(log.Level)
+		parsedLevel := database.LogLevel(logEntry.Level)
 		if !parsedLevel.Valid() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid log level provided.",
-				Detail:  fmt.Sprintf("invalid log level: %q", log.Level),
+				Detail:  fmt.Sprintf("invalid log level: %q", logEntry.Level),
 			})
 			return
 		}
@@ -1213,39 +1214,58 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	}
 
 	now := database.Now()
-	_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
-		ID:                          uuid.New(),
-		CreatedAt:                   now,
-		AgentID:                     workspaceAgent.ID,
-		WorkspaceID:                 workspace.ID,
-		UserID:                      workspace.OwnerID,
-		TemplateID:                  workspace.TemplateID,
-		ConnectionsByProto:          payload,
-		ConnectionCount:             req.ConnectionCount,
-		RxPackets:                   req.RxPackets,
-		RxBytes:                     req.RxBytes,
-		TxPackets:                   req.TxPackets,
-		TxBytes:                     req.TxBytes,
-		SessionCountVSCode:          req.SessionCountVSCode,
-		SessionCountJetBrains:       req.SessionCountJetBrains,
-		SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
-		SessionCountSSH:             req.SessionCountSSH,
-		ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
 
-	if req.ConnectionCount > 0 {
-		err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+	var errGroup errgroup.Group
+	errGroup.Go(func() error {
+		_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
+			ID:                          uuid.New(),
+			CreatedAt:                   now,
+			AgentID:                     workspaceAgent.ID,
+			WorkspaceID:                 workspace.ID,
+			UserID:                      workspace.OwnerID,
+			TemplateID:                  workspace.TemplateID,
+			ConnectionsByProto:          payload,
+			ConnectionCount:             req.ConnectionCount,
+			RxPackets:                   req.RxPackets,
+			RxBytes:                     req.RxBytes,
+			TxPackets:                   req.TxPackets,
+			TxBytes:                     req.TxBytes,
+			SessionCountVSCode:          req.SessionCountVSCode,
+			SessionCountJetBrains:       req.SessionCountJetBrains,
+			SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
+			SessionCountSSH:             req.SessionCountSSH,
+			ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
+		})
+		if err != nil {
+			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
+		}
+		return nil
+	})
+	errGroup.Go(func() error {
+		err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
 			ID:         workspace.ID,
 			LastUsedAt: now,
 		})
 		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
+			return xerrors.Errorf("can't update workspace LastUsedAt: %w", err)
 		}
+		return nil
+	})
+	if api.Options.UpdateAgentMetrics != nil {
+		errGroup.Go(func() error {
+			user, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+			if err != nil {
+				return xerrors.Errorf("can't get user: %w", err)
+			}
+
+			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, req.Metrics)
+			return nil
+		})
+	}
+	err = errGroup.Wait()
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
@@ -1717,32 +1737,8 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	if listen {
-		// If listening we await a new token...
-		authChan := make(chan struct{}, 1)
-		cancelFunc, err := api.Pubsub.Subscribe("gitauth", func(ctx context.Context, message []byte) {
-			ids := strings.Split(string(message), "|")
-			if len(ids) != 2 {
-				return
-			}
-			if ids[0] != gitAuthConfig.ID {
-				return
-			}
-			if ids[1] != workspace.OwnerID.String() {
-				return
-			}
-			select {
-			case authChan <- struct{}{}:
-			default:
-			}
-		})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to listen for git auth token.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		defer cancelFunc()
+		// Since we're ticking frequently and this sign-in operation is rare,
+		// we are OK with polling to avoid the complexity of pubsub.
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
@@ -1750,7 +1746,6 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-			case <-authChan:
 			}
 			gitAuthLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
 				ProviderID: gitAuthConfig.ID,
@@ -1766,7 +1761,12 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 				})
 				return
 			}
-			if gitAuthLink.OAuthExpiry.Before(database.Now()) {
+
+			// Expiry may be unset if the application doesn't configure tokens
+			// to expire.
+			// See
+			// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app.
+			if gitAuthLink.OAuthExpiry.Before(database.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
 			if gitAuthConfig.ValidateURL != "" {
@@ -1912,20 +1912,11 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			}
 		}
 
-		err = api.Pubsub.Publish("gitauth", []byte(fmt.Sprintf("%s|%s", gitAuthConfig.ID, apiKey.UserID)))
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to publish auth update.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
 		redirect := state.Redirect
 		if redirect == "" {
+			// This is a nicely rendered screen on the frontend
 			redirect = "/gitauth"
 		}
-		// This is a nicely rendered screen on the frontend
 		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}
 }
@@ -1973,17 +1964,17 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 
 func convertWorkspaceAgentStartupLogs(logs []database.WorkspaceAgentStartupLog) []codersdk.WorkspaceAgentStartupLog {
 	sdk := make([]codersdk.WorkspaceAgentStartupLog, 0, len(logs))
-	for _, log := range logs {
-		sdk = append(sdk, convertWorkspaceAgentStartupLog(log))
+	for _, logEntry := range logs {
+		sdk = append(sdk, convertWorkspaceAgentStartupLog(logEntry))
 	}
 	return sdk
 }
 
-func convertWorkspaceAgentStartupLog(log database.WorkspaceAgentStartupLog) codersdk.WorkspaceAgentStartupLog {
+func convertWorkspaceAgentStartupLog(logEntry database.WorkspaceAgentStartupLog) codersdk.WorkspaceAgentStartupLog {
 	return codersdk.WorkspaceAgentStartupLog{
-		ID:        log.ID,
-		CreatedAt: log.CreatedAt,
-		Output:    log.Output,
-		Level:     codersdk.LogLevel(log.Level),
+		ID:        logEntry.ID,
+		CreatedAt: logEntry.CreatedAt,
+		Output:    logEntry.Output,
+		Level:     codersdk.LogLevel(logEntry.Level),
 	}
 }

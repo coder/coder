@@ -14,6 +14,7 @@ import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { pageTitle } from "../../utils/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
+import { useProxy } from "contexts/ProxyContext"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -56,6 +57,7 @@ const TerminalPage: FC<
 > = ({ renderer }) => {
   const navigate = useNavigate()
   const styles = useStyles()
+  const { proxy } = useProxy()
   const { username, workspace: workspaceName } = useParams()
   const xtermRef = useRef<HTMLDivElement>(null)
   const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null)
@@ -76,6 +78,7 @@ const TerminalPage: FC<
       workspaceName: workspaceNameParts?.[0],
       username: username,
       command: command,
+      baseURL: proxy.preferredPathAppURL,
     },
     actions: {
       readMessage: (_, event) => {
@@ -97,14 +100,18 @@ const TerminalPage: FC<
     workspaceAgentError,
     workspaceAgent,
     websocketError,
-    applicationsHost,
   } = terminalState.context
   const reloading = useReloading(isDisconnected)
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
     (uri: string) => {
-      if (!workspaceAgent || !workspace || !username || !applicationsHost) {
+      if (
+        !workspaceAgent ||
+        !workspace ||
+        !username ||
+        !proxy.preferredWildcardHostname
+      ) {
         return
       }
 
@@ -132,7 +139,7 @@ const TerminalPage: FC<
         }
         open(
           portForwardURL(
-            applicationsHost,
+            proxy.preferredWildcardHostname,
             parseInt(url.port),
             workspaceAgent.name,
             workspace.name,
@@ -143,7 +150,7 @@ const TerminalPage: FC<
         open(uri)
       }
     },
-    [workspaceAgent, workspace, username, applicationsHost],
+    [workspaceAgent, workspace, username, proxy.preferredWildcardHostname],
   )
 
   // Create the terminal!
