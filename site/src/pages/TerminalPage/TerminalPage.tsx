@@ -297,7 +297,7 @@ const TerminalPage: FC<
               Startup script is still running
             </div>
             <div className={styles.alertMessage}>
-              You can use it but dotfiles aren&lsquo;t setup yet
+              You can continue using this terminal, but something may be missing or not fully set up.
             </div>
           </div>
           <div className={styles.alertActions}>
