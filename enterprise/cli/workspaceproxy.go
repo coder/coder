@@ -2,7 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/fatih/color"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -152,7 +154,27 @@ func (r *RootCmd) listProxies() *clibase.Cmd {
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"name", "url", "status status"}),
 			cliui.JSONFormat(),
-			cliui.TextFormat(),
+			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+				resp, ok := data.([]codersdk.WorkspaceProxy)
+				if !ok {
+					return nil, xerrors.Errorf("unexpected type %T", data)
+				}
+				var str strings.Builder
+				str.WriteString("Workspace Proxies:\n")
+				sep := ""
+				for i, proxy := range resp {
+					str.WriteString(sep)
+					str.WriteString(fmt.Sprintf("%d: %s %s %s", i, proxy.Name, proxy.URL, proxy.Status.Status))
+					for _, errMsg := range proxy.Status.Report.Errors {
+						str.WriteString(color.RedString("\n\tErr: %s", errMsg))
+					}
+					for _, warnMsg := range proxy.Status.Report.Errors {
+						str.WriteString(color.YellowString("\n\tWarn: %s", warnMsg))
+					}
+					sep = "\n"
+				}
+				return str.String(), nil
+			}),
 		)
 	)
 
