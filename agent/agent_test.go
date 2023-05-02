@@ -951,19 +951,17 @@ func TestAgent_StartupScript(t *testing.T) {
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
+	echoHello := "echo 'hello'"
+
 	t.Run("Once", func(t *testing.T) {
 		t.Parallel()
-		script := "echo -n hello"
-		if runtime.GOOS == "windows" {
-			script = "powershell " + script
-		}
 		//nolint:dogsled
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
 					Key:      "greeting",
 					Interval: 0,
-					Script:   script,
+					Script:   echoHello,
 				},
 			},
 		}, 0)
@@ -986,78 +984,111 @@ func TestAgent_Metadata(t *testing.T) {
 	})
 
 	t.Run("Many", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			// Shell scripting in Windows is a pain, and we have already tested
-			// that the OS logic works in the simpler "Once" test above.
-			t.Skip()
-		}
 		t.Parallel()
-
-		dir := t.TempDir()
-
-		const reportInterval = 2
-		const intervalUnit = 100 * time.Millisecond
-		var (
-			greetingPath = filepath.Join(dir, "greeting")
-			script       = "echo hello | tee -a " + greetingPath
-		)
+		//nolint:dogsled
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
 					Key:      "greeting",
-					Interval: reportInterval,
-					Script:   script,
-				},
-				{
-					Key:      "bad",
-					Interval: reportInterval,
-					Script:   "exit 1",
+					Interval: 1,
+					Timeout:  100,
+					Script:   echoHello,
 				},
 			},
 		}, 0)
 
+		var gotMd map[string]agentsdk.PostMetadataRequest
 		require.Eventually(t, func() bool {
-			return len(client.getMetadata()) == 2
+			gotMd = client.getMetadata()
+			return len(gotMd) == 1
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		for start := time.Now(); time.Since(start) < testutil.WaitMedium; time.Sleep(testutil.IntervalMedium) {
-			md := client.getMetadata()
-			if len(md) != 2 {
-				panic("unexpected number of metadata entries")
-			}
+		collectedAt1 := gotMd["greeting"].CollectedAt
+		if !assert.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value)) {
+			t.Errorf("got: %+v", gotMd)
+		}
 
-			require.Equal(t, "hello\n", md["greeting"].Value)
-			require.Equal(t, "exit status 1", md["bad"].Error)
-
-			greetingByt, err := os.ReadFile(greetingPath)
-			require.NoError(t, err)
-
-			var (
-				numGreetings      = bytes.Count(greetingByt, []byte("hello"))
-				idealNumGreetings = time.Since(start) / (reportInterval * intervalUnit)
-				// We allow a 50% error margin because the report loop may backlog
-				// in CI and other toasters. In production, there is no hard
-				// guarantee on timing either, and the frontend gives similar
-				// wiggle room to the staleness of the value.
-				upperBound = int(idealNumGreetings) + 1
-				lowerBound = (int(idealNumGreetings) / 2)
-			)
-
-			if idealNumGreetings < 50 {
-				// There is an insufficient sample size.
-				continue
-			}
-
-			t.Logf("numGreetings: %d, idealNumGreetings: %d", numGreetings, idealNumGreetings)
-			// The report loop may slow down on load, but it should never, ever
-			// speed up.
-			if numGreetings > upperBound {
-				t.Fatalf("too many greetings: %d > %d in %v", numGreetings, upperBound, time.Since(start))
-			} else if numGreetings < lowerBound {
-				t.Fatalf("too few greetings: %d < %d", numGreetings, lowerBound)
-			}
+		if !assert.Eventually(t, func() bool {
+			gotMd = client.getMetadata()
+			return gotMd["greeting"].CollectedAt.After(collectedAt1)
+		}, testutil.WaitShort, testutil.IntervalMedium) {
+			t.Fatalf("expected metadata to be collected again")
 		}
 	})
+}
+
+func TestAgentMetadata_Timing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Shell scripting in Windows is a pain, and we have already tested
+		// that the OS logic works in the simpler tests.
+		t.Skip()
+	}
+	testutil.SkipIfNotTiming(t)
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	const reportInterval = 2
+	const intervalUnit = 100 * time.Millisecond
+	var (
+		greetingPath = filepath.Join(dir, "greeting")
+		script       = "echo hello | tee -a " + greetingPath
+	)
+	//nolint:dogsled
+	_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+		Metadata: []codersdk.WorkspaceAgentMetadataDescription{
+			{
+				Key:      "greeting",
+				Interval: reportInterval,
+				Script:   script,
+			},
+			{
+				Key:      "bad",
+				Interval: reportInterval,
+				Script:   "exit 1",
+			},
+		},
+	}, 0)
+
+	require.Eventually(t, func() bool {
+		return len(client.getMetadata()) == 2
+	}, testutil.WaitShort, testutil.IntervalMedium)
+
+	for start := time.Now(); time.Since(start) < testutil.WaitMedium; time.Sleep(testutil.IntervalMedium) {
+		md := client.getMetadata()
+		require.Len(t, md, 2, "got: %+v", md)
+
+		require.Equal(t, "hello\n", md["greeting"].Value)
+		require.Equal(t, "run cmd: exit status 1", md["bad"].Error)
+
+		greetingByt, err := os.ReadFile(greetingPath)
+		require.NoError(t, err)
+
+		var (
+			numGreetings      = bytes.Count(greetingByt, []byte("hello"))
+			idealNumGreetings = time.Since(start) / (reportInterval * intervalUnit)
+			// We allow a 50% error margin because the report loop may backlog
+			// in CI and other toasters. In production, there is no hard
+			// guarantee on timing either, and the frontend gives similar
+			// wiggle room to the staleness of the value.
+			upperBound = int(idealNumGreetings) + 1
+			lowerBound = (int(idealNumGreetings) / 2)
+		)
+
+		if idealNumGreetings < 50 {
+			// There is an insufficient sample size.
+			continue
+		}
+
+		t.Logf("numGreetings: %d, idealNumGreetings: %d", numGreetings, idealNumGreetings)
+		// The report loop may slow down on load, but it should never, ever
+		// speed up.
+		if numGreetings > upperBound {
+			t.Fatalf("too many greetings: %d > %d in %v", numGreetings, upperBound, time.Since(start))
+		} else if numGreetings < lowerBound {
+			t.Fatalf("too few greetings: %d < %d", numGreetings, lowerBound)
+		}
+	}
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
