@@ -3,13 +3,13 @@ Description="Coder - external workspace proxy server"
 Documentation=https://coder.com/docs/coder-oss
 Requires=network-online.target
 After=network-online.target
-ConditionFileNotEmpty=/etc/coder.d/coder-proxy.env
+ConditionFileNotEmpty=/etc/coder.d/coder-workspace-proxy.env
 StartLimitIntervalSec=60
 StartLimitBurst=3
 
 [Service]
 Type=notify
-EnvironmentFile=/etc/coder.d/coder-proxy.env
+EnvironmentFile=/etc/coder.d/coder-workspace-proxy.env
 User=coder
 Group=coder
 ProtectSystem=full
