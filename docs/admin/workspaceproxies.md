@@ -55,6 +55,10 @@ Other Status codes:
 
 ### Configuration
 
+<!--
+ I am not sure the best way to present this.
+ Ideally in the future we can auto sync some of the settings with coderd.
+ -->
 Workspace proxy configuration overlaps with a subset of the coderd configuration. To see the full list of configuration options: `coder proxy server --help`
 
 ```bash
@@ -87,4 +91,6 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 # Set configuration options via environment variables, a config file, or cmd flags
 coder proxy server
 ```
+
+<!-- Additional run options? -->
 
