@@ -225,13 +225,15 @@ func (t *TrackedConn) SendUpdates() {
 			// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
 			err = t.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 			if err != nil {
-				t.logger.Error(t.ctx, "unable to set write deadline", slog.Error(err))
+				// often, this is just because the connection is closed/broken, so only log at debug.
+				t.logger.Debug(t.ctx, "unable to set write deadline", slog.Error(err))
 				_ = t.Close()
 				return
 			}
 			_, err = t.conn.Write(data)
 			if err != nil {
-				t.logger.Info(t.ctx, "could not write nodes to connection", slog.Error(err), slog.F("nodes", nodes))
+				// often, this is just because the connection is closed/broken, so only log at debug.
+				t.logger.Debug(t.ctx, "could not write nodes to connection", slog.Error(err), slog.F("nodes", nodes))
 				_ = t.Close()
 				return
 			}
