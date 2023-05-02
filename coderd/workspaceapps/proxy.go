@@ -618,6 +618,12 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
+		// Always allow websockets from the primary dashboard URL.
+		// Terminals are opened there and connect to the proxy.
+		OriginPatterns: []string{
+			s.DashboardURL.Host,
+			s.AccessURL.Host,
+		},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

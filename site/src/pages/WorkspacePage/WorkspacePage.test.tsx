@@ -151,6 +151,17 @@ describe("WorkspacePage", () => {
     )
   })
 
+  it("requests a stop when the user presses Restart", async () => {
+    const stopWorkspaceMock = jest
+      .spyOn(api, "stopWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
+
+    await testButton("Restart", stopWorkspaceMock)
+
+    const button = await screen.findByText("Restarting")
+    expect(button).toBeInTheDocument()
+  })
+
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
       rest.get(

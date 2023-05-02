@@ -74,8 +74,6 @@ export interface WorkspaceContext {
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
-  // applications
-  applicationsHost?: string
   // debug
   createBuildLogLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"]
   // SSH Config
@@ -188,9 +186,6 @@ export const workspaceMachine = createMachine(
         }
         checkPermissions: {
           data: TypesGen.AuthorizationResponse
-        }
-        getApplicationsHost: {
-          data: TypesGen.AppHostResponse
         }
         getSSHPrefix: {
           data: TypesGen.SSHConfigResponse
@@ -504,30 +499,6 @@ export const workspaceMachine = createMachine(
               },
             },
           },
-          applications: {
-            initial: "gettingApplicationsHost",
-            states: {
-              gettingApplicationsHost: {
-                invoke: {
-                  src: "getApplicationsHost",
-                  onDone: {
-                    target: "success",
-                    actions: ["assignApplicationsHost"],
-                  },
-                  onError: {
-                    target: "error",
-                    actions: ["displayApplicationsHostError"],
-                  },
-                },
-              },
-              error: {
-                type: "final",
-              },
-              success: {
-                type: "final",
-              },
-            },
-          },
           sshConfig: {
             initial: "gettingSshConfig",
             states: {
@@ -660,17 +631,6 @@ export const workspaceMachine = createMachine(
       clearGetBuildsError: assign({
         getBuildsError: (_) => undefined,
       }),
-      // Applications
-      assignApplicationsHost: assign({
-        applicationsHost: (_, { data }) => data.host,
-      }),
-      displayApplicationsHostError: (_, { data }) => {
-        const message = getErrorMessage(
-          data,
-          "Error getting the applications host.",
-        )
-        displayError(message)
-      },
       // SSH
       assignSSHPrefix: assign({
         sshPrefix: (_, { data }) => data.hostname_prefix,
@@ -879,9 +839,6 @@ export const workspaceMachine = createMachine(
         return await API.checkAuthorization({
           checks: permissionsToCheck(workspace, template),
         })
-      },
-      getApplicationsHost: async () => {
-        return API.getApplicationsHost()
       },
       scheduleBannerMachine: workspaceScheduleBannerMachine,
       getSSHPrefix: async () => {

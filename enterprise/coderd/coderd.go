@@ -237,7 +237,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
 		// Proxy health is a moon feature.
 		api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
-			Interval:   time.Second * 5,
+			Interval:   time.Minute * 1,
 			DB:         api.Database,
 			Logger:     options.Logger.Named("proxyhealth"),
 			Client:     api.HTTPClient,
@@ -250,6 +250,10 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		// Force the initial loading of the cache. Do this in a go routine in case
 		// the calls to the workspace proxies hang and this takes some time.
 		go api.forceWorkspaceProxyHealthUpdate(ctx)
+
+		// Use proxy health to return the healthy workspace proxy hostnames.
+		f := api.ProxyHealth.ProxyHosts
+		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
 	}
 
 	err = api.updateEntitlements(ctx)

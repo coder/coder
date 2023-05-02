@@ -210,25 +210,31 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	var out bytes.Buffer
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
-		// the server to the time the server received the result to protect
-		// against clock skew.
+		// coderd to the time of server receipt to solve clock skew.
 		//
 		// In the future, the server may accept the timestamp from the agent
-		// if it is certain the clocks are in sync.
+		// if it can guarantee the clocks are synchronized.
 		CollectedAt: time.Now(),
 	}
 	cmd, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
 	if err != nil {
-		result.Error = err.Error()
+		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
 	}
 
 	cmd.Stdout = &out
 	cmd.Stderr = &out
+	cmd.Stdin = io.LimitReader(nil, 0)
 
-	// The error isn't mutually exclusive with useful output.
-	err = cmd.Run()
+	// We split up Start and Wait instead of calling Run so that we can return a more precise error.
+	err = cmd.Start()
+	if err != nil {
+		result.Error = fmt.Sprintf("start cmd: %+v", err)
+		return result
+	}
 
+	// This error isn't mutually exclusive with useful output.
+	err = cmd.Wait()
 	const bufLimit = 10 << 10
 	if out.Len() > bufLimit {
 		err = errors.Join(
@@ -238,8 +244,12 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		out.Truncate(bufLimit)
 	}
 
+	// Important: if the command times out, we may see a misleading error like
+	// "exit status 1", so it's important to include the context error.
+	err = errors.Join(err, ctx.Err())
+
 	if err != nil {
-		result.Error = err.Error()
+		result.Error = fmt.Sprintf("run cmd: %+v", err)
 	}
 	result.Value = out.String()
 	return result

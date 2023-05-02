@@ -4,6 +4,8 @@ import { Navigate, useLocation } from "react-router"
 import { Outlet } from "react-router-dom"
 import { embedRedirect } from "../../utils/redirect"
 import { FullScreenLoader } from "../Loader/FullScreenLoader"
+import { DashboardProvider } from "components/Dashboard/DashboardProvider"
+import { ProxyProvider } from "contexts/ProxyContext"
 
 export const RequireAuth: FC = () => {
   const [authState] = useAuth()
@@ -21,6 +23,14 @@ export const RequireAuth: FC = () => {
   ) {
     return <FullScreenLoader />
   } else {
-    return <Outlet />
+    // Authenticated pages have access to some contexts for knowing enabled experiments
+    // and where to route workspace connections.
+    return (
+      <DashboardProvider>
+        <ProxyProvider>
+          <Outlet />
+        </ProxyProvider>
+      </DashboardProvider>
+    )
   }
 }

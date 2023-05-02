@@ -15,6 +15,7 @@ const Template: Story<WorkspaceActionsProps> = (args) => (
 const defaultArgs = {
   handleStart: action("start"),
   handleStop: action("stop"),
+  handleRestart: action("restart"),
   handleDelete: action("delete"),
   handleUpdate: action("update"),
   handleCancel: action("cancel"),
