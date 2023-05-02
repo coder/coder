@@ -18,6 +18,7 @@ import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { pageTitle } from "../../utils/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
 import { useProxy } from "contexts/ProxyContext"
+import { combineClasses } from "utils/combineClasses"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -78,9 +79,10 @@ const TerminalPage: FC<
   } = terminalState.context
   const reloading = useReloading(isDisconnected)
   const shouldDisplayStartupWarning = workspaceAgent
-    ? ["starting", "starting_timeout", "start_error"].includes(
-        workspaceAgent.lifecycle_state,
-      )
+    ? ["starting", "starting_timeout"].includes(workspaceAgent.lifecycle_state)
+    : false
+  const shouldDisplayStartupError = workspaceAgent
+    ? workspaceAgent.lifecycle_state === "start_error"
     : false
 
   // handleWebLink handles opening of URLs in the terminal!
@@ -296,6 +298,21 @@ const TerminalPage: FC<
           </Stack>
         )}
       </div>
+      {shouldDisplayStartupError && (
+        <div
+          className={combineClasses([styles.alert, styles.alertError])}
+          role="alert"
+        >
+          <WarningIcon className={styles.alertIcon} />
+          <div>
+            <div className={styles.alertTitle}>Startup script failed</div>
+            <div className={styles.alertMessage}>
+              You can continue using this terminal, but something may be missing
+              or not fully set up.
+            </div>
+          </div>
+        </div>
+      )}
       {shouldDisplayStartupWarning && (
         <div className={styles.alert} role="alert">
           <WarningIcon className={styles.alertIcon} />
@@ -304,7 +321,8 @@ const TerminalPage: FC<
               Startup script is still running
             </div>
             <div className={styles.alertMessage}>
-              You can continue using this terminal, but something may be missing or not fully set up.
+              You can continue using this terminal, but something may be missing
+              or not fully set up.
             </div>
           </div>
           <div className={styles.alertActions}>
@@ -312,10 +330,12 @@ const TerminalPage: FC<
               startIcon={<RefreshOutlined />}
               size="small"
               onClick={() => {
-                window.location.reload()
+                // By redirecting the user without the session in the URL we
+                // create a new one
+                window.location.href = window.location.pathname
               }}
             >
-              Refresh
+              Refresh session
             </Button>
           </div>
         </div>
@@ -420,6 +440,11 @@ const useStyles = makeStyles((theme) => ({
   alertIcon: {
     color: theme.palette.warning.light,
     fontSize: theme.spacing(3),
+  },
+  alertError: {
+    "& $alertIcon": {
+      color: theme.palette.error.light,
+    },
   },
   alertTitle: {
     fontWeight: 600,
