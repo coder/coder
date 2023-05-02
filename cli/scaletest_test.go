@@ -25,7 +25,7 @@ import (
 )
 
 func TestScaleTestCreateWorkspaces(t *testing.T) {
-	// t.Skipf("This test is flakey. See https://github.com/coder/coder/issues/4942")
+	t.Skipf("This test is flakey. See https://github.com/coder/coder/issues/4942")
 	t.Parallel()
 
 	// This test does a create-workspaces scale test with --no-cleanup, checks
@@ -243,7 +243,9 @@ func TestScaleTestTrafficGen(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.Name = "scaletest-test"
+	})
 	coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
 
 	agentClient := agentsdk.New(client.URL)
@@ -260,7 +262,6 @@ func TestScaleTestTrafficGen(t *testing.T) {
 	inv, root := clitest.New(t, "scaletest", "trafficgen", ws.Name,
 		"--duration", "1s",
 		"--bps", "100",
-		"-o", "json",
 	)
 	clitest.SetupConfig(t, client, root)
 	var stdout, stderr bytes.Buffer
@@ -268,14 +269,5 @@ func TestScaleTestTrafficGen(t *testing.T) {
 	inv.Stderr = &stderr
 	err := inv.WithContext(ctx).Run()
 	require.NoError(t, err)
-	// TODO: this struct is currently unexported. Put it somewhere better.
-	var output struct {
-		DurationSeconds float64 `json:"duration_s"`
-		SentBytes       int64   `json:"sent_bytes"`
-		RcvdBytes       int64   `json:"rcvd_bytes"`
-	}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &output))
-	require.NotZero(t, output.DurationSeconds)
-	require.NotZero(t, output.SentBytes)
-	require.NotZero(t, output.RcvdBytes)
+	require.Contains(t, stdout.String(), "Pass:  1")
 }

@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/coder/coder/scaletest/createworkspaces"
 	"github.com/coder/coder/scaletest/harness"
 	"github.com/coder/coder/scaletest/reconnectingpty"
+	"github.com/coder/coder/scaletest/trafficgen"
 	"github.com/coder/coder/scaletest/workspacebuild"
 )
 
@@ -386,33 +386,9 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 			}
 
 			cliui.Infof(inv.Stdout, "Fetching scaletest workspaces...")
-			var (
-				pageNumber = 0
-				limit      = 100
-				workspaces []codersdk.Workspace
-			)
-			for {
-				page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-					Name:   "scaletest-",
-					Offset: pageNumber * limit,
-					Limit:  limit,
-				})
-				if err != nil {
-					return xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
-				}
-
-				pageNumber++
-				if len(page.Workspaces) == 0 {
-					break
-				}
-
-				pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
-				for _, w := range page.Workspaces {
-					if isScaleTestWorkspace(w) {
-						pageWorkspaces = append(pageWorkspaces, w)
-					}
-				}
-				workspaces = append(workspaces, pageWorkspaces...)
+			workspaces, err := getScaletestWorkspaces(ctx, client)
+			if err != nil {
+				return err
 			}
 
 			cliui.Errorf(inv.Stderr, "Found %d scaletest workspaces\n", len(workspaces))
@@ -443,33 +419,9 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 			}
 
 			cliui.Infof(inv.Stdout, "Fetching scaletest users...")
-			pageNumber = 0
-			limit = 100
-			var users []codersdk.User
-			for {
-				page, err := client.Users(ctx, codersdk.UsersRequest{
-					Search: "scaletest-",
-					Pagination: codersdk.Pagination{
-						Offset: pageNumber * limit,
-						Limit:  limit,
-					},
-				})
-				if err != nil {
-					return xerrors.Errorf("fetch scaletest users page %d: %w", pageNumber, err)
-				}
-
-				pageNumber++
-				if len(page.Users) == 0 {
-					break
-				}
-
-				pageUsers := make([]codersdk.User, 0, len(page.Users))
-				for _, u := range page.Users {
-					if isScaleTestUser(u) {
-						pageUsers = append(pageUsers, u)
-					}
-				}
-				users = append(users, pageUsers...)
+			users, err := getScaletestUsers(ctx, client)
+			if err != nil {
+				return err
 			}
 
 			cliui.Errorf(inv.Stderr, "Found %d scaletest users\n", len(users))
@@ -949,132 +901,138 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	return cmd
 }
 
-type trafficGenOutput struct {
-	DurationSeconds float64 `json:"duration_s"`
-	SentBytes       int64   `json:"sent_bytes"`
-	RcvdBytes       int64   `json:"rcvd_bytes"`
-}
-
-func (o trafficGenOutput) String() string {
-	return fmt.Sprintf("Duration: %.2fs\n", o.DurationSeconds) +
-		fmt.Sprintf("Sent:     %dB\n", o.SentBytes) +
-		fmt.Sprintf("Rcvd:     %dB", o.RcvdBytes)
-}
-
 func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 	var (
-		duration  time.Duration
-		formatter = cliui.NewOutputFormatter(
-			cliui.TextFormat(),
-			cliui.JSONFormat(),
-		)
-		bps    int64
-		client = new(codersdk.Client)
+		duration        time.Duration
+		bps             int64
+		client          = new(codersdk.Client)
+		tracingFlags    = &scaletestTracingFlags{}
+		strategy        = &scaletestStrategyFlags{}
+		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
+		output          = &scaletestOutputFlags{}
 	)
 
 	cmd := &clibase.Cmd{
 		Use:    "trafficgen",
 		Hidden: true,
-		Short:  "Generate traffic to a Coder workspace",
+		Short:  "Generate traffic to scaletest workspaces",
 		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(1, 2),
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			var (
-				agentName    string
-				tickInterval = 100 * time.Millisecond
-			)
-			ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			ctx := inv.Context()
+
+			// Bypass rate limiting
+			client.HTTPClient = &http.Client{
+				Transport: &headerTransport{
+					transport: http.DefaultTransport,
+					header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
+					},
+				},
+			}
+
+			workspaces, err := getScaletestWorkspaces(inv.Context(), client)
 			if err != nil {
 				return err
 			}
 
-			var agentID uuid.UUID
-			for _, res := range ws.LatestBuild.Resources {
-				if len(res.Agents) == 0 {
-					continue
-				}
-				if agentName != "" && agentName != res.Agents[0].Name {
-					continue
-				}
-				agentID = res.Agents[0].ID
+			if len(workspaces) == 0 {
+				return xerrors.Errorf("no scaletest workspaces exist")
 			}
 
-			if agentID == uuid.Nil {
-				return xerrors.Errorf("no agent found for workspace %s", ws.Name)
-			}
-
-			// Setup our workspace agent connection.
-			reconnect := uuid.New()
-			conn, err := client.WorkspaceAgentReconnectingPTY(inv.Context(), codersdk.WorkspaceAgentReconnectingPTYOpts{
-				AgentID:   agentID,
-				Reconnect: reconnect,
-				Height:    65535,
-				Width:     65535,
-				Command:   "/bin/sh",
-			})
+			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
 			if err != nil {
-				return xerrors.Errorf("connect to workspace: %w", err)
+				return xerrors.Errorf("create tracer provider: %w", err)
 			}
-
 			defer func() {
-				_ = conn.Close()
+				// Allow time for traces to flush even if command context is
+				// canceled.
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				_ = closeTracing(ctx)
 			}()
+			tracer := tracerProvider.Tracer(scaletestTracerName)
 
-			// Wrap the conn in a countReadWriter so we can monitor bytes sent/rcvd.
-			crw := countReadWriter{ReadWriter: conn}
-
-			// Set a deadline for stopping the text.
-			start := time.Now()
-			deadlineCtx, cancel := context.WithDeadline(inv.Context(), start.Add(duration))
-			defer cancel()
-
-			// Create a ticker for sending data to the PTY.
-			tick := time.NewTicker(tickInterval)
-			defer tick.Stop()
-
-			// Now we begin writing random data to the pty.
-			writeSize := int(bps / 10)
-			rch := make(chan error)
-			wch := make(chan error)
-
-			// Read forever in the background.
-			go func() {
-				rch <- readContext(deadlineCtx, &crw, writeSize*2)
-				conn.Close()
-				close(rch)
-			}()
-
-			// Write random data to the PTY every tick.
-			go func() {
-				wch <- writeRandomData(deadlineCtx, &crw, writeSize, tick.C)
-				close(wch)
-			}()
-
-			// Wait for both our reads and writes to be finished.
-			if wErr := <-wch; wErr != nil {
-				return xerrors.Errorf("write to pty: %w", wErr)
-			}
-			if rErr := <-rch; rErr != nil {
-				return xerrors.Errorf("read from pty: %w", rErr)
-			}
-
-			duration := time.Since(start)
-
-			results := trafficGenOutput{
-				DurationSeconds: duration.Seconds(),
-				SentBytes:       crw.BytesWritten(),
-				RcvdBytes:       crw.BytesRead(),
-			}
-
-			out, err := formatter.Format(inv.Context(), results)
+			outputs, err := output.parse()
 			if err != nil {
-				return err
+				return xerrors.Errorf("could not parse --output flags")
 			}
 
-			_, err = fmt.Fprintln(inv.Stdout, out)
-			return err
+			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
+			for idx, ws := range workspaces {
+				var (
+					agentID uuid.UUID
+					name    = "trafficgen"
+					id      = strconv.Itoa(idx)
+				)
+
+				for _, res := range ws.LatestBuild.Resources {
+					if len(res.Agents) == 0 {
+						continue
+					}
+					agentID = res.Agents[0].ID
+				}
+
+				if agentID == uuid.Nil {
+					return xerrors.Errorf("no agent found for workspace %s", ws.Name)
+				}
+
+				// Setup our workspace agent connection.
+				config := trafficgen.Config{
+					AgentID:        agentID,
+					BytesPerSecond: bps,
+					Duration:       duration,
+					TicksPerSecond: 10,
+				}
+
+				if err := config.Validate(); err != nil {
+					return xerrors.Errorf("validate config: %w", err)
+				}
+				var runner harness.Runnable = trafficgen.NewRunner(client, config)
+				if tracingEnabled {
+					runner = &runnableTraceWrapper{
+						tracer:   tracer,
+						spanName: fmt.Sprintf("%s/%s", name, id),
+						runner:   runner,
+					}
+				}
+
+				th.AddRun(name, id, runner)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "Running load test...")
+			testCtx, testCancel := strategy.toContext(ctx)
+			defer testCancel()
+			err = th.Run(testCtx)
+			if err != nil {
+				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
+			}
+
+			res := th.Results()
+			for _, o := range outputs {
+				err = o.write(res, inv.Stdout)
+				if err != nil {
+					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
+				}
+			}
+
+			// Upload traces.
+			if tracingEnabled {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+				defer cancel()
+				err := closeTracing(ctx)
+				if err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
+			}
+
+			if res.TotalFail > 0 {
+				return xerrors.New("load test failed, see above for more details")
+			}
+
+			return nil
 		},
 	}
 
@@ -1095,7 +1053,11 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 		},
 	}
 
-	formatter.AttachOptions(&cmd.Options)
+	tracingFlags.attach(&cmd.Options)
+	strategy.attach(&cmd.Options)
+	cleanupStrategy.attach(&cmd.Options)
+	output.attach(&cmd.Options)
+
 	return cmd
 }
 
@@ -1176,110 +1138,71 @@ func isScaleTestWorkspace(workspace codersdk.Workspace) bool {
 		strings.HasPrefix(workspace.Name, "scaletest-")
 }
 
-func readContext(ctx context.Context, src io.Reader, bufSize int) error {
-	buf := make([]byte, bufSize)
+func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client) ([]codersdk.Workspace, error) {
+	var (
+		pageNumber = 0
+		limit      = 100
+		workspaces []codersdk.Workspace
+	)
+
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			if ctx.Err() != nil {
-				return nil
-			}
-			_, err := src.Read(buf)
-			if err != nil {
-				if xerrors.Is(err, io.EOF) {
-					return nil
-				}
-				return err
+		page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name:   "scaletest-",
+			Offset: pageNumber * limit,
+			Limit:  limit,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
+		}
+
+		pageNumber++
+		if len(page.Workspaces) == 0 {
+			break
+		}
+
+		pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
+		for _, w := range page.Workspaces {
+			if isScaleTestWorkspace(w) {
+				pageWorkspaces = append(pageWorkspaces, w)
 			}
 		}
+		workspaces = append(workspaces, pageWorkspaces...)
 	}
+	return workspaces, nil
 }
 
-func writeRandomData(ctx context.Context, dst io.Writer, size int, tick <-chan time.Time) error {
+func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk.User, error) {
+	var (
+		pageNumber = 0
+		limit      = 100
+		users      []codersdk.User
+	)
+
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-tick:
-			payload := "#" + mustRandStr(size-1)
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: payload,
-			})
-			if err != nil {
-				return err
-			}
-			if _, err := copyContext(ctx, dst, data); err != nil {
-				return err
+		page, err := client.Users(ctx, codersdk.UsersRequest{
+			Search: "scaletest-",
+			Pagination: codersdk.Pagination{
+				Offset: pageNumber * limit,
+				Limit:  limit,
+			},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("fetch scaletest users page %d: %w", pageNumber, err)
+		}
+
+		pageNumber++
+		if len(page.Users) == 0 {
+			break
+		}
+
+		pageUsers := make([]codersdk.User, 0, len(page.Users))
+		for _, u := range page.Users {
+			if isScaleTestUser(u) {
+				pageUsers = append(pageUsers, u)
 			}
 		}
+		users = append(users, pageUsers...)
 	}
-}
 
-// copyContext copies from src to dst until ctx is canceled.
-func copyContext(ctx context.Context, dst io.Writer, src []byte) (int, error) {
-	var count int
-	for {
-		select {
-		case <-ctx.Done():
-			return count, nil
-		default:
-			if ctx.Err() != nil {
-				return count, nil
-			}
-			n, err := dst.Write(src)
-			if err != nil {
-				if xerrors.Is(err, io.EOF) {
-					// On an EOF, assume that all of src was consumed.
-					return len(src), nil
-				}
-				return count, err
-			}
-			count += n
-			if n == len(src) {
-				return count, nil
-			}
-			// Not all of src was consumed. Update src and retry.
-			src = src[n:]
-		}
-	}
-}
-
-type countReadWriter struct {
-	io.ReadWriter
-	bytesRead    atomic.Int64
-	bytesWritten atomic.Int64
-}
-
-func (w *countReadWriter) Read(p []byte) (int, error) {
-	n, err := w.ReadWriter.Read(p)
-	if err == nil {
-		w.bytesRead.Add(int64(n))
-	}
-	return n, err
-}
-
-func (w *countReadWriter) Write(p []byte) (int, error) {
-	n, err := w.ReadWriter.Write(p)
-	if err == nil {
-		w.bytesWritten.Add(int64(n))
-	}
-	return n, err
-}
-
-func (w *countReadWriter) BytesRead() int64 {
-	return w.bytesRead.Load()
-}
-
-func (w *countReadWriter) BytesWritten() int64 {
-	return w.bytesWritten.Load()
-}
-
-func mustRandStr(len int) string {
-	randStr, err := cryptorand.String(len)
-	if err != nil {
-		panic(err)
-	}
-	return randStr
+	return users, nil
 }
