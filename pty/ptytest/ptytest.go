@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -44,7 +43,7 @@ func New(t *testing.T, opts ...pty.Option) *PTY {
 
 // Start starts a new process asynchronously and returns a PTYCmd and Process.
 // It kills the process and PTYCmd upon cleanup
-func Start(t *testing.T, cmd *exec.Cmd, opts ...pty.StartOption) (*PTYCmd, pty.Process) {
+func Start(t *testing.T, cmd *pty.Cmd, opts ...pty.StartOption) (*PTYCmd, pty.Process) {
 	t.Helper()
 
 	ptty, ps, err := pty.Start(cmd, opts...)

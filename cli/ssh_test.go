@@ -540,7 +540,7 @@ Expire-Date: 0
 	require.NoError(t, err, "import ownertrust failed: %s", out)
 
 	// Start the GPG agent.
-	agentCmd := exec.CommandContext(ctx, gpgAgentPath, "--no-detach", "--extra-socket", extraSocketPath)
+	agentCmd := pty.CommandContext(ctx, gpgAgentPath, "--no-detach", "--extra-socket", extraSocketPath)
 	agentCmd.Env = append(agentCmd.Env, "GNUPGHOME="+gnupgHomeClient)
 	agentPTY, agentProc, err := pty.Start(agentCmd, pty.WithPTYOption(pty.WithGPGTTY()))
 	require.NoError(t, err, "launch agent failed")

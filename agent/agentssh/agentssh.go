@@ -255,7 +255,7 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 	if isPty {
 		return s.startPTYSession(session, cmd, sshPty, windowSize)
 	}
-	return startNonPTYSession(session, cmd)
+	return startNonPTYSession(session, cmd.ToExec())
 }
 
 func startNonPTYSession(session ssh.Session, cmd *exec.Cmd) error {
@@ -287,7 +287,7 @@ type ptySession interface {
 	RawCommand() string
 }
 
-func (s *Server) startPTYSession(session ptySession, cmd *exec.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
+func (s *Server) startPTYSession(session ptySession, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
 	ctx := session.Context()
 	// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
 	// See https://github.com/coder/coder/issues/3371.
@@ -413,7 +413,7 @@ func (s *Server) sftpHandler(session ssh.Session) {
 // CreateCommand processes raw command input with OpenSSH-like behavior.
 // If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
-func (s *Server) CreateCommand(ctx context.Context, script string, env []string) (*exec.Cmd, error) {
+func (s *Server) CreateCommand(ctx context.Context, script string, env []string) (*pty.Cmd, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return nil, xerrors.Errorf("get current user: %w", err)
@@ -449,7 +449,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		}
 	}
 
-	cmd := exec.CommandContext(ctx, shell, args...)
+	cmd := pty.CommandContext(ctx, shell, args...)
 	cmd.Dir = manifest.Directory
 
 	// If the metadata directory doesn't exist, we run the command

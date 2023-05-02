@@ -7,8 +7,9 @@ import (
 	"context"
 	"io"
 	"net"
-	"os/exec"
 	"testing"
+
+	"github.com/coder/coder/pty"
 
 	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/spf13/afero"
@@ -52,7 +53,7 @@ func Test_sessionStart_orphan(t *testing.T) {
 	close(windowSize)
 	// the command gets the session context so that Go will terminate it when
 	// the session expires.
-	cmd := exec.CommandContext(sessionCtx, "sh", "-c", longScript)
+	cmd := pty.CommandContext(sessionCtx, "sh", "-c", longScript)
 
 	done := make(chan struct{})
 	go func() {

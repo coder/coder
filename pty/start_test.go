@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +25,7 @@ func Test_Start_copy(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
-	pc, cmd, err := pty.Start(exec.CommandContext(ctx, cmdEcho, argEcho...))
+	pc, cmd, err := pty.Start(pty.CommandContext(ctx, cmdEcho, argEcho...))
 	require.NoError(t, err)
 	b := &bytes.Buffer{}
 	readDone := make(chan error, 1)
@@ -64,7 +63,7 @@ func Test_Start_truncation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 
-	pc, cmd, err := pty.Start(exec.CommandContext(ctx, cmdCount, argCount...))
+	pc, cmd, err := pty.Start(pty.CommandContext(ctx, cmdCount, argCount...))
 
 	require.NoError(t, err)
 	readDone := make(chan struct{})
@@ -111,6 +110,35 @@ func Test_Start_truncation(t *testing.T) {
 		// OK!
 	case <-ctx.Done():
 		t.Fatal("read timed out")
+	}
+}
+
+// Test_Start_cancel_context tests that we can cancel the command context and kill the process.
+func Test_Start_cancel_context(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+	cmdCtx, cmdCancel := context.WithCancel(ctx)
+
+	pc, cmd, err := pty.Start(pty.CommandContext(cmdCtx, cmdSleep, argSleep...))
+	require.NoError(t, err)
+	defer func() {
+		_ = pc.Close()
+	}()
+	cmdCancel()
+
+	cmdDone := make(chan struct{})
+	go func() {
+		defer close(cmdDone)
+		_ = cmd.Wait()
+	}()
+
+	select {
+	case <-cmdDone:
+		// OK!
+	case <-ctx.Done():
+		t.Error("cmd.Wait() timed out")
 	}
 }
 
