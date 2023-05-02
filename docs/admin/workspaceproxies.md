@@ -11,15 +11,15 @@ A workspace proxy is a relay connection a developer can choose to use when conne
 
 # Deploy a workspace proxy
 
-Workspace deployment and management must be done by a user with the `owner` role. You must logged into the `coder` cli to create a proxy.
+Each workspace proxy should be a unique instance. At no point should 2 workspace proxy instances share the same authentication token.
 
-```bash
-coder login <deployment_url>
-```
+## Requirements
 
-# Step 1: Create the proxy
+- The [Coder CLI](../cli.md) must installed on and authenticated as a user with the Owner role.
 
-Create the workspace proxy and make sure to save the returned authentication token for said proxy.
+## Step 1: Create the proxy
+
+Create the workspace proxy and make sure to save the returned authentication token for said proxy. This is the token the workspace proxy will use to authenticate back to primary coderd.
 
 ```bash
 $ coder proxy create --name=newyork --display-name="USA East" --icon="/emojis/2194.png"
@@ -35,8 +35,56 @@ NAME         URL                    STATUS STATUS
 newyork                             unregistered
 ```
 
-# Step 2: Deploy the proxy
+## Step 2: Deploy the proxy
 
-Deploying the workspace proxy will also register the proxy and make the workspace proxy usable.
+Deploying the workspace proxy will also register the proxy with coderd and make the workspace proxy usable. If the proxy deployment is successful, `coder proxy ls` will show an `ok` status code:
 
-// TODO: Docs to deploy a workspace proxy. Helm chart? Manually? Config sync?
+```
+$ coder proxy lsPM
+NAME              URL                           STATUS STATUS  
+brazil-saopaulo   https://brazil.example.com  ok             
+europe-frankfurt  https://europe.example.com  ok             
+sydney            https://sydney.example.com  ok
+```
+
+Other Status codes:
+- `unregistered` : The workspace proxy was created, and not yet deployed
+- `unreachable` : The workspace proxy was registered, but is not responding. Likely the proxy went offline.
+- `unhealthy` : The workspace proxy is reachable, but has some issue that is preventing the proxy from being used. `coder proxy ls` should show the error message.
+- `ok` : The workspace proxy is healthy and working properly!
+
+### Configuration
+
+Workspace proxy configuration overlaps with a subset of the coderd configuration. To see the full list of configuration options: `coder proxy server --help`
+
+```bash
+# Proxy specific configuration. These are REQUIRED
+# Example: https://coderd.example.com
+CODER_PRIMARY_ACCESS_URL="https://<url_of_coderd_dashboard>"
+CODER_PROXY_SESSION_TOKEN="<session_token_from_proxy_create>"
+
+# Runtime variables for "coder start".
+CODER_HTTP_ADDRESS=0.0.0.0:8080
+CODER_TLS_ADDRESS=0.0.0.0:8443
+# Example: https://east.coderd.example.com
+CODER_ACCESS_URL="https://<access_url_of_proxy>"
+# Example: *.east.coderd.example.com
+CODER_WILDCARD_ACCESS_URL="*.<app_hostname_of_proxy>"
+CODER_DERP_SERVER_ENABLE=true
+CODER_DERP_SERVER_RELAY_ADDRESS="https://127.0.0.1:8443"
+
+CODER_TLS_ENABLE=true
+CODER_TLS_CLIENT_AUTH=none
+CODER_TLS_CERT_FILE="<cert_file_location>"
+CODER_TLS_KEY_FILE="<key_file_location>"
+
+# Additional configuration options are available.
+```
+
+### Running on a VM
+
+```bash
+# Set configuration options via environment variables, a config file, or cmd flags
+coder proxy server
+```
+
