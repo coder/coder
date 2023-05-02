@@ -87,11 +87,12 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 
 		// Workspace Commands
 		r.configSSH(),
-		r.rename(),
-		r.ping(),
 		r.create(),
 		r.deleteWorkspace(),
 		r.list(),
+		r.parameters(),
+		r.ping(),
+		r.rename(),
 		r.schedules(),
 		r.show(),
 		r.speedtest(),
@@ -100,14 +101,13 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.stop(),
 		r.update(),
 		r.restart(),
-		r.parameters(),
 
 		// Hidden
-		r.workspaceAgent(),
+		r.gitssh(),
 		r.scaletest(),
 		r.trafficGen(),
-		r.gitssh(),
 		r.vscodeSSH(),
+		r.workspaceAgent(),
 	}
 }
 
