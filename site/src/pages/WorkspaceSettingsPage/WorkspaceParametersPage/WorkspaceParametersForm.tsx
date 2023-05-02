@@ -13,7 +13,7 @@ import {
   workspaceBuildParameterValue,
 } from "utils/richParameters"
 import * as Yup from "yup"
-import { nameValidator, getFormHelpers } from "utils/formUtils"
+import { getFormHelpers } from "utils/formUtils"
 import {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
@@ -62,7 +62,6 @@ export const WorkspaceParametersForm: FC<{
       }),
     },
     validationSchema: Yup.object({
-      name: nameValidator(t("nameLabel")),
       rich_parameter_values: useValidationSchemaForRichParameters(
         "createWorkspacePage",
         templateVersionRichParameters,
