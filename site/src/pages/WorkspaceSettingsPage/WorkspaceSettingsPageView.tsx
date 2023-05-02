@@ -1,30 +1,24 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
-import { Loader } from "components/Loader/Loader"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { FC } from "react"
+import { ComponentProps, FC } from "react"
 import { useTranslation } from "react-i18next"
-import { WorkspaceSettings, WorkspaceSettingsFormValue } from "./data"
 import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm"
+import { Workspace } from "api/typesGenerated"
 
 export type WorkspaceSettingsPageViewProps = {
-  formError: unknown
-  loadingError: unknown
-  isLoading: boolean
+  error: unknown
   isSubmitting: boolean
-  settings: WorkspaceSettings | undefined
+  workspace: Workspace
   onCancel: () => void
-  onSubmit: (formValues: WorkspaceSettingsFormValue) => void
+  onSubmit: ComponentProps<typeof WorkspaceSettingsForm>["onSubmit"]
 }
 
 export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
   onCancel,
   onSubmit,
-  isLoading,
   isSubmitting,
-  settings,
-  formError,
-  loadingError,
+  error,
+  workspace,
 }) => {
   const { t } = useTranslation("workspaceSettingsPage")
   const styles = useStyles()
@@ -35,17 +29,13 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
         <PageHeaderTitle>{t("title")}</PageHeaderTitle>
       </PageHeader>
 
-      {loadingError && <AlertBanner error={loadingError} severity="error" />}
-      {isLoading && <Loader />}
-      {settings && (
-        <WorkspaceSettingsForm
-          error={formError}
-          isSubmitting={isSubmitting}
-          settings={settings}
-          onCancel={onCancel}
-          onSubmit={onSubmit}
-        />
-      )}
+      <WorkspaceSettingsForm
+        error={error}
+        isSubmitting={isSubmitting}
+        workspace={workspace}
+        onCancel={onCancel}
+        onSubmit={onSubmit}
+      />
     </>
   )
 }

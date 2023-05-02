@@ -4,56 +4,37 @@ import {
   FormSection,
   HorizontalForm,
 } from "components/Form/Form"
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
 import { useFormik } from "formik"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import {
-  useValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
-} from "utils/richParameters"
-import { WorkspaceSettings, WorkspaceSettingsFormValue } from "./data"
 import * as Yup from "yup"
 import { nameValidator, getFormHelpers, onChangeTrimmed } from "utils/formUtils"
 import TextField from "@material-ui/core/TextField"
+import { Workspace } from "api/typesGenerated"
+
+export type WorkspaceSettingsFormValues = {
+  name: string
+}
 
 export const WorkspaceSettingsForm: FC<{
   isSubmitting: boolean
-  settings: WorkspaceSettings
+  workspace: Workspace
   error: unknown
   onCancel: () => void
-  onSubmit: (values: WorkspaceSettingsFormValue) => void
-}> = ({ onCancel, onSubmit, settings, error, isSubmitting }) => {
+  onSubmit: (values: WorkspaceSettingsFormValues) => void
+}> = ({ onCancel, onSubmit, workspace, error, isSubmitting }) => {
   const { t } = useTranslation("workspaceSettingsPage")
-  const mutableParameters = settings.templateVersionRichParameters.filter(
-    (param) => param.mutable,
-  )
-  const form = useFormik<WorkspaceSettingsFormValue>({
+
+  const form = useFormik<WorkspaceSettingsFormValues>({
     onSubmit,
     initialValues: {
-      name: settings.workspace.name,
-      rich_parameter_values: mutableParameters.map((parameter) => {
-        const buildParameter = settings.buildParameters.find(
-          (p) => p.name === parameter.name,
-        )
-        if (!buildParameter) {
-          return {
-            name: parameter.name,
-            value: parameter.default_value,
-          }
-        }
-        return buildParameter
-      }),
+      name: workspace.name,
     },
     validationSchema: Yup.object({
       name: nameValidator(t("nameLabel")),
-      rich_parameter_values: useValidationSchemaForRichParameters(
-        "createWorkspacePage",
-        settings.templateVersionRichParameters,
-      ),
     }),
   })
-  const getFieldHelpers = getFormHelpers<WorkspaceSettingsFormValue>(
+  const getFieldHelpers = getFormHelpers<WorkspaceSettingsFormValues>(
     form,
     error,
   )
@@ -76,36 +57,6 @@ export const WorkspaceSettingsForm: FC<{
           />
         </FormFields>
       </FormSection>
-      {mutableParameters.length > 0 && (
-        <FormSection
-          title={t("parameters")}
-          description={t("parametersDescription")}
-        >
-          <FormFields>
-            {mutableParameters.map((parameter, index) => (
-              <RichParameterInput
-                {...getFieldHelpers(
-                  "rich_parameter_values[" + index + "].value",
-                )}
-                disabled={isSubmitting}
-                index={index}
-                key={parameter.name}
-                onChange={async (value) => {
-                  await form.setFieldValue("rich_parameter_values." + index, {
-                    name: parameter.name,
-                    value: value,
-                  })
-                }}
-                parameter={parameter}
-                initialValue={workspaceBuildParameterValue(
-                  settings.buildParameters,
-                  parameter,
-                )}
-              />
-            ))}
-          </FormFields>
-        </FormSection>
-      )}
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
   )
