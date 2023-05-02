@@ -13,7 +13,9 @@ A workspace proxy is a relay connection a developer can choose to use when conne
 
 # Deploy a workspace proxy
 
-Each workspace proxy should be a unique instance. At no point should 2 workspace proxy instances share the same authentication token.
+Each workspace proxy should be a unique instance. At no point should 2 workspace proxy instances share the same authentication token. 
+
+Workspace proxies can be used in the browser by navigating to the user `Account -> Workspace Proxy`
 
 ## Requirements
 
