@@ -492,9 +492,9 @@ jobs:
           regions=(
             # gcp-region-id instance-name systemd-service-name
             "us-central1-a coder coder"
-            "australia-southeast1-b coder-sydney coder-proxy"
-            "europe-west3-c coder-europe coder-proxy"
-            "southamerica-east1-b coder-brazil coder-proxy"
+            "australia-southeast1-b coder-sydney coder-workspace-proxy"
+            "europe-west3-c coder-europe coder-workspace-proxy"
+            "southamerica-east1-b coder-brazil coder-workspace-proxy"
           )
 
           deb_pkg="./build/coder_$(./scripts/version.sh)_linux_amd64.deb"
