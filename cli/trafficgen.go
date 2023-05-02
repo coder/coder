@@ -12,15 +12,32 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
 
+type trafficGenOutput struct {
+	DurationSeconds float64 `json:"duration_s"`
+	SentBytes       int64   `json:"sent_bytes"`
+	RcvdBytes       int64   `json:"rcvd_bytes"`
+}
+
+func (o trafficGenOutput) String() string {
+	return fmt.Sprintf("Duration: %.2fs\n", o.DurationSeconds) +
+		fmt.Sprintf("Sent:     %dB\n", o.SentBytes) +
+		fmt.Sprintf("Rcvd:     %dB", o.RcvdBytes)
+}
+
 func (r *RootCmd) trafficGen() *clibase.Cmd {
 	var (
-		duration time.Duration
-		bps      int64
-		client   = new(codersdk.Client)
+		duration  time.Duration
+		formatter = cliui.NewOutputFormatter(
+			cliui.TextFormat(),
+			cliui.JSONFormat(),
+		)
+		bps    int64
+		client = new(codersdk.Client)
 	)
 
 	cmd := &clibase.Cmd{
@@ -32,7 +49,10 @@ func (r *RootCmd) trafficGen() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			var agentName string
+			var (
+				agentName    string
+				tickInterval = 100 * time.Millisecond
+			)
 			ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -53,6 +73,7 @@ func (r *RootCmd) trafficGen() *clibase.Cmd {
 				return xerrors.Errorf("no agent found for workspace %s", ws.Name)
 			}
 
+			// Setup our workspace agent connection.
 			reconnect := uuid.New()
 			conn, err := client.WorkspaceAgentReconnectingPTY(inv.Context(), codersdk.WorkspaceAgentReconnectingPTYOpts{
 				AgentID:   agentID,
@@ -68,34 +89,38 @@ func (r *RootCmd) trafficGen() *clibase.Cmd {
 			defer func() {
 				_ = conn.Close()
 			}()
-			start := time.Now()
-			ctx, cancel := context.WithDeadline(inv.Context(), start.Add(duration))
-			defer cancel()
+
+			// Wrap the conn in a countReadWriter so we can monitor bytes sent/rcvd.
 			crw := countReadWriter{ReadWriter: conn}
-			// First, write a comment to the pty so we don't execute anything.
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "#",
-			})
-			if err != nil {
-				return xerrors.Errorf("serialize request: %w", err)
-			}
-			_, err = crw.Write(data)
-			if err != nil {
-				return xerrors.Errorf("write comment to pty: %w", err)
-			}
+
+			// Set a deadline for stopping the text.
+			start := time.Now()
+			deadlineCtx, cancel := context.WithDeadline(inv.Context(), start.Add(duration))
+			defer cancel()
+
+			// Create a ticker for sending data to the PTY.
+			tick := time.NewTicker(tickInterval)
+			defer tick.Stop()
+
 			// Now we begin writing random data to the pty.
 			writeSize := int(bps / 10)
 			rch := make(chan error)
 			wch := make(chan error)
+
+			// Read forever in the background.
 			go func() {
-				rch <- readForever(ctx, &crw)
+				rch <- readContext(deadlineCtx, &crw, writeSize*2)
+				conn.Close()
 				close(rch)
 			}()
+
+			// Write random data to the PTY every tick.
 			go func() {
-				wch <- writeRandomData(ctx, &crw, writeSize, 100*time.Millisecond)
+				wch <- writeRandomData(deadlineCtx, &crw, writeSize, tick.C)
 				close(wch)
 			}()
 
+			// Wait for both our reads and writes to be finished.
 			if wErr := <-wch; wErr != nil {
 				return xerrors.Errorf("write to pty: %w", wErr)
 			}
@@ -103,11 +128,21 @@ func (r *RootCmd) trafficGen() *clibase.Cmd {
 				return xerrors.Errorf("read from pty: %w", rErr)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Test results:\n")
-			_, _ = fmt.Fprintf(inv.Stdout, "Took:     %.2fs\n", time.Since(start).Seconds())
-			_, _ = fmt.Fprintf(inv.Stdout, "Sent:     %d bytes\n", crw.BytesWritten())
-			_, _ = fmt.Fprintf(inv.Stdout, "Rcvd:     %d bytes\n", crw.BytesRead())
-			return nil
+			duration := time.Since(start)
+
+			results := trafficGenOutput{
+				DurationSeconds: duration.Seconds(),
+				SentBytes:       crw.BytesWritten(),
+				RcvdBytes:       crw.BytesRead(),
+			}
+
+			out, err := formatter.Format(inv.Context(), results)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
 		},
 	}
 
@@ -128,57 +163,21 @@ func (r *RootCmd) trafficGen() *clibase.Cmd {
 		},
 	}
 
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
-func readForever(ctx context.Context, src io.Reader) error {
-	buf := make([]byte, 1024)
+func readContext(ctx context.Context, src io.Reader, bufSize int) error {
+	buf := make([]byte, bufSize)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
+			if ctx.Err() != nil {
+				return nil
+			}
 			_, err := src.Read(buf)
-			if err != nil && err != io.EOF {
-				return err
-			}
-		}
-	}
-}
-
-func writeRandomData(ctx context.Context, dst io.Writer, size int, period time.Duration) error {
-	tick := time.NewTicker(period)
-	defer tick.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-tick.C:
-			randStr, err := cryptorand.String(size)
-			if err != nil {
-				return err
-			}
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: randStr,
-			})
-			if err != nil {
-				return err
-			}
-			err = copyContext(ctx, dst, data)
-			if err != nil {
-				return err
-			}
-		}
-	}
-}
-
-func copyContext(ctx context.Context, dst io.Writer, src []byte) error {
-	for idx := range src {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			_, err := dst.Write(src[idx : idx+1])
 			if err != nil {
 				if xerrors.Is(err, io.EOF) {
 					return nil
@@ -187,7 +186,55 @@ func copyContext(ctx context.Context, dst io.Writer, src []byte) error {
 			}
 		}
 	}
-	return nil
+}
+
+func writeRandomData(ctx context.Context, dst io.Writer, size int, tick <-chan time.Time) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-tick:
+			payload := "#" + mustRandStr(size-1)
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: payload,
+			})
+			if err != nil {
+				return err
+			}
+			if _, err := copyContext(ctx, dst, data); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// copyContext copies from src to dst until ctx is canceled.
+func copyContext(ctx context.Context, dst io.Writer, src []byte) (int, error) {
+	var count int
+	for {
+		select {
+		case <-ctx.Done():
+			return count, nil
+		default:
+			if ctx.Err() != nil {
+				return count, nil
+			}
+			n, err := dst.Write(src)
+			if err != nil {
+				if xerrors.Is(err, io.EOF) {
+					// On an EOF, assume that all of src was consumed.
+					return len(src), nil
+				}
+				return count, err
+			}
+			count += n
+			if n == len(src) {
+				return count, nil
+			}
+			// Not all of src was consumed. Update src and retry.
+			src = src[n:]
+		}
+	}
 }
 
 type countReadWriter struct {
@@ -218,4 +265,12 @@ func (w *countReadWriter) BytesRead() int64 {
 
 func (w *countReadWriter) BytesWritten() int64 {
 	return w.bytesWritten.Load()
+}
+
+func mustRandStr(len int) string {
+	randStr, err := cryptorand.String(len)
+	if err != nil {
+		panic(err)
+	}
+	return randStr
 }

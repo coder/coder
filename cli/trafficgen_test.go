@@ -3,7 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
-	"strings"
+	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -23,7 +23,6 @@ import (
 // We do not perform any cleanup.
 func TestTrafficGen(t *testing.T) {
 	t.Parallel()
-	t.Skip("TODO: this hangs in a unit test but works in the real world.")
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancelFunc()
@@ -74,6 +73,7 @@ func TestTrafficGen(t *testing.T) {
 	inv, root := clitest.New(t, "trafficgen", ws.Name,
 		"--duration", "1s",
 		"--bps", "100",
+		"-o", "json",
 	)
 	clitest.SetupConfig(t, client, root)
 	var stdout, stderr bytes.Buffer
@@ -81,13 +81,14 @@ func TestTrafficGen(t *testing.T) {
 	inv.Stderr = &stderr
 	err := inv.WithContext(ctx).Run()
 	require.NoError(t, err)
-	stdoutStr := stdout.String()
-	stderrStr := stderr.String()
-	require.Empty(t, stderrStr)
-	lines := strings.Split(strings.TrimSpace(stdoutStr), "\n")
-	require.Len(t, lines, 4)
-	require.Equal(t, "Test results:", lines[0])
-	require.Regexp(t, `Took:\s+\d+\.\d+s`, lines[1])
-	require.Regexp(t, `Sent:\s+\d+ bytes`, lines[2])
-	require.Regexp(t, `Rcvd:\s+\d+ bytes`, lines[3])
+	// TODO: this struct is currently unexported. Put it somewhere better.
+	var output struct {
+		DurationSeconds float64 `json:"duration_s"`
+		SentBytes       int64   `json:"sent_bytes"`
+		RcvdBytes       int64   `json:"rcvd_bytes"`
+	}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &output))
+	require.NotZero(t, output.DurationSeconds)
+	require.NotZero(t, output.SentBytes)
+	require.NotZero(t, output.RcvdBytes)
 }
