@@ -303,6 +303,7 @@ func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
 	aNode.PreferredDERP = 1
 	require.NoError(t, err)
 	aData, err = json.Marshal(&aNode)
+	require.NoError(t, err)
 	err = agentWS.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
 	require.NoError(t, err)
 	_, err = agentWS.Write(aData)

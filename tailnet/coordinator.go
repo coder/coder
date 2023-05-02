@@ -120,7 +120,7 @@ const LoggerName = "coord"
 // in-memory.
 func NewCoordinator(logger slog.Logger) Coordinator {
 	return &coordinator{
-		core: NewCore(logger),
+		core: newCore(logger),
 	}
 }
 
@@ -132,15 +132,12 @@ func NewCoordinator(logger slog.Logger) Coordinator {
 // This coordinator is incompatible with multiple Coder
 // replicas as all node data is in-memory.
 type coordinator struct {
-	core *Core
+	core *core
 }
 
-// since there is only one coordinator in this implementation, use the zero-value UUID
-var coordinatorID uuid.UUID
-
-// Core is an in-memory structure of Node and TrackedConn mappings.  Its methods may be called from multiple goroutines;
+// core is an in-memory structure of Node and TrackedConn mappings.  Its methods may be called from multiple goroutines;
 // it is protected by a mutex to ensure data stay consistent.
-type Core struct {
+type core struct {
 	logger slog.Logger
 	mutex  sync.RWMutex
 	closed bool
@@ -158,13 +155,13 @@ type Core struct {
 	agentNameCache *lru.Cache[uuid.UUID, string]
 }
 
-func NewCore(logger slog.Logger) *Core {
+func newCore(logger slog.Logger) *core {
 	nameCache, err := lru.New[uuid.UUID, string](512)
 	if err != nil {
 		panic("make lru cache: " + err.Error())
 	}
 
-	return &Core{
+	return &core{
 		logger:                   logger,
 		closed:                   false,
 		nodes:                    make(map[uuid.UUID]*Node),
@@ -233,13 +230,12 @@ func (t *TrackedConn) SendUpdates() {
 				return
 			}
 			_, err = t.conn.Write(data)
-			if err == nil {
-				t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", nodes))
-			} else {
+			if err != nil {
 				t.logger.Info(t.ctx, "could not write nodes to connection", slog.Error(err), slog.F("nodes", nodes))
 				_ = t.Close()
 				return
 			}
+			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", nodes))
 		}
 	}
 }
@@ -267,30 +263,30 @@ func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.U
 // Node returns an in-memory node by ID.
 // If the node does not exist, nil is returned.
 func (c *coordinator) Node(id uuid.UUID) *Node {
-	return c.core.Node(id)
+	return c.core.node(id)
 }
 
-func (c *Core) Node(id uuid.UUID) *Node {
+func (c *core) node(id uuid.UUID) *Node {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.nodes[id]
 }
 
 func (c *coordinator) NodeCount() int {
-	return c.core.NodeCount()
+	return c.core.nodeCount()
 }
 
-func (c *Core) NodeCount() int {
+func (c *core) nodeCount() int {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return len(c.nodes)
 }
 
 func (c *coordinator) AgentCount() int {
-	return c.core.AgentCount()
+	return c.core.agentCount()
 }
 
-func (c *Core) AgentCount() int {
+func (c *core) agentCount() int {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return len(c.agentSockets)
@@ -301,13 +297,13 @@ func (c *Core) AgentCount() int {
 func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	logger := c.core.ClientLogger(id, agent)
+	logger := c.core.clientLogger(id, agent)
 	logger.Debug(ctx, "coordinating client")
-	tc, err := c.core.InitAndTrackClient(ctx, cancel, conn, id, agent)
+	tc, err := c.core.initAndTrackClient(ctx, cancel, conn, id, agent)
 	if err != nil {
 		return err
 	}
-	defer c.core.ClientDisconnected(id, agent)
+	defer c.core.clientDisconnected(id, agent)
 
 	// On this goroutine, we read updates from the client and publish them.  We start a second goroutine
 	// to write updates back to the client.
@@ -326,19 +322,19 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	}
 }
 
-func (c *Core) ClientLogger(id, agent uuid.UUID) slog.Logger {
+func (c *core) clientLogger(id, agent uuid.UUID) slog.Logger {
 	return c.logger.With(slog.F("client_id", id), slog.F("agent_id", agent))
 }
 
-// InitAndTrackClient creates a TrackedConn for the client, and sends any initial node updates if we have any.  It is
+// initAndTrackClient creates a TrackedConn for the client, and sends any initial Node updates if we have any.  It is
 // one function that does two things because it is critical that we hold the mutex for both things, lest we miss some
 // updates.
-func (c *Core) InitAndTrackClient(
+func (c *core) initAndTrackClient(
 	ctx context.Context, cancel func(), conn net.Conn, id, agent uuid.UUID,
 ) (
 	*TrackedConn, error,
 ) {
-	logger := c.ClientLogger(id, agent)
+	logger := c.clientLogger(id, agent)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if c.closed {
@@ -372,8 +368,8 @@ func (c *Core) InitAndTrackClient(
 	return tc, nil
 }
 
-func (c *Core) ClientDisconnected(id, agent uuid.UUID) {
-	logger := c.ClientLogger(id, agent)
+func (c *core) clientDisconnected(id, agent uuid.UUID) {
+	logger := c.clientLogger(id, agent)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// Clean all traces of this connection from the map.
@@ -393,18 +389,18 @@ func (c *Core) ClientDisconnected(id, agent uuid.UUID) {
 }
 
 func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json.Decoder) error {
-	logger := c.core.ClientLogger(id, agent)
+	logger := c.core.clientLogger(id, agent)
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
 		return xerrors.Errorf("read json: %w", err)
 	}
 	logger.Debug(context.Background(), "got client node update", slog.F("node", node))
-	return c.core.ClientNodeUpdate(id, agent, &node)
+	return c.core.clientNodeUpdate(id, agent, &node)
 }
 
-func (c *Core) ClientNodeUpdate(id, agent uuid.UUID, node *Node) error {
-	logger := c.ClientLogger(id, agent)
+func (c *core) clientNodeUpdate(id, agent uuid.UUID, node *Node) error {
+	logger := c.clientLogger(id, agent)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// Update the node of this client in our in-memory map. If an agent entirely
@@ -426,7 +422,7 @@ func (c *Core) ClientNodeUpdate(id, agent uuid.UUID, node *Node) error {
 	return nil
 }
 
-func (c *Core) AgentLogger(id uuid.UUID) slog.Logger {
+func (c *core) agentLogger(id uuid.UUID) slog.Logger {
 	return c.logger.With(slog.F("agent_id", id))
 }
 
@@ -435,11 +431,11 @@ func (c *Core) AgentLogger(id uuid.UUID) slog.Logger {
 func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	logger := c.core.AgentLogger(id)
+	logger := c.core.agentLogger(id)
 	logger.Debug(context.Background(), "coordinating agent")
 	// This uniquely identifies a connection that belongs to this goroutine.
 	unique := uuid.New()
-	tc, err := c.core.InitAndTrackAgent(ctx, cancel, conn, id, unique, name)
+	tc, err := c.core.initAndTrackAgent(ctx, cancel, conn, id, unique, name)
 	if err != nil {
 		return err
 	}
@@ -448,7 +444,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	// to write updates back to the agent.
 	go tc.SendUpdates()
 
-	defer c.core.AgentDisconnected(id, unique)
+	defer c.core.agentDisconnected(id, unique)
 
 	decoder := json.NewDecoder(conn)
 	for {
@@ -463,8 +459,8 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	}
 }
 
-func (c *Core) AgentDisconnected(id, unique uuid.UUID) {
-	logger := c.AgentLogger(id)
+func (c *core) agentDisconnected(id, unique uuid.UUID) {
+	logger := c.agentLogger(id)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -477,10 +473,10 @@ func (c *Core) AgentDisconnected(id, unique uuid.UUID) {
 	}
 }
 
-// InitAndTrackAgent creates a TrackedConn for the agent, and sends any initial nodes updates if we have any.  It is
+// initAndTrackAgent creates a TrackedConn for the agent, and sends any initial nodes updates if we have any.  It is
 // one function that does two things because it is critical that we hold the mutex for both things, lest we miss some
 // updates.
-func (c *Core) InitAndTrackAgent(ctx context.Context, cancel func(), conn net.Conn, id, unique uuid.UUID, name string) (*TrackedConn, error) {
+func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Conn, id, unique uuid.UUID, name string) (*TrackedConn, error) {
 	logger := c.logger.With(slog.F("agent_id", id))
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -531,18 +527,18 @@ func (c *Core) InitAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 }
 
 func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder) error {
-	logger := c.core.AgentLogger(id)
+	logger := c.core.agentLogger(id)
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
 		return xerrors.Errorf("read json: %w", err)
 	}
 	logger.Debug(context.Background(), "decoded agent node", slog.F("node", node))
-	return c.core.AgentNodeUpdate(id, &node)
+	return c.core.agentNodeUpdate(id, &node)
 }
 
-func (c *Core) AgentNodeUpdate(id uuid.UUID, node *Node) error {
-	logger := c.AgentLogger(id)
+func (c *core) agentNodeUpdate(id uuid.UUID, node *Node) error {
+	logger := c.agentLogger(id)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.nodes[id] = node
@@ -571,10 +567,10 @@ func (c *Core) AgentNodeUpdate(id uuid.UUID, node *Node) error {
 // Close closes all of the open connections in the coordinator and stops the
 // coordinator from accepting new connections.
 func (c *coordinator) Close() error {
-	return c.core.Close()
+	return c.core.close()
 }
 
-func (c *Core) Close() error {
+func (c *core) close() error {
 	c.mutex.Lock()
 	if c.closed {
 		c.mutex.Unlock()
@@ -611,10 +607,10 @@ func (c *Core) Close() error {
 }
 
 func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
-	c.core.ServeHTTPDebug(w, r)
+	c.core.serveHTTPDebug(w, r)
 }
 
-func (c *Core) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
+func (c *core) serveHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	c.mutex.RLock()
