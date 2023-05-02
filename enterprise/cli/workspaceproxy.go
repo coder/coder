@@ -23,6 +23,7 @@ func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 			r.proxyServer(),
 			r.createProxy(),
 			r.deleteProxy(),
+			r.listProxies(),
 		},
 	}
 
@@ -66,7 +67,8 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 				if !ok {
 					return nil, xerrors.Errorf("unexpected type %T", data)
 				}
-				return fmt.Sprintf("Workspace Proxy %q registered successfully\nToken: %s", response.Proxy.Name, response.ProxyToken), nil
+				return fmt.Sprintf("Workspace Proxy %q created successfully. Save this token, it will not be shown again."+
+					"\nToken: %s", response.Proxy.Name, response.ProxyToken), nil
 			}),
 			cliui.JSONFormat(),
 			// Table formatter expects a slice, make a slice of one.
@@ -91,6 +93,10 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
+			if proxyName == "" {
+				return xerrors.Errorf("proxy name is required")
+			}
+
 			resp, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
 				Name:        proxyName,
 				DisplayName: displayName,
@@ -138,5 +144,44 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 			Value:       clibase.BoolOf(&onlyToken),
 		},
 	)
+	return cmd
+}
+
+func (r *RootCmd) listProxies() *clibase.Cmd {
+	var (
+		formatter = cliui.NewOutputFormatter(
+			cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"name", "url", "status status"}),
+			cliui.JSONFormat(),
+			cliui.TextFormat(),
+		)
+	)
+
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
+		Use:     "ls",
+		Aliases: []string{"list"},
+		Short:   "List all workspace proxies",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
+			proxies, err := client.WorkspaceProxies(ctx)
+			if err != nil {
+				return xerrors.Errorf("list workspace proxies: %w", err)
+			}
+
+			output, err := formatter.Format(ctx, proxies)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(inv.Stdout, output)
+			return err
+		},
+	}
+
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
