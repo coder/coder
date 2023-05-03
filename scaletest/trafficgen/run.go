@@ -51,7 +51,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		reconnect           = uuid.New()
 		height       uint16 = 25
 		width        uint16 = 80
-		tickInterval        = r.cfg.TicksPerSecond
+		tickInterval        = time.Second / time.Duration(r.cfg.TicksPerSecond)
 		bytesPerTick        = r.cfg.BytesPerSecond / r.cfg.TicksPerSecond
 	)
 
