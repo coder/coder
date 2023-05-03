@@ -600,7 +600,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		Input:          input,
 		// Copy tags from the previous run.
 		Tags: job.Tags,
-		Metadata: pqtype.NullRawMessage{
+		TraceMetadata: pqtype.NullRawMessage{
 			Valid:      true,
 			RawMessage: metadataRaw,
 		},
@@ -1423,7 +1423,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		if err != nil {
 			return xerrors.Errorf("marshal job input: %w", err)
 		}
-		metadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
+		traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
 		if err != nil {
 			return xerrors.Errorf("marshal job metadata: %w", err)
 		}
@@ -1440,9 +1440,9 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          jobInput,
 			Tags:           tags,
-			Metadata: pqtype.NullRawMessage{
+			TraceMetadata: pqtype.NullRawMessage{
 				Valid:      true,
-				RawMessage: metadataRaw,
+				RawMessage: traceMetadataRaw,
 			},
 		})
 		if err != nil {

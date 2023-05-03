@@ -133,20 +133,20 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		return nil, failJob(fmt.Sprintf("get user: %s", err))
 	}
 
-	jobMetadata := map[string]string{}
-	if job.Metadata.Valid {
-		err := json.Unmarshal(job.Metadata.RawMessage, &jobMetadata)
+	jobTraceMetadata := map[string]string{}
+	if job.TraceMetadata.Valid {
+		err := json.Unmarshal(job.TraceMetadata.RawMessage, &jobTraceMetadata)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("unmarshal metadata: %s", err))
 		}
 	}
 
 	protoJob := &proto.AcquiredJob{
-		JobId:       job.ID.String(),
-		CreatedAt:   job.CreatedAt.UnixMilli(),
-		Provisioner: string(job.Provisioner),
-		UserName:    user.Username,
-		Metadata:    jobMetadata,
+		JobId:         job.ID.String(),
+		CreatedAt:     job.CreatedAt.UnixMilli(),
+		Provisioner:   string(job.Provisioner),
+		UserName:      user.Username,
+		TraceMetadata: jobTraceMetadata,
 	}
 
 	switch job.Type {

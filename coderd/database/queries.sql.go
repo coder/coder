@@ -2499,7 +2499,7 @@ WHERE
 		SKIP LOCKED
 		LIMIT
 			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, metadata
+	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
 `
 
 type AcquireProvisionerJobParams struct {
@@ -2541,14 +2541,14 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.FileID,
 		&i.Tags,
 		&i.ErrorCode,
-		&i.Metadata,
+		&i.TraceMetadata,
 	)
 	return i, err
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, metadata
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
 FROM
 	provisioner_jobs
 WHERE
@@ -2576,14 +2576,14 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.FileID,
 		&i.Tags,
 		&i.ErrorCode,
-		&i.Metadata,
+		&i.TraceMetadata,
 	)
 	return i, err
 }
 
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, metadata
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
 FROM
 	provisioner_jobs
 WHERE
@@ -2617,7 +2617,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			&i.FileID,
 			&i.Tags,
 			&i.ErrorCode,
-			&i.Metadata,
+			&i.TraceMetadata,
 		); err != nil {
 			return nil, err
 		}
@@ -2633,7 +2633,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
-SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, metadata FROM provisioner_jobs WHERE created_at > $1
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata FROM provisioner_jobs WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
@@ -2663,7 +2663,7 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 			&i.FileID,
 			&i.Tags,
 			&i.ErrorCode,
-			&i.Metadata,
+			&i.TraceMetadata,
 		); err != nil {
 			return nil, err
 		}
@@ -2692,10 +2692,10 @@ INSERT INTO
 		"type",
 		"input",
 		tags,
-		metadata
+		trace_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, metadata
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
 `
 
 type InsertProvisionerJobParams struct {
@@ -2710,7 +2710,7 @@ type InsertProvisionerJobParams struct {
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
 	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
-	Metadata       pqtype.NullRawMessage    `db:"metadata" json:"metadata"`
+	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
@@ -2726,7 +2726,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.Type,
 		arg.Input,
 		arg.Tags,
-		arg.Metadata,
+		arg.TraceMetadata,
 	)
 	var i ProvisionerJob
 	err := row.Scan(
@@ -2747,7 +2747,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.FileID,
 		&i.Tags,
 		&i.ErrorCode,
-		&i.Metadata,
+		&i.TraceMetadata,
 	)
 	return i, err
 }

@@ -1,1 +1,1 @@
-ALTER TABLE provisioner_jobs ADD COLUMN metadata jsonb;
+ALTER TABLE provisioner_jobs ADD COLUMN trace_metadata jsonb;

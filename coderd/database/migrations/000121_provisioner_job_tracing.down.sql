@@ -1,1 +1,1 @@
-ALTER TABLE provisioner_jobs DROP COLUMN metadata;
+ALTER TABLE provisioner_jobs DROP COLUMN trace_metadata;

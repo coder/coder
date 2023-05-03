@@ -516,7 +516,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("marshal provision job: %w", err)
 		}
-		metadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
+		traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
 		if err != nil {
 			return xerrors.Errorf("marshal metadata: %w", err)
 		}
@@ -532,9 +532,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			FileID:         templateVersionJob.FileID,
 			Input:          input,
 			Tags:           tags,
-			Metadata: pqtype.NullRawMessage{
+			TraceMetadata: pqtype.NullRawMessage{
 				Valid:      true,
-				RawMessage: metadataRaw,
+				RawMessage: traceMetadataRaw,
 			},
 		})
 		if err != nil {
