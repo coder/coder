@@ -7,7 +7,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"os/exec"
 	"testing"
 
 	gliderssh "github.com/gliderlabs/ssh"
@@ -15,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/pty"
 	"github.com/coder/coder/testutil"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -52,7 +52,7 @@ func Test_sessionStart_orphan(t *testing.T) {
 	close(windowSize)
 	// the command gets the session context so that Go will terminate it when
 	// the session expires.
-	cmd := exec.CommandContext(sessionCtx, "sh", "-c", longScript)
+	cmd := pty.CommandContext(sessionCtx, "sh", "-c", longScript)
 
 	done := make(chan struct{})
 	go func() {

@@ -385,7 +385,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingStart: {
-                entry: ["clearBuildError", "updateStatusToPending"],
+                entry: ["clearBuildError"],
                 invoke: {
                   src: "startWorkspace",
                   id: "startWorkspace",
@@ -404,7 +404,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingStop: {
-                entry: ["clearBuildError", "updateStatusToPending"],
+                entry: ["clearBuildError"],
                 invoke: {
                   src: "stopWorkspace",
                   id: "stopWorkspace",
@@ -423,7 +423,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingDelete: {
-                entry: ["clearBuildError", "updateStatusToPending"],
+                entry: ["clearBuildError"],
                 invoke: {
                   src: "deleteWorkspace",
                   id: "deleteWorkspace",
@@ -442,11 +442,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingCancel: {
-                entry: [
-                  "clearCancellationMessage",
-                  "clearCancellationError",
-                  "updateStatusToPending",
-                ],
+                entry: ["clearCancellationMessage", "clearCancellationError"],
                 invoke: {
                   src: "cancelWorkspace",
                   id: "cancelWorkspace",
@@ -642,24 +638,7 @@ export const workspaceMachine = createMachine(
         )
         displayError(message)
       },
-      // Optimistically update. So when the user clicks on stop, we can show
-      // the "pending" state right away without having to wait 0.5s ~ 2s to
-      // display the visual feedback to the user.
-      updateStatusToPending: assign({
-        workspace: ({ workspace }) => {
-          if (!workspace) {
-            throw new Error("Workspace not defined")
-          }
 
-          return {
-            ...workspace,
-            latest_build: {
-              ...workspace.latest_build,
-              status: "pending" as TypesGen.WorkspaceStatus,
-            },
-          }
-        },
-      }),
       assignMissedParameters: assign({
         missedParameters: (_, { data }) => {
           if (!(data instanceof API.MissingBuildParameters)) {

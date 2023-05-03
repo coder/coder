@@ -24,7 +24,7 @@ func TestStart(t *testing.T) {
 	t.Parallel()
 	t.Run("Echo", func(t *testing.T) {
 		t.Parallel()
-		pty, ps := ptytest.Start(t, exec.Command("echo", "test"))
+		pty, ps := ptytest.Start(t, pty.Command("echo", "test"))
 
 		pty.ExpectMatch("test")
 		err := ps.Wait()
@@ -35,7 +35,7 @@ func TestStart(t *testing.T) {
 
 	t.Run("Kill", func(t *testing.T) {
 		t.Parallel()
-		pty, ps := ptytest.Start(t, exec.Command("sleep", "30"))
+		pty, ps := ptytest.Start(t, pty.Command("sleep", "30"))
 		err := ps.Kill()
 		assert.NoError(t, err)
 		err = ps.Wait()
@@ -54,7 +54,7 @@ func TestStart(t *testing.T) {
 				Height: 24,
 			},
 		}))
-		pty, ps := ptytest.Start(t, exec.Command("env"), opts)
+		pty, ps := ptytest.Start(t, pty.Command("env"), opts)
 		pty.ExpectMatch("SSH_TTY=/dev/")
 		err := ps.Wait()
 		require.NoError(t, err)
@@ -84,3 +84,9 @@ do
         echo "$i"
 done
 `}
+
+// these constants/vars are used by Test_Start_cancel_context
+
+const cmdSleep = "sleep"
+
+var argSleep = []string{"30"}
