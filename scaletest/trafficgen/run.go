@@ -1,7 +1,6 @@
 package trafficgen
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -50,8 +49,8 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	var (
 		agentID             = r.cfg.AgentID
 		reconnect           = uuid.New()
-		height       uint16 = 65535
-		width        uint16 = 65535
+		height       uint16 = 25
+		width        uint16 = 80
 		tickInterval        = r.cfg.TicksPerSecond
 		bytesPerTick        = r.cfg.BytesPerSecond / r.cfg.TicksPerSecond
 	)
@@ -74,7 +73,8 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		return xerrors.Errorf("connect to workspace: %w", err)
 	}
 
-	defer func() {
+	go func() {
+		<-deadlineCtx.Done()
 		logger.Debug(ctx, "close agent connection", slog.F("agent_id", agentID))
 		_ = conn.Close()
 	}()
@@ -87,8 +87,8 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	defer tick.Stop()
 
 	// Now we begin writing random data to the pty.
-	rch := make(chan error)
-	wch := make(chan error)
+	rch := make(chan error, 1)
+	wch := make(chan error, 1)
 
 	go func() {
 		<-deadlineCtx.Done()
@@ -141,14 +141,12 @@ func drainContext(ctx context.Context, src io.Reader, bufSize int64) error {
 	errCh := make(chan error, 1)
 	done := make(chan struct{})
 	go func() {
-		tmp := make([]byte, bufSize)
-		buf := bytes.NewBuffer(tmp)
 		for {
 			select {
 			case <-done:
 				return
 			default:
-				_, err := io.CopyN(buf, src, 1)
+				_, err := io.CopyN(io.Discard, src, 1)
 				if ctx.Err() != nil {
 					return // context canceled while we were copying.
 				}
