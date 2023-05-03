@@ -103,6 +103,7 @@ export interface TemplateScheduleForm {
   isSubmitting: boolean
   error?: unknown
   allowAdvancedScheduling: boolean
+  allowWorkspaceActions: boolean
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>
 }
@@ -113,6 +114,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   onCancel,
   error,
   allowAdvancedScheduling,
+  allowWorkspaceActions,
   isSubmitting,
   initialTouched,
 }) => {
@@ -317,72 +319,78 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </Stack>
         </Stack>
       </FormSection>
-      <FormSection
-        title="Failure Cleanup"
-        description="When enabled, Coder will automatically stop workspaces that are in a failed state after a specified number of days."
-      >
-        <FormFields>
-          <FormControlLabel
-            control={
-              <Switch
-                name="failureCleanupEnabled"
-                checked={form.values.failure_cleanup_enabled}
-                onChange={handleToggleFailureCleanup}
-                color="primary"
+      {allowAdvancedScheduling && allowWorkspaceActions && (
+        <>
+          <FormSection
+            title="Failure Cleanup"
+            description="When enabled, Coder will automatically stop workspaces that are in a failed state after a specified number of days."
+          >
+            <FormFields>
+              <FormControlLabel
+                control={
+                  <Switch
+                    name="failureCleanupEnabled"
+                    checked={form.values.failure_cleanup_enabled}
+                    onChange={handleToggleFailureCleanup}
+                    color="primary"
+                  />
+                }
+                label="Enable Failure Cleanup"
               />
-            }
-            label="Enable Failure Cleanup"
-          />
-          <TextField
-            {...getFieldHelpers(
-              "failure_ttl_ms",
-              <TTLHelperText
-                translationName="failureTTLHelperText"
-                ttl={form.values.failure_ttl_ms}
-              />,
-            )}
-            disabled={isSubmitting || !form.values.failure_cleanup_enabled}
-            fullWidth
-            inputProps={{ min: 0, step: 1 }}
-            label="Time until cleanup (days)"
-            variant="outlined"
-            type="number"
-          />
-        </FormFields>
-      </FormSection>
-      <FormSection
-        title="Inactivity Cleanup"
-        description="When enabled, Coder will automatically delete workspaces that are in an inactive state after a specified number of days."
-      >
-        <FormFields>
-          <FormControlLabel
-            control={
-              <Switch
-                name="inactivityCleanupEnabled"
-                checked={form.values.inactivity_cleanup_enabled}
-                onChange={handleToggleInactivityCleanup}
-                color="primary"
+              <TextField
+                {...getFieldHelpers(
+                  "failure_ttl_ms",
+                  <TTLHelperText
+                    translationName="failureTTLHelperText"
+                    ttl={form.values.failure_ttl_ms}
+                  />,
+                )}
+                disabled={isSubmitting || !form.values.failure_cleanup_enabled}
+                fullWidth
+                inputProps={{ min: 0, step: 1 }}
+                label="Time until cleanup (days)"
+                variant="outlined"
+                type="number"
               />
-            }
-            label="Enable Inactivity Cleanup"
-          />
-          <TextField
-            {...getFieldHelpers(
-              "inactivity_ttl_ms",
-              <TTLHelperText
-                translationName="inactivityTTLHelperText"
-                ttl={form.values.inactivity_ttl_ms}
-              />,
-            )}
-            disabled={isSubmitting}
-            fullWidth
-            inputProps={{ min: 0, step: 1 }}
-            label="Time until cleanup (days)"
-            variant="outlined"
-            type="number"
-          />
-        </FormFields>
-      </FormSection>
+            </FormFields>
+          </FormSection>
+          <FormSection
+            title="Inactivity Cleanup"
+            description="When enabled, Coder will automatically delete workspaces that are in an inactive state after a specified number of days."
+          >
+            <FormFields>
+              <FormControlLabel
+                control={
+                  <Switch
+                    name="inactivityCleanupEnabled"
+                    checked={form.values.inactivity_cleanup_enabled}
+                    onChange={handleToggleInactivityCleanup}
+                    color="primary"
+                  />
+                }
+                label="Enable Inactivity Cleanup"
+              />
+              <TextField
+                {...getFieldHelpers(
+                  "inactivity_ttl_ms",
+                  <TTLHelperText
+                    translationName="inactivityTTLHelperText"
+                    ttl={form.values.inactivity_ttl_ms}
+                  />,
+                )}
+                disabled={
+                  isSubmitting || !form.values.inactivity_cleanup_enabled
+                }
+                fullWidth
+                inputProps={{ min: 0, step: 1 }}
+                label="Time until cleanup (days)"
+                variant="outlined"
+                type="number"
+              />
+            </FormFields>
+          </FormSection>
+        </>
+      )}
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
   )

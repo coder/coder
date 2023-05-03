@@ -1668,6 +1668,9 @@ const (
 	// feature is not yet complete in functionality.
 	ExperimentMoons Experiment = "moons"
 
+	// https://github.com/coder/coder/milestone/19
+	ExperimentWorkspaceActions Experiment = "workspace_actions"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )

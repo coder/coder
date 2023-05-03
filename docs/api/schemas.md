@@ -2502,9 +2502,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Value   |
-| ------- |
-| `moons` |
+| Value               |
+| ------------------- |
+| `moons`             |
+| `workspace_actions` |
 
 ## codersdk.Feature
 
