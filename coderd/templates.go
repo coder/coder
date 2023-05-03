@@ -687,5 +687,7 @@ func (api *API) convertTemplate(
 		AllowUserAutostart:           template.AllowUserAutostart,
 		AllowUserAutostop:            template.AllowUserAutostop,
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+		FailureTTLMillis:             time.Duration(template.FailureTTL).Milliseconds(),
+		InactivityTTLMillis:          time.Duration(template.InactivityTTL).Milliseconds(),
 	}
 }
