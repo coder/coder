@@ -95,7 +95,7 @@ Failed.args = {
   ...Running.args,
   workspace: Mocks.MockFailedWorkspace,
   workspaceErrors: {
-    [WorkspaceErrors.BUILD_ERROR]: Mocks.makeMockApiError({
+    [WorkspaceErrors.BUILD_ERROR]: Mocks.makeMockValidationApiError({
       message: "A workspace build is already active.",
     }),
   },
@@ -152,7 +152,7 @@ export const GetBuildsError = Template.bind({})
 GetBuildsError.args = {
   ...Running.args,
   workspaceErrors: {
-    [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.makeMockApiError({
+    [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.makeMockValidationApiError({
       message: "There is a problem fetching builds.",
     }),
   },
@@ -162,7 +162,7 @@ export const CancellationError = Template.bind({})
 CancellationError.args = {
   ...Failed.args,
   workspaceErrors: {
-    [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.makeMockApiError({
+    [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.makeMockValidationApiError({
       message: "Job could not be canceled.",
     }),
   },

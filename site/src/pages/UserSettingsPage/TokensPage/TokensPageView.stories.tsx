@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { makeMockApiError, MockTokens } from "testHelpers/entities"
+import { makeMockValidationApiError, MockTokens } from "testHelpers/entities"
 import { TokensPageView, TokensPageViewProps } from "./TokensPageView"
 
 export default {
@@ -41,7 +41,7 @@ export const WithGetTokensError = Template.bind({})
 WithGetTokensError.args = {
   ...Example.args,
   hasLoaded: false,
-  getTokensError: makeMockApiError({
+  getTokensError: makeMockValidationApiError({
     message: "Failed to get tokens.",
   }),
 }
@@ -50,7 +50,7 @@ export const WithDeleteTokenError = Template.bind({})
 WithDeleteTokenError.args = {
   ...Example.args,
   hasLoaded: false,
-  deleteTokenError: makeMockApiError({
+  deleteTokenError: makeMockValidationApiError({
     message: "Failed to delete token.",
   }),
 }

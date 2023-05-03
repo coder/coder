@@ -1,6 +1,6 @@
 import { Story } from "@storybook/react"
 import {
-  makeMockApiError,
+  makeMockValidationApiError,
   MockOrganization,
   MockTemplateExample,
   MockTemplateExample2,
@@ -36,7 +36,7 @@ export const Error = Template.bind({})
 Error.args = {
   context: {
     organizationId: MockOrganization.id,
-    error: makeMockApiError({
+    error: makeMockValidationApiError({
       message: "Error on loading the template examples",
     }),
     starterTemplatesByTag: undefined,

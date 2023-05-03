@@ -341,6 +341,8 @@ export const MockTemplate: TypesGen.Template = {
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
   allow_user_cancel_workspace_jobs: true,
+  allow_user_autostart: false,
+  allow_user_autostop: false,
 }
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -1261,9 +1263,9 @@ type MockAPIOutput = {
   isAxiosError: boolean
 }
 
-type MakeMockApiErrorFunction = (input: MockAPIInput) => MockAPIOutput
+type makeMockValidationApiErrorFunction = (input: MockAPIInput) => MockAPIOutput
 
-export const makeMockApiError: MakeMockApiErrorFunction = ({
+export const makeMockValidationApiError: makeMockValidationApiErrorFunction = ({
   message,
   detail,
   validations,

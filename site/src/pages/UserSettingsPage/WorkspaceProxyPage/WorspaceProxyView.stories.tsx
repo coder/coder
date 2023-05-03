@@ -1,6 +1,6 @@
 import { Story } from "@storybook/react"
 import {
-  makeMockApiError,
+  makeMockValidationApiError,
   MockWorkspaceProxies,
   MockPrimaryWorkspaceProxy,
   MockHealthyWildWorkspaceProxy,
@@ -61,7 +61,7 @@ export const WithProxiesError = Template.bind({})
 WithProxiesError.args = {
   ...Example.args,
   hasLoaded: false,
-  getWorkspaceProxiesError: makeMockApiError({
+  getWorkspaceProxiesError: makeMockValidationApiError({
     message: "Failed to get proxies.",
   }),
 }
@@ -70,7 +70,7 @@ export const WithSelectProxyError = Template.bind({})
 WithSelectProxyError.args = {
   ...Example.args,
   hasLoaded: false,
-  selectProxyError: makeMockApiError({
+  selectProxyError: makeMockValidationApiError({
     message: "Failed to select proxy.",
   }),
 }

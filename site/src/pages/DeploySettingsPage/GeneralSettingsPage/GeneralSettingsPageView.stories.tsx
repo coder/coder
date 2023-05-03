@@ -1,6 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import {
-  makeMockApiError,
+  makeMockValidationApiError,
   MockDeploymentDAUResponse,
 } from "testHelpers/entities"
 import {
@@ -43,5 +43,7 @@ NoDAUs.args = {
 export const DAUError = Template.bind({})
 DAUError.args = {
   deploymentDAUs: undefined,
-  getDeploymentDAUsError: makeMockApiError({ message: "Error fetching DAUs." }),
+  getDeploymentDAUsError: makeMockValidationApiError({
+    message: "Error fetching DAUs.",
+  }),
 }
