@@ -129,6 +129,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		)
 	}
 
+	// Static roles that never change should be allocated in a closure.
+	// This is to ensure these data structures are only allocated once and not
+	// on every authorize call. 'withCachedRegoValue' can be used as well to
+	// preallocate the rego value that is used by the rego eval engine.
 	ownerRole := Role{
 		Name:        owner,
 		DisplayName: "Owner",

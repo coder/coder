@@ -133,9 +133,14 @@ func (z Object) regoValue() ast.Value {
 	)
 }
 
+// withCachedRegoValue returns a copy of the role with the cachedRegoValue.
+// It does not mutate the underlying role.
+// Avoid using this function if possible, it should only be used if the
+// caller can guarantee the role is static and will never change.
 func (role Role) withCachedRegoValue() Role {
-	role.cachedRegoValue = role.regoValue()
-	return role
+	tmp := role
+	tmp.cachedRegoValue = role.regoValue()
+	return tmp
 }
 
 func (role Role) regoValue() ast.Value {
