@@ -55,6 +55,15 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		bytesPerTick        = r.cfg.BytesPerSecond / r.cfg.TicksPerSecond
 	)
 
+	logger.Info(ctx, "config",
+		slog.F("agent_id", agentID),
+		slog.F("reconnect", reconnect),
+		slog.F("height", height),
+		slog.F("width", width),
+		slog.F("tick_interval", tickInterval),
+		slog.F("bytes_per_tick", bytesPerTick),
+	)
+
 	// Set a deadline for stopping the text.
 	start := time.Now()
 	deadlineCtx, cancel := context.WithDeadline(ctx, start.Add(r.cfg.Duration))
