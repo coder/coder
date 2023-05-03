@@ -7002,6 +7002,9 @@ const docTemplate = `{
         },
         "codersdk.CreateWorkspaceProxyRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "display_name": {
                     "type": "string"
