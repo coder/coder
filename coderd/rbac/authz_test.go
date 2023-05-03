@@ -125,6 +125,9 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 		uuid.MustParse("0632b012-49e0-4d70-a5b3-f4398f1dcd52"),
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
+
+	// There is no caching that occurs because a fresh context is used for each
+	// call. And the context needs 'WithCacheCtx' to work.
 	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 	// This benchmarks all the simple cases using just user permissions. Groups
 	// are added as noise, but do not do anything.
