@@ -2129,6 +2129,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/templates/{template}/enterprisemeta": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update template enterprise meta",
+                "operationId": "update-template-enterprise-meta",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update template enterprise meta",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateTemplateEnterpriseMeta"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{template}/versions": {
             "get": {
                 "security": [
@@ -9126,6 +9173,17 @@ const docTemplate = `{
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.TemplateRole"
                     }
+                }
+            }
+        },
+        "codersdk.UpdateTemplateEnterpriseMeta": {
+            "type": "object",
+            "properties": {
+                "failure_ttl": {
+                    "type": "integer"
+                },
+                "inactivity_ttl": {
+                    "type": "integer"
                 }
             }
         },

@@ -4368,6 +4368,22 @@ Parameter represents a set value for the scope.
 | `user_perms`       | object                                         | false    |              |             |
 | » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
 
+## codersdk.UpdateTemplateEnterpriseMeta
+
+```json
+{
+  "failure_ttl": 0,
+  "inactivity_ttl": 0
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+| ---------------- | ------- | -------- | ------------ | ----------- |
+| `failure_ttl`    | integer | false    |              |             |
+| `inactivity_ttl` | integer | false    |              |             |
+
 ## codersdk.UpdateUserPasswordRequest
 
 ```json

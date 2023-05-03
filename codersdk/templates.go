@@ -97,6 +97,11 @@ type UpdateTemplateMeta struct {
 	AllowUserCancelWorkspaceJobs bool  `json:"allow_user_cancel_workspace_jobs,omitempty"`
 }
 
+type UpdateTemplateEnterpriseMeta struct {
+	FailureTTL    int64 `json:"failure_ttl,omitempty"`
+	InactivityTTL int64 `json:"inactivity_ttl,omitempty"`
+}
+
 type TemplateExample struct {
 	ID          string   `json:"id" format:"uuid"`
 	URL         string   `json:"url"`

@@ -1000,6 +1000,12 @@ export interface UpdateTemplateACL {
 }
 
 // From codersdk/templates.go
+export interface UpdateTemplateEnterpriseMeta {
+  readonly failure_ttl?: number
+  readonly inactivity_ttl?: number
+}
+
+// From codersdk/templates.go
 export interface UpdateTemplateMeta {
   readonly name?: string
   readonly display_name?: string

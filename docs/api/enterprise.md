@@ -1122,6 +1122,61 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update template enterprise meta
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/enterprisemeta \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /templates/{template}/enterprisemeta`
+
+> Body parameter
+
+```json
+{
+  "failure_ttl": 0,
+  "inactivity_ttl": 0
+}
+```
+
+### Parameters
+
+| Name       | In   | Type                                                                                     | Required | Description                     |
+| ---------- | ---- | ---------------------------------------------------------------------------------------- | -------- | ------------------------------- |
+| `template` | path | string(uuid)                                                                             | true     | Template ID                     |
+| `body`     | body | [codersdk.UpdateTemplateEnterpriseMeta](schemas.md#codersdkupdatetemplateenterprisemeta) | true     | Update template enterprise meta |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace quota by user
 
 ### Code samples

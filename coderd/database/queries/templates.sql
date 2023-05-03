@@ -104,7 +104,9 @@ SET
 	name = $4,
 	icon = $5,
 	display_name = $6,
-	allow_user_cancel_workspace_jobs = $7
+	allow_user_cancel_workspace_jobs = $7,
+	failure_ttl = $8,
+	inactivity_ttl = $9
 WHERE
 	id = $1
 RETURNING
