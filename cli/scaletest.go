@@ -975,7 +975,8 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 				}
 
 				if agentID == uuid.Nil {
-					return xerrors.Errorf("no agent found for workspace %s", ws.Name)
+					_, _ = fmt.Fprintf(inv.Stderr, "WARN: skipping workspace %s: no agent\n", ws.Name)
+					continue
 				}
 
 				// Setup our workspace agent connection.

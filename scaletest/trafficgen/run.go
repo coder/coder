@@ -1,6 +1,7 @@
 package trafficgen
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -12,6 +13,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -72,13 +74,13 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		_ = conn.Close()
 	}()
 
-	// Wrap the conn in a countReadWriter so we can monitor bytes sent/rcvd.
-	crw := countReadWriter{ReadWriter: conn}
-
 	// Set a deadline for stopping the text.
 	start := time.Now()
 	deadlineCtx, cancel := context.WithDeadline(ctx, start.Add(r.cfg.Duration))
 	defer cancel()
+
+	// Wrap the conn in a countReadWriter so we can monitor bytes sent/rcvd.
+	crw := countReadWriter{ReadWriter: conn, ctx: deadlineCtx}
 
 	// Create a ticker for sending data to the PTY.
 	tick := time.NewTicker(time.Duration(tickInterval))
@@ -88,10 +90,15 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	rch := make(chan error)
 	wch := make(chan error)
 
+	go func() {
+		<-deadlineCtx.Done()
+		logger.Debug(ctx, "context deadline reached", slog.F("duration", time.Since(start)))
+	}()
+
 	// Read forever in the background.
 	go func() {
 		logger.Debug(ctx, "reading from agent", slog.F("agent_id", agentID))
-		rch <- readContext(deadlineCtx, &crw, bytesPerTick*2)
+		rch <- drainContext(deadlineCtx, &crw, bytesPerTick*2)
 		logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
 		conn.Close()
 		close(rch)
@@ -115,7 +122,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	duration := time.Since(start)
 
-	logger.Info(ctx, "trafficgen result",
+	logger.Info(ctx, "results",
 		slog.F("duration", duration),
 		slog.F("sent", crw.BytesWritten()),
 		slog.F("rcvd", crw.BytesRead()),
@@ -129,14 +136,33 @@ func (*Runner) Cleanup(context.Context, string) error {
 	return nil
 }
 
-func readContext(ctx context.Context, src io.Reader, bufSize int64) error {
-	buf := make([]byte, bufSize)
+// drainContext drains from src until it returns io.EOF or ctx times out.
+func drainContext(ctx context.Context, src io.Reader, bufSize int64) error {
+	errCh := make(chan error)
+	done := make(chan struct{})
+	go func() {
+		tmp := make([]byte, bufSize)
+		buf := bytes.NewBuffer(tmp)
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				_, err := io.CopyN(buf, src, 1)
+				if err != nil {
+					errCh <- err
+					close(errCh)
+					return
+				}
+			}
+		}
+	}()
 	for {
 		select {
 		case <-ctx.Done():
+			close(done)
 			return nil
-		default:
-			_, err := src.Read(buf)
+		case err := <-errCh:
 			if err != nil {
 				if xerrors.Is(err, io.EOF) {
 					return nil
@@ -175,31 +201,37 @@ func copyContext(ctx context.Context, dst io.Writer, src []byte) (int, error) {
 		case <-ctx.Done():
 			return count, nil
 		default:
-			n, err := dst.Write(src)
-			if err != nil {
-				if xerrors.Is(err, io.EOF) {
-					// On an EOF, assume that all of src was consumed.
-					return len(src), nil
+			for idx := range src {
+				n, err := dst.Write(src[idx : idx+1])
+				if err != nil {
+					if xerrors.Is(err, io.EOF) {
+						return count, nil
+					}
+					if xerrors.Is(err, context.DeadlineExceeded) {
+						// It's OK if we reach the deadline before writing the full payload.
+						return count, nil
+					}
+					return count, err
 				}
-				return count, err
+				count += n
 			}
-			count += n
-			if n == len(src) {
-				return count, nil
-			}
-			// Not all of src was consumed. Update src and retry.
-			src = src[n:]
+			return count, nil
 		}
 	}
 }
 
+// countReadWriter wraps an io.ReadWriter and counts the number of bytes read and written.
 type countReadWriter struct {
+	ctx context.Context
 	io.ReadWriter
 	bytesRead    atomic.Int64
 	bytesWritten atomic.Int64
 }
 
 func (w *countReadWriter) Read(p []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
 	n, err := w.ReadWriter.Read(p)
 	if err == nil {
 		w.bytesRead.Add(int64(n))
@@ -208,6 +240,9 @@ func (w *countReadWriter) Read(p []byte) (int, error) {
 }
 
 func (w *countReadWriter) Write(p []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
 	n, err := w.ReadWriter.Write(p)
 	if err == nil {
 		w.bytesWritten.Add(int64(n))
