@@ -1380,6 +1380,7 @@ type ProvisionerJob struct {
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
 	ErrorCode      sql.NullString           `db:"error_code" json:"error_code"`
+	Metadata       pqtype.NullRawMessage    `db:"metadata" json:"metadata"`
 }
 
 type ProvisionerJobLog struct {

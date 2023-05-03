@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"strings"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -40,4 +42,14 @@ func FuncNameSkip(skip int) string {
 func RunWithoutSpan(ctx context.Context, fn func(ctx context.Context)) {
 	ctx = trace.ContextWithSpan(ctx, NoopSpan)
 	fn(ctx)
+}
+
+func MetadataFromContext(ctx context.Context) map[string]string {
+	metadata := make(map[string]string)
+	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(metadata))
+	return metadata
+}
+
+func MetadataToContext(ctx context.Context, metadata map[string]string) context.Context {
+	return otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(metadata))
 }

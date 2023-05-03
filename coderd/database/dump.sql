@@ -346,7 +346,8 @@ CREATE TABLE provisioner_jobs (
     worker_id uuid,
     file_id uuid NOT NULL,
     tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL,
-    error_code text
+    error_code text,
+    metadata jsonb
 );
 
 CREATE TABLE replicas (
