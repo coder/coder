@@ -87,6 +87,21 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			},
 		},
 		{
+			Name: "ManyRolesCachedSubject",
+			Actor: rbac.Subject{
+				// Admin of many orgs
+				Roles: rbac.RoleNames{
+					rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]),
+					rbac.RoleOrgMember(orgs[1]), rbac.RoleOrgAdmin(orgs[1]),
+					rbac.RoleOrgMember(orgs[2]), rbac.RoleOrgAdmin(orgs[2]),
+					rbac.RoleMember(),
+				},
+				ID:     user.String(),
+				Scope:  rbac.ScopeAll,
+				Groups: noiseGroups,
+			}.WithCachedASTValue(),
+		},
+		{
 			Name: "AdminWithScope",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have

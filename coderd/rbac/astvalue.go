@@ -65,6 +65,10 @@ func regoPartialInputValue(subject Subject, action Action, objectType string) (a
 
 // regoValue returns the ast.Object representation of the subject.
 func (s Subject) regoValue() (ast.Value, error) {
+	if s.cachedASTValue != nil {
+		return s.cachedASTValue, nil
+	}
+
 	subjRoles, err := s.Roles.Expand()
 	if err != nil {
 		return nil, xerrors.Errorf("expand roles: %w", err)
