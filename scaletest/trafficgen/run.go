@@ -92,7 +92,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	crw := countReadWriter{ReadWriter: conn, ctx: deadlineCtx}
 
 	// Create a ticker for sending data to the PTY.
-	tick := time.NewTicker(time.Duration(tickInterval))
+	tick := time.NewTicker(tickInterval)
 	defer tick.Stop()
 
 	// Now we begin writing random data to the pty.
