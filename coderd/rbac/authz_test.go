@@ -102,7 +102,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
 				Roles: rbac.RoleNames{
-					"auditor", rbac.RoleMember(), rbac.RoleMember(),
+					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
 					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
 				},
 				ID:     user.String(),
