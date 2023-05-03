@@ -1263,13 +1263,11 @@ type MockAPIOutput = {
   isAxiosError: boolean
 }
 
-type makeMockValidationApiErrorFunction = (input: MockAPIInput) => MockAPIOutput
-
-export const makeMockValidationApiError: makeMockValidationApiErrorFunction = ({
+export const makeMockValidationApiError = ({
   message,
   detail,
   validations,
-}) => ({
+}: MockAPIInput): MockAPIOutput => ({
   response: {
     data: {
       message: message ?? "Something went wrong.",
