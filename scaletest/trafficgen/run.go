@@ -56,7 +56,12 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		bytesPerTick        = r.cfg.BytesPerSecond / r.cfg.TicksPerSecond
 	)
 
+	// Set a deadline for stopping the text.
+	start := time.Now()
+	deadlineCtx, cancel := context.WithDeadline(ctx, start.Add(r.cfg.Duration))
+	defer cancel()
 	logger.Debug(ctx, "connect to workspace agent", slog.F("agent_id", agentID))
+
 	conn, err := r.client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:   agentID,
 		Reconnect: reconnect,
@@ -73,11 +78,6 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		logger.Debug(ctx, "close agent connection", slog.F("agent_id", agentID))
 		_ = conn.Close()
 	}()
-
-	// Set a deadline for stopping the text.
-	start := time.Now()
-	deadlineCtx, cancel := context.WithDeadline(ctx, start.Add(r.cfg.Duration))
-	defer cancel()
 
 	// Wrap the conn in a countReadWriter so we can monitor bytes sent/rcvd.
 	crw := countReadWriter{ReadWriter: conn, ctx: deadlineCtx}
@@ -112,7 +112,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		close(wch)
 	}()
 
-	// Wait for both our reads and writes to be finished.
+	// Write until the context is canceled.
 	if wErr := <-wch; wErr != nil {
 		return xerrors.Errorf("write to pty: %w", wErr)
 	}
@@ -138,7 +138,7 @@ func (*Runner) Cleanup(context.Context, string) error {
 
 // drainContext drains from src until it returns io.EOF or ctx times out.
 func drainContext(ctx context.Context, src io.Reader, bufSize int64) error {
-	errCh := make(chan error)
+	errCh := make(chan error, 1)
 	done := make(chan struct{})
 	go func() {
 		tmp := make([]byte, bufSize)
@@ -149,6 +149,9 @@ func drainContext(ctx context.Context, src io.Reader, bufSize int64) error {
 				return
 			default:
 				_, err := io.CopyN(buf, src, 1)
+				if ctx.Err() != nil {
+					return // context canceled while we were copying.
+				}
 				if err != nil {
 					errCh <- err
 					close(errCh)
