@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/coder/coder/pty/pty"
+	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
