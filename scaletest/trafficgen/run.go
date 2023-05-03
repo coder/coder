@@ -98,7 +98,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	// Read forever in the background.
 	go func() {
 		logger.Debug(ctx, "reading from agent", slog.F("agent_id", agentID))
-		rch <- drainContext(deadlineCtx, &crw, bytesPerTick*2)
+		rch <- drainContext(deadlineCtx, &crw)
 		logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
 		conn.Close()
 		close(rch)
@@ -137,7 +137,7 @@ func (*Runner) Cleanup(context.Context, string) error {
 }
 
 // drainContext drains from src until it returns io.EOF or ctx times out.
-func drainContext(ctx context.Context, src io.Reader, bufSize int64) error {
+func drainContext(ctx context.Context, src io.Reader) error {
 	errCh := make(chan error, 1)
 	done := make(chan struct{})
 	go func() {
