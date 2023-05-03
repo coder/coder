@@ -1,6 +1,6 @@
 # Workspace Proxies
 
-> Workspace proxies are in an [experimental state](../contributing/feature-stages.md#experimental-features) and the behavior is subject to change. Use [GitHub issues](https://github.com/coder/coder) to leave feedback. This experiment must be specifically enabled with the `--experiments="moons"` option.
+> Workspace proxies are in an [experimental state](../contributing/feature-stages.md#experimental-features) and the behavior is subject to change. Use [GitHub issues](https://github.com/coder/coder) to leave feedback. This experiment must be specifically enabled with the `--experiments="moons"` option on both coderd and the workspace proxy.
 
 Workspace Proxies are a feature to provide low latency experiences for geo-distributed teams.
 
