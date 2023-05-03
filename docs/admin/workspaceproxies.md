@@ -1,10 +1,10 @@
 # Workspace Proxies
 
-> Workspace proxies are in an [experimental state](../contributing/feature-stages.md#experimental-features) and the behavior is subject to change. Use [GitHub issues](https://github.com/coder/coder) to leave feedback. This experiment must be specifially enabled with the `--experiments="moons"` option.
+> Workspace proxies are in an [experimental state](../contributing/feature-stages.md#experimental-features) and the behavior is subject to change. Use [GitHub issues](https://github.com/coder/coder) to leave feedback. This experiment must be specifically enabled with the `--experiments="moons"` option.
 
 Workspace Proxies are a feature to provide low latency experiences for geo-distributed teams.
 
-Coder's networking does a best effort to make direct connections to a workspace. In situtions where this is not possible, such as [dashboard connections](../networking/README.md#dashboard-connections), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
+Coder's networking does a best effort to make direct connections to a workspace. In situations where this is not possible, such as [dashboard connections](../networking/README.md#dashboard-connections), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
 
 A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over ssh, a workspace app, port forwarding, etc.
 
@@ -20,7 +20,7 @@ Workspace proxies can be used in the browser by navigating to the user `Account 
 
 ## Requirements
 
-- The [Coder CLI](../cli.md) must installed on and authenticated as a user with the Owner role.
+- The [Coder CLI](../cli.md) must be installed and authenticated as a user with the Owner role.
 
 ## Step 1: Create the proxy
 
