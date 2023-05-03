@@ -4,9 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/open-policy-agent/opa/ast"
-
 	"github.com/google/uuid"
+	"github.com/open-policy-agent/opa/ast"
 
 	"golang.org/x/xerrors"
 )

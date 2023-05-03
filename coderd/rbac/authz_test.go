@@ -114,7 +114,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 
 // BenchmarkRBACAuthorize benchmarks the rbac.Authorize method.
 //
-//	go test -bench BenchmarkRBACAuthorize -benchmem -memprofile memprofile.out -cpuprofile profile.out
+//	go test -run=^$ -bench BenchmarkRBACAuthorize -benchmem -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkRBACAuthorize(b *testing.B) {
 	benchCases, user, orgs := benchmarkUserCases()
 	users := append([]uuid.UUID{},
