@@ -45,7 +45,7 @@ func Command(name string, arg ...string) *Cmd {
 	return CommandContext(context.Background(), name, arg...)
 }
 
-func (c *Cmd) ToExec() *exec.Cmd {
+func (c *Cmd) AsExec() *exec.Cmd {
 	//nolint: gosec
 	execCmd := exec.CommandContext(c.Context, c.Path, c.Args[1:]...)
 	execCmd.Dir = c.Dir

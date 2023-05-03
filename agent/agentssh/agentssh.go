@@ -255,7 +255,7 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 	if isPty {
 		return s.startPTYSession(session, cmd, sshPty, windowSize)
 	}
-	return startNonPTYSession(session, cmd.ToExec())
+	return startNonPTYSession(session, cmd.AsExec())
 }
 
 func startNonPTYSession(session ssh.Session, cmd *exec.Cmd) error {

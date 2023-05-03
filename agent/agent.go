@@ -221,7 +221,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
 	}
-	cmd := cmdPty.ToExec()
+	cmd := cmdPty.AsExec()
 
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -847,7 +847,7 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)
 	}
-	cmd := cmdPty.ToExec()
+	cmd := cmdPty.AsExec()
 	cmd.Stdout = writer
 	cmd.Stderr = writer
 	err = cmd.Run()

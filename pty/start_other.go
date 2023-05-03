@@ -33,7 +33,7 @@ func startPty(cmdPty *Cmd, opt ...StartOption) (retPTY *otherPty, proc Process, 
 	if cmdPty.Context == nil {
 		cmdPty.Context = context.Background()
 	}
-	cmdExec := cmdPty.ToExec()
+	cmdExec := cmdPty.AsExec()
 
 	cmdExec.SysProcAttr = &syscall.SysProcAttr{
 		Setsid:  true,

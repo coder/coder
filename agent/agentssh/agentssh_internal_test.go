@@ -9,13 +9,12 @@ import (
 	"net"
 	"testing"
 
-	"github.com/coder/coder/pty"
-
 	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/pty"
 	"github.com/coder/coder/testutil"
 
 	"cdr.dev/slog/sloggers/slogtest"
