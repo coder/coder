@@ -133,7 +133,15 @@ func (z Object) regoValue() ast.Value {
 	)
 }
 
+func (role Role) withCachedRegoValue() Role {
+	role.cachedRegoValue = role.regoValue()
+	return role
+}
+
 func (role Role) regoValue() ast.Value {
+	if role.cachedRegoValue != nil {
+		return role.cachedRegoValue
+	}
 	orgMap := ast.NewObject()
 	for k, p := range role.Org {
 		orgMap.Insert(ast.StringTerm(k), ast.NewTerm(regoSlice(p)))
