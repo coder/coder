@@ -125,6 +125,20 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 				Groups: noiseGroups,
 			},
 		},
+		{
+			// This test should only use static roles. AKA no org roles.
+			Name: "StaticRolesWithCache",
+			Actor: rbac.Subject{
+				// Give some extra roles that an admin might have
+				Roles: rbac.RoleNames{
+					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
+					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
+				},
+				ID:     user.String(),
+				Scope:  rbac.ScopeAll,
+				Groups: noiseGroups,
+			}.WithCachedASTValue(),
+		},
 	}
 	return benchCases, users, orgs
 }
