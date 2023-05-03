@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"os"
-	"os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
@@ -1697,7 +1696,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) (*pt
 		"host",
 	)
 	args = append(args, afterArgs...)
-	cmd := exec.Command("ssh", args...)
+	cmd := pty.Command("ssh", args...)
 	return ptytest.Start(t, cmd)
 }
 

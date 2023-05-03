@@ -216,11 +216,12 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		// if it can guarantee the clocks are synchronized.
 		CollectedAt: time.Now(),
 	}
-	cmd, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
+	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
 	if err != nil {
 		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
 	}
+	cmd := cmdPty.AsExec()
 
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -842,10 +843,11 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 		}()
 	}
 
-	cmd, err := a.sshServer.CreateCommand(ctx, script, nil)
+	cmdPty, err := a.sshServer.CreateCommand(ctx, script, nil)
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)
 	}
+	cmd := cmdPty.AsExec()
 	cmd.Stdout = writer
 	cmd.Stderr = writer
 	err = cmd.Run()
@@ -1044,16 +1046,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			circularBuffer: circularBuffer,
 		}
 		a.reconnectingPTYs.Store(msg.ID, rpty)
-		go func() {
-			// CommandContext isn't respected for Windows PTYs right now,
-			// so we need to manually track the lifecycle.
-			// When the context has been completed either:
-			// 1. The timeout completed.
-			// 2. The parent context was canceled.
-			<-ctx.Done()
-			logger.Debug(ctx, "context done", slog.Error(ctx.Err()))
-			_ = process.Kill()
-		}()
 		// We don't need to separately monitor for the process exiting.
 		// When it exits, our ptty.OutputReader() will return EOF after
 		// reading all process output.
