@@ -6,6 +6,7 @@ import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
 import { Link, NavLink } from "react-router-dom"
 import { combineClasses } from "utils/combineClasses"
 import GeneralIcon from "@material-ui/icons/SettingsOutlined"
+import ParameterIcon from "@material-ui/icons/CodeOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 
 const SidebarNavItem: FC<
@@ -64,6 +65,12 @@ export const Sidebar: React.FC<{ username: string; workspace: Workspace }> = ({
 
       <SidebarNavItem href="" icon={<SidebarNavItemIcon icon={GeneralIcon} />}>
         General
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="parameters"
+        icon={<SidebarNavItemIcon icon={ParameterIcon} />}
+      >
+        Parameters
       </SidebarNavItem>
       <SidebarNavItem
         href="schedule"
