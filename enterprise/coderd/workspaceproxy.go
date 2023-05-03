@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/buildinfo"
 	agpl "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/coderd/proxyhealth"
+	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 )
 
@@ -314,6 +316,10 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 // in the database and returns a signed token that can be used to authenticate
 // tokens.
 //
+// This is called periodically by the proxy in the background (once per minute
+// per replica) to ensure that the proxy is still registered and the
+// corresponding replica table entry is refreshed.
+//
 // @Summary Register workspace proxy
 // @ID register-workspace-proxy
 // @Security CoderSessionToken
@@ -335,6 +341,14 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if req.Version != buildinfo.Version() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Version mismatch.",
+			Detail:  fmt.Sprintf("Proxy version %q does not match primary server version %q", req.Version, buildinfo.Version()),
+		})
+		return
+	}
+
 	if err := validateProxyURL(req.AccessURL); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "URL is invalid.",
@@ -353,12 +367,75 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	_, err := api.Database.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
-		ID:               proxy.ID,
-		Url:              req.AccessURL,
-		DerpEnabled:      req.DerpEnabled,
-		WildcardHostname: req.WildcardHostname,
-	})
+	// TODO: get region ID
+	var regionID int32 = 1234
+
+	err := api.Database.InTx(func(db database.Store) error {
+		// First, update the proxy's values in the database.
+		_, err := db.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
+			ID:               proxy.ID,
+			Url:              req.AccessURL,
+			DerpEnabled:      req.DerpEnabled,
+			WildcardHostname: req.WildcardHostname,
+		})
+		if err != nil {
+			return xerrors.Errorf("register workspace proxy: %w", err)
+		}
+
+		// Second, find the replica that corresponds to this proxy and refresh
+		// it if it exists. If it doesn't exist, create it.
+		now := time.Now()
+		replica, err := db.GetReplicaByID(ctx, req.ReplicaID)
+		if err == nil {
+			// Replica exists, update it.
+			if replica.StoppedAt.Valid && !replica.StartedAt.IsZero() {
+				// If the replica deregistered, it shouldn't be able to
+				// re-register before restarting.
+				// TODO: sadly this results in 500
+				return xerrors.Errorf("replica %s is stopped but not deregistered", replica.ID)
+			}
+
+			replica, err = db.UpdateReplica(ctx, database.UpdateReplicaParams{
+				ID:              replica.ID,
+				UpdatedAt:       now,
+				StartedAt:       replica.StartedAt,
+				StoppedAt:       replica.StoppedAt,
+				RelayAddress:    req.ReplicaRelayAddress,
+				RegionID:        regionID,
+				Hostname:        req.ReplicaHostname,
+				Version:         req.Version,
+				Error:           req.ReplicaError,
+				DatabaseLatency: 0,
+				Primary:         false,
+			})
+			if err != nil {
+				return xerrors.Errorf("update replica: %w", err)
+			}
+		}
+		if xerrors.Is(err, sql.ErrNoRows) {
+			// Replica doesn't exist, create it.
+			replica, err = db.InsertReplica(ctx, database.InsertReplicaParams{
+				ID:              req.ReplicaID,
+				CreatedAt:       now,
+				StartedAt:       now,
+				UpdatedAt:       now,
+				Hostname:        req.ReplicaHostname,
+				RegionID:        regionID,
+				RelayAddress:    req.ReplicaRelayAddress,
+				Version:         req.Version,
+				DatabaseLatency: 0,
+				Primary:         false,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert replica: %w", err)
+			}
+		}
+		if err != nil {
+			return xerrors.Errorf("get replica: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -368,8 +445,27 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Publish a replicasync event with a nil ID so every replica (yes, even the
+	// current replica) will refresh its replicas list.
+	err = api.Pubsub.Publish(replicasync.PubsubEvent, []byte(uuid.Nil.String()))
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Find sibling regions to respond with for derpmesh.
+	siblings := api.replicaManager.InRegion(regionID)
+	siblingsRes := make([]codersdk.Replica, 0, len(siblings))
+	for _, replica := range siblings {
+		if replica.ID == req.ReplicaID {
+			continue
+		}
+		siblingsRes = append(siblingsRes, convertReplica(replica))
+	}
+
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
-		AppSecurityKey: api.AppSecurityKey.String(),
+		AppSecurityKey:  api.AppSecurityKey.String(),
+		SiblingReplicas: siblingsRes,
 	})
 
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
@@ -455,7 +551,8 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 		},
 		SessionToken: httpmw.APITokenFromRequest(r),
 		// The following fields aren't required as long as the request is authed
-		// with a valid API key.
+		// with a valid API key, which we know since this endpoint is protected
+		// by auth middleware already.
 		PathAppBaseURL: "",
 		AppHostname:    "",
 		// The following fields are empty for terminal apps.

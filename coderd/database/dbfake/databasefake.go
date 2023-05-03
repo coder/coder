@@ -4908,6 +4908,19 @@ func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 	return nil
 }
 
+func (q *fakeQuerier) GetReplicaByID(_ context.Context, id uuid.UUID) (database.Replica, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, replica := range q.replicas {
+		if replica.ID == id {
+			return replica, nil
+		}
+	}
+
+	return database.Replica{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Replica{}, err
@@ -4926,6 +4939,7 @@ func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplic
 		RelayAddress:    arg.RelayAddress,
 		Version:         arg.Version,
 		DatabaseLatency: arg.DatabaseLatency,
+		Primary:         arg.Primary,
 	}
 	q.replicas = append(q.replicas, replica)
 	return replica, nil
@@ -4952,6 +4966,7 @@ func (q *fakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 		replica.Version = arg.Version
 		replica.Error = arg.Error
 		replica.DatabaseLatency = arg.DatabaseLatency
+		replica.Primary = arg.Primary
 		q.replicas[index] = replica
 		return replica, nil
 	}

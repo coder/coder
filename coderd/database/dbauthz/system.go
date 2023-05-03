@@ -154,6 +154,13 @@ func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
 	return q.db.InsertDeploymentID(ctx, value)
 }
 
+func (q *querier) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.Replica{}, err
+	}
+	return q.db.GetReplicaByID(ctx, id)
+}
+
 func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.Replica{}, err

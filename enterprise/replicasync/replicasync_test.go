@@ -60,6 +60,7 @@ func TestReplica(t *testing.T) {
 			UpdatedAt:    database.Now(),
 			Hostname:     "something",
 			RelayAddress: srv.URL,
+			Primary:      true,
 		})
 		require.NoError(t, err)
 		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
@@ -100,6 +101,7 @@ func TestReplica(t *testing.T) {
 			UpdatedAt:    database.Now(),
 			Hostname:     "something",
 			RelayAddress: srv.URL,
+			Primary:      true,
 		})
 		require.NoError(t, err)
 		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
@@ -123,6 +125,7 @@ func TestReplica(t *testing.T) {
 			Hostname:  "something",
 			// Fake address to dial!
 			RelayAddress: "http://127.0.0.1:1",
+			Primary:      true,
 		})
 		require.NoError(t, err)
 		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
@@ -150,6 +153,7 @@ func TestReplica(t *testing.T) {
 			ID:           uuid.New(),
 			RelayAddress: srv.URL,
 			UpdatedAt:    database.Now(),
+			Primary:      true,
 		})
 		require.NoError(t, err)
 		// Publish multiple times to ensure it can handle that case.
@@ -168,6 +172,7 @@ func TestReplica(t *testing.T) {
 		_, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
 			ID:        uuid.New(),
 			UpdatedAt: database.Now().Add(-time.Hour),
+			Primary:   true,
 		})
 		require.NoError(t, err)
 		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
@@ -211,8 +216,7 @@ func TestReplica(t *testing.T) {
 			server.SetCallback(func() {
 				m.Lock()
 				defer m.Unlock()
-
-				if len(server.All()) != count {
+				if len(server.AllPrimary()) != count {
 					return
 				}
 				if done {

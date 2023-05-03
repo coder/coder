@@ -360,7 +360,8 @@ CREATE TABLE replicas (
     relay_address text NOT NULL,
     database_latency integer NOT NULL,
     version text NOT NULL,
-    error text DEFAULT ''::text NOT NULL
+    error text DEFAULT ''::text NOT NULL,
+    "primary" boolean DEFAULT true NOT NULL
 );
 
 CREATE TABLE site_configs (

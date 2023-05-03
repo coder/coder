@@ -1404,6 +1404,7 @@ type Replica struct {
 	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
 	Version         string       `db:"version" json:"version"`
 	Error           string       `db:"error" json:"error"`
+	Primary         bool         `db:"primary" json:"primary"`
 }
 
 type SiteConfig struct {

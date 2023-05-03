@@ -55,6 +55,7 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 		defer mutex.RUnlock()
 		if handler == nil {
 			http.Error(w, "handler not set", http.StatusServiceUnavailable)
+			return
 		}
 
 		handler.ServeHTTP(w, r)

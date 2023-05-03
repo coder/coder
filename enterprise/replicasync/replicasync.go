@@ -73,6 +73,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 		RelayAddress:    options.RelayAddress,
 		Version:         buildinfo.Version(),
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
+		Primary:         true,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert replica: %w", err)
@@ -298,6 +299,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		Version:         m.self.Version,
 		Error:           replicaError,
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
+		Primary:         m.self.Primary,
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)
@@ -323,12 +325,17 @@ func (m *Manager) Self() database.Replica {
 	return m.self
 }
 
-// All returns every replica, including itself.
-func (m *Manager) All() []database.Replica {
+// AllPrimary returns every primary replica (not workspace proxy replicas),
+// including itself.
+func (m *Manager) AllPrimary() []database.Replica {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	replicas := make([]database.Replica, 0, len(m.peers))
 	for _, replica := range append(m.peers, m.self) {
+		if !replica.Primary {
+			continue
+		}
+
 		// When we assign the non-pointer to a
 		// variable it loses the reference.
 		replica := replica
@@ -337,18 +344,23 @@ func (m *Manager) All() []database.Replica {
 	return replicas
 }
 
-// Regional returns all replicas in the same region excluding itself.
-func (m *Manager) Regional() []database.Replica {
+// InRegion returns every replica in the given DERP region excluding itself.
+func (m *Manager) InRegion(regionID int32) []database.Replica {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	replicas := make([]database.Replica, 0)
 	for _, replica := range m.peers {
-		if replica.RegionID != m.self.RegionID {
+		if replica.RegionID != regionID {
 			continue
 		}
 		replicas = append(replicas, replica)
 	}
 	return replicas
+}
+
+// Regional returns all replicas in the same region excluding itself.
+func (m *Manager) Regional() []database.Replica {
+	return m.InRegion(m.self.RegionID)
 }
 
 // SetCallback sets a function to execute whenever new peers

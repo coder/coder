@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -138,10 +139,23 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("%q is a workspace proxy, not a primary coderd instance", opts.DashboardURL)
 	}
 
+	// TODO: registering logic need to be moved to a struct that calls it
+	// periodically
+	replicaID := uuid.New()
+	osHostname, err := os.Hostname()
+	if err != nil {
+		return nil, xerrors.Errorf("get OS hostname: %w", err)
+	}
 	regResp, err := client.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
 		AccessURL:        opts.AccessURL.String(),
 		WildcardHostname: opts.AppHostname,
 		DerpEnabled:      opts.DERPEnabled,
+		ReplicaID:        replicaID,
+		ReplicaHostname:  osHostname,
+		ReplicaError:     "",
+		// TODO: replica relay address
+		ReplicaRelayAddress: "",
+		Version:             buildinfo.Version(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("register proxy: %w", err)
