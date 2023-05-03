@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -310,7 +312,7 @@
         {
           "title": "External Workspace Proxies",
           "description": "Run geo distributed workspace proxies",
-          "path": "./admin/workspaceproxies.md",
+          "path": "./admin/workspace-proxies.md",
           "icon_path": "./images/icons/networking.svg",
           "state": "enterprise"
         },
