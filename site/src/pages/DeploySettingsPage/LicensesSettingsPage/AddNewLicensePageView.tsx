@@ -6,6 +6,7 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { FileUpload } from "components/FileUpload/FileUpload"
+import KeyboardArrowLeft from "@material-ui/icons/KeyboardArrowLeft"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { Stack } from "components/Stack/Stack"
 import { DividerWithText } from "pages/DeploySettingsPage/LicensesSettingsPage/DividerWithText"
@@ -54,15 +55,16 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         justifyContent="space-between"
       >
         <Header
-          title="Add your license"
-          description="Enterprise licenses unlock more features on your deployment."
+          title="Add a License"
+          description="Get access to high availability, RBAC, quotas, and more."
         />
         <Button
           component={RouterLink}
           to="/settings/deployment/licenses"
           variant="outlined"
+          startIcon={<KeyboardArrowLeft />}
         >
-          Back to licenses
+          All Licenses
         </Button>
       </Stack>
 
@@ -74,15 +76,15 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         isUploading={isUploading}
         onUpload={onUpload}
         removeLabel="Remove File"
-        title="Upload your license"
-        description="Upload a text file containing your license key"
+        title="Upload Your License"
+        description="Select a text file that contains your license key."
       />
 
       <Stack className={styles.main}>
         <DividerWithText>or</DividerWithText>
 
         <Fieldset
-          title="Paste your license key"
+          title="Paste Your License"
           onSubmit={(e) => {
             e.preventDefault()
 
@@ -95,15 +97,15 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
           }}
           button={
             <Button type="submit" disabled={isSavingLicense}>
-              Add license
+              Upload License
             </Button>
           }
         >
           <TextField
             name="licenseKey"
-            placeholder="Paste your license key here"
+            placeholder="Enter your license..."
             multiline
-            rows={4}
+            rows={1}
             fullWidth
           />
         </Fieldset>
