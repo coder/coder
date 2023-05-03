@@ -32,6 +32,7 @@ const TTLHelperText = ({
 
 const MAX_TTL_DAYS = 7
 const MS_HOUR_CONVERSION = 3600000
+const MS_DAY_CONVERSION = 86400000
 
 export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
@@ -79,11 +80,18 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     initialValues: {
       // on display, convert from ms => hours
       default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
-      // the API ignores this value, but to avoid tripping up validation set
+      // the API ignores these values, but to avoid tripping up validation set
       // it to zero if the user can't set the field.
       max_ttl_ms: allowAdvancedScheduling
         ? template.max_ttl_ms / MS_HOUR_CONVERSION
         : 0,
+      failure_ttl_ms: allowAdvancedScheduling
+        ? template.failure_ttl_ms / MS_DAY_CONVERSION
+        : 0,
+      inactivity_ttl_ms: allowAdvancedScheduling
+        ? template.inactivity_ttl_ms / MS_DAY_CONVERSION
+        : 0,
+
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
     },
@@ -97,6 +105,13 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         max_ttl_ms: formData.max_ttl_ms
           ? formData.max_ttl_ms * MS_HOUR_CONVERSION
           : undefined,
+        failure_ttl_ms: formData.failure_ttl_ms
+          ? formData.failure_ttl_ms * MS_DAY_CONVERSION
+          : undefined,
+        inactivity_ttl_ms: formData.inactivity_ttl_ms
+          ? formData.inactivity_ttl_ms * MS_DAY_CONVERSION
+          : undefined,
+
         allow_user_autostart: formData.allow_user_autostart,
         allow_user_autostop: formData.allow_user_autostop,
       })
@@ -215,7 +230,38 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </Stack>
         </Stack>
       </FormSection>
-
+      <FormSection
+        title="Failure Cleanup"
+        description="When enabled, Coder will automatically stop workspaces that are in a failed state after a specified number of days."
+      >
+        <Stack direction="row">
+          <TextField
+            {...getFieldHelpers("failure_ttl_ms")}
+            disabled={isSubmitting}
+            fullWidth
+            inputProps={{ min: 0, step: 1 }}
+            label="Time until cleanup (days)"
+            variant="outlined"
+            type="number"
+          />
+        </Stack>
+      </FormSection>
+      <FormSection
+        title="Inactivity Cleanup"
+        description="When enabled, Coder will automatically delete workspaces that are in an inactive state after a specified number of days."
+      >
+        <Stack direction="row">
+          <TextField
+            {...getFieldHelpers("inactivity_ttl_ms")}
+            disabled={isSubmitting}
+            fullWidth
+            inputProps={{ min: 0, step: 1 }}
+            label="Time until cleanup (days)"
+            variant="outlined"
+            type="number"
+          />
+        </Stack>
+      </FormSection>
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
   )
