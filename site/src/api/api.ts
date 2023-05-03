@@ -1021,7 +1021,7 @@ export const getWorkspaceBuildParameters = async (
   return response.data
 }
 type Claims = {
-  license_expires?: jwt.NumericDate
+  license_expires?: number
   account_type?: string
   account_id?: string
   trial: boolean

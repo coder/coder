@@ -125,11 +125,6 @@ func Handler(siteFS fs.FS, binFS http.FileSystem, binHashes map[string]string) h
 type handler struct {
 	fs fs.FS
 	// htmlFiles is the text/template for all *.html files.
-	// This is needed to support Content Security Policy headers.
-	// Due to material UI, we are forced to use a nonce to allow inline
-	// scripts, and that nonce is passed through a template.
-	// We only do this for html files to reduce the amount of in memory caching
-	// of duplicate files as `fs`.
 	htmlFiles     *htmlTemplates
 	h             http.Handler
 	buildInfoJSON string
@@ -152,13 +147,8 @@ func (h *handler) exists(filePath string) bool {
 }
 
 type htmlState struct {
-	CSP       cspState
 	CSRF      csrfState
 	BuildInfo string
-}
-
-type cspState struct {
-	Nonce string
 }
 
 type csrfState struct {
@@ -275,104 +265,6 @@ func (t *htmlTemplates) renderWithState(filePath string, state htmlState) ([]byt
 	return buf.Bytes(), nil
 }
 
-// CSPDirectives is a map of all csp fetch directives to their values.
-// Each directive is a set of values that is joined by a space (' ').
-// All directives are semi-colon separated as a single string for the csp header.
-type CSPDirectives map[CSPFetchDirective][]string
-
-func (s CSPDirectives) Append(d CSPFetchDirective, values ...string) {
-	if _, ok := s[d]; !ok {
-		s[d] = make([]string, 0)
-	}
-	s[d] = append(s[d], values...)
-}
-
-// CSPFetchDirective is the list of all constant fetch directives that
-// can be used/appended to.
-type CSPFetchDirective string
-
-const (
-	CSPDirectiveDefaultSrc  = "default-src"
-	CSPDirectiveConnectSrc  = "connect-src"
-	CSPDirectiveChildSrc    = "child-src"
-	CSPDirectiveScriptSrc   = "script-src"
-	CSPDirectiveFontSrc     = "font-src"
-	CSPDirectiveStyleSrc    = "style-src"
-	CSPDirectiveObjectSrc   = "object-src"
-	CSPDirectiveManifestSrc = "manifest-src"
-	CSPDirectiveFrameSrc    = "frame-src"
-	CSPDirectiveImgSrc      = "img-src"
-	CSPDirectiveReportURI   = "report-uri"
-	CSPDirectiveFormAction  = "form-action"
-	CSPDirectiveMediaSrc    = "media-src"
-	CSPFrameAncestors       = "frame-ancestors"
-	CSPDirectiveWorkerSrc   = "worker-src"
-)
-
-func cspHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
-		// This site helps eval your policy for syntax and other common issues: https://csp-evaluator.withgoogle.com/
-		// If we ever want to render something like a PDF, we need to adjust "object-src"
-		//
-		//	The list of CSP options: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/default-src
-		cspSrcs := CSPDirectives{
-			// All omitted fetch csp srcs default to this.
-			CSPDirectiveDefaultSrc: {"'self'"},
-			CSPDirectiveConnectSrc: {"'self'"},
-			CSPDirectiveChildSrc:   {"'self'"},
-			// https://github.com/suren-atoyan/monaco-react/issues/168
-			CSPDirectiveScriptSrc: {"'self'"},
-			CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline'"},
-			// data: is used by monaco editor on FE for Syntax Highlight
-			CSPDirectiveFontSrc:   {"'self' data:"},
-			CSPDirectiveWorkerSrc: {"'self' blob:"},
-			// object-src is needed to support code-server
-			CSPDirectiveObjectSrc: {"'self'"},
-			// blob: for loading the pwa manifest for code-server
-			CSPDirectiveManifestSrc: {"'self' blob:"},
-			CSPDirectiveFrameSrc:    {"'self'"},
-			// data: for loading base64 encoded icons for generic applications.
-			// https: allows loading images from external sources. This is not ideal
-			// 	but is required for the templates page that renders readmes.
-			//	We should find a better solution in the future.
-			CSPDirectiveImgSrc:     {"'self' https: data:"},
-			CSPDirectiveFormAction: {"'self'"},
-			CSPDirectiveMediaSrc:   {"'self'"},
-			// Report all violations back to the server to log
-			CSPDirectiveReportURI: {"/api/v2/csp/reports"},
-			CSPFrameAncestors:     {"'none'"},
-
-			// Only scripts can manipulate the dom. This prevents someone from
-			// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
-			// "require-trusted-types-for" : []string{"'script'"},
-		}
-
-		// This extra connect-src addition is required to support old webkit
-		// based browsers (Safari).
-		// See issue: https://github.com/w3c/webappsec-csp/issues/7
-		// Once webkit browsers support 'self' on connect-src, we can remove this.
-		// When we remove this, the csp header can be static, as opposed to being
-		// dynamically generated for each request.
-		host := r.Host
-		// It is important r.Host is not an empty string.
-		if host != "" {
-			// We can add both ws:// and wss:// as browsers do not let https
-			// pages to connect to non-tls websocket connections. So this
-			// supports both http & https webpages.
-			cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", host))
-		}
-
-		var csp strings.Builder
-		for src, vals := range cspSrcs {
-			_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
-		}
-
-		w.Header().Set("Content-Security-Policy", csp.String())
-		next.ServeHTTP(w, r)
-	})
-}
-
 // secureHeaders is only needed for statically served files. We do not need this for api endpoints.
 // It adds various headers to enforce browser security features.
 func secureHeaders(next http.Handler) http.Handler {
@@ -404,7 +296,7 @@ func secureHeaders(next http.Handler) http.Handler {
 
 		// Prevent the browser from sending Referrer header with requests
 		ReferrerPolicy: "no-referrer",
-	}).Handler(cspHeaders(next))
+	}).Handler(next)
 }
 
 // htmlFiles recursively walks the file system passed finding all *.html files.

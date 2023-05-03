@@ -1615,7 +1615,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | -------------- | ------ | -------- | ------------ | ----------- |
 | `display_name` | string | false    |              |             |
 | `icon`         | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| `name`         | string | true     |              |             |
 
 ## codersdk.CreateWorkspaceRequest
 

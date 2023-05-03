@@ -29,7 +29,7 @@ const (
 )
 
 type WorkspaceProxyStatus struct {
-	Status ProxyHealthStatus `json:"status" table:"status"`
+	Status ProxyHealthStatus `json:"status" table:"status,default_sort"`
 	// Report provides more information about the health of the workspace proxy.
 	Report    ProxyHealthReport `json:"report,omitempty" table:"report"`
 	CheckedAt time.Time         `json:"checked_at" table:"checked_at" format:"date-time"`
@@ -39,10 +39,10 @@ type WorkspaceProxyStatus struct {
 // A healthy report will have no errors. Warnings are not fatal.
 type ProxyHealthReport struct {
 	// Errors are problems that prevent the workspace proxy from being healthy
-	Errors []string
+	Errors []string `json:"errors"`
 	// Warnings do not prevent the workspace proxy from being healthy, but
 	// should be addressed.
-	Warnings []string
+	Warnings []string `json:"warnings"`
 }
 
 type WorkspaceProxy struct {
@@ -60,11 +60,11 @@ type WorkspaceProxy struct {
 	// Status is the latest status check of the proxy. This will be empty for deleted
 	// proxies. This value can be used to determine if a workspace proxy is healthy
 	// and ready to use.
-	Status WorkspaceProxyStatus `json:"status,omitempty" table:"status"`
+	Status WorkspaceProxyStatus `json:"status,omitempty" table:"status,recursive"`
 }
 
 type CreateWorkspaceProxyRequest struct {
-	Name        string `json:"name"`
+	Name        string `json:"name" validate:"required"`
 	DisplayName string `json:"display_name"`
 	Icon        string `json:"icon"`
 }

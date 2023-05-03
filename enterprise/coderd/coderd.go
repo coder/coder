@@ -250,6 +250,10 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		// Force the initial loading of the cache. Do this in a go routine in case
 		// the calls to the workspace proxies hang and this takes some time.
 		go api.forceWorkspaceProxyHealthUpdate(ctx)
+
+		// Use proxy health to return the healthy workspace proxy hostnames.
+		f := api.ProxyHealth.ProxyHosts
+		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
 	}
 
 	err = api.updateEntitlements(ctx)
@@ -322,6 +326,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			codersdk.FeatureWorkspaceProxy:             true,
+			codersdk.FeatureWorkspaceActions:           true,
 		})
 	if err != nil {
 		return err

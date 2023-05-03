@@ -1,35 +1,19 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import {
-  MockTemplateVersionParameter1,
-  MockTemplateVersionParameter2,
-  MockWorkspace,
-  MockWorkspaceBuildParameter1,
-  MockWorkspaceBuildParameter2,
-} from "testHelpers/entities"
+import { MockWorkspace } from "testHelpers/entities"
 import {
   WorkspaceSettingsPageView,
   WorkspaceSettingsPageViewProps,
 } from "./WorkspaceSettingsPageView"
+import { action } from "@storybook/addon-actions"
 
 export default {
   title: "pages/WorkspaceSettingsPageView",
   component: WorkspaceSettingsPageView,
   args: {
-    formError: undefined,
-    loadingError: undefined,
-    isLoading: false,
+    error: undefined,
     isSubmitting: false,
-    settings: {
-      workspace: MockWorkspace,
-      buildParameters: [
-        MockWorkspaceBuildParameter1,
-        MockWorkspaceBuildParameter2,
-      ],
-      templateVersionRichParameters: [
-        MockTemplateVersionParameter1,
-        MockTemplateVersionParameter2,
-      ],
-    },
+    workspace: MockWorkspace,
+    onCancel: action("cancel"),
   },
 } as ComponentMeta<typeof WorkspaceSettingsPageView>
 

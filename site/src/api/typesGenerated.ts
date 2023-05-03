@@ -692,8 +692,8 @@ export interface ProvisionerJobLog {
 
 // From codersdk/workspaceproxy.go
 export interface ProxyHealthReport {
-  readonly Errors: string[]
-  readonly Warnings: string[]
+  readonly errors: string[]
+  readonly warnings: string[]
 }
 
 // From codersdk/workspaces.go

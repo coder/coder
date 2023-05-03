@@ -11,7 +11,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
   const description =
     "Workspace proxies are used to reduce the latency of connections to a" +
     "workspace. To get the best experience, choose the workspace proxy that is" +
-    "closest located to you."
+    "closest located to you. This selection only affects browser connections to your workspace."
 
   const {
     proxies,
