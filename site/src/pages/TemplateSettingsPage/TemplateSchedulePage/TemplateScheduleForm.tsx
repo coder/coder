@@ -1,17 +1,24 @@
 import TextField from "@material-ui/core/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormikTouched, useFormik } from "formik"
-import { FC } from "react"
+import { FC, ChangeEvent } from "react"
 import { getFormHelpers } from "utils/formUtils"
 import * as Yup from "yup"
 import i18next from "i18next"
 import { useTranslation } from "react-i18next"
 import { Maybe } from "components/Conditionals/Maybe"
-import { FormSection, HorizontalForm, FormFooter } from "components/Form/Form"
+import {
+  FormSection,
+  HorizontalForm,
+  FormFooter,
+  FormFields,
+} from "components/Form/Form"
 import { Stack } from "components/Stack/Stack"
 import { makeStyles } from "@material-ui/core/styles"
 import Link from "@material-ui/core/Link"
 import Checkbox from "@material-ui/core/Checkbox"
+import FormControlLabel from "@material-ui/core/FormControlLabel"
+import Switch from "@material-ui/core/Switch"
 
 const TTLHelperText = ({
   ttl,
@@ -34,6 +41,11 @@ const MAX_TTL_DAYS = 7
 const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
 
+export interface TemplateScheduleFormValues extends UpdateTemplateMeta {
+  failure_cleanup_enabled: boolean
+  inactivity_cleanup_enabled: boolean
+}
+
 export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
     default_ttl_ms: Yup.number()
@@ -49,6 +61,36 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
       .max(
         24 * MAX_TTL_DAYS /* 7 days in hours */,
         i18next.t("maxTTLMaxError", { ns: "templateSettingsPage" }),
+      ),
+    failure_ttl_ms: Yup.number()
+      .integer()
+      .min(0, "Failure cleanup days must not be less than 0.")
+      .test(
+        "positive-if-enabled",
+        "Failure cleanup days must be greater than zero when enabled.",
+        function (value) {
+          const parent = this.parent as TemplateScheduleFormValues
+          if (parent.failure_cleanup_enabled) {
+            return Boolean(value)
+          } else {
+            return true
+          }
+        },
+      ),
+    inactivity_ttl_ms: Yup.number()
+      .integer()
+      .min(0, "Inactivity cleanup days must not be less than 0.")
+      .test(
+        "positive-if-enabled",
+        "Inactivity cleanup days must be greater than zero when enabled.",
+        function (value) {
+          const parent = this.parent as TemplateScheduleFormValues
+          if (parent.failure_cleanup_enabled) {
+            return Boolean(value)
+          } else {
+            return true
+          }
+        },
       ),
     allow_user_autostart: Yup.boolean(),
     allow_user_autostop: Yup.boolean(),
@@ -76,7 +118,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 }) => {
   const { t: commonT } = useTranslation("common")
   const validationSchema = getValidationSchema()
-  const form = useFormik<UpdateTemplateMeta>({
+  const form = useFormik<TemplateScheduleFormValues>({
     initialValues: {
       // on display, convert from ms => hours
       default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
@@ -94,6 +136,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
+      failure_cleanup_enabled:
+        allowAdvancedScheduling && Boolean(template.failure_ttl_ms),
+      inactivity_cleanup_enabled:
+        allowAdvancedScheduling && Boolean(template.inactivity_ttl_ms),
     },
     validationSchema,
     onSubmit: (formData) => {
@@ -118,9 +164,50 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     },
     initialTouched,
   })
-  const getFieldHelpers = getFormHelpers<UpdateTemplateMeta>(form, error)
+  const getFieldHelpers = getFormHelpers<TemplateScheduleFormValues>(
+    form,
+    error,
+  )
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
+
+  const handleToggleFailureCleanup = async (e: ChangeEvent) => {
+    form.handleChange(e)
+    if (!form.values.failure_cleanup_enabled) {
+      // fill failure_ttl_ms with defaults
+      await form.setValues({
+        ...form.values,
+        failure_cleanup_enabled: true,
+        failure_ttl_ms: 14,
+      })
+    } else {
+      // clear failure_ttl_ms
+      await form.setValues({
+        ...form.values,
+        failure_cleanup_enabled: false,
+        failure_ttl_ms: 0,
+      })
+    }
+  }
+
+  const handleToggleInactivityCleanup = async (e: ChangeEvent) => {
+    form.handleChange(e)
+    if (!form.values.inactivity_cleanup_enabled) {
+      // fill inactivity_ttl_ms with defaults
+      await form.setValues({
+        ...form.values,
+        inactivity_cleanup_enabled: true,
+        inactivity_ttl_ms: 14,
+      })
+    } else {
+      // clear inactivity_ttl_ms
+      await form.setValues({
+        ...form.values,
+        inactivity_cleanup_enabled: false,
+        inactivity_ttl_ms: 0,
+      })
+    }
+  }
 
   return (
     <HorizontalForm
@@ -234,25 +321,59 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         title="Failure Cleanup"
         description="When enabled, Coder will automatically stop workspaces that are in a failed state after a specified number of days."
       >
-        <Stack direction="row">
+        <FormFields>
+          <FormControlLabel
+            control={
+              <Switch
+                name="failureCleanupEnabled"
+                checked={form.values.failure_cleanup_enabled}
+                onChange={handleToggleFailureCleanup}
+                color="primary"
+              />
+            }
+            label="Enable Failure Cleanup"
+          />
           <TextField
-            {...getFieldHelpers("failure_ttl_ms")}
-            disabled={isSubmitting}
+            {...getFieldHelpers(
+              "failure_ttl_ms",
+              <TTLHelperText
+                translationName="failureTTLHelperText"
+                ttl={form.values.failure_ttl_ms}
+              />,
+            )}
+            disabled={isSubmitting || !form.values.failure_cleanup_enabled}
             fullWidth
             inputProps={{ min: 0, step: 1 }}
             label="Time until cleanup (days)"
             variant="outlined"
             type="number"
           />
-        </Stack>
+        </FormFields>
       </FormSection>
       <FormSection
         title="Inactivity Cleanup"
         description="When enabled, Coder will automatically delete workspaces that are in an inactive state after a specified number of days."
       >
-        <Stack direction="row">
+        <FormFields>
+          <FormControlLabel
+            control={
+              <Switch
+                name="inactivityCleanupEnabled"
+                checked={form.values.inactivity_cleanup_enabled}
+                onChange={handleToggleInactivityCleanup}
+                color="primary"
+              />
+            }
+            label="Enable Inactivity Cleanup"
+          />
           <TextField
-            {...getFieldHelpers("inactivity_ttl_ms")}
+            {...getFieldHelpers(
+              "inactivity_ttl_ms",
+              <TTLHelperText
+                translationName="inactivityTTLHelperText"
+                ttl={form.values.inactivity_ttl_ms}
+              />,
+            )}
             disabled={isSubmitting}
             fullWidth
             inputProps={{ min: 0, step: 1 }}
@@ -260,7 +381,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             variant="outlined"
             type="number"
           />
-        </Stack>
+        </FormFields>
       </FormSection>
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
