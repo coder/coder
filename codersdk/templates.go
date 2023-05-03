@@ -95,11 +95,8 @@ type UpdateTemplateMeta struct {
 	AllowUserAutostart           bool  `json:"allow_user_autostart,omitempty"`
 	AllowUserAutostop            bool  `json:"allow_user_autostop,omitempty"`
 	AllowUserCancelWorkspaceJobs bool  `json:"allow_user_cancel_workspace_jobs,omitempty"`
-}
-
-type UpdateTemplateEnterpriseMeta struct {
-	FailureTTL    int64 `json:"failure_ttl,omitempty"`
-	InactivityTTL int64 `json:"inactivity_ttl,omitempty"`
+	FailureTTLMillis             int64 `json:"failure_ttl_ms,omitempty"`
+	InactivityTTLMillis          int64 `json:"inactivity_ttl_ms,omitempty"`
 }
 
 type TemplateExample struct {

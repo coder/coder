@@ -3887,9 +3887,7 @@ SET
 	name = $4,
 	icon = $5,
 	display_name = $6,
-	allow_user_cancel_workspace_jobs = $7,
-	failure_ttl = $8,
-	inactivity_ttl = $9
+	allow_user_cancel_workspace_jobs = $7
 WHERE
 	id = $1
 RETURNING
@@ -3904,8 +3902,6 @@ type UpdateTemplateMetaByIDParams struct {
 	Icon                         string    `db:"icon" json:"icon"`
 	DisplayName                  string    `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs bool      `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	FailureTTL                   int64     `db:"failure_ttl" json:"failure_ttl"`
-	InactivityTTL                int64     `db:"inactivity_ttl" json:"inactivity_ttl"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error) {
@@ -3917,8 +3913,6 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.Icon,
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
-		arg.FailureTTL,
-		arg.InactivityTTL,
 	)
 	var i Template
 	err := row.Scan(
@@ -3955,7 +3949,9 @@ SET
 	allow_user_autostart = $3,
 	allow_user_autostop = $4,
 	default_ttl = $5,
-	max_ttl = $6
+	max_ttl = $6,
+	failure_ttl = $7,
+	inactivity_ttl = $8
 WHERE
 	id = $1
 RETURNING
@@ -3969,6 +3965,8 @@ type UpdateTemplateScheduleByIDParams struct {
 	AllowUserAutostop  bool      `db:"allow_user_autostop" json:"allow_user_autostop"`
 	DefaultTTL         int64     `db:"default_ttl" json:"default_ttl"`
 	MaxTTL             int64     `db:"max_ttl" json:"max_ttl"`
+	FailureTTL         int64     `db:"failure_ttl" json:"failure_ttl"`
+	InactivityTTL      int64     `db:"inactivity_ttl" json:"inactivity_ttl"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) (Template, error) {
@@ -3979,6 +3977,8 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.AllowUserAutostop,
 		arg.DefaultTTL,
 		arg.MaxTTL,
+		arg.FailureTTL,
+		arg.InactivityTTL,
 	)
 	var i Template
 	err := row.Scan(

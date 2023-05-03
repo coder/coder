@@ -1000,12 +1000,6 @@ export interface UpdateTemplateACL {
 }
 
 // From codersdk/templates.go
-export interface UpdateTemplateEnterpriseMeta {
-  readonly failure_ttl?: number
-  readonly inactivity_ttl?: number
-}
-
-// From codersdk/templates.go
 export interface UpdateTemplateMeta {
   readonly name?: string
   readonly display_name?: string
@@ -1016,6 +1010,8 @@ export interface UpdateTemplateMeta {
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
+  readonly failure_ttl_ms?: number
+  readonly inactivity_ttl_ms?: number
 }
 
 // From codersdk/users.go

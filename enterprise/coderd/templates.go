@@ -185,63 +185,6 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Update template enterprise meta
-// @ID update-template-enterprise-meta
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Enterprise
-// @Param template path string true "Template ID" format(uuid)
-// @Param request body codersdk.UpdateTemplateEnterpriseMeta true "Update template enterprise meta"
-// @Success 200 {object} codersdk.Response
-// @Router /templates/{template}/enterprisemeta [patch]
-func (api *API) patchEnterpriseMeta(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx               = r.Context()
-		template          = httpmw.TemplateParam(r)
-		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
-		})
-	)
-	defer commitAudit()
-	aReq.Old = template
-
-	var req codersdk.UpdateTemplateEnterpriseMeta
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	var validErrs []codersdk.ValidationError
-	if req.FailureTTL < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl", Detail: "Must be a positive integer."})
-	}
-	if req.InactivityTTL < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl", Detail: "Must be a positive integer."})
-	}
-	if len(validErrs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid request to update template enterprise metadata!",
-			Validations: validErrs,
-		})
-		return
-	}
-
-	// do we need a transaction
-	// updated, err := tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
-	// 	ID:            template.ID,
-	// 	UpdatedAt:     database.Now(),
-	// 	FailureTTL:    req.FailureTTL,
-	// 	InactivityTTL: req.InactivityTTL,
-	// })
-	// if err != nil {
-	// 	return xerrors.Errorf("update template enterprise metadata: %w", err)
-	// }
-}
-
 // nolint TODO fix stupid flag.
 func validateTemplateACLPerms(ctx context.Context, db database.Store, perms map[string]codersdk.TemplateRole, field string, isUser bool) []codersdk.ValidationError {
 	var validErrs []codersdk.ValidationError

@@ -148,15 +148,14 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.provisionerDaemons)
 			r.Get("/serve", api.provisionerDaemonServe)
 		})
-		r.Route("/templates/{template}", func(r chi.Router) {
+		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(api.Database),
 			)
-			r.Get("/acl", api.templateACL)
-			r.Patch("/acl", api.patchTemplateACL)
-			r.Patch("/enterprisemeta", api.patchEnterpriseMeta)
+			r.Get("/", api.templateACL)
+			r.Patch("/", api.patchTemplateACL)
 		})
 		r.Route("/groups/{group}", func(r chi.Router) {
 			r.Use(
@@ -323,7 +322,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			codersdk.FeatureWorkspaceProxy:             true,
-			codersdk.FeatureWorkspaceActions:           true,
 		})
 	if err != nil {
 		return err

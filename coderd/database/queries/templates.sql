@@ -104,9 +104,7 @@ SET
 	name = $4,
 	icon = $5,
 	display_name = $6,
-	allow_user_cancel_workspace_jobs = $7,
-	failure_ttl = $8,
-	inactivity_ttl = $9
+	allow_user_cancel_workspace_jobs = $7
 WHERE
 	id = $1
 RETURNING
@@ -120,7 +118,9 @@ SET
 	allow_user_autostart = $3,
 	allow_user_autostop = $4,
 	default_ttl = $5,
-	max_ttl = $6
+	max_ttl = $6,
+	failure_ttl = $7,
+	inactivity_ttl = $8
 WHERE
 	id = $1
 RETURNING
