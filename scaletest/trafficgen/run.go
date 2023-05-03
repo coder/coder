@@ -170,6 +170,10 @@ func drainContext(ctx context.Context, src io.Reader, bufSize int64) error {
 				if xerrors.Is(err, io.EOF) {
 					return nil
 				}
+				// It's OK if the context is canceled.
+				if xerrors.Is(err, context.DeadlineExceeded) {
+					return nil
+				}
 				return err
 			}
 		}
