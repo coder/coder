@@ -7400,12 +7400,10 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "moons",
-                "workspace_actions"
+                "moons"
             ],
             "x-enum-varnames": [
-                "ExperimentMoons",
-                "ExperimentWorkspaceActions"
+                "ExperimentMoons"
             ]
         },
         "codersdk.Feature": {
@@ -8698,12 +8696,19 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "failure_ttl_ms": {
+                    "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the workspace actions\nfeature",
+                    "type": "integer"
+                },
                 "icon": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "inactivity_ttl_ms": {
+                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",

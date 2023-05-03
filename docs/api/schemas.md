@@ -2502,10 +2502,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Value               |
-| ------------------- |
-| `moons`             |
-| `workspace_actions` |
+| Value   |
+| ------- |
+| `moons` |
 
 ## codersdk.Feature
 
@@ -3866,8 +3865,10 @@ Parameter represents a set value for the scope.
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -3892,8 +3893,10 @@ Parameter represents a set value for the scope.
 | `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                                                         |
 | `description`                      | string                                                             | false    |              |                                                                                                                                                                         |
 | `display_name`                     | string                                                             | false    |              |                                                                                                                                                                         |
+| `failure_ttl_ms`                   | integer                                                            | false    |              | Failure ttl ms and InactivityTTLMillis are enterprise-only. Their values are used if your license is entitled to use the workspace actions feature                      |
 | `icon`                             | string                                                             | false    |              |                                                                                                                                                                         |
 | `id`                               | string                                                             | false    |              |                                                                                                                                                                         |
+| `inactivity_ttl_ms`                | integer                                                            | false    |              |                                                                                                                                                                         |
 | `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                               |
 | `name`                             | string                                                             | false    |              |                                                                                                                                                                         |
 | `organization_id`                  | string                                                             | false    |              |                                                                                                                                                                         |
