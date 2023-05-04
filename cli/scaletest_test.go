@@ -260,7 +260,7 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 	coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 
 	inv, root := clitest.New(t, "scaletest", "workspace-traffic",
-		"--duration", "1s",
+		"--timeout", "1s",
 		"--bytes-per-tick", "1024",
 		"--tick-interval", "100ms",
 	)

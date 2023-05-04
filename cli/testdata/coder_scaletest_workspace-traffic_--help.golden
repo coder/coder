@@ -19,9 +19,6 @@ Generate traffic to scaletest workspaces through coderd
       --concurrency int, $CODER_SCALETEST_CONCURRENCY (default: 1)
           Number of concurrent jobs to run. 0 means unlimited.
 
-      --duration duration, $CODER_SCALETEST_WORKSPACE_TRAFFIC_DURATION (default: 10s)
-          How long to generate traffic for.
-
       --job-timeout duration, $CODER_SCALETEST_JOB_TIMEOUT (default: 5m)
           Timeout per job. Jobs may take longer to complete under higher
           concurrency limits.

@@ -62,16 +62,6 @@ Timeout for the entire cleanup run. 0 means unlimited.
 
 Number of concurrent jobs to run. 0 means unlimited.
 
-### --duration
-
-|             |                                                          |
-| ----------- | -------------------------------------------------------- |
-| Type        | <code>duration</code>                                    |
-| Environment | <code>$CODER_SCALETEST_WORKSPACE_TRAFFIC_DURATION</code> |
-| Default     | <code>10s</code>                                         |
-
-How long to generate traffic for.
-
 ### --job-timeout
 
 |             |                                           |

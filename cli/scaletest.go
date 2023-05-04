@@ -896,7 +896,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
-		duration        time.Duration
 		tickInterval    time.Duration
 		bytesPerTick    int64
 		client          = &codersdk.Client{}
@@ -977,7 +976,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				config := workspacetraffic.Config{
 					AgentID:      agentID,
 					BytesPerTick: bytesPerTick,
-					Duration:     duration,
+					Duration:     strategy.timeout,
 					TickInterval: tickInterval,
 				}
 
@@ -1021,13 +1020,6 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	}
 
 	cmd.Options = []clibase.Option{
-		{
-			Flag:        "duration",
-			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_DURATION",
-			Default:     "10s",
-			Description: "How long to generate traffic for.",
-			Value:       clibase.DurationOf(&duration),
-		},
 		{
 			Flag:        "bytes-per-tick",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
