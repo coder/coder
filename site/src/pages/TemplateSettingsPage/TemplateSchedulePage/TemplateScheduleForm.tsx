@@ -85,7 +85,7 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         "Inactivity cleanup days must be greater than zero when enabled.",
         function (value) {
           const parent = this.parent as TemplateScheduleFormValues
-          if (parent.failure_cleanup_enabled) {
+          if (parent.inactivity_cleanup_enabled) {
             return Boolean(value)
           } else {
             return true
