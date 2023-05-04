@@ -622,7 +622,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
 							require.Equal(t, failureTTL, options.FailureTTL)
 							require.Equal(t, inactivityTTL, options.InactivityTTL)
-
 						}
 						template.FailureTTL = int64(options.FailureTTL)
 						template.InactivityTTL = int64(options.InactivityTTL)
