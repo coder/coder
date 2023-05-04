@@ -7002,6 +7002,9 @@ const docTemplate = `{
         },
         "codersdk.CreateWorkspaceProxyRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "display_name": {
                     "type": "string"
@@ -7397,10 +7400,12 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "moons"
+                "moons",
+                "workspace_actions"
             ],
             "x-enum-varnames": [
-                "ExperimentMoons"
+                "ExperimentMoons",
+                "ExperimentWorkspaceActions"
             ]
         },
         "codersdk.Feature": {

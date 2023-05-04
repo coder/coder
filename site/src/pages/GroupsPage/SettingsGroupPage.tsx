@@ -26,7 +26,7 @@ export const SettingsGroupPage: FC = () => {
       onUpdate: navigateToGroup,
     },
   })
-  const { updateGroupFormErrors, group } = editState.context
+  const { error, group } = editState.context
 
   return (
     <>
@@ -40,7 +40,7 @@ export const SettingsGroupPage: FC = () => {
           sendEditEvent({ type: "UPDATE", data })
         }}
         group={group}
-        formErrors={updateGroupFormErrors}
+        formErrors={error}
         isLoading={editState.matches("loading")}
         isUpdating={editState.matches("updating")}
       />

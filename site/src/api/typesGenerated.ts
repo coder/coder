@@ -1363,8 +1363,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons"
-export const Experiments: Experiment[] = ["moons"]
+export type Experiment = "moons" | "workspace_actions"
+export const Experiments: Experiment[] = ["moons", "workspace_actions"]
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1378,6 +1378,7 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
+  | "workspace_actions"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
@@ -1390,6 +1391,7 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
+  "workspace_actions",
   "workspace_proxy",
 ]
 

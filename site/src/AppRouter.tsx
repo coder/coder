@@ -55,6 +55,12 @@ const WorkspaceSchedulePage = lazy(
       "./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
     ),
 )
+const WorkspaceParametersPage = lazy(
+  () =>
+    import(
+      "./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
+    ),
+)
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const TemplatePermissionsPage = lazy(
   () =>
@@ -291,6 +297,10 @@ export const AppRouter: FC = () => {
                   />
                   <Route path="settings" element={<WorkspaceSettingsLayout />}>
                     <Route index element={<WorkspaceSettingsPage />} />
+                    <Route
+                      path="parameters"
+                      element={<WorkspaceParametersPage />}
+                    />
                     <Route
                       path="schedule"
                       element={<WorkspaceSchedulePage />}

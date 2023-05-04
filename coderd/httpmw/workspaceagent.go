@@ -110,5 +110,5 @@ func getAgentSubject(ctx context.Context, db database.Store, agent database.Work
 		Roles:  rbac.RoleNames(roles.Roles),
 		Groups: roles.Groups,
 		Scope:  rbac.WorkspaceAgentScope(workspace.ID, user.ID),
-	}, nil
+	}.WithCachedASTValue(), nil
 }

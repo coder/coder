@@ -65,6 +65,10 @@ func regoPartialInputValue(subject Subject, action Action, objectType string) (a
 
 // regoValue returns the ast.Object representation of the subject.
 func (s Subject) regoValue() (ast.Value, error) {
+	if s.cachedASTValue != nil {
+		return s.cachedASTValue, nil
+	}
+
 	subjRoles, err := s.Roles.Expand()
 	if err != nil {
 		return nil, xerrors.Errorf("expand roles: %w", err)
@@ -133,7 +137,20 @@ func (z Object) regoValue() ast.Value {
 	)
 }
 
+// withCachedRegoValue returns a copy of the role with the cachedRegoValue.
+// It does not mutate the underlying role.
+// Avoid using this function if possible, it should only be used if the
+// caller can guarantee the role is static and will never change.
+func (role Role) withCachedRegoValue() Role {
+	tmp := role
+	tmp.cachedRegoValue = role.regoValue()
+	return tmp
+}
+
 func (role Role) regoValue() ast.Value {
+	if role.cachedRegoValue != nil {
+		return role.cachedRegoValue
+	}
 	orgMap := ast.NewObject()
 	for k, p := range role.Org {
 		orgMap.Insert(ast.StringTerm(k), ast.NewTerm(regoSlice(p)))

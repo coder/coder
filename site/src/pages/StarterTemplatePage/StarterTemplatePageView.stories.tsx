@@ -1,6 +1,6 @@
 import { Story } from "@storybook/react"
 import {
-  makeMockApiError,
+  mockApiError,
   MockOrganization,
   MockTemplateExample,
 } from "testHelpers/entities"
@@ -33,7 +33,7 @@ Error.args = {
   context: {
     exampleId: MockTemplateExample.id,
     organizationId: MockOrganization.id,
-    error: makeMockApiError({
+    error: mockApiError({
       message: `Example ${MockTemplateExample.id} not found.`,
     }),
     starterTemplate: undefined,

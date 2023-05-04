@@ -1,6 +1,5 @@
-import FormHelperText from "@material-ui/core/FormHelperText"
 import TextField from "@material-ui/core/TextField"
-import { FormikContextType, FormikErrors, useFormik } from "formik"
+import { FormikContextType, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
@@ -27,9 +26,8 @@ export const Language = {
 export interface CreateUserFormProps {
   onSubmit: (user: TypesGen.CreateUserRequest) => void
   onCancel: () => void
-  formErrors?: FormikErrors<TypesGen.CreateUserRequest>
+  error?: unknown
   isLoading: boolean
-  error?: string
   myOrgId: string
 }
 
@@ -44,7 +42,7 @@ const validationSchema = Yup.object({
 
 export const CreateUserForm: FC<
   React.PropsWithChildren<CreateUserFormProps>
-> = ({ onSubmit, onCancel, formErrors, isLoading, error, myOrgId }) => {
+> = ({ onSubmit, onCancel, error, isLoading, myOrgId }) => {
   const form: FormikContextType<TypesGen.CreateUserRequest> =
     useFormik<TypesGen.CreateUserRequest>({
       initialValues: {
@@ -58,7 +56,7 @@ export const CreateUserForm: FC<
     })
   const getFieldHelpers = getFormHelpers<TypesGen.CreateUserRequest>(
     form,
-    formErrors,
+    error,
   )
 
   return (
@@ -92,7 +90,6 @@ export const CreateUserForm: FC<
             variant="outlined"
           />
         </Stack>
-        {error && <FormHelperText error>{error}</FormHelperText>}
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>
     </FullPageForm>

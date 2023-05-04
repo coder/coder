@@ -1,7 +1,7 @@
 import { Story } from "@storybook/react"
 import { AlertBanner } from "./AlertBanner"
 import Button from "@material-ui/core/Button"
-import { makeMockApiError } from "testHelpers/entities"
+import { mockApiError } from "testHelpers/entities"
 import { AlertBannerProps } from "./alertTypes"
 import Link from "@material-ui/core/Link"
 
@@ -16,7 +16,7 @@ const ExampleAction = (
   </Button>
 )
 
-const mockError = makeMockApiError({
+const mockError = mockApiError({
   message: "Email or password was invalid",
   detail: "Password is invalid",
 })

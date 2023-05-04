@@ -87,6 +87,21 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			},
 		},
 		{
+			Name: "ManyRolesCachedSubject",
+			Actor: rbac.Subject{
+				// Admin of many orgs
+				Roles: rbac.RoleNames{
+					rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]),
+					rbac.RoleOrgMember(orgs[1]), rbac.RoleOrgAdmin(orgs[1]),
+					rbac.RoleOrgMember(orgs[2]), rbac.RoleOrgAdmin(orgs[2]),
+					rbac.RoleMember(),
+				},
+				ID:     user.String(),
+				Scope:  rbac.ScopeAll,
+				Groups: noiseGroups,
+			}.WithCachedASTValue(),
+		},
+		{
 			Name: "AdminWithScope",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
@@ -96,13 +111,41 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 				Groups: noiseGroups,
 			},
 		},
+		{
+			// This test should only use static roles. AKA no org roles.
+			Name: "StaticRoles",
+			Actor: rbac.Subject{
+				// Give some extra roles that an admin might have
+				Roles: rbac.RoleNames{
+					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
+					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
+				},
+				ID:     user.String(),
+				Scope:  rbac.ScopeAll,
+				Groups: noiseGroups,
+			},
+		},
+		{
+			// This test should only use static roles. AKA no org roles.
+			Name: "StaticRolesWithCache",
+			Actor: rbac.Subject{
+				// Give some extra roles that an admin might have
+				Roles: rbac.RoleNames{
+					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
+					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
+				},
+				ID:     user.String(),
+				Scope:  rbac.ScopeAll,
+				Groups: noiseGroups,
+			}.WithCachedASTValue(),
+		},
 	}
 	return benchCases, users, orgs
 }
 
 // BenchmarkRBACAuthorize benchmarks the rbac.Authorize method.
 //
-//	go test -bench BenchmarkRBACAuthorize -benchmem -memprofile memprofile.out -cpuprofile profile.out
+//	go test -run=^$ -bench BenchmarkRBACAuthorize -benchmem -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkRBACAuthorize(b *testing.B) {
 	benchCases, user, orgs := benchmarkUserCases()
 	users := append([]uuid.UUID{},
@@ -111,6 +154,9 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 		uuid.MustParse("0632b012-49e0-4d70-a5b3-f4398f1dcd52"),
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
+
+	// There is no caching that occurs because a fresh context is used for each
+	// call. And the context needs 'WithCacheCtx' to work.
 	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 	// This benchmarks all the simple cases using just user permissions. Groups
 	// are added as noise, but do not do anything.

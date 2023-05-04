@@ -7,6 +7,7 @@ import {
   nameValidator,
   templateDisplayNameValidator,
   onChangeTrimmed,
+  iconValidator,
 } from "utils/formUtils"
 import * as Yup from "yup"
 import i18next from "i18next"
@@ -37,8 +38,8 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
       MAX_DESCRIPTION_CHAR_LIMIT,
       i18next.t("descriptionMaxError", { ns: "templateSettingsPage" }),
     ),
-
     allow_user_cancel_workspace_jobs: Yup.boolean(),
+    icon: iconValidator,
   })
 
 export interface TemplateSettingsForm {
@@ -74,7 +75,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       onSubmit,
       initialTouched,
     })
-  const getFieldHelpers = getFormHelpers<UpdateTemplateMeta>(form, error)
+  const getFieldHelpers = getFormHelpers(form, error)
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
 

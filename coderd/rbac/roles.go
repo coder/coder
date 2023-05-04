@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/open-policy-agent/opa/ast"
 
 	"golang.org/x/xerrors"
 )
@@ -128,86 +129,100 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		)
 	}
 
+	// Static roles that never change should be allocated in a closure.
+	// This is to ensure these data structures are only allocated once and not
+	// on every authorize call. 'withCachedRegoValue' can be used as well to
+	// preallocate the rego value that is used by the rego eval engine.
+	ownerRole := Role{
+		Name:        owner,
+		DisplayName: "Owner",
+		Site:        allPermsExcept(ownerAndAdminExceptions...),
+		Org:         map[string][]Permission{},
+		User:        []Permission{},
+	}.withCachedRegoValue()
+
+	memberRole := Role{
+		Name:        member,
+		DisplayName: "",
+		Site: Permissions(map[string][]Action{
+			// All users can read all other users and know they exist.
+			ResourceUser.Type:           {ActionRead},
+			ResourceRoleAssignment.Type: {ActionRead},
+			// All users can see the provisioner daemons.
+			ResourceProvisionerDaemon.Type: {ActionRead},
+		}),
+		Org:  map[string][]Permission{},
+		User: allPermsExcept(),
+	}.withCachedRegoValue()
+
+	auditorRole := Role{
+		Name:        auditor,
+		DisplayName: "Auditor",
+		Site: Permissions(map[string][]Action{
+			// Should be able to read all template details, even in orgs they
+			// are not in.
+			ResourceTemplate.Type: {ActionRead},
+			ResourceAuditLog.Type: {ActionRead},
+		}),
+		Org:  map[string][]Permission{},
+		User: []Permission{},
+	}.withCachedRegoValue()
+
+	templateAdminRole := Role{
+		Name:        templateAdmin,
+		DisplayName: "Template Admin",
+		Site: Permissions(map[string][]Action{
+			ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			// CRUD all files, even those they did not upload.
+			ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceWorkspace.Type: {ActionRead},
+			// CRUD to provisioner daemons for now.
+			ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			// Needs to read all organizations since
+			ResourceOrganization.Type: {ActionRead},
+		}),
+		Org:  map[string][]Permission{},
+		User: []Permission{},
+	}.withCachedRegoValue()
+
+	userAdminRole := Role{
+		Name:        userAdmin,
+		DisplayName: "User Admin",
+		Site: Permissions(map[string][]Action{
+			ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			// Full perms to manage org members
+			ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+		}),
+		Org:  map[string][]Permission{},
+		User: []Permission{},
+	}.withCachedRegoValue()
+
 	builtInRoles = map[string]func(orgID string) Role{
 		// admin grants all actions to all resources.
 		owner: func(_ string) Role {
-			return Role{
-				Name:        owner,
-				DisplayName: "Owner",
-				Site:        allPermsExcept(ownerAndAdminExceptions...),
-				Org:         map[string][]Permission{},
-				User:        []Permission{},
-			}
+			return ownerRole
 		},
 
 		// member grants all actions to all resources owned by the user
 		member: func(_ string) Role {
-			return Role{
-				Name:        member,
-				DisplayName: "",
-				Site: Permissions(map[string][]Action{
-					// All users can read all other users and know they exist.
-					ResourceUser.Type:           {ActionRead},
-					ResourceRoleAssignment.Type: {ActionRead},
-					// All users can see the provisioner daemons.
-					ResourceProvisionerDaemon.Type: {ActionRead},
-				}),
-				Org:  map[string][]Permission{},
-				User: allPermsExcept(),
-			}
+			return memberRole
 		},
 
 		// auditor provides all permissions required to effectively read and understand
 		// audit log events.
 		// TODO: Finish the auditor as we add resources.
 		auditor: func(_ string) Role {
-			return Role{
-				Name:        auditor,
-				DisplayName: "Auditor",
-				Site: Permissions(map[string][]Action{
-					// Should be able to read all template details, even in orgs they
-					// are not in.
-					ResourceTemplate.Type: {ActionRead},
-					ResourceAuditLog.Type: {ActionRead},
-				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
-			}
+			return auditorRole
 		},
 
 		templateAdmin: func(_ string) Role {
-			return Role{
-				Name:        templateAdmin,
-				DisplayName: "Template Admin",
-				Site: Permissions(map[string][]Action{
-					ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					// CRUD all files, even those they did not upload.
-					ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceWorkspace.Type: {ActionRead},
-					// CRUD to provisioner daemons for now.
-					ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					// Needs to read all organizations since
-					ResourceOrganization.Type: {ActionRead},
-				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
-			}
+			return templateAdminRole
 		},
 
 		userAdmin: func(_ string) Role {
-			return Role{
-				Name:        userAdmin,
-				DisplayName: "User Admin",
-				Site: Permissions(map[string][]Action{
-					ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					// Full perms to manage org members
-					ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
-			}
+			return userAdminRole
 		},
 
 		// orgAdmin returns a role with all actions allows in a given
@@ -333,6 +348,10 @@ type Role struct {
 	// roles.
 	Org  map[string][]Permission `json:"org"`
 	User []Permission            `json:"user"`
+
+	// cachedRegoValue can be used to cache the rego value for this role.
+	// This is helpful for static roles that never change.
+	cachedRegoValue ast.Value
 }
 
 type Roles []Role

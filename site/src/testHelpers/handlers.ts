@@ -385,4 +385,12 @@ export const handlers = [
       )
     },
   ),
+
+  rest.get("/api/v2/deployment/ssh", (_, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockDeploymentSSH))
+  }),
+
+  rest.get("/api/v2/workspaceagents/:agent/startup-logs", (_, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockStartupLogs))
+  }),
 ]

@@ -17,7 +17,7 @@ import (
 
 // Allocates a PTY and starts the specified command attached to it.
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session#creating-the-hosted-process
-func startPty(cmd *exec.Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) {
+func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) {
 	var opts startOptions
 	for _, o := range opt {
 		o(&opts)
@@ -129,6 +129,9 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr er
 		return nil, nil, errI
 	}
 	go wp.waitInternal()
+	if cmd.Context != nil {
+		go wp.killOnContext(cmd.Context)
+	}
 	return winPty, wp, nil
 }
 

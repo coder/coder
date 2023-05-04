@@ -65,6 +65,21 @@ func Test_ProxyCRUD(t *testing.T) {
 		_, err = uuid.Parse(parts[0])
 		require.NoError(t, err, "expected token to be a uuid")
 
+		// Fetch proxies and check output
+		inv, conf = newCLI(
+			t,
+			"proxy", "ls",
+		)
+
+		pty = ptytest.New(t)
+		inv.Stdout = pty.Output()
+		clitest.SetupConfig(t, client, conf)
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		pty.ExpectMatch(expectedName)
+
+		// Also check via the api
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err, "failed to get workspace proxies")
 		require.Len(t, proxies, 1, "expected 1 proxy")
