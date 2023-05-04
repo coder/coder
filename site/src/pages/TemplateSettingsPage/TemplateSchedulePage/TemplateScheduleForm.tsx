@@ -353,6 +353,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 label="Time until cleanup (days)"
                 variant="outlined"
                 type="number"
+                aria-label="Failure Cleanup"
               />
             </FormFields>
           </FormSection>
@@ -388,6 +389,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 label="Time until cleanup (days)"
                 variant="outlined"
                 type="number"
+                aria-label="Inactivity Cleanup"
               />
             </FormFields>
           </FormSection>

@@ -1343,7 +1343,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   }),
 }
 
-export const MockExperiments: TypesGen.Experiment[] = []
+export const MockExperiments: TypesGen.Experiment[] = ["workspace_actions"]
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
