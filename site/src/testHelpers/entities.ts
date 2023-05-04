@@ -341,6 +341,10 @@ export const MockTemplate: TypesGen.Template = {
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
   allow_user_cancel_workspace_jobs: true,
+  failure_ttl_ms: 0,
+  inactivity_ttl_ms: 0,
+  allow_user_autostart: false,
+  allow_user_autostop: false,
 }
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
