@@ -22,8 +22,7 @@ export const SetupPage: FC = () => {
       },
     },
   })
-  const { createFirstUserFormErrors, createFirstUserErrorMessage } =
-    setupState.context
+  const { error } = setupState.context
 
   useEffect(() => {
     if (authState.matches("signedIn")) {
@@ -38,8 +37,7 @@ export const SetupPage: FC = () => {
       </Helmet>
       <SetupPageView
         isLoading={setupState.hasTag("loading")}
-        formErrors={createFirstUserFormErrors}
-        genericError={createFirstUserErrorMessage}
+        error={error}
         onSubmit={(firstUser) => {
           setupSend({ type: "CREATE_FIRST_USER", firstUser })
         }}

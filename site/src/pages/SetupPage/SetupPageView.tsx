@@ -1,6 +1,5 @@
 import Box from "@material-ui/core/Box"
 import Checkbox from "@material-ui/core/Checkbox"
-import FormHelperText from "@material-ui/core/FormHelperText"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import Typography from "@material-ui/core/Typography"
@@ -8,7 +7,7 @@ import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import { Stack } from "components/Stack/Stack"
 import { Welcome } from "components/Welcome/Welcome"
-import { FormikContextType, FormikErrors, useFormik } from "formik"
+import { FormikContextType, useFormik } from "formik"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
@@ -35,15 +34,13 @@ const validationSchema = Yup.object({
 
 export interface SetupPageViewProps {
   onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void
-  formErrors?: FormikErrors<TypesGen.CreateFirstUserRequest>
-  genericError?: string
+  error?: unknown
   isLoading?: boolean
 }
 
 export const SetupPageView: React.FC<SetupPageViewProps> = ({
   onSubmit,
-  formErrors,
-  genericError,
+  error,
   isLoading,
 }) => {
   const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
@@ -59,7 +56,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
     })
   const getFieldHelpers = getFormHelpers<TypesGen.CreateFirstUserRequest>(
     form,
-    formErrors,
+    error,
   )
   const styles = useStyles()
 
@@ -93,9 +90,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             type="password"
             variant="outlined"
           />
-          {genericError && (
-            <FormHelperText error>{genericError}</FormHelperText>
-          )}
           <div className={styles.callout}>
             <Box display="flex">
               <div>
