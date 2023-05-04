@@ -391,7 +391,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </FormSection>
         </>
       )}
-      <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
+      <FormFooter
+        onCancel={onCancel}
+        isLoading={isSubmitting}
+        submitDisabled={!form.isValid || !form.dirty}
+      />
     </HorizontalForm>
   )
 }
