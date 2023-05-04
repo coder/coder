@@ -40,6 +40,8 @@ const TTLHelperText = ({
 const MAX_TTL_DAYS = 7
 const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
+const FAILURE_CLEANUP_DEFAULT = 7
+const INACTIVITY_CLEANUP_DEFAULT = 180
 
 export interface TemplateScheduleFormValues extends UpdateTemplateMeta {
   failure_cleanup_enabled: boolean
@@ -180,7 +182,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       await form.setValues({
         ...form.values,
         failure_cleanup_enabled: true,
-        failure_ttl_ms: 14,
+        failure_ttl_ms: FAILURE_CLEANUP_DEFAULT,
       })
     } else {
       // clear failure_ttl_ms
@@ -199,7 +201,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       await form.setValues({
         ...form.values,
         inactivity_cleanup_enabled: true,
-        inactivity_ttl_ms: 14,
+        inactivity_ttl_ms: INACTIVITY_CLEANUP_DEFAULT,
       })
     } else {
       // clear inactivity_ttl_ms
