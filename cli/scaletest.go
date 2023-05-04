@@ -27,8 +27,8 @@ import (
 	"github.com/coder/coder/scaletest/createworkspaces"
 	"github.com/coder/coder/scaletest/harness"
 	"github.com/coder/coder/scaletest/reconnectingpty"
-	"github.com/coder/coder/scaletest/trafficgen"
 	"github.com/coder/coder/scaletest/workspacebuild"
+	"github.com/coder/coder/scaletest/workspacetraffic"
 )
 
 const scaletestTracerName = "coder_scaletest"
@@ -43,7 +43,7 @@ func (r *RootCmd) scaletest() *clibase.Cmd {
 		Children: []*clibase.Cmd{
 			r.scaletestCleanup(),
 			r.scaletestCreateWorkspaces(),
-			r.scaletestTrafficGen(),
+			r.scaletestWorkspaceTraffic(),
 		},
 	}
 
@@ -894,7 +894,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
+func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
 		duration        time.Duration
 		tickInterval    time.Duration
@@ -907,9 +907,8 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 	)
 
 	cmd := &clibase.Cmd{
-		Use:    "trafficgen",
-		Hidden: true,
-		Short:  "Generate traffic to scaletest workspaces",
+		Use:   "workspace-traffic",
+		Short: "Generate traffic to scaletest workspaces through coderd",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
@@ -958,7 +957,7 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 			for idx, ws := range workspaces {
 				var (
 					agentID uuid.UUID
-					name    = "trafficgen"
+					name    = "workspace-traffic"
 					id      = strconv.Itoa(idx)
 				)
 
@@ -975,7 +974,7 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 				}
 
 				// Setup our workspace agent connection.
-				config := trafficgen.Config{
+				config := workspacetraffic.Config{
 					AgentID:      agentID,
 					BytesPerTick: bytesPerTick,
 					Duration:     duration,
@@ -985,7 +984,7 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
 				}
-				var runner harness.Runnable = trafficgen.NewRunner(client, config)
+				var runner harness.Runnable = workspacetraffic.NewRunner(client, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -1024,21 +1023,21 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 	cmd.Options = []clibase.Option{
 		{
 			Flag:        "duration",
-			Env:         "CODER_SCALETEST_TRAFFICGEN_DURATION",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_DURATION",
 			Default:     "10s",
 			Description: "How long to generate traffic for.",
 			Value:       clibase.DurationOf(&duration),
 		},
 		{
 			Flag:        "bytes-per-tick",
-			Env:         "CODER_SCALETEST_TRAFFICGEN_BYTES_PER_TICK",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
 			Default:     "1024",
 			Description: "How much traffic to generate per tick.",
 			Value:       clibase.Int64Of(&bytesPerTick),
 		},
 		{
 			Flag:        "tick-interval",
-			Env:         "CODER_SCALETEST_TRAFFICGEN_TICK_INTERVAL",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_TICK_INTERVAL",
 			Default:     "100ms",
 			Description: "How often to send traffic.",
 			Value:       clibase.DurationOf(&tickInterval),

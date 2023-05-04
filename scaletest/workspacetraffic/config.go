@@ -1,4 +1,4 @@
-package trafficgen
+package workspacetraffic
 
 import (
 	"time"

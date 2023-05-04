@@ -208,7 +208,7 @@ param3: 1
 // This test pretends to stand up a workspace and run a no-op traffic generation test.
 // It's not a real test, but it's useful for debugging.
 // We do not perform any cleanup.
-func TestScaleTestTrafficGen(t *testing.T) {
+func TestScaleTestWorkspaceTraffic(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
@@ -259,7 +259,7 @@ func TestScaleTestTrafficGen(t *testing.T) {
 
 	coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 
-	inv, root := clitest.New(t, "scaletest", "trafficgen", ws.Name,
+	inv, root := clitest.New(t, "scaletest", "workspace-traffic",
 		"--duration", "1s",
 		"--bytes-per-tick", "1024",
 		"--tick-interval", "100ms",
