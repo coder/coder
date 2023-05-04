@@ -180,6 +180,7 @@ type RegisterWorkspaceProxyRequest struct {
 type RegisterWorkspaceProxyResponse struct {
 	AppSecurityKey string `json:"app_security_key"`
 	DERPMeshKey    string `json:"derp_mesh_key"`
+	DERPRegionID   int32  `json:"derp_region_id"`
 	// SiblingReplicas is a list of all other replicas of the proxy that have
 	// not timed out.
 	SiblingReplicas []codersdk.Replica `json:"sibling_replicas"`
@@ -360,6 +361,9 @@ func (c *Client) RegisterWorkspaceProxyLoop(ctx context.Context, opts RegisterWo
 			if res.DERPMeshKey != originalRes.DERPMeshKey {
 				failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
 				return
+			}
+			if res.DERPRegionID != originalRes.DERPRegionID {
+				failureFn(xerrors.New("DERP region ID has changed, proxy must be restarted"))
 			}
 
 			err = opts.CallbackFn(ctx, res)

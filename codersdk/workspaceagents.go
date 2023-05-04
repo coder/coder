@@ -147,29 +147,41 @@ type WorkspaceAgentConnectionInfo struct {
 	DERPMap *tailcfg.DERPMap `json:"derp_map"`
 }
 
+func (c *Client) WorkspaceAgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentConnectionInfo, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
+	if err != nil {
+		return WorkspaceAgentConnectionInfo{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgentConnectionInfo{}, ReadBodyAsError(res)
+	}
+
+	var connInfo WorkspaceAgentConnectionInfo
+	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
+}
+
 // @typescript-ignore DialWorkspaceAgentOptions
 type DialWorkspaceAgentOptions struct {
 	Logger slog.Logger
 	// BlockEndpoints forced a direct connection through DERP.
 	BlockEndpoints bool
+	// CustomConnectionInfo avoids hitting the API to get connection info.
+	CustomConnectionInfo *WorkspaceAgentConnectionInfo
 }
 
 func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (agentConn *WorkspaceAgentConn, err error) {
 	if options == nil {
 		options = &DialWorkspaceAgentOptions{}
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var connInfo WorkspaceAgentConnectionInfo
-	err = json.NewDecoder(res.Body).Decode(&connInfo)
-	if err != nil {
-		return nil, xerrors.Errorf("decode conn info: %w", err)
+
+	connInfo := options.CustomConnectionInfo
+	if connInfo == nil {
+		res, err := c.WorkspaceAgentConnectionInfo(ctx, agentID)
+		if err != nil {
+			return nil, xerrors.Errorf("get connection info: %w", err)
+		}
+		connInfo = &res
 	}
 
 	ip := tailnet.IP()

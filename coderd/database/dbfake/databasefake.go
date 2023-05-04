@@ -5210,9 +5210,13 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	lastRegionID := int32(0)
 	for _, p := range q.workspaceProxies {
 		if !p.Deleted && p.Name == arg.Name {
 			return database.WorkspaceProxy{}, errDuplicateKey
+		}
+		if p.RegionID > lastRegionID {
+			lastRegionID = p.RegionID
 		}
 	}
 
@@ -5223,6 +5227,7 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 		Icon:              arg.Icon,
 		DerpEnabled:       arg.DerpEnabled,
 		TokenHashedSecret: arg.TokenHashedSecret,
+		RegionID:          lastRegionID + 1,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
 		Deleted:           false,

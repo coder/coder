@@ -450,6 +450,35 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	return nil
 }
 
+// getProxyDERPStartingRegionID returns the starting region ID that should be
+// used for workspace proxies. A proxy's actual region ID is the return value
+// from this function + it's RegionID field.
+//
+// Two ints are returned, the first is the starting region ID for proxies, and
+// the second is the maximum region ID that already exists in the DERP map.
+func getProxyDERPStartingRegionID(derpMap *tailcfg.DERPMap) (sID int, mID int) {
+	maxRegionID := 0
+	for _, region := range derpMap.Regions {
+		if region.RegionID > maxRegionID {
+			maxRegionID = region.RegionID
+		}
+	}
+	if maxRegionID < 0 {
+		maxRegionID = 0
+	}
+
+	// Round to the nearest 10,000 with a sufficient buffer of at least 2,000.
+	const roundStartingRegionID = 10_000
+	const startingRegionIDBuffer = 2_000
+	startingRegionID := maxRegionID + startingRegionIDBuffer
+	startingRegionID = int(math.Ceil(float64(startingRegionID)/roundStartingRegionID) * roundStartingRegionID)
+	if startingRegionID < roundStartingRegionID {
+		startingRegionID = roundStartingRegionID
+	}
+
+	return startingRegionID, maxRegionID
+}
+
 var (
 	lastDerpConflictMutex sync.Mutex
 	lastDerpConflictLog   time.Time
@@ -461,16 +490,8 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 
 		// Find the starting region ID that we'll use for proxies. This must be
 		// deterministic based on the derp map.
-		startingRegionID := 0
-		for _, region := range derpMap.Regions {
-			if region.RegionID > startingRegionID {
-				startingRegionID = region.RegionID
-			}
-		}
-		if startingRegionID < 0 {
-			startingRegionID = 0
-		}
-		if startingRegionID >= 1<<32 {
+		startingRegionID, largestRegionID := getProxyDERPStartingRegionID(derpMap)
+		if largestRegionID >= 1<<32 {
 			// Enforce an upper bound on the region ID. This shouldn't be hit in
 			// practice, but it's a good sanity check.
 			lastDerpConflictMutex.Lock()
@@ -483,21 +504,11 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 				logger.Warn(
 					context.Background(),
 					"existing DERP region IDs are too large, proxy region IDs will not be populated in the derp map. Please ensure that all DERP region IDs are less than 2^32.",
-					slog.F("starting_region_id", startingRegionID),
+					slog.F("largest_region_id", largestRegionID),
 					slog.F("max_region_id", 1<<32-1),
 				)
 				return derpMap
 			}
-		}
-
-		// Round to the nearest 10,000 with a sufficient buffer of at least
-		// 2,000.
-		const roundStartingRegionID = 10_000
-		const startingRegionIDBuffer = 2_000
-		startingRegionID += startingRegionIDBuffer
-		startingRegionID = int(math.Ceil(float64(startingRegionID)/roundStartingRegionID) * roundStartingRegionID)
-		if startingRegionID < roundStartingRegionID {
-			startingRegionID = roundStartingRegionID
 		}
 
 		// Add all healthy proxies to the DERP map.
@@ -564,12 +575,13 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 			}
 
 			derpMap.Regions[regionID] = &tailcfg.DERPRegion{
-				EmbeddedRelay: true,
+				// EmbeddedRelay ONLY applies to the primary.
+				EmbeddedRelay: false,
 				RegionID:      regionID,
 				RegionCode:    regionCode,
 				RegionName:    status.Proxy.Name,
 				Nodes: []*tailcfg.DERPNode{{
-					Name:      fmt.Sprintf("%db", regionID),
+					Name:      fmt.Sprintf("%da", regionID),
 					RegionID:  regionID,
 					HostName:  u.Hostname(),
 					DERPPort:  portInt,

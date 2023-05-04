@@ -374,8 +374,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// TODO: get region ID
-	var regionID int32 = 1234
+	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.DERPMap)
+	regionID := int32(startingRegionID) + proxy.RegionID
 
 	err := api.Database.InTx(func(db database.Store) error {
 		// First, update the proxy's values in the database.
@@ -473,6 +473,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey:  api.AppSecurityKey.String(),
 		DERPMeshKey:     api.DERPServer.MeshKey(),
+		DERPRegionID:    regionID,
 		SiblingReplicas: siblingsRes,
 	})
 
