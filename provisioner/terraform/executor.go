@@ -16,13 +16,16 @@ import (
 
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
 type executor struct {
+	server     *server
 	mut        *sync.Mutex
 	binaryPath string
 	// cachePath and workdir must not be used by multiple processes at once.
@@ -44,6 +47,10 @@ func (e *executor) basicEnv() []string {
 
 // execWriteOutput must only be called while the lock is held.
 func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
+	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
+	defer span.End()
+	span.SetAttributes(attribute.StringSlice("args", args))
+
 	defer func() {
 		closeErr := stdOutWriter.Close()
 		if err == nil && closeErr != nil {
@@ -88,6 +95,10 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 
 // execParseJSON must only be called while the lock is held.
 func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []string, v interface{}) error {
+	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
+	defer span.End()
+	span.SetAttributes(attribute.StringSlice("args", args))
+
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -168,6 +179,9 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 }
 
 func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
@@ -191,6 +205,9 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 
 // revive:disable-next-line:flag-parameter
 func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, destroy bool) (*proto.Provision_Response, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
@@ -245,6 +262,9 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 // planResources must only be called while the lock is held.
 func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	plan, err := e.showPlan(ctx, killCtx, planfilePath)
 	if err != nil {
 		return nil, xerrors.Errorf("show terraform plan file: %w", err)
@@ -274,6 +294,9 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 
 // showPlan must only be called while the lock is held.
 func (e *executor) showPlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	args := []string{"show", "-json", "-no-color", planfilePath}
 	p := new(tfjson.Plan)
 	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), p)
@@ -282,6 +305,9 @@ func (e *executor) showPlan(ctx, killCtx context.Context, planfilePath string) (
 
 // graph must only be called while the lock is held.
 func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
@@ -306,8 +332,14 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 }
 
 func (e *executor) apply(
-	ctx, killCtx context.Context, plan []byte, env []string, logr logSink,
+	ctx, killCtx context.Context,
+	plan []byte,
+	env []string,
+	logr logSink,
 ) (*proto.Provision_Response, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
@@ -366,6 +398,9 @@ func (e *executor) apply(
 
 // stateResources must only be called while the lock is held.
 func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	state, err := e.state(ctx, killCtx)
 	if err != nil {
 		return nil, err
@@ -393,6 +428,9 @@ func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) 
 
 // state must only be called while the lock is held.
 func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	args := []string{"show", "-json", "-no-color"}
 	state := &tfjson.State{}
 	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), state)
