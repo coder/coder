@@ -3,9 +3,9 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: "coder-service-account"
+  name: "coder"
   annotations: 
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/coder-service-account
+    {}
   labels:
     helm.sh/chart: coder-0.1.0
     app.kubernetes.io/name: coder
@@ -22,35 +22,19 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["pods"]
-    verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
+    verbs: ["*"]
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
+    verbs: ["*"]
 ---
 # Source: coder/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: "coder-service-account"
+  name: "coder"
 subjects:
   - kind: ServiceAccount
-    name: "coder-service-account"
+    name: "coder"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -115,7 +99,7 @@ spec:
       annotations:
         {}
     spec:
-      serviceAccountName: "coder-service-account"
+      serviceAccountName: "coder"
       restartPolicy: Always
       terminationGracePeriodSeconds: 60
       affinity:
@@ -137,6 +121,7 @@ spec:
           command:
             - /opt/coder
           args:
+            - proxy
             - server
           resources:
             {}
@@ -159,6 +144,13 @@ spec:
             - name: CODER_DERP_SERVER_RELAY_URL
               value: "http://$(KUBE_POD_IP):8080"
             
+            - name: CODER_PRIMARY_ACCESS_URL
+              value: https://dev.coder.com
+            - name: CODER_PROXY_SESSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: token
+                  name: coder-workspace-proxy-session-token
           ports:
             - name: "http"
               containerPort: 8080
