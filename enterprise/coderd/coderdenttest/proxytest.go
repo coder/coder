@@ -14,6 +14,7 @@ import (
 
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -131,6 +132,10 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 		PrometheusRegistry: prometheus.NewRegistry(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := wssrv.Close()
+		assert.NoError(t, err)
+	})
 
 	mutex.Lock()
 	handler = wssrv.Handler

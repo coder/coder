@@ -225,22 +225,27 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				closers.Add(closeFunc)
 			}
 
-			proxy, err := wsproxy.New(ctx, &wsproxy.Options{
-				Logger:             logger,
-				HTTPClient:         httpClient,
-				DashboardURL:       primaryAccessURL.Value(),
-				AccessURL:          cfg.AccessURL.Value(),
-				AppHostname:        appHostname,
-				AppHostnameRegex:   appHostnameRegex,
-				RealIPConfig:       realIPConfig,
-				Tracing:            tracer,
-				PrometheusRegistry: prometheusRegistry,
-				APIRateLimit:       int(cfg.RateLimit.API.Value()),
-				SecureAuthCookie:   cfg.SecureAuthCookie.Value(),
-				DisablePathApps:    cfg.DisablePathApps.Value(),
-				DERPEnabled:        cfg.DERP.Server.Enable.Value(),
-				ProxySessionToken:  proxySessionToken.Value(),
-			})
+			opts := &wsproxy.Options{
+				Logger:                 logger,
+				HTTPClient:             httpClient,
+				DashboardURL:           primaryAccessURL.Value(),
+				AccessURL:              cfg.AccessURL.Value(),
+				AppHostname:            appHostname,
+				AppHostnameRegex:       appHostnameRegex,
+				RealIPConfig:           realIPConfig,
+				Tracing:                tracer,
+				PrometheusRegistry:     prometheusRegistry,
+				APIRateLimit:           int(cfg.RateLimit.API.Value()),
+				SecureAuthCookie:       cfg.SecureAuthCookie.Value(),
+				DisablePathApps:        cfg.DisablePathApps.Value(),
+				DERPEnabled:            cfg.DERP.Server.Enable.Value(),
+				DERPServerRelayAddress: cfg.DERP.Server.RelayURL.String(),
+				ProxySessionToken:      proxySessionToken.Value(),
+			}
+			if httpServers.TLSConfig != nil {
+				opts.TLSCertificates = httpServers.TLSConfig.Certificates
+			}
+			proxy, err := wsproxy.New(ctx, opts)
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
 			}

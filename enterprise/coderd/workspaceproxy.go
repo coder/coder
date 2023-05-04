@@ -391,8 +391,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			if replica.StoppedAt.Valid && !replica.StartedAt.IsZero() {
 				// If the replica deregistered, it shouldn't be able to
 				// re-register before restarting.
-				// TODO: sadly this results in 500
-				return xerrors.Errorf("replica %s is stopped but not deregistered", replica.ID)
+				// TODO: sadly this results in 500 when it should be 400
+				return xerrors.Errorf("replica %s is marked stopped", replica.ID)
 			}
 
 			replica, err = db.UpdateReplica(ctx, database.UpdateReplicaParams{
@@ -465,6 +465,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey:  api.AppSecurityKey.String(),
+		DERPMeshKey:     api.DERPServer.MeshKey(),
 		SiblingReplicas: siblingsRes,
 	})
 
