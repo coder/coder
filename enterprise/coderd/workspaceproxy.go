@@ -576,6 +576,7 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 	return codersdk.WorkspaceProxy{
 		ID:               p.ID,
 		Name:             p.Name,
+		DisplayName:      p.DisplayName,
 		Icon:             p.Icon,
 		URL:              p.Url,
 		WildcardHostname: p.WildcardHostname,

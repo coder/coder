@@ -46,9 +46,10 @@ type ProxyHealthReport struct {
 }
 
 type WorkspaceProxy struct {
-	ID   uuid.UUID `json:"id" format:"uuid" table:"id"`
-	Name string    `json:"name" table:"name,default_sort"`
-	Icon string    `json:"icon" table:"icon"`
+	ID          uuid.UUID `json:"id" format:"uuid" table:"id"`
+	Name        string    `json:"name" table:"name,default_sort"`
+	DisplayName string    `json:"display_name" table:"display_name""`
+	Icon        string    `json:"icon" table:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
 	URL string `json:"url" table:"url"`
 	// WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com
@@ -127,14 +128,14 @@ type PatchWorkspaceProxyResponse struct {
 func (c *Client) PatchWorkspaceProxy(ctx context.Context, req PatchWorkspaceProxy) (WorkspaceProxy, error) {
 	res, err := c.Request(ctx, http.MethodPatch,
 		fmt.Sprintf("/api/v2/workspaceproxies/%s", req.ID.String()),
-		nil,
+		req,
 	)
 	if err != nil {
 		return WorkspaceProxy{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusCreated {
+	if res.StatusCode != http.StatusOK {
 		return WorkspaceProxy{}, ReadBodyAsError(res)
 	}
 	var resp WorkspaceProxy
