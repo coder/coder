@@ -87,7 +87,9 @@ export const editGroupMachine = createMachine(
         const message = getErrorMessage(data, "Failed to the group.")
         displayError(message)
       },
-      assignError: (_, event) => event.data,
+      assignError: assign({
+        error: (_, event) => event.data,
+      }),
     },
   },
 )
