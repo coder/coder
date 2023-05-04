@@ -65,6 +65,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
       {onConfirm && (
         <LoadingButton
           fullWidth
+          data-testid="confirm-button"
           variant="contained"
           onClick={onConfirm}
           color={typeToColor(type)}

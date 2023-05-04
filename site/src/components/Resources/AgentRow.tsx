@@ -114,10 +114,10 @@ export const AgentRow: FC<AgentRowProps> = ({
   useEffect(() => {
     // We only want to fetch logs when they are actually shown,
     // otherwise we can make a lot of requests that aren't necessary.
-    if (showStartupLogs) {
+    if (showStartupLogs && logsMachine.can("FETCH_STARTUP_LOGS")) {
       sendLogsEvent("FETCH_STARTUP_LOGS")
     }
-  }, [sendLogsEvent, showStartupLogs])
+  }, [logsMachine, sendLogsEvent, showStartupLogs])
   const logListRef = useRef<List>(null)
   const logListDivRef = useRef<HTMLDivElement>(null)
   const startupLogs = useMemo(() => {

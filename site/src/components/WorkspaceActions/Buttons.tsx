@@ -21,6 +21,7 @@ export const UpdateButton: FC<PropsWithChildren<WorkspaceAction>> = ({
 
   return (
     <Button
+      data-testid="workspace-update-button"
       variant="outlined"
       startIcon={<CloudQueueIcon />}
       onClick={handleAction}
