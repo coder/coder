@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -101,22 +102,22 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	go func() {
 		<-deadlineCtx.Done()
-		logger.Debug(ctx, "context deadline reached", slog.F("duration", time.Since(start)))
+		logger.Debug(ctx, "closing agent connection")
+		conn.Close()
 	}()
 
 	// Read forever in the background.
 	go func() {
 		logger.Debug(ctx, "reading from agent", slog.F("agent_id", agentID))
-		rch <- drainContext(deadlineCtx, &crw)
+		rch <- drain(&crw)
 		logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
-		conn.Close()
 		close(rch)
 	}()
 
 	// Write random data to the PTY every tick.
 	go func() {
 		logger.Debug(ctx, "writing to agent", slog.F("agent_id", agentID))
-		wch <- writeRandomData(deadlineCtx, &crw, bytesPerTick, tick.C)
+		wch <- writeRandomData(&crw, bytesPerTick, tick.C)
 		logger.Debug(ctx, "done writing to agent", slog.F("agent_id", agentID))
 		close(wch)
 	}()
@@ -145,93 +146,33 @@ func (*Runner) Cleanup(context.Context, string) error {
 	return nil
 }
 
-// drainContext drains from src until it returns io.EOF or ctx times out.
-func drainContext(ctx context.Context, src io.Reader) error {
-	errCh := make(chan error, 1)
-	done := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			default:
-				_, err := io.CopyN(io.Discard, src, 1)
-				if ctx.Err() != nil {
-					return // context canceled while we were copying.
-				}
-				if err != nil {
-					errCh <- err
-					close(errCh)
-					return
-				}
-			}
-		}
-	}()
-	for {
-		select {
-		case <-ctx.Done():
-			close(done)
+// drain drains from src until it returns io.EOF or ctx times out.
+func drain(src io.Reader) error {
+	if _, err := io.Copy(io.Discard, src); err != nil {
+		if xerrors.Is(err, context.DeadlineExceeded) || xerrors.Is(err, websocket.CloseError{}) {
 			return nil
-		case err := <-errCh:
-			if err != nil {
-				if xerrors.Is(err, io.EOF) {
-					return nil
-				}
-				// It's OK if the context is canceled.
-				if xerrors.Is(err, context.DeadlineExceeded) {
-					return nil
-				}
-				return err
-			}
 		}
+		return err
 	}
+	return nil
 }
 
-func writeRandomData(ctx context.Context, dst io.Writer, size int64, tick <-chan time.Time) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-tick:
-			payload := "#" + mustRandStr(size-1)
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: payload,
-			})
-			if err != nil {
-				return err
+func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
+	var (
+		enc    = json.NewEncoder(dst)
+		ptyReq = codersdk.ReconnectingPTYRequest{}
+	)
+	for range tick {
+		payload := "#" + mustRandStr(size-1)
+		ptyReq.Data = payload
+		if err := enc.Encode(ptyReq); err != nil {
+			if xerrors.Is(err, context.DeadlineExceeded) || xerrors.Is(err, websocket.CloseError{}) {
+				return nil
 			}
-			if _, err := copyContext(ctx, dst, data); err != nil {
-				return err
-			}
+			return err
 		}
 	}
-}
-
-// copyContext copies from src to dst until ctx is canceled.
-func copyContext(ctx context.Context, dst io.Writer, src []byte) (int, error) {
-	var count int
-	for {
-		select {
-		case <-ctx.Done():
-			return count, nil
-		default:
-			for idx := range src {
-				n, err := dst.Write(src[idx : idx+1])
-				if err != nil {
-					if xerrors.Is(err, io.EOF) {
-						return count, nil
-					}
-					if xerrors.Is(err, context.DeadlineExceeded) {
-						// It's OK if we reach the deadline before writing the full payload.
-						return count, nil
-					}
-					return count, err
-				}
-				count += n
-			}
-			return count, nil
-		}
-	}
+	return nil
 }
 
 // countReadWriter wraps an io.ReadWriter and counts the number of bytes read and written.
