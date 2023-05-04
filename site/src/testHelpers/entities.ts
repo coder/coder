@@ -1639,3 +1639,36 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
     tx_bytes: 36113513253,
   },
 }
+
+export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
+  hostname_prefix: " coder.",
+  ssh_config_options: {},
+}
+
+export const MockStartupLogs: TypesGen.WorkspaceAgentStartupLog[] = [
+  {
+    id: 166663,
+    created_at: "2023-05-04T11:30:41.402072Z",
+    output: "+ curl -fsSL https://code-server.dev/install.sh",
+    level: "info",
+  },
+  {
+    id: 166664,
+    created_at: "2023-05-04T11:30:41.40228Z",
+    output:
+      "+ sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3",
+    level: "info",
+  },
+  {
+    id: 166665,
+    created_at: "2023-05-04T11:30:42.590731Z",
+    output: "Ubuntu 22.04.2 LTS",
+    level: "info",
+  },
+  {
+    id: 166666,
+    created_at: "2023-05-04T11:30:42.593686Z",
+    output: "Installing v4.8.3 of the amd64 release from GitHub.",
+    level: "info",
+  },
+]
