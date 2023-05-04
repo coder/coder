@@ -42,8 +42,8 @@ type Template struct {
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 
 	// FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their
-	// values are used if your license is entitled to use the workspace actions
-	// feature
+	// values are used if your license is entitled to use the advanced
+	// template scheduling feature.
 	FailureTTLMillis    int64 `json:"failure_ttl_ms"`
 	InactivityTTLMillis int64 `json:"inactivity_ttl_ms"`
 }
