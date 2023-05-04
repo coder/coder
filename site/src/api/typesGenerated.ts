@@ -194,6 +194,8 @@ export interface CreateTemplateRequest {
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
+  readonly failure_ttl_ms?: number
+  readonly inactivity_ttl_ms?: number
 }
 
 // From codersdk/templateversions.go

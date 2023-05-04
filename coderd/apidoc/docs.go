@@ -6719,9 +6719,17 @@ const docTemplate = `{
                     "description": "DisplayName is the displayed name of the template.",
                     "type": "string"
                 },
+                "failure_ttl_ms": {
+                    "description": "FailureTTLMillis allows optionally specifying the max lifetime before Coder\nstops all resources for failed workspaces created from this template.",
+                    "type": "integer"
+                },
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
+                },
+                "inactivity_ttl_ms": {
+                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\ndeletes inactive workspaces created from this template.",
+                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
