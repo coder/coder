@@ -109,7 +109,10 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 	return tracerProvider, func(ctx context.Context) error {
 		var err error
 		closeTracingOnce.Do(func() {
-			err = closeTracing(ctx)
+			// Allow time to upload traces even if ctx is canceled
+			traceCtx, traceCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer traceCancel()
+			err = closeTracing(traceCtx)
 		})
 
 		return err
@@ -637,10 +640,11 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			}
 			defer func() {
 				// Allow time for traces to flush even if command context is
-				// canceled.
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-				_ = closeTracing(ctx)
+				// canceled. This is a no-op if tracing is not enabled.
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
@@ -752,17 +756,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			err = th.Cleanup(cleanupCtx)
 			if err != nil {
 				return xerrors.Errorf("cleanup tests: %w", err)
-			}
-
-			// Upload traces.
-			if tracingEnabled {
-				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
-				ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-				defer cancel()
-				err := closeTracing(ctx)
-				if err != nil {
-					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
-				}
 			}
 
 			if res.TotalFail > 0 {
@@ -905,7 +898,7 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 	var (
 		duration        time.Duration
 		bps             int64
-		client          = new(codersdk.Client)
+		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
 		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
@@ -947,10 +940,11 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 			}
 			defer func() {
 				// Allow time for traces to flush even if command context is
-				// canceled.
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-				_ = closeTracing(ctx)
+				// canceled. This is a no-op if tracing is not enabled.
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
@@ -1015,17 +1009,6 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 				err = o.write(res, inv.Stdout)
 				if err != nil {
 					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
-				}
-			}
-
-			// Upload traces.
-			if tracingEnabled {
-				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
-				ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-				defer cancel()
-				err := closeTracing(ctx)
-				if err != nil {
-					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
 				}
 			}
 
