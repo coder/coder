@@ -90,7 +90,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	}()
 
 	// Wrap the conn in a countReadWriter so we can monitor bytes sent/rcvd.
-	crw := countReadWriter{ReadWriter: conn, ctx: deadlineCtx}
+	crw := countReadWriter{ReadWriter: conn}
 
 	// Create a ticker for sending data to the PTY.
 	tick := time.NewTicker(tickInterval)
@@ -183,16 +183,12 @@ func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 
 // countReadWriter wraps an io.ReadWriter and counts the number of bytes read and written.
 type countReadWriter struct {
-	ctx context.Context
 	io.ReadWriter
 	bytesRead    atomic.Int64
 	bytesWritten atomic.Int64
 }
 
 func (w *countReadWriter) Read(p []byte) (int, error) {
-	if err := w.ctx.Err(); err != nil {
-		return 0, err
-	}
 	n, err := w.ReadWriter.Read(p)
 	if err == nil {
 		w.bytesRead.Add(int64(n))
@@ -201,9 +197,6 @@ func (w *countReadWriter) Read(p []byte) (int, error) {
 }
 
 func (w *countReadWriter) Write(p []byte) (int, error) {
-	if err := w.ctx.Err(); err != nil {
-		return 0, err
-	}
 	n, err := w.ReadWriter.Write(p)
 	if err == nil {
 		w.bytesWritten.Add(int64(n))
