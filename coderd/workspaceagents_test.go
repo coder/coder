@@ -876,7 +876,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 			}},
 		})
 		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
-		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	})
 	t.Run("AuthorizedCallback", func(t *testing.T) {
 		t.Parallel()

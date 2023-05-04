@@ -449,7 +449,7 @@ func New(options *Options) *API {
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
-					apiKeyMiddleware,
+					apiKeyMiddlewareRedirect,
 				)
 				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
 			})
