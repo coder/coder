@@ -33,7 +33,7 @@ type pgPubsub struct {
 }
 
 // messageBufferSize is the maximum number of unhandled messages we will buffer
-// for a subscriber before blocking the pgPubsub.
+// for a subscriber before dropping messages.
 const messageBufferSize = 2048
 
 // Subscribe calls the listener when an event matching the name is received.
@@ -124,7 +124,14 @@ func (p *pgPubsub) listenReceive(notif *pq.Notification) {
 	}
 	extra := []byte(notif.Extra)
 	for _, listener := range listeners {
-		listener <- extra
+		select {
+		case listener <- extra:
+			// ok!
+		default:
+			// bad news, we dropped the event because the listener isn't
+			// keeping up
+			// TODO (spike): figure out a way to communicate this to the Listener
+		}
 	}
 }
 
