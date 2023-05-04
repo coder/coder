@@ -48,8 +48,8 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	}
 
 	// HTTP Server. We have to start this once to get the access URL to start
-	// the workspace proxy with. We need the workspace proxy to pass in the
-	// handler here.
+	// the workspace proxy with. The workspace proxy has the handler, so the
+	// http server will start with a 503 until the proxy is started.
 	var mutex sync.RWMutex
 	var handler http.Handler
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
