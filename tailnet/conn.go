@@ -33,6 +33,7 @@ import (
 	"tailscale.com/types/netlogtype"
 	"tailscale.com/types/netmap"
 	"tailscale.com/wgengine"
+	"tailscale.com/wgengine/capture"
 	"tailscale.com/wgengine/filter"
 	"tailscale.com/wgengine/magicsock"
 	"tailscale.com/wgengine/monitor"
@@ -308,6 +309,8 @@ type Conn struct {
 	closed         chan struct{}
 	logger         slog.Logger
 	blockEndpoints bool
+	capture        *capture.Sink
+	captureCount   int
 
 	dialer           *tsdial.Dialer
 	tunDevice        *tstun.Wrapper
@@ -582,6 +585,10 @@ func (c *Conn) Close() error {
 	default:
 	}
 	close(c.closed)
+	if c.capture != nil {
+		c.capture.Close()
+		c.capture = nil
+	}
 	c.mutex.Unlock()
 
 	var wg sync.WaitGroup
@@ -838,6 +845,29 @@ func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump 
 
 func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
+}
+
+func (c *Conn) Capture(w io.Writer) (unregister func()) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.capture == nil {
+		c.capture = capture.New()
+		c.wireguardEngine.InstallCaptureHook(c.capture.LogPacket)
+	}
+	unreg := c.capture.RegisterOutput(w)
+	c.captureCount++
+	return func() {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+		unreg()
+		c.captureCount--
+		if c.captureCount == 0 {
+			c.wireguardEngine.InstallCaptureHook(nil)
+			_ = c.capture.Close()
+			c.capture = nil
+		}
+	}
 }
 
 type listenKey struct {
