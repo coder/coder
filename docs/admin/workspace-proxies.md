@@ -75,14 +75,12 @@ CODER_PRIMARY_ACCESS_URL="https://<url_of_coderd_dashboard>"
 CODER_PROXY_SESSION_TOKEN="<session_token_from_proxy_create>"
 
 # Runtime variables for "coder start".
-CODER_HTTP_ADDRESS=0.0.0.0:8080
-CODER_TLS_ADDRESS=0.0.0.0:8443
+CODER_HTTP_ADDRESS=0.0.0.0:80
+CODER_TLS_ADDRESS=0.0.0.0:443
 # Example: https://east.coderd.example.com
 CODER_ACCESS_URL="https://<access_url_of_proxy>"
 # Example: *.east.coderd.example.com
 CODER_WILDCARD_ACCESS_URL="*.<app_hostname_of_proxy>"
-CODER_DERP_SERVER_ENABLE=true
-CODER_DERP_SERVER_RELAY_ADDRESS="https://127.0.0.1:8443"
 
 CODER_TLS_ENABLE=true
 CODER_TLS_CLIENT_AUTH=none
