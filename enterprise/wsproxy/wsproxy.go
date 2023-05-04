@@ -324,7 +324,7 @@ func (s *Server) Close() error {
 	s.cancel()
 
 	var err error
-	registerDoneWaitTicker := time.NewTicker(3 * time.Second)
+	registerDoneWaitTicker := time.NewTicker(11 * time.Second) // the attempt timeout is 10s
 	select {
 	case <-registerDoneWaitTicker.C:
 		err = multierror.Append(err, xerrors.New("timed out waiting for registerDone"))
@@ -335,6 +335,7 @@ func (s *Server) Close() error {
 	if appServerErr != nil {
 		err = multierror.Append(err, appServerErr)
 	}
+	s.SDKClient.SDKClient.HTTPClient.CloseIdleConnections()
 	return err
 }
 

@@ -34,7 +34,7 @@ import (
 // This is useful when a proxy is created or deleted. Errors will be logged.
 func (api *API) forceWorkspaceProxyHealthUpdate(ctx context.Context) {
 	if err := api.ProxyHealth.ForceUpdate(ctx); err != nil {
-		api.Logger.Error(ctx, "force proxy health update", slog.Error(err))
+		api.Logger.Warn(ctx, "force proxy health update", slog.Error(err))
 	}
 }
 
@@ -316,9 +316,9 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 // in the database and returns a signed token that can be used to authenticate
 // tokens.
 //
-// This is called periodically by the proxy in the background (once per minute
-// per replica) to ensure that the proxy is still registered and the
-// corresponding replica table entry is refreshed.
+// This is called periodically by the proxy in the background (every 30s per
+// replica) to ensure that the proxy is still registered and the corresponding
+// replica table entry is refreshed.
 //
 // @Summary Register workspace proxy
 // @ID register-workspace-proxy
@@ -326,7 +326,7 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body wsproxysdk.RegisterWorkspaceProxyRequest true "Issue signed app token request"
+// @Param request body wsproxysdk.RegisterWorkspaceProxyRequest true "Register workspace proxy request"
 // @Success 201 {object} wsproxysdk.RegisterWorkspaceProxyResponse
 // @Router /workspaceproxies/me/register [post]
 // @x-apidocgen {"skip": true}
@@ -365,6 +365,13 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
+	}
+
+	if req.ReplicaID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Replica ID is invalid.",
+		})
+		return
 	}
 
 	// TODO: get region ID
@@ -469,6 +476,78 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		SiblingReplicas: siblingsRes,
 	})
 
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
+}
+
+// @Summary Deregister workspace proxy
+// @ID deregister-workspace-proxy
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Enterprise
+// @Param request body wsproxysdk.DeregisterWorkspaceProxyRequest true "Deregister workspace proxy request"
+// @Success 204
+// @Router /workspaceproxies/me/deregister [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req wsproxysdk.DeregisterWorkspaceProxyRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	err := api.Database.InTx(func(db database.Store) error {
+		now := time.Now()
+		replica, err := db.GetReplicaByID(ctx, req.ReplicaID)
+		if err != nil {
+			return xerrors.Errorf("get replica: %w", err)
+		}
+
+		if replica.StoppedAt.Valid && !replica.StartedAt.IsZero() {
+			// TODO: sadly this results in 500 when it should be 400
+			return xerrors.Errorf("replica %s is already marked stopped", replica.ID)
+		}
+
+		replica, err = db.UpdateReplica(ctx, database.UpdateReplicaParams{
+			ID:        replica.ID,
+			UpdatedAt: now,
+			StartedAt: replica.StartedAt,
+			StoppedAt: sql.NullTime{
+				Valid: true,
+				Time:  now,
+			},
+			RelayAddress:    replica.RelayAddress,
+			RegionID:        replica.RegionID,
+			Hostname:        replica.Hostname,
+			Version:         replica.Version,
+			Error:           replica.Error,
+			DatabaseLatency: replica.DatabaseLatency,
+			Primary:         replica.Primary,
+		})
+		if err != nil {
+			return xerrors.Errorf("update replica: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Publish a replicasync event with a nil ID so every replica (yes, even the
+	// current replica) will refresh its replicas list.
+	err = api.Pubsub.Publish(replicasync.PubsubEvent, []byte(uuid.Nil.String()))
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
