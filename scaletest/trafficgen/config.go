@@ -10,15 +10,15 @@ import (
 type Config struct {
 	// AgentID is the workspace agent ID to which to connect.
 	AgentID uuid.UUID `json:"agent_id"`
-	// BytesPerSecond is the number of bytes to send to the agent.
 
-	BytesPerSecond int64 `json:"bytes_per_second"`
+	// BytesPerTick is the number of bytes to send to the agent per tick.
+	BytesPerTick int64 `json:"bytes_per_tick"`
 
 	// Duration is the total duration for which to send traffic to the agent.
 	Duration time.Duration `json:"duration"`
 
-	// TicksPerSecond specifies how many times per second we send traffic.
-	TicksPerSecond int64 `json:"ticks_per_second"`
+	// TicksInterval specifies how many times per second we send traffic.
+	TickInterval time.Duration `json:"tick_interval"`
 }
 
 func (c Config) Validate() error {
@@ -26,16 +26,17 @@ func (c Config) Validate() error {
 		return xerrors.Errorf("validate agent_id: must not be nil")
 	}
 
-	if c.BytesPerSecond <= 0 {
-		return xerrors.Errorf("validate bytes_per_second: must be greater than zero")
+	if c.BytesPerTick <= 0 {
+		return xerrors.Errorf("validate bytes_per_tick: must be greater than zero")
 	}
 
 	if c.Duration <= 0 {
 		return xerrors.Errorf("validate duration: must be greater than zero")
 	}
 
-	if c.TicksPerSecond <= 0 {
-		return xerrors.Errorf("validate ticks_per_second: must be greater than zero")
+	if c.TickInterval <= 0 {
+		return xerrors.Errorf("validate tick_interval: must be greater than zero")
 	}
+
 	return nil
 }

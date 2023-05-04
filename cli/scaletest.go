@@ -897,7 +897,8 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 	var (
 		duration        time.Duration
-		bps             int64
+		tickInterval    time.Duration
+		bytesPerTick    int64
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
@@ -975,10 +976,10 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 
 				// Setup our workspace agent connection.
 				config := trafficgen.Config{
-					AgentID:        agentID,
-					BytesPerSecond: bps,
-					Duration:       duration,
-					TicksPerSecond: 10,
+					AgentID:      agentID,
+					BytesPerTick: bytesPerTick,
+					Duration:     duration,
+					TickInterval: tickInterval,
 				}
 
 				if err := config.Validate(); err != nil {
@@ -1029,11 +1030,18 @@ func (r *RootCmd) scaletestTrafficGen() *clibase.Cmd {
 			Value:       clibase.DurationOf(&duration),
 		},
 		{
-			Flag:        "bps",
-			Env:         "CODER_SCALETEST_TRAFFICGEN_BPS",
+			Flag:        "bytes-per-tick",
+			Env:         "CODER_SCALETEST_TRAFFICGEN_BYTES_PER_TICK",
 			Default:     "1024",
-			Description: "How much traffic to generate in bytes per second.",
-			Value:       clibase.Int64Of(&bps),
+			Description: "How much traffic to generate per tick.",
+			Value:       clibase.Int64Of(&bytesPerTick),
+		},
+		{
+			Flag:        "tick-interval",
+			Env:         "CODER_SCALETEST_TRAFFICGEN_TICK_INTERVAL",
+			Default:     "100ms",
+			Description: "How often to send traffic.",
+			Value:       clibase.DurationOf(&tickInterval),
 		},
 	}
 

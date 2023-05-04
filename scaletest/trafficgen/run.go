@@ -52,8 +52,8 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		reconnect           = uuid.New()
 		height       uint16 = 25
 		width        uint16 = 80
-		tickInterval        = time.Second / time.Duration(r.cfg.TicksPerSecond)
-		bytesPerTick        = r.cfg.BytesPerSecond / r.cfg.TicksPerSecond
+		tickInterval        = r.cfg.TickInterval
+		bytesPerTick        = r.cfg.BytesPerTick
 	)
 
 	logger.Info(ctx, "config",
@@ -149,7 +149,10 @@ func (*Runner) Cleanup(context.Context, string) error {
 // drain drains from src until it returns io.EOF or ctx times out.
 func drain(src io.Reader) error {
 	if _, err := io.Copy(io.Discard, src); err != nil {
-		if xerrors.Is(err, context.DeadlineExceeded) || xerrors.Is(err, websocket.CloseError{}) {
+		if xerrors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+		if xerrors.As(err, &websocket.CloseError{}) {
 			return nil
 		}
 		return err
@@ -166,7 +169,10 @@ func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 		payload := "#" + mustRandStr(size-1)
 		ptyReq.Data = payload
 		if err := enc.Encode(ptyReq); err != nil {
-			if xerrors.Is(err, context.DeadlineExceeded) || xerrors.Is(err, websocket.CloseError{}) {
+			if xerrors.Is(err, context.DeadlineExceeded) {
+				return nil
+			}
+			if xerrors.As(err, &websocket.CloseError{}) {
 				return nil
 			}
 			return err
@@ -213,8 +219,11 @@ func (w *countReadWriter) BytesWritten() int64 {
 	return w.bytesWritten.Load()
 }
 
-func mustRandStr(len int64) string {
-	randStr, err := cryptorand.String(int(len))
+func mustRandStr(l int64) string {
+	if l < 1 {
+		l = 1
+	}
+	randStr, err := cryptorand.String(int(l))
 	if err != nil {
 		panic(err)
 	}

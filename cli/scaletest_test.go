@@ -261,7 +261,8 @@ func TestScaleTestTrafficGen(t *testing.T) {
 
 	inv, root := clitest.New(t, "scaletest", "trafficgen", ws.Name,
 		"--duration", "1s",
-		"--bps", "100",
+		"--bytes-per-tick", "1024",
+		"--tick-interval", "100ms",
 	)
 	clitest.SetupConfig(t, client, root)
 	var stdout, stderr bytes.Buffer
