@@ -1,5 +1,6 @@
 import { Story } from "@storybook/react"
 import { AccountForm, AccountFormProps } from "./SettingsAccountForm"
+import { mockApiError } from "testHelpers/entities"
 
 export default {
   title: "components/SettingsAccountForm",
@@ -35,20 +36,15 @@ Loading.args = {
 export const WithError = Template.bind({})
 WithError.args = {
   ...Example.args,
-  updateProfileError: {
-    response: {
-      data: {
-        message: "Username is invalid",
-        validations: [
-          {
-            field: "username",
-            detail: "Username is too long.",
-          },
-        ],
+  updateProfileError: mockApiError({
+    message: "Username is invalid",
+    validations: [
+      {
+        field: "username",
+        detail: "Username is too long.",
       },
-    },
-    isAxiosError: true,
-  },
+    ],
+  }),
   initialTouched: {
     username: true,
   },

@@ -35,14 +35,22 @@ interface FormHelpers {
 
 export const getFormHelpers =
   <TFormValues>(form: FormikContextType<TFormValues>, error?: unknown) =>
-  (fieldName: keyof TFormValues, helperText?: ReactNode): FormHelpers => {
+  (
+    fieldName: keyof TFormValues,
+    helperText?: ReactNode,
+    // backendFieldName is used when the value in the form is named different from the backend
+    backendFieldName?: string,
+  ): FormHelpers => {
     const apiValidationErrors = isApiValidationError(error)
       ? (mapApiErrorToFieldErrors(
           error.response.data,
-        ) as FormikErrors<TFormValues>)
+        ) as FormikErrors<TFormValues> & { [key: string]: string })
       : undefined
     const touched = Boolean(form.touched[fieldName])
-    const apiError = apiValidationErrors?.[fieldName]?.toString()
+    // Since the field in the form can be diff from the backend, we need to
+    // check for both when getting the error
+    const apiField = backendFieldName ?? fieldName
+    const apiError = apiValidationErrors?.[apiField.toString()]
     const formError = form.errors[fieldName]?.toString()
     const errorToDisplay = apiError ?? formError
 

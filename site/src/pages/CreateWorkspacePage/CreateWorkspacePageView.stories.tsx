@@ -1,6 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import {
-  makeMockValidationApiError,
+  mockApiError,
   mockParameterSchema,
   MockParameterSchemas,
   MockTemplate,
@@ -85,7 +85,7 @@ export const GetTemplatesError = Template.bind({})
 GetTemplatesError.args = {
   ...Parameters.args,
   createWorkspaceErrors: {
-    [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: makeMockValidationApiError({
+    [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: mockApiError({
       message: "Failed to fetch templates.",
       detail: "You do not have permission to access this resource.",
     }),
@@ -97,11 +97,10 @@ export const GetTemplateSchemaError = Template.bind({})
 GetTemplateSchemaError.args = {
   ...Parameters.args,
   createWorkspaceErrors: {
-    [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]:
-      makeMockValidationApiError({
-        message: 'Failed to fetch template schema for "docker-amd64".',
-        detail: "You do not have permission to access this resource.",
-      }),
+    [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]: mockApiError({
+      message: 'Failed to fetch template schema for "docker-amd64".',
+      detail: "You do not have permission to access this resource.",
+    }),
   },
   hasTemplateErrors: true,
 }
@@ -110,7 +109,7 @@ export const CreateWorkspaceError = Template.bind({})
 CreateWorkspaceError.args = {
   ...Parameters.args,
   createWorkspaceErrors: {
-    [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: makeMockValidationApiError({
+    [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: mockApiError({
       message:
         'Workspace "test" already exists in the "docker-amd64" template.',
       validations: [

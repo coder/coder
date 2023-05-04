@@ -54,6 +54,5 @@ Error.args = {
         ],
       },
     },
-    isAxiosError: true,
   },
 }

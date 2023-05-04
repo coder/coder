@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { makeMockValidationApiError } from "testHelpers/entities"
+import { mockApiError } from "testHelpers/entities"
 import { SignInForm, SignInFormProps } from "./SignInForm"
 
 export default {
@@ -37,7 +37,7 @@ SigningIn.args = {
 export const WithError = Template.bind({})
 WithError.args = {
   ...SignedOut.args,
-  error: makeMockValidationApiError({
+  error: mockApiError({
     message: "Email or password was invalid",
     validations: [
       {

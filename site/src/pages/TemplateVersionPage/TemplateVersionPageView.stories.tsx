@@ -2,7 +2,7 @@ import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import { UseTabResult } from "hooks/useTab"
 import {
-  makeMockValidationApiError,
+  mockApiError,
   MockOrganization,
   MockTemplate,
   MockTemplateVersion,
@@ -64,7 +64,7 @@ Error.args = {
     ...defaultArgs.context,
     currentVersion: undefined,
     currentFiles: undefined,
-    error: makeMockValidationApiError({
+    error: mockApiError({
       message: "Error on loading the template version",
     }),
   },

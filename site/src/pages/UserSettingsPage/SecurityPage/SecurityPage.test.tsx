@@ -4,6 +4,7 @@ import * as SecurityForm from "../../../components/SettingsSecurityForm/Settings
 import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import { SecurityPage } from "./SecurityPage"
 import i18next from "i18next"
+import { mockApiError } from "testHelpers/entities"
 
 const { t } = i18next
 
@@ -54,17 +55,14 @@ describe("SecurityPage", () => {
 
   describe("when the old_password is incorrect", () => {
     it("shows an error", async () => {
-      jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
-        isAxiosError: true,
-        response: {
-          data: {
-            message: "Incorrect password.",
-            validations: [
-              { detail: "Incorrect password.", field: "old_password" },
-            ],
-          },
-        },
-      })
+      jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
+        mockApiError({
+          message: "Incorrect password.",
+          validations: [
+            { detail: "Incorrect password.", field: "old_password" },
+          ],
+        }),
+      )
 
       const { user } = renderPage()
       await fillAndSubmitForm()
@@ -79,15 +77,12 @@ describe("SecurityPage", () => {
 
   describe("when the password is invalid", () => {
     it("shows an error", async () => {
-      jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
-        isAxiosError: true,
-        response: {
-          data: {
-            message: "Invalid password.",
-            validations: [{ detail: "Invalid password.", field: "password" }],
-          },
-        },
-      })
+      jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
+        mockApiError({
+          message: "Invalid password.",
+          validations: [{ detail: "Invalid password.", field: "password" }],
+        }),
+      )
 
       const { user } = renderPage()
       await fillAndSubmitForm()

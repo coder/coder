@@ -1,7 +1,7 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import {
-  makeMockValidationApiError,
+  mockApiError,
   MockTemplateVersion,
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
@@ -69,7 +69,7 @@ WithUpdateTemplateError.args = {
     MockTemplateVersionVariable4,
   ],
   errors: {
-    updateTemplateError: makeMockValidationApiError({
+    updateTemplateError: mockApiError({
       message: "Something went wrong.",
     }),
   },

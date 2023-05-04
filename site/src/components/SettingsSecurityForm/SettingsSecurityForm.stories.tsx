@@ -1,5 +1,6 @@
 import { Story } from "@storybook/react"
 import { SecurityForm, SecurityFormProps } from "./SettingsSecurityForm"
+import { mockApiError } from "testHelpers/entities"
 
 export default {
   title: "components/SettingsSecurityForm",
@@ -36,20 +37,15 @@ Loading.args = {
 export const WithError = Template.bind({})
 WithError.args = {
   ...Example.args,
-  updateSecurityError: {
-    response: {
-      data: {
-        message: "Old password is incorrect",
-        validations: [
-          {
-            field: "old_password",
-            detail: "Old password is incorrect.",
-          },
-        ],
+  updateSecurityError: mockApiError({
+    message: "Old password is incorrect",
+    validations: [
+      {
+        field: "old_password",
+        detail: "Old password is incorrect.",
       },
-    },
-    isAxiosError: true,
-  },
+    ],
+  }),
   initialTouched: {
     old_password: true,
   },

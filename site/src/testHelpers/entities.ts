@@ -1253,6 +1253,7 @@ type MockAPIInput = {
 }
 
 type MockAPIOutput = {
+  isAxiosError: true
   response: {
     data: {
       message: string
@@ -1260,14 +1261,15 @@ type MockAPIOutput = {
       validations: FieldError[] | undefined
     }
   }
-  isAxiosError: boolean
 }
 
-export const makeMockValidationApiError = ({
+export const mockApiError = ({
   message,
   detail,
   validations,
 }: MockAPIInput): MockAPIOutput => ({
+  // This is how axios can check if it is an axios error when calling isAxiosError
+  isAxiosError: true,
   response: {
     data: {
       message: message ?? "Something went wrong.",
@@ -1275,7 +1277,6 @@ export const makeMockValidationApiError = ({
       validations: validations ?? undefined,
     },
   },
-  isAxiosError: true,
 })
 
 export const MockEntitlements: TypesGen.Entitlements = {

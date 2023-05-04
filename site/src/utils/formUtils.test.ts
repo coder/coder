@@ -1,6 +1,6 @@
 import { FormikContextType } from "formik/dist/types"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "./formUtils"
-import { makeMockValidationApiError } from "testHelpers/entities"
+import { mockApiError } from "testHelpers/entities"
 
 interface TestType {
   untouchedGoodField: string
@@ -72,7 +72,7 @@ describe("form util functions", () => {
       it("shows an error if there is only an API error", () => {
         const getFieldHelpers = getFormHelpers<TestType>(
           form,
-          makeMockValidationApiError({
+          mockApiError({
             validations: [
               {
                 field: "touchedGoodField",
@@ -94,7 +94,7 @@ describe("form util functions", () => {
       it("shows the API error if both are present", () => {
         const getFieldHelpers = getFormHelpers<TestType>(
           form,
-          makeMockValidationApiError({
+          mockApiError({
             validations: [
               {
                 field: "touchedBadField",
