@@ -90,6 +90,78 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Update workspace proxy
+// @ID update-workspace-proxy
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
+// @Param request body codersdk.PatchWorkspaceProxy true "Update workspace proxy request"
+// @Success 200 {object} codersdk.WorkspaceProxy
+// @Router /workspaceproxies/{workspaceproxy} [patch]
+func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		proxy             = httpmw.WorkspaceProxyParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	aReq.Old = proxy
+	defer commitAudit()
+
+	var req codersdk.PatchWorkspaceProxy
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var hashedSecret []byte
+	var fullToken string
+	if req.RegenerateToken {
+		var err error
+		fullToken, hashedSecret, err = generateWorkspaceProxyToken(proxy.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	}
+
+	updatedProxy, err := api.Database.UpdateWorkspaceProxy(ctx, database.UpdateWorkspaceProxyParams{
+		Name:        req.Name,
+		DisplayName: req.DisplayName,
+		Icon:        req.Icon,
+		ID:          proxy.ID,
+		// If hashedSecret is nil or empty, this will not update the secret.
+		TokenHashedSecret: hashedSecret,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = updatedProxy
+	status, ok := api.ProxyHealth.HealthStatus()[updatedProxy.ID]
+	if !ok {
+		// The proxy should have some status, but just in case.
+		status.Status = proxyhealth.Unknown
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PatchWorkspaceProxyResponse{
+		Proxy:      convertProxy(updatedProxy, status),
+		ProxyToken: fullToken,
+	})
+
+	// Update the proxy cache.
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
+}
+
 // @Summary Delete workspace proxy
 // @ID delete-workspace-proxy
 // @Security CoderSessionToken
@@ -107,7 +179,7 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
-			Action:  database.AuditActionCreate,
+			Action:  database.AuditActionDelete,
 		})
 	)
 	aReq.Old = proxy
@@ -133,6 +205,23 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 
 	// Update the proxy health cache to remove this proxy.
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
+}
+
+// @Summary Get workspace proxy
+// @ID get-workspace-proxy
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceProxy
+// @Router /workspaceproxies/{workspaceproxy} [get]
+func (api *API) getWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		proxy = httpmw.WorkspaceProxyParam(r)
+	)
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertProxy(proxy, api.ProxyHealth.HealthStatus()[proxy.ID]))
 }
 
 // @Summary Create workspace proxy
@@ -177,13 +266,11 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	id := uuid.New()
-	secret, err := cryptorand.HexString(64)
+	fullToken, hashedSecret, err := generateWorkspaceProxyToken(id)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	hashedSecret := sha256.Sum256([]byte(secret))
-	fullToken := fmt.Sprintf("%s:%s", id, secret)
 
 	proxy, err := api.Database.InsertWorkspaceProxy(ctx, database.InsertWorkspaceProxyParams{
 		ID:                id,
@@ -465,6 +552,16 @@ func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.IssueReconnectingPTYSignedTokenResponse{
 		SignedToken: tokenStr,
 	})
+}
+
+func generateWorkspaceProxyToken(id uuid.UUID) (token string, hashed []byte, err error) {
+	secret, err := cryptorand.HexString(64)
+	if err != nil {
+		return "", nil, xerrors.Errorf("generate token: %w", err)
+	}
+	hashedSecret := sha256.Sum256([]byte(secret))
+	fullToken := fmt.Sprintf("%s:%s", id, secret)
+	return fullToken, hashedSecret[:], nil
 }
 
 func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhealth.ProxyStatus) []codersdk.WorkspaceProxy {

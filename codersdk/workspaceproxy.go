@@ -110,6 +110,37 @@ func (c *Client) WorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
 	return proxies, json.NewDecoder(res.Body).Decode(&proxies)
 }
 
+type PatchWorkspaceProxy struct {
+	ID              uuid.UUID `json:"id" format:"uuid" validate:"required"`
+	Name            string    `json:"name" validate:"required"`
+	DisplayName     string    `json:"display_name" validate:"required"`
+	Icon            string    `json:"icon" validate:"required"`
+	RegenerateToken bool      `json:"regenerate_token"`
+}
+
+type PatchWorkspaceProxyResponse struct {
+	Proxy WorkspaceProxy `json:"proxy" table:"proxy,recursive"`
+	// ProxyToken is only returned if 'RegenerateToken' is set.
+	ProxyToken string `json:"proxy_token" table:"proxy token,default_sort"`
+}
+
+func (c *Client) PatchWorkspaceProxy(ctx context.Context, req PatchWorkspaceProxy) (WorkspaceProxy, error) {
+	res, err := c.Request(ctx, http.MethodPatch,
+		fmt.Sprintf("/api/v2/workspaceproxies/%s", req.ID.String()),
+		nil,
+	)
+	if err != nil {
+		return WorkspaceProxy{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return WorkspaceProxy{}, ReadBodyAsError(res)
+	}
+	var resp WorkspaceProxy
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 func (c *Client) DeleteWorkspaceProxyByName(ctx context.Context, name string) error {
 	res, err := c.Request(ctx, http.MethodDelete,
 		fmt.Sprintf("/api/v2/workspaceproxies/%s", name),
@@ -129,6 +160,28 @@ func (c *Client) DeleteWorkspaceProxyByName(ctx context.Context, name string) er
 
 func (c *Client) DeleteWorkspaceProxyByID(ctx context.Context, id uuid.UUID) error {
 	return c.DeleteWorkspaceProxyByName(ctx, id.String())
+}
+
+func (c *Client) WorkspaceProxyByName(ctx context.Context, name string) (WorkspaceProxy, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/workspaceproxies/%s", name),
+		nil,
+	)
+	if err != nil {
+		return WorkspaceProxy{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceProxy{}, ReadBodyAsError(res)
+	}
+
+	var resp WorkspaceProxy
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) WorkspaceProxyByID(ctx context.Context, id uuid.UUID) (WorkspaceProxy, error) {
+	return c.WorkspaceProxyByName(ctx, id.String())
 }
 
 type RegionsResponse struct {

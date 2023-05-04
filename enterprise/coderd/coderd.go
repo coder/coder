@@ -120,6 +120,8 @@ func New(ctx context.Context, options *Options) (*API, error) {
 					httpmw.ExtractWorkspaceProxyParam(api.Database),
 				)
 
+				r.Get("/", api.getWorkspaceProxy)
+				r.Patch("/", api.patchWorkspaceProxy)
 				r.Delete("/", api.deleteWorkspaceProxy)
 			})
 		})

@@ -32,6 +32,83 @@ func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 	return cmd
 }
 
+func (r *RootCmd) patchProxy() *clibase.Cmd {
+	var (
+		proxyName   string
+		displayName string
+		proxyIcon   string
+		formatter   = cliui.NewOutputFormatter(
+			// Text formatter should be human readable.
+			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+				response, ok := data.(codersdk.WorkspaceProxy)
+				if !ok {
+					return nil, xerrors.Errorf("unexpected type %T", data)
+				}
+				return fmt.Sprintf("Workspace Proxy %q updated successfully.", response.Name), nil
+			}),
+			cliui.JSONFormat(),
+			// Table formatter expects a slice, make a slice of one.
+			cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"proxy name", "proxy url"}),
+				func(data any) (any, error) {
+					response, ok := data.(codersdk.WorkspaceProxy)
+					if !ok {
+						return nil, xerrors.Errorf("unexpected type %T", data)
+					}
+					return []codersdk.WorkspaceProxy{response}, nil
+				}),
+		)
+	)
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
+		Use:   "edit <name|id>",
+		Short: "Edit a workspace proxy",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
+			// This is cheeky, but you can also use a uuid string in
+			// 'DeleteWorkspaceProxyByName' and it will work.
+			proxy, err := client.WorkspaceProxyByName(ctx, inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
+			}
+
+			updated, err := client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
+				ID:          proxy.ID,
+				Name:        proxyName,
+				DisplayName: displayName,
+				Icon:        proxyIcon,
+			})
+
+			_, _ = formatter.Format(ctx, updated)
+			return nil
+		},
+	}
+
+	formatter.AttachOptions(&cmd.Options)
+	cmd.Options.Add(
+		clibase.Option{
+			Flag:        "name",
+			Description: "(Optional) Name of the proxy. This is used to identify the proxy.",
+			Value:       clibase.StringOf(&proxyName),
+		},
+		clibase.Option{
+			Flag:        "display-name",
+			Description: "(Optional) Display of the proxy. If omitted, the name is reused as the display name.",
+			Value:       clibase.StringOf(&displayName),
+		},
+		clibase.Option{
+			Flag:        "icon",
+			Description: "(Optional) Display icon of the proxy.",
+			Value:       clibase.StringOf(&proxyIcon),
+		},
+	)
+
+	return cmd
+}
+
 func (r *RootCmd) deleteProxy() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
