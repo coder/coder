@@ -201,7 +201,7 @@ resource "kubernetes_pod" "main" {
       }
 
       env {
-        name = "CODER_INNER_HOSTNAME"
+        name  = "CODER_INNER_HOSTNAME"
         value = data.coder_workspace.me.name
       }
 
