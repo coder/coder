@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
@@ -230,6 +231,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		TemplateScheduleStore: api.AGPL.TemplateScheduleStore,
 		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 		Tags:                  rawTags,
+		Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))

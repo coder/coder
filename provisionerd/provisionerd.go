@@ -337,6 +337,9 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 
+	if len(job.TraceMetadata) > 0 {
+		ctx = tracing.MetadataToContext(ctx, job.TraceMetadata)
+	}
 	ctx, span := p.tracer.Start(ctx, tracing.FuncName(), trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd"),
 		attribute.String("job_id", job.JobId),

@@ -971,6 +971,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		i := i
 		eg.Go(func() error {
 			templateVersion, err := client.CreateTemplateVersion(egCtx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+				Name:          uuid.NewString(),
 				TemplateID:    template.ID,
 				FileID:        file.ID,
 				StorageMethod: codersdk.ProvisionerStorageMethodFile,

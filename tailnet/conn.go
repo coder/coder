@@ -631,6 +631,14 @@ func (c *Conn) sendNode() {
 		return
 	}
 	node := c.selfNode()
+	// Conn.UpdateNodes will skip any nodes that don't have the PreferredDERP
+	// set to non-zero, since we cannot reach nodes without DERP for discovery.
+	// Therefore, there is no point in sending the node without this, and we can
+	// save ourselves from churn in the tailscale/wireguard layer.
+	if node.PreferredDERP == 0 {
+		c.logger.Debug(context.Background(), "skipped sending node; no PreferredDERP", slog.F("node", node))
+		return
+	}
 	nodeCallback := c.nodeCallback
 	if nodeCallback == nil {
 		return
