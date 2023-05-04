@@ -8,7 +8,7 @@ import {
   emptySchedule,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
 import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
-import { makeMockApiError } from "testHelpers/entities"
+import { mockApiError } from "testHelpers/entities"
 import {
   WorkspaceScheduleForm,
   WorkspaceScheduleFormProps,
@@ -81,7 +81,7 @@ export const WithError = Template.bind({})
 WithError.args = {
   initialValues: { ...defaultInitialValues, ttl: 100 },
   initialTouched: { ttl: true },
-  submitScheduleError: makeMockApiError({
+  submitScheduleError: mockApiError({
     message: "Something went wrong.",
     validations: [{ field: "ttl_ms", detail: "Invalid time until shutdown." }],
   }),

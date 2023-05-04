@@ -201,6 +201,11 @@ resource "kubernetes_pod" "main" {
       }
 
       env {
+        name  = "CODER_INNER_HOSTNAME"
+        value = data.coder_workspace.me.name
+      }
+
+      env {
         name  = "CODER_ADD_TUN"
         value = var.create_tun
       }

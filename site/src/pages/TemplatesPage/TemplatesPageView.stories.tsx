@@ -1,6 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import {
-  makeMockApiError,
+  mockApiError,
   MockOrganization,
   MockPermissions,
   MockTemplate,
@@ -89,7 +89,7 @@ Error.args = {
       ...MockPermissions,
       createTemplates: false,
     },
-    error: makeMockApiError({
+    error: mockApiError({
       message: "Something went wrong fetching templates.",
     }),
     templates: undefined,

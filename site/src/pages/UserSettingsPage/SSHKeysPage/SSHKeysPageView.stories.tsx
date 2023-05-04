@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { makeMockApiError } from "testHelpers/entities"
+import { mockApiError } from "testHelpers/entities"
 import { SSHKeysPageView, SSHKeysPageViewProps } from "./SSHKeysPageView"
 
 export default {
@@ -39,7 +39,7 @@ export const WithGetSSHKeyError = Template.bind({})
 WithGetSSHKeyError.args = {
   ...Example.args,
   hasLoaded: false,
-  getSSHKeyError: makeMockApiError({
+  getSSHKeyError: mockApiError({
     message: "Failed to get SSH key",
   }),
 }
@@ -47,7 +47,7 @@ WithGetSSHKeyError.args = {
 export const WithRegenerateSSHKeyError = Template.bind({})
 WithRegenerateSSHKeyError.args = {
   ...Example.args,
-  regenerateSSHKeyError: makeMockApiError({
+  regenerateSSHKeyError: mockApiError({
     message: "Failed to regenerate SSH key",
   }),
 }

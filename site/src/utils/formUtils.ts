@@ -34,37 +34,32 @@ interface FormHelpers {
 }
 
 export const getFormHelpers =
-  <T>(form: FormikContextType<T>, error?: Error | unknown) =>
+  <TFormValues>(form: FormikContextType<TFormValues>, error?: unknown) =>
   (
-    name: string,
-    HelperText: ReactNode = "",
-    backendErrorName?: string,
+    fieldName: keyof TFormValues | string,
+    helperText?: ReactNode,
+    // backendFieldName is used when the value in the form is named different from the backend
+    backendFieldName?: string,
   ): FormHelpers => {
     const apiValidationErrors = isApiValidationError(error)
-      ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
-      : // This should not return the error since it is not and api validation error but I didn't have time to fix this and tests
-        error
-
-    if (typeof name !== "string") {
-      throw new Error(
-        `name must be type of string, instead received '${typeof name}'`,
-      )
-    }
-
-    const apiErrorName = backendErrorName ?? name
-
-    // getIn is a util function from Formik that gets at any depth of nesting
-    // and is necessary for the types to work
-    const touched = getIn(form.touched, name)
-    const apiError = getIn(apiValidationErrors, apiErrorName)
-    const frontendError = getIn(form.errors, name)
-    const returnError = apiError ?? frontendError
+      ? (mapApiErrorToFieldErrors(
+          error.response.data,
+        ) as FormikErrors<TFormValues> & { [key: string]: string })
+      : undefined
+    // Since the fieldName can be a path string like parameters[0].value we need to use getIn
+    const touched = Boolean(getIn(form.touched, fieldName.toString()))
+    const formError = getIn(form.errors, fieldName.toString())
+    // Since the field in the form can be diff from the backend, we need to
+    // check for both when getting the error
+    const apiField = backendFieldName ?? fieldName
+    const apiError = apiValidationErrors?.[apiField.toString()]
+    const errorToDisplay = apiError ?? formError
 
     return {
-      ...form.getFieldProps(name),
-      id: name,
-      error: touched && Boolean(returnError),
-      helperText: touched ? returnError || HelperText : HelperText,
+      ...form.getFieldProps(fieldName),
+      id: fieldName.toString(),
+      error: touched && Boolean(errorToDisplay),
+      helperText: touched ? errorToDisplay ?? helperText : helperText,
     }
   }
 
@@ -102,3 +97,5 @@ export const templateDisplayNameValidator = (
       Language.nameTooLong(displayName, templateDisplayNameMaxLength),
     )
     .optional()
+
+export const iconValidator = Yup.string().label("Icon").max(256)
