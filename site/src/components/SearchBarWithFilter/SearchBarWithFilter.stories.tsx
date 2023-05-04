@@ -4,6 +4,7 @@ import {
   SearchBarWithFilter,
   SearchBarWithFilterProps,
 } from "./SearchBarWithFilter"
+import { mockApiError } from "testHelpers/entities"
 
 export default {
   title: "components/SearchBarWithFilter",
@@ -34,18 +35,13 @@ WithError.args = {
     { query: userFilterQuery.active, name: "Active users" },
     { query: "random query", name: "Random query" },
   ],
-  error: {
-    response: {
-      data: {
-        message: "Invalid user search query.",
-        validations: [
-          {
-            field: "status",
-            detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
-          },
-        ],
+  error: mockApiError({
+    message: "Invalid user search query.",
+    validations: [
+      {
+        field: "status",
+        detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
       },
-    },
-    isAxiosError: true,
-  },
+    ],
+  }),
 }

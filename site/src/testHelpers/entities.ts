@@ -341,6 +341,8 @@ export const MockTemplate: TypesGen.Template = {
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
   allow_user_cancel_workspace_jobs: true,
+  allow_user_autostart: false,
+  allow_user_autostop: false,
 }
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -1251,6 +1253,7 @@ type MockAPIInput = {
 }
 
 type MockAPIOutput = {
+  isAxiosError: true
   response: {
     data: {
       message: string
@@ -1258,16 +1261,15 @@ type MockAPIOutput = {
       validations: FieldError[] | undefined
     }
   }
-  isAxiosError: boolean
 }
 
-type MakeMockApiErrorFunction = (input: MockAPIInput) => MockAPIOutput
-
-export const makeMockApiError: MakeMockApiErrorFunction = ({
+export const mockApiError = ({
   message,
   detail,
   validations,
-}) => ({
+}: MockAPIInput): MockAPIOutput => ({
+  // This is how axios can check if it is an axios error when calling isAxiosError
+  isAxiosError: true,
   response: {
     data: {
       message: message ?? "Something went wrong.",
@@ -1275,7 +1277,6 @@ export const makeMockApiError: MakeMockApiErrorFunction = ({
       validations: validations ?? undefined,
     },
   },
-  isAxiosError: true,
 })
 
 export const MockEntitlements: TypesGen.Entitlements = {

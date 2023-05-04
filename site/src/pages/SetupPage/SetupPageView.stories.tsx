@@ -1,6 +1,7 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import { SetupPageView, SetupPageViewProps } from "./SetupPageView"
+import { mockApiError } from "testHelpers/entities"
 
 export default {
   title: "pages/SetupPageView",
@@ -14,27 +15,18 @@ const Template: Story<SetupPageViewProps> = (args: SetupPageViewProps) => (
 export const Ready = Template.bind({})
 Ready.args = {
   onSubmit: action("submit"),
-  isCreating: false,
-}
-
-export const UnknownError = Template.bind({})
-UnknownError.args = {
-  onSubmit: action("submit"),
-  isCreating: false,
-  genericError: "Something went wrong",
 }
 
 export const FormError = Template.bind({})
 FormError.args = {
   onSubmit: action("submit"),
-  isCreating: false,
-  formErrors: {
-    username: "Username taken",
-  },
+  error: mockApiError({
+    validations: [{ field: "username", detail: "Username taken" }],
+  }),
 }
 
 export const Loading = Template.bind({})
 Loading.args = {
   onSubmit: action("submit"),
-  isCreating: true,
+  isLoading: true,
 }

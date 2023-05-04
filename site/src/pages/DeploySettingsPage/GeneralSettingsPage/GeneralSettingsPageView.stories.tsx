@@ -1,8 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import {
-  makeMockApiError,
-  MockDeploymentDAUResponse,
-} from "testHelpers/entities"
+import { mockApiError, MockDeploymentDAUResponse } from "testHelpers/entities"
 import {
   GeneralSettingsPageView,
   GeneralSettingsPageViewProps,
@@ -43,5 +40,7 @@ NoDAUs.args = {
 export const DAUError = Template.bind({})
 DAUError.args = {
   deploymentDAUs: undefined,
-  getDeploymentDAUsError: makeMockApiError({ message: "Error fetching DAUs." }),
+  getDeploymentDAUsError: mockApiError({
+    message: "Error fetching DAUs.",
+  }),
 }

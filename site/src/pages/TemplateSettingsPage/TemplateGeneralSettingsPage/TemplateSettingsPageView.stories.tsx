@@ -1,6 +1,6 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import { makeMockApiError, MockTemplate } from "testHelpers/entities"
+import { mockApiError, MockTemplate } from "testHelpers/entities"
 import {
   TemplateSettingsPageView,
   TemplateSettingsPageViewProps,
@@ -25,7 +25,7 @@ Example.args = {}
 
 export const SaveTemplateSettingsError = Template.bind({})
 SaveTemplateSettingsError.args = {
-  submitError: makeMockApiError({
+  submitError: mockApiError({
     message: 'Template "test" already exists.',
     validations: [
       {
