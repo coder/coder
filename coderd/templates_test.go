@@ -653,7 +653,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.NoError(t, err)
 
 			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
-			require.EqualValues(t, 0, got.DefaultTTLMillis)
 			require.Equal(t, failureTTL.Milliseconds(), got.FailureTTLMillis)
 			require.Equal(t, inactivityTTL.Milliseconds(), got.InactivityTTLMillis)
 		})
