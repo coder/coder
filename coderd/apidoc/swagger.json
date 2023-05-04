@@ -7825,7 +7825,7 @@
           "type": "string"
         },
         "failure_ttl_ms": {
-          "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the workspace actions\nfeature",
+          "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
           "type": "integer"
         },
         "icon": {
