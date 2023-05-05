@@ -198,7 +198,7 @@ type Object struct {
 }
 
 // hashACLMapPreimage feeds the ACL map preimage into the hash function.
-func hashACLMapPreimage(hash io.Writer, prefix string, aclList map[string][]Action) {
+func hashACLMapPreimage(hash io.Writer, aclList map[string][]Action) {
 	// We have to sort the keys so that the hash is consistent since map access
 	// is random. This allocation is unfortunate.
 	keys := make([]string, 0, len(aclList))
@@ -206,25 +206,24 @@ func hashACLMapPreimage(hash io.Writer, prefix string, aclList map[string][]Acti
 	for _, k := range keys {
 		v := aclList[k]
 		// Writing user:<name>:<action>,<action>,
-		hash.Write([]byte("user:"))
-		hash.Write([]byte(k))
-		hash.Write([]byte(":"))
+		_, _ = hash.Write([]byte("user:"))
+		_, _ = hash.Write([]byte(k))
+		_, _ = hash.Write([]byte(":"))
 		for _, a := range v {
-			hash.Write([]byte(a))
+			_, _ = hash.Write([]byte(a))
 			// A trailing slash doesn't matter.
-			hash.Write([]byte(","))
+			_, _ = hash.Write([]byte(","))
 		}
 	}
 }
 
 func (z Object) Hash() []byte {
 	hash := sha256.New()
-	hash.Write([]byte(z.ID))
-	hash.Write([]byte(z.Owner))
-	hash.Write([]byte(z.OrgID))
-	hash.Write([]byte(z.Type))
-	hashACLMapPreimage(hash, "user:", z.ACLUserList)
-	hashACLMapPreimage(hash, "user:", z.ACLUserList)
+	_, _ = hash.Write([]byte(z.ID))
+	_, _ = hash.Write([]byte(z.Owner))
+	_, _ = hash.Write([]byte(z.OrgID))
+	_, _ = hash.Write([]byte(z.Type))
+	hashACLMapPreimage(hash, z.ACLUserList)
 
 	return hash.Sum(nil)
 }
