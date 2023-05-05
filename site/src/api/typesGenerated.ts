@@ -630,6 +630,21 @@ export interface PatchTemplateVersionRequest {
   readonly name: string
 }
 
+// From codersdk/workspaceproxy.go
+export interface PatchWorkspaceProxy {
+  readonly id: string
+  readonly name: string
+  readonly display_name: string
+  readonly icon: string
+  readonly regenerate_token: boolean
+}
+
+// From codersdk/workspaceproxy.go
+export interface PatchWorkspaceProxyResponse {
+  readonly proxy: WorkspaceProxy
+  readonly proxy_token: string
+}
+
 // From codersdk/deployment.go
 export interface PprofConfig {
   readonly enable: boolean
@@ -1258,6 +1273,7 @@ export interface WorkspaceOptions {
 export interface WorkspaceProxy {
   readonly id: string
   readonly name: string
+  readonly display_name: string
   readonly icon: string
   readonly url: string
   readonly wildcard_hostname: string
