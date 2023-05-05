@@ -17,7 +17,8 @@ type Config struct {
 	// Duration is the total duration for which to send traffic to the agent.
 	Duration time.Duration `json:"duration"`
 
-	// TicksInterval specifies how many times per second we send traffic.
+	// TickInterval specifies the interval between ticks (that is, attempts to
+	// send data to workspace agents).
 	TickInterval time.Duration `json:"tick_interval"`
 }
 
