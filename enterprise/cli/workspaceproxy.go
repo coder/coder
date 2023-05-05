@@ -26,6 +26,7 @@ func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 			r.createProxy(),
 			r.deleteProxy(),
 			r.listProxies(),
+			r.patchProxy(),
 		},
 	}
 
@@ -81,6 +82,9 @@ func (r *RootCmd) patchProxy() *clibase.Cmd {
 				DisplayName: displayName,
 				Icon:        proxyIcon,
 			})
+			if err != nil {
+				return xerrors.Errorf("update workspace proxy %q: %w", inv.Args[0], err)
+			}
 
 			_, _ = formatter.Format(ctx, updated)
 			return nil
