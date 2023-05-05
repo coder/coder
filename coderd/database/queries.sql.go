@@ -2829,7 +2829,7 @@ SELECT
 FROM
 	workspace_proxies
 WHERE
-		deleted = false
+	deleted = false
 `
 
 func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error) {
@@ -3091,7 +3091,7 @@ SET
 		WHEN length($4 :: bytea) > 0  THEN $4 :: bytea
 		ELSE  workspace_proxies.token_hashed_secret
 	END,
-    -- Always update this timestamp.
+	-- Always update this timestamp.
 	updated_at = Now()
 WHERE
 	id = $5

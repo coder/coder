@@ -48,7 +48,7 @@ type ProxyHealthReport struct {
 type WorkspaceProxy struct {
 	ID          uuid.UUID `json:"id" format:"uuid" table:"id"`
 	Name        string    `json:"name" table:"name,default_sort"`
-	DisplayName string    `json:"display_name" table:"display_name""`
+	DisplayName string    `json:"display_name" table:"display_name"`
 	Icon        string    `json:"icon" table:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
 	URL string `json:"url" table:"url"`
