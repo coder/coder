@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -574,6 +576,15 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	metadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error unmarshalling metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// Create a dry-run job
 	jobID := uuid.New()
 	provisionerJob, err := api.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -589,6 +600,10 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		Input:          input,
 		// Copy tags from the previous run.
 		Tags: job.Tags,
+		TraceMetadata: pqtype.NullRawMessage{
+			Valid:      true,
+			RawMessage: metadataRaw,
+		},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1408,6 +1423,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		if err != nil {
 			return xerrors.Errorf("marshal job input: %w", err)
 		}
+		traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
+		if err != nil {
+			return xerrors.Errorf("marshal job metadata: %w", err)
+		}
 
 		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             jobID,
@@ -1421,6 +1440,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          jobInput,
 			Tags:           tags,
+			TraceMetadata: pqtype.NullRawMessage{
+				Valid:      true,
+				RawMessage: traceMetadataRaw,
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)

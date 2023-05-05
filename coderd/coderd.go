@@ -236,6 +236,9 @@ func New(options *Options) *API {
 	if options.SSHConfig.HostnamePrefix == "" {
 		options.SSHConfig.HostnamePrefix = "coder."
 	}
+	if options.TracerProvider == nil {
+		options.TracerProvider = trace.NewNoopTracerProvider()
+	}
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(ctx context.Context, _ database.Store, id uuid.UUID, groups []string) error {
 			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
@@ -446,7 +449,7 @@ func New(options *Options) *API {
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
-					apiKeyMiddleware,
+					apiKeyMiddlewareRedirect,
 				)
 				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
 			})
@@ -898,6 +901,7 @@ func compressHandler(h http.Handler) http.Handler {
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
 func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce time.Duration) (client proto.DRPCProvisionerDaemonClient, err error) {
+	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := provisionersdk.MemTransportPipe()
 	defer func() {
 		if err != nil {
@@ -937,6 +941,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Provisioners:          daemon.Provisioners,
 		GitAuthConfigs:        api.GitAuthConfigs,
 		Telemetry:             api.Telemetry,
+		Tracer:                tracer,
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,
 		Auditor:               &api.Auditor,
@@ -947,14 +952,16 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	if err != nil {
 		return nil, err
 	}
-	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
-		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
-				return
-			}
-			api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+		drpcserver.Options{
+			Log: func(err error) {
+				if xerrors.Is(err, io.EOF) {
+					return
+				}
+				api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+			},
 		},
-	})
+	)
 	go func() {
 		err := server.Serve(ctx, serverSession)
 		if err != nil && !xerrors.Is(err, io.EOF) {

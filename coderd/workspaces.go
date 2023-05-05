@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/searchquery"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -514,6 +516,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("marshal provision job: %w", err)
 		}
+		traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
+		if err != nil {
+			return xerrors.Errorf("marshal metadata: %w", err)
+		}
 		provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             uuid.New(),
 			CreatedAt:      now,
@@ -526,6 +532,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			FileID:         templateVersionJob.FileID,
 			Input:          input,
 			Tags:           tags,
+			TraceMetadata: pqtype.NullRawMessage{
+				Valid:      true,
+				RawMessage: traceMetadataRaw,
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)

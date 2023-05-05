@@ -1185,6 +1185,7 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
+	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
 	wg.Add(1)
 	go func() {
@@ -1204,6 +1205,7 @@ func newProvisionerDaemon(
 			},
 			CachePath: cacheDir,
 			Logger:    logger,
+			Tracer:    tracer,
 		})
 		if err != nil && !xerrors.Is(err, context.Canceled) {
 			select {

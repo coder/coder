@@ -43,6 +43,9 @@ message AcquiredJob {
         TemplateImport template_import = 7;
         TemplateDryRun template_dry_run = 8;
     }
+	// trace_metadata is currently used for tracing information only. It allows
+	// jobs to be tied to the request that created them.
+	map<string, string> trace_metadata = 9;
 }
 
 message FailedJob {

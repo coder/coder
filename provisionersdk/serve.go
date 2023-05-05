@@ -13,6 +13,7 @@ import (
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -52,7 +53,7 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 	if err != nil {
 		return xerrors.Errorf("register provisioner: %w", err)
 	}
-	srv := drpcserver.New(mux)
+	srv := drpcserver.New(&tracing.DRPCHandler{Handler: mux})
 	// Only serve a single connection on the transport.
 	// Transports are not multiplexed, and provisioners are
 	// short-lived processes that can be executed concurrently.

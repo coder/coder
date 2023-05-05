@@ -25,11 +25,16 @@ type Pubsub interface {
 
 // Pubsub implementation using PostgreSQL.
 type pgPubsub struct {
+	ctx        context.Context
 	pgListener *pq.Listener
 	db         *sql.DB
 	mut        sync.Mutex
-	listeners  map[string]map[uuid.UUID]Listener
+	listeners  map[string]map[uuid.UUID]chan<- []byte
 }
+
+// messageBufferSize is the maximum number of unhandled messages we will buffer
+// for a subscriber before dropping messages.
+const messageBufferSize = 2048
 
 // Subscribe calls the listener when an event matching the name is received.
 func (p *pgPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {
@@ -45,25 +50,22 @@ func (p *pgPubsub) Subscribe(event string, listener Listener) (cancel func(), er
 		return nil, xerrors.Errorf("listen: %w", err)
 	}
 
-	var eventListeners map[uuid.UUID]Listener
+	var eventListeners map[uuid.UUID]chan<- []byte
 	var ok bool
 	if eventListeners, ok = p.listeners[event]; !ok {
-		eventListeners = map[uuid.UUID]Listener{}
+		eventListeners = make(map[uuid.UUID]chan<- []byte)
 		p.listeners[event] = eventListeners
 	}
 
-	var id uuid.UUID
-	for {
-		id = uuid.New()
-		if _, ok = eventListeners[id]; !ok {
-			break
-		}
-	}
-
-	eventListeners[id] = listener
+	ctx, cancelCallbacks := context.WithCancel(p.ctx)
+	messages := make(chan []byte, messageBufferSize)
+	go messagesToListener(ctx, messages, listener)
+	id := uuid.New()
+	eventListeners[id] = messages
 	return func() {
 		p.mut.Lock()
 		defer p.mut.Unlock()
+		cancelCallbacks()
 		listeners := p.listeners[event]
 		delete(listeners, id)
 
@@ -109,11 +111,11 @@ func (p *pgPubsub) listen(ctx context.Context) {
 		if notif == nil {
 			continue
 		}
-		p.listenReceive(ctx, notif)
+		p.listenReceive(notif)
 	}
 }
 
-func (p *pgPubsub) listenReceive(ctx context.Context, notif *pq.Notification) {
+func (p *pgPubsub) listenReceive(notif *pq.Notification) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	listeners, ok := p.listeners[notif.Channel]
@@ -122,7 +124,14 @@ func (p *pgPubsub) listenReceive(ctx context.Context, notif *pq.Notification) {
 	}
 	extra := []byte(notif.Extra)
 	for _, listener := range listeners {
-		go listener(ctx, extra)
+		select {
+		case listener <- extra:
+			// ok!
+		default:
+			// bad news, we dropped the event because the listener isn't
+			// keeping up
+			// TODO (spike): figure out a way to communicate this to the Listener
+		}
 	}
 }
 
@@ -150,11 +159,23 @@ func NewPubsub(ctx context.Context, database *sql.DB, connectURL string) (Pubsub
 		return nil, ctx.Err()
 	}
 	pgPubsub := &pgPubsub{
+		ctx:        ctx,
 		db:         database,
 		pgListener: listener,
-		listeners:  make(map[string]map[uuid.UUID]Listener),
+		listeners:  make(map[string]map[uuid.UUID]chan<- []byte),
 	}
 	go pgPubsub.listen(ctx)
 
 	return pgPubsub, nil
+}
+
+func messagesToListener(ctx context.Context, messages <-chan []byte, listener Listener) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case m := <-messages:
+			listener(ctx, m)
+		}
+	}
 }

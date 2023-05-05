@@ -68,8 +68,19 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 func TestRegoInputValue(t *testing.T) {
 	t.Parallel()
 
+	// Expand all roles and make sure we have a good copy.
+	// This is because these tests modify the roles, and we don't want to
+	// modify the original roles.
+	roles, err := RoleNames{RoleOrgMember(uuid.New()), RoleOrgAdmin(uuid.New()), RoleMember()}.Expand()
+	require.NoError(t, err, "failed to expand roles")
+	for i := range roles {
+		// If all cached values are nil, then the role will not use
+		// the shared cached value.
+		roles[i].cachedRegoValue = nil
+	}
+
 	actor := Subject{
-		Roles:  RoleNames{RoleOrgMember(uuid.New()), RoleOrgAdmin(uuid.New()), RoleMember()},
+		Roles:  Roles(roles),
 		ID:     uuid.NewString(),
 		Scope:  ScopeAll,
 		Groups: []string{uuid.NewString(), uuid.NewString(), uuid.NewString()},

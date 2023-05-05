@@ -35,6 +35,10 @@ const { t } = i18next
 const renderWorkspacePage = async () => {
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([])
+  jest.spyOn(api, "watchStartupLogs").mockImplementation((_, options) => {
+    options.onDone()
+    return new WebSocket("")
+  })
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
@@ -188,22 +192,32 @@ describe("WorkspacePage", () => {
   })
 
   it("requests an update when the user presses Update", async () => {
+    // Mocks
     jest
       .spyOn(api, "getWorkspaceByOwnerAndName")
       .mockResolvedValueOnce(MockOutdatedWorkspace)
+
     const updateWorkspaceMock = jest
       .spyOn(api, "updateWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
 
-    await testButton(
-      t("actionButton.update", { ns: "workspacePage" }),
-      updateWorkspaceMock,
-    )
+    // Render
+    await renderWorkspacePage()
+
+    // Actions
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId("workspace-update-button"))
+    const confirmButton = await screen.findByTestId("confirm-button")
+    await user.click(confirmButton)
+
+    // Assertions
+    await waitFor(() => {
+      expect(updateWorkspaceMock).toBeCalled()
+    })
   })
 
   it("updates the parameters when they are missing during update", async () => {
-    // Setup mocks
-    const user = userEvent.setup()
+    // Mocks
     jest
       .spyOn(api, "getWorkspaceByOwnerAndName")
       .mockResolvedValueOnce(MockOutdatedWorkspace)
@@ -215,23 +229,24 @@ describe("WorkspacePage", () => {
           MockTemplateVersionParameter2,
         ]),
       )
-    // Render page and wait for it to be loaded
-    renderWithAuth(<WorkspacePage />, {
-      route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
-      path: "/@:username/:workspace",
-    })
-    await waitForLoaderToBeRemoved()
-    // Click on the update button
-    const workspaceActions = screen.getByTestId("workspace-actions")
-    await user.click(
-      within(workspaceActions).getByRole("button", { name: "Update" }),
-    )
+
+    // Render
+    await renderWorkspacePage()
+
+    // Actions
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId("workspace-update-button"))
+    const confirmButton = await screen.findByTestId("confirm-button")
+    await user.click(confirmButton)
+
+    // The update was called
     await waitFor(() => {
       expect(api.updateWorkspace).toBeCalled()
-      // We want to clear this mock to use it later
       updateWorkspaceSpy.mockClear()
     })
-    // Fill the parameters and send the form
+
+    // After trying to update, a new dialog asking for missed parameters should
+    // be displayed and filled
     const dialog = await screen.findByTestId("dialog")
     const firstParameterInput = within(dialog).getByLabelText(
       MockTemplateVersionParameter1.name,
@@ -246,6 +261,7 @@ describe("WorkspacePage", () => {
     await user.clear(secondParameterInput)
     await user.type(secondParameterInput, "2")
     await user.click(within(dialog).getByRole("button", { name: "Update" }))
+
     // Check if the update was called using the values from the form
     await waitFor(() => {
       expect(api.updateWorkspace).toBeCalledWith(MockOutdatedWorkspace, [
