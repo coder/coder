@@ -19,6 +19,7 @@ import AddIcon from "@material-ui/icons/AddOutlined"
 import Popover from "@material-ui/core/Popover"
 import TextField from "@material-ui/core/TextField"
 import Button from "@material-ui/core/Button"
+import { WorkspaceStatusText } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -67,8 +68,14 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
 
   return (
     <>
-      <Stats aria-label={Language.workspaceDetails}>
+      <Stats aria-label={Language.workspaceDetails} className={styles.stats}>
         <StatsItem
+          className={styles.statsItem}
+          label="Status"
+          value={<WorkspaceStatusText build={workspace.latest_build} />}
+        />
+        <StatsItem
+          className={styles.statsItem}
           label={Language.templateLabel}
           value={
             <Link
@@ -80,6 +87,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           }
         />
         <StatsItem
+          className={styles.statsItem}
           label={Language.versionLabel}
           value={
             <>
@@ -100,6 +108,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           }
         />
         <StatsItem
+          className={styles.statsItem}
           label={Language.lastBuiltLabel}
           value={
             <>
@@ -110,6 +119,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         />
         {shouldDisplayScheduleLabel(workspace) && (
           <StatsItem
+            className={styles.statsItem}
             label={getScheduleLabel(workspace)}
             value={
               <span className={styles.scheduleValue}>
@@ -152,6 +162,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         )}
         {workspace.latest_build.daily_cost > 0 && (
           <StatsItem
+            className={styles.statsItem}
             label={Language.costLabel}
             value={`${workspace.latest_build.daily_cost} ${
               quota_budget ? `/ ${quota_budget}` : ""
@@ -296,6 +307,32 @@ const getScheduleLabel = (workspace: Workspace) => {
 }
 
 const useStyles = makeStyles((theme) => ({
+  stats: {
+    padding: 0,
+    border: 0,
+    gap: theme.spacing(6),
+    rowGap: theme.spacing(3),
+    flex: 1,
+
+    [theme.breakpoints.down("sm")]: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-start",
+      gap: theme.spacing(1),
+    },
+  },
+
+  statsItem: {
+    flexDirection: "column",
+    gap: 0,
+    padding: 0,
+
+    "& > span:first-child": {
+      fontSize: 12,
+      fontWeight: 500,
+    },
+  },
+
   scheduleValue: {
     display: "flex",
     alignItems: "center",
