@@ -273,7 +273,7 @@ export const useStyles = makeStyles((theme) => {
     },
 
     actions: {
-      [theme.breakpoints.down("sm")]: {
+      [theme.breakpoints.down('md')]: {
         flexDirection: "column",
       },
     },
@@ -309,5 +309,5 @@ export const useStyles = makeStyles((theme) => {
     fullWidth: {
       width: "100%",
     },
-  }
+  };
 })

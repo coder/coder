@@ -38,7 +38,7 @@ export const WorkspaceBuildStateError: React.FC<
 const useStyles = makeStyles((theme) => ({
   root: {
     background: theme.palette.warning.main,
-    padding: `${theme.spacing(2)}px`,
+    padding: theme.spacing(2),
     borderRadius: theme.shape.borderRadius,
     gap: 0,
   },
@@ -49,7 +49,7 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "space-between",
   },
   errorMessage: {
-    marginRight: `${theme.spacing(1)}px`,
+    marginRight: theme.spacing(1),
   },
   iconButton: {
     padding: 0,

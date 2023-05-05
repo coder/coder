@@ -10,7 +10,7 @@ import TableRow from "@mui/material/TableRow"
 import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
 import AddCircleOutline from "@mui/icons-material/AddCircleOutline"
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
-import AvatarGroup from "@material-ui/lab/AvatarGroup"
+import AvatarGroup from '@mui/material/AvatarGroup'
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"

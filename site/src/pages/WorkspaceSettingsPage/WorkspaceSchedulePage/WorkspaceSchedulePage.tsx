@@ -30,7 +30,7 @@ const getAutostop = (workspace: TypesGen.Workspace) =>
 
 const useStyles = makeStyles((theme) => ({
   topMargin: {
-    marginTop: `${theme.spacing(3)}px`,
+    marginTop: theme.spacing(3),
   },
   pageHeader: {
     paddingTop: 0,

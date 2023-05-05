@@ -95,7 +95,7 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
     >
       {children}
     </ReactMarkdown>
-  )
+  );
 }
 
 export const MemoizedMarkdown = memo(Markdown)

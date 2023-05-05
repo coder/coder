@@ -42,7 +42,7 @@ export const EnterpriseSnackbar: FC<
       action={
         <div className={styles.actionWrapper}>
           {action}
-          <IconButton onClick={onClose} className={styles.iconButton}>
+          <IconButton onClick={onClose} className={styles.iconButton} size="large">
             <CloseIcon className={styles.closeIcon} aria-label="close" />
           </IconButton>
         </div>
@@ -58,7 +58,7 @@ export const EnterpriseSnackbar: FC<
       }}
       onClose={onClose}
     />
-  )
+  );
 }
 
 const useStyles = makeStyles((theme) => ({

@@ -187,7 +187,7 @@ export const getPreferredProxy = (
     // Trim trailing slashes to be consistent
     preferredPathAppURL: pathAppURL.replace(/\/$/, ""),
     preferredWildcardHostname: wildcardHostname,
-  }
+  };
 }
 
 // Local storage functions

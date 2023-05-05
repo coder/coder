@@ -58,7 +58,7 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
   },
   collapseLink: {
-    marginTop: `${theme.spacing(2)}px`,
+    marginTop: theme.spacing(2),
   },
   text: {
     display: "flex",

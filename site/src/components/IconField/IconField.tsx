@@ -84,7 +84,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         />
       </Popover>
     </div>
-  )
+  );
 }
 
 const useStyles = makeStyles((theme) => ({

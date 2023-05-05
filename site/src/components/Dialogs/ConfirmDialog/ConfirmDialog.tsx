@@ -64,7 +64,7 @@ const useStyles = makeStyles((theme) => ({
       maxWidth: theme.spacing(55),
     },
     "& .MuiDialogActions-spacing": {
-      padding: `0 ${theme.spacing(5)}px ${theme.spacing(5)}px`,
+      padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,
     },
   },
   dialogContent: {

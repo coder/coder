@@ -181,9 +181,9 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
-    padding: `${theme.spacing(2.5)}px ${theme.spacing(3.5)}px ${theme.spacing(
+    padding: `${theme.spacing(2.5)} ${theme.spacing(3.5)} ${theme.spacing(
       3.5,
-    )}px`,
+    )}`,
     width: theme.spacing(52),
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.25),

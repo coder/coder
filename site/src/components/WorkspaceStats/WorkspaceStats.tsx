@@ -314,7 +314,7 @@ const useStyles = makeStyles((theme) => ({
     rowGap: theme.spacing(3),
     flex: 1,
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",

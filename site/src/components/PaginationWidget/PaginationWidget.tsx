@@ -27,7 +27,7 @@ export const PaginationWidget = ({
   paginationRef,
 }: PaginationWidgetProps): JSX.Element | null => {
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const styles = useStyles()
   const [paginationState, send] = useActor(paginationRef)
 
@@ -106,6 +106,6 @@ const useStyles = makeStyles((theme) => ({
   },
 
   prevLabelStyles: {
-    marginRight: `${theme.spacing(0.5)}px`,
+    marginRight: theme.spacing(0.5),
   },
 }))

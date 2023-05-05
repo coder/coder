@@ -40,7 +40,7 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: 1920,
     padding: theme.spacing(5, 3.5, 0, 4),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       flexDirection: "column",
       padding: 0,
     },
@@ -59,7 +59,7 @@ const useStyles = makeStyles((theme) => ({
   menuPanel: {
     paddingRight: 40,
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       padding: 0,
     },
   },
@@ -87,12 +87,12 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 
-  [theme.breakpoints.down("lg")]: {
+  [theme.breakpoints.down('xl')]: {
     contentPanel: {
       width: 890,
     },
   },
-  [theme.breakpoints.down("sm")]: {
+  [theme.breakpoints.down('md')]: {
     contentPanel: {
       width: "auto",
     },

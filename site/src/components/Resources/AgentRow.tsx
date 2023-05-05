@@ -1,6 +1,6 @@
 import Popover from "@mui/material/Popover"
 import { makeStyles, useTheme } from "@mui/material/styles"
-import { Skeleton } from "@material-ui/lab"
+import { Skeleton } from '@mui/material';
 import { useMachine } from "@xstate/react"
 import CodeOutlined from "@mui/icons-material/CodeOutlined"
 import {
@@ -266,13 +266,13 @@ export const AgentRow: FC<AgentRowProps> = ({
             <Skeleton
               width={80}
               height={32}
-              variant="rect"
+              variant="rectangular"
               className={styles.buttonSkeleton}
             />
             <Skeleton
               width={110}
               height={32}
-              variant="rect"
+              variant="rectangular"
               className={styles.buttonSkeleton}
             />
           </div>
@@ -381,7 +381,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         </div>
       )}
     </Stack>
-  )
+  );
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -452,7 +452,7 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(6),
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       gap: theme.spacing(2),
     },
   },
@@ -463,7 +463,7 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(3),
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       gap: theme.spacing(1.5),
     },
   },
@@ -475,7 +475,7 @@ const useStyles = makeStyles((theme) => ({
     flexWrap: "wrap",
     flex: 1,
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       marginLeft: 0,
       justifyContent: "flex-start",
     },
@@ -507,7 +507,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     gap: theme.spacing(4),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       width: "100%",
     },
   },
@@ -522,7 +522,7 @@ const useStyles = makeStyles((theme) => ({
     flexShrink: 0,
     width: "fit-content",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       overflow: "unset",
     },
   },

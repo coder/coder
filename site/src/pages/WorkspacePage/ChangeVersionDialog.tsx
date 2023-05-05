@@ -6,7 +6,7 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
 import { Template, TemplateVersion } from "api/typesGenerated"
 import { Loader } from "components/Loader/Loader"
-import Autocomplete from "@material-ui/lab/Autocomplete"
+import Autocomplete from '@mui/material/Autocomplete'
 import { createDayString } from "utils/createDayString"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { Pill } from "components/Pill/Pill"
@@ -67,7 +67,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                 onClose={() => {
                   setIsAutocompleteOpen(false)
                 }}
-                getOptionSelected={(
+                isOptionEqualToValue={(
                   option: TemplateVersion,
                   value: TemplateVersion,
                 ) => option.id === value.id}
@@ -121,5 +121,5 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
         </Stack>
       }
     />
-  )
+  );
 }

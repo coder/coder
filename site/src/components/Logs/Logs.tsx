@@ -66,7 +66,7 @@ export const LogLine: FC<{
     lineNumbers: Boolean(number),
   })
   const output = useMemo(() => {
-    return convert.toHtml(line.output.split(/\r/g).pop() as string)
+    return convert.toHtml(line.output.split(/\r/g).pop() as string);
   }, [line.output])
 
   return (

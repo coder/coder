@@ -43,7 +43,7 @@ const useStyles = makeStyles((theme) => ({
     margin: "0px",
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       display: "block",
       padding: theme.spacing(2),
     },
@@ -57,7 +57,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "baseline",
     gap: theme.spacing(1),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       padding: theme.spacing(1),
     },
   },

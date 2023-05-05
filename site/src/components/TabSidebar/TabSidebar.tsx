@@ -56,7 +56,7 @@ const useStyles = makeStyles((theme) => ({
     minWidth: 160,
     marginTop: theme.spacing(5),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       display: "flex",
       borderBottom: `1px solid ${theme.palette.divider}`,
       marginBottom: theme.spacing(2),
@@ -105,7 +105,7 @@ const useStyles = makeStyles((theme) => ({
       },
     },
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       textAlign: "center",
       width: "100%",
       paddingTop: theme.spacing(2),

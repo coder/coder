@@ -251,7 +251,7 @@ const useStyles = makeStyles((theme) => ({
       height: 16,
     },
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down('lg')]: {
       display: "none",
     },
   },
@@ -269,7 +269,7 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(4),
     borderTop: `1px solid ${theme.palette.divider}`,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down('lg')]: {
       flexDirection: "column",
       gap: theme.spacing(1),
       alignItems: "left",

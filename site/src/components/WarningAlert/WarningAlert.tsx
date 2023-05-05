@@ -60,7 +60,7 @@ const useStyles = makeStyles<Theme>((theme) => ({
   alertContainer: {
     border: `1px solid ${colors.orange[7]}`,
     borderRadius: theme.shape.borderRadius,
-    padding: `${theme.spacing(1)}px ${theme.spacing(2)}px`,
+    padding: `${theme.spacing(1)} ${theme.spacing(2)}`,
     backgroundColor: `${colors.gray[16]}`,
   },
   alertIcon: {

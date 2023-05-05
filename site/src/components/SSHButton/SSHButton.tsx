@@ -105,9 +105,9 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
-    padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(
+    padding: `${theme.spacing(2)} ${theme.spacing(3)} ${theme.spacing(
       3,
-    )}px`,
+    )}`,
     width: theme.spacing(38),
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.25),

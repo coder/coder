@@ -61,7 +61,7 @@ const useStyles = makeStyles((theme) => ({
     paddingBottom: theme.spacing(6),
     gap: theme.spacing(4),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       flexDirection: "column",
       alignItems: "flex-start",
     },
@@ -90,7 +90,7 @@ const useStyles = makeStyles((theme) => ({
   actions: {
     marginLeft: "auto",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       marginTop: theme.spacing(3),
       marginLeft: "initial",
       width: "100%",

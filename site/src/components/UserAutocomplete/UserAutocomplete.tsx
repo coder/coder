@@ -1,7 +1,7 @@
 import CircularProgress from "@mui/material/CircularProgress"
 import { makeStyles } from "@mui/material/styles"
 import TextField from "@mui/material/TextField"
-import Autocomplete from "@material-ui/lab/Autocomplete"
+import Autocomplete from '@mui/material/Autocomplete'
 import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
@@ -68,7 +68,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 
         onChange(newValue)
       }}
-      getOptionSelected={(option: User, value: User) =>
+      isOptionEqualToValue={(option: User, value: User) =>
         option.username === value.username
       }
       getOptionLabel={(option) => option.email}
@@ -110,7 +110,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
         />
       )}
     />
-  )
+  );
 }
 
 export const useStyles = makeStyles((theme) => ({
@@ -120,7 +120,7 @@ export const useStyles = makeStyles((theme) => ({
     },
   },
   inputRoot: {
-    paddingLeft: `${theme.spacing(1.75)}px !important`, // Same padding left as input
+    paddingLeft: `${theme.spacing(1.75)} !important`, // Same padding left as input
     gap: theme.spacing(0.5),
   },
 }))

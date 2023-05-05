@@ -39,17 +39,17 @@ const useStyles = makeStyles((theme) => ({
     zIndex: 10,
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down('lg')]: {
       position: "unset",
       alignItems: "flex-start",
     },
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       flexDirection: "column",
     },
   },
   actions: {
     marginLeft: "auto",
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       marginLeft: "unset",
     },
   },

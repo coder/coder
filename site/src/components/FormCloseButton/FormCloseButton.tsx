@@ -48,7 +48,7 @@ const useStyles = makeStyles((theme) => ({
       opacity: 1,
     },
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down('md')]: {
       top: theme.spacing(1),
       right: theme.spacing(1),
     },

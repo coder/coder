@@ -89,7 +89,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                 onClick={() => {
                   setShouldDisplayAllMetadata((value) => !value)
                 }}
-              >
+                size="large">
                 {shouldDisplayAllMetadata ? (
                   <CloseDropdown margin={false} />
                 ) : (
@@ -105,7 +105,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
         <div>{resource.agents.map(agentRow)}</div>
       )}
     </div>
-  )
+  );
 }
 
 const useStyles = makeStyles((theme) => ({

@@ -29,7 +29,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
   const styles = useStyles()
 
   return (
-    <Box display="grid" gridGap="16px">
+    <Box display="grid" gap="16px">
       {authMethods?.github.enabled && (
         <Link
           underline="none"
@@ -78,5 +78,5 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
         </Link>
       )}
     </Box>
-  )
+  );
 }

@@ -1,7 +1,7 @@
 import CircularProgress from "@mui/material/CircularProgress"
 import { makeStyles } from "@mui/material/styles"
 import TextField from "@mui/material/TextField"
-import Autocomplete from "@material-ui/lab/Autocomplete"
+import Autocomplete from '@mui/material/Autocomplete'
 import { useMachine } from "@xstate/react"
 import { Group, User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
@@ -66,7 +66,7 @@ export const UserOrGroupAutocomplete: React.FC<
 
         onChange(newValue)
       }}
-      getOptionSelected={(option, value) => option.id === value.id}
+      isOptionEqualToValue={(option, value) => option.id === value.id}
       getOptionLabel={(option) =>
         isGroup(option) ? option.name : option.email
       }
@@ -105,7 +105,7 @@ export const UserOrGroupAutocomplete: React.FC<
         />
       )}
     />
-  )
+  );
 }
 
 export const useStyles = makeStyles((theme) => {

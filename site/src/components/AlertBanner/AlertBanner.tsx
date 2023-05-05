@@ -104,13 +104,13 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     textAlign: "left",
 
     "& > span": {
-      paddingTop: `${theme.spacing(0.25)}px`,
+      paddingTop: theme.spacing(0.25),
     },
 
     // targeting the alert icon rather than the expander icon
     "& svg:nth-child(2)": {
-      marginTop: props.hasDetail ? `${theme.spacing(1)}px` : "inherit",
-      marginRight: `${theme.spacing(1)}px`,
+      marginTop: props.hasDetail ? theme.spacing(1) : "inherit",
+      marginRight: theme.spacing(1),
     },
   }),
 

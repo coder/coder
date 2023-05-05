@@ -21,7 +21,7 @@ NoAction.args = {
 export const Action = Template.bind({})
 Action.args = {
   action: (
-    <IconButton onClick={action("edit")}>
+    <IconButton onClick={action("edit")} size="large">
       <EditIcon />
     </IconButton>
   ),

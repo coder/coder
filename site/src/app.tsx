@@ -24,19 +24,21 @@ const queryClient = new QueryClient({
 export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
   return (
     <HelmetProvider>
-      <ThemeProvider theme={dark}>
-        <CssBaseline />
-        <ErrorBoundary>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              {children}
-              <GlobalSnackbar />
-            </AuthProvider>
-          </QueryClientProvider>
-        </ErrorBoundary>
-      </ThemeProvider>
+      <StyledEngineProvider injectFirst>
+        <ThemeProvider theme={dark}>
+          <CssBaseline />
+          <ErrorBoundary>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                {children}
+                <GlobalSnackbar />
+              </AuthProvider>
+            </QueryClientProvider>
+          </ErrorBoundary>
+        </ThemeProvider>
+      </StyledEngineProvider>
     </HelmetProvider>
-  )
+  );
 }
 
 export const App: FC = () => {

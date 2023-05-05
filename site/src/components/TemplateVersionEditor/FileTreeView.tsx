@@ -1,8 +1,8 @@
 import { makeStyles } from "@mui/material/styles"
 import ChevronRightIcon from "@mui/icons-material/ChevronRight"
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
-import TreeView from "@material-ui/lab/TreeView"
-import TreeItem from "@material-ui/lab/TreeItem"
+import TreeView from "@mui/lab/TreeView"
+import TreeItem from "@mui/lab/TreeItem"
 import Menu from "@mui/material/Menu"
 import MenuItem from "@mui/material/MenuItem"
 import { CSSProperties, FC, useState } from "react"
@@ -205,7 +205,7 @@ const useStyles = makeStyles((theme) => ({
 
       // We need to find a better way to recursive padding here
       "& .MuiTreeItem-content": {
-        paddingLeft: `calc(var(--level) * ${theme.spacing(5)}px)`,
+        paddingLeft: `calc(var(--level) * ${theme.spacing(5)})`,
       },
     },
   },

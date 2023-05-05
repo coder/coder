@@ -104,7 +104,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           onClick={() => {
             setIsDrawerOpen(true)
           }}
-        >
+          size="large">
           <MenuIcon />
         </IconButton>
 
@@ -156,7 +156,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         </div>
       </div>
     </nav>
-  )
+  );
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -231,7 +231,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flex: 1,
     fontSize: 16,
-    padding: `${theme.spacing(1.5)}px ${theme.spacing(2)}px`,
+    padding: `${theme.spacing(1.5)} ${theme.spacing(2)}`,
     textDecoration: "none",
     transition: "background-color 0.15s ease-in-out",
 
@@ -247,7 +247,7 @@ const useStyles = makeStyles((theme) => ({
 
     [theme.breakpoints.up("md")]: {
       height: navHeight,
-      padding: `0 ${theme.spacing(3)}px`,
+      padding: `0 ${theme.spacing(3)}`,
     },
   },
 }))

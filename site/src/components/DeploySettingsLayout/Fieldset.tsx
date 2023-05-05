@@ -58,7 +58,7 @@ const useStyles = makeStyles((theme) => ({
   },
   footer: {
     background: theme.palette.background.paperLight,
-    padding: `${theme.spacing(2)}px ${theme.spacing(3)}px`,
+    padding: `${theme.spacing(2)} ${theme.spacing(3)}`,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",

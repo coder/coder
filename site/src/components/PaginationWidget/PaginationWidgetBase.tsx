@@ -21,7 +21,7 @@ export const PaginationWidgetBase = ({
   onChange,
 }: PaginationWidgetBaseProps): JSX.Element | null => {
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const styles = useStyles()
   const numPages = Math.ceil(count / limit)
   const isFirstPage = page === 0
@@ -99,6 +99,6 @@ const useStyles = makeStyles((theme) => ({
   },
 
   prevLabelStyles: {
-    marginRight: `${theme.spacing(0.5)}px`,
+    marginRight: theme.spacing(0.5),
   },
 }))

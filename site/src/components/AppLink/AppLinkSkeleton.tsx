@@ -1,5 +1,5 @@
 import { makeStyles } from "@mui/material/styles"
-import { Skeleton } from "@material-ui/lab"
+import { Skeleton } from '@mui/material';
 import { FC } from "react"
 import { borderRadiusSm } from "theme/constants"
 
@@ -9,10 +9,10 @@ export const AppLinkSkeleton: FC<{ width: number }> = ({ width }) => {
     <Skeleton
       width={width}
       height={36}
-      variant="rect"
+      variant="rectangular"
       className={styles.skeleton}
     />
-  )
+  );
 }
 
 const useStyles = makeStyles(() => ({

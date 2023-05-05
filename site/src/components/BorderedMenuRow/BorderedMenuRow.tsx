@@ -66,7 +66,7 @@ const iconSize = 20
 const useStyles = makeStyles((theme) => ({
   root: {
     cursor: "pointer",
-    padding: `0 ${theme.spacing(1)}px`,
+    padding: `0 ${theme.spacing(1)}`,
 
     "&:hover": {
       backgroundColor: "unset",
@@ -86,7 +86,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   rootGutters: {
-    padding: `0 ${theme.spacing(1.5)}px`,
+    padding: `0 ${theme.spacing(1.5)}`,
   },
   content: {
     borderRadius: theme.shape.borderRadius,
