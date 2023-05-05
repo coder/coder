@@ -236,7 +236,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadRequest,
-			Title:        "This is a Workspace Proxy",
+			Title:        "Workspace Proxy",
 			Description:  "The route you requested does not exist on this workspace proxy. Maybe you intended to make this request to the primary dashboard? Click below to be redirected to the primary site.",
 			RetryEnabled: false,
 			DashboardURL: opts.DashboardURL.String(),
