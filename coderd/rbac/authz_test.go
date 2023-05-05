@@ -291,7 +291,7 @@ func BenchmarkCacher(b *testing.B) {
 	sizes := []int{1, 10, 100, 1000}
 	for _, size := range sizes {
 		b.Run(fmt.Sprintf("Size%d", size), func(b *testing.B) {
-			ctx := rbac.WithCacheCtx(context.Background())
+			ctx := context.Background()
 			authz := rbac.Cacher(&coderdtest.FakeAuthorizer{AlwaysReturn: nil})
 			for i := 0; i < size; i++ {
 				// Preload the cache of a given size

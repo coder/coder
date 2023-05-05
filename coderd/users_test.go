@@ -1671,3 +1671,18 @@ func sortUsers(users []codersdk.User) {
 		return users[i].CreatedAt.Before(users[j].CreatedAt)
 	})
 }
+
+func BenchmarkUsersMe(b *testing.B) {
+	client := coderdtest.New(b, nil)
+	_ = coderdtest.CreateFirstUser(b, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := client.User(ctx, codersdk.Me)
+		require.NoError(b, err)
+	}
+}
