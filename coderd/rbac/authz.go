@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
-	"encoding/json"
 	"strings"
 	"sync"
 	"time"
