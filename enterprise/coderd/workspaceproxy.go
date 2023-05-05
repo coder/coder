@@ -410,21 +410,22 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx     = r.Context()
-		proxy   = httpmw.WorkspaceProxy(r)
-		auditor = api.AGPL.Auditor.Load()
+		ctx   = r.Context()
+		proxy = httpmw.WorkspaceProxy(r)
 		// TODO: This audit log does not work because it has no user id
 		// associated with it. The audit log commitAudit() function ignores
-		// the audit log if there is no user id.
-		aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
-		})
+		// the audit log if there is no user id. We should find a solution
+		// to make sure this event is tracked.
+		//auditor = api.AGPL.Auditor.Load()
+		//aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
+		//	Audit:   *auditor,
+		//	Log:     api.Logger,
+		//	Request: r,
+		//	Action:  database.AuditActionWrite,
+		//})
 	)
-	aReq.Old = proxy
-	defer commitAudit()
+	//aReq.Old = proxy
+	//defer commitAudit()
 
 	var req wsproxysdk.RegisterWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -463,7 +464,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	aReq.New = updatedProxy
+	//aReq.New = updatedProxy
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey: api.AppSecurityKey.String(),
 	})
