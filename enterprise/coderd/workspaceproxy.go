@@ -93,6 +93,7 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update workspace proxy
 // @ID update-workspace-proxy
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
