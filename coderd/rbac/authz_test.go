@@ -312,29 +312,28 @@ func BenchmarkCacher(b *testing.B) {
 func TestCacher(t *testing.T) {
 	t.Parallel()
 
-	t.Run("EmptyCacheCtx", func(t *testing.T) {
+	t.Run("NoCache", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 		}
-		authz := rbac.Cacher(rec)
 		subj, obj, action := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
 
 		// Two identical calls
-		_ = authz.Authorize(ctx, subj, action, obj)
-		_ = authz.Authorize(ctx, subj, action, obj)
+		_ = rec.Authorize(ctx, subj, action, obj)
+		_ = rec.Authorize(ctx, subj, action, obj)
 
 		// Yields two calls to the wrapped Authorizer
 		rec.AssertActor(t, subj, rec.Pair(action, obj), rec.Pair(action, obj))
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
 	})
 
-	t.Run("CacheCtx", func(t *testing.T) {
+	t.Run("Cache", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := rbac.WithCacheCtx(context.Background())
+		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 		}
@@ -353,7 +352,7 @@ func TestCacher(t *testing.T) {
 	t.Run("MultipleSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := rbac.WithCacheCtx(context.Background())
+		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 		}
