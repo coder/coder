@@ -1,9 +1,6 @@
 package rbac
 
 import (
-	"crypto/sha256"
-	"io"
-
 	"github.com/google/uuid"
 )
 
@@ -195,37 +192,6 @@ type Object struct {
 
 	ACLUserList  map[string][]Action ` json:"acl_user_list"`
 	ACLGroupList map[string][]Action ` json:"acl_group_list"`
-}
-
-// hashACLMapPreimage feeds the ACL map preimage into the hash function.
-func hashACLMapPreimage(hash io.Writer, aclList map[string][]Action) {
-	// We have to sort the keys so that the hash is consistent since map access
-	// is random. This allocation is unfortunate.
-	keys := make([]string, 0, len(aclList))
-	// Prefix all user & group acl lists with "user:" or "group:"
-	for _, k := range keys {
-		v := aclList[k]
-		// Writing user:<name>:<action>,<action>,
-		_, _ = hash.Write([]byte("user:"))
-		_, _ = hash.Write([]byte(k))
-		_, _ = hash.Write([]byte(":"))
-		for _, a := range v {
-			_, _ = hash.Write([]byte(a))
-			// A trailing slash doesn't matter.
-			_, _ = hash.Write([]byte(","))
-		}
-	}
-}
-
-func (z Object) Hash() []byte {
-	hash := sha256.New()
-	_, _ = hash.Write([]byte(z.ID))
-	_, _ = hash.Write([]byte(z.Owner))
-	_, _ = hash.Write([]byte(z.OrgID))
-	_, _ = hash.Write([]byte(z.Type))
-	hashACLMapPreimage(hash, z.ACLUserList)
-
-	return hash.Sum(nil)
 }
 
 func (z Object) Equal(b Object) bool {

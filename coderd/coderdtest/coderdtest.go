@@ -196,8 +196,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 				Wrapped: defAuth,
 			}
 		} else {
-			// In the benchmarks, the recording authorizer greatly skews
-			// the results.
+			// In benchmarks, the recording authorizer greatly skews results.
 			options.Authorizer = defAuth
 		}
 	}

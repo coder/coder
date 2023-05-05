@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
+	"encoding/json"
 	"strings"
 	"sync"
 	"time"
@@ -53,9 +54,13 @@ type AuthCall struct {
 func hashAuthorizeCall(actor Subject, action Action, object Object) [32]byte {
 	var hashOut [32]byte
 	hash := sha256.New()
-	_, _ = hash.Write(actor.Hash())
-	_, _ = hash.Write([]byte(action))
-	_, _ = hash.Write(object.Hash())
+
+	// We use JSON for the forward security benefits if the rbac structs are
+	// modified without consideration for the caching layer.
+	enc := json.NewEncoder(hash)
+	_ = enc.Encode(actor)
+	_ = enc.Encode(action)
+	_ = enc.Encode(object)
 
 	// We might be able to avoid this extra copy?
 	// sha256.Sum256() returns a [32]byte. We need to return
@@ -75,28 +80,6 @@ type Subject struct {
 
 	// cachedASTValue is the cached ast value for this subject.
 	cachedASTValue ast.Value
-}
-
-// Hash returns a unique hash for this subject.
-// Role and group order MATTER for this hash. We could sort these
-// to make the role/group order not matter, but that would require extra
-// processing time to allocate and sort the slice. For our purposes, these
-// orders should always be the same, so we can just hash the order as is.
-func (s *Subject) Hash() []byte {
-	// TODO: We might want to look into xxhash instead of sha256. Sha256 is fast,
-	// but we do not need cryptographic security, just collision resistance.
-	// So we might be able to use a faster hashing algo.
-	hash := sha256.New()
-	_, _ = hash.Write([]byte(s.ID))
-	for _, roleName := range s.Roles.Names() {
-		// roleNames are mapped 1:1 with unique permission sets.
-		_, _ = hash.Write([]byte(roleName))
-	}
-	for _, groupName := range s.Groups {
-		_, _ = hash.Write([]byte(groupName))
-	}
-	_, _ = hash.Write([]byte(s.Scope.Name()))
-	return hash.Sum(nil)
 }
 
 // WithCachedASTValue can be called if the subject is static. This will compute
@@ -146,6 +129,9 @@ func (s Subject) SafeRoleNames() []string {
 }
 
 type Authorizer interface {
+	// Authorize will authorize the given subject to perform the given action
+	// on the given object. Authorize is pure and deterministic with respect to
+	// its arguments and the surrounding object.
 	Authorize(ctx context.Context, subject Subject, action Action, object Object) error
 	Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error)
 }
@@ -652,9 +638,8 @@ func (a *authorizedSQLFilter) SQLString() string {
 }
 
 type authCache struct {
-	// cache is a cache of JSON marshaled inputs to "authorize" to
-	// corresponding errors. When the Authorizer is immutable (e.g. in the case
-	// of Rego)"
+	// cache is a cache of hashed Authorize inputs to the result of the Authorize
+	// call.
 	// determistic function.
 	cache *tlru.Cache[[32]byte, error]
 
