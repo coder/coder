@@ -542,7 +542,6 @@ func TestRenderStaticErrorPageNoStatus(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	bodyStr := string(body)
-	fmt.Println(string(body))
 	require.NotContains(t, bodyStr, strconv.Itoa(d.Status))
 	require.Contains(t, bodyStr, d.Title)
 	require.Contains(t, bodyStr, d.Description)
