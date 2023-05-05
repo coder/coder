@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import ChevronRightIcon from "@mui/icons-material/ChevronRight"
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
 import TreeView from "@mui/lab/TreeView"

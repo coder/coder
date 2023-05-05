@@ -1,6 +1,6 @@
 import CircularProgress from "@mui/material/CircularProgress"
 import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Tooltip from "@mui/material/Tooltip"
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline"
 import { PrimaryAgentButton } from "components/Resources/AgentButton"

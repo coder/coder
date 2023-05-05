@@ -2,7 +2,7 @@ import FormControlLabel from "@mui/material/FormControlLabel"
 import MenuItem from "@mui/material/MenuItem"
 import Radio from "@mui/material/Radio"
 import RadioGroup from "@mui/material/RadioGroup"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TextField from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
@@ -80,14 +80,15 @@ const ParameterField: React.FC<ParameterInputProps> = ({
           onChange(event.target.value)
         }}
         select
-        fullWidth>
+        fullWidth
+      >
         {schema.validation_contains.map((item) => (
           <MenuItem key={item} value={item}>
             {item}
           </MenuItem>
         ))}
       </TextField>
-    );
+    )
   }
 
   if (isBoolean(schema)) {
@@ -128,8 +129,9 @@ const ParameterField: React.FC<ParameterInputProps> = ({
       defaultValue={defaultValue ?? schema.default_source_value}
       onChange={(event) => {
         onChange(event.target.value)
-      }} />
-  );
+      }}
+    />
+  )
 }
 
 const useStyles = makeStyles((theme) => ({

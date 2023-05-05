@@ -6,7 +6,7 @@ import Box from "@mui/material/Box"
 import { Language } from "./SignInForm"
 import { AuthMethods } from "../../api/typesGenerated"
 import { FC } from "react"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 
 type OAuthSignInFormProps = {
   isSigningIn: boolean
@@ -78,5 +78,5 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
         </Link>
       )}
     </Box>
-  );
+  )
 }

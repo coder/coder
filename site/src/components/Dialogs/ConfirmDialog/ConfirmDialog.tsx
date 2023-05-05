@@ -1,5 +1,5 @@
 import DialogActions from "@mui/material/DialogActions"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { ReactNode, FC, PropsWithChildren } from "react"
 import {
   Dialog,

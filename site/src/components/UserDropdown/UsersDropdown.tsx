@@ -1,6 +1,6 @@
 import Badge from "@mui/material/Badge"
 import MenuItem from "@mui/material/MenuItem"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { useState, FC, PropsWithChildren, MouseEvent } from "react"
 import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"

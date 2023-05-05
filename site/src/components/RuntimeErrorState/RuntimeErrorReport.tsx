@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { ReactElement } from "react"
 import { CodeBlock } from "../CodeBlock/CodeBlock"
 import { createCtas } from "./createCtas"

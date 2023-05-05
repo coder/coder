@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"

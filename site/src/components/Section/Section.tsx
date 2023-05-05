@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Typography from "@mui/material/Typography"
 import { FC } from "react"
 import { combineClasses } from "../../utils/combineClasses"
@@ -68,7 +68,7 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       padding: theme.spacing(4, 3, 4, 3),
     },
   },

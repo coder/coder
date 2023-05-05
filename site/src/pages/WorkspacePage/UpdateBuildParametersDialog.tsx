@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Dialog from "@mui/material/Dialog"
 import DialogContent from "@mui/material/DialogContent"
 import DialogContentText from "@mui/material/DialogContentText"

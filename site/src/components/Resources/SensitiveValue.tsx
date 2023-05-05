@@ -1,5 +1,5 @@
 import IconButton from "@mui/material/IconButton"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Tooltip from "@mui/material/Tooltip"
 import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined"
 import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined"

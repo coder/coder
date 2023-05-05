@@ -1,5 +1,5 @@
 import { ComponentProps, FC } from "react"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import RefreshIcon from "@mui/icons-material/RefreshOutlined"
 import {
   HelpTooltipText,

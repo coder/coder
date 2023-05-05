@@ -1,7 +1,7 @@
 import IconButton from "@mui/material/IconButton"
 import { EditSquare } from "components/Icons/EditSquare"
 import { useRef, useState, FC } from "react"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { useTranslation } from "react-i18next"
 import Popover from "@mui/material/Popover"
 import { Stack } from "components/Stack/Stack"

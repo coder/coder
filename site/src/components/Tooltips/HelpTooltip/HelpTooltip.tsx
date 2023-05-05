@@ -1,6 +1,6 @@
 import Link from "@mui/material/Link"
 import Popover, { PopoverProps } from "@mui/material/Popover"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import HelpIcon from "@mui/icons-material/HelpOutline"
 import OpenInNewIcon from "@mui/icons-material/OpenInNew"
 import {

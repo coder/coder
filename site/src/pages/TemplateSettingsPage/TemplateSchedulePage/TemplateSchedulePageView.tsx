@@ -2,7 +2,7 @@ import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { ComponentProps, FC } from "react"
 import { TemplateScheduleForm } from "./TemplateScheduleForm"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 
 export interface TemplateSchedulePageViewProps {
   template: Template

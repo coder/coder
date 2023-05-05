@@ -9,7 +9,7 @@ import {
   HealthyBadge,
   NotHealthyBadge,
 } from "components/DeploySettingsLayout/Badges"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 
 export const ProxyRow: FC<{

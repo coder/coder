@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { TemplateExample } from "api/typesGenerated"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"

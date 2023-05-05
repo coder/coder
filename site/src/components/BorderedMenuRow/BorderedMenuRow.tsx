@@ -1,5 +1,5 @@
 import ListItem from "@mui/material/ListItem"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import SvgIcon from "@mui/material/SvgIcon"
 import CheckIcon from "@mui/icons-material/Check"
 import { FC } from "react"

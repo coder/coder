@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TableCell from "@mui/material/TableCell"
 import { WorkspaceBuild } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"

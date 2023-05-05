@@ -1,5 +1,5 @@
 import IconButton from "@mui/material/IconButton"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Typography from "@mui/material/Typography"
 import { useEffect, FC, PropsWithChildren } from "react"
 import { CloseIcon } from "../Icons/CloseIcon"
@@ -48,7 +48,7 @@ const useStyles = makeStyles((theme) => ({
       opacity: 1,
     },
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       top: theme.spacing(1),
       right: theme.spacing(1),
     },

@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
@@ -273,7 +273,7 @@ export const useStyles = makeStyles((theme) => {
     },
 
     actions: {
-      [theme.breakpoints.down('md')]: {
+      [theme.breakpoints.down("md")]: {
         flexDirection: "column",
       },
     },
@@ -309,5 +309,5 @@ export const useStyles = makeStyles((theme) => {
     fullWidth: {
       width: "100%",
     },
-  };
+  }
 })

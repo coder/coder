@@ -3,7 +3,7 @@
  * verbatim port from `@coder/ui`.
  */
 
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import MuiTypography, {
   TypographyProps as MuiTypographyProps,
 } from "@mui/material/Typography"

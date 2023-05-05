@@ -1,7 +1,7 @@
 // This is the only place MuiAvatar can be used
 // eslint-disable-next-line no-restricted-imports -- Read above
 import MuiAvatar, { AvatarProps as MuiAvatarProps } from "@mui/material/Avatar"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { FC } from "react"
 import { combineClasses } from "utils/combineClasses"
 import { firstLetter } from "./firstLetter"

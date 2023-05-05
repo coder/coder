@@ -1,7 +1,7 @@
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Radio from "@mui/material/Radio"
 import RadioGroup from "@mui/material/RadioGroup"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TextField, { TextFieldProps } from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
@@ -202,8 +202,9 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
       onChange={(event) => {
         setParameterValue(event.target.value)
         onChange(event.target.value)
-      }} />
-  );
+      }}
+    />
+  )
 }
 
 const optionIconSize = 20

@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TableRow, { TableRowProps } from "@mui/material/TableRow"
 import { PropsWithChildren } from "react"
 import { combineClasses } from "utils/combineClasses"

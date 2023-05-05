@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { WorkspaceBuild } from "api/typesGenerated"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"

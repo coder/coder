@@ -1,5 +1,4 @@
 import CssBaseline from "@mui/material/CssBaseline"
-import ThemeProvider from "@mui/styles/ThemeProvider"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AuthProvider } from "components/AuthProvider/AuthProvider"
 import { FC, PropsWithChildren } from "react"
@@ -9,6 +8,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary"
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar"
 import { dark } from "./theme"
 import "./theme/globalFonts"
+import { StyledEngineProvider, ThemeProvider } from "@mui/material/styles"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,7 +38,7 @@ export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
         </ThemeProvider>
       </StyledEngineProvider>
     </HelmetProvider>
-  );
+  )
 }
 
 export const App: FC = () => {

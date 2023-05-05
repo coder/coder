@@ -1,5 +1,5 @@
 import Popover, { PopoverProps } from "@mui/material/Popover"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { FC, PropsWithChildren } from "react"
 
 type BorderedMenuVariant = "user-dropdown"

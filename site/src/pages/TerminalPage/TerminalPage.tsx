@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import WarningIcon from "@mui/icons-material/ErrorOutlineRounded"
 import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { useMachine } from "@xstate/react"

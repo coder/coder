@@ -1,6 +1,6 @@
 import Button, { ButtonProps } from "@mui/material/Button"
 import CircularProgress from "@mui/material/CircularProgress"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { Theme } from "@mui/material/styles/createTheme"
 import { FC } from "react"
 

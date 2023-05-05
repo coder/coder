@@ -1,5 +1,5 @@
 import TableCell from "@mui/material/TableCell"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TableRow from "@mui/material/TableRow"
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
 import { AvatarData } from "components/AvatarData/AvatarData"

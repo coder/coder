@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Typography from "@mui/material/Typography"
 import { FC, PropsWithChildren } from "react"
 import { CoderIcon } from "../Icons/CoderIcon"

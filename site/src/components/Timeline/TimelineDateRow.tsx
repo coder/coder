@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TableCell from "@mui/material/TableCell"
 import TableRow from "@mui/material/TableRow"
 import formatRelative from "date-fns/formatRelative"

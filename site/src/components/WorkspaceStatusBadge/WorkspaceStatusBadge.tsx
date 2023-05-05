@@ -8,7 +8,7 @@ import { Pill } from "components/Pill/Pill"
 import i18next from "i18next"
 import { FC, ReactNode, PropsWithChildren } from "react"
 import { PaletteIndex } from "theme/palettes"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 
 const LoadingIcon: FC = () => {

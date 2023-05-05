@@ -1,5 +1,5 @@
 import Popover from "@mui/material/Popover"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { useRef, useState } from "react"
 import { CodeExample } from "../CodeExample/CodeExample"
@@ -105,9 +105,7 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
-    padding: `${theme.spacing(2)} ${theme.spacing(3)} ${theme.spacing(
-      3,
-    )}`,
+    padding: `${theme.spacing(2)} ${theme.spacing(3)} ${theme.spacing(3)}`,
     width: theme.spacing(38),
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.25),

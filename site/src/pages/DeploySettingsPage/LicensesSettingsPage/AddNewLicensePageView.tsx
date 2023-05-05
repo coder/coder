@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button"
 import TextField from "@mui/material/TextField"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { ApiErrorResponse } from "api/errors"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
@@ -46,68 +46,71 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
     handleFileUploaded([file])
   }
 
-  return <>
-    <Stack
-      alignItems="baseline"
-      direction="row"
-      justifyContent="space-between"
-    >
-      <Header
-        title="Add your license"
-        description="Enterprise licenses unlock more features on your deployment."
+  return (
+    <>
+      <Stack
+        alignItems="baseline"
+        direction="row"
+        justifyContent="space-between"
+      >
+        <Header
+          title="Add your license"
+          description="Enterprise licenses unlock more features on your deployment."
+        />
+        <Button
+          component={RouterLink}
+          to="/settings/deployment/licenses"
+          variant="outlined"
+        >
+          Back to licenses
+        </Button>
+      </Stack>
+
+      {savingLicenseError && (
+        <AlertBanner severity="error" error={savingLicenseError}></AlertBanner>
+      )}
+
+      <FileUpload
+        isUploading={isUploading}
+        onUpload={onUpload}
+        removeLabel="Remove File"
+        title="Upload your license"
+        description="Upload a text file containing your license key"
       />
-      <Button
-        component={RouterLink}
-        to="/settings/deployment/licenses"
-        variant="outlined"
-      >
-        Back to licenses
-      </Button>
-    </Stack>
 
-    {savingLicenseError && (
-      <AlertBanner severity="error" error={savingLicenseError}></AlertBanner>
-    )}
+      <Stack className={styles.main}>
+        <DividerWithText>or</DividerWithText>
 
-    <FileUpload
-      isUploading={isUploading}
-      onUpload={onUpload}
-      removeLabel="Remove File"
-      title="Upload your license"
-      description="Upload a text file containing your license key"
-    />
+        <Fieldset
+          title="Paste your license key"
+          onSubmit={(e) => {
+            e.preventDefault()
 
-    <Stack className={styles.main}>
-      <DividerWithText>or</DividerWithText>
+            const form = e.target
+            const formData = new FormData(form as HTMLFormElement)
 
-      <Fieldset
-        title="Paste your license key"
-        onSubmit={(e) => {
-          e.preventDefault()
+            const licenseKey = formData.get("licenseKey")
 
-          const form = e.target
-          const formData = new FormData(form as HTMLFormElement)
-
-          const licenseKey = formData.get("licenseKey")
-
-          onSaveLicenseKey(licenseKey?.toString() || "")
-        }}
-        button={
-          <Button type="submit" disabled={isSavingLicense}>
-            Add license
-          </Button>
-        }
-      >
-        <TextField
-          variant="standard"
-          name="licenseKey"
-          placeholder="Paste your license key here"
-          multiline
-          rows={4}
-          fullWidth />
-      </Fieldset>
-    </Stack>
-  </>;
+            onSaveLicenseKey(licenseKey?.toString() || "")
+          }}
+          button={
+            <Button type="submit" disabled={isSavingLicense}>
+              Add license
+            </Button>
+          }
+        >
+          <TextField
+            variant="standard"
+            name="licenseKey"
+            placeholder="Paste your license key here"
+            multiline
+            rows={4}
+            fullWidth
+          />
+        </Fieldset>
+      </Stack>
+    </>
+  )
 }
 
 const useStyles = makeStyles((theme) => ({

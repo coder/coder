@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { CSSProperties } from "@mui/material/styles/withStyles"
 import { FC } from "react"
 import { ReactNode } from "react-markdown/lib/react-markdown"
@@ -28,7 +28,7 @@ const useStyles = makeStyles((theme) => ({
     flexWrap: ({ wrap }: StyleProps) => wrap,
     maxWidth: ({ maxWidth }: StyleProps) => maxWidth,
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       width: "100%",
     },
   },

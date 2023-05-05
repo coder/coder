@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Button, { ButtonProps } from "@mui/material/Button"
 import { FC, forwardRef } from "react"
 import { combineClasses } from "utils/combineClasses"

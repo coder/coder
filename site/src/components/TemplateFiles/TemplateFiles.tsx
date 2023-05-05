@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { DockerIcon } from "components/Icons/DockerIcon"
 import { MarkdownIcon } from "components/Icons/MarkdownIcon"
 import { TerraformIcon } from "components/Icons/TerraformIcon"

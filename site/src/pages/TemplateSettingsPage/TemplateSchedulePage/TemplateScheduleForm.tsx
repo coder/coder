@@ -14,7 +14,7 @@ import {
   FormFields,
 } from "components/Form/Form"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Link from "@mui/material/Link"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"

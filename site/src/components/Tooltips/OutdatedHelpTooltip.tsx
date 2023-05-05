@@ -8,7 +8,7 @@ import {
   HelpTooltipTitle,
 } from "./HelpTooltip"
 import InfoIcon from "@mui/icons-material/InfoOutlined"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { colors } from "theme/colors"
 
 export const Language = {

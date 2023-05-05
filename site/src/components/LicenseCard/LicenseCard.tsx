@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
 import Paper from "@mui/material/Paper"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { License } from "api/typesGenerated"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"

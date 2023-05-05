@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { ClassNameMap } from "@mui/material/styles/withStyles"
 import { FC } from "react"
 import { LoadingButton } from "../LoadingButton/LoadingButton"

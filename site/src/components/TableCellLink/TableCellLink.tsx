@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TableCell, { TableCellProps } from "@mui/material/TableCell"
 import { Link as RouterLink } from "react-router-dom"
 import { combineClasses } from "../../utils/combineClasses"

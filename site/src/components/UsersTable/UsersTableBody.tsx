@@ -1,5 +1,5 @@
 import Box from "@mui/material/Box"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TableCell from "@mui/material/TableCell"
 import TableRow from "@mui/material/TableRow"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"

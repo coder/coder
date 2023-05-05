@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { useCallback, useState, FC } from "react"
 import { useCustomEvent } from "../../hooks/events"
 import { CustomEventListener } from "../../utils/events"

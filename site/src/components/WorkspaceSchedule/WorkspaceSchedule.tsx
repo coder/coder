@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"

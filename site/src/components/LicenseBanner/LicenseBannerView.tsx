@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { Expander } from "components/Expander/Expander"
 import { Pill } from "components/Pill/Pill"
 import { useState } from "react"

@@ -1,7 +1,7 @@
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Radio from "@mui/material/Radio"
 import RadioGroup from "@mui/material/RadioGroup"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TextField from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
@@ -109,8 +109,9 @@ const VariableField: React.FC<VariableInputProps> = ({
           : variable.sensitive
           ? "password"
           : "string"
-      } />
-  );
+      }
+    />
+  )
 }
 
 const useStyles = makeStyles((theme) => ({

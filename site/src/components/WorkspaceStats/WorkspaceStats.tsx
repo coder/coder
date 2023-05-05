@@ -14,7 +14,7 @@ import upperFirst from "lodash/upperFirst"
 import { autostartDisplay, autostopDisplay } from "utils/schedule"
 import IconButton from "@mui/material/IconButton"
 import RemoveIcon from "@mui/icons-material/RemoveOutlined"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import AddIcon from "@mui/icons-material/AddOutlined"
 import Popover from "@mui/material/Popover"
 import TextField from "@mui/material/TextField"
@@ -66,224 +66,228 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const [isAddingTime, setIsAddingTime] = useState(false)
   const [isSubTime, setIsSubTime] = useState(false)
 
-  return <>
-    <Stats aria-label={Language.workspaceDetails} className={styles.stats}>
-      <StatsItem
-        className={styles.statsItem}
-        label="Status"
-        value={<WorkspaceStatusText build={workspace.latest_build} />}
-      />
-      <StatsItem
-        className={styles.statsItem}
-        label={Language.templateLabel}
-        value={
-          <Link
-            component={RouterLink}
-            to={`/templates/${workspace.template_name}`}
-          >
-            {displayTemplateName}
-          </Link>
-        }
-      />
-      <StatsItem
-        className={styles.statsItem}
-        label={Language.versionLabel}
-        value={
-          <>
+  return (
+    <>
+      <Stats aria-label={Language.workspaceDetails} className={styles.stats}>
+        <StatsItem
+          className={styles.statsItem}
+          label="Status"
+          value={<WorkspaceStatusText build={workspace.latest_build} />}
+        />
+        <StatsItem
+          className={styles.statsItem}
+          label={Language.templateLabel}
+          value={
             <Link
               component={RouterLink}
-              to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
+              to={`/templates/${workspace.template_name}`}
             >
-              {workspace.latest_build.template_version_name}
+              {displayTemplateName}
             </Link>
-
-            {workspace.outdated && (
-              <OutdatedHelpTooltip
-                onUpdateVersion={handleUpdate}
-                ariaLabel="update version"
-              />
-            )}
-          </>
-        }
-      />
-      <StatsItem
-        className={styles.statsItem}
-        label={Language.lastBuiltLabel}
-        value={
-          <>
-            {upperFirst(createDayString(workspace.latest_build.created_at))}{" "}
-            by {initiatedBy}
-          </>
-        }
-      />
-      {shouldDisplayScheduleLabel(workspace) && (
-        <StatsItem
-          className={styles.statsItem}
-          label={getScheduleLabel(workspace)}
-          value={
-            <span className={styles.scheduleValue}>
-              <Link
-                component={RouterLink}
-                to="settings/schedule"
-                title="Schedule settings"
-              >
-                {isWorkspaceOn(workspace)
-                  ? autostopDisplay(workspace)
-                  : autostartDisplay(workspace.autostart_schedule)}
-              </Link>
-              {canUpdateWorkspace && canEditDeadline(workspace) && (
-                <span className={styles.scheduleControls}>
-                  <IconButton
-                    disabled={!deadlineMinusEnabled}
-                    size="small"
-                    title="Subtract hours from deadline"
-                    className={styles.scheduleButton}
-                    ref={subButtonRef}
-                    onClick={() => setIsSubTime(true)}
-                  >
-                    <RemoveIcon />
-                  </IconButton>
-                  <IconButton
-                    disabled={!deadlinePlusEnabled}
-                    size="small"
-                    title="Add hours to deadline"
-                    className={styles.scheduleButton}
-                    ref={addButtonRef}
-                    onClick={() => setIsAddingTime(true)}
-                  >
-                    <AddIcon />
-                  </IconButton>
-                </span>
-              )}
-            </span>
           }
         />
-      )}
-      {workspace.latest_build.daily_cost > 0 && (
         <StatsItem
           className={styles.statsItem}
-          label={Language.costLabel}
-          value={`${workspace.latest_build.daily_cost} ${
-            quota_budget ? `/ ${quota_budget}` : ""
-          }`}
+          label={Language.versionLabel}
+          value={
+            <>
+              <Link
+                component={RouterLink}
+                to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
+              >
+                {workspace.latest_build.template_version_name}
+              </Link>
+
+              {workspace.outdated && (
+                <OutdatedHelpTooltip
+                  onUpdateVersion={handleUpdate}
+                  ariaLabel="update version"
+                />
+              )}
+            </>
+          }
         />
-      )}
-    </Stats>
+        <StatsItem
+          className={styles.statsItem}
+          label={Language.lastBuiltLabel}
+          value={
+            <>
+              {upperFirst(createDayString(workspace.latest_build.created_at))}{" "}
+              by {initiatedBy}
+            </>
+          }
+        />
+        {shouldDisplayScheduleLabel(workspace) && (
+          <StatsItem
+            className={styles.statsItem}
+            label={getScheduleLabel(workspace)}
+            value={
+              <span className={styles.scheduleValue}>
+                <Link
+                  component={RouterLink}
+                  to="settings/schedule"
+                  title="Schedule settings"
+                >
+                  {isWorkspaceOn(workspace)
+                    ? autostopDisplay(workspace)
+                    : autostartDisplay(workspace.autostart_schedule)}
+                </Link>
+                {canUpdateWorkspace && canEditDeadline(workspace) && (
+                  <span className={styles.scheduleControls}>
+                    <IconButton
+                      disabled={!deadlineMinusEnabled}
+                      size="small"
+                      title="Subtract hours from deadline"
+                      className={styles.scheduleButton}
+                      ref={subButtonRef}
+                      onClick={() => setIsSubTime(true)}
+                    >
+                      <RemoveIcon />
+                    </IconButton>
+                    <IconButton
+                      disabled={!deadlinePlusEnabled}
+                      size="small"
+                      title="Add hours to deadline"
+                      className={styles.scheduleButton}
+                      ref={addButtonRef}
+                      onClick={() => setIsAddingTime(true)}
+                    >
+                      <AddIcon />
+                    </IconButton>
+                  </span>
+                )}
+              </span>
+            }
+          />
+        )}
+        {workspace.latest_build.daily_cost > 0 && (
+          <StatsItem
+            className={styles.statsItem}
+            label={Language.costLabel}
+            value={`${workspace.latest_build.daily_cost} ${
+              quota_budget ? `/ ${quota_budget}` : ""
+            }`}
+          />
+        )}
+      </Stats>
 
-    <Popover
-      id="schedule-add"
-      classes={{ paper: styles.timePopoverPaper }}
-      open={isAddingTime}
-      anchorEl={addButtonRef.current}
-      onClose={() => setIsAddingTime(false)}
-      anchorOrigin={{
-        vertical: "bottom",
-        horizontal: "right",
-      }}
-      transformOrigin={{
-        vertical: "top",
-        horizontal: "right",
-      }}
-    >
-      <span className={styles.timePopoverTitle}>Add hours to deadline</span>
-      <span className={styles.timePopoverDescription}>
-        Delay the shutdown of this workspace for a few more hours. This is
-        only applied once.
-      </span>
-      <form
-        className={styles.timePopoverForm}
-        onSubmit={(e) => {
-          e.preventDefault()
-          const formData = new FormData(e.currentTarget)
-          const hours = Number(formData.get("hours"))
-          onDeadlinePlus(hours)
-          setIsAddingTime(false)
+      <Popover
+        id="schedule-add"
+        classes={{ paper: styles.timePopoverPaper }}
+        open={isAddingTime}
+        anchorEl={addButtonRef.current}
+        onClose={() => setIsAddingTime(false)}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
         }}
       >
-        <TextField
-          variant="standard"
-          name="hours"
-          type="number"
-          size="small"
-          fullWidth
-          className={styles.timePopoverField}
-          InputProps={{ className: styles.timePopoverFieldInput }}
-          inputProps={{
-            min: 0,
-            max: maxDeadlineIncrease,
-            step: 1,
-            defaultValue: 1,
-          }} />
-
-        <Button
-          variant="outlined"
-          size="small"
-          className={styles.timePopoverButton}
-          type="submit"
+        <span className={styles.timePopoverTitle}>Add hours to deadline</span>
+        <span className={styles.timePopoverDescription}>
+          Delay the shutdown of this workspace for a few more hours. This is
+          only applied once.
+        </span>
+        <form
+          className={styles.timePopoverForm}
+          onSubmit={(e) => {
+            e.preventDefault()
+            const formData = new FormData(e.currentTarget)
+            const hours = Number(formData.get("hours"))
+            onDeadlinePlus(hours)
+            setIsAddingTime(false)
+          }}
         >
-          Apply
-        </Button>
-      </form>
-    </Popover>
+          <TextField
+            variant="standard"
+            name="hours"
+            type="number"
+            size="small"
+            fullWidth
+            className={styles.timePopoverField}
+            InputProps={{ className: styles.timePopoverFieldInput }}
+            inputProps={{
+              min: 0,
+              max: maxDeadlineIncrease,
+              step: 1,
+              defaultValue: 1,
+            }}
+          />
 
-    <Popover
-      id="schedule-sub"
-      classes={{ paper: styles.timePopoverPaper }}
-      open={isSubTime}
-      anchorEl={subButtonRef.current}
-      onClose={() => setIsSubTime(false)}
-      anchorOrigin={{
-        vertical: "bottom",
-        horizontal: "right",
-      }}
-      transformOrigin={{
-        vertical: "top",
-        horizontal: "right",
-      }}
-    >
-      <span className={styles.timePopoverTitle}>
-        Subtract hours to deadline
-      </span>
-      <span className={styles.timePopoverDescription}>
-        Anticipate the shutdown of this workspace for a few more hours. This
-        is only applied once.
-      </span>
-      <form
-        className={styles.timePopoverForm}
-        onSubmit={(e) => {
-          e.preventDefault()
-          const formData = new FormData(e.currentTarget)
-          const hours = Number(formData.get("hours"))
-          onDeadlineMinus(hours)
-          setIsSubTime(false)
+          <Button
+            variant="outlined"
+            size="small"
+            className={styles.timePopoverButton}
+            type="submit"
+          >
+            Apply
+          </Button>
+        </form>
+      </Popover>
+
+      <Popover
+        id="schedule-sub"
+        classes={{ paper: styles.timePopoverPaper }}
+        open={isSubTime}
+        anchorEl={subButtonRef.current}
+        onClose={() => setIsSubTime(false)}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
         }}
       >
-        <TextField
-          variant="standard"
-          name="hours"
-          type="number"
-          size="small"
-          fullWidth
-          className={styles.timePopoverField}
-          InputProps={{ className: styles.timePopoverFieldInput }}
-          inputProps={{
-            min: 0,
-            max: maxDeadlineDecrease,
-            step: 1,
-            defaultValue: 1,
-          }} />
-
-        <Button
-          variant="outlined"
-          size="small"
-          className={styles.timePopoverButton}
-          type="submit"
+        <span className={styles.timePopoverTitle}>
+          Subtract hours to deadline
+        </span>
+        <span className={styles.timePopoverDescription}>
+          Anticipate the shutdown of this workspace for a few more hours. This
+          is only applied once.
+        </span>
+        <form
+          className={styles.timePopoverForm}
+          onSubmit={(e) => {
+            e.preventDefault()
+            const formData = new FormData(e.currentTarget)
+            const hours = Number(formData.get("hours"))
+            onDeadlineMinus(hours)
+            setIsSubTime(false)
+          }}
         >
-          Apply
-        </Button>
-      </form>
-    </Popover>
-  </>;
+          <TextField
+            variant="standard"
+            name="hours"
+            type="number"
+            size="small"
+            fullWidth
+            className={styles.timePopoverField}
+            InputProps={{ className: styles.timePopoverFieldInput }}
+            inputProps={{
+              min: 0,
+              max: maxDeadlineDecrease,
+              step: 1,
+              defaultValue: 1,
+            }}
+          />
+
+          <Button
+            variant="outlined"
+            size="small"
+            className={styles.timePopoverButton}
+            type="submit"
+          >
+            Apply
+          </Button>
+        </form>
+      </Popover>
+    </>
+  )
 }
 
 export const canEditDeadline = (workspace: Workspace): boolean => {
@@ -312,7 +316,7 @@ const useStyles = makeStyles((theme) => ({
     rowGap: theme.spacing(3),
     flex: 1,
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",

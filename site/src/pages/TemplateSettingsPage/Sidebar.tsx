@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import ScheduleIcon from "@mui/icons-material/TimerOutlined"
 import VariablesIcon from "@mui/icons-material/CodeOutlined"
 import { Template } from "api/typesGenerated"

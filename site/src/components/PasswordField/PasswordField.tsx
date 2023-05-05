@@ -1,6 +1,6 @@
 import IconButton from "@mui/material/IconButton"
 import InputAdornment from "@mui/material/InputAdornment"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TextField, { TextFieldProps } from "@mui/material/TextField"
 import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined"
 import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined"

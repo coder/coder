@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import GroupAdd from "@mui/icons-material/GroupAddOutlined"
 import PersonAdd from "@mui/icons-material/PersonAddOutlined"
 import { useMachine } from "@xstate/react"

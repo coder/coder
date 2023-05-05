@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
 import Popover from "@mui/material/Popover"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TextField from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { useRef, useState, Fragment } from "react"
@@ -59,80 +59,83 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
   })
   const ports = state.context.listeningPorts?.ports
 
-  return <>
-    <HelpTooltipText>
-      Access ports running on the agent with the{" "}
-      <strong>port, agent name, workspace name</strong> and{" "}
-      <strong>your username</strong> URL schema, as shown below. Port URLs are
-      only accessible by you.
-    </HelpTooltipText>
-
-    <CodeExample code={urlExample} className={styles.code} />
-
-    <HelpTooltipText>
-      Use the form to open applications in a new tab.
-    </HelpTooltipText>
-
-    <Stack
-      direction="row"
-      spacing={1}
-      alignItems="center"
-      className={styles.form}
-    >
-      <TextField
-        variant="standard"
-        label="Port"
-        type="number"
-        value={port}
-        className={styles.portField}
-        onChange={(e) => {
-          setPort(e.currentTarget.value)
-        }} />
-      <Link
-        underline="none"
-        href={urlExample}
-        target="_blank"
-        rel="noreferrer"
-        className={styles.openUrlButton}
-      >
-        <Button>Open URL</Button>
-      </Link>
-    </Stack>
-
-    <Maybe condition={Boolean(ports && ports.length > 0)}>
+  return (
+    <>
       <HelpTooltipText>
-        {ports &&
-          ports.map((p, i) => {
-            const url = portForwardURL(
-              host,
-              p.port,
-              agentName,
-              workspaceName,
-              username,
-            )
-            let label = `${p.port}`
-            if (p.process_name) {
-              label = `${p.process_name} - ${p.port}`
-            }
-
-            return (
-              <Fragment key={i}>
-                {i > 0 && <span style={{ margin: "0 0.6em" }}>&middot;</span>}
-                <Link href={url} target="_blank" rel="noreferrer">
-                  {label}
-                </Link>
-              </Fragment>
-            )
-          })}
+        Access ports running on the agent with the{" "}
+        <strong>port, agent name, workspace name</strong> and{" "}
+        <strong>your username</strong> URL schema, as shown below. Port URLs are
+        only accessible by you.
       </HelpTooltipText>
-    </Maybe>
 
-    <HelpTooltipLinksGroup>
-      <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard">
-        Learn more about web port forwarding
-      </HelpTooltipLink>
-    </HelpTooltipLinksGroup>
-  </>;
+      <CodeExample code={urlExample} className={styles.code} />
+
+      <HelpTooltipText>
+        Use the form to open applications in a new tab.
+      </HelpTooltipText>
+
+      <Stack
+        direction="row"
+        spacing={1}
+        alignItems="center"
+        className={styles.form}
+      >
+        <TextField
+          variant="standard"
+          label="Port"
+          type="number"
+          value={port}
+          className={styles.portField}
+          onChange={(e) => {
+            setPort(e.currentTarget.value)
+          }}
+        />
+        <Link
+          underline="none"
+          href={urlExample}
+          target="_blank"
+          rel="noreferrer"
+          className={styles.openUrlButton}
+        >
+          <Button>Open URL</Button>
+        </Link>
+      </Stack>
+
+      <Maybe condition={Boolean(ports && ports.length > 0)}>
+        <HelpTooltipText>
+          {ports &&
+            ports.map((p, i) => {
+              const url = portForwardURL(
+                host,
+                p.port,
+                agentName,
+                workspaceName,
+                username,
+              )
+              let label = `${p.port}`
+              if (p.process_name) {
+                label = `${p.process_name} - ${p.port}`
+              }
+
+              return (
+                <Fragment key={i}>
+                  {i > 0 && <span style={{ margin: "0 0.6em" }}>&middot;</span>}
+                  <Link href={url} target="_blank" rel="noreferrer">
+                    {label}
+                  </Link>
+                </Fragment>
+              )
+            })}
+        </HelpTooltipText>
+      </Maybe>
+
+      <HelpTooltipLinksGroup>
+        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard">
+          Learn more about web port forwarding
+        </HelpTooltipLink>
+      </HelpTooltipLinksGroup>
+    </>
+  )
 }
 
 export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {

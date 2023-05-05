@@ -1,6 +1,6 @@
 import MenuItem from "@mui/material/MenuItem"
 import Select, { SelectProps } from "@mui/material/Select"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Table from "@mui/material/Table"
 import TableBody from "@mui/material/TableBody"
 import TableCell from "@mui/material/TableCell"

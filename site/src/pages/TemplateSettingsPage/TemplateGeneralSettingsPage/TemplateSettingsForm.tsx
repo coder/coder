@@ -22,7 +22,7 @@ import {
 import { Stack } from "components/Stack/Stack"
 import Checkbox from "@mui/material/Checkbox"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
 

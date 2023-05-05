@@ -1,6 +1,6 @@
 import Box from "@mui/material/Box"
 import Checkbox from "@mui/material/Checkbox"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TextField from "@mui/material/TextField"
 import Typography from "@mui/material/Typography"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"

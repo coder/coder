@@ -1,6 +1,6 @@
 import MenuItem from "@mui/material/MenuItem"
 import Menu from "@mui/material/Menu"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined"
 import { FC, ReactNode, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"

@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import AddOutlined from "@mui/icons-material/AddOutlined"
 import { Workspace } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"

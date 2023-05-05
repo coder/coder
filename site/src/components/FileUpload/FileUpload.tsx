@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { Stack } from "components/Stack/Stack"
 import { FC, DragEvent, useRef, ReactNode } from "react"
 import UploadIcon from "@mui/icons-material/CloudUploadOutlined"

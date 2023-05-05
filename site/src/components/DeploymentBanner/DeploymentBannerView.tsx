@@ -3,7 +3,7 @@ import { FC, useMemo, useEffect, useState } from "react"
 import prettyBytes from "pretty-bytes"
 import { getStatus } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import BuildingIcon from "@mui/icons-material/Build"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { RocketIcon } from "components/Icons/RocketIcon"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import Tooltip from "@mui/material/Tooltip"
@@ -251,7 +251,7 @@ const useStyles = makeStyles((theme) => ({
       height: 16,
     },
 
-    [theme.breakpoints.down('lg')]: {
+    [theme.breakpoints.down("lg")]: {
       display: "none",
     },
   },
@@ -269,7 +269,7 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(4),
     borderTop: `1px solid ${theme.palette.divider}`,
 
-    [theme.breakpoints.down('lg')]: {
+    [theme.breakpoints.down("lg")]: {
       flexDirection: "column",
       gap: theme.spacing(1),
       alignItems: "left",

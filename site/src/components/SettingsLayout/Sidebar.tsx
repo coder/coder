@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined"
 import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined"
 import { User } from "api/typesGenerated"

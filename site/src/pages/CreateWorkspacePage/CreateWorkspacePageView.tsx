@@ -20,7 +20,7 @@ import {
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import {
   selectInitialRichParametersValues,
   useValidationSchemaForRichParameters,

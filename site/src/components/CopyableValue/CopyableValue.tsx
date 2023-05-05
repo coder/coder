@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Tooltip from "@mui/material/Tooltip"
 import { useClickable } from "hooks/useClickable"
 import { useClipboard } from "hooks/useClipboard"

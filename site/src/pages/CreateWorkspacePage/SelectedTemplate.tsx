@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { Template, TemplateExample } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { Stack } from "components/Stack/Stack"

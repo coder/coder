@@ -1,7 +1,7 @@
 import CircularProgress from "@mui/material/CircularProgress"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TextField from "@mui/material/TextField"
-import Autocomplete from '@mui/material/Autocomplete'
+import Autocomplete from "@mui/material/Autocomplete"
 import { useMachine } from "@xstate/react"
 import { Group, User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
@@ -105,7 +105,7 @@ export const UserOrGroupAutocomplete: React.FC<
         />
       )}
     />
-  );
+  )
 }
 
 export const useStyles = makeStyles((theme) => {

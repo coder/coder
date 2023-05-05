@@ -1,6 +1,6 @@
 import List from "@mui/material/List"
 import ListItem from "@mui/material/ListItem"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { FC } from "react"
 import { NavLink } from "react-router-dom"
 import { sidePadding } from "theme/constants"
@@ -56,7 +56,7 @@ const useStyles = makeStyles((theme) => ({
     minWidth: 160,
     marginTop: theme.spacing(5),
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       display: "flex",
       borderBottom: `1px solid ${theme.palette.divider}`,
       marginBottom: theme.spacing(2),
@@ -105,7 +105,7 @@ const useStyles = makeStyles((theme) => ({
       },
     },
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       textAlign: "center",
       width: "100%",
       paddingTop: theme.spacing(2),

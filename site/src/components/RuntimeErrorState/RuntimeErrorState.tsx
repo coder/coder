@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { BuildInfoResponse } from "api/typesGenerated"
 import { CopyButton } from "components/CopyButton/CopyButton"

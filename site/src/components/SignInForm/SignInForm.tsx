@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { FormikTouched } from "formik"
 import { FC, useState } from "react"
 import { AuthMethods } from "../../api/typesGenerated"

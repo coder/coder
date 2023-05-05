@@ -1,7 +1,7 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TableCell from "@mui/material/TableCell"
 import TableRow from "@mui/material/TableRow"
-import Skeleton from '@mui/material/Skeleton'
+import Skeleton from "@mui/material/Skeleton"
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton"
 import { FC } from "react"
 import { Loader } from "../Loader/Loader"

@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { useMachine } from "@xstate/react"
 import { UpdateCheckResponse } from "api/typesGenerated"
 import { DeploymentBanner } from "components/DeploymentBanner/DeploymentBanner"

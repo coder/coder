@@ -2,7 +2,7 @@ import Drawer from "@mui/material/Drawer"
 import IconButton from "@mui/material/IconButton"
 import List from "@mui/material/List"
 import ListItem from "@mui/material/ListItem"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import MenuIcon from "@mui/icons-material/Menu"
 import { CoderIcon } from "components/Icons/CoderIcon"
 import { useState } from "react"
@@ -104,7 +104,8 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           onClick={() => {
             setIsDrawerOpen(true)
           }}
-          size="large">
+          size="large"
+        >
           <MenuIcon />
         </IconButton>
 
@@ -156,7 +157,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         </div>
       </div>
     </nav>
-  );
+  )
 }
 
 const useStyles = makeStyles((theme) => ({

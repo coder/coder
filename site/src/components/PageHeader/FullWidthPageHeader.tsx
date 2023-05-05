@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { FC, PropsWithChildren } from "react"
 
 export const FullWidthPageHeader: FC<PropsWithChildren> = ({ children }) => {
@@ -39,17 +39,17 @@ const useStyles = makeStyles((theme) => ({
     zIndex: 10,
     flexWrap: "wrap",
 
-    [theme.breakpoints.down('lg')]: {
+    [theme.breakpoints.down("lg")]: {
       position: "unset",
       alignItems: "flex-start",
     },
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       flexDirection: "column",
     },
   },
   actions: {
     marginLeft: "auto",
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       marginLeft: "unset",
     },
   },

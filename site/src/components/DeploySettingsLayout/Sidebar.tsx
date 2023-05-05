@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Brush from "@mui/icons-material/Brush"
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined"
 import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined"

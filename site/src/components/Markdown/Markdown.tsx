@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Table from "@mui/material/Table"
 import TableBody from "@mui/material/TableBody"
 import TableCell from "@mui/material/TableCell"
@@ -95,7 +95,7 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
     >
       {children}
     </ReactMarkdown>
-  );
+  )
 }
 
 export const MemoizedMarkdown = memo(Markdown)

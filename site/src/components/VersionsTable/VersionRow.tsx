@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import TableCell from "@mui/material/TableCell"
 import { TemplateVersion } from "api/typesGenerated"
 import { Pill } from "components/Pill/Pill"

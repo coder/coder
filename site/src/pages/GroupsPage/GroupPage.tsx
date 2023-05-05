@@ -32,7 +32,7 @@ import { Link as RouterLink, useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
 import { groupMachine } from "xServices/groups/groupXService"
 import { Maybe } from "components/Conditionals/Maybe"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 
 const AddGroupMember: React.FC<{
   isLoading: boolean

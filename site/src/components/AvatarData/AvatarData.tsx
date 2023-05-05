@@ -1,7 +1,7 @@
 import { Avatar } from "components/Avatar/Avatar"
 import { FC, PropsWithChildren } from "react"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 
 export interface AvatarDataProps {
   title: string | JSX.Element

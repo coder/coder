@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Typography from "@mui/material/Typography"
 import { FC, ReactNode, PropsWithChildren } from "react"
 import { SectionAction } from "../SectionAction/SectionAction"

@@ -1,5 +1,5 @@
 import Tooltip from "@mui/material/Tooltip"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"

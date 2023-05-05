@@ -1,6 +1,6 @@
 import Divider from "@mui/material/Divider"
 import MenuItem from "@mui/material/MenuItem"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import AccountIcon from "@mui/icons-material/AccountCircleOutlined"
 import BugIcon from "@mui/icons-material/BugReportOutlined"
 import ChatIcon from "@mui/icons-material/ChatOutlined"

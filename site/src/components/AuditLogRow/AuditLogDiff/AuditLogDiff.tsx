@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { AuditLog } from "api/typesGenerated"
 import { colors } from "theme/colors"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"

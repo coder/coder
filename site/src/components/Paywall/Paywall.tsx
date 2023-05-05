@@ -1,6 +1,6 @@
 import Box from "@mui/material/Box"
 import Chip from "@mui/material/Chip"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Typography from "@mui/material/Typography"
 import { Stack } from "components/Stack/Stack"
 import { FC, ReactNode } from "react"

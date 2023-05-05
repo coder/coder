@@ -1,5 +1,5 @@
 import IconButton from "@mui/material/Button"
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Tooltip from "@mui/material/Tooltip"
 import Check from "@mui/icons-material/Check"
 import { useClipboard } from "hooks/useClipboard"

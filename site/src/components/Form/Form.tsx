@@ -1,4 +1,4 @@
-import { makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import {
   FormFooterProps as BaseFormFooterProps,
   FormFooter as BaseFormFooter,
@@ -122,7 +122,7 @@ const useStyles = makeStyles((theme) => ({
     gap: ({ direction }: FormContextValue = {}) =>
       direction === "horizontal" ? theme.spacing(10) : theme.spacing(5),
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       gap: theme.spacing(8),
     },
   },
@@ -135,7 +135,7 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: ({ direction }: FormContextValue = {}) =>
       direction === "horizontal" ? "row" : "column",
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       flexDirection: "column",
       gap: theme.spacing(2),
     },
@@ -150,7 +150,7 @@ const useStyles = makeStyles((theme) => ({
       direction === "horizontal" ? "sticky" : undefined,
     top: theme.spacing(3),
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       width: "100%",
       position: "initial",
     },
@@ -180,7 +180,7 @@ const useFormFooterStyles = makeStyles((theme) => ({
   button: {
     minWidth: theme.spacing(23),
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       width: "100%",
     },
   },
@@ -191,7 +191,7 @@ const useFormFooterStyles = makeStyles((theme) => ({
     flexDirection: "row-reverse",
     gap: theme.spacing(2),
 
-    [theme.breakpoints.down('md')]: {
+    [theme.breakpoints.down("md")]: {
       flexDirection: "column",
       gap: theme.spacing(1),
     },
