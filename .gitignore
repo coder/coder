@@ -54,3 +54,7 @@ site/stats/
 # direnv
 .envrc
 *.test
+
+# Loadtesting
+./scaletest/terraform/.terraform
+./scaletest/terraform/.terraform.lock.hcl
