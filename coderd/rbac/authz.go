@@ -44,18 +44,18 @@ type AuthCall struct {
 	Object Object
 }
 
-// AuthCallHash guarantees a unique hash for a given auth call.
+// hashAuthorizeCall guarantees a unique hash for a given auth call.
 // If two hashes are equal, then the result of a given authorize() call
 // will be the same.
 //
 // Note that this ignores some fields such as the permissions within a given
 // role, as this assumes all roles are static to a given role name.
-func AuthCallHash(actor Subject, action Action, object Object) [32]byte {
+func hashAuthorizeCall(actor Subject, action Action, object Object) [32]byte {
 	var hashOut [32]byte
 	hash := sha256.New()
-	hash.Write(actor.Hash())
-	hash.Write([]byte(action))
-	hash.Write(object.Hash())
+	_, _ = hash.Write(actor.Hash())
+	_, _ = hash.Write([]byte(action))
+	_, _ = hash.Write(object.Hash())
 
 	// We might be able to avoid this extra copy?
 	// sha256.Sum256() returns a [32]byte. We need to return
@@ -87,15 +87,15 @@ func (s *Subject) Hash() []byte {
 	// but we do not need cryptographic security, just collision resistance.
 	// So we might be able to use a faster hashing algo.
 	hash := sha256.New()
-	hash.Write([]byte(s.ID))
+	_, _ = hash.Write([]byte(s.ID))
 	for _, roleName := range s.Roles.Names() {
 		// roleNames are mapped 1:1 with unique permission sets.
-		hash.Write([]byte(roleName))
+		_, _ = hash.Write([]byte(roleName))
 	}
 	for _, groupName := range s.Groups {
-		hash.Write([]byte(groupName))
+		_, _ = hash.Write([]byte(groupName))
 	}
-	hash.Write([]byte(s.Scope.Name()))
+	_, _ = hash.Write([]byte(s.Scope.Name()))
 	return hash.Sum(nil)
 }
 
@@ -671,12 +671,14 @@ type authCache struct {
 func Cacher(authz Authorizer) Authorizer {
 	return &authCache{
 		authz: authz,
-		cache: tlru.New[[32]byte](tlru.ConstantCost[error], 4096),
+		// In practice, this cache should never come close to filling since the
+		// authorization calls are kept for a minute at most.
+		cache: tlru.New[[32]byte](tlru.ConstantCost[error], 64*1024),
 	}
 }
 
 func (c *authCache) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
-	authorizeCacheKey := AuthCallHash(subject, action, object)
+	authorizeCacheKey := hashAuthorizeCall(subject, action, object)
 
 	var err error
 	err, _, ok := c.cache.Get(authorizeCacheKey)

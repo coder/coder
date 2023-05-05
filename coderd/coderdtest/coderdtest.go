@@ -190,8 +190,15 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.Authorizer == nil {
-		options.Authorizer = &RecordingAuthorizer{
-			Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
+		defAuth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+		if _, ok := t.(*testing.T); ok {
+			options.Authorizer = &RecordingAuthorizer{
+				Wrapped: defAuth,
+			}
+		} else {
+			// In the benchmarks, the recording authorizer greatly skews
+			// the results.
+			options.Authorizer = defAuth
 		}
 	}
 
