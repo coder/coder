@@ -294,7 +294,7 @@ func (api *API) moonsEnabledMW(next http.Handler) http.Handler {
 		api.entitlementsMu.RUnlock()
 		if !proxy {
 			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-				Message: "External workspace providers is an Enterprise feature. Contact sales!",
+				Message: "External workspace proxies is an Enterprise feature. Contact sales!",
 			})
 			return
 		}
