@@ -41,8 +41,9 @@ func (r *RootCmd) regenerateProxyToken() *clibase.Cmd {
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "regenerate-token <name|id>",
-		Short: "Regenerate a workspace proxy authentication token",
+		Use: "regenerate-token <name|id>",
+		Short: "Regenerate a workspace proxy authentication token. " +
+			"This will invalidate the existing authentication token.",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
