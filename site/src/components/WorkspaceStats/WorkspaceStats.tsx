@@ -311,6 +311,15 @@ const useStyles = makeStyles((theme) => ({
     padding: 0,
     border: 0,
     gap: theme.spacing(6),
+    rowGap: theme.spacing(3),
+    flex: 1,
+
+    [theme.breakpoints.down("sm")]: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-start",
+      gap: theme.spacing(1),
+    },
   },
 
   statsItem: {

@@ -34,9 +34,20 @@ const useStyles = makeStyles((theme) => ({
     top: 0,
     zIndex: 10,
     flexWrap: "wrap",
+
+    [theme.breakpoints.down("md")]: {
+      position: "unset",
+      alignItems: "flex-start",
+    },
+    [theme.breakpoints.down("sm")]: {
+      flexDirection: "column",
+    },
   },
   actions: {
     marginLeft: "auto",
+    [theme.breakpoints.down("sm")]: {
+      marginLeft: "unset",
+    },
   },
   title: {
     fontSize: 18,
