@@ -206,6 +206,10 @@ func (t *TrackedConn) Close() error {
 	return t.conn.Close()
 }
 
+// WriteTimeout is the amount of time we wait to write a node update to a connection before we declare it hung.
+// It is exported so that tests can use it.
+const WriteTimeout = time.Second * 5
+
 // SendUpdates reads node updates and writes them to the connection.  Ends when writes hit an error or context is
 // canceled.
 func (t *TrackedConn) SendUpdates() {
@@ -223,7 +227,7 @@ func (t *TrackedConn) SendUpdates() {
 
 			// Set a deadline so that hung connections don't put back pressure on the system.
 			// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
-			err = t.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			err = t.conn.SetWriteDeadline(time.Now().Add(WriteTimeout))
 			if err != nil {
 				// often, this is just because the connection is closed/broken, so only log at debug.
 				t.logger.Debug(t.ctx, "unable to set write deadline", slog.Error(err))
@@ -238,6 +242,23 @@ func (t *TrackedConn) SendUpdates() {
 				return
 			}
 			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", nodes))
+
+			// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
+			// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
+			// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
+			// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
+			// our successful write, it is important that we reset the deadline before it fires.
+			//
+			// SetWriteDeadline(0) is *supposed* to cancel the deadline, but again, nhooyr.io/websocket is bugged, and
+			// interprets 0 as the Golang time epoch, midnight on Jan 1, year 1, some two thousand years in the past.
+			// So, we set the write deadline an absurd amount of time in the future: 100 years.
+			err = t.conn.SetWriteDeadline(time.Now().Add(time.Hour * 24 * 365 * 100))
+			if err != nil {
+				// often, this is just because the connection is closed/broken, so only log at debug.
+				t.logger.Debug(t.ctx, "unable to extend write deadline", slog.Error(err))
+				_ = t.Close()
+				return
+			}
 		}
 	}
 }
