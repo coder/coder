@@ -1,0 +1,12 @@
+<FirstLogonCommands>
+	<SynchronousCommand>
+		<CommandLine>cmd /c "copy C:\AzureData\CustomData.bin C:\AzureData\CoderAgent.ps1"</CommandLine>
+		<Description>Move the CustomData file to the working directory</Description>
+		<Order>10</Order>
+	</SynchronousCommand>
+	<SynchronousCommand>
+		<CommandLine>powershell.exe -sta -ExecutionPolicy Unrestricted -Command "C:\AzureData\CoderAgent.ps1 | Out-File C:\AzureData\CoderAgent.log</CommandLine>
+		<Description>Execute CustomData as powershell.</Description>
+		<Order>20</Order>
+	</SynchronousCommand>
+</FirstLogonCommands>
