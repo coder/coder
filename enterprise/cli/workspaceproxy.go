@@ -74,7 +74,7 @@ func (r *RootCmd) regenerateProxyToken() *clibase.Cmd {
 				return err
 			}
 			_, err = fmt.Fprintln(inv.Stdout, output)
-			return nil
+			return err
 		},
 	}
 	formatter.AttachOptions(&cmd.Options)
@@ -155,7 +155,7 @@ func (r *RootCmd) patchProxy() *clibase.Cmd {
 				return xerrors.Errorf("format response: %w", err)
 			}
 			_, err = fmt.Fprintln(inv.Stdout, output)
-			return nil
+			return err
 		},
 	}
 
@@ -241,7 +241,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 				return err
 			}
 			_, err = fmt.Fprintln(inv.Stdout, output)
-			return nil
+			return err
 		},
 	}
 
