@@ -17,7 +17,7 @@ import { Stack } from "../../Stack/Stack"
 type Icon = typeof HelpIcon
 
 type Size = "small" | "medium"
-interface HelpTooltipProps {
+export interface HelpTooltipProps {
   // Useful to test on storybook
   open?: boolean
   size?: Size

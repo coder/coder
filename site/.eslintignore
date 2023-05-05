@@ -32,6 +32,7 @@ e2e/test-results/*
 e2e/states/*.json
 playwright-report/*
 .swc
+dist/
 
 # Make target for updating golden files (any dir).
 .gen-golden
