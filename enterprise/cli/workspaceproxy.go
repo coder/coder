@@ -36,9 +36,7 @@ func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 }
 
 func (r *RootCmd) regenerateProxyToken() *clibase.Cmd {
-	var (
-		formatter = newUpdateProxyResponseFormatter()
-	)
+	formatter := newUpdateProxyResponseFormatter()
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use: "regenerate-token <name|id>",

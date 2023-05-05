@@ -416,7 +416,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		// associated with it. The audit log commitAudit() function ignores
 		// the audit log if there is no user id. We should find a solution
 		// to make sure this event is tracked.
-		//auditor = api.AGPL.Auditor.Load()
+		// auditor = api.AGPL.Auditor.Load()
 		//aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
 		//	Audit:   *auditor,
 		//	Log:     api.Logger,
@@ -424,8 +424,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		//	Action:  database.AuditActionWrite,
 		//})
 	)
-	//aReq.Old = proxy
-	//defer commitAudit()
+	// aReq.Old = proxy
+	// defer commitAudit()
 
 	var req wsproxysdk.RegisterWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -464,7 +464,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	//aReq.New = updatedProxy
+	// aReq.New = updatedProxy
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey: api.AppSecurityKey.String(),
 	})
