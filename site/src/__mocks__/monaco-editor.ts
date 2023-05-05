@@ -1,3 +1,6 @@
+/* eslint-disable eslint-comments/disable-enable-pair -- make the line below works */
+/* eslint-disable @typescript-eslint/ban-ts-comment -- it is a mjs module */
+// @ts-nocheck
 const editor = {
   defineTheme: () => {
     //
@@ -15,4 +18,4 @@ const monaco = {
   editor,
 }
 
-export default monaco
+module.exports = monaco
