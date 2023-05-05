@@ -248,11 +248,7 @@ func (t *TrackedConn) SendUpdates() {
 			// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
 			// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
 			// our successful write, it is important that we reset the deadline before it fires.
-			//
-			// SetWriteDeadline(0) is *supposed* to cancel the deadline, but again, nhooyr.io/websocket is bugged, and
-			// interprets 0 as the Golang time epoch, midnight on Jan 1, year 1, some two thousand years in the past.
-			// So, we set the write deadline an absurd amount of time in the future: 100 years.
-			err = t.conn.SetWriteDeadline(time.Now().Add(time.Hour * 24 * 365 * 100))
+			err = t.conn.SetWriteDeadline(time.Time{})
 			if err != nil {
 				// often, this is just because the connection is closed/broken, so only log at debug.
 				t.logger.Debug(t.ctx, "unable to extend write deadline", slog.Error(err))
