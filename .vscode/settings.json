@@ -34,6 +34,7 @@
     "Dsts",
     "embeddedpostgres",
     "enablements",
+    "enterprisemeta",
     "errgroup",
     "eventsourcemock",
     "Failf",

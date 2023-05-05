@@ -341,6 +341,8 @@ export const MockTemplate: TypesGen.Template = {
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
   allow_user_cancel_workspace_jobs: true,
+  failure_ttl_ms: 0,
+  inactivity_ttl_ms: 0,
   allow_user_autostart: false,
   allow_user_autostop: false,
 }
@@ -1340,7 +1342,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   }),
 }
 
-export const MockExperiments: TypesGen.Experiment[] = []
+export const MockExperiments: TypesGen.Experiment[] = ["workspace_actions"]
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
