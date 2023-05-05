@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
 	"encoding/json"
 	"strings"
@@ -44,6 +45,27 @@ type AuthCall struct {
 	Object Object
 }
 
+// AuthCallHash guarantees a unique hash for a given auth call.
+// If two hashes are equal, then the result of a given authorize() call
+// will be the same.
+//
+// Note that this ignores some fields such as the permissions within a given
+// role, as this assumes all roles are static to a given role name.
+func AuthCallHash(actor Subject, action Action, object Object) [32]byte {
+	var hashOut [32]byte
+	hash := sha256.New()
+	hash.Write(actor.Hash())
+	hash.Write([]byte(action))
+	hash.Write(object.Hash())
+
+	// We might be able to avoid this extra copy?
+	// sha256.Sum256() returns a [32]byte. We need to return
+	// an array vs a slice so we can use it as a key in the cache.
+	image := hash.Sum(nil)
+	copy(hashOut[:], image)
+	return hashOut
+}
+
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
 type Subject struct {
@@ -54,6 +76,28 @@ type Subject struct {
 
 	// cachedASTValue is the cached ast value for this subject.
 	cachedASTValue ast.Value
+}
+
+// Hash returns a unique hash for this subject.
+// Role and group order MATTER for this hash. We could sort these
+// to make the role/group order not matter, but that would require extra
+// processing time to allocate and sort the slice. For our purposes, these
+// orders should always be the same, so we can just hash the order as is.
+func (s *Subject) Hash() []byte {
+	// TODO: We might want to look into xxhash instead of sha256. Sha256 is fast,
+	// but we do not need cryptographic security, just collision resistance.
+	// So we might be able to use a faster hashing algo.
+	hash := sha256.New()
+	hash.Write([]byte(s.ID))
+	for _, roleName := range s.Roles.Names() {
+		// roleNames are mapped 1:1 with unique permission sets.
+		hash.Write([]byte(roleName))
+	}
+	for _, groupName := range s.Groups {
+		hash.Write([]byte(groupName))
+	}
+	hash.Write([]byte(s.Scope.Name()))
+	return hash.Sum(nil)
 }
 
 // WithCachedASTValue can be called if the subject is static. This will compute
@@ -613,7 +657,7 @@ type authCache struct {
 	// corresponding errors. When the Authorizer is immutable (e.g. in the case
 	// of Rego)"
 	// determistic function.
-	cache *tlru.Cache[string, error]
+	cache *tlru.Cache[[32]byte, error]
 
 	authz Authorizer
 }
@@ -628,24 +672,19 @@ type authCache struct {
 func Cacher(authz Authorizer) Authorizer {
 	return &authCache{
 		authz: authz,
-		cache: tlru.New[string](tlru.ConstantCost[error], 4096),
+		cache: tlru.New[[32]byte](tlru.ConstantCost[error], 4096),
 	}
 }
 
 func (c *authCache) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
-	var authorizeCacheKey strings.Builder
-	authorizeCacheKey.Grow(256)
-	enc := json.NewEncoder(&authorizeCacheKey)
-	_ = enc.Encode(subject)
-	_ = enc.Encode(action)
-	_ = enc.Encode(object)
+	authorizeCacheKey := AuthCallHash(subject, action, object)
 
 	var err error
-	err, _, ok := c.cache.Get(authorizeCacheKey.String())
+	err, _, ok := c.cache.Get(authorizeCacheKey)
 	if !ok {
 		err = c.authz.Authorize(ctx, subject, action, object)
 		// In case there is a caching bug, bound the TTL to 1 minute.
-		c.cache.Set(authorizeCacheKey.String(), err, time.Minute)
+		c.cache.Set(authorizeCacheKey, err, time.Minute)
 	}
 
 	return err
