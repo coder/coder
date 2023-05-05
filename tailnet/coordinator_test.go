@@ -367,8 +367,8 @@ func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server n
 		require.NoError(t, err)
 		server = websocket.NetConn(r.Context(), wss, websocket.MessageBinary)
 
-		// hold open until request context canceled
-		<-r.Context().Done()
+		// hold open until context canceled
+		<-ctx.Done()
 	}))
 	t.Cleanup(s.Close)
 	// nolint: bodyclose
