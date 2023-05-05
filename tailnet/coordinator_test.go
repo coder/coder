@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -358,14 +357,13 @@ func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
 
 func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server net.Conn) {
 	t.Helper()
-	accepted := atomic.Bool{}
+	sc := make(chan net.Conn, 1)
 	s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// we should only call this handler once
-		require.False(t, accepted.Load())
-		accepted.Store(true)
 		wss, err := websocket.Accept(rw, r, nil)
 		require.NoError(t, err)
-		server = websocket.NetConn(r.Context(), wss, websocket.MessageBinary)
+		conn := websocket.NetConn(r.Context(), wss, websocket.MessageBinary)
+		sc <- conn
+		close(sc) // there can be only one
 
 		// hold open until context canceled
 		<-ctx.Done()
@@ -375,5 +373,7 @@ func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server n
 	wsc, _, err := websocket.Dial(ctx, s.URL, nil)
 	require.NoError(t, err)
 	client = websocket.NetConn(ctx, wsc, websocket.MessageBinary)
+	server, ok := <-sc
+	require.True(t, ok)
 	return client, server
 }
