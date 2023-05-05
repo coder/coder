@@ -4,7 +4,11 @@ import { FC, PropsWithChildren } from "react"
 export const FullWidthPageHeader: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
 
-  return <header className={styles.header}>{children}</header>
+  return (
+    <header className={styles.header} data-testid="header">
+      {children}
+    </header>
+  )
 }
 
 export const PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
