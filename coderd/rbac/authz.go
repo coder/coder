@@ -634,6 +634,7 @@ func Cacher(authz Authorizer) Authorizer {
 
 func (c *authCache) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
 	var authorizeCacheKey strings.Builder
+	authorizeCacheKey.Grow(256)
 	enc := json.NewEncoder(&authorizeCacheKey)
 	_ = enc.Encode(subject)
 	_ = enc.Encode(action)
@@ -642,7 +643,7 @@ func (c *authCache) Authorize(ctx context.Context, subject Subject, action Actio
 	var err error
 	err, _, ok := c.cache.Get(authorizeCacheKey.String())
 	if !ok {
-		err := c.authz.Authorize(ctx, subject, action, object)
+		err = c.authz.Authorize(ctx, subject, action, object)
 		// In case there is a caching bug, bound the TTL to 1 minute.
 		c.cache.Set(authorizeCacheKey.String(), err, time.Minute)
 	}
