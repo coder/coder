@@ -1,19 +1,30 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { ComponentProps, FC, PropsWithChildren } from "react"
+import { combineClasses } from "utils/combineClasses"
 
-export const Stats: FC<PropsWithChildren<ComponentProps<"div">>> = (props) => {
+export const Stats: FC<ComponentProps<"div">> = (props) => {
   const styles = useStyles()
-  return <div className={styles.stats} {...props} />
+  return (
+    <div
+      {...props}
+      className={combineClasses([styles.stats, props.className])}
+    />
+  )
 }
 
-export const StatsItem: FC<{
-  label: string
-  value: string | number | JSX.Element
-}> = ({ label, value }) => {
+export const StatsItem: FC<
+  {
+    label: string
+    value: string | number | JSX.Element
+  } & ComponentProps<"div">
+> = ({ label, value, ...divProps }) => {
   const styles = useStyles()
 
   return (
-    <div className={styles.statItem}>
+    <div
+      {...divProps}
+      className={combineClasses([styles.statItem, divProps.className])}
+    >
       <span className={styles.statsLabel}>{label}:</span>
       <span className={styles.statsValue}>{value}</span>
     </div>

@@ -8,6 +8,8 @@ import { Pill } from "components/Pill/Pill"
 import i18next from "i18next"
 import { FC, ReactNode, PropsWithChildren } from "react"
 import { PaletteIndex } from "theme/palettes"
+import { makeStyles } from "@material-ui/core/styles"
+import { combineClasses } from "utils/combineClasses"
 
 const LoadingIcon: FC = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
@@ -102,3 +104,47 @@ export const WorkspaceStatusBadge: FC<
   const { text, icon, type } = getStatus(build.status)
   return <Pill className={className} icon={icon} text={text} type={type} />
 }
+
+export const WorkspaceStatusText: FC<
+  PropsWithChildren<WorkspaceStatusBadgeProps>
+> = ({ build, className }) => {
+  const styles = useStyles()
+  const { text, type } = getStatus(build.status)
+  return (
+    <span
+      role="status"
+      className={combineClasses([
+        className,
+        styles.root,
+        styles[`type-${type}`],
+      ])}
+    >
+      {text}
+    </span>
+  )
+}
+
+const useStyles = makeStyles((theme) => ({
+  root: { fontWeight: 600 },
+  "type-error": {
+    color: theme.palette.error.light,
+  },
+  "type-warning": {
+    color: theme.palette.warning.light,
+  },
+  "type-success": {
+    color: theme.palette.success.light,
+  },
+  "type-info": {
+    color: theme.palette.info.light,
+  },
+  "type-undefined": {
+    color: theme.palette.text.secondary,
+  },
+  "type-primary": {
+    color: theme.palette.text.primary,
+  },
+  "type-secondary": {
+    color: theme.palette.text.secondary,
+  },
+}))

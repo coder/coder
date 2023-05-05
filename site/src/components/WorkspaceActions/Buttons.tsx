@@ -7,7 +7,6 @@ import ReplayIcon from "@material-ui/icons/Replay"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { FC, PropsWithChildren } from "react"
 import { useTranslation } from "react-i18next"
-import { makeStyles } from "@material-ui/core/styles"
 
 interface WorkspaceAction {
   handleAction: () => void
@@ -17,15 +16,14 @@ export const UpdateButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const { t } = useTranslation("workspacePage")
-  const styles = useStyles()
 
   return (
     <Button
+      size="small"
       data-testid="workspace-update-button"
       variant="outlined"
       startIcon={<CloudQueueIcon />}
       onClick={handleAction}
-      className={styles.fixedWidth}
     >
       {t("actionButton.update")}
     </Button>
@@ -36,14 +34,12 @@ export const StartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const { t } = useTranslation("workspacePage")
-  const styles = useStyles()
 
   return (
     <Button
       variant="outlined"
       startIcon={<PlayCircleOutlineIcon />}
       onClick={handleAction}
-      className={styles.fixedWidth}
     >
       {t("actionButton.start")}
     </Button>
@@ -54,14 +50,13 @@ export const StopButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const { t } = useTranslation("workspacePage")
-  const styles = useStyles()
 
   return (
     <Button
+      size="small"
       variant="outlined"
       startIcon={<CropSquareIcon />}
       onClick={handleAction}
-      className={styles.fixedWidth}
     >
       {t("actionButton.stop")}
     </Button>
@@ -72,14 +67,13 @@ export const RestartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const { t } = useTranslation("workspacePage")
-  const styles = useStyles()
 
   return (
     <Button
+      size="small"
       variant="outlined"
       startIcon={<ReplayIcon />}
       onClick={handleAction}
-      className={styles.fixedWidth}
     >
       {t("actionButton.restart")}
     </Button>
@@ -104,7 +98,7 @@ export const DisabledButton: FC<PropsWithChildren<DisabledProps>> = ({
   label,
 }) => {
   return (
-    <Button variant="outlined" disabled>
+    <Button variant="outlined" size="small" disabled>
       {label}
     </Button>
   )
@@ -117,20 +111,12 @@ interface LoadingProps {
 export const ActionLoadingButton: FC<PropsWithChildren<LoadingProps>> = ({
   label,
 }) => {
-  const styles = useStyles()
   return (
     <LoadingButton
       loading
+      size="small"
       variant="outlined"
       loadingLabel={label}
-      className={styles.fixedWidth}
     />
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  fixedWidth: {
-    // Make it fixed so the loading changes will not "flick" the UI
-    width: theme.spacing(16),
-  },
-}))
