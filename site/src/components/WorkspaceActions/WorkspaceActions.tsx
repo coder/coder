@@ -1,5 +1,4 @@
 import MenuItem from "@material-ui/core/MenuItem"
-import Button from "@material-ui/core/Button"
 import Menu from "@material-ui/core/Menu"
 import { makeStyles } from "@material-ui/core/styles"
 import MoreVertOutlined from "@material-ui/icons/MoreVertOutlined"
@@ -23,6 +22,7 @@ import {
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import HistoryOutlined from "@material-ui/icons/HistoryOutlined"
 import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
+import IconButton from "@material-ui/core/IconButton"
 
 export interface WorkspaceActionsProps {
   workspaceStatus: WorkspaceStatus
@@ -148,17 +148,18 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         ))}
       {canCancel && <CancelButton handleAction={handleCancel} />}
       <div>
-        <Button
+        <IconButton
+          title="More options"
+          size="small"
           data-testid="workspace-options-button"
           aria-controls="workspace-options"
           aria-haspopup="true"
-          variant="outlined"
           disabled={!canAcceptJobs}
           ref={menuTriggerRef}
           onClick={() => setIsMenuOpen(true)}
         >
           <MoreVertOutlined />
-        </Button>
+        </IconButton>
         <Menu
           id="workspace-options"
           anchorEl={menuTriggerRef.current}
@@ -189,6 +190,6 @@ const useStyles = makeStyles((theme) => ({
   actions: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(2),
+    gap: theme.spacing(1.5),
   },
 }))

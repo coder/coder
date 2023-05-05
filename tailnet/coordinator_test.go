@@ -1,10 +1,15 @@
 package tailnet_test
 
 import (
+	"context"
 	"encoding/json"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -74,7 +79,10 @@ func TestCoordinator(t *testing.T) {
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		coordinator := tailnet.NewCoordinator(logger)
 
-		agentWS, agentServerWS := net.Pipe()
+		// in this test we use real websockets to test use of deadlines
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancel()
+		agentWS, agentServerWS := websocketConn(ctx, t)
 		defer agentWS.Close()
 		agentNodeChan := make(chan []*tailnet.Node)
 		sendAgentNode, agentErrChan := tailnet.ServeCoordinator(agentWS, func(nodes []*tailnet.Node) error {
@@ -93,7 +101,7 @@ func TestCoordinator(t *testing.T) {
 			return coordinator.Node(agentID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
 
-		clientWS, clientServerWS := net.Pipe()
+		clientWS, clientServerWS := websocketConn(ctx, t)
 		defer clientWS.Close()
 		defer clientServerWS.Close()
 		clientNodeChan := make(chan []*tailnet.Node)
@@ -108,16 +116,28 @@ func TestCoordinator(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeClientChan)
 		}()
-		agentNodes := <-clientNodeChan
-		require.Len(t, agentNodes, 1)
+		select {
+		case agentNodes := <-clientNodeChan:
+			require.Len(t, agentNodes, 1)
+		case <-ctx.Done():
+			t.Fatal("timed out")
+		}
 		sendClientNode(&tailnet.Node{})
 		clientNodes := <-agentNodeChan
 		require.Len(t, clientNodes, 1)
 
+		// wait longer than the internal wait timeout.
+		// this tests for regression of https://github.com/coder/coder/issues/7428
+		time.Sleep(tailnet.WriteTimeout * 3 / 2)
+
 		// Ensure an update to the agent node reaches the client!
 		sendAgentNode(&tailnet.Node{})
-		agentNodes = <-clientNodeChan
-		require.Len(t, agentNodes, 1)
+		select {
+		case agentNodes := <-clientNodeChan:
+			require.Len(t, agentNodes, 1)
+		case <-ctx.Done():
+			t.Fatal("timed out")
+		}
 
 		// Close the agent WebSocket so a new one can connect.
 		err := agentWS.Close()
@@ -333,4 +353,27 @@ func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cNodes, 1)
 	require.Equal(t, 1, cNodes[0].PreferredDERP)
+}
+
+func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server net.Conn) {
+	t.Helper()
+	sc := make(chan net.Conn, 1)
+	s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		wss, err := websocket.Accept(rw, r, nil)
+		require.NoError(t, err)
+		conn := websocket.NetConn(r.Context(), wss, websocket.MessageBinary)
+		sc <- conn
+		close(sc) // there can be only one
+
+		// hold open until context canceled
+		<-ctx.Done()
+	}))
+	t.Cleanup(s.Close)
+	// nolint: bodyclose
+	wsc, _, err := websocket.Dial(ctx, s.URL, nil)
+	require.NoError(t, err)
+	client = websocket.NetConn(ctx, wsc, websocket.MessageBinary)
+	server, ok := <-sc
+	require.True(t, ok)
+	return client, server
 }

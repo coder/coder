@@ -118,7 +118,9 @@ SET
 	allow_user_autostart = $3,
 	allow_user_autostop = $4,
 	default_ttl = $5,
-	max_ttl = $6
+	max_ttl = $6,
+	failure_ttl = $7,
+	inactivity_ttl = $8
 WHERE
 	id = $1
 RETURNING

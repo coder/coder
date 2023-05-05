@@ -6794,9 +6794,17 @@ const docTemplate = `{
                     "description": "DisplayName is the displayed name of the template.",
                     "type": "string"
                 },
+                "failure_ttl_ms": {
+                    "description": "FailureTTLMillis allows optionally specifying the max lifetime before Coder\nstops all resources for failed workspaces created from this template.",
+                    "type": "integer"
+                },
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
+                },
+                "inactivity_ttl_ms": {
+                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\ndeletes inactive workspaces created from this template.",
+                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
@@ -8800,12 +8808,19 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "failure_ttl_ms": {
+                    "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "type": "integer"
+                },
                 "icon": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "inactivity_ttl_ms": {
+                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",

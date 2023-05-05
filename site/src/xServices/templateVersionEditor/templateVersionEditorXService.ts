@@ -14,10 +14,6 @@ import { isAllowedFile } from "utils/templateVersion"
 import { TarReader, TarWriter } from "utils/tar"
 import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
 
-export interface CreateVersionData {
-  file: File
-}
-
 export interface TemplateVersionEditorMachineContext {
   orgId: string
   templateId?: string

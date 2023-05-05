@@ -1436,7 +1436,9 @@ type Template struct {
 	// Allow users to specify an autostart schedule for workspaces (enterprise).
 	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
 	// Allow users to specify custom autostop values for workspaces (enterprise).
-	AllowUserAutostop bool `db:"allow_user_autostop" json:"allow_user_autostop"`
+	AllowUserAutostop bool  `db:"allow_user_autostop" json:"allow_user_autostop"`
+	FailureTTL        int64 `db:"failure_ttl" json:"failure_ttl"`
+	InactivityTTL     int64 `db:"inactivity_ttl" json:"inactivity_ttl"`
 }
 
 type TemplateVersion struct {

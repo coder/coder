@@ -47,8 +47,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "default_ttl_ms": 0,
     "description": "string",
     "display_name": "string",
+    "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "inactivity_ttl_ms": 0,
     "max_ttl_ms": 0,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -86,8 +88,10 @@ Status Code **200**
 | `» default_ttl_ms`                   | integer                                                                      | false    |              |                                                                                                                                                                         |
 | `» description`                      | string                                                                       | false    |              |                                                                                                                                                                         |
 | `» display_name`                     | string                                                                       | false    |              |                                                                                                                                                                         |
+| `» failure_ttl_ms`                   | integer                                                                      | false    |              | Failure ttl ms and InactivityTTLMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.          |
 | `» icon`                             | string                                                                       | false    |              |                                                                                                                                                                         |
 | `» id`                               | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
+| `» inactivity_ttl_ms`                | integer                                                                      | false    |              |                                                                                                                                                                         |
 | `» max_ttl_ms`                       | integer                                                                      | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                               |
 | `» name`                             | string                                                                       | false    |              |                                                                                                                                                                         |
 | `» organization_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
@@ -126,7 +130,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "parameter_values": [
@@ -176,8 +182,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -301,8 +309,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -628,8 +638,10 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -736,8 +748,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",

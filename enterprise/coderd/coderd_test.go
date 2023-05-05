@@ -54,7 +54,6 @@ func TestEntitlements(t *testing.T) {
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 				codersdk.FeatureAdvancedTemplateScheduling: 1,
 				codersdk.FeatureWorkspaceProxy:             1,
-				codersdk.FeatureWorkspaceActions:           1,
 			},
 			GraceAt: time.Now().Add(59 * 24 * time.Hour),
 		})

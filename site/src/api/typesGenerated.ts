@@ -194,6 +194,8 @@ export interface CreateTemplateRequest {
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
+  readonly failure_ttl_ms?: number
+  readonly inactivity_ttl_ms?: number
 }
 
 // From codersdk/templateversions.go
@@ -844,6 +846,8 @@ export interface Template {
   readonly allow_user_autostart: boolean
   readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
+  readonly failure_ttl_ms: number
+  readonly inactivity_ttl_ms: number
 }
 
 // From codersdk/templates.go
@@ -1013,6 +1017,8 @@ export interface UpdateTemplateMeta {
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
+  readonly failure_ttl_ms?: number
+  readonly inactivity_ttl_ms?: number
 }
 
 // From codersdk/users.go
@@ -1386,7 +1392,6 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
-  | "workspace_actions"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
@@ -1399,7 +1404,6 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
-  "workspace_actions",
   "workspace_proxy",
 ]
 

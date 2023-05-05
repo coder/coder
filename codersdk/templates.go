@@ -40,6 +40,12 @@ type Template struct {
 	AllowUserAutostart           bool `json:"allow_user_autostart"`
 	AllowUserAutostop            bool `json:"allow_user_autostop"`
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
+
+	// FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their
+	// values are used if your license is entitled to use the advanced
+	// template scheduling feature.
+	FailureTTLMillis    int64 `json:"failure_ttl_ms"`
+	InactivityTTLMillis int64 `json:"inactivity_ttl_ms"`
 }
 
 type TransitionStats struct {
@@ -95,6 +101,8 @@ type UpdateTemplateMeta struct {
 	AllowUserAutostart           bool  `json:"allow_user_autostart,omitempty"`
 	AllowUserAutostop            bool  `json:"allow_user_autostop,omitempty"`
 	AllowUserCancelWorkspaceJobs bool  `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis             int64 `json:"failure_ttl_ms,omitempty"`
+	InactivityTTLMillis          int64 `json:"inactivity_ttl_ms,omitempty"`
 }
 
 type TemplateExample struct {

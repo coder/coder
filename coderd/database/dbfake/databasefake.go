@@ -1945,6 +1945,8 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.UpdatedAt = database.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.MaxTTL = arg.MaxTTL
+		tpl.FailureTTL = arg.FailureTTL
+		tpl.InactivityTTL = arg.InactivityTTL
 		q.templates[idx] = tpl
 		return tpl.DeepCopy(), nil
 	}
