@@ -14,6 +14,7 @@ if (process.env.STATS !== undefined) {
 }
 
 export default defineConfig({
+  base: "./",
   plugins: plugins,
   publicDir: path.resolve(__dirname, "./static"),
   build: {
