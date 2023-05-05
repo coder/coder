@@ -96,7 +96,7 @@ func (r *RootCmd) patchProxy() *clibase.Cmd {
 		},
 		clibase.Option{
 			Flag:        "display-name",
-			Description: "(Optional) Display of the proxy. If omitted, the name is reused as the display name.",
+			Description: "(Optional) Display of the proxy. A more human friendly name to be displayed.",
 			Value:       clibase.StringOf(&displayName),
 		},
 		clibase.Option{

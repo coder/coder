@@ -51,7 +51,7 @@ SET
 		WHEN length(@token_hashed_secret :: bytea) > 0  THEN @token_hashed_secret :: bytea
 		ELSE  workspace_proxies.token_hashed_secret
 	END,
-    -- Always update this timestamp.
+	-- Always update this timestamp.
 	updated_at = Now()
 WHERE
 	id = @id
@@ -85,7 +85,7 @@ SELECT
 FROM
 	workspace_proxies
 WHERE
-		deleted = false;
+	deleted = false;
 
 -- Finds a workspace proxy that has an access URL or app hostname that matches
 -- the provided hostname. This is to check if a hostname matches any workspace

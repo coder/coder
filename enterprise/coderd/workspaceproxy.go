@@ -410,9 +410,18 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx   = r.Context()
-		proxy = httpmw.WorkspaceProxy(r)
+		ctx               = r.Context()
+		proxy             = httpmw.WorkspaceProxy(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
 	)
+	aReq.Old = proxy
+	defer commitAudit()
 
 	var req wsproxysdk.RegisterWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -437,7 +446,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	_, err := api.Database.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
+	updatedProxy, err := api.Database.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
 		ID:               proxy.ID,
 		Url:              req.AccessURL,
 		WildcardHostname: req.WildcardHostname,
@@ -451,6 +460,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	aReq.New = updatedProxy
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey: api.AppSecurityKey.String(),
 	})
