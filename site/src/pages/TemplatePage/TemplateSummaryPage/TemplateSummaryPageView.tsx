@@ -1,4 +1,3 @@
-import { makeStyles } from "@material-ui/core/styles"
 import {
   Template,
   TemplateVersion,
@@ -55,26 +54,3 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
     </Stack>
   )
 }
-
-export const useStyles = makeStyles((theme) => {
-  return {
-    markdownSection: {
-      background: theme.palette.background.paper,
-      border: `1px solid ${theme.palette.divider}`,
-      borderRadius: theme.shape.borderRadius,
-    },
-
-    readmeLabel: {
-      color: theme.palette.text.secondary,
-      fontWeight: 600,
-      padding: theme.spacing(2, 3),
-      borderBottom: `1px solid ${theme.palette.divider}`,
-    },
-
-    markdownWrapper: {
-      padding: theme.spacing(0, 3, 5),
-      maxWidth: 800,
-      margin: "auto",
-    },
-  }
-})

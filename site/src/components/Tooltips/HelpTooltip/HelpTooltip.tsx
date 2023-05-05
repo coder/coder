@@ -26,10 +26,6 @@ interface HelpTooltipProps {
   buttonClassName?: string
 }
 
-export const Language = {
-  ariaLabel: "tooltip",
-}
-
 export const HelpTooltipContext = createContext<
   { open: boolean; onClose: () => void } | undefined
 >(undefined)
@@ -108,7 +104,7 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
         onMouseLeave={() => {
           setIsOpen(false)
         }}
-        aria-label={Language.ariaLabel}
+        aria-label="More info"
       >
         <Icon className={combineClasses([styles.icon, iconClassName])} />
       </button>
