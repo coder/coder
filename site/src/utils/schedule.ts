@@ -37,7 +37,7 @@ const DEFAULT_TIMEZONE = "UTC"
  * stripTimezone strips a leading timezone from a schedule string
  */
 export const stripTimezone = (raw: string): string => {
-  return raw.replace(/CRON_TZ=\S*\s/, "")
+  return raw.replace(/CRON_TZ=\S*\s/, "");
 }
 
 /**
@@ -51,7 +51,7 @@ export const extractTimezone = (
   const matches = raw.match(/CRON_TZ=\S*\s/g)
 
   if (matches && matches.length > 0) {
-    return matches[0].replace(/CRON_TZ=/, "").trim()
+    return matches[0].replace(/CRON_TZ=/, "").trim();
   } else {
     return defaultTZ
   }

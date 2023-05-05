@@ -1,10 +1,10 @@
-import Button from "@material-ui/core/Button"
-import IconButton from "@material-ui/core/IconButton"
-import { makeStyles, Theme } from "@material-ui/core/styles"
-import Tooltip from "@material-ui/core/Tooltip"
-import CreateIcon from "@material-ui/icons/AddOutlined"
-import BuildIcon from "@material-ui/icons/BuildOutlined"
-import PreviewIcon from "@material-ui/icons/VisibilityOutlined"
+import Button from "@mui/material/Button"
+import IconButton from "@mui/material/IconButton"
+import { makeStyles, Theme } from "@mui/material/styles"
+import Tooltip from "@mui/material/Tooltip"
+import CreateIcon from "@mui/icons-material/AddOutlined"
+import BuildIcon from "@mui/icons-material/BuildOutlined"
+import PreviewIcon from "@mui/icons-material/VisibilityOutlined"
 import {
   ProvisionerJobLog,
   Template,

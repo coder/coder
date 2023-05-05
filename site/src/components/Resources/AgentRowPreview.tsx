@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 import { AppPreviewLink } from "components/AppLink/AppPreviewLink"
 import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"

@@ -1,10 +1,10 @@
 import { useState, FC, ReactElement } from "react"
-import Collapse from "@material-ui/core/Collapse"
+import Collapse from "@mui/material/Collapse"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@mui/material/styles"
 import { colors } from "theme/colors"
-import ReportProblemOutlinedIcon from "@material-ui/icons/ReportProblemOutlined"
-import Button from "@material-ui/core/Button"
+import ReportProblemOutlinedIcon from "@mui/icons-material/ReportProblemOutlined"
+import Button from "@mui/material/Button"
 import { useTranslation } from "react-i18next"
 
 export interface WarningAlertProps {

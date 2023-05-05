@@ -1,4 +1,4 @@
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@mui/material/styles"
 import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../utils/combineClasses"

@@ -1,4 +1,4 @@
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@mui/material/styles"
 import dayjs from "dayjs"
 import { FC, Fragment } from "react"
 import { ProvisionerJobLog } from "../../api/typesGenerated"

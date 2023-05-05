@@ -1,4 +1,4 @@
-import SvgIcon, { SvgIconProps } from "@material-ui/core/SvgIcon"
+import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon"
 
 export const UsersOutlinedIcon: typeof SvgIcon = (props: SvgIconProps) => (
   <SvgIcon {...props} viewBox="0 0 20 20">

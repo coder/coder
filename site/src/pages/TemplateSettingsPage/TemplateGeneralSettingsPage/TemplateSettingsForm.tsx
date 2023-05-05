@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
@@ -20,9 +20,9 @@ import {
   FormFooter,
 } from "components/Form/Form"
 import { Stack } from "components/Stack/Stack"
-import Checkbox from "@material-ui/core/Checkbox"
+import Checkbox from "@mui/material/Checkbox"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
 

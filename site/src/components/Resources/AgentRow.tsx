@@ -1,8 +1,8 @@
-import Popover from "@material-ui/core/Popover"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
+import Popover from "@mui/material/Popover"
+import { makeStyles, useTheme } from "@mui/material/styles"
 import { Skeleton } from "@material-ui/lab"
 import { useMachine } from "@xstate/react"
-import CodeOutlined from "@material-ui/icons/CodeOutlined"
+import CodeOutlined from "@mui/icons-material/CodeOutlined"
 import {
   CloseDropdown,
   OpenDropdown,
@@ -42,7 +42,7 @@ import { AgentLatency } from "./AgentLatency"
 import { AgentMetadata } from "./AgentMetadata"
 import { AgentVersion } from "./AgentVersion"
 import { AgentStatus } from "./AgentStatus"
-import Collapse from "@material-ui/core/Collapse"
+import Collapse from "@mui/material/Collapse"
 import { useProxy } from "contexts/ProxyContext"
 
 export interface AgentRowProps {

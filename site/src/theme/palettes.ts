@@ -1,4 +1,4 @@
-import { PaletteOptions } from "@material-ui/core/styles/createPalette"
+import { PaletteOptions } from "@mui/material/styles/createPalette"
 import { colors } from "./colors"
 
 // Couldn't find a type for this so I made one. We can extend the palette if needed with module augmentation.
@@ -10,7 +10,7 @@ export type PaletteIndex =
   | "error"
   | "warning"
 
-declare module "@material-ui/core/styles/createPalette" {
+declare module "@mui/material/styles/createPalette" {
   interface TypeBackground {
     paperLight: string
   }

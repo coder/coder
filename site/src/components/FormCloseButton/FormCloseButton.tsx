@@ -1,6 +1,6 @@
-import IconButton from "@material-ui/core/IconButton"
-import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
+import IconButton from "@mui/material/IconButton"
+import { makeStyles } from "@mui/material/styles"
+import Typography from "@mui/material/Typography"
 import { useEffect, FC, PropsWithChildren } from "react"
 import { CloseIcon } from "../Icons/CloseIcon"
 

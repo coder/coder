@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"

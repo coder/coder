@@ -1,13 +1,13 @@
-import MenuItem from "@material-ui/core/MenuItem"
-import Select, { SelectProps } from "@material-ui/core/Select"
-import { makeStyles } from "@material-ui/core/styles"
-import Table from "@material-ui/core/Table"
-import TableBody from "@material-ui/core/TableBody"
-import TableCell from "@material-ui/core/TableCell"
-import TableContainer from "@material-ui/core/TableContainer"
-import TableHead from "@material-ui/core/TableHead"
-import TableRow from "@material-ui/core/TableRow"
-import PersonAdd from "@material-ui/icons/PersonAdd"
+import MenuItem from "@mui/material/MenuItem"
+import Select, { SelectProps } from "@mui/material/Select"
+import { makeStyles } from "@mui/material/styles"
+import Table from "@mui/material/Table"
+import TableBody from "@mui/material/TableBody"
+import TableCell from "@mui/material/TableCell"
+import TableContainer from "@mui/material/TableContainer"
+import TableHead from "@mui/material/TableHead"
+import TableRow from "@mui/material/TableRow"
+import PersonAdd from "@mui/icons-material/PersonAdd"
 import {
   Group,
   TemplateACL,

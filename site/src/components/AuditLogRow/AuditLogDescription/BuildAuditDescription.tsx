@@ -2,7 +2,7 @@ import { Trans, useTranslation } from "react-i18next"
 import { AuditLog } from "api/typesGenerated"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 
 export const BuildAuditDescription: FC<{ auditLog: AuditLog }> = ({
   auditLog,

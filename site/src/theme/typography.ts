@@ -1,4 +1,4 @@
-import { TypographyOptions } from "@material-ui/core/styles/createTypography"
+import { TypographyOptions } from "@mui/material/styles/createTypography"
 import { BODY_FONT_FAMILY } from "./constants"
 
 export const typography: TypographyOptions = {

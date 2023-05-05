@@ -1,6 +1,6 @@
-import { Theme, StyleRules } from "@material-ui/core/styles"
-import { Overrides } from "@material-ui/core/styles/overrides"
-import { SkeletonClassKey } from "@material-ui/lab"
+import { Theme, StyleRules } from "@mui/material/styles"
+import { Overrides } from "@mui/material/styles/overrides"
+import { SkeletonClassKey } from "@mui/lab"
 import { colors } from "./colors"
 import { borderRadius, borderRadiusSm } from "./constants"
 
@@ -21,7 +21,7 @@ export const getOverrides = ({
           backgroundAttachment: "fixed",
         },
         ":root": {
-          colorScheme: palette.type,
+          colorScheme: palette.mode,
         },
       },
     },

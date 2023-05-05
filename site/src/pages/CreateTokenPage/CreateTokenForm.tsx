@@ -5,11 +5,11 @@ import {
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form"
-import makeStyles from "@material-ui/core/styles/makeStyles"
+import makeStyles from "@mui/material/styles/makeStyles"
 import { useTranslation } from "react-i18next"
 import { onChangeTrimmed, getFormHelpers } from "utils/formUtils"
-import TextField from "@material-ui/core/TextField"
-import MenuItem from "@material-ui/core/MenuItem"
+import TextField from "@mui/material/TextField"
+import MenuItem from "@mui/material/MenuItem"
 import {
   NANO_HOUR,
   CreateTokenData,

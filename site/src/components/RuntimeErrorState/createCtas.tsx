@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import RefreshIcon from "@material-ui/icons/Refresh"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/material/styles"
+import RefreshIcon from "@mui/icons-material/Refresh"
 import { ReactElement } from "react"
 import { CopyButton } from "../CopyButton/CopyButton"
 

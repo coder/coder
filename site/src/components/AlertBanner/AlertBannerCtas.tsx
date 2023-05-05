@@ -1,8 +1,8 @@
 import { FC } from "react"
 import { AlertBannerProps } from "./alertTypes"
 import { Stack } from "components/Stack/Stack"
-import Button from "@material-ui/core/Button"
-import RefreshIcon from "@material-ui/icons/Refresh"
+import Button from "@mui/material/Button"
+import RefreshIcon from "@mui/icons-material/Refresh"
 import { useTranslation } from "react-i18next"
 
 type AlertBannerCtasProps = Pick<

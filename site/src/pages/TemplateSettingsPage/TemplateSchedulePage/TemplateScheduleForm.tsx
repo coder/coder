@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormikTouched, useFormik } from "formik"
 import { FC, ChangeEvent } from "react"
@@ -14,11 +14,11 @@ import {
   FormFields,
 } from "components/Form/Form"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles } from "@material-ui/core/styles"
-import Link from "@material-ui/core/Link"
-import Checkbox from "@material-ui/core/Checkbox"
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import Switch from "@material-ui/core/Switch"
+import { makeStyles } from "@mui/material/styles"
+import Link from "@mui/material/Link"
+import Checkbox from "@mui/material/Checkbox"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import Switch from "@mui/material/Switch"
 
 const TTLHelperText = ({
   ttl,

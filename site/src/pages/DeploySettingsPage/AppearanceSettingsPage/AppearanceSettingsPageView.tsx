@@ -6,21 +6,21 @@ import {
   EnterpriseBadge,
   EntitledBadge,
 } from "components/DeploySettingsLayout/Badges"
-import InputAdornment from "@material-ui/core/InputAdornment"
+import InputAdornment from "@mui/material/InputAdornment"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { getFormHelpers } from "utils/formUtils"
-import Button from "@material-ui/core/Button"
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import FormHelperText from "@material-ui/core/FormHelperText"
+import Button from "@mui/material/Button"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import FormHelperText from "@mui/material/FormHelperText"
 import { BlockPicker } from "react-color"
 import { useTranslation } from "react-i18next"
-import makeStyles from "@material-ui/core/styles/makeStyles"
-import Switch from "@material-ui/core/Switch"
-import TextField from "@material-ui/core/TextField"
+import makeStyles from "@mui/material/styles/makeStyles"
+import Switch from "@mui/material/Switch"
+import TextField from "@mui/material/TextField"
 import { UpdateAppearanceConfig } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
-import { useTheme } from "@material-ui/core/styles"
+import { useTheme } from "@mui/material/styles"
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig

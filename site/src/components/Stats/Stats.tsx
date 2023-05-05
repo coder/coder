@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 import { ComponentProps, FC, PropsWithChildren } from "react"
 import { combineClasses } from "utils/combineClasses"
 

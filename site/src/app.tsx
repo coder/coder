@@ -1,5 +1,5 @@
-import CssBaseline from "@material-ui/core/CssBaseline"
-import ThemeProvider from "@material-ui/styles/ThemeProvider"
+import CssBaseline from "@mui/material/CssBaseline"
+import ThemeProvider from "@mui/styles/ThemeProvider"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AuthProvider } from "components/AuthProvider/AuthProvider"
 import { FC, PropsWithChildren } from "react"

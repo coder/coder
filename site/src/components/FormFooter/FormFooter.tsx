@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import { ClassNameMap } from "@material-ui/core/styles/withStyles"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/material/styles"
+import { ClassNameMap } from "@mui/material/styles/withStyles"
 import { FC } from "react"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 

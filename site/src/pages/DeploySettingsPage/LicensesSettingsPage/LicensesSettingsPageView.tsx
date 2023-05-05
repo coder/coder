@@ -1,5 +1,5 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import { makeStyles, useTheme } from "@mui/material/styles"
 import Skeleton from "@material-ui/lab/Skeleton"
 import { GetLicensesResponse } from "api/api"
 import { Header } from "components/DeploySettingsLayout/Header"

@@ -1,4 +1,4 @@
-import { Theme, useTheme } from "@material-ui/core/styles"
+import { Theme, useTheme } from "@mui/material/styles"
 import { useMonaco } from "@monaco-editor/react"
 import { useEffect, useState } from "react"
 import { hslToHex } from "utils/colors"

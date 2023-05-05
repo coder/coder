@@ -5,7 +5,7 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 
 export interface FullPageFormProps {
   title: string

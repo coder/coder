@@ -1,5 +1,5 @@
-import CssBaseline from "@material-ui/core/CssBaseline"
-import ThemeProvider from "@material-ui/styles/ThemeProvider"
+import CssBaseline from "@mui/material/CssBaseline"
+import ThemeProvider from "@mui/styles/ThemeProvider"
 import { createMemoryHistory } from "history"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
 import { dark } from "../src/theme"

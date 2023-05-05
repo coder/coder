@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 import { TemplateExample } from "api/typesGenerated"
 import { FC } from "react"
 import { Link } from "react-router-dom"

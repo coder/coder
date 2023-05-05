@@ -1,12 +1,12 @@
-import Link from "@material-ui/core/Link"
-import Button from "@material-ui/core/Button"
-import GitHubIcon from "@material-ui/icons/GitHub"
-import KeyIcon from "@material-ui/icons/VpnKey"
-import Box from "@material-ui/core/Box"
+import Link from "@mui/material/Link"
+import Button from "@mui/material/Button"
+import GitHubIcon from "@mui/icons-material/GitHub"
+import KeyIcon from "@mui/icons-material/VpnKey"
+import Box from "@mui/material/Box"
 import { Language } from "./SignInForm"
 import { AuthMethods } from "../../api/typesGenerated"
 import { FC } from "react"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 
 type OAuthSignInFormProps = {
   isSigningIn: boolean

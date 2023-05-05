@@ -1,11 +1,11 @@
-import Link from "@material-ui/core/Link"
-import makeStyles from "@material-ui/core/styles/makeStyles"
+import Link from "@mui/material/Link"
+import makeStyles from "@mui/material/styles/makeStyles"
 import {
   CloseDropdown,
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows"
 import { PropsWithChildren, FC } from "react"
-import Collapse from "@material-ui/core/Collapse"
+import Collapse from "@mui/material/Collapse"
 import { useTranslation } from "react-i18next"
 import { combineClasses } from "utils/combineClasses"
 

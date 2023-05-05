@@ -1,4 +1,4 @@
-import makeStyles from "@material-ui/core/styles/makeStyles"
+import makeStyles from "@mui/material/styles/makeStyles"
 import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"

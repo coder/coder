@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { CreateGroupRequest } from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"

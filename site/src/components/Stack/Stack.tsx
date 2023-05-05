@@ -1,5 +1,5 @@
-import { makeStyles } from "@material-ui/core/styles"
-import { CSSProperties } from "@material-ui/core/styles/withStyles"
+import { makeStyles } from "@mui/material/styles"
+import { CSSProperties } from "@mui/material/styles/withStyles"
 import { FC } from "react"
 import { ReactNode } from "react-markdown/lib/react-markdown"
 import { combineClasses } from "../../utils/combineClasses"

@@ -1,4 +1,4 @@
-import { ComponentsProps } from "@material-ui/core/styles/props"
+import { ComponentsProps } from "@mui/material/styles/props"
 
 /**
  * These are global overrides to MUI components and we may move away from using them in the future.

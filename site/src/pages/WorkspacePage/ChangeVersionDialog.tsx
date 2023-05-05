@@ -1,7 +1,7 @@
 import { DialogProps } from "components/Dialogs/Dialog"
 import { FC, useRef, useState } from "react"
 import { FormFields } from "components/Form/Form"
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
 import { Template, TemplateVersion } from "api/typesGenerated"
@@ -11,7 +11,7 @@ import { createDayString } from "utils/createDayString"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { Pill } from "components/Pill/Pill"
 import { Avatar } from "components/Avatar/Avatar"
-import CircularProgress from "@material-ui/core/CircularProgress"
+import CircularProgress from "@mui/material/CircularProgress"
 
 export type ChangeVersionDialogProps = DialogProps & {
   template: Template | undefined

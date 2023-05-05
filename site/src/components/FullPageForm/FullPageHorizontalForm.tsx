@@ -5,7 +5,7 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader"
-import Button from "@material-ui/core/Button"
+import Button from "@mui/material/Button"
 
 export interface FullPageHorizontalFormProps {
   title: string

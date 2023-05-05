@@ -1,6 +1,6 @@
-import Checkbox from "@material-ui/core/Checkbox"
-import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
+import Checkbox from "@mui/material/Checkbox"
+import { makeStyles } from "@mui/material/styles"
+import TextField from "@mui/material/TextField"
 import {
   ParameterSchema,
   ProvisionerJobLog,
@@ -31,7 +31,7 @@ import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { LazyIconField } from "components/IconField/LazyIconField"
 import { Maybe } from "components/Conditionals/Maybe"
 import i18next from "i18next"
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import {
   HorizontalForm,
   FormSection,

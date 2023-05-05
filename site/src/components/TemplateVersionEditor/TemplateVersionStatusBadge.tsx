@@ -1,9 +1,9 @@
 import { TemplateVersion } from "api/typesGenerated"
 import { FC, ReactNode } from "react"
 import { PaletteIndex } from "theme/palettes"
-import CircularProgress from "@material-ui/core/CircularProgress"
-import ErrorIcon from "@material-ui/icons/ErrorOutline"
-import CheckIcon from "@material-ui/icons/CheckOutlined"
+import CircularProgress from "@mui/material/CircularProgress"
+import ErrorIcon from "@mui/icons-material/ErrorOutline"
+import CheckIcon from "@mui/icons-material/CheckOutlined"
 import { Pill } from "components/Pill/Pill"
 
 export const TemplateVersionStatusBadge: FC<{

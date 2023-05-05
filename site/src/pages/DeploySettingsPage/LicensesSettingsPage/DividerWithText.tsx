@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 import { FC, PropsWithChildren } from "react"
 
 export const DividerWithText: FC<PropsWithChildren> = ({ children }) => {

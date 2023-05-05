@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import * as TypesGen from "api/typesGenerated"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
@@ -20,7 +20,7 @@ import {
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 import {
   selectInitialRichParametersValues,
   useValidationSchemaForRichParameters,

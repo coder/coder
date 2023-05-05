@@ -1,5 +1,5 @@
-import Popover from "@material-ui/core/Popover"
-import { makeStyles } from "@material-ui/core/styles"
+import Popover from "@mui/material/Popover"
+import { makeStyles } from "@mui/material/styles"
 import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { useRef, useState } from "react"
 import { CodeExample } from "../CodeExample/CodeExample"

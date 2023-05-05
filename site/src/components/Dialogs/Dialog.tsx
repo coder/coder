@@ -1,7 +1,5 @@
-import MuiDialog, {
-  DialogProps as MuiDialogProps,
-} from "@material-ui/core/Dialog"
-import { alpha, darken, makeStyles } from "@material-ui/core/styles"
+import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog"
+import { alpha, darken, makeStyles } from "@mui/material/styles"
 import * as React from "react"
 import { colors } from "theme/colors"
 import { combineClasses } from "../../utils/combineClasses"

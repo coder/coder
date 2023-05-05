@@ -1,8 +1,8 @@
-import Link from "@material-ui/core/Link"
-import Popover, { PopoverProps } from "@material-ui/core/Popover"
-import { makeStyles } from "@material-ui/core/styles"
-import HelpIcon from "@material-ui/icons/HelpOutline"
-import OpenInNewIcon from "@material-ui/icons/OpenInNew"
+import Link from "@mui/material/Link"
+import Popover, { PopoverProps } from "@mui/material/Popover"
+import { makeStyles } from "@mui/material/styles"
+import HelpIcon from "@mui/icons-material/HelpOutline"
+import OpenInNewIcon from "@mui/icons-material/OpenInNew"
 import {
   createContext,
   useContext,

@@ -1,5 +1,5 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/material/styles"
 import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import { Welcome } from "components/Welcome/Welcome"
 import { FC, useEffect } from "react"

@@ -1,6 +1,6 @@
-import Collapse from "@material-ui/core/Collapse"
-import { makeStyles } from "@material-ui/core/styles"
-import TableCell from "@material-ui/core/TableCell"
+import Collapse from "@mui/material/Collapse"
+import { makeStyles } from "@mui/material/styles"
+import TableCell from "@mui/material/TableCell"
 import { AuditLog } from "api/typesGenerated"
 import {
   CloseDropdown,

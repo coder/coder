@@ -1,4 +1,4 @@
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"

@@ -1,5 +1,5 @@
-import { makeStyles } from "@material-ui/core/styles"
-import Button, { ButtonProps } from "@material-ui/core/Button"
+import { makeStyles } from "@mui/material/styles"
+import Button, { ButtonProps } from "@mui/material/Button"
 import { FC, forwardRef } from "react"
 import { combineClasses } from "utils/combineClasses"
 

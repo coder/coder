@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/material/styles"
 import { Skeleton } from "@material-ui/lab"
 import { FC } from "react"
 import { borderRadiusSm } from "theme/constants"

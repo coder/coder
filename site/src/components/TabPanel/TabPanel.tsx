@@ -1,5 +1,5 @@
-import { makeStyles } from "@material-ui/core/styles"
-import { alpha } from "@material-ui/core/styles/colorManipulator"
+import { makeStyles } from "@mui/material/styles"
+import { alpha } from "@mui/material/styles/colorManipulator"
 import { FC } from "react"
 import { TabSidebar, TabSidebarItem } from "../TabSidebar/TabSidebar"
 
