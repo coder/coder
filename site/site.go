@@ -606,7 +606,9 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 // ErrorPageData contains the variables that are found in
 // site/static/error.html.
 type ErrorPageData struct {
-	Status       int
+	Status int
+	// HideStatus will remove the status code from the page.
+	HideStatus   bool
 	Title        string
 	Description  string
 	RetryEnabled bool

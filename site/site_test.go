@@ -517,3 +517,34 @@ func TestRenderStaticErrorPage(t *testing.T) {
 	require.Contains(t, bodyStr, "Retry")
 	require.Contains(t, bodyStr, d.DashboardURL)
 }
+
+func TestRenderStaticErrorPageNoStatus(t *testing.T) {
+	t.Parallel()
+
+	d := site.ErrorPageData{
+		HideStatus:   true,
+		Status:       http.StatusBadGateway,
+		Title:        "Bad Gateway 1234",
+		Description:  "shout out colin",
+		RetryEnabled: true,
+		DashboardURL: "https://example.com",
+	}
+
+	rw := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/", nil)
+	site.RenderStaticErrorPage(rw, r, d)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+	require.Equal(t, d.Status, resp.StatusCode)
+	require.Contains(t, resp.Header.Get("Content-Type"), "text/html")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	bodyStr := string(body)
+	require.NotContains(t, bodyStr, strconv.Itoa(d.Status))
+	require.Contains(t, bodyStr, d.Title)
+	require.Contains(t, bodyStr, d.Description)
+	require.Contains(t, bodyStr, "Retry")
+	require.Contains(t, bodyStr, d.DashboardURL)
+}
