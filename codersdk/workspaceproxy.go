@@ -70,26 +70,26 @@ type CreateWorkspaceProxyRequest struct {
 	Icon        string `json:"icon"`
 }
 
-type CreateWorkspaceProxyResponse struct {
+type UpdateWorkspaceProxyResponse struct {
 	Proxy WorkspaceProxy `json:"proxy" table:"proxy,recursive"`
 	// The recursive table sort is not working very well.
 	ProxyToken string `json:"proxy_token" table:"proxy token,default_sort"`
 }
 
-func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (CreateWorkspaceProxyResponse, error) {
+func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (UpdateWorkspaceProxyResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost,
 		"/api/v2/workspaceproxies",
 		req,
 	)
 	if err != nil {
-		return CreateWorkspaceProxyResponse{}, xerrors.Errorf("make request: %w", err)
+		return UpdateWorkspaceProxyResponse{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return CreateWorkspaceProxyResponse{}, ReadBodyAsError(res)
+		return UpdateWorkspaceProxyResponse{}, ReadBodyAsError(res)
 	}
-	var resp CreateWorkspaceProxyResponse
+	var resp UpdateWorkspaceProxyResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -119,26 +119,20 @@ type PatchWorkspaceProxy struct {
 	RegenerateToken bool      `json:"regenerate_token"`
 }
 
-type PatchWorkspaceProxyResponse struct {
-	Proxy WorkspaceProxy `json:"proxy" table:"proxy,recursive"`
-	// ProxyToken is only returned if 'RegenerateToken' is set.
-	ProxyToken string `json:"proxy_token" table:"proxy token,default_sort"`
-}
-
-func (c *Client) PatchWorkspaceProxy(ctx context.Context, req PatchWorkspaceProxy) (WorkspaceProxy, error) {
+func (c *Client) PatchWorkspaceProxy(ctx context.Context, req PatchWorkspaceProxy) (UpdateWorkspaceProxyResponse, error) {
 	res, err := c.Request(ctx, http.MethodPatch,
 		fmt.Sprintf("/api/v2/workspaceproxies/%s", req.ID.String()),
 		req,
 	)
 	if err != nil {
-		return WorkspaceProxy{}, xerrors.Errorf("make request: %w", err)
+		return UpdateWorkspaceProxyResponse{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceProxy{}, ReadBodyAsError(res)
+		return UpdateWorkspaceProxyResponse{}, ReadBodyAsError(res)
 	}
-	var resp WorkspaceProxy
+	var resp UpdateWorkspaceProxyResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

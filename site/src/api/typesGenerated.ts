@@ -262,12 +262,6 @@ export interface CreateWorkspaceProxyRequest {
   readonly icon: string
 }
 
-// From codersdk/workspaceproxy.go
-export interface CreateWorkspaceProxyResponse {
-  readonly proxy: WorkspaceProxy
-  readonly proxy_token: string
-}
-
 // From codersdk/organizations.go
 export interface CreateWorkspaceRequest {
   readonly template_id: string
@@ -637,12 +631,6 @@ export interface PatchWorkspaceProxy {
   readonly display_name: string
   readonly icon: string
   readonly regenerate_token: boolean
-}
-
-// From codersdk/workspaceproxy.go
-export interface PatchWorkspaceProxyResponse {
-  readonly proxy: WorkspaceProxy
-  readonly proxy_token: string
 }
 
 // From codersdk/deployment.go
@@ -1041,6 +1029,12 @@ export interface UpdateUserProfileRequest {
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface UpdateWorkspaceProxyResponse {
+  readonly proxy: WorkspaceProxy
+  readonly proxy_token: string
 }
 
 // From codersdk/workspaces.go

@@ -28,13 +28,14 @@ func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 			r.deleteProxy(),
 			r.listProxies(),
 			r.patchProxy(),
+			r.regenerateProxyToken(),
 		},
 	}
 
 	return cmd
 }
 
-func (r *RootCmd) regenerateProxy() *clibase.Cmd {
+func (r *RootCmd) regenerateProxyToken() *clibase.Cmd {
 	var (
 		formatter = newUpdateProxyResponseFormatter()
 	)
