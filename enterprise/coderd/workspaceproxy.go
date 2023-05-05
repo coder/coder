@@ -153,7 +153,7 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		// The proxy should have some status, but just in case.
 		status.Status = proxyhealth.Unknown
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PatchWorkspaceProxyResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UpdateWorkspaceProxyResponse{
 		Proxy:      convertProxy(updatedProxy, status),
 		ProxyToken: fullToken,
 	})
@@ -293,7 +293,7 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = proxy
-	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateWorkspaceProxyResponse{
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.UpdateWorkspaceProxyResponse{
 		Proxy: convertProxy(proxy, proxyhealth.ProxyStatus{
 			Proxy:     proxy,
 			CheckedAt: time.Now(),
@@ -450,7 +450,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	updatedProxy, err := api.Database.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
+	_, err := api.Database.RegisterWorkspaceProxy(ctx, database.RegisterWorkspaceProxyParams{
 		ID:               proxy.ID,
 		Url:              req.AccessURL,
 		WildcardHostname: req.WildcardHostname,
