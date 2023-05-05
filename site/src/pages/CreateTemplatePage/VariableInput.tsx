@@ -90,6 +90,7 @@ const VariableField: React.FC<VariableInputProps> = ({
 
   return (
     <TextField
+      variant="standard"
       autoComplete="off"
       id={variable.name}
       size="small"
@@ -108,9 +109,8 @@ const VariableField: React.FC<VariableInputProps> = ({
           : variable.sensitive
           ? "password"
           : "string"
-      }
-    />
-  )
+      } />
+  );
 }
 
 const useStyles = makeStyles((theme) => ({

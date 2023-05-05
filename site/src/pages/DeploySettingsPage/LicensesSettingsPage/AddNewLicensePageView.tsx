@@ -46,70 +46,68 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
     handleFileUploaded([file])
   }
 
-  return (
-    <>
-      <Stack
-        alignItems="baseline"
-        direction="row"
-        justifyContent="space-between"
-      >
-        <Header
-          title="Add your license"
-          description="Enterprise licenses unlock more features on your deployment."
-        />
-        <Button
-          component={RouterLink}
-          to="/settings/deployment/licenses"
-          variant="outlined"
-        >
-          Back to licenses
-        </Button>
-      </Stack>
-
-      {savingLicenseError && (
-        <AlertBanner severity="error" error={savingLicenseError}></AlertBanner>
-      )}
-
-      <FileUpload
-        isUploading={isUploading}
-        onUpload={onUpload}
-        removeLabel="Remove File"
-        title="Upload your license"
-        description="Upload a text file containing your license key"
+  return <>
+    <Stack
+      alignItems="baseline"
+      direction="row"
+      justifyContent="space-between"
+    >
+      <Header
+        title="Add your license"
+        description="Enterprise licenses unlock more features on your deployment."
       />
+      <Button
+        component={RouterLink}
+        to="/settings/deployment/licenses"
+        variant="outlined"
+      >
+        Back to licenses
+      </Button>
+    </Stack>
 
-      <Stack className={styles.main}>
-        <DividerWithText>or</DividerWithText>
+    {savingLicenseError && (
+      <AlertBanner severity="error" error={savingLicenseError}></AlertBanner>
+    )}
 
-        <Fieldset
-          title="Paste your license key"
-          onSubmit={(e) => {
-            e.preventDefault()
+    <FileUpload
+      isUploading={isUploading}
+      onUpload={onUpload}
+      removeLabel="Remove File"
+      title="Upload your license"
+      description="Upload a text file containing your license key"
+    />
 
-            const form = e.target
-            const formData = new FormData(form as HTMLFormElement)
+    <Stack className={styles.main}>
+      <DividerWithText>or</DividerWithText>
 
-            const licenseKey = formData.get("licenseKey")
+      <Fieldset
+        title="Paste your license key"
+        onSubmit={(e) => {
+          e.preventDefault()
 
-            onSaveLicenseKey(licenseKey?.toString() || "")
-          }}
-          button={
-            <Button type="submit" disabled={isSavingLicense}>
-              Add license
-            </Button>
-          }
-        >
-          <TextField
-            name="licenseKey"
-            placeholder="Paste your license key here"
-            multiline
-            rows={4}
-            fullWidth
-          />
-        </Fieldset>
-      </Stack>
-    </>
-  )
+          const form = e.target
+          const formData = new FormData(form as HTMLFormElement)
+
+          const licenseKey = formData.get("licenseKey")
+
+          onSaveLicenseKey(licenseKey?.toString() || "")
+        }}
+        button={
+          <Button type="submit" disabled={isSavingLicense}>
+            Add license
+          </Button>
+        }
+      >
+        <TextField
+          variant="standard"
+          name="licenseKey"
+          placeholder="Paste your license key here"
+          multiline
+          rows={4}
+          fullWidth />
+      </Fieldset>
+    </Stack>
+  </>;
 }
 
 const useStyles = makeStyles((theme) => ({

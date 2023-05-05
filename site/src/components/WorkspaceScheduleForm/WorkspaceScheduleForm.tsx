@@ -299,6 +299,7 @@ export const WorkspaceScheduleForm: FC<
           />
           <Stack direction="row">
             <TextField
+              variant="standard"
               {...formHelpers("startTime")}
               disabled={isLoading || !form.values.autostartEnabled}
               InputLabelProps={{
@@ -306,9 +307,9 @@ export const WorkspaceScheduleForm: FC<
               }}
               label={Language.startTimeLabel}
               type="time"
-              fullWidth
-            />
+              fullWidth />
             <TextField
+              variant="standard"
               {...formHelpers("timezone")}
               disabled={isLoading || !form.values.autostartEnabled}
               InputLabelProps={{
@@ -316,8 +317,7 @@ export const WorkspaceScheduleForm: FC<
               }}
               label={Language.timezoneLabel}
               select
-              fullWidth
-            >
+              fullWidth>
               {zones.map((zone) => (
                 <MenuItem key={zone} value={zone}>
                   {zone}
@@ -326,7 +326,10 @@ export const WorkspaceScheduleForm: FC<
             </TextField>
           </Stack>
 
-          <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
+          <FormControl
+            variant="standard"
+            component="fieldset"
+            error={Boolean(form.errors.monday)}>
             <FormLabel className={styles.daysOfWeekLabel} component="legend">
               {Language.daysOfWeekLabel}
             </FormLabel>
@@ -375,18 +378,18 @@ export const WorkspaceScheduleForm: FC<
             label={Language.stopSwitch}
           />
           <TextField
+            variant="standard"
             {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
             disabled={isLoading || !form.values.autostopEnabled}
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
-            fullWidth
-          />
+            fullWidth />
         </FormFields>
       </FormSection>
       <FormFooter onCancel={onCancel} isLoading={isLoading} />
     </HorizontalForm>
-  )
+  );
 }
 
 export const ttlShutdownAt = (formTTL: number): string => {

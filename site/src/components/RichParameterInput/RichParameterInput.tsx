@@ -191,6 +191,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   // we should break this out into more finely scoped input fields.
   return (
     <TextField
+      variant="standard"
       {...props}
       type={parameter.type}
       size="small"
@@ -201,9 +202,8 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
       onChange={(event) => {
         setParameterValue(event.target.value)
         onChange(event.target.value)
-      }}
-    />
-  )
+      }} />
+  );
 }
 
 const optionIconSize = 20

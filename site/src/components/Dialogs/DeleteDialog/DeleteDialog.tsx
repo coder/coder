@@ -42,6 +42,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       <p>{t("deleteDialog.confirm", { entity })}</p>
 
       <TextField
+        variant="standard"
         fullWidth
         InputLabelProps={{
           shrink: true,
@@ -56,8 +57,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
         onChange={handleChange}
         label={t("deleteDialog.confirmLabel", { entity })}
         error={hasError}
-        helperText={hasError && t("deleteDialog.incorrectName", { entity })}
-      />
+        helperText={hasError && t("deleteDialog.incorrectName", { entity })} />
     </>
   )
 

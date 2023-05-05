@@ -64,14 +64,14 @@ export const PublishTemplateVersionDialog: FC<
           <p>You are about to publish a new version of this template.</p>
           <FormFields>
             <TextField
+              variant="standard"
               {...getFieldHelpers("name")}
               label="Version name"
               autoFocus
               disabled={isPublishing}
               InputLabelProps={{
                 shrink: true,
-              }}
-            />
+              }} />
 
             <FormControlLabel
               label="Promote to default version"
@@ -94,5 +94,5 @@ export const PublishTemplateVersionDialog: FC<
         </Stack>
       }
     />
-  )
+  );
 }

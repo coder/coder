@@ -65,6 +65,7 @@ export const CreateFileDialog: FC<{
             slashes too.
           </Typography>
           <TextField
+            variant="standard"
             autoFocus
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -82,12 +83,11 @@ export const CreateFileDialog: FC<{
             label="File Path"
             InputLabelProps={{
               shrink: true,
-            }}
-          />
+            }} />
         </Stack>
       }
     />
-  )
+  );
 }
 
 export const DeleteFileDialog: FC<{
@@ -179,6 +179,7 @@ export const RenameFileDialog: FC<{
             contain slashes too!
           </p>
           <TextField
+            variant="standard"
             autoFocus
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -193,10 +194,9 @@ export const RenameFileDialog: FC<{
             placeholder={filename}
             value={pathValue}
             onChange={handleChange}
-            label="File Path"
-          />
+            label="File Path" />
         </Stack>
       }
     />
-  )
+  );
 }

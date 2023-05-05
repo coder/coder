@@ -70,6 +70,7 @@ const ParameterField: React.FC<ParameterInputProps> = ({
   if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
       <TextField
+        variant="standard"
         id={schema.name}
         size="small"
         defaultValue={defaultValue ?? schema.default_source_value}
@@ -79,15 +80,14 @@ const ParameterField: React.FC<ParameterInputProps> = ({
           onChange(event.target.value)
         }}
         select
-        fullWidth
-      >
+        fullWidth>
         {schema.validation_contains.map((item) => (
           <MenuItem key={item} value={item}>
             {item}
           </MenuItem>
         ))}
       </TextField>
-    )
+    );
   }
 
   if (isBoolean(schema)) {
@@ -120,6 +120,7 @@ const ParameterField: React.FC<ParameterInputProps> = ({
   // we should break this out into more finely scoped input fields.
   return (
     <TextField
+      variant="standard"
       id={schema.name}
       size="small"
       disabled={disabled}
@@ -127,9 +128,8 @@ const ParameterField: React.FC<ParameterInputProps> = ({
       defaultValue={defaultValue ?? schema.default_source_value}
       onChange={(event) => {
         onChange(event.target.value)
-      }}
-    />
-  )
+      }} />
+  );
 }
 
 const useStyles = makeStyles((theme) => ({
