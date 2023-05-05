@@ -15,4 +15,4 @@ const monaco = {
   editor,
 }
 
-module.exports = monaco
+export default monaco

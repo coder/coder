@@ -2,8 +2,14 @@ import react from "@vitejs/plugin-react"
 import path from "path"
 import { defineConfig, PluginOption } from "vite"
 import { visualizer } from "rollup-plugin-visualizer"
+import checker from "vite-plugin-checker"
 
-const plugins: PluginOption[] = [react()]
+const plugins: PluginOption[] = [
+  react(),
+  checker({
+    typescript: true,
+  }),
+]
 
 if (process.env.STATS !== undefined) {
   plugins.push(

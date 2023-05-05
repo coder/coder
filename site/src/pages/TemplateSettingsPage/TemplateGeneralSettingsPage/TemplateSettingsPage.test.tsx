@@ -14,12 +14,20 @@ import i18next from "i18next"
 
 const { t } = i18next
 
-const validFormValues = {
+type FormValues = Required<
+  Omit<UpdateTemplateMeta, "default_ttl_ms" | "max_ttl_ms">
+>
+
+const validFormValues: FormValues = {
   name: "Name",
   display_name: "A display name",
   description: "A description",
   icon: "vscode.png",
   allow_user_cancel_workspace_jobs: false,
+  allow_user_autostart: false,
+  allow_user_autostop: false,
+  failure_ttl_ms: 0,
+  inactivity_ttl_ms: 0,
 }
 
 const renderTemplateSettingsPage = async () => {
@@ -36,7 +44,7 @@ const fillAndSubmitForm = async ({
   description,
   icon,
   allow_user_cancel_workspace_jobs,
-}: Required<Omit<UpdateTemplateMeta, "default_ttl_ms" | "max_ttl_ms">>) => {
+}: FormValues) => {
   const label = t("nameLabel", { ns: "templateSettingsPage" })
   const nameField = await screen.findByLabelText(label)
   await userEvent.clear(nameField)
