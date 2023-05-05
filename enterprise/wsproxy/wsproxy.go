@@ -235,7 +235,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.Get("/healthz-report", s.healthReport)
 	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Title:      "Workspace Proxy",
+			Title:      "Head to the Dashboard",
 			Status:     http.StatusBadRequest,
 			HideStatus: true,
 			Description: "Workspace Proxies route traffic in terminals and apps directly to your workspace. " +
