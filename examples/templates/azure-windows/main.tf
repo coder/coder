@@ -44,6 +44,7 @@ data "coder_parameter" "location" {
   }
 }
 resource "coder_agent" "main" {
+  count          = data.coder_workspace.me.start_count
   arch           = "amd64"
   auth           = "azure-instance-identity"
   os             = "windows"
@@ -62,8 +63,9 @@ choco feature enable -n=allowGlobalConfirmation
 choco install visualstudio2022community --package-parameters "--add=Microsoft.VisualStudio.Workload.ManagedDesktop;includeRecommended --passive --locale en-US"
 EOF
 }
+
 locals {
-  prefix = "spike"
+  prefix         = "spike"
   admin_username = "coder"
   # Password to log in via RDP
   #
@@ -82,9 +84,9 @@ $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";"
 choco install -y git
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-${coder_agent.main.init_script}
+${try(coder_agent.main[0].init_script, "")}
 EOT
-  user_data_end = <<EOT
+  user_data_end   = <<EOT
 shutdown /s
 EOT
 }
@@ -161,7 +163,7 @@ resource "azurerm_windows_virtual_machine" "main" {
   resource_group_name   = azurerm_resource_group.main.name
   network_interface_ids = [azurerm_network_interface.main.id]
   size                  = "Standard_DS1_v2"
-  custom_data             = base64encode(data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end)
+  custom_data           = base64encode(local.user_data_start)
   os_disk {
     name                 = "myOsDisk"
     caching              = "ReadWrite"
@@ -178,7 +180,7 @@ resource "azurerm_windows_virtual_machine" "main" {
     setting = "AutoLogon"
   }
   additional_unattend_content {
-    content = "${file("./FirstLogonCommands.xml")}"
+    content = file("./FirstLogonCommands.xml")
     setting = "FirstLogonCommands"
   }
   boot_diagnostics {
@@ -186,5 +188,28 @@ resource "azurerm_windows_virtual_machine" "main" {
   }
   tags = {
     Coder_Provisioned = "true"
+  }
+
+  lifecycle {
+    ignore_changes = [custom_data]
+  }
+
+}
+
+# Stop the VM
+resource "null_resource" "stop_vm" {
+  count      = data.coder_workspace.me.transition == "stop" ? 1 : 0
+  depends_on = [azurerm_windows_virtual_machine.main]
+  provisioner "local-exec" {
+    command = "az vm stop --ids ${azurerm_windows_virtual_machine.main.id}"
+  }
+}
+
+# Start the VM
+resource "null_resource" "start" {
+  count      = data.coder_workspace.me.transition == "start" ? 1 : 0
+  depends_on = [azurerm_windows_virtual_machine.main]
+  provisioner "local-exec" {
+    command = "az vm start --ids ${azurerm_windows_virtual_machine.main.id}"
   }
 }
