@@ -8,8 +8,6 @@ Coder's networking does a best effort to make direct connections to a workspace.
 
 A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over ssh, a workspace app, port forwarding, etc.
 
-<!-- TODO: Might want to modify this diagram? -->
-
 ![ProxyDiagram](../images/workspaceproxy/proxydiagram.png)
 
 # Deploy a workspace proxy
@@ -45,7 +43,7 @@ newyork                             unregistered
 Deploying the workspace proxy will also register the proxy with coderd and make the workspace proxy usable. If the proxy deployment is successful, `coder proxy ls` will show an `ok` status code:
 
 ```
-$ coder proxy lsPM
+$ coder proxy ls
 NAME              URL                           STATUS STATUS
 brazil-saopaulo   https://brazil.example.com  ok
 europe-frankfurt  https://europe.example.com  ok
@@ -60,11 +58,6 @@ Other Status codes:
 - `ok` : The workspace proxy is healthy and working properly!
 
 ### Configuration
-
-<!--
- I am not sure the best way to present this.
- Ideally in the future we can auto sync some of the settings with coderd.
- -->
 
 Workspace proxy configuration overlaps with a subset of the coderd configuration. To see the full list of configuration options: `coder proxy server --help`
 
@@ -97,4 +90,10 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 coder proxy server
 ```
 
-<!-- Additional run options? -->
+### Selecting a proxy
+
+Users can navigate to their account settings to select a workspace proxy. Workspace proxy preferences are cached by the web browser. If a proxy goes offline, the session will fall back to the primary proxy. This could take up to 60 seconds.
+
+![Workspace proxy picker](../images/admin/workspace-proxy-picker.png)
+
+> In a future release, Coder will automatically pick the closest workspace proxy for each user, based on browser ping.
