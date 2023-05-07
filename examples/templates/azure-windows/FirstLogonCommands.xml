@@ -4,16 +4,16 @@
 		<Description>Move the CustomData file to the working directory</Description>
 		<Order>10</Order>
 	</SynchronousCommand>
-	<!-- I cannot get this second SynchronousCommand to run. Some logs are in C:\Windows\Panther, but no errors
-	However, when I login via RDP and enter it manually, it runs fine -->
+	<!-- I cannot get this second SynchronousCommand to run or find the failure logs.
+	 However, when I login via RDP and enter it manually, it runs fine -->
 	<SynchronousCommand>
-		<CommandLine>%WINDIR%\System32\WindowsPowerShell\v1.0\PowerShell.exe -ExecutionPolicy Unrestricted -Command {
+		<CommandLine>powershell.exe -ExecutionPolicy Unrestricted -Command {
     $TaskName = 'MyStartupScript'
     $Action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-sta -ExecutionPolicy Unrestricted -Command "C:\AzureData\CoderAgent.ps1 ^| Out-File C:\AzureData\CoderAgent.log"'
     $TriggerAtStartup = New-ScheduledTaskTrigger -AtStartup
     $TriggerDelay = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(15)
     $Settings = New-ScheduledTaskSettingsSet -DontStopOnIdleEnd -ExecutionTimeLimit ([TimeSpan]::FromDays(3650)) -Compatibility Win8
-    $Principal = New-ScheduledTaskPrincipal -UserId "vm/coder" -RunLevel Highest -LogonType S4U
+    $Principal = New-ScheduledTaskPrincipal -UserId "vm\coder" -RunLevel Highest -LogonType S4U
     Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $TriggerAtStartup, $TriggerDelay -Settings $Settings -Principal $Principal -Force
  }
 </CommandLine>
