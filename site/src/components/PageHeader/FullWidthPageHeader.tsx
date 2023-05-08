@@ -28,6 +28,7 @@ export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
 
 const useStyles = makeStyles((theme) => ({
   header: {
+    ...theme.typography.body2,
     padding: theme.spacing(3),
     background: theme.palette.background.paper,
     borderBottom: `1px solid ${theme.palette.divider}`,
@@ -61,7 +62,6 @@ const useStyles = makeStyles((theme) => ({
   subtitle: {
     fontSize: 14,
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.25),
     display: "block",
   },
 }))
