@@ -129,6 +129,9 @@ dark = createTheme(dark, {
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
+        outlinedNeutral: {
+          borderColor: colors.gray[12],
+        },
       },
     },
     MuiIconButton: {
