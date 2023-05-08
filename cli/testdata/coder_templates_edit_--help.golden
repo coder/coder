@@ -24,8 +24,16 @@ Edit the metadata of a template by name.
       --display-name string
           Edit the template display name.
 
+      --failure-ttl duration (default: 0h)
+          Specify a failure TTL for workspaces created from this template. This
+          licensed feature's default is 0h (off).
+
       --icon string
           Edit the template icon path.
+
+      --inactivity-ttl duration (default: 0h)
+          Specify an inactivity TTL for workspaces created from this template.
+          This licensed feature's default is 0h (off).
 
       --max-ttl duration
           Edit the template maximum time before shutdown - workspaces created
