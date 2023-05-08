@@ -8,6 +8,13 @@ resource "google_container_cluster" "primary" {
   project                  = var.project_id
   network                  = google_compute_network.vpc.name
   subnetwork               = google_compute_subnetwork.subnet.name
+  networking_mode          = "VPC_NATIVE"
+  ip_allocation_policy { # Required with networking_mode=VPC_NATIVE
+
+  }
+  release_channel {
+    channel = "STABLE"
+  }
   initial_node_count       = 1
   remove_default_node_pool = true
   network_policy {
