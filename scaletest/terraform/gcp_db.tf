@@ -11,6 +11,7 @@ resource "google_sql_database_instance" "db" {
   name             = "${var.name}-db"
   region           = var.region
   database_version = var.cloudsql_version
+  deletion_protection = false
 
   depends_on = [google_service_networking_connection.private_vpc_connection]
 
@@ -46,7 +47,8 @@ resource "google_sql_database" "coder" {
   project = var.project_id
   instance = google_sql_database_instance.db.id
   name = "${var.name}-coder"
-  deletion_policy = "DELETE"
+   # required for postgres, otherwise db fails to delete
+  deletion_policy = "ABANDON"
 }
 
 resource "google_sql_user" "coder" {
@@ -55,4 +57,6 @@ resource "google_sql_user" "coder" {
   name = "coder"
   type = "BUILT_IN"
   password = random_password.coder-postgres-password.result
+  # required for postgres, otherwise user fails to delete
+  deletion_policy = "ABANDON"
 }
