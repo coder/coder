@@ -213,6 +213,7 @@ dark = createTheme(dark, {
         root: {
           borderRadius,
           border: `1px solid ${dark.palette.divider}`,
+          backgroundImage: "none",
         },
       },
     },
@@ -254,7 +255,6 @@ dark = createTheme(dark, {
           borderRadius: 4,
           padding: "4px 0",
           minWidth: 120,
-          backgroundImage: "none",
         },
       },
     },

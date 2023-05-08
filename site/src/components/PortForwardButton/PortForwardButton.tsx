@@ -91,7 +91,6 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
           }}
         />
         <Link
-          underline="none"
           href={urlExample}
           target="_blank"
           rel="noreferrer"

@@ -38,7 +38,6 @@ export const TemplatePermissionsPage: FC<
             cta={
               <Stack direction="row" alignItems="center">
                 <Link
-                  underline="none"
                   href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
                   target="_blank"
                   rel="noreferrer"
@@ -48,7 +47,6 @@ export const TemplatePermissionsPage: FC<
                   </Button>
                 </Link>
                 <Link
-                  underline="none"
                   href="https://coder.com/docs/coder-oss/latest/admin/rbac"
                   target="_blank"
                   rel="noreferrer"

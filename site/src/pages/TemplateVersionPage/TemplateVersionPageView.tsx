@@ -43,7 +43,6 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
       <PageHeader
         actions={
           <Link
-            underline="none"
             component={RouterLink}
             to={`/templates/${templateName}/versions/${versionName}/edit`}
           >

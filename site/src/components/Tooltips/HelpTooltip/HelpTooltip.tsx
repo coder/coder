@@ -249,6 +249,7 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(2.5),
     color: theme.palette.text.secondary,
     pointerEvents: "auto",
+    ...theme.typography.body2,
   },
 
   title: {

@@ -32,7 +32,6 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
     <Box display="grid" gap="16px">
       {authMethods?.github.enabled && (
         <Link
-          underline="none"
           href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
             redirectTo,
           )}`}
@@ -51,7 +50,6 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 
       {authMethods?.oidc.enabled && (
         <Link
-          underline="none"
           href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
             redirectTo,
           )}`}

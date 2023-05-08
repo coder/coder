@@ -113,7 +113,7 @@ export const GroupPage: React.FC = () => {
             <PageHeader
               actions={
                 <Maybe condition={canUpdateGroup}>
-                  <Link to="settings" underline="none" component={RouterLink}>
+                  <Link to="settings" component={RouterLink}>
                     <Button startIcon={<SettingsOutlined />}>Settings</Button>
                   </Link>
                   <Button

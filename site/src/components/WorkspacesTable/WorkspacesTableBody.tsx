@@ -45,7 +45,7 @@ export const WorkspacesTableBody: FC<
             message={t("emptyCreateWorkspaceMessage")}
             description={t("emptyCreateWorkspaceDescription")}
             cta={
-              <Link underline="none" component={RouterLink} to="/templates">
+              <Link component={RouterLink} to="/templates">
                 <Button startIcon={<AddOutlined />}>
                   {t("createFromTemplateButton")}
                 </Button>

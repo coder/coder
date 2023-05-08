@@ -46,11 +46,7 @@ export const UsersLayout: FC = () => {
                   </Button>
                 )}
               {canCreateGroup && isTemplateRBACEnabled && (
-                <Link
-                  underline="none"
-                  component={RouterLink}
-                  to="/groups/create"
-                >
+                <Link component={RouterLink} to="/groups/create">
                   <Button startIcon={<GroupAdd />}>Create group</Button>
                 </Link>
               )}

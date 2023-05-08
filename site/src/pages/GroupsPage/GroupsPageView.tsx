@@ -49,7 +49,6 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
             cta={
               <Stack direction="row" alignItems="center">
                 <Link
-                  underline="none"
                   href="https://coder.com/docs/coder-oss/latest/enterprise"
                   target="_blank"
                   rel="noreferrer"
@@ -59,7 +58,6 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                   </Button>
                 </Link>
                 <Link
-                  underline="none"
                   href="https://coder.com/docs/coder-oss/latest/admin/groups"
                   target="_blank"
                   rel="noreferrer"
@@ -98,11 +96,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                           }
                           cta={
                             canCreateGroup && (
-                              <Link
-                                underline="none"
-                                component={RouterLink}
-                                to="/groups/create"
-                              >
+                              <Link component={RouterLink} to="/groups/create">
                                 <Button startIcon={<AddCircleOutline />}>
                                   Create group
                                 </Button>

@@ -34,7 +34,6 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
 
   return (
     <Link
-      underline="none"
       href={href}
       target="_blank"
       onClick={(event) => {

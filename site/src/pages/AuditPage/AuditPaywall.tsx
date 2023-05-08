@@ -16,7 +16,6 @@ export const AuditPaywall: FC = () => {
       cta={
         <Stack direction="row" alignItems="center">
           <Link
-            underline="none"
             href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
             target="_blank"
             rel="noreferrer"
@@ -26,7 +25,6 @@ export const AuditPaywall: FC = () => {
             </Button>
           </Link>
           <Link
-            underline="none"
             href="https://coder.com/docs/coder-oss/latest/admin/audit-logs"
             target="_blank"
             rel="noreferrer"
