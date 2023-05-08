@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button"
 import IconButton from "@mui/material/IconButton"
-import { makeStyles, Theme } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import Tooltip from "@mui/material/Tooltip"
 import CreateIcon from "@mui/icons-material/AddOutlined"
 import BuildIcon from "@mui/icons-material/BuildOutlined"
@@ -46,6 +46,7 @@ import {
   getStatus,
   TemplateVersionStatusBadge,
 } from "./TemplateVersionStatusBadge"
+import { Theme } from "@mui/material/styles"
 
 export interface TemplateVersionEditorProps {
   template: Template
@@ -581,7 +582,7 @@ const useStyles = makeStyles<
     top: 0,
     background: theme.palette.background.default,
     borderBottom: `1px solid ${theme.palette.divider}`,
-    color: theme.palette.text.hint,
+    color: theme.palette.text.primary,
     textTransform: "uppercase",
     fontSize: 12,
 

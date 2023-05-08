@@ -54,7 +54,6 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
 
       <BorderedMenu
         anchorEl={anchorEl}
-        getContentAnchorEl={null}
         open={Boolean(anchorEl)}
         anchorOrigin={{
           vertical: "bottom",

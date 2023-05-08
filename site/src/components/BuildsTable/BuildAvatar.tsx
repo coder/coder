@@ -1,13 +1,14 @@
 import Badge from "@mui/material/Badge"
-import { Theme, useTheme, withStyles } from "@mui/material/styles"
+import { useTheme, withStyles } from "@mui/styles"
 import { FC } from "react"
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined"
 import PauseOutlined from "@mui/icons-material/PauseOutlined"
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
 import { WorkspaceBuild, WorkspaceTransition } from "api/typesGenerated"
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace"
-import { PaletteIndex } from "theme/palettes"
 import { Avatar, AvatarProps } from "components/Avatar/Avatar"
+import { PaletteIndex } from "theme/theme"
+import { Theme } from "@mui/material/styles"
 
 interface StylesBadgeProps {
   type: PaletteIndex

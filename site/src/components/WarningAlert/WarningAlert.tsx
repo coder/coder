@@ -1,7 +1,7 @@
 import { useState, FC, ReactElement } from "react"
 import Collapse from "@mui/material/Collapse"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles, Theme } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { colors } from "theme/colors"
 import ReportProblemOutlinedIcon from "@mui/icons-material/ReportProblemOutlined"
 import Button from "@mui/material/Button"
@@ -56,7 +56,7 @@ export const WarningAlert: FC<WarningAlertProps> = ({
   )
 }
 
-const useStyles = makeStyles<Theme>((theme) => ({
+const useStyles = makeStyles((theme) => ({
   alertContainer: {
     border: `1px solid ${colors.orange[7]}`,
     borderRadius: theme.shape.borderRadius,

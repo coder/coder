@@ -1,6 +1,6 @@
 import { Avatar } from "components/Avatar/Avatar"
 import Badge from "@mui/material/Badge"
-import { withStyles } from "@mui/material/styles"
+import { withStyles } from "@mui/styles"
 import Group from "@mui/icons-material/Group"
 import { FC } from "react"
 

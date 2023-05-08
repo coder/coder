@@ -1,5 +1,4 @@
 import { makeStyles } from "@mui/styles"
-import { alpha } from "@mui/material/styles/colorManipulator"
 import { FC } from "react"
 import { TabSidebar, TabSidebarItem } from "../TabSidebar/TabSidebar"
 
@@ -51,7 +50,7 @@ const useStyles = makeStyles((theme) => ({
     position: "absolute",
     left: -50,
     top: 31,
-    color: alpha(theme.palette.common.black, 0.1),
+    color: theme.palette.text.secondary,
     transition: "transform 0.3s ease",
     zIndex: -1,
   },

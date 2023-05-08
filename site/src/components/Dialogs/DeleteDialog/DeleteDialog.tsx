@@ -1,4 +1,4 @@
-import makeStyles from "@mui/material/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import TextField from "@mui/material/TextField"
 import { Maybe } from "components/Conditionals/Maybe"
 import { ChangeEvent, useState, PropsWithChildren, FC } from "react"
@@ -57,7 +57,8 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
         onChange={handleChange}
         label={t("deleteDialog.confirmLabel", { entity })}
         error={hasError}
-        helperText={hasError && t("deleteDialog.incorrectName", { entity })} />
+        helperText={hasError && t("deleteDialog.incorrectName", { entity })}
+      />
     </>
   )
 

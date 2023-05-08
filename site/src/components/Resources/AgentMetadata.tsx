@@ -1,10 +1,10 @@
-import makeStyles from "@mui/material/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import dayjs from "dayjs"
 import { createContext, FC, useContext, useEffect, useState } from "react"
-import { Skeleton } from '@mui/material';
+import { Skeleton } from "@mui/material"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 
 type ItemStatus = "stale" | "valid" | "loading"

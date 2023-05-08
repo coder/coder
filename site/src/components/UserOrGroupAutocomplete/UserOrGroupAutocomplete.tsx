@@ -9,6 +9,7 @@ import debounce from "just-debounce-it"
 import { ChangeEvent, useState } from "react"
 import { getGroupSubtitle } from "utils/groups"
 import { searchUsersAndGroupsMachine } from "xServices/template/searchUsersAndGroupsXService"
+import Box from "@mui/material/Box"
 
 export type UserOrGroupAutocompleteValue = User | Group | null
 
@@ -70,39 +71,45 @@ export const UserOrGroupAutocomplete: React.FC<
       getOptionLabel={(option) =>
         isGroup(option) ? option.name : option.email
       }
-      renderOption={(option) => {
+      renderOption={(props, option) => {
         const isOptionGroup = isGroup(option)
 
         return (
-          <AvatarData
-            title={isOptionGroup ? option.name : option.username}
-            subtitle={isOptionGroup ? getGroupSubtitle(option) : option.email}
-            src={option.avatar_url}
-          />
+          <Box component="li" {...props}>
+            <AvatarData
+              title={isOptionGroup ? option.name : option.username}
+              subtitle={isOptionGroup ? getGroupSubtitle(option) : option.email}
+              src={option.avatar_url}
+            />
+          </Box>
         )
       }}
       options={options}
       loading={searchState.matches("searching")}
       className={styles.autocomplete}
       renderInput={(params) => (
-        <TextField
-          {...params}
-          margin="none"
-          variant="outlined"
-          placeholder="Search for user or group"
-          InputProps={{
-            ...params.InputProps,
-            onChange: handleFilterChange,
-            endAdornment: (
-              <>
-                {searchState.matches("searching") ? (
-                  <CircularProgress size={16} />
-                ) : null}
-                {params.InputProps.endAdornment}
-              </>
-            ),
-          }}
-        />
+        <>
+          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Need it */}
+          {/* @ts-ignore -- Issue from lib https://github.com/i18next/react-i18next/issues/1543 */}
+          <TextField
+            {...params}
+            margin="none"
+            variant="outlined"
+            placeholder="Search for user or group"
+            InputProps={{
+              ...params.InputProps,
+              onChange: handleFilterChange,
+              endAdornment: (
+                <>
+                  {searchState.matches("searching") ? (
+                    <CircularProgress size={16} />
+                  ) : null}
+                  {params.InputProps.endAdornment}
+                </>
+              ),
+            }}
+          />
+        </>
       )}
     />
   )

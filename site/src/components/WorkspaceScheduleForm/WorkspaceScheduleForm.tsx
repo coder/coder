@@ -5,7 +5,7 @@ import FormGroup from "@mui/material/FormGroup"
 import FormHelperText from "@mui/material/FormHelperText"
 import FormLabel from "@mui/material/FormLabel"
 import MenuItem from "@mui/material/MenuItem"
-import makeStyles from "@mui/material/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import Switch from "@mui/material/Switch"
 import TextField from "@mui/material/TextField"
 import {
@@ -307,7 +307,8 @@ export const WorkspaceScheduleForm: FC<
               }}
               label={Language.startTimeLabel}
               type="time"
-              fullWidth />
+              fullWidth
+            />
             <TextField
               variant="standard"
               {...formHelpers("timezone")}
@@ -317,7 +318,8 @@ export const WorkspaceScheduleForm: FC<
               }}
               label={Language.timezoneLabel}
               select
-              fullWidth>
+              fullWidth
+            >
               {zones.map((zone) => (
                 <MenuItem key={zone} value={zone}>
                   {zone}
@@ -329,7 +331,8 @@ export const WorkspaceScheduleForm: FC<
           <FormControl
             variant="standard"
             component="fieldset"
-            error={Boolean(form.errors.monday)}>
+            error={Boolean(form.errors.monday)}
+          >
             <FormLabel className={styles.daysOfWeekLabel} component="legend">
               {Language.daysOfWeekLabel}
             </FormLabel>
@@ -384,12 +387,13 @@ export const WorkspaceScheduleForm: FC<
             inputProps={{ min: 0, step: 1 }}
             label={Language.ttlLabel}
             type="number"
-            fullWidth />
+            fullWidth
+          />
         </FormFields>
       </FormSection>
       <FormFooter onCancel={onCancel} isLoading={isLoading} />
     </HorizontalForm>
-  );
+  )
 }
 
 export const ttlShutdownAt = (formTTL: number): string => {

@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button"
 import FormHelperText from "@mui/material/FormHelperText"
-import { makeStyles, Theme } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { SvgIconProps } from "@mui/material/SvgIcon"
 import Tooltip from "@mui/material/Tooltip"
 import GitHub from "@mui/icons-material/GitHub"
@@ -10,6 +10,7 @@ import { BitbucketIcon } from "components/Icons/BitbucketIcon"
 import { GitlabIcon } from "components/Icons/GitlabIcon"
 import { Typography } from "components/Typography/Typography"
 import { FC } from "react"
+import { Theme } from "@mui/material/styles"
 
 export interface GitAuthProps {
   type: TypesGen.GitProvider
@@ -41,7 +42,7 @@ export const GitAuth: FC<GitAuthProps> = ({
       break
     case "github":
       prettyName = "GitHub"
-      Icon = GitHub
+      Icon = GitHub as (props: SvgIconProps) => JSX.Element
       break
     case "gitlab":
       prettyName = "GitLab"

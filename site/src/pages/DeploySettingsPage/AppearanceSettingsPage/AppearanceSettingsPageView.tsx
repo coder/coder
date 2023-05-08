@@ -14,13 +14,13 @@ import FormControlLabel from "@mui/material/FormControlLabel"
 import FormHelperText from "@mui/material/FormHelperText"
 import { BlockPicker } from "react-color"
 import { useTranslation } from "react-i18next"
-import makeStyles from "@mui/material/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import Switch from "@mui/material/Switch"
 import TextField from "@mui/material/TextField"
 import { UpdateAppearanceConfig } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
-import { useTheme } from "@mui/material/styles"
+import { useTheme } from "@mui/styles"
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig
@@ -68,168 +68,171 @@ export const AppearanceSettingsPageView = ({
   const [backgroundColor, setBackgroundColor] = useState(
     serviceBannerForm.values.background_color,
   )
-  return <>
-    <Header
-      title="Appearance"
-      description="Customize the look and feel of your Coder deployment."
-    />
+  return (
+    <>
+      <Header
+        title="Appearance"
+        description="Customize the look and feel of your Coder deployment."
+      />
 
-    <Badges>
-      {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
-      <EnterpriseBadge />
-    </Badges>
+      <Badges>
+        {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
+        <EnterpriseBadge />
+      </Badges>
 
-    <Fieldset
-      title="Logo URL"
-      validation={
-        isEntitled
-          ? "We recommend a transparent image with 3:1 aspect ratio."
-          : "This is an Enterprise only feature."
-      }
-      onSubmit={logoForm.handleSubmit}
-      button={!isEntitled && <Button disabled>Submit</Button>}
-    >
-      <p>
-        Specify a custom URL for your logo to be displayed in the top left
-        corner of the dashboard.
-      </p>
-      <TextField
-        variant="standard"
-        {...logoFieldHelpers("logo_url")}
-        defaultValue={appearance.logo_url}
-        fullWidth
-        placeholder="Leave empty to display the Coder logo."
-        disabled={!isEntitled}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end" className={styles.logoAdornment}>
-              <img
-                alt=""
-                src={logoForm.values.logo_url}
-                // This prevent browser to display the ugly error icon if the
-                // image path is wrong or user didn't finish typing the url
-                onError={(e) => (e.currentTarget.style.display = "none")}
-                onLoad={(e) => (e.currentTarget.style.display = "inline")}
-              />
-            </InputAdornment>
-          ),
-        }} />
-    </Fieldset>
+      <Fieldset
+        title="Logo URL"
+        validation={
+          isEntitled
+            ? "We recommend a transparent image with 3:1 aspect ratio."
+            : "This is an Enterprise only feature."
+        }
+        onSubmit={logoForm.handleSubmit}
+        button={!isEntitled && <Button disabled>Submit</Button>}
+      >
+        <p>
+          Specify a custom URL for your logo to be displayed in the top left
+          corner of the dashboard.
+        </p>
+        <TextField
+          variant="standard"
+          {...logoFieldHelpers("logo_url")}
+          defaultValue={appearance.logo_url}
+          fullWidth
+          placeholder="Leave empty to display the Coder logo."
+          disabled={!isEntitled}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end" className={styles.logoAdornment}>
+                <img
+                  alt=""
+                  src={logoForm.values.logo_url}
+                  // This prevent browser to display the ugly error icon if the
+                  // image path is wrong or user didn't finish typing the url
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                  onLoad={(e) => (e.currentTarget.style.display = "inline")}
+                />
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Fieldset>
 
-    <Fieldset
-      title="Service Banner"
-      onSubmit={serviceBannerForm.handleSubmit}
-      button={
-        !isEntitled && (
-          <Button
-            onClick={() => {
-              updateAppearance(
-                {
-                  service_banner: {
-                    message:
-                      "👋 **This** is a service banner. The banner's color and text are editable.",
-                    background_color: "#004852",
-                    enabled: true,
-                  },
-                },
-                true,
-              )
-            }}
-          >
-            {t("showPreviewLabel")}
-          </Button>
-        )
-      }
-      validation={
-        !isEntitled && (
-          <p>
-            Your license does not include Service Banners.{" "}
-            <a href="mailto:sales@coder.com">Contact sales</a> to learn more.
-          </p>
-        )
-      }
-    >
-      <p>Configure a banner that displays a message to all users.</p>
-
-      {isEntitled && (
-        <Stack>
-          <FormControlLabel
-            control={
-              <Switch
-                color="primary"
-                checked={serviceBannerForm.values.enabled}
-                onChange={async () => {
-                  const newState = !serviceBannerForm.values.enabled
-                  const newBanner = {
-                    ...serviceBannerForm.values,
-                    enabled: newState,
-                  }
-                  updateAppearance(
-                    {
-                      service_banner: newBanner,
-                    },
-                    false,
-                  )
-                  await serviceBannerForm.setFieldValue("enabled", newState)
-                }}
-              />
-            }
-            label="Enabled"
-          />
-          <Stack spacing={0}>
-            <TextField
-              {...serviceBannerFieldHelpers("message")}
-              fullWidth
-              label="Message"
-              variant="outlined"
-              multiline
-            />
-            <FormHelperText>{t("messageHelperText")}</FormHelperText>
-          </Stack>
-
-          <Stack spacing={0}>
-            <h3>{"Background Color"}</h3>
-            <BlockPicker
-              color={backgroundColor}
-              onChange={async (color) => {
-                setBackgroundColor(color.hex)
-                await serviceBannerForm.setFieldValue(
-                  "background_color",
-                  color.hex,
-                )
+      <Fieldset
+        title="Service Banner"
+        onSubmit={serviceBannerForm.handleSubmit}
+        button={
+          !isEntitled && (
+            <Button
+              onClick={() => {
                 updateAppearance(
                   {
                     service_banner: {
-                      ...serviceBannerForm.values,
-                      background_color: color.hex,
+                      message:
+                        "👋 **This** is a service banner. The banner's color and text are editable.",
+                      background_color: "#004852",
+                      enabled: true,
                     },
                   },
                   true,
                 )
               }}
-              triangle="hide"
-              colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#5A00CF"]}
-              styles={{
-                default: {
-                  input: {
-                    color: "white",
-                    backgroundColor: theme.palette.background.default,
-                  },
-                  body: {
-                    backgroundColor: "black",
-                    color: "white",
-                  },
-                  card: {
-                    backgroundColor: "black",
-                  },
-                },
-              }}
+            >
+              {t("showPreviewLabel")}
+            </Button>
+          )
+        }
+        validation={
+          !isEntitled && (
+            <p>
+              Your license does not include Service Banners.{" "}
+              <a href="mailto:sales@coder.com">Contact sales</a> to learn more.
+            </p>
+          )
+        }
+      >
+        <p>Configure a banner that displays a message to all users.</p>
+
+        {isEntitled && (
+          <Stack>
+            <FormControlLabel
+              control={
+                <Switch
+                  color="primary"
+                  checked={serviceBannerForm.values.enabled}
+                  onChange={async () => {
+                    const newState = !serviceBannerForm.values.enabled
+                    const newBanner = {
+                      ...serviceBannerForm.values,
+                      enabled: newState,
+                    }
+                    updateAppearance(
+                      {
+                        service_banner: newBanner,
+                      },
+                      false,
+                    )
+                    await serviceBannerForm.setFieldValue("enabled", newState)
+                  }}
+                />
+              }
+              label="Enabled"
             />
+            <Stack spacing={0}>
+              <TextField
+                {...serviceBannerFieldHelpers("message")}
+                fullWidth
+                label="Message"
+                variant="outlined"
+                multiline
+              />
+              <FormHelperText>{t("messageHelperText")}</FormHelperText>
+            </Stack>
+
+            <Stack spacing={0}>
+              <h3>{"Background Color"}</h3>
+              <BlockPicker
+                color={backgroundColor}
+                onChange={async (color) => {
+                  setBackgroundColor(color.hex)
+                  await serviceBannerForm.setFieldValue(
+                    "background_color",
+                    color.hex,
+                  )
+                  updateAppearance(
+                    {
+                      service_banner: {
+                        ...serviceBannerForm.values,
+                        background_color: color.hex,
+                      },
+                    },
+                    true,
+                  )
+                }}
+                triangle="hide"
+                colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#5A00CF"]}
+                styles={{
+                  default: {
+                    input: {
+                      color: "white",
+                      backgroundColor: theme.palette.background.default,
+                    },
+                    body: {
+                      backgroundColor: "black",
+                      color: "white",
+                    },
+                    card: {
+                      backgroundColor: "black",
+                    },
+                  },
+                }}
+              />
+            </Stack>
           </Stack>
-        </Stack>
-      )}
-    </Fieldset>
-  </>;
+        )}
+      </Fieldset>
+    </>
+  )
 }
 
 const useStyles = makeStyles((theme) => ({

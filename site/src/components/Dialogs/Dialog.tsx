@@ -1,5 +1,5 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog"
-import { alpha, darken, makeStyles } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import * as React from "react"
 import { colors } from "theme/colors"
 import { combineClasses } from "../../utils/combineClasses"
@@ -106,7 +106,7 @@ const useButtonStyles = makeStyles((theme) => ({
       backgroundColor: theme.palette.success.main,
       color: theme.palette.primary.contrastText,
       "&:hover": {
-        backgroundColor: darken(theme.palette.success.main, 0.3),
+        backgroundColor: theme.palette.success.dark,
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
@@ -116,7 +116,7 @@ const useButtonStyles = makeStyles((theme) => ({
       },
       "&.Mui-disabled": {
         backgroundColor: theme.palette.action.disabledBackground,
-        color: alpha(theme.palette.text.disabled, 0.5),
+        color: theme.palette.text.secondary,
       },
     },
 
@@ -124,10 +124,7 @@ const useButtonStyles = makeStyles((theme) => ({
       color: theme.palette.success.main,
       borderColor: theme.palette.success.main,
       "&:hover": {
-        backgroundColor: alpha(
-          theme.palette.success.main,
-          theme.palette.action.hoverOpacity,
-        ),
+        backgroundColor: theme.palette.success.dark,
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
@@ -136,7 +133,7 @@ const useButtonStyles = makeStyles((theme) => ({
         },
       },
       "&.Mui-disabled": {
-        color: alpha(theme.palette.text.disabled, 0.5),
+        color: theme.palette.text.secondary,
         borderColor: theme.palette.action.disabled,
       },
     },
@@ -144,16 +141,13 @@ const useButtonStyles = makeStyles((theme) => ({
     "&.MuiButton-text": {
       color: theme.palette.success.main,
       "&:hover": {
-        backgroundColor: alpha(
-          theme.palette.success.main,
-          theme.palette.action.hoverOpacity,
-        ),
+        backgroundColor: theme.palette.success.dark,
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
       },
       "&.Mui-disabled": {
-        color: alpha(theme.palette.text.disabled, 0.5),
+        color: theme.palette.text.secondary,
       },
     },
   },

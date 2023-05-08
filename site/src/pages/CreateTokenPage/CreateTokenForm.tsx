@@ -5,7 +5,7 @@ import {
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form"
-import makeStyles from "@mui/material/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import { useTranslation } from "react-i18next"
 import { onChangeTrimmed, getFormHelpers } from "utils/formUtils"
 import TextField from "@mui/material/TextField"
@@ -106,7 +106,8 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
               fullWidth
               InputLabelProps={{
                 shrink: true,
-              }}>
+              }}
+            >
               {filterByMaxTokenLifetime(maxTokenLifetime).map((lt) => (
                 <MenuItem key={lt.label} value={lt.value}>
                   {lt.label}
@@ -145,7 +146,8 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
                 InputLabelProps={{
                   shrink: true,
                   required: true,
-                }} />
+                }}
+              />
             )}
           </Stack>
         </FormFields>
@@ -160,7 +162,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
         }
       />
     </HorizontalForm>
-  );
+  )
 }
 
 const useStyles = makeStyles(() => ({

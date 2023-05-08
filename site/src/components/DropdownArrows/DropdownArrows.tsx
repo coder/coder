@@ -1,7 +1,8 @@
-import { makeStyles, Theme } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown"
 import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp"
 import { FC } from "react"
+import { Theme } from "@mui/material/styles"
 
 const useStyles = makeStyles<Theme, ArrowProps>((theme: Theme) => ({
   arrowIcon: {

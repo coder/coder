@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link"
-import makeStyles from "@mui/material/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import {
   CloseDropdown,
   OpenDropdown,

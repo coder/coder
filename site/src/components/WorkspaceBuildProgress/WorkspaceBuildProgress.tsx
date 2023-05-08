@@ -1,5 +1,5 @@
 import LinearProgress from "@mui/material/LinearProgress"
-import makeStyles from "@mui/material/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import { TransitionStats, Template, Workspace } from "api/typesGenerated"
 import dayjs, { Dayjs } from "dayjs"
 import { FC, useEffect, useState } from "react"

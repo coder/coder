@@ -1,7 +1,7 @@
 import { FC, PropsWithChildren, useState } from "react"
 import { Section } from "components/SettingsLayout/Section"
 import { TokensPageView } from "./TokensPageView"
-import makeStyles from "@mui/material/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import { useTranslation, Trans } from "react-i18next"
 import { useTokensData } from "./hooks"
 import { ConfirmDeleteDialog } from "./components"

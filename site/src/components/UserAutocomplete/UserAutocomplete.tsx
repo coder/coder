@@ -10,6 +10,7 @@ import debounce from "just-debounce-it"
 import { ChangeEvent, FC, useEffect, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 import { useTranslation } from "react-i18next"
+import Box from "@mui/material/Box"
 
 export type UserAutocompleteProps = {
   value: User | null
@@ -50,7 +51,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
     <Autocomplete
       noOptionsText={t("forms.typeToSearch")}
       className={className}
-      options={searchResults}
+      options={searchResults ?? []}
       loading={searchState.matches("searching")}
       value={value}
       id="user-autocomplete"
@@ -72,42 +73,48 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
         option.username === value.username
       }
       getOptionLabel={(option) => option.email}
-      renderOption={(option: User) => (
-        <AvatarData
-          title={option.username}
-          subtitle={option.email}
-          src={option.avatar_url}
-        />
+      renderOption={(props, option) => (
+        <Box component="li" {...props}>
+          <AvatarData
+            title={option.username}
+            subtitle={option.email}
+            src={option.avatar_url}
+          />
+        </Box>
       )}
       renderInput={(params) => (
-        <TextField
-          {...params}
-          fullWidth
-          variant="outlined"
-          label={label ?? undefined}
-          placeholder="User email or username"
-          className={styles.textField}
-          InputProps={{
-            ...params.InputProps,
-            onChange: handleFilterChange,
-            startAdornment: value && (
-              <Avatar size="sm" src={value.avatar_url}>
-                {value.username}
-              </Avatar>
-            ),
-            endAdornment: (
-              <>
-                {searchState.matches("searching") ? (
-                  <CircularProgress size={16} />
-                ) : null}
-                {params.InputProps.endAdornment}
-              </>
-            ),
-            classes: {
-              root: styles.inputRoot,
-            },
-          }}
-        />
+        <>
+          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Need it */}
+          {/* @ts-ignore -- Issue from lib https://github.com/i18next/react-i18next/issues/1543 */}
+          <TextField
+            {...params}
+            fullWidth
+            variant="outlined"
+            label={label}
+            placeholder="User email or username"
+            className={styles.textField}
+            InputProps={{
+              ...params.InputProps,
+              onChange: handleFilterChange,
+              startAdornment: value && (
+                <Avatar size="sm" src={value.avatar_url}>
+                  {value.username}
+                </Avatar>
+              ),
+              endAdornment: (
+                <>
+                  {searchState.matches("searching") ? (
+                    <CircularProgress size={16} />
+                  ) : null}
+                  {params.InputProps.endAdornment}
+                </>
+              ),
+              classes: {
+                root: styles.inputRoot,
+              },
+            }}
+          />
+        </>
       )}
     />
   )

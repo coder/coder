@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { makeStyles, useTheme } from "@mui/material/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import useMediaQuery from "@mui/material/useMediaQuery"
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft"
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
@@ -21,7 +21,7 @@ export const PaginationWidgetBase = ({
   onChange,
 }: PaginationWidgetBaseProps): JSX.Element | null => {
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"))
   const styles = useStyles()
   const numPages = Math.ceil(count / limit)
   const isFirstPage = page === 0

@@ -1,6 +1,5 @@
 import ListItem from "@mui/material/ListItem"
 import { makeStyles } from "@mui/styles"
-import SvgIcon from "@mui/material/SvgIcon"
 import CheckIcon from "@mui/icons-material/Check"
 import { FC } from "react"
 import { NavLink } from "react-router-dom"
@@ -14,8 +13,6 @@ interface BorderedMenuRowProps {
   active?: boolean
   /** Optional description that appears beneath the title */
   description?: string
-  /** An SvgIcon that will be rendered to the left of the title */
-  Icon: typeof SvgIcon
   /** URL path */
   path: string
   /** Required title of this row */
@@ -28,7 +25,7 @@ interface BorderedMenuRowProps {
 
 export const BorderedMenuRow: FC<
   React.PropsWithChildren<BorderedMenuRowProps>
-> = ({ active, description, Icon, path, title, variant, onClick }) => {
+> = ({ active, description, path, title, variant, onClick }) => {
   const styles = useStyles()
 
   return (
@@ -41,7 +38,6 @@ export const BorderedMenuRow: FC<
       >
         <div className={styles.content} data-variant={variant}>
           <div className={styles.contentTop}>
-            <Icon className={styles.icon} />
             <Typography className={styles.title}>{title}</Typography>
             {active && <CheckIcon className={styles.checkMark} />}
           </div>

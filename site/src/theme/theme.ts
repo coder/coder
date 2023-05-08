@@ -1,6 +1,12 @@
 import { colors } from "./colors"
-import { ThemeOptions, createTheme } from "@mui/material/styles"
+import { ThemeOptions, createTheme, Theme } from "@mui/material/styles"
 import { BODY_FONT_FAMILY, borderRadius, borderRadiusSm } from "./constants"
+
+export type PaletteIndex = keyof Theme["palette"]
+export type PaletteStatusIndex = Extract<
+  PaletteIndex,
+  "error" | "warning" | "info" | "success"
+>
 
 export let dark = createTheme({
   palette: {

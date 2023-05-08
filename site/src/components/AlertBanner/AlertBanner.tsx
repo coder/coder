@@ -1,7 +1,7 @@
 import { useState, FC, Children } from "react"
 import Collapse from "@mui/material/Collapse"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles, Theme } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { colors } from "theme/colors"
 import { useTranslation } from "react-i18next"
 import { getErrorDetail, getErrorMessage } from "api/errors"
@@ -9,6 +9,7 @@ import { Expander } from "components/Expander/Expander"
 import { Severity, AlertBannerProps } from "./alertTypes"
 import { severityConstants } from "./severityConstants"
 import { AlertBannerCtas } from "./AlertBannerCtas"
+import { Theme } from "@mui/material/styles"
 
 /**
  * @param children: the children to be displayed in the alert

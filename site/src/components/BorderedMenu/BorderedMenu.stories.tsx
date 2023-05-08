@@ -1,7 +1,5 @@
 import { Story } from "@storybook/react"
 import { BorderedMenuRow } from "../BorderedMenuRow/BorderedMenuRow"
-import { BuildingIcon } from "../Icons/BuildingIcon"
-import { UsersOutlinedIcon } from "../Icons/UsersOutlinedIcon"
 import { BorderedMenu, BorderedMenuProps } from "./BorderedMenu"
 
 export default {
@@ -14,14 +12,12 @@ const Template: Story<BorderedMenuProps> = (args: BorderedMenuProps) => (
     <BorderedMenuRow
       title="Item 1"
       description="Here's a description"
-      Icon={BuildingIcon}
       path="/"
     />
     <BorderedMenuRow
       active
       title="Item 2"
       description="This BorderedMenuRow is active"
-      Icon={UsersOutlinedIcon}
       path="/"
     />
   </BorderedMenu>

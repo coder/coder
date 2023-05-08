@@ -281,7 +281,7 @@ const useStyles = makeStyles((theme) => ({
   },
   category: {
     marginRight: theme.spacing(2),
-    color: theme.palette.text.hint,
+    color: theme.palette.text.primary,
   },
   values: {
     display: "flex",
@@ -307,7 +307,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   refresh: {
-    color: theme.palette.text.hint,
+    color: theme.palette.text.primary,
     marginLeft: "auto",
     display: "flex",
     alignItems: "center",
