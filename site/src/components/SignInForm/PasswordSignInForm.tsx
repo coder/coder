@@ -41,7 +41,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 
   return (
     <form onSubmit={form.handleSubmit}>
-      <Stack>
+      <Stack spacing={2.5}>
         <TextField
           {...getFieldHelpers("email")}
           onChange={onChangeTrimmed(form)}
@@ -63,6 +63,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
         />
         <div>
           <LoadingButton
+            size="large"
             loading={isSigningIn}
             fullWidth
             type="submit"

@@ -141,6 +141,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
 
         <Button
           fullWidth
+          size="large"
           onClick={() => setShowPasswordAuth(true)}
           variant="outlined"
           startIcon={<EmailIcon className={styles.icon} />}

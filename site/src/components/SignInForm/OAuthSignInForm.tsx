@@ -43,6 +43,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
             fullWidth
             type="submit"
             variant="outlined"
+            size="large"
           >
             {Language.githubSignIn}
           </Button>
@@ -57,6 +58,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
           )}`}
         >
           <Button
+            size="large"
             startIcon={
               authMethods.oidc.iconUrl ? (
                 <img

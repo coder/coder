@@ -1,6 +1,10 @@
 import { colors } from "./colors"
 import { ThemeOptions, createTheme, Theme } from "@mui/material/styles"
-import { BODY_FONT_FAMILY, borderRadius, borderRadiusSm } from "./constants"
+import { BODY_FONT_FAMILY, borderRadius } from "./constants"
+
+// MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
+const INPUT_HEIGHT = 46
+const BUTTON_LG_HEIGHT = 46
 
 export type PaletteIndex = keyof Theme["palette"]
 export type PaletteStatusIndex = Extract<
@@ -54,6 +58,9 @@ export let dark = createTheme({
     },
     action: {
       hover: colors.gray[14],
+    },
+    neutral: {
+      main: colors.gray[1],
     },
   },
   typography: {
@@ -125,23 +132,22 @@ export let dark = createTheme({
       letterSpacing: 1.5,
     },
   },
+  shape: {
+    borderRadius,
+  },
 })
 
 dark = createTheme(dark, {
   components: {
     MuiCssBaseline: {
-      styleOverrides: {
-        "@global": {
-          body: {
-            backgroundImage: `linear-gradient(to right bottom, ${dark.palette.background.default}, ${colors.gray[17]})`,
-            backgroundRepeat: "no-repeat",
-            backgroundAttachment: "fixed",
-          },
-          ":root": {
-            colorScheme: dark.palette.mode,
-          },
-        },
-      },
+      styleOverrides: `
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active  {
+          -webkit-box-shadow: 0 0 0 100px ${dark.palette.background.default} inset !important;
+        }
+      `,
     },
     MuiAvatar: {
       styleOverrides: {
@@ -166,78 +172,23 @@ dark = createTheme(dark, {
     },
     MuiButton: {
       defaultProps: {
-        variant: "contained",
+        variant: "outlined",
+        color: "neutral",
       },
       styleOverrides: {
-        root: {
-          // Prevents a loading button from collapsing!
-          minHeight: 40,
-          height: 40, // Same size of input height
-          fontWeight: "normal",
-          fontSize: 16,
-          textTransform: "none",
-          letterSpacing: "none",
-          border: `1px solid ${dark.palette.divider}`,
-          whiteSpace: "nowrap",
+        root: ({ ownerState }) => {
+          let height: number | undefined = undefined
 
-          "&:focus-visible": {
-            outline: `2px solid ${dark.palette.primary.dark}`,
-          },
-        },
+          if (ownerState.size === "large") {
+            height = BUTTON_LG_HEIGHT
+          }
 
-        contained: {
-          boxShadow: "none",
-          color: dark.palette.text.primary,
-          backgroundColor: colors.gray[13],
-          borderColor: colors.gray[12],
-
-          "&:hover:not(:disabled):not(.MuiButton-containedPrimary):not(.MuiButton-containedSecondary)":
-            {
-              boxShadow: "none",
-              backgroundColor: colors.gray[12],
-              borderColor: colors.gray[11],
-            },
-
-          "&.Mui-disabled:not(.MuiButton-containedPrimary):not(.MuiButton-containedSecondary)":
-            {
-              color: colors.gray[9],
-              backgroundColor: colors.gray[14],
-              cursor: "not-allowed",
-              pointerEvents: "auto",
-            },
-        },
-        sizeSmall: {
-          padding: `0 16px`,
-          fontSize: 14,
-          minHeight: 36,
-          height: 36,
-          borderRadius: borderRadiusSm,
-        },
-        iconSizeSmall: {
-          width: 14,
-          height: 14,
-          marginLeft: "0 !important",
-          marginRight: 8,
-
-          "& svg:not(.MuiCircularProgress-svg)": {
-            width: 14,
-            height: 14,
-          },
-        },
-        outlined: {
-          border: `1px solid ${colors.gray[11]}`,
-
-          "&:hover:not(:disabled)": {
-            borderColor: colors.gray[1],
-            background: "none",
-          },
-
-          "&.Mui-disabled": {
-            color: colors.gray[9],
-            border: `1px solid ${colors.gray[12]}`,
-            pointerEvents: "auto",
-            cursor: "not-allowed",
-          },
+          return {
+            height,
+            textTransform: "none",
+            letterSpacing: "normal",
+            fontWeight: 500,
+          }
         },
       },
     },
@@ -310,30 +261,6 @@ dark = createTheme(dark, {
         },
       },
     },
-    MuiInputBase: {
-      styleOverrides: {
-        root: {
-          borderRadius,
-        },
-      },
-    },
-    MuiOutlinedInput: {
-      styleOverrides: {
-        root: {
-          "& .MuiOutlinedInput-notchedOutline": {
-            borderColor: dark.palette.divider,
-          },
-
-          "& input:-webkit-autofill": {
-            WebkitBoxShadow: `0 0 0 1000px ${dark.palette.background.paper} inset`,
-          },
-
-          "&:hover:not(.Mui-focused) .MuiOutlinedInput-notchedOutline": {
-            borderColor: dark.palette.divider,
-          },
-        },
-      },
-    },
     MuiLink: {
       styleOverrides: {
         root: {
@@ -349,18 +276,6 @@ dark = createTheme(dark, {
         root: {
           borderRadius,
           border: `1px solid ${dark.palette.divider}`,
-        },
-      },
-    },
-    MuiFormHelperText: {
-      styleOverrides: {
-        contained: {
-          marginLeft: 0,
-          marginRight: 0,
-        },
-
-        marginDense: {
-          marginTop: 8,
         },
       },
     },
@@ -434,15 +349,35 @@ dark = createTheme(dark, {
     },
     MuiTextField: {
       defaultProps: {
-        margin: "dense",
-        variant: "outlined",
-        spellCheck: false,
+        InputLabelProps: {
+          shrink: true,
+        },
       },
     },
-    MuiFormControl: {
+    MuiInputBase: {
       defaultProps: {
-        variant: "outlined",
-        margin: "dense",
+        color: "primary",
+      },
+      styleOverrides: {
+        root: ({ ownerState }) => {
+          let height: number | undefined = undefined
+
+          if (ownerState.size === "medium") {
+            height = INPUT_HEIGHT
+          }
+
+          return {
+            height,
+          }
+        },
+      },
+    },
+    MuiFormHelperText: {
+      defaultProps: {
+        sx: {
+          marginLeft: 0,
+          marginTop: 1,
+        },
       },
     },
     MuiList: {
