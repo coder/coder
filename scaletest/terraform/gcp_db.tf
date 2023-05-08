@@ -7,12 +7,6 @@ data "google_compute_global_address" "sql_peering" {
   name = "sql-ip-address"
 }
 
-resource "google_service_networking_connection" "private_vpc_connection" {
-  network                 = data.google_compute_network.default.id
-  service                 = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [google_compute_global_address.sql_peering.name]
-}
-
 resource "google_sql_database_instance" "db" {
   name             = "${var.name}-db"
   region           = var.region
@@ -36,7 +30,7 @@ resource "google_sql_database_instance" "db" {
 
     ip_configuration {
       ipv4_enabled    = false
-      private_network = data.google_compute_network.default.id
+      private_network = google_compute_network.vpc.id
     }
 
     insights_config {

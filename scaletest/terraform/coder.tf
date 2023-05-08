@@ -39,13 +39,13 @@ resource "random_password" "coder-postgres-password" {
 }
 
 resource "kubernetes_secret" "coder-db" {
-  type = "kubernetes.io/basic-auth"
+  type = "" # Opaque
   metadata {
     name      = "coder-db-url"
     namespace = kubernetes_namespace.coder_namespace.metadata.0.name
   }
   data = {
-    url = "postgres://coder:${random_password.coder-postgres-password.result}@/${google_sql_database_instance.db.ip_address}?sslmode=disable"
+    url = "postgres://coder:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}?sslmode=disable"
   }
 }
 
@@ -121,7 +121,9 @@ coder:
           key: url
     - name: "CODER_VERBOSE"
       value: "true"
-  image: ${var.coder_image_repo}:${var.coder_image_tag}
+  image:
+    repo: ${var.coder_image_repo}
+    tag: ${var.coder_image_tag}
   replicaCount: "${var.coder_replicas}"
   resources:
     requests:
