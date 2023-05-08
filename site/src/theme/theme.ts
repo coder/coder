@@ -5,6 +5,8 @@ import { BODY_FONT_FAMILY, borderRadius } from "./constants"
 // MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
 const INPUT_HEIGHT = 46
 const BUTTON_LG_HEIGHT = 46
+const BUTTON_MD_HEIGHT = 40
+const BUTTON_SM_HEIGHT = 36
 
 export type PaletteIndex = keyof Theme["palette"]
 export type PaletteStatusIndex = Extract<
@@ -122,15 +124,27 @@ dark = createTheme(dark, {
           textTransform: "none",
           letterSpacing: "normal",
           fontWeight: 500,
+          height: BUTTON_MD_HEIGHT,
         },
         sizeSmall: {
           borderRadius: 6,
+          height: BUTTON_SM_HEIGHT,
         },
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
         outlinedNeutral: {
           borderColor: colors.gray[12],
+        },
+        iconSizeMedium: {
+          "& > .MuiSvgIcon-root": {
+            fontSize: 18,
+          },
+        },
+        iconSizeSmall: {
+          "& > .MuiSvgIcon-root": {
+            fontSize: 16,
+          },
         },
       },
     },
@@ -205,7 +219,7 @@ dark = createTheme(dark, {
     },
     MuiLink: {
       defaultProps: {
-        underline: "none",
+        underline: "hover",
       },
     },
     MuiPaper: {
@@ -214,7 +228,6 @@ dark = createTheme(dark, {
       },
       styleOverrides: {
         root: {
-          borderRadius,
           border: `1px solid ${dark.palette.divider}`,
           backgroundImage: "none",
         },
