@@ -1,7 +1,6 @@
 import Button from "@mui/material/Button"
 import TextField from "@mui/material/TextField"
 import { makeStyles } from "@mui/styles"
-import { ApiErrorResponse } from "api/errors"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
@@ -15,7 +14,7 @@ import { Link as RouterLink } from "react-router-dom"
 type AddNewLicenseProps = {
   onSaveLicenseKey: (license: string) => void
   isSavingLicense: boolean
-  savingLicenseError?: ApiErrorResponse
+  savingLicenseError?: unknown
 }
 
 export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({

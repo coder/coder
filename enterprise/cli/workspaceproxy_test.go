@@ -45,7 +45,7 @@ func Test_ProxyCRUD(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, conf := newCLI(
 			t,
-			"proxy", "create",
+			"wsproxy", "create",
 			"--name", expectedName,
 			"--display-name", "Test Proxy",
 			"--icon", "/emojis/1f4bb.png",
@@ -68,7 +68,7 @@ func Test_ProxyCRUD(t *testing.T) {
 		// Fetch proxies and check output
 		inv, conf = newCLI(
 			t,
-			"proxy", "ls",
+			"wsproxy", "ls",
 		)
 
 		pty = ptytest.New(t)
@@ -118,7 +118,7 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		inv, conf := newCLI(
 			t,
-			"proxy", "delete", expectedName,
+			"wsproxy", "delete", expectedName,
 		)
 
 		pty := ptytest.New(t)

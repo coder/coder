@@ -235,9 +235,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.Get("/healthz-report", s.healthReport)
 	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       404,
-			Title:        "Route Not Found",
-			Description:  "The route you requested does not exist on this workspace proxy. Maybe you intended to make this request to the primary dashboard? Click below to be redirected to the primary site.",
+			Title:      "Head to the Dashboard",
+			Status:     http.StatusBadRequest,
+			HideStatus: true,
+			Description: "Workspace Proxies route traffic in terminals and apps directly to your workspace. " +
+				"This page must be loaded from the dashboard. Click to be redirected!",
 			RetryEnabled: false,
 			DashboardURL: opts.DashboardURL.String(),
 		})

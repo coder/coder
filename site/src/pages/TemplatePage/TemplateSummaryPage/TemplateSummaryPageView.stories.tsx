@@ -26,7 +26,6 @@ Example.args = {
   activeVersion: MockTemplateVersion,
   data: {
     resources: [MockWorkspaceResource, MockWorkspaceResource2],
-    versions: [MockTemplateVersion],
     daus: MockTemplateDAUResponse,
   },
 }
@@ -37,7 +36,6 @@ NoIcon.args = {
   activeVersion: MockTemplateVersion,
   data: {
     resources: [MockWorkspaceResource, MockWorkspaceResource2],
-    versions: [MockTemplateVersion],
     daus: MockTemplateDAUResponse,
   },
 }
@@ -61,7 +59,6 @@ SmallViewport.args = {
   },
   data: {
     resources: [MockWorkspaceResource, MockWorkspaceResource2],
-    versions: [MockTemplateVersion],
     daus: MockTemplateDAUResponse,
   },
 }

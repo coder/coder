@@ -17,17 +17,13 @@ import { Stack } from "../../Stack/Stack"
 type Icon = typeof HelpIcon
 
 type Size = "small" | "medium"
-interface HelpTooltipProps {
+export interface HelpTooltipProps {
   // Useful to test on storybook
   open?: boolean
   size?: Size
   icon?: Icon
   iconClassName?: string
   buttonClassName?: string
-}
-
-export const Language = {
-  ariaLabel: "tooltip",
 }
 
 export const HelpTooltipContext = createContext<
@@ -108,7 +104,7 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
         onMouseLeave={() => {
           setIsOpen(false)
         }}
-        aria-label={Language.ariaLabel}
+        aria-label="More info"
       >
         <Icon className={combineClasses([styles.icon, iconClassName])} />
       </button>

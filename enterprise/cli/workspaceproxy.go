@@ -16,7 +16,7 @@ func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:     "workspace-proxy",
 		Short:   "Manage workspace proxies",
-		Aliases: []string{"proxy"},
+		Aliases: []string{"wsproxy"},
 		Hidden:  true,
 		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)

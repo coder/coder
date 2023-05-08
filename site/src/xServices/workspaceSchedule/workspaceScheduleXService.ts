@@ -29,16 +29,17 @@ export const checks = {
   updateWorkspace: "updateWorkspace",
 } as const
 
-const permissionsToCheck = (workspace: TypesGen.Workspace) => ({
-  [checks.updateWorkspace]: {
-    object: {
-      resource_type: "workspace",
-      resource_id: workspace.id,
-      owner_id: workspace.owner_id,
+const permissionsToCheck = (workspace: TypesGen.Workspace) =>
+  ({
+    [checks.updateWorkspace]: {
+      object: {
+        resource_type: "workspace",
+        resource_id: workspace.id,
+        owner_id: workspace.owner_id,
+      },
+      action: "update",
     },
-    action: "update",
-  },
-})
+  } as const)
 
 export type WorkspaceScheduleEvent =
   | {
