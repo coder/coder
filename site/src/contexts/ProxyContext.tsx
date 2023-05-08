@@ -70,7 +70,6 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     onSuccess: (resp) => {
       setAndSaveProxy(proxy.selectedProxy, resp.regions)
     },
-    enabled: experimentEnabled,
   })
 
   const setAndSaveProxy = (
@@ -93,35 +92,18 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     setProxy(preferred)
   }
 
-  // ******************************* //
-  // ** This code can be removed  **
-  // ** when the experimental is  **
-  // **       dropped             ** //
-  const appHostQueryKey = ["get-application-host"]
-  const {
-    data: applicationHostResult,
-    error: appHostError,
-    isLoading: appHostLoading,
-    isFetched: appHostFetched,
-  } = useQuery({
-    queryKey: appHostQueryKey,
-    queryFn: getApplicationsHost,
-    enabled: !experimentEnabled,
-  })
-
   return (
     <ProxyContext.Provider
       value={{
         proxy: experimentEnabled
           ? proxy
           : {
-              ...getPreferredProxy([]),
-              preferredWildcardHostname: applicationHostResult?.host || "",
+              ...getPreferredProxy(proxiesResp?.regions || []),
             },
-        proxies: experimentEnabled ? proxiesResp?.regions : [],
-        isLoading: experimentEnabled ? proxiesLoading : appHostLoading,
-        isFetched: experimentEnabled ? proxiesFetched : appHostFetched,
-        error: experimentEnabled ? proxiesError : appHostError,
+        proxies: proxiesResp?.regions,
+        isLoading: proxiesLoading,
+        isFetched: proxiesFetched,
+        error: proxiesError,
         // A function that takes the new proxies and selected proxy and updates
         // the state with the appropriate urls.
         setProxy: setAndSaveProxy,

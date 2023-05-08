@@ -149,6 +149,7 @@ const docTemplate = `{
                 ],
                 "summary": "Get applications host",
                 "operationId": "get-applications-host",
+                "deprecated": true,
                 "responses": {
                     "200": {
                         "description": "OK",
