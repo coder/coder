@@ -44,13 +44,57 @@ data "coder_parameter" "location" {
   }
 }
 resource "coder_agent" "main" {
-  arch           = "amd64"
-  auth           = "azure-instance-identity"
-  os             = "windows"
+  arch               = "amd64"
+  auth               = "azure-instance-identity"
+  os                 = "windows"
+  dir                = "F:\\Users\\coder"
+  login_before_ready = false
   startup_script = <<EOF
-# Set admin password
-Get-LocalUser -Name "Administrator" | Set-LocalUser -Password (ConvertTo-SecureString -AsPlainText "${local.admin_password}" -Force)
-# To disable password entirely, see https://serverfault.com/a/968240
+$disk = Get-Disk -Number 2
+if ($disk.PartitionStyle -Eq 'RAW')
+{
+    Write-Host "Initializing data disk"
+    $disk | Initialize-Disk
+} else {
+    Write-Host "data disk already initialized"
+}
+
+$partitions = Get-Partition -DiskNumber $disk.Number | Where-Object Type -Ne 'Reserved'
+if ($partitions.Count -Eq 0) {
+    Write-Host "Creating partition on data disk"
+    New-Partition -DiskNumber $disk.Number -UseMaximumSize -DriveLetter F
+} else {
+    $s = "data disk already has partition of size {0:n1} GiB" -f ($partitions[0].Size / 1073741824)
+    Write-Host $s
+    if ($partitions[0].DriveLetter -Ne "F") {
+        Set-Partition -InputObject $partitions[0] -NewDriveLetter F
+    }
+}
+
+$volume = Get-Volume -DriveLetter F
+if ($volume.FileSystemType -Eq 'Unknown')
+{
+    Write-Host "Formatting data disk"
+    Format-Volume -InputObject $volume -FileSystem NTFS -Confirm:$false
+} else {
+    Write-Host "data disk is already formatted"
+}
+
+$h = "F:\Users\coder"
+if (Test-Path -Path $home) {
+    Write-Host "Home directory exists"
+} else {
+    New-Item -ItemType "directory" -Path $h
+}
+
+$u = Get-LocalUser -Name coder
+$profile = "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\ProfileList\{0}" -f $u.SID
+$curHome = Get-ItemProperty -Path $profile -Name "ProfileImagePath"
+if ($curHome -Ne $h) {
+    Write-Host "Updating user profile location"
+    Set-ItemProperty -Path $profile -Name "ProfileImagePath" -Value $h
+}
+
 # Enable RDP
 Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
 # Enable RDP through Windows Firewall
@@ -58,8 +102,8 @@ Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 # Disable Network Level Authentication (NLA)
 # Clients will connect via Coder's tunnel
 (Get-WmiObject -class "Win32_TSGeneralSetting" -Namespace root\cimv2\terminalservices -ComputerName $env:COMPUTERNAME -Filter "TerminalName='RDP-tcp'").SetUserAuthenticationRequired(0)
-choco feature enable -n=allowGlobalConfirmation
-choco install visualstudio2022community --package-parameters "--add=Microsoft.VisualStudio.Workload.ManagedDesktop;includeRecommended --passive --locale en-US"
+# choco feature enable -n=allowGlobalConfirmation
+# choco install visualstudio2022community --package-parameters "--add=Microsoft.VisualStudio.Workload.ManagedDesktop;includeRecommended --passive --locale en-US"
 EOF
 }
 locals {
@@ -75,14 +119,13 @@ locals {
   user_data_start = <<EOT
 # Install Chocolatey package manager before
 # the agent starts to use via startup_script
-Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 # Reload path so sessions include "choco" and "refreshenv"
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 # Install Git and reload path
 choco install -y git
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-${coder_agent.main.init_script}
+
 EOT
   user_data_end = <<EOT
 shutdown /s
@@ -152,6 +195,16 @@ resource "random_id" "storage_id" {
   }
   byte_length = 8
 }
+
+resource "azurerm_managed_disk" "data" {
+  name                 = "data_disk"
+  location             = azurerm_resource_group.main.location
+  resource_group_name  = azurerm_resource_group.main.name
+  storage_account_type = "Standard_LRS"
+  create_option        = "Empty"
+  disk_size_gb         = 20
+}
+
 # Create virtual machine
 resource "azurerm_windows_virtual_machine" "main" {
   name                  = "vm"
@@ -161,7 +214,7 @@ resource "azurerm_windows_virtual_machine" "main" {
   resource_group_name   = azurerm_resource_group.main.name
   network_interface_ids = [azurerm_network_interface.main.id]
   size                  = "Standard_DS1_v2"
-  custom_data             = base64encode(data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end)
+  custom_data             = base64encode(coder_agent.main.init_script)
   os_disk {
     name                 = "myOsDisk"
     caching              = "ReadWrite"
@@ -187,4 +240,11 @@ resource "azurerm_windows_virtual_machine" "main" {
   tags = {
     Coder_Provisioned = "true"
   }
+}
+
+resource "azurerm_virtual_machine_data_disk_attachment" "main_data" {
+  managed_disk_id    = azurerm_managed_disk.data.id
+  virtual_machine_id = azurerm_windows_virtual_machine.main.id
+  lun                = "10"
+  caching            = "ReadWrite"
 }

@@ -1,12 +1,22 @@
 <FirstLogonCommands>
 	<SynchronousCommand>
-		<CommandLine>cmd /c "copy C:\AzureData\CustomData.bin C:\AzureData\CoderAgent.ps1"</CommandLine>
-		<Description>Move the CustomData file to the working directory</Description>
-		<Order>10</Order>
+		<CommandLine>powershell.exe -sta -ExecutionPolicy Unrestricted -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')) | Out-File C:\AzureData\chocolatey.log"</CommandLine>
+		<Description>Install Chocolatey Package Manager</Description>
+		<Order>1</Order>
 	</SynchronousCommand>
 	<SynchronousCommand>
-		<CommandLine>powershell.exe -sta -ExecutionPolicy Unrestricted -Command "C:\AzureData\CoderAgent.ps1 | Out-File C:\AzureData\CoderAgent.log</CommandLine>
+		<CommandLine>powershell.exe -sta -ExecutionPolicy Unrestricted -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12"</CommandLine>
+		<Description>Set SecurityProtocol to TLS1.2</Description>
+		<Order>2</Order>
+	</SynchronousCommand>
+	<SynchronousCommand>
+		<CommandLine>cmd /c "copy C:\AzureData\CustomData.bin C:\AzureData\CoderAgent.ps1"</CommandLine>
+		<Description>Move the CustomData file to the working directory</Description>
+		<Order>3</Order>
+	</SynchronousCommand>
+	<SynchronousCommand>
+		<CommandLine>powershell.exe -sta -ExecutionPolicy Unrestricted -Command "C:\AzureData\CoderAgent.ps1 | Out-File C:\AzureData\CoderAgent.log"</CommandLine>
 		<Description>Execute CustomData as powershell.</Description>
-		<Order>20</Order>
+		<Order>4</Order>
 	</SynchronousCommand>
 </FirstLogonCommands>
