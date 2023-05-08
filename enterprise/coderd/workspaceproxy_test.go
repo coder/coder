@@ -218,6 +218,9 @@ func TestRegions(t *testing.T) {
 		require.Eventuallyf(t, func() bool {
 			proxy, err := client.WorkspaceProxyByName(ctx, proxyName)
 			if err != nil {
+				// We are testing the going away, not the initial healthy.
+				// Just force an update to change this to healthy.
+				_ = api.ProxyHealth.ForceUpdate(ctx)
 				return false
 			}
 			return proxy.Status.Status == codersdk.ProxyHealthy
