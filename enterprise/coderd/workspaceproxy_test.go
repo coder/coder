@@ -213,7 +213,7 @@ func TestRegions(t *testing.T) {
 		proxy := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
 			Name: proxyName,
 		})
-		var _ = proxy
+		_ = proxy
 
 		require.Eventuallyf(t, func() bool {
 			proxy, err := client.WorkspaceProxyByName(ctx, proxyName)

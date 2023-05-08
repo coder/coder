@@ -3454,7 +3454,7 @@ Parameter represents a set value for the scope.
 ## codersdk.ProxyHealthStatus
 
 ```json
-"reachable"
+"ok"
 ```
 
 ### Properties
@@ -3463,7 +3463,7 @@ Parameter represents a set value for the scope.
 
 | Value          |
 | -------------- |
-| `reachable`    |
+| `ok`           |
 | `unreachable`  |
 | `unhealthy`    |
 | `unregistered` |
@@ -5338,7 +5338,7 @@ Parameter represents a set value for the scope.
       "errors": ["string"],
       "warnings": ["string"]
     },
-    "status": "reachable"
+    "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
@@ -5369,7 +5369,7 @@ Parameter represents a set value for the scope.
     "errors": ["string"],
     "warnings": ["string"]
   },
-  "status": "reachable"
+  "status": "ok"
 }
 ```
 

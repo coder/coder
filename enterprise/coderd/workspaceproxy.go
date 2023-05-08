@@ -401,9 +401,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 // @Router /workspaceproxies/me/goingaway [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyGoingAway(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-	)
+	ctx := r.Context()
 
 	// Force a health update to happen immediately. The proxy should
 	// not return a successful response if it is going away.
