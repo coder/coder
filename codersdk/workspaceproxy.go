@@ -15,9 +15,9 @@ import (
 type ProxyHealthStatus string
 
 const (
-	// ProxyReachable means the proxy access url is reachable and returns a healthy
+	// ProxyHealthy means the proxy access url is reachable and returns a healthy
 	// status code.
-	ProxyReachable ProxyHealthStatus = "reachable"
+	ProxyHealthy ProxyHealthStatus = "ok"
 	// ProxyUnreachable means the proxy access url is not responding.
 	ProxyUnreachable ProxyHealthStatus = "unreachable"
 	// ProxyUnhealthy means the proxy access url is responding, but there is some
@@ -108,6 +108,24 @@ func (c *Client) WorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
 
 	var proxies []WorkspaceProxy
 	return proxies, json.NewDecoder(res.Body).Decode(&proxies)
+}
+
+func (c *Client) WorkspaceProxyByName(ctx context.Context, name string) (WorkspaceProxy, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/workspaceproxies/%s", name),
+		nil,
+	)
+	if err != nil {
+		return WorkspaceProxy{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceProxy{}, ReadBodyAsError(res)
+	}
+
+	var proxy WorkspaceProxy
+	return proxy, json.NewDecoder(res.Body).Decode(&proxy)
 }
 
 func (c *Client) DeleteWorkspaceProxyByName(ctx context.Context, name string) error {

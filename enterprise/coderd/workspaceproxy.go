@@ -68,11 +68,7 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			health, ok := proxyHealth[proxy.ID]
-			if !ok {
-				health.Status = proxyhealth.Unknown
-			}
-
+			health := proxyHealth[proxy.ID]
 			regions = append(regions, codersdk.Region{
 				ID:               proxy.ID,
 				Name:             proxy.Name,
@@ -254,6 +250,24 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies, statues))
 }
 
+// @Summary Get workspace proxy
+// @ID get-workspace-proxy
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceProxy
+// @Router /workspaceproxies/{workspaceproxy} [get]
+func (api *API) getWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		proxy = httpmw.WorkspaceProxyParam(r)
+	)
+
+	status := api.ProxyHealth.HealthStatus()[proxy.ID]
+	httpapi.Write(ctx, rw, http.StatusOK, convertProxy(proxy, status))
+}
+
 // @Summary Issue signed workspace app token
 // @ID issue-signed-workspace-app-token
 // @Security CoderSessionToken
@@ -371,6 +385,35 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
+// workspaceProxyGoingAway is used to tell coderd that the workspace proxy is
+// shutting down and going away. The main purpose of this function is for the
+// health status of the workspace proxy to be more quickly updated when we know
+// that the proxy is going to be unhealthy. This does not delete the workspace
+// or cause any other side effects.
+// If the workspace proxy comes back online, even without a register, it will
+// be found healthy again by the normal checks.
+// @Summary Workspace proxy going away
+// @ID workspace-proxy-going-away
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 201 {object} codersdk.Response
+// @Router /workspaceproxies/me/goingaway [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceProxyGoingAway(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx = r.Context()
+	)
+
+	// Force a health update to happen immediately. The proxy should
+	// not return a successful response if it is going away.
+	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "OK",
+	})
+}
+
 // reconnectingPTYSignedToken issues a signed app token for use when connecting
 // to the reconnecting PTY websocket on an external workspace proxy. This is set
 // by the client as a query parameter when connecting.
@@ -476,6 +519,9 @@ func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhea
 }
 
 func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.WorkspaceProxy {
+	if status.Status == "" {
+		status.Status = proxyhealth.Unknown
+	}
 	return codersdk.WorkspaceProxy{
 		ID:               p.ID,
 		Name:             p.Name,

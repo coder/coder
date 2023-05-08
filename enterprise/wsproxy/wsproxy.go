@@ -250,6 +250,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 func (s *Server) Close() error {
 	s.cancel()
+	go func() {
+		// Do this in a go routine to not block the close. This is allowed
+		// to fail, it is just a courtesy to the dashboard.
+		_ = s.SDKClient.WorkspaceProxyGoingAway(context.Background())
+	}()
 	return s.AppServer.Close()
 }
 
@@ -278,6 +283,15 @@ func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 func (s *Server) healthReport(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var report codersdk.ProxyHealthReport
+
+	// This is to catch edge cases where the server is shutting down, but might
+	// still serve a web request that returns "healthy". This is mainly just for
+	// unit tests, as shutting down the test webserver is tied to the lifecycle
+	// of the test. In practice, the webserver is tied to the lifecycle of the
+	// app, so the webserver AND the proxy will be shut down at the same time.
+	if s.ctx.Err() != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, "workspace proxy in middle of shutting down")
+	}
 
 	// Hit the build info to do basic version checking.
 	primaryBuild, err := s.SDKClient.SDKClient.BuildInfo(ctx)

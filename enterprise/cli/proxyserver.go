@@ -249,6 +249,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
 			}
+			closers.Add(func() { _ = proxy.Close() })
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
