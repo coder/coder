@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { getApplicationsHost, getWorkspaceProxies } from "api/api"
+import { getWorkspaceProxies } from "api/api"
 import { Region } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import {
