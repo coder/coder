@@ -98,6 +98,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
         proxy: experimentEnabled
           ? proxy
           : {
+              // If the experiment is disabled, then call 'getPreferredProxy' with the regions from
+              // the api call. The default behavior is to use the `primary` proxy.
               ...getPreferredProxy(proxiesResp?.regions || []),
             },
         proxies: proxiesResp?.regions,
