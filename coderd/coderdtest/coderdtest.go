@@ -137,7 +137,7 @@ type Options struct {
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
-func New(t *testing.T, options *Options) *codersdk.Client {
+func New(t testing.TB, options *Options) *codersdk.Client {
 	client, _ := newWithCloser(t, options)
 	return client
 }
@@ -162,12 +162,12 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 // upon thee. Even the io.Closer that is exposed here shouldn't be exposed
 // and is a temporary measure while the API to register provisioners is ironed
 // out.
-func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+func newWithCloser(t testing.TB, options *Options) (*codersdk.Client, io.Closer) {
 	client, closer, _ := NewWithAPI(t, options)
 	return client, closer
 }
 
-func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.CancelFunc, *url.URL, *coderd.Options) {
+func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.CancelFunc, *url.URL, *coderd.Options) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -190,8 +190,14 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.Authorizer == nil {
-		options.Authorizer = &RecordingAuthorizer{
-			Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
+		defAuth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+		if _, ok := t.(*testing.T); ok {
+			options.Authorizer = &RecordingAuthorizer{
+				Wrapped: defAuth,
+			}
+		} else {
+			// In benchmarks, the recording authorizer greatly skews results.
+			options.Authorizer = defAuth
 		}
 	}
 
@@ -359,7 +365,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 // NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
 // Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
 // Do not expose the API or wrath shall descend upon thee.
-func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
+func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -384,7 +390,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 // NewProvisionerDaemon launches a provisionerd instance configured to work
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
-func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
+func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -465,7 +471,7 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
-func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirstUserResponse {
+func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirstUserResponse {
 	resp, err := client.CreateFirstUser(context.Background(), FirstUserParams)
 	require.NoError(t, err)
 
@@ -1111,7 +1117,7 @@ sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
 QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
 
-func DeploymentValues(t *testing.T) *codersdk.DeploymentValues {
+func DeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	var cfg codersdk.DeploymentValues
 	opts := cfg.Options()
 	err := opts.SetDefaults()

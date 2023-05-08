@@ -53,3 +53,4 @@ site/stats/
 
 # direnv
 .envrc
+*.test

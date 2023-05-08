@@ -398,7 +398,6 @@ func New(options *Options) *API {
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
-		httpmw.AttachAuthzCache,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
