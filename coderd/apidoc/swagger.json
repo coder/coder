@@ -4617,6 +4617,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Enterprise"],
         "summary": "Update workspace proxy",
