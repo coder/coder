@@ -118,19 +118,13 @@ dark = createTheme(dark, {
         color: "neutral",
       },
       styleOverrides: {
-        root: ({ ownerState }) => {
-          let height: number | undefined = undefined
-
-          if (ownerState.size === "large") {
-            height = BUTTON_LG_HEIGHT
-          }
-
-          return {
-            height,
-            textTransform: "none",
-            letterSpacing: "normal",
-            fontWeight: 500,
-          }
+        root: {
+          textTransform: "none",
+          letterSpacing: "normal",
+          fontWeight: 500,
+        },
+        sizeLarge: {
+          height: BUTTON_LG_HEIGHT,
         },
       },
     },
@@ -301,16 +295,8 @@ dark = createTheme(dark, {
         color: "primary",
       },
       styleOverrides: {
-        root: ({ ownerState }) => {
-          let height: number | undefined = undefined
-
-          if (ownerState.size === "medium") {
-            height = INPUT_HEIGHT
-          }
-
-          return {
-            height,
-          }
+        root: {
+          height: INPUT_HEIGHT,
         },
       },
     },
