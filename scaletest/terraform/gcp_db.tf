@@ -41,3 +41,18 @@ resource "google_sql_database_instance" "db" {
     }
   }
 }
+
+resource "google_sql_database" "coder" {
+  project = var.project_id
+  instance = google_sql_database_instance.db.id
+  name = "${var.name}-coder"
+  deletion_policy = "DELETE"
+}
+
+resource "google_sql_user" "coder" {
+  project = var.project_id
+  instance = google_sql_database_instance.db.id
+  name = "coder"
+  type = "BUILT_IN"
+  password = random_password.coder-postgres-password.result
+}

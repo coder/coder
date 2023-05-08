@@ -45,7 +45,7 @@ resource "kubernetes_secret" "coder-db" {
     namespace = kubernetes_namespace.coder_namespace.metadata.0.name
   }
   data = {
-    url = "postgres://coder:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}?sslmode=disable"
+    url = "postgres://coder:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}/${google_sql_database.coder.name}?sslmode=disable"
   }
 }
 
