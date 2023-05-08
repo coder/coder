@@ -60,7 +60,7 @@ type WorkspaceProxy struct {
 	// Status is the latest status check of the proxy. This will be empty for deleted
 	// proxies. This value can be used to determine if a workspace proxy is healthy
 	// and ready to use.
-	Status WorkspaceProxyStatus `json:"status,omitempty" table:"status,recursive"`
+	Status WorkspaceProxyStatus `json:"status,omitempty" table:"proxy,recursive"`
 }
 
 type CreateWorkspaceProxyRequest struct {
