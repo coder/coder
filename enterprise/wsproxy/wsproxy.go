@@ -292,6 +292,7 @@ func (s *Server) healthReport(rw http.ResponseWriter, r *http.Request) {
 	// app, so the webserver AND the proxy will be shut down at the same time.
 	if s.ctx.Err() != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, "workspace proxy in middle of shutting down")
+		return
 	}
 
 	// Hit the build info to do basic version checking.

@@ -221,7 +221,7 @@ func TestRegions(t *testing.T) {
 				return false
 			}
 			return proxy.Status.Status == codersdk.ProxyHealthy
-		}, time.Second*10, time.Millisecond*100, "proxy never became healthy")
+		}, testutil.WaitShort, testutil.IntervalFast, "proxy never became healthy")
 
 		_ = proxy.Close()
 		// The proxy should tell the primary on close that is is no longer healthy.
@@ -231,7 +231,7 @@ func TestRegions(t *testing.T) {
 				return false
 			}
 			return proxy.Status.Status == codersdk.ProxyUnhealthy
-		}, time.Second*10, time.Millisecond*100, "proxy never became unhealthy after close")
+		}, testutil.WaitShort, testutil.IntervalFast, "proxy never became unhealthy after close")
 	})
 }
 

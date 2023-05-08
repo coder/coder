@@ -258,7 +258,7 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 // @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceProxy
 // @Router /workspaceproxies/{workspaceproxy} [get]
-func (api *API) getWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
+func (api *API) fetchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
 		proxy = httpmw.WorkspaceProxyParam(r)
