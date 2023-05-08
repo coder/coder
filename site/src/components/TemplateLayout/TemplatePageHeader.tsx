@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import AddCircleOutline from "@mui/icons-material/AddCircleOutline"
+import AddIcon from "@mui/icons-material/AddOutlined"
 import {
   AuthorizationResponse,
   Template,
@@ -25,6 +25,7 @@ import SettingsOutlined from "@mui/icons-material/SettingsOutlined"
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
 import EditOutlined from "@mui/icons-material/EditOutlined"
 import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined"
+import IconButton from "@mui/material/IconButton"
 
 const TemplateMenu: FC<{
   templateName: string
@@ -44,14 +45,15 @@ const TemplateMenu: FC<{
 
   return (
     <div>
-      <Button
+      <IconButton
         aria-controls="template-options"
         aria-haspopup="true"
         onClick={() => setIsMenuOpen(true)}
         ref={menuTriggerRef}
+        arial-label="More options"
       >
         <MoreVertOutlined />
-      </Button>
+      </IconButton>
 
       <Menu
         id="template-options"
@@ -99,7 +101,8 @@ const CreateWorkspaceButton: FC<{
   className?: string
 }> = ({ templateName }) => (
   <Button
-    startIcon={<AddCircleOutline />}
+    variant="contained"
+    startIcon={<AddIcon />}
     component={RouterLink}
     to={`/templates/${templateName}/workspace`}
   >

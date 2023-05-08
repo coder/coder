@@ -153,7 +153,12 @@ export const TemplatesPageView: FC<
             <Button component={RouterLink} to="/starter-templates">
               Starter templates
             </Button>
-            <Button startIcon={<AddIcon />} component={RouterLink} to="new">
+            <Button
+              startIcon={<AddIcon />}
+              component={RouterLink}
+              to="new"
+              variant="contained"
+            >
               Add template
             </Button>
           </Maybe>

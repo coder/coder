@@ -33,6 +33,7 @@ export const StatsItem: FC<
 
 const useStyles = makeStyles((theme) => ({
   stats: {
+    ...theme.typography.body2,
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
     borderRadius: theme.shape.borderRadius,

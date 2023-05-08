@@ -136,6 +136,13 @@ dark = createTheme(dark, {
         outlinedNeutral: {
           borderColor: colors.gray[12],
         },
+        containedNeutral: {
+          borderColor: colors.gray[12],
+          backgroundColor: colors.gray[13],
+          "&:hover": {
+            backgroundColor: colors.gray[12],
+          },
+        },
         iconSizeMedium: {
           "& > .MuiSvgIcon-root": {
             fontSize: 18,
@@ -144,16 +151,6 @@ dark = createTheme(dark, {
         iconSizeSmall: {
           "& > .MuiSvgIcon-root": {
             fontSize: 16,
-          },
-        },
-      },
-    },
-    MuiIconButton: {
-      styleOverrides: {
-        sizeSmall: {
-          "& .MuiSvgIcon-root": {
-            width: 20,
-            height: 20,
           },
         },
       },
@@ -270,7 +267,7 @@ dark = createTheme(dark, {
           marginTop: 8,
           borderRadius: 4,
           padding: "4px 0",
-          minWidth: 120,
+          minWidth: 160,
         },
       },
     },
