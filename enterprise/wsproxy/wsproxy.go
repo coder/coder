@@ -250,11 +250,12 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 func (s *Server) Close() error {
 	s.cancel()
-	go func() {
-		// Do this in a go routine to not block the close. This is allowed
-		// to fail, it is just a courtesy to the dashboard.
-		_ = s.SDKClient.WorkspaceProxyGoingAway(context.Background())
-	}()
+
+	// A timeout to prevent the SDK from blocking the server shutdown.
+	tmp, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = s.SDKClient.WorkspaceProxyGoingAway(tmp)
+
 	return s.AppServer.Close()
 }
 
