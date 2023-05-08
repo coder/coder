@@ -418,7 +418,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		// the audit log if there is no user id. We should find a solution
 		// to make sure this event is tracked.
 		// auditor = api.AGPL.Auditor.Load()
-		//aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
+		// aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
 		//	Audit:   *auditor,
 		//	Log:     api.Logger,
 		//	Request: r,
