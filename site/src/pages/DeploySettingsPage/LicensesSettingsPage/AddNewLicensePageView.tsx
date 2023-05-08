@@ -56,11 +56,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
           title="Add your license"
           description="Enterprise licenses unlock more features on your deployment."
         />
-        <Button
-          component={RouterLink}
-          to="/settings/deployment/licenses"
-          variant="outlined"
-        >
+        <Button component={RouterLink} to="/settings/deployment/licenses">
           Back to licenses
         </Button>
       </Stack>

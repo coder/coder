@@ -46,7 +46,7 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
         )
       }}
     >
-      <SecondaryAgentButton size="small" variant="outlined">
+      <SecondaryAgentButton size="small">
         {Language.linkText}
       </SecondaryAgentButton>
     </Link>

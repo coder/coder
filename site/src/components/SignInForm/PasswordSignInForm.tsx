@@ -50,7 +50,6 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
           fullWidth
           label={Language.emailLabel}
           type="email"
-          variant="outlined"
         />
         <TextField
           {...getFieldHelpers("password")}
@@ -59,7 +58,6 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
           id="password"
           label={Language.passwordLabel}
           type="password"
-          variant="outlined"
         />
         <div>
           <LoadingButton
@@ -67,7 +65,6 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
             loading={isSigningIn}
             fullWidth
             type="submit"
-            variant="outlined"
           >
             {isSigningIn ? "" : Language.passwordSignIn}
           </LoadingButton>

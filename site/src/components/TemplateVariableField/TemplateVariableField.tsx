@@ -74,7 +74,6 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
         setVariableValue(event.target.value)
         onChange(event.target.value)
       }}
-      variant="outlined"
     />
   )
 }

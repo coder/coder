@@ -88,7 +88,7 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
               >
                 Reload page
               </Button>
-              <Button component="a" href="/" variant="outlined">
+              <Button component="a" href="/">
                 Go to dashboard
               </Button>
             </Stack>

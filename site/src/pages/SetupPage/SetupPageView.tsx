@@ -71,7 +71,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             autoComplete="username"
             fullWidth
             label={Language.usernameLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("email")}
@@ -79,7 +78,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             autoComplete="email"
             fullWidth
             label={Language.emailLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("password")}
@@ -88,7 +86,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             id="password"
             label={Language.passwordLabel}
             type="password"
-            variant="outlined"
           />
           <div className={styles.callout}>
             <Box display="flex">
@@ -113,12 +110,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
               </Box>
             </Box>
           </div>
-          <LoadingButton
-            fullWidth
-            variant="outlined"
-            loading={isLoading}
-            type="submit"
-          >
+          <LoadingButton fullWidth loading={isLoading} type="submit">
             {Language.create}
           </LoadingButton>
         </Stack>

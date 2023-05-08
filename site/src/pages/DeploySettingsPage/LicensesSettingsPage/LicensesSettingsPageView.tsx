@@ -52,11 +52,7 @@ const LicensesSettingsPageView: FC<Props> = ({
           description="Enterprise licenses unlock more features on your deployment."
         />
 
-        <Button
-          variant="outlined"
-          component={Link}
-          to="/settings/deployment/licenses/add"
-        >
+        <Button component={Link} to="/settings/deployment/licenses/add">
           Add new license
         </Button>
       </Stack>

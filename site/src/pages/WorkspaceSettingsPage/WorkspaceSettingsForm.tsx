@@ -53,7 +53,6 @@ export const WorkspaceSettingsForm: FC<{
             autoFocus
             fullWidth
             label={t("nameLabel")}
-            variant="outlined"
           />
         </FormFields>
       </FormSection>

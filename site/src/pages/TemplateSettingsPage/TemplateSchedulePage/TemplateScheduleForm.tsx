@@ -235,7 +235,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             fullWidth
             inputProps={{ min: 0, step: 1 }}
             label={t("defaultTtlLabel")}
-            variant="outlined"
             type="number"
           />
 
@@ -261,7 +260,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             fullWidth
             inputProps={{ min: 0, step: 1 }}
             label={t("maxTtlLabel")}
-            variant="outlined"
             type="number"
           />
         </Stack>
@@ -351,7 +349,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 fullWidth
                 inputProps={{ min: 0, step: 1 }}
                 label="Time until cleanup (days)"
-                variant="outlined"
                 type="number"
                 aria-label="Failure Cleanup"
               />
@@ -387,7 +384,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 fullWidth
                 inputProps={{ min: 0, step: 1 }}
                 label="Time until cleanup (days)"
-                variant="outlined"
                 type="number"
                 aria-label="Inactivity Cleanup"
               />

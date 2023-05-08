@@ -25,7 +25,6 @@ export const SecondaryAgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Button
         ref={ref}
-        variant="outlined"
         className={combineClasses([styles.secondaryButton, className])}
         {...props}
       />

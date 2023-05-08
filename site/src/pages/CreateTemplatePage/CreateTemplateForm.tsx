@@ -254,7 +254,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             fullWidth
             required
             label={t("form.fields.name")}
-            variant="outlined"
           />
         </FormFields>
       </FormSection>
@@ -270,7 +269,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             disabled={isSubmitting}
             fullWidth
             label={t("form.fields.displayName")}
-            variant="outlined"
           />
 
           <TextField
@@ -280,7 +278,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             multiline
             fullWidth
             label={t("form.fields.description")}
-            variant="outlined"
           />
 
           <LazyIconField
@@ -289,7 +286,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             onChange={onChangeTrimmed(form)}
             fullWidth
             label={t("form.fields.icon")}
-            variant="outlined"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
         </FormFields>
@@ -314,7 +310,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               onChange={onChangeTrimmed(form)}
               fullWidth
               label={t("form.fields.autostop")}
-              variant="outlined"
               type="number"
             />
 
@@ -339,7 +334,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               disabled={isSubmitting || !allowAdvancedScheduling}
               fullWidth
               label={t("form.fields.maxTTL")}
-              variant="outlined"
               type="number"
             />
           </Stack>

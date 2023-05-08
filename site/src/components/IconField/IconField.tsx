@@ -31,7 +31,6 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         {...textFieldProps}
         fullWidth
         label={t("iconLabel")}
-        variant="outlined"
         InputProps={{
           endAdornment: hasIcon ? (
             <InputAdornment position="end" className={styles.adornment}>
@@ -51,7 +50,6 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
       <Button
         fullWidth
         ref={emojiButtonRef}
-        variant="outlined"
         size="small"
         endIcon={<OpenDropdown />}
         onClick={() => {

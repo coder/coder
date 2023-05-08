@@ -46,7 +46,6 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
         actions={
           <>
             <Button
-              variant="outlined"
               component="a"
               target="_blank"
               href={starterTemplate.url}

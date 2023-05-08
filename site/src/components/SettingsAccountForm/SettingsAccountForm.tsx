@@ -69,7 +69,6 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
             fullWidth
             label={Language.emailLabel}
             value={email}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("username")}
@@ -79,7 +78,6 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
             disabled={!editable}
             fullWidth
             label={Language.usernameLabel}
-            variant="outlined"
           />
 
           <div>

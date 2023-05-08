@@ -207,7 +207,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             <Button
               title="Build template (Ctrl + Enter)"
               size="small"
-              variant="outlined"
               disabled={disablePreview}
               onClick={() => {
                 triggerPreview()

@@ -51,12 +51,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   return (
     <>
       {onCancel && (
-        <LoadingButton
-          disabled={confirmLoading}
-          onClick={onCancel}
-          variant="outlined"
-          fullWidth
-        >
+        <LoadingButton disabled={confirmLoading} onClick={onCancel} fullWidth>
           {cancelText}
         </LoadingButton>
       )}

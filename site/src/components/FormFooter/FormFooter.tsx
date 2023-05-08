@@ -42,7 +42,6 @@ export const FormFooter: FC<FormFooterProps> = ({
         type="button"
         className={styles.button}
         onClick={onCancel}
-        variant="outlined"
         tabIndex={0}
       >
         {Language.cancelLabel}

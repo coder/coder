@@ -218,7 +218,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           />
 
           <Button
-            variant="outlined"
             size="small"
             className={styles.timePopoverButton}
             type="submit"
@@ -277,7 +276,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           />
 
           <Button
-            variant="outlined"
             size="small"
             className={styles.timePopoverButton}
             type="submit"

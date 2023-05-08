@@ -183,7 +183,6 @@ export const AppearanceSettingsPageView = ({
                 {...serviceBannerFieldHelpers("message")}
                 fullWidth
                 label="Message"
-                variant="outlined"
                 multiline
               />
               <FormHelperText>{t("messageHelperText")}</FormHelperText>

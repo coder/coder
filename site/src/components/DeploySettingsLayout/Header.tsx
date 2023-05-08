@@ -30,7 +30,6 @@ export const Header: FC<{
           component="a"
           href={docsHref}
           target="_blank"
-          variant="outlined"
         >
           Read the docs
         </Button>

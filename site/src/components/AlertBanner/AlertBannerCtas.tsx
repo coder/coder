@@ -29,12 +29,7 @@ export const AlertBannerCtas: FC<AlertBannerCtasProps> = ({
       {/* retry CTA */}
       {retry && (
         <div>
-          <Button
-            size="small"
-            onClick={retry}
-            startIcon={<RefreshIcon />}
-            variant="outlined"
-          >
+          <Button size="small" onClick={retry} startIcon={<RefreshIcon />}>
             {t("ctas.retry")}
           </Button>
         </div>
@@ -42,7 +37,7 @@ export const AlertBannerCtas: FC<AlertBannerCtasProps> = ({
 
       {/* close CTA */}
       {dismissible && (
-        <Button size="small" onClick={() => setOpen(false)} variant="outlined">
+        <Button size="small" onClick={() => setOpen(false)}>
           {t("ctas.dismissCta")}
         </Button>
       )}

@@ -208,7 +208,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                         onClick={handleBuildRetry}
                         startIcon={<RefreshOutlined />}
                         size="small"
-                        variant="outlined"
                       >
                         {t("actionButton.retryDebugMode")}
                       </Button>

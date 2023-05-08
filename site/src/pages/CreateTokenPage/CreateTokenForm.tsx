@@ -74,7 +74,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
             onChange={onChangeTrimmed(form, () => setFormError(undefined))}
             autoFocus
             fullWidth
-            variant="outlined"
           />
         </FormFields>
       </FormSection>

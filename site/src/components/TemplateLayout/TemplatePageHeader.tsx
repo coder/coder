@@ -45,7 +45,6 @@ const TemplateMenu: FC<{
   return (
     <div>
       <Button
-        variant="outlined"
         aria-controls="template-options"
         aria-haspopup="true"
         onClick={() => setIsMenuOpen(true)}

@@ -91,7 +91,6 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 
         <Select
           defaultValue="use"
-          variant="outlined"
           className={styles.select}
           disabled={isLoading}
           onChange={(event) => {
@@ -126,7 +125,6 @@ const RoleSelect: FC<SelectProps> = (props) => {
   return (
     <Select
       renderValue={(value) => <div className={styles.role}>{`${value}`}</div>}
-      variant="outlined"
       className={styles.updateSelect}
       {...props}
     >

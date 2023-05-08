@@ -242,7 +242,6 @@ export const CreateWorkspacePageView: FC<
               autoFocus
               fullWidth
               label={t("nameLabel")}
-              variant="outlined"
             />
           </FormFields>
         </FormSection>

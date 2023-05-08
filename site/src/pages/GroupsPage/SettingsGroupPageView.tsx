@@ -52,7 +52,6 @@ const UpdateGroupForm: FC<{
           autoFocus
           fullWidth
           label="Name"
-          variant="outlined"
         />
 
         <LazyIconField
@@ -60,7 +59,6 @@ const UpdateGroupForm: FC<{
           onChange={onChangeTrimmed(form)}
           fullWidth
           label={t("form.fields.icon")}
-          variant="outlined"
           onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
         />
 
@@ -71,7 +69,6 @@ const UpdateGroupForm: FC<{
           fullWidth
           type="number"
           label="Quota Allowance"
-          variant="outlined"
         />
         <span>
           This group gives {form.values.quota_allowance} quota credits to each

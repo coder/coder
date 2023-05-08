@@ -48,7 +48,6 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
             autoFocus
             fullWidth
             label="Name"
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("avatar_url")}
@@ -56,7 +55,6 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
             autoComplete="avatar url"
             fullWidth
             label="Avatar URL"
-            variant="outlined"
           />
           <FormFooter onCancel={onCancel} isLoading={isLoading} />
         </form>

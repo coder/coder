@@ -96,7 +96,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             autoFocus
             fullWidth
             label={t("nameLabel")}
-            variant="outlined"
           />
         </FormFields>
       </FormSection>
@@ -111,7 +110,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             disabled={isSubmitting}
             fullWidth
             label={t("displayNameLabel")}
-            variant="outlined"
           />
 
           <TextField
@@ -120,7 +118,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             disabled={isSubmitting}
             fullWidth
             label={t("descriptionLabel")}
-            variant="outlined"
             rows={2}
           />
 
@@ -130,7 +127,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             onChange={onChangeTrimmed(form)}
             fullWidth
             label={t("iconLabel")}
-            variant="outlined"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
         </FormFields>

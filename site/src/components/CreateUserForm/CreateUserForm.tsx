@@ -70,7 +70,6 @@ export const CreateUserForm: FC<
             autoFocus
             fullWidth
             label={Language.usernameLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("email")}
@@ -78,7 +77,6 @@ export const CreateUserForm: FC<
             autoComplete="email"
             fullWidth
             label={Language.emailLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("password")}
@@ -87,7 +85,6 @@ export const CreateUserForm: FC<
             id="password"
             label={Language.passwordLabel}
             type="password"
-            variant="outlined"
           />
         </Stack>
         <FormFooter onCancel={onCancel} isLoading={isLoading} />

@@ -18,8 +18,8 @@ const Template: Story<FullPageFormProps> = (args) => (
       }}
     >
       <Stack>
-        <TextField fullWidth variant="outlined" label="Field 1" name="field1" />
-        <TextField fullWidth variant="outlined" label="Field 2" name="field2" />
+        <TextField fullWidth label="Field 1" name="field1" />
+        <TextField fullWidth label="Field 2" name="field2" />
         <FormFooter isLoading={false} onCancel={action("cancel")} />
       </Stack>
     </form>

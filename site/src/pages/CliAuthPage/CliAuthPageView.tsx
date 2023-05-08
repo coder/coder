@@ -30,13 +30,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
       <CodeExample code={sessionToken} />
 
       <div className={styles.links}>
-        <Button
-          component={RouterLink}
-          size="large"
-          to="/workspaces"
-          fullWidth
-          variant="outlined"
-        >
+        <Button component={RouterLink} size="large" to="/workspaces" fullWidth>
           Go to workspaces
         </Button>
       </div>

@@ -83,7 +83,6 @@ export const SecurityForm: FC<SecurityFormProps> = ({
             autoComplete="old_password"
             fullWidth
             label={Language.oldPasswordLabel}
-            variant="outlined"
             type="password"
           />
           <TextField
@@ -94,7 +93,6 @@ export const SecurityForm: FC<SecurityFormProps> = ({
             autoComplete="password"
             fullWidth
             label={Language.newPasswordLabel}
-            variant="outlined"
             type="password"
           />
           <TextField
@@ -105,7 +103,6 @@ export const SecurityForm: FC<SecurityFormProps> = ({
             autoComplete="confirm_password"
             fullWidth
             label={Language.confirmPasswordLabel}
-            variant="outlined"
             type="password"
           />
 

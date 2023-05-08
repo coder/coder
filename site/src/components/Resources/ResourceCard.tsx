@@ -149,7 +149,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   metadata: {
-    fontSize: 16,
+    ...theme.typography.body2,
   },
 
   metadataLabel: {
@@ -164,5 +164,6 @@ const useStyles = makeStyles((theme) => ({
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
+    ...theme.typography.body1,
   },
 }))

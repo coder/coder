@@ -102,12 +102,7 @@ export const UpdateBuildParametersDialog: FC<
         </VerticalForm>
       </DialogContent>
       <DialogActions disableSpacing className={styles.dialogActions}>
-        <Button
-          fullWidth
-          type="button"
-          variant="outlined"
-          onClick={dialogProps.onClose}
-        >
+        <Button fullWidth type="button" onClick={dialogProps.onClose}>
           Cancel
         </Button>
         <Button color="primary" fullWidth type="submit" form="updateParameters">

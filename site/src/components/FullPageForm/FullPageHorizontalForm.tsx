@@ -21,7 +21,7 @@ export const FullPageHorizontalForm: FC<
       <PageHeader
         actions={
           onCancel && (
-            <Button variant="outlined" size="small" onClick={onCancel}>
+            <Button size="small" onClick={onCancel}>
               Cancel
             </Button>
           )

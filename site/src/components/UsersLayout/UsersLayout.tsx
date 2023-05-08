@@ -37,7 +37,6 @@ export const UsersLayout: FC = () => {
               {canCreateUser &&
                 authMethods.context.authMethods?.password.enabled && (
                   <Button
-                    variant="outlined"
                     onClick={() => {
                       navigate("/users/create")
                     }}
@@ -52,9 +51,7 @@ export const UsersLayout: FC = () => {
                   component={RouterLink}
                   to="/groups/create"
                 >
-                  <Button variant="outlined" startIcon={<GroupAdd />}>
-                    Create group
-                  </Button>
+                  <Button startIcon={<GroupAdd />}>Create group</Button>
                 </Link>
               )}
             </>

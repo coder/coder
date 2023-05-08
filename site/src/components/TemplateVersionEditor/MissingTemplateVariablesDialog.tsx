@@ -93,12 +93,7 @@ export const MissingTemplateVariablesDialog: FC<
         <Button color="primary" fullWidth type="submit" form="updateVariables">
           Submit
         </Button>
-        <Button
-          fullWidth
-          type="button"
-          variant="outlined"
-          onClick={dialogProps.onClose}
-        >
+        <Button fullWidth type="button" onClick={dialogProps.onClose}>
           Cancel
         </Button>
       </DialogActions>

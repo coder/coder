@@ -74,7 +74,6 @@ export const VersionRow: React.FC<VersionRowProps> = ({
             onPromoteClick && (
               <Button
                 size="small"
-                variant="outlined"
                 className={styles.promoteButton}
                 onClick={(e) => {
                   e.preventDefault()

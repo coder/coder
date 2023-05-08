@@ -104,7 +104,6 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                     <TextField
                       {...params}
                       fullWidth
-                      variant="outlined"
                       placeholder="Template version name"
                       InputProps={{
                         ...params.InputProps,

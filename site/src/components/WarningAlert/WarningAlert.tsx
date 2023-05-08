@@ -42,11 +42,7 @@ export const WarningAlert: FC<WarningAlertProps> = ({
           {actions.length > 0 &&
             actions.map((action) => <div key={String(action)}>{action}</div>)}
           {dismissible && (
-            <Button
-              size="small"
-              onClick={() => setOpen(false)}
-              variant="outlined"
-            >
+            <Button size="small" onClick={() => setOpen(false)}>
               {t("ctas.dismissCta")}
             </Button>
           )}

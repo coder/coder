@@ -21,7 +21,6 @@ export const PageButton = ({
   const styles = useStyles()
   return (
     <Button
-      variant="outlined"
       className={
         activePage === page
           ? `${styles.pageButton} ${styles.activePageButton}`

@@ -118,7 +118,6 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
 
       <TableCell className={styles.actionCell}>
         <Button
-          variant="outlined"
           size="small"
           className={styles.actionButton}
           startIcon={<ArrowForwardOutlined />}
@@ -151,11 +150,7 @@ export const TemplatesPageView: FC<
       <PageHeader
         actions={
           <Maybe condition={permissions.createTemplates}>
-            <Button
-              variant="outlined"
-              component={RouterLink}
-              to="/starter-templates"
-            >
+            <Button component={RouterLink} to="/starter-templates">
               Starter templates
             </Button>
             <Button startIcon={<AddIcon />} component={RouterLink} to="new">

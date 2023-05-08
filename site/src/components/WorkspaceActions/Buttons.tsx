@@ -21,7 +21,6 @@ export const UpdateButton: FC<PropsWithChildren<WorkspaceAction>> = ({
     <Button
       size="small"
       data-testid="workspace-update-button"
-      variant="outlined"
       startIcon={<CloudQueueIcon />}
       onClick={handleAction}
     >
@@ -36,11 +35,7 @@ export const StartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   const { t } = useTranslation("workspacePage")
 
   return (
-    <Button
-      variant="outlined"
-      startIcon={<PlayCircleOutlineIcon />}
-      onClick={handleAction}
-    >
+    <Button startIcon={<PlayCircleOutlineIcon />} onClick={handleAction}>
       {t("actionButton.start")}
     </Button>
   )
@@ -52,12 +47,7 @@ export const StopButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   const { t } = useTranslation("workspacePage")
 
   return (
-    <Button
-      size="small"
-      variant="outlined"
-      startIcon={<CropSquareIcon />}
-      onClick={handleAction}
-    >
+    <Button size="small" startIcon={<CropSquareIcon />} onClick={handleAction}>
       {t("actionButton.stop")}
     </Button>
   )
@@ -69,12 +59,7 @@ export const RestartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   const { t } = useTranslation("workspacePage")
 
   return (
-    <Button
-      size="small"
-      variant="outlined"
-      startIcon={<ReplayIcon />}
-      onClick={handleAction}
-    >
+    <Button size="small" startIcon={<ReplayIcon />} onClick={handleAction}>
       {t("actionButton.restart")}
     </Button>
   )
@@ -84,7 +69,7 @@ export const CancelButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   return (
-    <Button variant="outlined" startIcon={<BlockIcon />} onClick={handleAction}>
+    <Button startIcon={<BlockIcon />} onClick={handleAction}>
       Cancel
     </Button>
   )
@@ -98,7 +83,7 @@ export const DisabledButton: FC<PropsWithChildren<DisabledProps>> = ({
   label,
 }) => {
   return (
-    <Button variant="outlined" size="small" disabled>
+    <Button size="small" disabled>
       {label}
     </Button>
   )
@@ -111,12 +96,5 @@ interface LoadingProps {
 export const ActionLoadingButton: FC<PropsWithChildren<LoadingProps>> = ({
   label,
 }) => {
-  return (
-    <LoadingButton
-      loading
-      size="small"
-      variant="outlined"
-      loadingLabel={label}
-    />
-  )
+  return <LoadingButton loading size="small" loadingLabel={label} />
 }

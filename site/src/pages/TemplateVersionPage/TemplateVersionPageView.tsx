@@ -47,9 +47,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             component={RouterLink}
             to={`/templates/${templateName}/versions/${versionName}/edit`}
           >
-            <Button variant="outlined" startIcon={<EditIcon />}>
-              Edit
-            </Button>
+            <Button startIcon={<EditIcon />}>Edit</Button>
           </Link>
         }
       >
