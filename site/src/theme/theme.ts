@@ -123,6 +123,9 @@ dark = createTheme(dark, {
           letterSpacing: "normal",
           fontWeight: 500,
         },
+        sizeSmall: {
+          borderRadius: 6,
+        },
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
@@ -198,10 +201,8 @@ dark = createTheme(dark, {
       },
     },
     MuiLink: {
-      styleOverrides: {
-        root: {
-          color: dark.palette.primary.light,
-        },
+      defaultProps: {
+        underline: "none",
       },
     },
     MuiPaper: {
@@ -246,8 +247,6 @@ dark = createTheme(dark, {
           vertical: "top",
           horizontal: "right",
         },
-        // Disable the behavior of placing the select at the selected option
-        getContentAnchorEl: null,
       },
       styleOverrides: {
         paper: {
@@ -255,6 +254,7 @@ dark = createTheme(dark, {
           borderRadius: 4,
           padding: "4px 0",
           minWidth: 120,
+          backgroundImage: "none",
         },
       },
     },
