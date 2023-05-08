@@ -45,6 +45,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			if failureTTL != 0 || inactivityTTL != 0 {
+				// This call can be removed when workspace_actions is no longer experimental
 				experiments, exErr := client.Experiments(inv.Context())
 				if exErr != nil {
 					return xerrors.Errorf("get experiments: %w", exErr)
@@ -53,6 +54,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
 					return xerrors.Errorf("--failure-ttl and --inactivityTTL are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
 				}
+
 				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error
 				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
@@ -119,10 +121,6 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 					return err
 				}
 			}
-
-			fmt.Println("defaultTTL as passed in", defaultTTL)
-			fmt.Println("failureTTL as passed in", failureTTL)
-			fmt.Println("inactivityTTL as passed in", inactivityTTL)
 
 			createReq := codersdk.CreateTemplateRequest{
 				Name:                templateName,
