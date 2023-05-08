@@ -65,7 +65,6 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         i18next.t("maxTTLMaxError", { ns: "templateSettingsPage" }),
       ),
     failure_ttl_ms: Yup.number()
-      .integer()
       .min(0, "Failure cleanup days must not be less than 0.")
       .test(
         "positive-if-enabled",
@@ -80,7 +79,6 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         },
       ),
     inactivity_ttl_ms: Yup.number()
-      .integer()
       .min(0, "Inactivity cleanup days must not be less than 0.")
       .test(
         "positive-if-enabled",
@@ -349,7 +347,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 )}
                 disabled={isSubmitting || !form.values.failure_cleanup_enabled}
                 fullWidth
-                inputProps={{ min: 0, step: 1 }}
+                inputProps={{ min: 0, step: "any" }}
                 label="Time until cleanup (days)"
                 variant="outlined"
                 type="number"
@@ -385,7 +383,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                   isSubmitting || !form.values.inactivity_cleanup_enabled
                 }
                 fullWidth
-                inputProps={{ min: 0, step: 1 }}
+                inputProps={{ min: 0, step: "any" }}
                 label="Time until cleanup (days)"
                 variant="outlined"
                 type="number"
