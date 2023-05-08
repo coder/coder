@@ -282,27 +282,29 @@ func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int, opts ...func(
 	return objectList
 }
 
-// BenchmarkCacher benchmarks the performance of the cacher with a given
-// cache size. The expected cache size in prod will usually be 1-2. In Filter
-// cases it can get as high as 10.
+// BenchmarkCacher benchmarks the performance of the cacher.
 func BenchmarkCacher(b *testing.B) {
-	b.ResetTimer()
-	// Size of the cache.
-	sizes := []int{1, 10, 100, 1000}
-	for _, size := range sizes {
-		b.Run(fmt.Sprintf("Size%d", size), func(b *testing.B) {
-			ctx := rbac.WithCacheCtx(context.Background())
-			authz := rbac.Cacher(&coderdtest.FakeAuthorizer{AlwaysReturn: nil})
-			for i := 0; i < size; i++ {
-				// Preload the cache of a given size
-				subj, obj, action := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
-				_ = authz.Authorize(ctx, subj, action, obj)
-			}
+	ctx := context.Background()
+	authz := rbac.Cacher(&coderdtest.FakeAuthorizer{AlwaysReturn: nil})
 
-			// Cache is loaded as a slice, so this cache hit is always the last element.
-			subj, obj, action := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
-			b.ResetTimer()
+	rats := []int{1, 10, 100}
+
+	for _, rat := range rats {
+		b.Run(fmt.Sprintf("%v:1", rat), func(b *testing.B) {
+			b.ReportAllocs()
+			var (
+				subj   rbac.Subject
+				obj    rbac.Object
+				action rbac.Action
+			)
 			for i := 0; i < b.N; i++ {
+				if i%rat == 0 {
+					// Cache miss
+					b.StopTimer()
+					subj, obj, action = coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
+					b.StartTimer()
+				}
+
 				_ = authz.Authorize(ctx, subj, action, obj)
 			}
 		})
@@ -312,29 +314,28 @@ func BenchmarkCacher(b *testing.B) {
 func TestCacher(t *testing.T) {
 	t.Parallel()
 
-	t.Run("EmptyCacheCtx", func(t *testing.T) {
+	t.Run("NoCache", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 		}
-		authz := rbac.Cacher(rec)
 		subj, obj, action := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
 
 		// Two identical calls
-		_ = authz.Authorize(ctx, subj, action, obj)
-		_ = authz.Authorize(ctx, subj, action, obj)
+		_ = rec.Authorize(ctx, subj, action, obj)
+		_ = rec.Authorize(ctx, subj, action, obj)
 
 		// Yields two calls to the wrapped Authorizer
 		rec.AssertActor(t, subj, rec.Pair(action, obj), rec.Pair(action, obj))
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
 	})
 
-	t.Run("CacheCtx", func(t *testing.T) {
+	t.Run("Cache", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := rbac.WithCacheCtx(context.Background())
+		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 		}
@@ -353,7 +354,7 @@ func TestCacher(t *testing.T) {
 	t.Run("MultipleSubjects", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := rbac.WithCacheCtx(context.Background())
+		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 		}
