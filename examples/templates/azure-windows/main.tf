@@ -61,7 +61,6 @@ resource "coder_agent" "main" {
   arch               = "amd64"
   auth               = "azure-instance-identity"
   os                 = "windows"
-  #dir                = "F:\\Users\\coder"
   login_before_ready = false
 }
 
