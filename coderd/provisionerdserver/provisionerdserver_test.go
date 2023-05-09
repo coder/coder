@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
@@ -61,6 +63,7 @@ func TestAcquireJob(t *testing.T) {
 			Auditor:               mockAuditor(),
 			TemplateScheduleStore: testTemplateScheduleStore(),
 			Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
+			DeploymentValues:      &codersdk.DeploymentValues{},
 		}
 		job, err := srv.AcquireJob(context.Background(), nil)
 		require.NoError(t, err)
@@ -102,6 +105,10 @@ func TestAcquireJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		gitAuthProvider := "github"
+		// Set the max session token lifetime so we can assert we
+		// create an API key with an expiration within the bounds of the
+		// deployment config.
+		srv.DeploymentValues.MaxTokenLifetime = clibase.Duration(time.Hour)
 		srv.GitAuthConfigs = []*gitauth.Config{{
 			ID:           gitAuthProvider,
 			OAuth2Config: &testutil.OAuth2Config{},
@@ -216,6 +223,16 @@ func TestAcquireJob(t *testing.T) {
 		got, err := json.Marshal(job.Type)
 		require.NoError(t, err)
 
+		// Validate that a session token is generated during the job.
+		sessionToken := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.CoderSessionToken
+		require.NotEmpty(t, sessionToken)
+		toks := strings.Split(sessionToken, "-")
+		require.Len(t, toks, 2, "invalid api key")
+		key, err := srv.Database.GetAPIKeyByID(ctx, toks[0])
+		require.NoError(t, err)
+		require.Equal(t, int64(srv.DeploymentValues.MaxTokenLifetime.Value().Seconds()), key.LifetimeSeconds)
+		require.WithinDuration(t, time.Now().Add(srv.DeploymentValues.MaxTokenLifetime.Value()), key.ExpiresAt, time.Minute)
+
 		want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId: build.ID.String(),
@@ -247,6 +264,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerId:              user.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               version.Name,
+					CoderSessionToken:             sessionToken,
 				},
 			},
 		})
@@ -1205,6 +1223,7 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 		Auditor:               mockAuditor(),
 		TemplateScheduleStore: testTemplateScheduleStore(),
 		Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
+		DeploymentValues:      &codersdk.DeploymentValues{},
 	}
 }
 

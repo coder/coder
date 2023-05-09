@@ -1468,8 +1468,8 @@ func (server *Server) regenerateSessionToken(ctx context.Context, user database.
 			_, err = tx.InsertAPIKey(ctx, database.InsertAPIKeyParams{
 				ID:              id,
 				UserID:          workspace.OwnerID,
-				LifetimeSeconds: int64(server.DeploymentValues.SessionDuration.Value().Seconds()),
-				ExpiresAt:       database.Now().Add(server.DeploymentValues.SessionDuration.Value()).UTC(),
+				LifetimeSeconds: int64(server.DeploymentValues.MaxTokenLifetime.Value().Seconds()),
+				ExpiresAt:       database.Now().Add(server.DeploymentValues.MaxTokenLifetime.Value()).UTC(),
 				IPAddress: pqtype.Inet{
 					IPNet: net.IPNet{
 						IP:   ip,
@@ -1484,6 +1484,9 @@ func (server *Server) regenerateSessionToken(ctx context.Context, user database.
 				Scope:        database.APIKeyScopeAll,
 				TokenName:    workspaceSessionTokenName(workspace),
 			})
+			if err != nil {
+				return xerrors.Errorf("insert API key: %w", err)
+			}
 
 			return nil
 		}, nil)
