@@ -2,10 +2,12 @@ package provisionerdserver
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -37,6 +39,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -62,6 +65,7 @@ type Server struct {
 	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
 	Auditor               *atomic.Pointer[audit.Auditor]
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	DeploymentValues      *codersdk.DeploymentValues
 
 	AcquireJobDebounce time.Duration
 	OIDCConfig         httpmw.OAuth2Config
@@ -193,6 +197,11 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			}
 		}
 
+		sessionToken, err := server.regenerateSessionToken(ctx, owner, workspace)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("regenerate session token: %s", err))
+		}
+
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: templateVersion.JobID,
@@ -286,6 +295,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 					WorkspaceOwnerId:              owner.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
+					CoderSessionToken:             sessionToken,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -1408,6 +1418,79 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 
 	return nil
+}
+
+func workspaceSessionTokenName(workspace database.Workspace) string {
+	return fmt.Sprintf("%s_%s_session_token", workspace.OwnerID, workspace.ID)
+}
+
+// Generates a new ID and secret for an API key.
+// TODO put API key logic in separate package.
+func GenerateAPIKeyIDSecret() (id string, secret string, err error) {
+	// Length of an API Key ID.
+	id, err = cryptorand.String(10)
+	if err != nil {
+		return "", "", err
+	}
+	// Length of an API Key secret.
+	secret, err = cryptorand.String(22)
+	if err != nil {
+		return "", "", err
+	}
+	return id, secret, nil
+}
+
+func (server *Server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {
+	id, secret, err := GenerateAPIKeyIDSecret()
+	if err != nil {
+		return "", xerrors.Errorf("generate API key: %w", err)
+	}
+	hashed := sha256.Sum256([]byte(secret))
+
+	err = server.Database.InTx(
+		func(tx database.Store) error {
+			key, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+				UserID:    workspace.OwnerID,
+				TokenName: workspaceSessionTokenName(workspace),
+			})
+			if err == nil {
+				err = tx.DeleteAPIKeyByID(ctx, key.ID)
+				if err != nil {
+					return xerrors.Errorf("delete api key: %w", err)
+				}
+			}
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get api key by name: %w", err)
+			}
+
+			ip := net.IPv4(0, 0, 0, 0)
+			bitlen := len(ip) * 8
+			_, err = tx.InsertAPIKey(ctx, database.InsertAPIKeyParams{
+				ID:              id,
+				UserID:          workspace.OwnerID,
+				LifetimeSeconds: int64(server.DeploymentValues.SessionDuration.Value().Seconds()),
+				ExpiresAt:       database.Now().Add(server.DeploymentValues.SessionDuration.Value()).UTC(),
+				IPAddress: pqtype.Inet{
+					IPNet: net.IPNet{
+						IP:   ip,
+						Mask: net.CIDRMask(bitlen, bitlen),
+					},
+					Valid: true,
+				},
+				CreatedAt:    database.Now(),
+				UpdatedAt:    database.Now(),
+				HashedSecret: hashed[:],
+				LoginType:    user.LoginType,
+				Scope:        database.APIKeyScopeAll,
+				TokenName:    workspaceSessionTokenName(workspace),
+			})
+
+			return nil
+		}, nil)
+	if err != nil {
+		return "", xerrors.Errorf("regenerate API key: %w", err)
+	}
+	return fmt.Sprintf("%s-%s", id, secret), nil
 }
 
 // obtainOIDCAccessToken returns a valid OpenID Connect access token
