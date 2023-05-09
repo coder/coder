@@ -51,7 +51,7 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230421140225-
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
 require (
-	cdr.dev/slog v1.4.2
+	cdr.dev/slog v1.5.0
 	cloud.google.com/go/compute/metadata v0.2.3
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
@@ -67,7 +67,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/charmbracelet/charm v0.12.4
 	github.com/charmbracelet/glamour v0.6.0
-	github.com/charmbracelet/lipgloss v0.6.0
+	github.com/charmbracelet/lipgloss v0.7.1
 	github.com/cli/safeexec v1.0.0
 	github.com/codeclysm/extract v2.2.0+incompatible
 	github.com/coder/flog v1.1.0
@@ -174,7 +174,10 @@ require (
 	tailscale.com v1.32.2
 )
 
-require github.com/armon/go-radix v1.0.0 // indirect
+require (
+	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+)
 
 require (
 	cloud.google.com/go/compute v1.18.0 // indirect
@@ -194,7 +197,6 @@ require (
 	github.com/ammario/tlru v0.3.0
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
-	github.com/aymanbagabas/go-osc52 v1.2.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/godartsass v0.16.0 // indirect
@@ -290,7 +292,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/muesli/ansi v0.0.0-20221106050444-61f0cd9a192a // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/muesli/termenv v0.14.0 // indirect
+	github.com/muesli/termenv v0.15.1 // indirect
 	github.com/niklasfasching/go-org v1.6.5 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
