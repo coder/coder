@@ -90,7 +90,6 @@ const VariableField: React.FC<VariableInputProps> = ({
 
   return (
     <TextField
-      variant="standard"
       autoComplete="off"
       id={variable.name}
       size="small"

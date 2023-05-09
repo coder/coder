@@ -257,6 +257,7 @@ export const CreateWorkspacePageView: FC<
                 value={props.owner}
                 onChange={props.setOwner}
                 label={t("ownerLabel")}
+                size="medium"
               />
             </FormFields>
           </FormSection>

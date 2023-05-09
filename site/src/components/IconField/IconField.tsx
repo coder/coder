@@ -10,6 +10,7 @@ import { colors } from "theme/colors"
 import { useTranslation } from "react-i18next"
 import data from "@emoji-mart/data/sets/14/twitter.json"
 import { IconFieldProps } from "./types"
+import { Stack } from "components/Stack/Stack"
 
 const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
   if (
@@ -26,7 +27,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
   const hasIcon = textFieldProps.value && textFieldProps.value !== ""
 
   return (
-    <div className={styles.iconField}>
+    <Stack spacing={1}>
       <TextField
         {...textFieldProps}
         fullWidth
@@ -50,7 +51,6 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
       <Button
         fullWidth
         ref={emojiButtonRef}
-        size="small"
         endIcon={<OpenDropdown />}
         onClick={() => {
           setIsEmojiPickerOpen((v) => !v)
@@ -81,7 +81,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
           }}
         />
       </Popover>
-    </div>
+    </Stack>
   )
 }
 
@@ -103,9 +103,6 @@ const useStyles = makeStyles((theme) => ({
     "& img": {
       maxWidth: "100%",
     },
-  },
-  iconField: {
-    paddingBottom: theme.spacing(0.5),
   },
 }))
 

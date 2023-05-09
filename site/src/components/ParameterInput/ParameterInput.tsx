@@ -47,7 +47,7 @@ export const ParameterInput: FC<ParameterInputProps> = ({
   const styles = useStyles()
 
   return (
-    <Stack direction="column" spacing={0.75}>
+    <Stack direction="column" spacing={2}>
       <ParameterLabel schema={schema} />
       <div className={styles.input}>
         <ParameterField
@@ -70,7 +70,6 @@ const ParameterField: React.FC<ParameterInputProps> = ({
   if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
       <TextField
-        variant="standard"
         id={schema.name}
         size="small"
         defaultValue={defaultValue ?? schema.default_source_value}
@@ -121,7 +120,6 @@ const ParameterField: React.FC<ParameterInputProps> = ({
   // we should break this out into more finely scoped input fields.
   return (
     <TextField
-      variant="standard"
       id={schema.name}
       size="small"
       disabled={disabled}
@@ -146,6 +144,7 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
     display: "block",
     fontWeight: 600,
+    lineHeight: "24px", // Keep the same as ParameterInput
   },
   input: {
     display: "flex",

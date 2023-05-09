@@ -95,7 +95,6 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
           }
         >
           <TextField
-            variant="standard"
             name="licenseKey"
             placeholder="Paste your license key here"
             multiline

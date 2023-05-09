@@ -82,6 +82,7 @@ export const SearchBarWithFilter: React.FC<
           <Button
             aria-controls="filter-menu"
             aria-haspopup="true"
+            size="large"
             onClick={handleClick}
             className={styles.buttonRoot}
           >

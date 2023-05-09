@@ -202,7 +202,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           }}
         >
           <TextField
-            variant="standard"
             name="hours"
             type="number"
             size="small"
@@ -260,7 +259,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           }}
         >
           <TextField
-            variant="standard"
             name="hours"
             type="number"
             size="small"

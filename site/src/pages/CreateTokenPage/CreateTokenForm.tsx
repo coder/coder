@@ -94,7 +94,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
         <FormFields>
           <Stack direction="row">
             <TextField
-              variant="standard"
               select
               label={t("createToken.fields.lifetime")}
               required
@@ -103,9 +102,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
                 void setLifetimeDays(event.target.value)
               }}
               fullWidth
-              InputLabelProps={{
-                shrink: true,
-              }}
             >
               {filterByMaxTokenLifetime(maxTokenLifetime).map((lt) => (
                 <MenuItem key={lt.label} value={lt.value}>
@@ -122,7 +118,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 
             {lifetimeDays === "custom" && (
               <TextField
-                variant="standard"
                 type="date"
                 label={t("createToken.lifetimeSection.expiresOn")}
                 defaultValue={dayjs().add(expDays, "day").format("YYYY-MM-DD")}
@@ -143,7 +138,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
                 }}
                 fullWidth
                 InputLabelProps={{
-                  shrink: true,
                   required: true,
                 }}
               />

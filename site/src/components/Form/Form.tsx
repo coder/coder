@@ -99,7 +99,11 @@ export const FormSection: FC<
 export const FormFields: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   return (
-    <Stack direction="column" className={styles.formSectionFields}>
+    <Stack
+      direction="column"
+      spacing={2.5}
+      className={styles.formSectionFields}
+    >
       {children}
     </Stack>
   )

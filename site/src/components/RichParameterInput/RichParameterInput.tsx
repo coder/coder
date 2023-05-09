@@ -73,7 +73,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
   const styles = useStyles()
 
   return (
-    <Stack direction="column" spacing={0.75}>
+    <Stack direction="column" spacing={2}>
       <ParameterLabel id={fieldProps.id} parameter={parameter} />
       <div className={styles.input}>
         <RichParameterField
@@ -191,7 +191,6 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   // we should break this out into more finely scoped input fields.
   return (
     <TextField
-      variant="standard"
       {...props}
       type={parameter.type}
       size="small"
@@ -224,7 +223,7 @@ const useStyles = makeStyles((theme) => ({
 
     "& p": {
       margin: 0,
-      lineHeight: "20px", // Keep the same as ParameterInput
+      lineHeight: "24px", // Keep the same as ParameterInput
     },
   },
   labelImmutable: {

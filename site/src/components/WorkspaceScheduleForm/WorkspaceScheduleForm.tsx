@@ -299,23 +299,15 @@ export const WorkspaceScheduleForm: FC<
           />
           <Stack direction="row">
             <TextField
-              variant="standard"
               {...formHelpers("startTime")}
               disabled={isLoading || !form.values.autostartEnabled}
-              InputLabelProps={{
-                shrink: true,
-              }}
               label={Language.startTimeLabel}
               type="time"
               fullWidth
             />
             <TextField
-              variant="standard"
               {...formHelpers("timezone")}
               disabled={isLoading || !form.values.autostartEnabled}
-              InputLabelProps={{
-                shrink: true,
-              }}
               label={Language.timezoneLabel}
               select
               fullWidth
@@ -328,11 +320,7 @@ export const WorkspaceScheduleForm: FC<
             </TextField>
           </Stack>
 
-          <FormControl
-            variant="standard"
-            component="fieldset"
-            error={Boolean(form.errors.monday)}
-          >
+          <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
             <FormLabel className={styles.daysOfWeekLabel} component="legend">
               {Language.daysOfWeekLabel}
             </FormLabel>
@@ -381,7 +369,6 @@ export const WorkspaceScheduleForm: FC<
             label={Language.stopSwitch}
           />
           <TextField
-            variant="standard"
             {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
             disabled={isLoading || !form.values.autostopEnabled}
             inputProps={{ min: 0, step: 1 }}

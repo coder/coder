@@ -7,7 +7,7 @@ import { User } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
-import { ChangeEvent, FC, useEffect, useState } from "react"
+import { ChangeEvent, ComponentProps, FC, useEffect, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 import { useTranslation } from "react-i18next"
 import Box from "@mui/material/Box"
@@ -17,6 +17,7 @@ export type UserAutocompleteProps = {
   onChange: (user: User | null) => void
   label?: string
   className?: string
+  size?: ComponentProps<typeof TextField>["size"]
 }
 
 export const UserAutocomplete: FC<UserAutocompleteProps> = ({
@@ -24,6 +25,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   onChange,
   label,
   className,
+  size = "small",
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("common")
@@ -89,7 +91,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
           <TextField
             {...params}
             fullWidth
-            size="small"
+            size={size}
             label={label}
             placeholder="User email or username"
             className={styles.textField}

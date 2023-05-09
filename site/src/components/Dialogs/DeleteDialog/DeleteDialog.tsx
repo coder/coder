@@ -42,11 +42,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       <p>{t("deleteDialog.confirm", { entity })}</p>
 
       <TextField
-        variant="standard"
         fullWidth
-        InputLabelProps={{
-          shrink: true,
-        }}
         autoFocus
         className={styles.textField}
         name="confirmation"

@@ -413,7 +413,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   spacing={0.5}
                   className={styles.optionText}
                 >
-                  {t("form.fields.allowUsersToCancel")}
+                  <strong>{t("form.fields.allowUsersToCancel")}</strong>
 
                   <HelpTooltip>
                     <HelpTooltipText>

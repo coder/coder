@@ -309,7 +309,10 @@ dark = createTheme(dark, {
       },
       styleOverrides: {
         root: {
-          height: BUTTON_LG_HEIGHT,
+          // We don't want to apply this height to textarea
+          "&:not(.MuiInputBase-multiline)": {
+            height: BUTTON_LG_HEIGHT,
+          },
         },
         sizeSmall: {
           height: BUTTON_MD_HEIGHT,
@@ -321,6 +324,16 @@ dark = createTheme(dark, {
         sx: {
           marginLeft: 0,
           marginTop: 1,
+        },
+      },
+    },
+    MuiAutocomplete: {
+      styleOverrides: {
+        root: {
+          // Not sure why but since the input has padding we don't need it here
+          "& .MuiInputBase-root": {
+            padding: 0,
+          },
         },
       },
     },

@@ -77,9 +77,6 @@ export const SecurityForm: FC<SecurityFormProps> = ({
           )}
           <TextField
             {...getFieldHelpers("old_password")}
-            InputLabelProps={{
-              shrink: true,
-            }}
             autoComplete="old_password"
             fullWidth
             label={Language.oldPasswordLabel}
@@ -87,9 +84,6 @@ export const SecurityForm: FC<SecurityFormProps> = ({
           />
           <TextField
             {...getFieldHelpers("password")}
-            InputLabelProps={{
-              shrink: true,
-            }}
             autoComplete="password"
             fullWidth
             label={Language.newPasswordLabel}
@@ -97,9 +91,6 @@ export const SecurityForm: FC<SecurityFormProps> = ({
           />
           <TextField
             {...getFieldHelpers("confirm_password")}
-            InputLabelProps={{
-              shrink: true,
-            }}
             autoComplete="confirm_password"
             fullWidth
             label={Language.confirmPasswordLabel}

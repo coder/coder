@@ -1,6 +1,5 @@
 import Button from "@mui/material/Button"
 import FormHelperText from "@mui/material/FormHelperText"
-import { makeStyles } from "@mui/styles"
 import { SvgIconProps } from "@mui/material/SvgIcon"
 import Tooltip from "@mui/material/Tooltip"
 import GitHub from "@mui/icons-material/GitHub"
@@ -8,9 +7,9 @@ import * as TypesGen from "api/typesGenerated"
 import { AzureDevOpsIcon } from "components/Icons/AzureDevOpsIcon"
 import { BitbucketIcon } from "components/Icons/BitbucketIcon"
 import { GitlabIcon } from "components/Icons/GitlabIcon"
-import { Typography } from "components/Typography/Typography"
 import { FC } from "react"
-import { Theme } from "@mui/material/styles"
+import Link from "@mui/material/Link"
+import { makeStyles } from "@mui/styles"
 
 export interface GitAuthProps {
   type: TypesGen.GitProvider
@@ -59,9 +58,8 @@ export const GitAuth: FC<GitAuthProps> = ({
       }
     >
       <div>
-        <a
+        <Link
           href={authenticateURL}
-          className={styles.link}
           onClick={(event) => {
             event.preventDefault()
             // If the user is already authenticated, we don't want to redirect them
@@ -71,46 +69,27 @@ export const GitAuth: FC<GitAuthProps> = ({
             window.open(authenticateURL, "_blank", "width=900,height=600")
           }}
         >
-          <Button className={styles.button} disabled={authenticated} fullWidth>
-            <div className={styles.root}>
-              <Icon className={styles.icon} />
-              <Typography variant="body2">
-                {authenticated
-                  ? `You're authenticated with ${prettyName}!`
-                  : `Click to login with ${prettyName}!`}
-              </Typography>
-            </div>
+          <Button
+            size="large"
+            startIcon={<Icon />}
+            disabled={authenticated}
+            className={styles.button}
+            color={error ? "error" : undefined}
+            fullWidth
+          >
+            {authenticated
+              ? `You're authenticated with ${prettyName}!`
+              : `Click to login with ${prettyName}!`}
           </Button>
-        </a>
+        </Link>
         {error && <FormHelperText error>{error}</FormHelperText>}
       </div>
     </Tooltip>
   )
 }
 
-const useStyles = makeStyles<
-  Theme,
-  {
-    error: boolean
-  }
->((theme) => ({
-  link: {
-    textDecoration: "none",
-  },
-  root: {
-    padding: 4,
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    textAlign: "left",
-  },
+const useStyles = makeStyles(() => ({
   button: {
-    height: "unset",
-    border: ({ error }) =>
-      error ? `1px solid ${theme.palette.error.main}` : "unset",
-  },
-  icon: {
-    width: 32,
-    height: 32,
+    height: 52,
   },
 }))

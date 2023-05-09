@@ -81,7 +81,6 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
         className={styles.form}
       >
         <TextField
-          variant="standard"
           label="Port"
           type="number"
           value={port}
