@@ -26,8 +26,8 @@
       "displayName": "Display name",
       "description": "Description",
       "icon": "Icon",
-      "autostop": "Default autostop",
-      "maxTTL": "Max. Lifetime (alpha)",
+      "autostop": "Default autostop (hours)",
+      "maxTTL": "Max lifetime (hours)",
       "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs"
     },
     "helperText": {
