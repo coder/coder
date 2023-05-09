@@ -14,6 +14,8 @@ cdr.dev/slog v1.4.3-0.20230509013323-fbe4576b00f6 h1:0yXyAI+9SDEfpi0nnu8wPL6Oor0
 cdr.dev/slog v1.4.3-0.20230509013323-fbe4576b00f6/go.mod h1:vW6Q4gGoDZSb4Db2wxAZoUba/HRUpen1g0fCu06zrjQ=
 cdr.dev/slog v1.5.0 h1:JE8gZeRLNb8wHj9PGR5IxuIx2eoa4vVB9Y2XCaOHJ+c=
 cdr.dev/slog v1.5.0/go.mod h1:vW6Q4gGoDZSb4Db2wxAZoUba/HRUpen1g0fCu06zrjQ=
+cdr.dev/slog v1.5.1 h1:C5YF6oMdmTfx/pClpqJ15KebRkMpA/mC0XltolKLMkA=
+cdr.dev/slog v1.5.1/go.mod h1:vW6Q4gGoDZSb4Db2wxAZoUba/HRUpen1g0fCu06zrjQ=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=
