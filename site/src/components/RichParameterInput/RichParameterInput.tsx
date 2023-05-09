@@ -193,7 +193,6 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
     <TextField
       {...props}
       type={parameter.type}
-      size="small"
       disabled={disabled}
       required={parameter.required}
       placeholder={parameter.default_value}

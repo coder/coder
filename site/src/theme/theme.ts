@@ -126,7 +126,6 @@ dark = createTheme(dark, {
           height: BUTTON_MD_HEIGHT,
           padding: theme.spacing(1, 2),
           whiteSpace: "nowrap",
-          minWidth: "auto",
         }),
         sizeSmall: {
           borderRadius: 6,

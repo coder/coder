@@ -71,7 +71,6 @@ const ParameterField: React.FC<ParameterInputProps> = ({
     return (
       <TextField
         id={schema.name}
-        size="small"
         defaultValue={defaultValue ?? schema.default_source_value}
         placeholder={schema.default_source_value}
         disabled={disabled}
@@ -102,13 +101,13 @@ const ParameterField: React.FC<ParameterInputProps> = ({
         <FormControlLabel
           disabled={disabled}
           value="true"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio color="primary" disableRipple />}
           label="True"
         />
         <FormControlLabel
           disabled={disabled}
           value="false"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio color="primary" disableRipple />}
           label="False"
         />
       </RadioGroup>
@@ -121,7 +120,6 @@ const ParameterField: React.FC<ParameterInputProps> = ({
   return (
     <TextField
       id={schema.name}
-      size="small"
       disabled={disabled}
       placeholder={schema.default_source_value}
       defaultValue={defaultValue ?? schema.default_source_value}

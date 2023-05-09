@@ -55,15 +55,16 @@ export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
 const useStyles = makeStyles((theme) => ({
   expandLink: {
     cursor: "pointer",
-    color: theme.palette.text.secondary,
+    color: theme.palette.text.primary,
   },
   collapseLink: {
     marginTop: theme.spacing(2),
+    color: theme.palette.text.primary,
   },
   text: {
     display: "flex",
     alignItems: "center",
-    color: theme.palette.text.secondary,
+    color: theme.palette.text.primary,
     fontSize: theme.typography.caption.fontSize,
   },
 }))

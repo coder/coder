@@ -36,7 +36,9 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
         <div className={styles.leftContent}>
           <span>{messages[0]}</span>
           &nbsp;
-          <Link href="mailto:sales@coder.com">{Language.upgrade}</Link>
+          <Link color="white" fontWeight="medium" href="mailto:sales@coder.com">
+            {Language.upgrade}
+          </Link>
         </div>
       </div>
     )
@@ -52,7 +54,13 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
           <div>
             {Language.exceeded}
             &nbsp;
-            <Link href="mailto:sales@coder.com">{Language.upgrade}</Link>
+            <Link
+              color="white"
+              fontWeight="medium"
+              href="mailto:sales@coder.com"
+            >
+              {Language.upgrade}
+            </Link>
           </div>
           <Expander expanded={showDetails} setExpanded={setShowDetails}>
             <ul className={styles.list}>
