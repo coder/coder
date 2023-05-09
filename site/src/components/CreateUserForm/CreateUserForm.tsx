@@ -62,7 +62,7 @@ export const CreateUserForm: FC<
   return (
     <FullPageForm title="Create user">
       <form onSubmit={form.handleSubmit} autoComplete="off">
-        <Stack spacing={1}>
+        <Stack spacing={2.5}>
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}

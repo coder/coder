@@ -89,6 +89,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
           <TextField
             {...params}
             fullWidth
+            size="small"
             label={label}
             placeholder="User email or username"
             className={styles.textField}

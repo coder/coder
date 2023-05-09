@@ -97,6 +97,7 @@ interface StyleProps {
 
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   alertContainer: (props) => ({
+    ...theme.typography.body2,
     borderColor: severityConstants[props.severity].color,
     border: `1px solid ${colors.orange[7]}`,
     borderRadius: theme.shape.borderRadius,

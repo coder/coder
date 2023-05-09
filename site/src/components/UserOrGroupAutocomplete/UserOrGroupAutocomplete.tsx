@@ -94,6 +94,7 @@ export const UserOrGroupAutocomplete: React.FC<
           <TextField
             {...params}
             margin="none"
+            size="small"
             placeholder="Search for user or group"
             InputProps={{
               ...params.InputProps,

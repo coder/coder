@@ -132,6 +132,7 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(2),
   },
   userInfo: {
+    ...theme.typography.body2,
     marginBottom: theme.spacing(2),
   },
   userData: {

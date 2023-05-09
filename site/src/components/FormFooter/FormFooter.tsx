@@ -28,6 +28,7 @@ export const FormFooter: FC<FormFooterProps> = ({
   return (
     <div className={styles.footer}>
       <LoadingButton
+        size="large"
         tabIndex={0}
         loading={isLoading}
         className={styles.button}
@@ -39,6 +40,7 @@ export const FormFooter: FC<FormFooterProps> = ({
         {submitLabel}
       </LoadingButton>
       <Button
+        size="large"
         type="button"
         className={styles.button}
         onClick={onCancel}

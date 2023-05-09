@@ -123,6 +123,7 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(2),
   },
   workspaceInfo: {
+    ...theme.typography.body2,
     marginBottom: theme.spacing(2),
   },
   workspaceData: {

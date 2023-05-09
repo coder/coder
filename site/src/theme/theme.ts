@@ -3,7 +3,6 @@ import { ThemeOptions, createTheme, Theme } from "@mui/material/styles"
 import { BODY_FONT_FAMILY, borderRadius } from "./constants"
 
 // MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
-const INPUT_HEIGHT = 46
 const BUTTON_LG_HEIGHT = 46
 const BUTTON_MD_HEIGHT = 40
 const BUTTON_SM_HEIGHT = 36
@@ -310,7 +309,10 @@ dark = createTheme(dark, {
       },
       styleOverrides: {
         root: {
-          height: INPUT_HEIGHT,
+          height: BUTTON_LG_HEIGHT,
+        },
+        sizeSmall: {
+          height: BUTTON_MD_HEIGHT,
         },
       },
     },

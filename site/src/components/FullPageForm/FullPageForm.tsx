@@ -33,6 +33,6 @@ export const FullPageForm: FC<React.PropsWithChildren<FullPageFormProps>> = ({
 
 const useStyles = makeStyles((theme) => ({
   pageHeader: {
-    paddingBottom: theme.spacing(2),
+    paddingBottom: theme.spacing(3),
   },
 }))

@@ -127,6 +127,7 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(2),
   },
   templateInfo: {
+    ...theme.typography.body2,
     marginBottom: theme.spacing(2),
   },
   templateData: {
