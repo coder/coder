@@ -144,7 +144,7 @@ var (
 			},
 		}),
 		Scope: rbac.ScopeAll,
-	}.WithCachedASTValue()
+	}
 
 	subjectAutostart = rbac.Subject{
 		ID: uuid.Nil.String(),
@@ -162,7 +162,7 @@ var (
 			},
 		}),
 		Scope: rbac.ScopeAll,
-	}.WithCachedASTValue()
+	}
 
 	subjectSystemRestricted = rbac.Subject{
 		ID: uuid.Nil.String(),
@@ -190,7 +190,7 @@ var (
 			},
 		}),
 		Scope: rbac.ScopeAll,
-	}.WithCachedASTValue()
+	}
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required

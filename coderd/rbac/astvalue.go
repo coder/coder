@@ -1,6 +1,11 @@
 package rbac
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"time"
+
+	"github.com/ammario/tlru"
 	"github.com/open-policy-agent/opa/ast"
 	"golang.org/x/xerrors"
 )
@@ -63,10 +68,20 @@ func regoPartialInputValue(subject Subject, action Action, objectType string) (a
 	return input, nil
 }
 
+// subjectASTCache is a global cache for subject AST nodes, indexed by
+// the sha256 hash of the subject. On May 9th, this cache reduced allocations
+// by 30% per request.
+// Beyond performance, the global cache is safer than storing the AST node on
+// the subject, because a new value will be created if the subject changes.
+var subjectASTCache = tlru.New[[32]byte](tlru.ConstantCost[ast.Value], 1<<16)
+
 // regoValue returns the ast.Object representation of the subject.
 func (s Subject) regoValue() (ast.Value, error) {
-	if s.cachedASTValue != nil {
-		return s.cachedASTValue, nil
+	cacheKeyHash := sha256.New()
+	_ = json.NewEncoder(cacheKeyHash).Encode(s)
+	cacheKey := [32]byte(cacheKeyHash.Sum(nil))
+	if v, _, ok := subjectASTCache.Get(cacheKey); ok {
+		return v, nil
 	}
 
 	subjRoles, err := s.Roles.Expand()
@@ -97,6 +112,7 @@ func (s Subject) regoValue() (ast.Value, error) {
 		},
 	)
 
+	subjectASTCache.Set(cacheKey, subj, time.Minute)
 	return subj, nil
 }
 

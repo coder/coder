@@ -77,20 +77,6 @@ type Subject struct {
 	Roles  ExpandableRoles
 	Groups []string
 	Scope  ExpandableScope
-
-	// cachedASTValue is the cached ast value for this subject.
-	cachedASTValue ast.Value
-}
-
-// WithCachedASTValue can be called if the subject is static. This will compute
-// the ast value once and cache it for future calls.
-func (s Subject) WithCachedASTValue() Subject {
-	tmp := s
-	v, err := tmp.regoValue()
-	if err == nil {
-		tmp.cachedASTValue = v
-	}
-	return tmp
 }
 
 func (s Subject) Equal(b Subject) bool {
