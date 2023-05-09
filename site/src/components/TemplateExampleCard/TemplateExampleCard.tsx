@@ -68,7 +68,6 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(2, 2, 2, 0),
     display: "flex",
     flexDirection: "column",
-    gap: theme.spacing(0.5),
     overflow: "hidden",
   },
 

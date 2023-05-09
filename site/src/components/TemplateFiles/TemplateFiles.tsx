@@ -100,6 +100,7 @@ const useStyles = makeStyles((theme) => ({
     cursor: "pointer",
     gap: theme.spacing(0.5),
     position: "relative",
+    color: theme.palette.text.secondary,
 
     "& svg": {
       width: 22,
@@ -114,6 +115,7 @@ const useStyles = makeStyles((theme) => ({
   tabActive: {
     opacity: 1,
     background: theme.palette.action.hover,
+    color: theme.palette.text.primary,
 
     "&:after": {
       content: '""',

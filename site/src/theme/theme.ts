@@ -125,6 +125,8 @@ dark = createTheme(dark, {
           fontWeight: 500,
           height: BUTTON_MD_HEIGHT,
           padding: theme.spacing(1, 2),
+          whiteSpace: "nowrap",
+          minWidth: "auto",
         }),
         sizeSmall: {
           borderRadius: 6,
@@ -166,6 +168,7 @@ dark = createTheme(dark, {
     MuiTable: {
       styleOverrides: {
         root: {
+          minWidth: 1200,
           borderCollapse: "unset",
           border: "none",
           background: dark.palette.background.paper,
@@ -309,13 +312,14 @@ dark = createTheme(dark, {
       },
       styleOverrides: {
         root: {
-          // We don't want to apply this height to textarea
-          "&:not(.MuiInputBase-multiline)": {
-            height: BUTTON_LG_HEIGHT,
-          },
+          height: BUTTON_LG_HEIGHT,
         },
         sizeSmall: {
           height: BUTTON_MD_HEIGHT,
+          fontSize: 14,
+        },
+        multiline: {
+          height: "auto",
         },
       },
     },

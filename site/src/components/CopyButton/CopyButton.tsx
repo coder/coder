@@ -42,6 +42,7 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
           onClick={copyToClipboard}
           size="small"
           aria-label={Language.ariaLabel}
+          variant="text"
         >
           {isCopied ? (
             <Check className={styles.fileCopyIcon} />

@@ -91,6 +91,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 
         <Select
           defaultValue="use"
+          size="small"
           className={styles.select}
           disabled={isLoading}
           onChange={(event) => {
@@ -108,7 +109,6 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
         <LoadingButton
           disabled={!selectedRole || !selectedOption}
           type="submit"
-          size="small"
           startIcon={<PersonAdd />}
           loading={isLoading}
         >
@@ -354,7 +354,6 @@ export const TemplatePermissionsPageView: FC<
 export const useStyles = makeStyles((theme) => ({
   select: {
     // Match button small height
-    height: 36,
     fontSize: 14,
     width: 100,
   },

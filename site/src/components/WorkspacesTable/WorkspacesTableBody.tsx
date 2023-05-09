@@ -1,5 +1,4 @@
 import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
 import { makeStyles } from "@mui/styles"
 import AddOutlined from "@mui/icons-material/AddOutlined"
 import { Workspace } from "api/typesGenerated"
@@ -45,11 +44,14 @@ export const WorkspacesTableBody: FC<
             message={t("emptyCreateWorkspaceMessage")}
             description={t("emptyCreateWorkspaceDescription")}
             cta={
-              <Link component={RouterLink} to="/templates">
-                <Button startIcon={<AddOutlined />}>
-                  {t("createFromTemplateButton")}
-                </Button>
-              </Link>
+              <Button
+                component={RouterLink}
+                to="/templates"
+                startIcon={<AddOutlined />}
+                variant="contained"
+              >
+                {t("createFromTemplateButton")}
+              </Button>
             }
             image={
               <div className={styles.emptyImage}>

@@ -115,7 +115,7 @@ export const UserOrGroupAutocomplete: React.FC<
   )
 }
 
-export const useStyles = makeStyles((theme) => {
+export const useStyles = makeStyles(() => {
   return {
     autocomplete: {
       width: "300px",
@@ -126,13 +126,6 @@ export const useStyles = makeStyles((theme) => {
 
       "& .MuiInputBase-root": {
         width: "100%",
-        // Match button small height
-        height: 36,
-      },
-
-      "& input": {
-        fontSize: 14,
-        padding: `${theme.spacing(0, 0.5, 0, 0.5)} !important`,
       },
     },
   }

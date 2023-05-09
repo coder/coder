@@ -8,7 +8,6 @@ import { AzureDevOpsIcon } from "components/Icons/AzureDevOpsIcon"
 import { BitbucketIcon } from "components/Icons/BitbucketIcon"
 import { GitlabIcon } from "components/Icons/GitlabIcon"
 import { FC } from "react"
-import Link from "@mui/material/Link"
 import { makeStyles } from "@mui/styles"
 
 export interface GitAuthProps {
@@ -58,8 +57,15 @@ export const GitAuth: FC<GitAuthProps> = ({
       }
     >
       <div>
-        <Link
+        <Button
           href={authenticateURL}
+          variant="contained"
+          size="large"
+          startIcon={<Icon />}
+          disabled={authenticated}
+          className={styles.button}
+          color={error ? "error" : undefined}
+          fullWidth
           onClick={(event) => {
             event.preventDefault()
             // If the user is already authenticated, we don't want to redirect them
@@ -69,19 +75,11 @@ export const GitAuth: FC<GitAuthProps> = ({
             window.open(authenticateURL, "_blank", "width=900,height=600")
           }}
         >
-          <Button
-            size="large"
-            startIcon={<Icon />}
-            disabled={authenticated}
-            className={styles.button}
-            color={error ? "error" : undefined}
-            fullWidth
-          >
-            {authenticated
-              ? `You're authenticated with ${prettyName}!`
-              : `Click to login with ${prettyName}!`}
-          </Button>
-        </Link>
+          {authenticated
+            ? `You're authenticated with ${prettyName}!`
+            : `Click to login with ${prettyName}!`}
+        </Button>
+
         {error && <FormHelperText error>{error}</FormHelperText>}
       </div>
     </Tooltip>

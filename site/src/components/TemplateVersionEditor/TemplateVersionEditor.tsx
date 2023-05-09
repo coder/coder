@@ -216,6 +216,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             </Button>
 
             <Button
+              variant="contained"
               title={
                 dirty
                   ? "You have edited files! Run another build before updating."

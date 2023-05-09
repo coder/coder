@@ -26,7 +26,7 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
         {template.name}
       </Avatar>
 
-      <Stack direction="column" spacing={0.5}>
+      <Stack direction="column" spacing={0}>
         <span className={styles.templateName}>
           {"display_name" in template && template.display_name.length > 0
             ? template.display_name

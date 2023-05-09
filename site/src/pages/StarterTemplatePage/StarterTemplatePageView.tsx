@@ -55,6 +55,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
               {t("actions.viewSourceCode")}
             </Button>
             <Button
+              variant="contained"
               component={Link}
               to={`/templates/new?exampleId=${starterTemplate.id}`}
               startIcon={<PlusIcon />}

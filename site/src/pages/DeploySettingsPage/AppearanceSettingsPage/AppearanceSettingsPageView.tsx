@@ -20,6 +20,7 @@ import { UpdateAppearanceConfig } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
 import { useTheme } from "@mui/styles"
+import Link from "@mui/material/Link"
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig
@@ -143,7 +144,8 @@ export const AppearanceSettingsPageView = ({
           !isEntitled && (
             <p>
               Your license does not include Service Banners.{" "}
-              <a href="mailto:sales@coder.com">Contact sales</a> to learn more.
+              <Link href="mailto:sales@coder.com">Contact sales</Link> to learn
+              more.
             </p>
           )
         }

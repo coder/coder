@@ -137,7 +137,6 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
     display: "block",
-    marginBottom: theme.spacing(0.5),
   },
   labelDescription: {
     fontSize: 16,

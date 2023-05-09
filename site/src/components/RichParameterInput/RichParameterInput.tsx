@@ -40,7 +40,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
         )}
 
         {hasDescription ? (
-          <Stack spacing={0.5}>
+          <Stack spacing={0}>
             <span className={styles.labelCaption}>{displayName}</span>
             <span className={styles.labelPrimary}>
               <MemoizedMarkdown>{parameter.description}</MemoizedMarkdown>

@@ -42,7 +42,11 @@ export const TemplatePermissionsPage: FC<
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <Button size="small" startIcon={<ArrowRightAltOutlined />}>
+                  <Button
+                    size="small"
+                    startIcon={<ArrowRightAltOutlined />}
+                    variant="contained"
+                  >
                     See how to upgrade
                   </Button>
                 </Link>

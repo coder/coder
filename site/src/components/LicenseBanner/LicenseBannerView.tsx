@@ -1,3 +1,4 @@
+import Link from "@mui/material/Link"
 import { makeStyles } from "@mui/styles"
 import { Expander } from "components/Expander/Expander"
 import { Pill } from "components/Pill/Pill"
@@ -35,9 +36,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
         <div className={styles.leftContent}>
           <span>{messages[0]}</span>
           &nbsp;
-          <a href="mailto:sales@coder.com" className={styles.link}>
-            {Language.upgrade}
-          </a>
+          <Link href="mailto:sales@coder.com">{Language.upgrade}</Link>
         </div>
       </div>
     )
@@ -53,9 +52,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
           <div>
             {Language.exceeded}
             &nbsp;
-            <a href="mailto:sales@coder.com" className={styles.link}>
-              {Language.upgrade}
-            </a>
+            <Link href="mailto:sales@coder.com">{Language.upgrade}</Link>
           </div>
           <Expander expanded={showDetails} setExpanded={setShowDetails}>
             <ul className={styles.list}>
@@ -74,6 +71,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 
 const useStyles = makeStyles((theme) => ({
   container: {
+    ...theme.typography.body2,
     padding: theme.spacing(1.5),
     backgroundColor: theme.palette.warning.main,
     display: "flex",
@@ -89,11 +87,6 @@ const useStyles = makeStyles((theme) => ({
   leftContent: {
     marginRight: theme.spacing(1),
     marginLeft: theme.spacing(1),
-  },
-  link: {
-    color: "inherit",
-    textDecoration: "none",
-    fontWeight: 600,
   },
   list: {
     padding: theme.spacing(1),

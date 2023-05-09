@@ -8,7 +8,7 @@ import TableContainer from "@mui/material/TableContainer"
 import TableHead from "@mui/material/TableHead"
 import TableRow from "@mui/material/TableRow"
 import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
-import AddCircleOutline from "@mui/icons-material/AddCircleOutline"
+import AddOutlined from "@mui/icons-material/AddOutlined"
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
 import AvatarGroup from "@mui/material/AvatarGroup"
 import { AvatarData } from "components/AvatarData/AvatarData"
@@ -48,15 +48,17 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
             description="Organize the users into groups and manage their permissions. To use this feature, you have to upgrade your account."
             cta={
               <Stack direction="row" alignItems="center">
-                <Link
+                <Button
                   href="https://coder.com/docs/coder-oss/latest/enterprise"
                   target="_blank"
                   rel="noreferrer"
+                  size="small"
+                  startIcon={<ArrowRightAltOutlined />}
+                  variant="contained"
                 >
-                  <Button size="small" startIcon={<ArrowRightAltOutlined />}>
-                    See how to upgrade
-                  </Button>
-                </Link>
+                  See how to upgrade
+                </Button>
+
                 <Link
                   href="https://coder.com/docs/coder-oss/latest/admin/groups"
                   target="_blank"
@@ -96,11 +98,14 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                           }
                           cta={
                             canCreateGroup && (
-                              <Link component={RouterLink} to="/groups/create">
-                                <Button startIcon={<AddCircleOutline />}>
-                                  Create group
-                                </Button>
-                              </Link>
+                              <Button
+                                component={RouterLink}
+                                to="/groups/create"
+                                startIcon={<AddOutlined />}
+                                variant="contained"
+                              >
+                                Create group
+                              </Button>
                             )
                           }
                         />
