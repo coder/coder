@@ -88,7 +88,7 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
   wildcard_hostname: "*.external.com",
 }
 
-export const MockUnhealthyWildWorkspaceProxy: TypesGen.Region =   {
+export const MockUnhealthyWildWorkspaceProxy: TypesGen.Region = {
   id: "8444931c-0247-4171-842a-569d9f9cbadb",
   name: "unhealthy",
   display_name: "Unhealthy",
