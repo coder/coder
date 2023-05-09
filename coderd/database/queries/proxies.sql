@@ -36,6 +36,28 @@ SET
 WHERE
 	id = @id;
 
+-- name: UpdateWorkspaceProxy :one
+-- This allows editing the properties of a workspace proxy.
+UPDATE
+	workspace_proxies
+SET
+	-- These values should always be provided.
+	name = @name,
+	display_name = @display_name,
+	icon = @icon,
+	-- Only update the token if a new one is provided.
+	-- So this is an optional field.
+	token_hashed_secret = CASE
+		WHEN length(@token_hashed_secret :: bytea) > 0  THEN @token_hashed_secret :: bytea
+		ELSE  workspace_proxies.token_hashed_secret
+	END,
+	-- Always update this timestamp.
+	updated_at = Now()
+WHERE
+	id = @id
+RETURNING *
+;
+
 -- name: GetWorkspaceProxyByID :one
 SELECT
 	*
@@ -56,6 +78,14 @@ WHERE
 	AND deleted = false
 LIMIT
 	1;
+
+-- name: GetWorkspaceProxies :many
+SELECT
+	*
+FROM
+	workspace_proxies
+WHERE
+	deleted = false;
 
 -- Finds a workspace proxy that has an access URL or app hostname that matches
 -- the provided hostname. This is to check if a hostname matches any workspace
@@ -94,11 +124,3 @@ WHERE
 	)
 LIMIT
 	1;
-
--- name: GetWorkspaceProxies :many
-SELECT
-	*
-FROM
-	workspace_proxies
-WHERE
-	deleted = false;

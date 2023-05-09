@@ -3077,6 +3077,60 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 	return i, err
 }
 
+const updateWorkspaceProxy = `-- name: UpdateWorkspaceProxy :one
+UPDATE
+	workspace_proxies
+SET
+	-- These values should always be provided.
+	name = $1,
+	display_name = $2,
+	icon = $3,
+	-- Only update the token if a new one is provided.
+	-- So this is an optional field.
+	token_hashed_secret = CASE
+		WHEN length($4 :: bytea) > 0  THEN $4 :: bytea
+		ELSE  workspace_proxies.token_hashed_secret
+	END,
+	-- Always update this timestamp.
+	updated_at = Now()
+WHERE
+	id = $5
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+`
+
+type UpdateWorkspaceProxyParams struct {
+	Name              string    `db:"name" json:"name"`
+	DisplayName       string    `db:"display_name" json:"display_name"`
+	Icon              string    `db:"icon" json:"icon"`
+	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
+	ID                uuid.UUID `db:"id" json:"id"`
+}
+
+// This allows editing the properties of a workspace proxy.
+func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceProxy,
+		arg.Name,
+		arg.DisplayName,
+		arg.Icon,
+		arg.TokenHashedSecret,
+		arg.ID,
+	)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+		&i.TokenHashedSecret,
+	)
+	return i, err
+}
+
 const updateWorkspaceProxyDeleted = `-- name: UpdateWorkspaceProxyDeleted :exec
 UPDATE
 	workspace_proxies

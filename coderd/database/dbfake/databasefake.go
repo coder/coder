@@ -5233,6 +5233,31 @@ func (q *fakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, p := range q.workspaceProxies {
+		if p.Name == arg.Name && p.ID != arg.ID {
+			return database.WorkspaceProxy{}, errDuplicateKey
+		}
+	}
+
+	for i, p := range q.workspaceProxies {
+		if p.ID == arg.ID {
+			p.Name = arg.Name
+			p.DisplayName = arg.DisplayName
+			p.Icon = arg.Icon
+			if len(p.TokenHashedSecret) > 0 {
+				p.TokenHashedSecret = arg.TokenHashedSecret
+			}
+			q.workspaceProxies[i] = p
+			return p, nil
+		}
+	}
+	return database.WorkspaceProxy{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateWorkspaceProxyDeleted(_ context.Context, arg database.UpdateWorkspaceProxyDeletedParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
