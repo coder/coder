@@ -149,8 +149,8 @@ export const getPreferredProxy = (
     (proxy) => selectedProxy && proxy.id === selectedProxy.id,
   )
 
-  if (!selectedProxy) {
-    // If no proxy is selected, default to the primary proxy.
+  // If no proxy is selected, or the selected proxy is unhealthy default to the primary proxy.
+  if (!selectedProxy || !selectedProxy.healthy) {
     selectedProxy = proxies.find((proxy) => proxy.name === "primary")
   }
 
