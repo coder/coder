@@ -5,7 +5,7 @@ export type Severity = "warning" | "error" | "info"
 
 export interface AlertBannerProps {
   severity: Severity
-  text?: string
+  text?: JSX.Element
   error?: ApiError | Error | unknown
   actions?: ReactElement[]
   dismissible?: boolean
