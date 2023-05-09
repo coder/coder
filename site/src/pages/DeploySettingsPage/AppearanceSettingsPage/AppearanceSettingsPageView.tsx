@@ -11,7 +11,6 @@ import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { getFormHelpers } from "utils/formUtils"
 import Button from "@mui/material/Button"
 import FormControlLabel from "@mui/material/FormControlLabel"
-import FormHelperText from "@mui/material/FormHelperText"
 import { BlockPicker } from "react-color"
 import { useTranslation } from "react-i18next"
 import makeStyles from "@mui/styles/makeStyles"
@@ -82,6 +81,8 @@ export const AppearanceSettingsPageView = ({
 
       <Fieldset
         title="Logo URL"
+        subtitle="Specify a custom URL for your logo to be displayed in the top left
+          corner of the dashboard."
         validation={
           isEntitled
             ? "We recommend a transparent image with 3:1 aspect ratio."
@@ -90,12 +91,7 @@ export const AppearanceSettingsPageView = ({
         onSubmit={logoForm.handleSubmit}
         button={!isEntitled && <Button disabled>Submit</Button>}
       >
-        <p>
-          Specify a custom URL for your logo to be displayed in the top left
-          corner of the dashboard.
-        </p>
         <TextField
-          variant="standard"
           {...logoFieldHelpers("logo_url")}
           defaultValue={appearance.logo_url}
           fullWidth
@@ -120,6 +116,7 @@ export const AppearanceSettingsPageView = ({
 
       <Fieldset
         title="Service Banner"
+        subtitle="Configure a banner that displays a message to all users."
         onSubmit={serviceBannerForm.handleSubmit}
         button={
           !isEntitled && (
@@ -151,8 +148,6 @@ export const AppearanceSettingsPageView = ({
           )
         }
       >
-        <p>Configure a banner that displays a message to all users.</p>
-
         {isEntitled && (
           <Stack>
             <FormControlLabel
@@ -180,12 +175,14 @@ export const AppearanceSettingsPageView = ({
             />
             <Stack spacing={0}>
               <TextField
-                {...serviceBannerFieldHelpers("message")}
+                {...serviceBannerFieldHelpers(
+                  "message",
+                  t("messageHelperText"),
+                )}
                 fullWidth
                 label="Message"
                 multiline
               />
-              <FormHelperText>{t("messageHelperText")}</FormHelperText>
             </Stack>
 
             <Stack spacing={0}>

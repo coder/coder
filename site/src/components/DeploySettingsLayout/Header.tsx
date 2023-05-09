@@ -25,7 +25,6 @@ export const Header: FC<{
 
       {docsHref && (
         <Button
-          size="small"
           startIcon={<LaunchOutlined />}
           component="a"
           href={docsHref}
