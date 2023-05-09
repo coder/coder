@@ -82,53 +82,9 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   // Everytime we get a new proxiesResponse, update the latency check
   // to each workspace proxy.
   useEffect(() => {
-    const latencyAxios = axios.create()
-    latencyAxios.interceptors.request.use((config) => {
-      config.data = config.data || {}
-      config.data.startTime = new Date()
-      console.log("Hey kira", config, config.data)
-      return config
-    })
-
-    latencyAxios.interceptors.response.use(
-      // Success 200
-      (x) => {
-        // Get elapsed time (in milliseconds)
-        const end = new Date()
-        x.config.data = {
-          ...x.config.data,
-          ...{
-            endTime: end,
-            responseTime: end.getTime() - x.config.data.requestStartedAt,
-          },
-        }
-        return x
-      },
-      // Handle 4xx & 5xx responses
-      (x) => {
-        // Get elapsed time (in milliseconds)
-        const end = new Date()
-        x.config.data = x.config.data || {
-          ...x.config.data,
-          ...{
-            endTime: end,
-            responseTime: end.getTime() - x.config.data.requestStartedAt,
-          },
-        }
-        return x
-      },
-    )
-
-    // AgentLatency.tsx for colors
-    console.log("update workspace proxies", proxiesResp)
-    latencyAxios
-      .get<any>("/api/v2/users/authmethods")
-      .then((resp) => {
-        console.log("latency", resp)
-      })
-      .catch((err) => {
-        console.log("latency error", err)
-      })
+    if (!proxiesResp) {
+      return
+    }
   }, [proxiesResp])
 
   const setAndSaveProxy = (
