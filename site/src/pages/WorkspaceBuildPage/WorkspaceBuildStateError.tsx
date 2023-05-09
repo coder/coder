@@ -34,6 +34,6 @@ export const WorkspaceBuildStateError: React.FC<
           to delete the workspace skipping resource destruction.
         </Box>
       }
-    ></AlertBanner>
+    />
   )
 }
