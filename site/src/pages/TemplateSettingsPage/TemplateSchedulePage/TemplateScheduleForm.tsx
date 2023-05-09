@@ -325,7 +325,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         <>
           <FormSection
             title="Failure Cleanup"
-            description="When enabled, Coder will automatically stop workspaces that are in a failed state after a specified number of days."
+            description="When enabled, Coder will attempt to stop workspaces that are in a failed state after a specified number of days."
           >
             <FormFields>
               <FormControlLabel
