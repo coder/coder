@@ -1,18 +1,22 @@
 import { useQuery } from "@tanstack/react-query"
 import { getWorkspaceProxies } from "api/api"
 import { Region } from "api/typesGenerated"
+import axios from "axios"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import {
   createContext,
   FC,
   PropsWithChildren,
   useContext,
+  useEffect,
   useState,
 } from "react"
 
 interface ProxyContextValue {
   proxy: PreferredProxy
   proxies?: Region[]
+  // proxyLatenciesMS are recorded in milliseconds.
+  proxyLatenciesMS?: Record<string, number>
   // isfetched is true when the proxy api call is complete.
   isFetched: boolean
   // isLoading is true if the proxy is in the process of being fetched.
@@ -52,6 +56,9 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   }
 
   const [proxy, setProxy] = useState<PreferredProxy>(savedProxy)
+  const [proxyLatenciesMS, setProxyLatenciesMS] = useState<
+    Record<string, number>
+  >({})
 
   const dashboard = useDashboard()
   const experimentEnabled = dashboard?.experiments.includes("moons")
@@ -71,6 +78,58 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
       setAndSaveProxy(proxy.selectedProxy, resp.regions)
     },
   })
+
+  // Everytime we get a new proxiesResponse, update the latency check
+  // to each workspace proxy.
+  useEffect(() => {
+    const latencyAxios = axios.create()
+    latencyAxios.interceptors.request.use((config) => {
+      config.data = config.data || {}
+      config.data.startTime = new Date()
+      console.log("Hey kira", config, config.data)
+      return config
+    })
+
+    latencyAxios.interceptors.response.use(
+      // Success 200
+      (x) => {
+        // Get elapsed time (in milliseconds)
+        const end = new Date()
+        x.config.data = {
+          ...x.config.data,
+          ...{
+            endTime: end,
+            responseTime: end.getTime() - x.config.data.requestStartedAt,
+          },
+        }
+        return x
+      },
+      // Handle 4xx & 5xx responses
+      (x) => {
+        // Get elapsed time (in milliseconds)
+        const end = new Date()
+        x.config.data = x.config.data || {
+          ...x.config.data,
+          ...{
+            endTime: end,
+            responseTime: end.getTime() - x.config.data.requestStartedAt,
+          },
+        }
+        return x
+      },
+    )
+
+    // AgentLatency.tsx for colors
+    console.log("update workspace proxies", proxiesResp)
+    latencyAxios
+      .get<any>("/api/v2/users/authmethods")
+      .then((resp) => {
+        console.log("latency", resp)
+      })
+      .catch((err) => {
+        console.log("latency error", err)
+      })
+  }, [proxiesResp])
 
   const setAndSaveProxy = (
     selectedProxy?: Region,
@@ -95,6 +154,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <ProxyContext.Provider
       value={{
+        proxyLatenciesMS: proxyLatenciesMS,
         proxy: experimentEnabled
           ? proxy
           : {
