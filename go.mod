@@ -50,6 +50,8 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230421140225-
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
+replace github.com/hashicorp/hc-install => github.com/ammario/hc-install v0.0.0-20230509220012-4198a1f7edb2
+
 require (
 	cdr.dev/slog v1.4.2
 	cloud.google.com/go/compute/metadata v0.2.3
@@ -103,7 +105,7 @@ require (
 	github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/golang-lru/v2 v2.0.1
-	github.com/hashicorp/hc-install v0.5.1
+	github.com/hashicorp/hc-install v0.5.2-0.20230502155915-686bd8b78c17
 	github.com/hashicorp/hcl/v2 v2.14.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.14.0
@@ -174,7 +176,11 @@ require (
 	tailscale.com v1.32.2
 )
 
-require github.com/armon/go-radix v1.0.0 // indirect
+require (
+	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
+	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/cloudflare/circl v1.1.0 // indirect
+)
 
 require (
 	cloud.google.com/go/compute v1.18.0 // indirect
