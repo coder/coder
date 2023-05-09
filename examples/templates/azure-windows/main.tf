@@ -44,6 +44,19 @@ data "coder_parameter" "location" {
   }
 }
 
+data "coder_parameter" "data_disk_size" {
+  description = "Size of your data (F:) drive in GB"
+  display_name = "Data disk size"
+  name = "data_disk_size"
+  default = 20
+  mutable = "false"
+  type = "number"
+  validation {
+    min = 5
+    max = 5000
+  }
+}
+
 resource "coder_agent" "main" {
   arch               = "amd64"
   auth               = "azure-instance-identity"
@@ -52,18 +65,22 @@ resource "coder_agent" "main" {
   login_before_ready = false
 }
 
-locals {
-  prefix = "spike"
-  admin_username = "coder"
-  # Password to log in via RDP
-  #
-  # Must meet Windows password complexity requirements:
+resource "random_password" "admin_password" {
+  length           = 16
+  special          = true
   # https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/password-must-meet-complexity-requirements#reference
-  admin_password = "coderRDP!"
+  # we remove characters that require special handling in XML, as this is how we pass it to the VM
+  # namely: <>&'"
+  override_special = "~!@#$%^*_-+=`|\\(){}[]:;,.?/"
+}
+
+locals {
+  prefix = "coder-win"
+  admin_username = "coder"
 }
 
 resource "azurerm_resource_group" "main" {
-  name     = "${local.prefix}-${data.coder_workspace.me.name}-resources"
+  name     = "${local.prefix}-${data.coder_workspace.me.id}"
   location = data.coder_parameter.location.value
   tags = {
     Coder_Provisioned = "true"
@@ -71,15 +88,15 @@ resource "azurerm_resource_group" "main" {
 }
 
 // Uncomment here and in the azurerm_network_interface resource to obtain a public IP
-resource "azurerm_public_ip" "main" {
-  name                = "publicip"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  allocation_method   = "Static"
-  tags = {
-    Coder_Provisioned = "true"
-  }
-}
+#resource "azurerm_public_ip" "main" {
+#  name                = "publicip"
+#  resource_group_name = azurerm_resource_group.main.name
+#  location            = azurerm_resource_group.main.location
+#  allocation_method   = "Static"
+#  tags = {
+#    Coder_Provisioned = "true"
+#  }
+#}
 resource "azurerm_virtual_network" "main" {
   name                = "network"
   address_space       = ["10.0.0.0/24"]
@@ -104,7 +121,7 @@ resource "azurerm_network_interface" "main" {
     subnet_id                     = azurerm_subnet.internal.id
     private_ip_address_allocation = "Dynamic"
     // Uncomment for public IP address as well as azurerm_public_ip resource above
-    public_ip_address_id = azurerm_public_ip.main.id
+#    public_ip_address_id = azurerm_public_ip.main.id
   }
   tags = {
     Coder_Provisioned = "true"
@@ -133,14 +150,14 @@ resource "azurerm_managed_disk" "data" {
   resource_group_name  = azurerm_resource_group.main.name
   storage_account_type = "Standard_LRS"
   create_option        = "Empty"
-  disk_size_gb         = 20
+  disk_size_gb         = data.coder_parameter.data_disk_size.value
 }
 
 # Create virtual machine
 resource "azurerm_windows_virtual_machine" "main" {
   name                  = "vm"
   admin_username        = local.admin_username
-  admin_password        = local.admin_password
+  admin_password        = random_password.admin_password.result
   location              = azurerm_resource_group.main.location
   resource_group_name   = azurerm_resource_group.main.name
   network_interface_ids = [azurerm_network_interface.main.id]
@@ -160,7 +177,7 @@ resource "azurerm_windows_virtual_machine" "main" {
     version   = "latest"
   }
   additional_unattend_content {
-    content = "<AutoLogon><Password><Value>${local.admin_password}</Value></Password><Enabled>true</Enabled><LogonCount>1</LogonCount><Username>${local.admin_username}</Username></AutoLogon>"
+    content = "<AutoLogon><Password><Value>${random_password.admin_password.result}</Value></Password><Enabled>true</Enabled><LogonCount>1</LogonCount><Username>${local.admin_username}</Username></AutoLogon>"
     setting = "AutoLogon"
   }
   additional_unattend_content {
@@ -175,9 +192,41 @@ resource "azurerm_windows_virtual_machine" "main" {
   }
 }
 
+resource "coder_metadata" "rdp_login" {
+  resource_id = azurerm_windows_virtual_machine.main.id
+  item {
+    key = "Username"
+    value = local.admin_username
+  }
+  item {
+    key = "Password"
+    value = random_password.admin_password.result
+    sensitive = true
+  }
+}
+
 resource "azurerm_virtual_machine_data_disk_attachment" "main_data" {
   managed_disk_id    = azurerm_managed_disk.data.id
   virtual_machine_id = azurerm_windows_virtual_machine.main.id
   lun                = "10"
   caching            = "ReadWrite"
+}
+
+# Stop the VM
+resource "null_resource" "stop_vm" {
+  count      = data.coder_workspace.me.transition == "stop" ? 1 : 0
+  depends_on = [azurerm_windows_virtual_machine.main]
+  provisioner "local-exec" {
+    # Use deallocate so the VM is not charged
+    command = "az vm deallocate --ids ${azurerm_windows_virtual_machine.main.id}"
+  }
+}
+
+# Start the VM
+resource "null_resource" "start" {
+  count      = data.coder_workspace.me.transition == "start" ? 1 : 0
+  depends_on = [azurerm_windows_virtual_machine.main]
+  provisioner "local-exec" {
+    command = "az vm start --ids ${azurerm_windows_virtual_machine.main.id}"
+  }
 }

@@ -29,18 +29,6 @@ if ($volume.FileSystemType -Eq 'Unknown')
     "data disk is already formatted"
 }
 
-# Above operations are careful not to repartition & overwrite data since the disk
-# might come from a previous build, but this should only be run once per VM and is not idempotent
-#$h = "C:\Users\coder"
-# We can only mount to empty directory, so if there is data in the home dir, move it
-#if (Test-Path -Path $home) {
-#    "Home directory exists"
-#    Rename-Item -Path $h -NewName "coderold"
-#}
-# Create the directory and mount the partition
-#New-Item -ItemType "directory" -Path $h
-#Add-PartitionAccessPath -InputObject $partition -AccessPath $h
-
 # Mount the partition
 Add-PartitionAccessPath -InputObject $partition -AccessPath "F:"
 
