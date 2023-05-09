@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -878,7 +879,12 @@ func (api *API) Close() error {
 }
 
 func compressHandler(h http.Handler) http.Handler {
-	cmp := middleware.NewCompressor(5,
+	level := 5
+	if flag.Lookup("test.v") != nil {
+		level = 1
+	}
+
+	cmp := middleware.NewCompressor(level,
 		"text/*",
 		"application/*",
 		"image/*",
