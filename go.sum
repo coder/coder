@@ -364,8 +364,8 @@ github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d h1:09JG37IgTB6n3ouX9
 github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d/go.mod h1:r+1J5i/989wt6CUeNSuvFKKA9hHuKKPMxdzDbTuvwwk=
 github.com/coder/ssh v0.0.0-20230421140225-04bb837133e1 h1:LBw76rEDuhNJyohve11mbvYv5CmCLmcuUQGiz7Guk50=
 github.com/coder/ssh v0.0.0-20230421140225-04bb837133e1/go.mod h1:ZSS+CUoKHDrqVakTfTWUlKSr9MtMFkC4UvtQKD7O914=
-github.com/coder/tailscale v1.1.1-0.20230419174344-108bab9314c6 h1:y3Gv1ZCNJlUkZN7TpvHIKH0yCFIfcoXn42c8LSfKIjo=
-github.com/coder/tailscale v1.1.1-0.20230419174344-108bab9314c6/go.mod h1:j5vekUD4eLhLpHl/tNBps25strCOBXyiKUsdR1HhMq8=
+github.com/coder/tailscale v1.1.1-0.20230509173035-f4cdcfb4826e h1:ifnmZW4slkQpk6s2QBbpvkXgcHRwhdAz2pui36TETno=
+github.com/coder/tailscale v1.1.1-0.20230509173035-f4cdcfb4826e/go.mod h1:j5vekUD4eLhLpHl/tNBps25strCOBXyiKUsdR1HhMq8=
 github.com/coder/terraform-provider-coder v0.6.23 h1:O2Rcj0umez4DfVdGnKZi63z1Xzxd0IQOn9VQDB8YU8g=
 github.com/coder/terraform-provider-coder v0.6.23/go.mod h1:UIfU3bYNeSzJJvHyJ30tEKjD6Z9utloI+HUM/7n94CY=
 github.com/coder/wgtunnel v0.1.5 h1:WP3sCj/3iJ34eKvpMQEp1oJHvm24RYh0NHbj1kfUKfs=
