@@ -71,7 +71,8 @@ export const PublishTemplateVersionDialog: FC<
               disabled={isPublishing}
               InputLabelProps={{
                 shrink: true,
-              }} />
+              }}
+            />
 
             <FormControlLabel
               label="Promote to default version"
@@ -94,5 +95,5 @@ export const PublishTemplateVersionDialog: FC<
         </Stack>
       }
     />
-  );
+  )
 }

@@ -83,11 +83,12 @@ export const CreateFileDialog: FC<{
             label="File Path"
             InputLabelProps={{
               shrink: true,
-            }} />
+            }}
+          />
         </Stack>
       }
     />
-  );
+  )
 }
 
 export const DeleteFileDialog: FC<{
@@ -194,9 +195,10 @@ export const RenameFileDialog: FC<{
             placeholder={filename}
             value={pathValue}
             onChange={handleChange}
-            label="File Path" />
+            label="File Path"
+          />
         </Stack>
       }
     />
-  );
+  )
 }
