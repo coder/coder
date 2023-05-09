@@ -1,6 +1,6 @@
 import { FC } from "react"
 import { Stack } from "components/Stack/Stack"
-import { Skeleton } from "@mui/material"
+import Skeleton from "@mui/material/Skeleton"
 
 export const AvatarDataSkeleton: FC = () => {
   return (

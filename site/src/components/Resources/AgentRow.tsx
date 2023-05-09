@@ -1,6 +1,6 @@
 import Popover from "@mui/material/Popover"
 import { makeStyles, useTheme } from "@mui/styles"
-import { Skeleton } from "@mui/material"
+import Skeleton from "@mui/material/Skeleton"
 import { useMachine } from "@xstate/react"
 import CodeOutlined from "@mui/icons-material/CodeOutlined"
 import {
