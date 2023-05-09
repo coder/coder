@@ -29,7 +29,7 @@ export const WorkspacesTableBody: FC<
   }
 
   if (!workspaces) {
-    return <TableLoaderSkeleton columns={4} useAvatarData />
+    return <TableLoaderSkeleton columns={5} useAvatarData />
   }
 
   if (workspaces.length === 0) {

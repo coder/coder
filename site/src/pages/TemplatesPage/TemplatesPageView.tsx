@@ -210,7 +210,7 @@ export const TemplatesPageView: FC<
               </TableHead>
               <TableBody>
                 <Maybe condition={isLoading}>
-                  <TableLoaderSkeleton columns={4} useAvatarData />
+                  <TableLoaderSkeleton columns={5} useAvatarData />
                 </Maybe>
 
                 <ChooseOne>

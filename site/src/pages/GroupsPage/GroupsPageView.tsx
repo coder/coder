@@ -81,7 +81,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
               <TableBody>
                 <ChooseOne>
                   <Cond condition={isLoading}>
-                    <TableLoaderSkeleton columns={2} useAvatarData />
+                    <TableLoaderSkeleton columns={3} useAvatarData />
                   </Cond>
 
                   <Cond condition={isEmpty}>
@@ -143,7 +143,11 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 
                           <TableCell>
                             {group.members.length === 0 && "-"}
-                            <AvatarGroup>
+                            <AvatarGroup
+                              max={10}
+                              total={group.members.length}
+                              sx={{ justifyContent: "flex-end" }}
+                            >
                               {group.members.map((member) => (
                                 <UserAvatar
                                   key={member.username}

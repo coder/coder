@@ -70,7 +70,7 @@ export const UsersTableBody: FC<
   return (
     <ChooseOne>
       <Cond condition={Boolean(isLoading)}>
-        <TableLoaderSkeleton columns={4} useAvatarData />
+        <TableLoaderSkeleton columns={5} useAvatarData />
       </Cond>
       <Cond condition={!users || users.length === 0}>
         <ChooseOne>
