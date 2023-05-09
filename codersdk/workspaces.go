@@ -34,6 +34,7 @@ type Workspace struct {
 	AutostartSchedule                    *string        `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64         `json:"ttl_ms,omitempty"`
 	LastUsedAt                           time.Time      `json:"last_used_at" format:"date-time"`
+	ImpendingDeletion                    time.Time      `json:"impending_deletion" format:"date-time"`
 }
 
 type WorkspacesRequest struct {
