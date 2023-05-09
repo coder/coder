@@ -167,8 +167,7 @@ dark = createTheme(dark, {
     },
     MuiTable: {
       styleOverrides: {
-        root: {
-          minWidth: 1200,
+        root: ({ theme }) => ({
           borderCollapse: "unset",
           border: "none",
           background: dark.palette.background.paper,
@@ -180,7 +179,11 @@ dark = createTheme(dark, {
             paddingBottom: 16,
             background: "transparent",
           },
-        },
+
+          [theme.breakpoints.down("md")]: {
+            minWidth: 1000,
+          },
+        }),
       },
     },
     MuiTableCell: {
