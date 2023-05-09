@@ -4573,6 +4573,7 @@ Parameter represents a set value for the scope.
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "impending_deletion": "2019-08-24T14:15:22Z",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
     "build_number": 0,
@@ -4714,6 +4715,7 @@ Parameter represents a set value for the scope.
 | `autostart_schedule`                        | string                                             | false    |              |             |
 | `created_at`                                | string                                             | false    |              |             |
 | `id`                                        | string                                             | false    |              |             |
+| `impending_deletion`                        | string                                             | false    |              |             |
 | `last_used_at`                              | string                                             | false    |              |             |
 | `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |             |
 | `name`                                      | string                                             | false    |              |             |
@@ -5573,6 +5575,7 @@ Parameter represents a set value for the scope.
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "impending_deletion": "2019-08-24T14:15:22Z",
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_build": {
         "build_number": 0,
