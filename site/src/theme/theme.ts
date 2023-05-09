@@ -120,12 +120,13 @@ dark = createTheme(dark, {
         color: "neutral",
       },
       styleOverrides: {
-        root: {
+        root: ({ theme }) => ({
           textTransform: "none",
           letterSpacing: "normal",
           fontWeight: 500,
           height: BUTTON_MD_HEIGHT,
-        },
+          padding: theme.spacing(1, 2),
+        }),
         sizeSmall: {
           borderRadius: 6,
           height: BUTTON_SM_HEIGHT,
@@ -145,12 +146,12 @@ dark = createTheme(dark, {
         },
         iconSizeMedium: {
           "& > .MuiSvgIcon-root": {
-            fontSize: 18,
+            fontSize: 16,
           },
         },
         iconSizeSmall: {
           "& > .MuiSvgIcon-root": {
-            fontSize: 16,
+            fontSize: 14,
           },
         },
       },

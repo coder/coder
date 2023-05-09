@@ -107,6 +107,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 const useStyles = makeStyles((theme) => ({
   info: {
     padding: theme.spacing(2.5),
+    ...theme.typography.body2,
   },
   userName: {
     fontWeight: 600,
