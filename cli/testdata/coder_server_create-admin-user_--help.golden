@@ -3,7 +3,7 @@ Usage: coder server create-admin-user [flags]
 Create a new admin user with the given username, email and password and adds it
 to every organization.
 
-Options
+[1mOptions[0m
       --email string, $CODER_EMAIL
           The email of the new user. If not specified, you will be prompted via
           stdin.

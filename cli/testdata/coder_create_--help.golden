@@ -2,7 +2,7 @@ Usage: coder create [flags] [name]
 
 Create a workspace
 
-Options
+[1mOptions[0m
       --parameter-file string, $CODER_PARAMETER_FILE
           Specify a file path with parameter values.
 

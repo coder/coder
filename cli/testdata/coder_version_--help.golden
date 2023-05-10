@@ -2,7 +2,7 @@ Usage: coder version [flags]
 
 Show coder version
 
-Options
+[1mOptions[0m
   -o, --output string (default: text)
           Output format. Available formats: text, json.
 

@@ -4,7 +4,7 @@ List tokens
 
 Aliases: ls
 
-Options
+[1mOptions[0m
   -a, --all bool
           Specifies whether all users' tokens will be listed or not (must have
           Owner role to see all tokens).

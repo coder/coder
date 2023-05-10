@@ -2,7 +2,7 @@ Usage: coder templates create [flags] [name]
 
 Create a template from the current directory or as specified by flag
 
-Options
+[1mOptions[0m
       --default-ttl duration (default: 24h)
           Specify a default TTL for workspaces created from this template.
 

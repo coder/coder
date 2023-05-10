@@ -2,7 +2,7 @@ Usage: coder scaletest
 
 Run a scale test against the Coder API
 
-Subcommands
+[1mSubcommands[0m
     cleanup              Cleanup scaletest workspaces, then cleanup scaletest
                          users.
     create-workspaces    Creates many users, then creates a workspace for each

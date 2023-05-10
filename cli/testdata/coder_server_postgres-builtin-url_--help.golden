@@ -2,7 +2,7 @@ Usage: coder server postgres-builtin-url [flags]
 
 Output the connection URL for the built-in PostgreSQL deployment.
 
-Options
+[1mOptions[0m
       --raw-url bool
           Output the raw connection URL instead of a psql command.
 

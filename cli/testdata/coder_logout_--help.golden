@@ -2,7 +2,7 @@ Usage: coder logout [flags]
 
 Unauthenticate your local session
 
-Options
+[1mOptions[0m
   -y, --yes bool
           Bypass prompts.
 

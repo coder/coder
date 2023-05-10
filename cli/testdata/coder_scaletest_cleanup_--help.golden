@@ -4,7 +4,7 @@ Cleanup scaletest workspaces, then cleanup scaletest users.
 
 The strategy flags will apply to each stage of the cleanup process.
 
-Options
+[1mOptions[0m
       --cleanup-concurrency int, $CODER_SCALETEST_CLEANUP_CONCURRENCY (default: 1)
           Number of concurrent cleanup jobs to run. 0 means unlimited.
 

@@ -4,7 +4,7 @@ Delete templates
 
 Aliases: rm
 
-Options
+[1mOptions[0m
   -y, --yes bool
           Bypass prompts.
 

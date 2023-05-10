@@ -2,7 +2,7 @@ Usage: coder ping [flags] <workspace>
 
 Ping a workspace
 
-Options
+[1mOptions[0m
   -n, --num int (default: 10)
           Specifies the number of pings to perform.
 

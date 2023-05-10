@@ -2,7 +2,7 @@ Usage: coder templates versions list [flags] <template>
 
 List all the versions of the specified template
 
-Options
+[1mOptions[0m
   -c, --column string-array (default: name,created at,created by,status,active)
           Columns to display in table output. Available columns: name, created
           at, created by, status, active.

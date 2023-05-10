@@ -4,7 +4,7 @@ Output your Coder public key used for Git operations
 
 Aliases: pubkey
 
-Options
+[1mOptions[0m
       --reset bool
           Regenerate your public key. This will require updating the key on any
           services it's registered with.

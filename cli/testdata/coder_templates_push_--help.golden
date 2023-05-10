@@ -2,7 +2,7 @@ Usage: coder templates push [flags] [template]
 
 Push a new template version from the current directory or as specified by flag
 
-Options
+[1mOptions[0m
       --always-prompt bool
           Always prompt all parameters. Does not pull parameter values from
           active template version.

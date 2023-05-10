@@ -2,7 +2,7 @@ Usage: coder scaletest workspace-traffic [flags]
 
 Generate traffic to scaletest workspaces through coderd
 
-Options
+[1mOptions[0m
       --bytes-per-tick int, $CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK (default: 1024)
           How much traffic to generate per tick.
 

@@ -423,7 +423,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		//	Log:     api.Logger,
 		//	Request: r,
 		//	Action:  database.AuditActionWrite,
-		//})
+		// })
 	)
 	// aReq.Old = proxy
 	// defer commitAudit()

@@ -2,7 +2,7 @@ Usage: coder state pull [flags] <workspace> [file]
 
 Pull a Terraform state file from a workspace.
 
-Options
+[1mOptions[0m
   -b, --build int
           Specify a workspace build to target by name. Defaults to latest.
 

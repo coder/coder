@@ -2,7 +2,7 @@ Usage: coder stop [flags] <workspace>
 
 Stop a workspace
 
-Options
+[1mOptions[0m
   -y, --yes bool
           Bypass prompts.
 
