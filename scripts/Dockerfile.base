@@ -12,7 +12,7 @@ RUN apk add --no-cache \
 		bash \
 		git \
 		openssh-client \
-		terraform=1.3.4-r4 && \
+		terraform=1.4.6-r1 && \
 	addgroup \
 		-g 1000 \
 		coder && \
