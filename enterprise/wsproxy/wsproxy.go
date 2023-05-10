@@ -10,9 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/cors"
-
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
