@@ -194,8 +194,6 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			// Allow the dashboard to make requests to the proxy for latency
 			// checks.
 			opts.DashboardURL.String(),
-			"http://localhost:8080",
-			"localhost:8080",
 		},
 		// Only allow GET requests for latency checks.
 		AllowedMethods: []string{http.MethodOptions, http.MethodGet},
@@ -268,7 +266,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// See coderd/coderd.go for why we need this.
 	rootRouter := chi.NewRouter()
 	// Make sure to add the cors middleware to the latency check route.
-	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck("localhost:8080", "http://localhost:8080", s.DashboardURL.String(), s.AppServer.AccessURL.String())).ServeHTTP)
+	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck(s.DashboardURL, s.AppServer.AccessURL)).ServeHTTP)
 	rootRouter.Mount("/", r)
 	s.Handler = rootRouter
 

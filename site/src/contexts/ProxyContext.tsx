@@ -2,17 +2,13 @@ import { useQuery } from "@tanstack/react-query"
 import { getWorkspaceProxies } from "api/api"
 import { Region } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
-import PerformanceObserver from "@fastly/performance-observer-polyfill"
 import {
   createContext,
   FC,
   PropsWithChildren,
   useContext,
-  useEffect,
-  useReducer,
   useState,
 } from "react"
-import axios from "axios"
 import { useProxyLatency } from "./useProxyLatency"
 
 interface ProxyContextValue {
@@ -44,20 +40,6 @@ interface PreferredProxy {
 export const ProxyContext = createContext<ProxyContextValue | undefined>(
   undefined,
 )
-
-interface ProxyLatencyAction {
-  proxyID: string
-  latencyMS: number
-}
-
-const proxyLatenciesReducer = (
-  state: Record<string, number>,
-  action: ProxyLatencyAction,
-): Record<string, number> => {
-  // Just overwrite any existing latency.
-  state[action.proxyID] = action.latencyMS
-  return state
-}
 
 /**
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.

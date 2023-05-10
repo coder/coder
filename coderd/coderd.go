@@ -812,7 +812,7 @@ func New(options *Options) *API {
 	// This is the only route we add before all the middleware.
 	// We want to time the latency of the request, so any middleware will
 	// interfere with that timing.
-	rootRouter.Get("/latency-check", LatencyCheck(api.AccessURL.String()))
+	rootRouter.Get("/latency-check", LatencyCheck(api.AccessURL))
 	rootRouter.Mount("/", r)
 	api.RootHandler = rootRouter
 

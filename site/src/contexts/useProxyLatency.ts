@@ -43,31 +43,34 @@ export const useProxyLatency = (proxies?: RegionsResponse): Record<string, numbe
       return acc
     }, {} as Record<string, Region>)
 
-    // Start a new performance observer to record of all the requests
-    // to the proxies.
-    const observer = new PerformanceObserver((list) => {
-      list.getEntries().forEach((entry) => {
-        if (entry.entryType !== "resource") {
-          // We should never get these, but just in case.
-          return
-        }
 
-        console.log("performance observer entry", entry)
-        const check = proxyChecks[entry.name]
-        if (!check) {
-          // This is not a proxy request.
-          return
-        }
+    // dispatchProxyLatenciesMSGuarded will assign the latency to the proxy
+    // via the reducer. But it will only do so if the performance entry is
+    // a resource entry that we care about.
+    const dispatchProxyLatenciesMSGuarded = (entry:PerformanceEntry):void => {
+      if (entry.entryType !== "resource") {
+        // We should never get these, but just in case.
+        return
+      }
+
+      // The entry.name is the url of the request.
+      const check = proxyChecks[entry.name]
+      if (!check) {
+        // This is not a proxy request.
+        return
+      }
+
         // These docs are super useful.
         // https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing
-
         let latencyMS = 0
         if("requestStart" in entry && (entry as PerformanceResourceTiming).requestStart !== 0) {
+          // This is the preferred logic to get the latency.
           const timingEntry = entry as PerformanceResourceTiming
           latencyMS = timingEntry.responseEnd - timingEntry.requestStart
         } else {
           // This is the total duration of the request and will be off by a good margin.
           // This is a fallback if the better timing is not available.
+          console.log(`Using fallback latency calculation for "${entry.name}". Latency will be incorrect and larger then actual.`)
           latencyMS = entry.duration
         }
         dispatchProxyLatenciesMS({
@@ -75,7 +78,15 @@ export const useProxyLatency = (proxies?: RegionsResponse): Record<string, numbe
           latencyMS: latencyMS,
         })
 
-        // console.log("performance observer entry", entry)
+      return
+    }
+
+    // Start a new performance observer to record of all the requests
+    // to the proxies.
+    const observer = new PerformanceObserver((list) => {
+      // If we get entries via this callback, then dispatch the events to the latency reducer.
+      list.getEntries().forEach((entry) => {
+        dispatchProxyLatenciesMSGuarded(entry)
       })
     })
 
@@ -83,8 +94,7 @@ export const useProxyLatency = (proxies?: RegionsResponse): Record<string, numbe
     observer.observe({ entryTypes: ["resource"] })
 
     const proxyRequests = proxies.regions.map((proxy) => {
-      // const url = new URL("/latency-check", proxy.path_app_url)
-      const url = new URL("http://localhost:8081")
+      const url = new URL("/latency-check", proxy.path_app_url)
       return axios
         .get(url.toString(), {
           withCredentials: false,
@@ -94,13 +104,20 @@ export const useProxyLatency = (proxies?: RegionsResponse): Record<string, numbe
         })
     })
 
+    // When all the proxy requests finish
     Promise.all(proxyRequests)
+    // TODO: If there is an error on any request, we might want to store some indicator of that?
     .finally(() => {
-      console.log("finally outside", observer.takeRecords())
+      // takeRecords will return any entries that were not called via the callback yet.
+      // We want to call this before we disconnect the observer to make sure we get all the
+      // proxy requests recorded.
+      observer.takeRecords().forEach((entry) => {
+        dispatchProxyLatenciesMSGuarded(entry)
+      })
+      // At this point, we can be confident that all the proxy requests have been recorded
+      // via the performance observer. So we can disconnect the observer.
       observer.disconnect()
     })
-
-
   }, [proxies])
 
   return proxyLatenciesMS
