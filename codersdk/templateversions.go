@@ -14,7 +14,7 @@ import (
 type TemplateVersionWarning string
 
 const (
-	TemplateVersionWarningDeprecatedParameters = "DEPRECATED_PARAMETERS"
+	TemplateVersionWarningDeprecatedParameters TemplateVersionWarning = "DEPRECATED_PARAMETERS"
 )
 
 // TemplateVersion represents a single version of a template.

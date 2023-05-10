@@ -26,6 +26,8 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader"
+import { Maybe } from "components/Conditionals/Maybe"
+import { Link } from "@material-ui/core"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -52,6 +54,7 @@ export interface WorkspaceProps {
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
+  templateWarnings?: TypesGen.TemplateVersionWarning[]
   canUpdateWorkspace: boolean
   canUpdateTemplate: boolean
   canChangeVersions: boolean
@@ -96,6 +99,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   quota_budget,
   failedBuildLogs,
   handleBuildRetry,
+  templateWarnings,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -185,6 +189,25 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             workspace={workspace}
             handleClick={() => navigate(`/templates`)}
           />
+
+          {templateWarnings && (
+            <Maybe
+              condition={Boolean(
+                templateWarnings.includes("DEPRECATED_PARAMETERS"),
+              )}
+            >
+              <AlertBanner severity="warning">
+                <div>
+                  This template uses legacy parameters which will be deprecated
+                  in the next Coder release. Learn how to migrate in{" "}
+                  <Link href="https://coder.com/docs/v2/latest/templates/parameters#migration">
+                    our documentation
+                  </Link>
+                  .
+                </div>
+              </AlertBanner>
+            </Maybe>
+          )}
 
           {failedBuildLogs && (
             <Stack>

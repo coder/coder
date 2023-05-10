@@ -720,7 +720,9 @@ export const workspaceMachine = createMachine(
       },
       getTemplateVersion: async (context) => {
         if (context.template) {
-          return await API.getTemplateVersion(context.template.active_version_id)
+          return await API.getTemplateVersion(
+            context.template.active_version_id,
+          )
         } else {
           throw Error("Cannot get template version without template")
         }
