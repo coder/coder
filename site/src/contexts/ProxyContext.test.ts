@@ -2,6 +2,7 @@ import {
   MockPrimaryWorkspaceProxy,
   MockWorkspaceProxies,
   MockHealthyWildWorkspaceProxy,
+  MockUnhealthyWildWorkspaceProxy,
 } from "testHelpers/entities"
 import { getPreferredProxy } from "./ProxyContext"
 
@@ -35,6 +36,14 @@ describe("ProxyContextGetURLs", () => {
       "regions no select primary default",
       MockWorkspaceProxies,
       undefined,
+      "",
+      MockPrimaryWorkspaceProxy.wildcard_hostname,
+    ],
+    // Primary is the default if the selected is unhealthy
+    [
+      "unhealthy selection",
+      MockWorkspaceProxies,
+      MockUnhealthyWildWorkspaceProxy,
       "",
       MockPrimaryWorkspaceProxy.wildcard_hostname,
     ],

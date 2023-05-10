@@ -88,18 +88,20 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
   wildcard_hostname: "*.external.com",
 }
 
+export const MockUnhealthyWildWorkspaceProxy: TypesGen.Region = {
+  id: "8444931c-0247-4171-842a-569d9f9cbadb",
+  name: "unhealthy",
+  display_name: "Unhealthy",
+  icon_url: "/emojis/1f92e.png",
+  healthy: false,
+  path_app_url: "https://unhealthy.coder.com",
+  wildcard_hostname: "*unhealthy..coder.com",
+}
+
 export const MockWorkspaceProxies: TypesGen.Region[] = [
   MockPrimaryWorkspaceProxy,
   MockHealthyWildWorkspaceProxy,
-  {
-    id: "8444931c-0247-4171-842a-569d9f9cbadb",
-    name: "unhealthy",
-    display_name: "Unhealthy",
-    icon_url: "/emojis/1f92e.png",
-    healthy: false,
-    path_app_url: "https://unhealthy.coder.com",
-    wildcard_hostname: "*unhealthy..coder.com",
-  },
+  MockUnhealthyWildWorkspaceProxy,
   {
     id: "26e84c16-db24-4636-a62d-aa1a4232b858",
     name: "nowildcard",
