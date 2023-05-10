@@ -63,7 +63,8 @@ jobs:
             --data "${msg@Q}" \
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
-  trivy:
+  # We share a job because trivy and xray rely on the same Docker image.
+  trivy_xray:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
@@ -137,26 +138,40 @@ jobs:
 
           make -j "$image_job"
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
-
+      - name: Setup JFrog
+        uses: jfrog/setup-jfrog-cli@v3
+        env:
+          JF_URL: https://cdr.jfrog.io
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+      - name: Run JFrog xray
+        run: |
+          jf docker scan --format=sarif --min-severity=high \
+            ${{ steps.build.outputs.image }} | \
+            tee xray.sarif
+      - name: Upload JFrog Xray results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: xray.sarif
+          category: "Xray"
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@e5f43133f6e8736992c9f3c1b3296e24b37e17f2
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif
-          output: trivy-results.sarif
+          output: trivy.sarif
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: trivy-results.sarif
+          sarif_file: trivy.sarif
           category: "Trivy"
 
       - name: Upload Trivy scan results as an artifact
         uses: actions/upload-artifact@v3
         with:
           name: trivy
-          path: trivy-results.sarif
+          path: trivy.sarif
           retention-days: 7
 
       - name: Send Slack notification on failure
