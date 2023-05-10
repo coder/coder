@@ -129,6 +129,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_used_at":       ActionIgnore,
 		"dormant_at":         ActionTrack,
 		"deleting_at":        ActionTrack,
+		"automatic_updates":  ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                      ActionIgnore,
