@@ -114,10 +114,9 @@ export const useProxyLatency = (proxies?: RegionsResponse): Record<string, Proxy
     // The resource requests include xmlhttp requests.
     observer.observe({ entryTypes: ["resource"] })
 
-    const proxyRequests = proxies.regions.map((proxy) => {
-      const url = new URL("/latency-check", proxy.path_app_url)
+    const proxyRequests = Object.keys(proxyChecks).map((latencyURL) => {
       return axios
-        .get(url.toString(), {
+        .get(latencyURL, {
           withCredentials: false,
           // Must add a custom header to make the request not a "simple request"
           // https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests
