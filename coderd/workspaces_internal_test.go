@@ -7,19 +7,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 )
 
-func Test_calculateImpendingDeletion(t *testing.T) {
+func Test_calculateDeletingAt(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name      string
 		workspace database.Workspace
 		template  database.Template
-		expected  time.Time
+		expected  *time.Time
 	}{
 		{
-			name: "ImpendingDeletion",
+			name: "DeletingAt",
 			workspace: database.Workspace{
 				Deleted:    false,
 				LastUsedAt: time.Now().Add(time.Duration(-10) * time.Hour * 24), // 10 days ago
@@ -27,7 +28,7 @@ func Test_calculateImpendingDeletion(t *testing.T) {
 			template: database.Template{
 				InactivityTTL: int64(9 * 24 * time.Hour), // 9 days
 			},
-			expected: time.Now().Add(time.Duration(-1) * time.Hour * 24), // yesterday
+			expected: ptr.Ref(time.Now().Add(time.Duration(-1) * time.Hour * 24)), // yesterday
 		},
 		{
 			name: "InactivityTTLUnset",
@@ -38,7 +39,7 @@ func Test_calculateImpendingDeletion(t *testing.T) {
 			template: database.Template{
 				InactivityTTL: 0,
 			},
-			expected: time.Time{},
+			expected: nil,
 		},
 		{
 			name: "DeletedWorkspace",
@@ -49,7 +50,7 @@ func Test_calculateImpendingDeletion(t *testing.T) {
 			template: database.Template{
 				InactivityTTL: int64(9 * 24 * time.Hour),
 			},
-			expected: time.Time{},
+			expected: nil,
 		},
 		{
 			name: "ActiveWorkspace",
@@ -60,7 +61,7 @@ func Test_calculateImpendingDeletion(t *testing.T) {
 			template: database.Template{
 				InactivityTTL: int64(1 * 24 * time.Hour), // 1 day
 			},
-			expected: time.Time{},
+			expected: nil,
 		},
 	}
 
@@ -69,8 +70,13 @@ func Test_calculateImpendingDeletion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			found := calculateImpendingDeletion(tc.workspace, tc.template)
-			require.WithinDuration(t, tc.expected, found, time.Second, "incorrect impending deletion")
+			found := calculateDeletingAt(tc.workspace, tc.template)
+			if tc.expected == nil {
+				require.Nil(t, found, "impending deletion should be nil")
+			} else {
+				require.NotNil(t, found)
+				require.WithinDuration(t, *tc.expected, *found, time.Second, "incorrect impending deletion")
+			}
 		})
 	}
 }
