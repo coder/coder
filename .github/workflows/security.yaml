@@ -60,8 +60,7 @@ jobs:
           curl \
             -qfsSL \
             -X POST \
-            -H "Content-Type: application/json" \
-            --data "{\"content\": \"$msg\"}" \
+            --data ${msg@Q} \
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
   trivy:
@@ -168,5 +167,5 @@ jobs:
             -qfsSL \
             -X POST \
             -H "Content-Type: application/json" \
-            --data "{\"content\": \"$msg\"}" \
+            --data ${msg@Q}
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
