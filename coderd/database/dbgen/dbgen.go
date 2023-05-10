@@ -172,6 +172,7 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		AutostartSchedule: orig.AutostartSchedule,
 		Ttl:               orig.Ttl,
+		AutomaticUpdates:  takeFirst(orig.AutomaticUpdates, database.AutomaticUpdatesNever),
 	})
 	require.NoError(t, err, "insert workspace")
 	return workspace

@@ -730,6 +730,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 			Name:              workspace.Name,
 			AutostartSchedule: workspace.AutostartSchedule,
 			TTLMillis:         workspace.TTLMillis,
+			AutomaticUpdates:  workspace.AutomaticUpdates,
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
@@ -2172,6 +2173,70 @@ func TestWorkspaceExtend(t *testing.T) {
 	updated, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "failed to fetch updated workspace")
 	require.WithinDuration(t, oldDeadline.Add(-time.Hour), updated.LatestBuild.Deadline.Time, time.Minute)
+}
+
+func TestWorkspaceUpdateAutomaticUpdates_OK(t *testing.T) {
+	t.Parallel()
+
+	var (
+		auditor   = audit.NewMock()
+		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		user      = coderdtest.CreateFirstUser(t, client)
+		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = nil
+			cwr.TTLMillis = nil
+			cwr.AutomaticUpdates = codersdk.AutomaticUpdatesNever
+		})
+	)
+
+	// await job to ensure audit logs for workspace_build start are created
+	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// ensure test invariant: new workspaces have automatic updates set to never
+	require.Equal(t, codersdk.AutomaticUpdatesNever, workspace.AutomaticUpdates, "expected newly-minted workspace to automatic updates set to never")
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	err := client.UpdateWorkspaceAutomaticUpdates(ctx, workspace.ID, codersdk.UpdateWorkspaceAutomaticUpdatesRequest{
+		AutomaticUpdates: codersdk.AutomaticUpdatesAlways,
+	})
+	require.NoError(t, err)
+
+	updated, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.AutomaticUpdatesAlways, updated.AutomaticUpdates)
+
+	require.Eventually(t, func() bool {
+		if len(auditor.AuditLogs()) < 7 {
+			return false
+		}
+		return auditor.AuditLogs()[6].Action == database.AuditActionWrite
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestUpdateWorkspaceAutomaticUpdates_NotFound(t *testing.T) {
+	t.Parallel()
+	var (
+		client = coderdtest.New(t, nil)
+		_      = coderdtest.CreateFirstUser(t, client)
+		wsid   = uuid.New()
+		req    = codersdk.UpdateWorkspaceAutomaticUpdatesRequest{
+			AutomaticUpdates: codersdk.AutomaticUpdatesNever,
+		}
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	err := client.UpdateWorkspaceAutomaticUpdates(ctx, wsid, req)
+	require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
+	coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
+	require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
+	require.Contains(t, coderSDKErr.Message, "Resource not found", "unexpected response code")
 }
 
 func TestWorkspaceWatcher(t *testing.T) {

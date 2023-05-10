@@ -358,6 +358,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			LastUsedAt:        r.LastUsedAt,
 			DormantAt:         r.DormantAt,
 			DeletingAt:        r.DeletingAt,
+			AutomaticUpdates:  r.AutomaticUpdates,
 		}
 	}
 

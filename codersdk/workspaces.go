@@ -14,6 +14,13 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
+type AutomaticUpdates string
+
+const (
+	AutomaticUpdatesAlways AutomaticUpdates = "always"
+	AutomaticUpdatesNever  AutomaticUpdates = "never"
+)
+
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
@@ -47,7 +54,8 @@ type Workspace struct {
 	DormantAt *time.Time `json:"dormant_at" format:"date-time"`
 	// Health shows the health of the workspace and information about
 	// what is causing an unhealthy status.
-	Health WorkspaceHealth `json:"health"`
+	Health           WorkspaceHealth  `json:"health"`
+	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
 }
 
 func (w Workspace) FullName() string {
@@ -311,6 +319,25 @@ func (c *Client) UpdateWorkspaceDormancy(ctx context.Context, id uuid.UUID, req 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// UpdateWorkspaceAutomaticUpdatesRequest is a request to updates a workspace's automatic updates setting.
+type UpdateWorkspaceAutomaticUpdatesRequest struct {
+	AutomaticUpdates AutomaticUpdates `json:"automatic_updates"`
+}
+
+// UpdateWorkspaceAutomaticUpdates sets the automatic updates setting for workspace by id.
+func (c *Client) UpdateWorkspaceAutomaticUpdates(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutomaticUpdatesRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/autoupdates", id.String())
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("update workspace automatic updates: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil

@@ -1171,9 +1171,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(database.InsertWorkspaceParams{
-			ID:             uuid.New(),
-			OwnerID:        u.ID,
-			OrganizationID: o.ID,
+			ID:               uuid.New(),
+			OwnerID:          u.ID,
+			OrganizationID:   o.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
 		}).Asserts(rbac.ResourceWorkspace.WithOwner(u.ID.String()).InOrg(o.ID), rbac.ActionCreate)
 	}))
 	s.Run("Start/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {

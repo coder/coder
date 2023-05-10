@@ -867,6 +867,7 @@ func New(options *Options) *API {
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
 				r.Put("/dormant", api.putWorkspaceDormant)
+				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
