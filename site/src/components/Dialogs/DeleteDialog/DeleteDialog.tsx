@@ -1,5 +1,5 @@
-import makeStyles from "@material-ui/core/styles/makeStyles"
-import TextField from "@material-ui/core/TextField"
+import makeStyles from "@mui/styles/makeStyles"
+import TextField from "@mui/material/TextField"
 import { Maybe } from "components/Conditionals/Maybe"
 import { ChangeEvent, useState, PropsWithChildren, FC } from "react"
 import { useTranslation } from "react-i18next"
@@ -43,9 +43,6 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
 
       <TextField
         fullWidth
-        InputLabelProps={{
-          shrink: true,
-        }}
         autoFocus
         className={styles.textField}
         name="confirmation"

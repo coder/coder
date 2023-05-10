@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { Pill } from "components/Pill/Pill"
 import ReactMarkdown from "react-markdown"
 import { colors } from "theme/colors"

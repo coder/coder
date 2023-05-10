@@ -1,7 +1,7 @@
 import { Avatar } from "components/Avatar/Avatar"
 import { FC, PropsWithChildren } from "react"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 
 export interface AvatarDataProps {
   title: string | JSX.Element
@@ -43,6 +43,7 @@ const useStyles = makeStyles((theme) => ({
   root: {
     minHeight: theme.spacing(5), // Make it predictable for the skeleton
     width: "100%",
+    lineHeight: "150%",
   },
 
   info: {
@@ -57,8 +58,7 @@ const useStyles = makeStyles((theme) => ({
   subtitle: {
     fontSize: 12,
     color: theme.palette.text.secondary,
-    lineHeight: "140%",
-    marginTop: 2,
+    lineHeight: "150%",
     maxWidth: 540,
   },
 }))

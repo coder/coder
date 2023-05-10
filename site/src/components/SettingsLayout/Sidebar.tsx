@@ -1,15 +1,15 @@
-import { makeStyles } from "@material-ui/core/styles"
-import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
-import FingerprintOutlinedIcon from "@material-ui/icons/FingerprintOutlined"
+import { makeStyles } from "@mui/styles"
+import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined"
+import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined"
 import { User } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "utils/combineClasses"
-import AccountIcon from "@material-ui/icons/Person"
-import SecurityIcon from "@material-ui/icons/LockOutlined"
-import PublicIcon from "@material-ui/icons/Public"
+import AccountIcon from "@mui/icons-material/Person"
+import SecurityIcon from "@mui/icons-material/LockOutlined"
+import PublicIcon from "@mui/icons-material/Public"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const SidebarNavItem: FC<
@@ -132,6 +132,7 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(2),
   },
   userInfo: {
+    ...theme.typography.body2,
     marginBottom: theme.spacing(2),
   },
   userData: {

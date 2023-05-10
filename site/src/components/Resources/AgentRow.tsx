@@ -1,8 +1,8 @@
-import Popover from "@material-ui/core/Popover"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
-import { Skeleton } from "@material-ui/lab"
+import Popover from "@mui/material/Popover"
+import { makeStyles, useTheme } from "@mui/styles"
+import Skeleton from "@mui/material/Skeleton"
 import { useMachine } from "@xstate/react"
-import CodeOutlined from "@material-ui/icons/CodeOutlined"
+import CodeOutlined from "@mui/icons-material/CodeOutlined"
 import {
   CloseDropdown,
   OpenDropdown,
@@ -42,7 +42,7 @@ import { AgentLatency } from "./AgentLatency"
 import { AgentMetadata } from "./AgentMetadata"
 import { AgentVersion } from "./AgentVersion"
 import { AgentStatus } from "./AgentStatus"
-import Collapse from "@material-ui/core/Collapse"
+import Collapse from "@mui/material/Collapse"
 import { useProxy } from "contexts/ProxyContext"
 
 export interface AgentRowProps {
@@ -266,13 +266,13 @@ export const AgentRow: FC<AgentRowProps> = ({
             <Skeleton
               width={80}
               height={32}
-              variant="rect"
+              variant="rectangular"
               className={styles.buttonSkeleton}
             />
             <Skeleton
               width={110}
               height={32}
-              variant="rect"
+              variant="rectangular"
               className={styles.buttonSkeleton}
             />
           </div>
@@ -390,7 +390,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 16,
     borderLeft: `2px solid ${theme.palette.text.secondary}`,
 
-    "&:not(:first-child)": {
+    "&:not(:first-of-type)": {
       borderTop: `2px solid ${theme.palette.divider}`,
     },
   },
@@ -452,7 +452,7 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(6),
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       gap: theme.spacing(2),
     },
   },
@@ -463,7 +463,7 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(3),
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       gap: theme.spacing(1.5),
     },
   },
@@ -475,7 +475,7 @@ const useStyles = makeStyles((theme) => ({
     flexWrap: "wrap",
     flex: 1,
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       marginLeft: 0,
       justifyContent: "flex-start",
     },
@@ -507,7 +507,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     gap: theme.spacing(4),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       width: "100%",
     },
   },
@@ -522,7 +522,7 @@ const useStyles = makeStyles((theme) => ({
     flexShrink: 0,
     width: "fit-content",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       overflow: "unset",
     },
   },
@@ -538,7 +538,7 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "column",
     fontSize: 12,
 
-    "& > *:first-child": {
+    "& > *:first-of-type": {
       fontWeight: 500,
       color: theme.palette.text.secondary,
     },

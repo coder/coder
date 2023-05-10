@@ -1,5 +1,5 @@
-import CssBaseline from "@material-ui/core/CssBaseline"
-import ThemeProvider from "@material-ui/styles/ThemeProvider"
+import CssBaseline from "@mui/material/CssBaseline"
+import { StyledEngineProvider, ThemeProvider } from "@mui/material/styles"
 import { createMemoryHistory } from "history"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
 import { dark } from "../src/theme"
@@ -10,10 +10,12 @@ const history = createMemoryHistory()
 
 export const decorators = [
   (Story) => (
-    <ThemeProvider theme={dark}>
-      <CssBaseline />
-      <Story />
-    </ThemeProvider>
+    <StyledEngineProvider injectFirst>
+      <ThemeProvider theme={dark}>
+        <CssBaseline />
+        <Story />
+      </ThemeProvider>
+    </StyledEngineProvider>
   ),
   (Story) => {
     return (

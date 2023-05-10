@@ -1,4 +1,4 @@
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import { FileUpload } from "components/FileUpload/FileUpload"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"

@@ -5,11 +5,11 @@ import {
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form"
-import makeStyles from "@material-ui/core/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import { useTranslation } from "react-i18next"
 import { onChangeTrimmed, getFormHelpers } from "utils/formUtils"
-import TextField from "@material-ui/core/TextField"
-import MenuItem from "@material-ui/core/MenuItem"
+import TextField from "@mui/material/TextField"
+import MenuItem from "@mui/material/MenuItem"
 import {
   NANO_HOUR,
   CreateTokenData,
@@ -74,7 +74,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
             onChange={onChangeTrimmed(form, () => setFormError(undefined))}
             autoFocus
             fullWidth
-            variant="outlined"
           />
         </FormFields>
       </FormSection>
@@ -103,9 +102,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
                 void setLifetimeDays(event.target.value)
               }}
               fullWidth
-              InputLabelProps={{
-                shrink: true,
-              }}
             >
               {filterByMaxTokenLifetime(maxTokenLifetime).map((lt) => (
                 <MenuItem key={lt.label} value={lt.value}>
@@ -142,7 +138,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
                 }}
                 fullWidth
                 InputLabelProps={{
-                  shrink: true,
                   required: true,
                 }}
               />

@@ -1,4 +1,4 @@
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
@@ -34,7 +34,6 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
 
   return (
     <Link
-      underline="none"
       href={href}
       target="_blank"
       onClick={(event) => {
@@ -46,7 +45,7 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
         )
       }}
     >
-      <SecondaryAgentButton size="small" variant="outlined">
+      <SecondaryAgentButton size="small">
         {Language.linkText}
       </SecondaryAgentButton>
     </Link>

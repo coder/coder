@@ -20,6 +20,8 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		icon                         string
 		defaultTTL                   time.Duration
 		maxTTL                       time.Duration
+		failureTTL                   time.Duration
+		inactivityTTL                time.Duration
 		allowUserCancelWorkspaceJobs bool
 		allowUserAutostart           bool
 		allowUserAutostop            bool
@@ -34,17 +36,29 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
-			if maxTTL != 0 || !allowUserAutostart || !allowUserAutostop {
+			// This clause can be removed when workspace_actions is no longer experimental
+			if failureTTL != 0 || inactivityTTL != 0 {
+				experiments, exErr := client.Experiments(inv.Context())
+				if exErr != nil {
+					return xerrors.Errorf("get experiments: %w", exErr)
+				}
+
+				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
+					return xerrors.Errorf("--failure-ttl and --inactivityTTL are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
+				}
+			}
+
+			if maxTTL != 0 || !allowUserAutostart || !allowUserAutostop || failureTTL != 0 || inactivityTTL != 0 {
 				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error
 				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --max-ttl, --allow-user-autostart=false or --allow-user-autostop=false")
+					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --max-ttl, --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
 				} else if err != nil {
 					return xerrors.Errorf("get entitlements: %w", err)
 				}
 
 				if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl, --allow-user-autostart=false or --allow-user-autostop=false")
+					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl, --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
 				}
 			}
 
@@ -65,6 +79,8 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				Icon:                         icon,
 				DefaultTTLMillis:             defaultTTL.Milliseconds(),
 				MaxTTLMillis:                 maxTTL.Milliseconds(),
+				FailureTTLMillis:             failureTTL.Milliseconds(),
+				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           allowUserAutostart,
 				AllowUserAutostop:            allowUserAutostop,
@@ -109,6 +125,18 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Flag:        "max-ttl",
 			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
 			Value:       clibase.DurationOf(&maxTTL),
+		},
+		{
+			Flag:        "failure-ttl",
+			Description: "Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&failureTTL),
+		},
+		{
+			Flag:        "inactivity-ttl",
+			Description: "Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&inactivityTTL),
 		},
 		{
 			Flag:        "allow-user-cancel-workspace-jobs",

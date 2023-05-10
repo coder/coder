@@ -1,5 +1,5 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
 import {
   CloseDropdown,
   OpenDropdown,
@@ -46,7 +46,6 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
         <div className={styles.buttonWrapper}>
           <Button
             className={styles.showMoreButton}
-            variant="outlined"
             size="small"
             onClick={() => setShouldDisplayHideResources((v) => !v)}
           >

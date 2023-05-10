@@ -1,11 +1,11 @@
 import { FC } from "react"
 import { Stack } from "components/Stack/Stack"
-import { Skeleton } from "@material-ui/lab"
+import Skeleton from "@mui/material/Skeleton"
 
 export const AvatarDataSkeleton: FC = () => {
   return (
     <Stack spacing={1.5} direction="row" alignItems="center">
-      <Skeleton variant="circle" width={36} height={36} />
+      <Skeleton variant="circular" width={36} height={36} />
 
       <Stack spacing={0}>
         <Skeleton variant="text" width={100} />

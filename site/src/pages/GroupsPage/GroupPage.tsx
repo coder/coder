@@ -1,14 +1,14 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import Table from "@material-ui/core/Table"
-import TableBody from "@material-ui/core/TableBody"
-import TableCell from "@material-ui/core/TableCell"
-import TableContainer from "@material-ui/core/TableContainer"
-import TableHead from "@material-ui/core/TableHead"
-import TableRow from "@material-ui/core/TableRow"
-import DeleteOutline from "@material-ui/icons/DeleteOutline"
-import PersonAdd from "@material-ui/icons/PersonAdd"
-import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import Table from "@mui/material/Table"
+import TableBody from "@mui/material/TableBody"
+import TableCell from "@mui/material/TableCell"
+import TableContainer from "@mui/material/TableContainer"
+import TableHead from "@mui/material/TableHead"
+import TableRow from "@mui/material/TableRow"
+import DeleteOutline from "@mui/icons-material/DeleteOutline"
+import PersonAdd from "@mui/icons-material/PersonAdd"
+import SettingsOutlined from "@mui/icons-material/SettingsOutlined"
 import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
@@ -32,7 +32,7 @@ import { Link as RouterLink, useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
 import { groupMachine } from "xServices/groups/groupXService"
 import { Maybe } from "components/Conditionals/Maybe"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 
 const AddGroupMember: React.FC<{
   isLoading: boolean
@@ -113,13 +113,10 @@ export const GroupPage: React.FC = () => {
             <PageHeader
               actions={
                 <Maybe condition={canUpdateGroup}>
-                  <Link to="settings" underline="none" component={RouterLink}>
-                    <Button variant="outlined" startIcon={<SettingsOutlined />}>
-                      Settings
-                    </Button>
+                  <Link to="settings" component={RouterLink}>
+                    <Button startIcon={<SettingsOutlined />}>Settings</Button>
                   </Link>
                   <Button
-                    variant="outlined"
                     onClick={() => {
                       send("DELETE")
                     }}

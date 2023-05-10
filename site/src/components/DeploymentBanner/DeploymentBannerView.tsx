@@ -2,23 +2,23 @@ import { DeploymentStats, WorkspaceStatus } from "api/typesGenerated"
 import { FC, useMemo, useEffect, useState } from "react"
 import prettyBytes from "pretty-bytes"
 import { getStatus } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
-import BuildingIcon from "@material-ui/icons/Build"
-import { makeStyles } from "@material-ui/core/styles"
+import BuildingIcon from "@mui/icons-material/Build"
+import { makeStyles } from "@mui/styles"
 import { RocketIcon } from "components/Icons/RocketIcon"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import Tooltip from "@material-ui/core/Tooltip"
+import Tooltip from "@mui/material/Tooltip"
 import { Link as RouterLink } from "react-router-dom"
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import { VSCodeIcon } from "components/Icons/VSCodeIcon"
-import DownloadIcon from "@material-ui/icons/CloudDownload"
-import UploadIcon from "@material-ui/icons/CloudUpload"
-import LatencyIcon from "@material-ui/icons/SettingsEthernet"
-import WebTerminalIcon from "@material-ui/icons/WebAsset"
+import DownloadIcon from "@mui/icons-material/CloudDownload"
+import UploadIcon from "@mui/icons-material/CloudUpload"
+import LatencyIcon from "@mui/icons-material/SettingsEthernet"
+import WebTerminalIcon from "@mui/icons-material/WebAsset"
 import { TerminalIcon } from "components/Icons/TerminalIcon"
 import dayjs from "dayjs"
-import CollectedIcon from "@material-ui/icons/Compare"
-import RefreshIcon from "@material-ui/icons/Refresh"
-import Button from "@material-ui/core/Button"
+import CollectedIcon from "@mui/icons-material/Compare"
+import RefreshIcon from "@mui/icons-material/Refresh"
+import Button from "@mui/material/Button"
 
 export const bannerHeight = 36
 
@@ -251,7 +251,7 @@ const useStyles = makeStyles((theme) => ({
       height: 16,
     },
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("lg")]: {
       display: "none",
     },
   },
@@ -269,7 +269,7 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(4),
     borderTop: `1px solid ${theme.palette.divider}`,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("lg")]: {
       flexDirection: "column",
       gap: theme.spacing(1),
       alignItems: "left",
@@ -281,7 +281,7 @@ const useStyles = makeStyles((theme) => ({
   },
   category: {
     marginRight: theme.spacing(2),
-    color: theme.palette.text.hint,
+    color: theme.palette.text.primary,
   },
   values: {
     display: "flex",
@@ -307,7 +307,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   refresh: {
-    color: theme.palette.text.hint,
+    color: theme.palette.text.primary,
     marginLeft: "auto",
     display: "flex",
     alignItems: "center",
