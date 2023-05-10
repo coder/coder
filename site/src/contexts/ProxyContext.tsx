@@ -1,17 +1,18 @@
 import { useQuery } from "@tanstack/react-query"
 import { getWorkspaceProxies } from "api/api"
 import { Region } from "api/typesGenerated"
-import axios from "axios"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { PerformanceObserver } from "perf_hooks"
+import PerformanceObserver from "@fastly/performance-observer-polyfill"
 import {
   createContext,
   FC,
   PropsWithChildren,
   useContext,
   useEffect,
+  useReducer,
   useState,
 } from "react"
+import axios from "axios"
 
 interface ProxyContextValue {
   proxy: PreferredProxy
@@ -43,6 +44,20 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
   undefined,
 )
 
+interface ProxyLatencyAction {
+  proxyID: string
+  latencyMS: number
+}
+
+const proxyLatenciesReducer = (
+  state: Record<string, number>,
+  action: ProxyLatencyAction,
+): Record<string, number> => {
+  // Just overwrite any existing latency.
+  state[action.proxyID] = action.latencyMS
+  return state
+}
+
 /**
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
@@ -57,9 +72,10 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   }
 
   const [proxy, setProxy] = useState<PreferredProxy>(savedProxy)
-  const [proxyLatenciesMS, setProxyLatenciesMS] = useState<
-    Record<string, number>
-  >({})
+  const [proxyLatenciesMS, dispatchProxyLatenciesMS] = useReducer(
+    proxyLatenciesReducer,
+    {},
+  )
 
   const dashboard = useDashboard()
   const experimentEnabled = dashboard?.experiments.includes("moons")
@@ -87,14 +103,85 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
       return
     }
 
-    window.performance.getEntries().forEach((entry) => {
-      console.log(entry)
+    // proxyMap is a map of the proxy path_app_url to the proxy object.
+    // This is for the observer to know which requests are important to
+    // record.
+    const proxyChecks = proxiesResp.regions.reduce((acc, proxy) => {
+      if (!proxy.healthy) {
+        return acc
+      }
+
+      const url = new URL("/healthz", proxy.path_app_url)
+      acc[url.toString()] = proxy
+      return acc
+    }, {} as Record<string, Region>)
+
+    // Start a new performance observer to record of all the requests
+    // to the proxies.
+    const observer = new PerformanceObserver((list) => {
+      list.getEntries().forEach((entry) => {
+        if (entry.entryType !== "resource") {
+          // We should never get these, but just in case.
+          return
+        }
+
+        const check = proxyChecks[entry.name]
+        if (!check) {
+          // This is not a proxy request.
+          return
+        }
+        // These docs are super useful.
+        // https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing
+        // dispatchProxyLatenciesMS({
+        //   proxyID: check.id,
+        //   latencyMS: entry.duration,
+        // })
+
+        console.log("performance observer entry", entry)
+      })
+      console.log("performance observer", list)
     })
-    const observer = new PerformanceObserver((list, observer) => {
-      console.log("performance observer", list, observer)
+    // The resource requests include xmlhttp requests.
+    observer.observe({ entryTypes: ["resource"] })
+    axios
+      .get("https://dev.coder.com/healthz")
+      .then((resp) => {
+        console.log(resp)
+      })
+      .catch((err) => {
+        console.log(err)
+      })
+
+    const proxyChecks = proxiesResp.regions.map((proxy) => {
+      // TODO: Move to /derp/latency-check
+      const url = new URL("/healthz", proxy.path_app_url)
+      return axios
+        .get(url.toString())
+        .then((resp) => {
+          return resp
+        })
+        .catch((err) => {
+          return err
+        })
+
+      // Add a random query param to ensure the request is not cached.
+      // url.searchParams.append("cache_bust", Math.random().toString())
     })
 
-    observer.observe({ entryTypes: ["http2", "http"] })
+    Promise.all([proxyChecks])
+      .then((resp) => {
+        console.log(resp)
+        console.log("done", observer.takeRecords())
+        // observer.disconnect()
+      })
+      .catch((err) => {
+        console.log(err)
+        // observer.disconnect()
+      })
+      .finally(() => {
+        console.log("finally", observer.takeRecords())
+        // observer.disconnect()
+      })
   }, [proxiesResp])
 
   const setAndSaveProxy = (
