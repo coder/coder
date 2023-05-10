@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/cors"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -197,6 +199,20 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		httpmw.Logger(s.Logger),
 		httpmw.Prometheus(s.PrometheusRegistry),
+		// The primary coderd dashboard needs to make some GET requests to
+		// the workspace proxies to check latency.
+		cors.Handler(cors.Options{
+			AllowedOrigins: []string{
+				// Allow the dashboard to make requests to the proxy for latency
+				// checks.
+				opts.DashboardURL.String(),
+			},
+			// Only allow GET requests for latency checks.
+			AllowedMethods: []string{http.MethodGet},
+			AllowedHeaders: []string{"Accept", "Content-Type"},
+			// Do not send any cookies
+			AllowCredentials: false,
+		}),
 
 		// HandleSubdomain is a middleware that handles all requests to the
 		// subdomain-based workspace apps.
