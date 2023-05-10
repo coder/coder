@@ -7,6 +7,7 @@ import {
 } from "components/Tooltips/HelpTooltip"
 import { Stack } from "components/Stack/Stack"
 import { WorkspaceAgent, DERPRegion } from "api/typesGenerated"
+import { getLatencyColor } from "utils/colors"
 
 const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
   // Find the right latency to display
@@ -21,17 +22,9 @@ const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
     return undefined
   }
 
-  // Get the color
-  let color = theme.palette.success.light
-  if (latency.latency_ms >= 150 && latency.latency_ms < 300) {
-    color = theme.palette.warning.light
-  } else if (latency.latency_ms >= 300) {
-    color = theme.palette.error.light
-  }
-
   return {
     ...latency,
-    color,
+    color: getLatencyColor(theme, latency.latency_ms),
   }
 }
 

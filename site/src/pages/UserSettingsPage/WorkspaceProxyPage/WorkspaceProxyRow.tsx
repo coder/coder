@@ -12,6 +12,8 @@ import {
 import { makeStyles } from "@material-ui/core/styles"
 import { combineClasses } from "utils/combineClasses"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
+import { useTheme } from "@material-ui/core/styles"
+import { getLatencyColor } from "utils/colors"
 
 export const ProxyRow: FC<{
   latency?: ProxyLatencyReport
@@ -20,6 +22,7 @@ export const ProxyRow: FC<{
   preferred: boolean
 }> = ({ proxy, onSelectRegion, preferred, latency }) => {
   const styles = useStyles()
+  const theme = useTheme()
 
   const clickable = useClickableTableRow(() => {
     onSelectRegion(proxy)
@@ -56,7 +59,13 @@ export const ProxyRow: FC<{
         <ProxyStatus proxy={proxy} />
       </TableCell>
       <TableCell>
-        {latency ? `${latency.latencyMS.toFixed(1)} ms` : "?"}
+        <span
+          style={{
+            color: latency ? getLatencyColor(theme, latency.latencyMS) : "",
+          }}
+        >
+          {latency ? `${latency.latencyMS.toFixed(1)} ms` : "?"}
+        </span>
       </TableCell>
     </TableRow>
   )
