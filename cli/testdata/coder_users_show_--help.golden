@@ -2,9 +2,9 @@ Usage: coder users show [flags] <username|user_id|'me'>
 
 Show a single user. Use 'me' to indicate the currently authenticated user.
 
-[;m$ coder users show me[0m
+$ coder users show me
 
-[1mOptions[0m
+Options
   -o, --output string (default: table)
           Output format. Available formats: table, json.
 

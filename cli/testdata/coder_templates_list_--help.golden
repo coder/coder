@@ -4,7 +4,7 @@ List all the templates available for the organization
 
 Aliases: ls
 
-[1mOptions[0m
+Options
   -c, --column string-array (default: name,last updated,used by)
           Columns to display in table output. Available columns: name, created
           at, last updated, organization id, provisioner, active version id,

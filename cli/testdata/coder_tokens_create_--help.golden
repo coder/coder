@@ -2,7 +2,7 @@ Usage: coder tokens create [flags]
 
 Create a token
 
-[1mOptions[0m
+Options
       --lifetime duration, $CODER_TOKEN_LIFETIME (default: 720h0m0s)
           Specify a duration for the lifetime of the token.
 

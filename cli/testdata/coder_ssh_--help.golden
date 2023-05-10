@@ -2,7 +2,7 @@ Usage: coder ssh [flags] <workspace>
 
 Start a shell into a workspace
 
-[1mOptions[0m
+Options
   -A, --forward-agent bool, $CODER_SSH_FORWARD_AGENT
           Specifies whether to forward the SSH agent specified in
           $SSH_AUTH_SOCK.

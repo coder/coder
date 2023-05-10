@@ -1,6 +1,6 @@
 Usage: coder users create [flags]
 
-[1mOptions[0m
+Options
   -e, --email string
           Specifies an email address for the new user.
 
