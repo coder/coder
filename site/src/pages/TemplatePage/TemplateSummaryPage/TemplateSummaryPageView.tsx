@@ -11,9 +11,7 @@ import { FC, useEffect } from "react"
 import { DAUChart } from "../../../components/DAUChart/DAUChart"
 import { TemplateSummaryData } from "./data"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Maybe } from "components/Conditionals/Maybe"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
-import Link from "@material-ui/core/Link"
+import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
 
 export interface TemplateSummaryPageViewProps {
   data?: TemplateSummaryData
@@ -51,24 +49,7 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
 
   return (
     <Stack spacing={4}>
-      {activeVersion.warnings && (
-        <Maybe
-          condition={Boolean(
-            activeVersion.warnings.includes("DEPRECATED_PARAMETERS"),
-          )}
-        >
-          <AlertBanner severity="warning">
-            <div>
-              This template uses legacy parameters which will be deprecated in
-              the next Coder release. Learn how to migrate in{" "}
-              <Link href="https://coder.com/docs/v2/latest/templates/parameters#migration">
-                our documentation
-              </Link>
-              .
-            </div>
-          </AlertBanner>
-        </Maybe>
-      )}
+      <TemplateVersionWarnings warnings={activeVersion.warnings} />
       <TemplateStats template={template} activeVersion={activeVersion} />
       {daus && <DAUChart daus={daus} />}
       <TemplateResourcesTable resources={getStartedResources(resources)} />
