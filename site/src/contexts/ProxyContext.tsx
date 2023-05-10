@@ -106,12 +106,12 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     // proxyMap is a map of the proxy path_app_url to the proxy object.
     // This is for the observer to know which requests are important to
     // record.
-    const proxyChecks = proxiesResp.regions.reduce((acc, proxy) => {
+    const proxyChecks2 = proxiesResp.regions.reduce((acc, proxy) => {
       if (!proxy.healthy) {
         return acc
       }
 
-      const url = new URL("/healthz", proxy.path_app_url)
+      const url = new URL("/latency-check", proxy.path_app_url)
       acc[url.toString()] = proxy
       return acc
     }, {} as Record<string, Region>)
@@ -125,7 +125,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
           return
         }
 
-        const check = proxyChecks[entry.name]
+        const check = proxyChecks2[entry.name]
         if (!check) {
           // This is not a proxy request.
           return
