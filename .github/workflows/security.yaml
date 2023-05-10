@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
   schedule:
-    # Run every 6 hours Monday-Friday!
-    - cron: "0 0,6,12,18 * * 1-5"
+    # Run every 24 hours Monday-Friday.
+    - cron: "0 0 * * 1-5"
 
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
