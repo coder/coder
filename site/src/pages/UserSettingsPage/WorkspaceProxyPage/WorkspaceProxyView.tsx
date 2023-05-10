@@ -12,10 +12,11 @@ import { FC } from "react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Region } from "api/typesGenerated"
 import { ProxyRow } from "./WorkspaceProxyRow"
+import { ProxyLatencyReport } from "contexts/useProxyLatency"
 
 export interface WorkspaceProxyViewProps {
   proxies?: Region[]
-  proxyLatenciesMS?: Record<string, number>
+  proxyLatencies?: Record<string, ProxyLatencyReport>
   getWorkspaceProxiesError?: Error | unknown
   isLoading: boolean
   hasLoaded: boolean
@@ -28,7 +29,7 @@ export const WorkspaceProxyView: FC<
   React.PropsWithChildren<WorkspaceProxyViewProps>
 > = ({
   proxies,
-  proxyLatenciesMS,
+  proxyLatencies,
   getWorkspaceProxiesError,
   isLoading,
   hasLoaded,
@@ -64,7 +65,7 @@ export const WorkspaceProxyView: FC<
               <Cond>
                 {proxies?.map((proxy) => (
                   <ProxyRow
-                    latencyMS={proxyLatenciesMS?.[proxy.id]}
+                    latency={proxyLatencies?.[proxy.id]}
                     key={proxy.id}
                     proxy={proxy}
                     onSelectRegion={onSelect}

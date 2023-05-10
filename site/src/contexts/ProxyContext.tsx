@@ -9,13 +9,12 @@ import {
   useContext,
   useState,
 } from "react"
-import { useProxyLatency } from "./useProxyLatency"
+import { ProxyLatencyReport, useProxyLatency } from "./useProxyLatency"
 
 interface ProxyContextValue {
   proxy: PreferredProxy
   proxies?: Region[]
-  // proxyLatenciesMS are recorded in milliseconds.
-  proxyLatenciesMS?: Record<string, number>
+  proxyLatencies?: Record<string, ProxyLatencyReport>
   // isfetched is true when the proxy api call is complete.
   isFetched: boolean
   // isLoading is true if the proxy is in the process of being fetched.
@@ -77,7 +76,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   // Everytime we get a new proxiesResponse, update the latency check
   // to each workspace proxy.
-  const proxyLatenciesMS = useProxyLatency(proxiesResp)
+  const proxyLatencies = useProxyLatency(proxiesResp)
 
   const setAndSaveProxy = (
     selectedProxy?: Region,
@@ -102,7 +101,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <ProxyContext.Provider
       value={{
-        proxyLatenciesMS: proxyLatenciesMS,
+        proxyLatencies: proxyLatencies,
         proxy: experimentEnabled
           ? proxy
           : {

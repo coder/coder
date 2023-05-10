@@ -14,7 +14,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
     "This selection only affects browser connections to your workspace."
 
   const {
-    proxyLatenciesMS,
+    proxyLatencies,
     proxies,
     error: proxiesError,
     isFetched: proxiesFetched,
@@ -31,7 +31,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
       layout="fluid"
     >
       <WorkspaceProxyView
-        proxyLatenciesMS={proxyLatenciesMS}
+        proxyLatencies={proxyLatencies}
         proxies={proxies}
         isLoading={proxiesLoading}
         hasLoaded={proxiesFetched}

@@ -11,13 +11,14 @@ import {
 } from "components/DeploySettingsLayout/Badges"
 import { makeStyles } from "@material-ui/core/styles"
 import { combineClasses } from "utils/combineClasses"
+import { ProxyLatencyReport } from "contexts/useProxyLatency"
 
 export const ProxyRow: FC<{
-  latencyMS?: number
+  latency?: ProxyLatencyReport
   proxy: Region
   onSelectRegion: (proxy: Region) => void
   preferred: boolean
-}> = ({ proxy, onSelectRegion, preferred, latencyMS }) => {
+}> = ({ proxy, onSelectRegion, preferred, latency }) => {
   const styles = useStyles()
 
   const clickable = useClickableTableRow(() => {
@@ -54,7 +55,9 @@ export const ProxyRow: FC<{
       <TableCell>
         <ProxyStatus proxy={proxy} />
       </TableCell>
-      <TableCell>{latencyMS ? `${latencyMS.toFixed(1)} ms` : "?"}</TableCell>
+      <TableCell>
+        {latency ? `${latency.latencyMS.toFixed(1)} ms` : "?"}
+      </TableCell>
     </TableRow>
   )
 }
