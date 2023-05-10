@@ -75,13 +75,13 @@ const VariableField: React.FC<VariableInputProps> = ({
         <FormControlLabel
           disabled={disabled}
           value="true"
-          control={<Radio  size="small" />}
+          control={<Radio size="small" />}
           label="True"
         />
         <FormControlLabel
           disabled={disabled}
           value="false"
-          control={<Radio  size="small" />}
+          control={<Radio size="small" />}
           label="False"
         />
       </RadioGroup>
