@@ -354,6 +354,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			DormantAt:         w.DormantAt,
 			DeletingAt:        w.DeletingAt,
 			Count:             count,
+			AutomaticUpdates:  w.AutomaticUpdates,
 		}
 
 		for _, t := range q.templates {
