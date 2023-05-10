@@ -1,5 +1,6 @@
 import { useRef, useState, FC } from "react"
-import { makeStyles, Theme, useTheme } from "@material-ui/core/styles"
+import { makeStyles, useTheme } from "@mui/styles"
+import { Theme } from "@mui/material/styles"
 import {
   HelpTooltipText,
   HelpPopover,

@@ -1,4 +1,4 @@
-import { Theme } from "@material-ui/core/styles"
+import { Theme } from "@mui/material/styles"
 
 // Used to convert our theme colors to Hex since monaco theme only support hex colors
 // From https://www.jameslmilner.com/posts/converting-rgb-hex-hsl-colors/

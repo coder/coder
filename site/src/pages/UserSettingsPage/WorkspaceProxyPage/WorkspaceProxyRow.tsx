@@ -9,10 +9,9 @@ import {
   HealthyBadge,
   NotHealthyBadge,
 } from "components/DeploySettingsLayout/Badges"
-import { makeStyles } from "@mui/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
-import { useTheme } from "@material-ui/core/styles"
 import { getLatencyColor } from "utils/colors"
 
 export const ProxyRow: FC<{
