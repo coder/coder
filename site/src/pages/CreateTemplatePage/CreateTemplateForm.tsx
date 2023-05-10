@@ -342,7 +342,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               <Checkbox
                 id="allow_user_autostart"
                 size="small"
-                color="primary"
                 disabled={isSubmitting || !allowAdvancedScheduling}
                 onChange={async () => {
                   await form.setFieldValue(
@@ -363,7 +362,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               <Checkbox
                 id="allow-user-autostop"
                 size="small"
-                color="primary"
                 disabled={isSubmitting || !allowAdvancedScheduling}
                 onChange={async () => {
                   await form.setFieldValue(
@@ -398,7 +396,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           <label htmlFor="allow_user_cancel_workspace_jobs">
             <Stack direction="row" spacing={1}>
               <Checkbox
-                color="primary"
                 id="allow_user_cancel_workspace_jobs"
                 name="allow_user_cancel_workspace_jobs"
                 disabled={isSubmitting}

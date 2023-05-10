@@ -58,6 +58,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 18,
     fontWeight: 500,
     margin: 0,
+    lineHeight: "24px",
   },
   subtitle: {
     fontSize: 14,

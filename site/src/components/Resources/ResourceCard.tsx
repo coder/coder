@@ -115,7 +115,7 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
 
-    "&:not(:first-child)": {
+    "&:not(:first-of-type)": {
       borderTop: 0,
       borderTopLeftRadius: 0,
       borderTopRightRadius: 0,
@@ -150,6 +150,7 @@ const useStyles = makeStyles((theme) => ({
 
   metadata: {
     ...theme.typography.body2,
+    lineHeight: "120%",
   },
 
   metadataLabel: {

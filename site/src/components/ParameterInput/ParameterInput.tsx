@@ -101,13 +101,13 @@ const ParameterField: React.FC<ParameterInputProps> = ({
         <FormControlLabel
           disabled={disabled}
           value="true"
-          control={<Radio color="primary" disableRipple />}
+          control={<Radio />}
           label="True"
         />
         <FormControlLabel
           disabled={disabled}
           value="false"
-          control={<Radio color="primary" disableRipple />}
+          control={<Radio />}
           label="False"
         />
       </RadioGroup>

@@ -325,7 +325,7 @@ const useStyles = makeStyles((theme) => ({
     gap: 0,
     padding: 0,
 
-    "& > span:first-child": {
+    "& > span:first-of-type": {
       fontSize: 12,
       fontWeight: 500,
     },
@@ -346,6 +346,8 @@ const useStyles = makeStyles((theme) => ({
   scheduleButton: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: 4,
+    width: 20,
+    height: 20,
 
     "& svg.MuiSvgIcon-root": {
       width: theme.spacing(1.5),

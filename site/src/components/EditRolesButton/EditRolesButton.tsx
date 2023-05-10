@@ -24,7 +24,6 @@ const Option: React.FC<{
         <Checkbox
           id={name}
           size="small"
-          color="primary"
           className={styles.checkbox}
           value={value}
           checked={isChecked}

@@ -53,6 +53,7 @@ const useStyles = makeStyles<Theme, styleProps>((theme) => ({
     fontSize: 14,
     borderRadius: theme.shape.borderRadius,
     padding: theme.spacing(1),
+    lineHeight: "150%",
   }),
   code: {
     padding: theme.spacing(0, 1),

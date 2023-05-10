@@ -274,7 +274,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             <Checkbox
               id="allow_user_autostart"
               size="small"
-              color="primary"
               disabled={isSubmitting || !allowAdvancedScheduling}
               onChange={async () => {
                 await form.setFieldValue(
@@ -295,7 +294,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             <Checkbox
               id="allow-user-autostop"
               size="small"
-              color="primary"
               disabled={isSubmitting || !allowAdvancedScheduling}
               onChange={async () => {
                 await form.setFieldValue(
@@ -332,7 +330,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     name="failureCleanupEnabled"
                     checked={form.values.failure_cleanup_enabled}
                     onChange={handleToggleFailureCleanup}
-                    color="primary"
                   />
                 }
                 label="Enable Failure Cleanup"
@@ -365,7 +362,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     name="inactivityCleanupEnabled"
                     checked={form.values.inactivity_cleanup_enabled}
                     onChange={handleToggleInactivityCleanup}
-                    color="primary"
                   />
                 }
                 label="Enable Inactivity Cleanup"

@@ -200,7 +200,7 @@ dark = createTheme(dark, {
           padding: "12px 8px",
           // This targets the first+last td elements, and also the first+last elements
           // of a TableCellLink.
-          "&:not(:only-child):first-child, &:not(:only-child):first-child > a":
+          "&:not(:only-child):first-of-type, &:not(:only-child):first-of-type > a":
             {
               paddingLeft: 32,
             },
@@ -333,6 +333,16 @@ dark = createTheme(dark, {
         },
       },
     },
+    MuiRadio: {
+      defaultProps: {
+        disableRipple: true,
+      },
+    },
+    MuiSwitch: {
+      defaultProps: {
+        color: "primary",
+      },
+    },
     MuiAutocomplete: {
       styleOverrides: {
         root: {
@@ -352,6 +362,14 @@ dark = createTheme(dark, {
       defaultProps: {
         textColor: "primary",
         indicatorColor: "primary",
+      },
+    },
+    MuiTooltip: {
+      styleOverrides: {
+        tooltip: {
+          lineHeight: "150%",
+          borderRadius: 4,
+        },
       },
     },
   },

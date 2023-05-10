@@ -256,16 +256,20 @@ const useStyles = makeStyles((theme) => ({
     marginTop: 0,
     marginBottom: theme.spacing(1),
     color: theme.palette.text.primary,
+    fontSize: 14,
+    fontWeight: 600,
   },
 
   text: {
     marginTop: theme.spacing(0.5),
     marginBottom: theme.spacing(0.5),
+    ...theme.typography.body2,
   },
 
   link: {
     display: "flex",
     alignItems: "center",
+    ...theme.typography.body2,
   },
 
   linkIcon: {

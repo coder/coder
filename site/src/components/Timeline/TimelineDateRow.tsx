@@ -29,7 +29,7 @@ const useStyles = makeStyles((theme) => ({
   dateRow: {
     background: theme.palette.background.paper,
 
-    "&:not(:first-child) td": {
+    "&:not(:first-of-type) td": {
       borderTop: `1px solid ${theme.palette.divider}`,
     },
   },

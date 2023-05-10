@@ -37,13 +37,13 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
         <FormControlLabel
           disabled={disabled}
           value="true"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="True"
         />
         <FormControlLabel
           disabled={disabled}
           value="false"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="False"
         />
       </RadioGroup>

@@ -30,12 +30,7 @@ export const LicenseCard = ({
   >(undefined)
 
   return (
-    <Paper
-      variant="outlined"
-      key={license.id}
-      elevation={2}
-      className={styles.licenseCard}
-    >
+    <Paper key={license.id} elevation={2} className={styles.licenseCard}>
       <ConfirmDialog
         type="info"
         hideCancel={false}
@@ -119,6 +114,7 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 600,
   },
   licenseCard: {
+    ...theme.typography.body2,
     padding: theme.spacing(2),
   },
   cardContent: {
@@ -130,7 +126,7 @@ const useStyles = makeStyles((theme) => ({
   },
   accountType: {
     fontWeight: 600,
-    fontSize: theme.typography.h4.fontSize,
+    fontSize: 24,
     justifyContent: "center",
     alignItems: "center",
     textTransform: "capitalize",

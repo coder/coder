@@ -115,6 +115,9 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
                 root: styles.inputRoot,
               },
             }}
+            InputLabelProps={{
+              shrink: true,
+            }}
           />
         </>
       )}

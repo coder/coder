@@ -110,13 +110,13 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
         <FormControlLabel
           disabled={disabled}
           value="true"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="True"
         />
         <FormControlLabel
           disabled={disabled}
           value="false"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="False"
         />
       </RadioGroup>
@@ -136,7 +136,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
             disabled={disabled}
             key={option.name}
             value={option.value}
-            control={<Radio color="primary" size="small" disableRipple />}
+            control={<Radio size="small" />}
             label={
               <span className={styles.radioOption}>
                 {option.icon && (

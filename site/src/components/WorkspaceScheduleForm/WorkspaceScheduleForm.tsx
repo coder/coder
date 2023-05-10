@@ -292,7 +292,6 @@ export const WorkspaceScheduleForm: FC<
                 name="autostartEnabled"
                 checked={form.values.autostartEnabled}
                 onChange={handleToggleAutostart}
-                color="primary"
               />
             }
             label={Language.startSwitch}
@@ -334,9 +333,7 @@ export const WorkspaceScheduleForm: FC<
                       disabled={isLoading || !form.values.autostartEnabled}
                       onChange={form.handleChange}
                       name={checkbox.name}
-                      color="primary"
                       size="small"
-                      disableRipple
                     />
                   }
                   key={checkbox.name}
@@ -363,7 +360,6 @@ export const WorkspaceScheduleForm: FC<
                 name="autostopEnabled"
                 checked={form.values.autostopEnabled}
                 onChange={handleToggleAutostop}
-                color="primary"
               />
             }
             label={Language.stopSwitch}

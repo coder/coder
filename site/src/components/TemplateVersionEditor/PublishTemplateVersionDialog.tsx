@@ -83,7 +83,6 @@ export const PublishTemplateVersionDialog: FC<
                     )
                   }}
                   name="isActiveVersion"
-                  color="primary"
                 />
               }
             />

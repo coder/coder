@@ -390,7 +390,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 16,
     borderLeft: `2px solid ${theme.palette.text.secondary}`,
 
-    "&:not(:first-child)": {
+    "&:not(:first-of-type)": {
       borderTop: `2px solid ${theme.palette.divider}`,
     },
   },
@@ -538,7 +538,7 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "column",
     fontSize: 12,
 
-    "& > *:first-child": {
+    "& > *:first-of-type": {
       fontWeight: 500,
       color: theme.palette.text.secondary,
     },

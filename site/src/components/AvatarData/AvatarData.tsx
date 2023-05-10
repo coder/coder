@@ -41,9 +41,9 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    ...theme.typography.body2,
     minHeight: theme.spacing(5), // Make it predictable for the skeleton
     width: "100%",
+    lineHeight: "150%",
   },
 
   info: {
@@ -58,7 +58,7 @@ const useStyles = makeStyles((theme) => ({
   subtitle: {
     fontSize: 12,
     color: theme.palette.text.secondary,
-    lineHeight: "140%",
+    lineHeight: "150%",
     maxWidth: 540,
   },
 }))

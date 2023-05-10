@@ -83,6 +83,7 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
         <TextField
           label="Port"
           type="number"
+          size="small"
           value={port}
           className={styles.portField}
           onChange={(e) => {
@@ -204,6 +205,6 @@ const useStyles = makeStyles((theme) => ({
   },
 
   form: {
-    margin: theme.spacing(1.5, 0, 0),
+    margin: theme.spacing(2, 0),
   },
 }))

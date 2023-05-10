@@ -155,7 +155,6 @@ export const AppearanceSettingsPageView = ({
             <FormControlLabel
               control={
                 <Switch
-                  color="primary"
                   checked={serviceBannerForm.values.enabled}
                   onChange={async () => {
                     const newState = !serviceBannerForm.values.enabled

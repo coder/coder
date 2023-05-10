@@ -112,7 +112,7 @@ const useStyles = makeStyles<
     alignItems: "center",
     fontFamily: "Inter",
 
-    "&:first-child": {
+    "&:first-of-type": {
       borderTopLeftRadius: theme.shape.borderRadius,
       borderTopRightRadius: theme.shape.borderRadius,
       borderTop: 0,

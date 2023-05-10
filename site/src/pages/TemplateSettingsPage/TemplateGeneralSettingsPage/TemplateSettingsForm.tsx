@@ -139,7 +139,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         <label htmlFor="allow_user_cancel_workspace_jobs">
           <Stack direction="row" spacing={1}>
             <Checkbox
-              color="primary"
               id="allow_user_cancel_workspace_jobs"
               name="allow_user_cancel_workspace_jobs"
               disabled={isSubmitting}
