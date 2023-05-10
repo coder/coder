@@ -145,7 +145,7 @@ jobs:
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
       - name: Run JFrog xray
         run: |
-          jf docker scan --format=sarif --min-severity=high \
+          jf docker scan --format=sarif \
             ${{ steps.build.outputs.image }} | \
             tee xray.sarif
       - name: Upload JFrog Xray results to GitHub Security tab
@@ -184,3 +184,26 @@ jobs:
             -H "Content-Type: application/json" \
             --data ${msg@Q} \
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
+  advisory-report:
+    needs: [codeql, trivy_xray]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          reports=$(gh api \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          '/repos/coder/coder/code-scanning/alerts?state=open')
+          num_reports=$(jq length <<< reports)
+          if [[ $num_reports == 0 ]]; then
+            echo "No reports found"
+            exit 0
+          fi
+          echo "Found $num_reports reports"
+          msg="There are $num_reports open security reports."
+          curl \
+            -qfsSL \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data ${msg@Q} \
+            "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
+
