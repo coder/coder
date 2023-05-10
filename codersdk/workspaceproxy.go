@@ -89,7 +89,7 @@ func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspacePr
 	if res.StatusCode != http.StatusCreated {
 		return UpdateWorkspaceProxyResponse{}, ReadBodyAsError(res)
 	}
-	var resp CreateWorkspaceProxyResponse
+	var resp UpdateWorkspaceProxyResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

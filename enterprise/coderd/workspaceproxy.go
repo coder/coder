@@ -338,24 +338,6 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies, statues))
 }
 
-// @Summary Get workspace proxy
-// @ID get-workspace-proxy
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Enterprise
-// @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
-// @Success 200 {object} codersdk.WorkspaceProxy
-// @Router /workspaceproxies/{workspaceproxy} [get]
-func (api *API) fetchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx   = r.Context()
-		proxy = httpmw.WorkspaceProxyParam(r)
-	)
-
-	status := api.ProxyHealth.HealthStatus()[proxy.ID]
-	httpapi.Write(ctx, rw, http.StatusOK, convertProxy(proxy, status))
-}
-
 // @Summary Issue signed workspace app token
 // @ID issue-signed-workspace-app-token
 // @Security CoderSessionToken
