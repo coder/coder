@@ -2,12 +2,10 @@ package provisionerdserver
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -29,6 +27,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/coderd/apikey"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
@@ -39,7 +38,6 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -1424,28 +1422,16 @@ func workspaceSessionTokenName(workspace database.Workspace) string {
 	return fmt.Sprintf("%s_%s_session_token", workspace.OwnerID, workspace.ID)
 }
 
-// Generates a new ID and secret for an API key.
-// TODO put API key logic in separate package.
-func GenerateAPIKeyIDSecret() (id string, secret string, err error) {
-	// Length of an API Key ID.
-	id, err = cryptorand.String(10)
-	if err != nil {
-		return "", "", err
-	}
-	// Length of an API Key secret.
-	secret, err = cryptorand.String(22)
-	if err != nil {
-		return "", "", err
-	}
-	return id, secret, nil
-}
-
 func (server *Server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {
-	id, secret, err := GenerateAPIKeyIDSecret()
+	secret, newkey, err := apikey.Generate(apikey.CreateParams{
+		UserID:           user.ID,
+		LoginType:        user.LoginType,
+		DeploymentValues: server.DeploymentValues,
+		TokenName:        workspaceSessionTokenName(workspace),
+	})
 	if err != nil {
 		return "", xerrors.Errorf("generate API key: %w", err)
 	}
-	hashed := sha256.Sum256([]byte(secret))
 
 	err = server.Database.InTx(
 		func(tx database.Store) error {
@@ -1463,27 +1449,7 @@ func (server *Server) regenerateSessionToken(ctx context.Context, user database.
 				return xerrors.Errorf("get api key by name: %w", err)
 			}
 
-			ip := net.IPv4(0, 0, 0, 0)
-			bitlen := len(ip) * 8
-			_, err = tx.InsertAPIKey(ctx, database.InsertAPIKeyParams{
-				ID:              id,
-				UserID:          workspace.OwnerID,
-				LifetimeSeconds: int64(server.DeploymentValues.MaxTokenLifetime.Value().Seconds()),
-				ExpiresAt:       database.Now().Add(server.DeploymentValues.MaxTokenLifetime.Value()).UTC(),
-				IPAddress: pqtype.Inet{
-					IPNet: net.IPNet{
-						IP:   ip,
-						Mask: net.CIDRMask(bitlen, bitlen),
-					},
-					Valid: true,
-				},
-				CreatedAt:    database.Now(),
-				UpdatedAt:    database.Now(),
-				HashedSecret: hashed[:],
-				LoginType:    user.LoginType,
-				Scope:        database.APIKeyScopeAll,
-				TokenName:    workspaceSessionTokenName(workspace),
-			})
+			_, err = tx.InsertAPIKey(ctx, newkey)
 			if err != nil {
 				return xerrors.Errorf("insert API key: %w", err)
 			}
@@ -1493,7 +1459,7 @@ func (server *Server) regenerateSessionToken(ctx context.Context, user database.
 	if err != nil {
 		return "", xerrors.Errorf("regenerate API key: %w", err)
 	}
-	return fmt.Sprintf("%s-%s", id, secret), nil
+	return secret, nil
 }
 
 // obtainOIDCAccessToken returns a valid OpenID Connect access token
