@@ -1,14 +1,14 @@
 import { FC, PropsWithChildren, useState } from "react"
 import { Section } from "components/SettingsLayout/Section"
 import { TokensPageView } from "./TokensPageView"
-import makeStyles from "@material-ui/core/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import { useTranslation, Trans } from "react-i18next"
 import { useTokensData } from "./hooks"
 import { ConfirmDeleteDialog } from "./components"
 import { Stack } from "components/Stack/Stack"
-import Button from "@material-ui/core/Button"
+import Button from "@mui/material/Button"
 import { Link as RouterLink } from "react-router-dom"
-import AddIcon from "@material-ui/icons/AddOutlined"
+import AddIcon from "@mui/icons-material/AddOutlined"
 import { APIKeyWithOwner } from "api/typesGenerated"
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {

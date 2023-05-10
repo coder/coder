@@ -241,7 +241,7 @@ func TestRegions(t *testing.T) {
 func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Parallel()
 
-	t.Run("create", func(t *testing.T) {
+	t.Run("CreateAndUpdate", func(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
@@ -267,14 +267,33 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxies, err := client.WorkspaceProxies(ctx)
+		found, err := client.WorkspaceProxyByID(ctx, proxyRes.Proxy.ID)
 		require.NoError(t, err)
-		require.Len(t, proxies, 1)
-		require.Equal(t, proxyRes.Proxy.ID, proxies[0].ID)
+		// This will be different, so set it to the same
+		found.Status = proxyRes.Proxy.Status
+		require.Equal(t, proxyRes.Proxy, found, "expected proxy")
 		require.NotEmpty(t, proxyRes.ProxyToken)
+
+		// Update the proxy
+		expName := namesgenerator.GetRandomName(1)
+		expDisplayName := namesgenerator.GetRandomName(1)
+		expIcon := namesgenerator.GetRandomName(1)
+		_, err = client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
+			ID:          proxyRes.Proxy.ID,
+			Name:        expName,
+			DisplayName: expDisplayName,
+			Icon:        expIcon,
+		})
+		require.NoError(t, err, "expected no error updating proxy")
+
+		found, err = client.WorkspaceProxyByID(ctx, proxyRes.Proxy.ID)
+		require.NoError(t, err)
+		require.Equal(t, expName, found.Name, "name")
+		require.Equal(t, expDisplayName, found.DisplayName, "display name")
+		require.Equal(t, expIcon, found.Icon, "icon")
 	})
 
-	t.Run("delete", func(t *testing.T) {
+	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { getApplicationsHost, getWorkspaceProxies } from "api/api"
+import { getWorkspaceProxies } from "api/api"
 import { Region } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import {
@@ -70,7 +70,6 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     onSuccess: (resp) => {
       setAndSaveProxy(proxy.selectedProxy, resp.regions)
     },
-    enabled: experimentEnabled,
   })
 
   const setAndSaveProxy = (
@@ -93,35 +92,20 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     setProxy(preferred)
   }
 
-  // ******************************* //
-  // ** This code can be removed  **
-  // ** when the experimental is  **
-  // **       dropped             ** //
-  const appHostQueryKey = ["get-application-host"]
-  const {
-    data: applicationHostResult,
-    error: appHostError,
-    isLoading: appHostLoading,
-    isFetched: appHostFetched,
-  } = useQuery({
-    queryKey: appHostQueryKey,
-    queryFn: getApplicationsHost,
-    enabled: !experimentEnabled,
-  })
-
   return (
     <ProxyContext.Provider
       value={{
         proxy: experimentEnabled
           ? proxy
           : {
-              ...getPreferredProxy([]),
-              preferredWildcardHostname: applicationHostResult?.host || "",
+              // If the experiment is disabled, then call 'getPreferredProxy' with the regions from
+              // the api call. The default behavior is to use the `primary` proxy.
+              ...getPreferredProxy(proxiesResp?.regions || []),
             },
-        proxies: experimentEnabled ? proxiesResp?.regions : [],
-        isLoading: experimentEnabled ? proxiesLoading : appHostLoading,
-        isFetched: experimentEnabled ? proxiesFetched : appHostFetched,
-        error: experimentEnabled ? proxiesError : appHostError,
+        proxies: proxiesResp?.regions,
+        isLoading: proxiesLoading,
+        isFetched: proxiesFetched,
+        error: proxiesError,
         // A function that takes the new proxies and selected proxy and updates
         // the state with the appropriate urls.
         setProxy: setAndSaveProxy,
@@ -165,8 +149,8 @@ export const getPreferredProxy = (
     (proxy) => selectedProxy && proxy.id === selectedProxy.id,
   )
 
-  if (!selectedProxy) {
-    // If no proxy is selected, default to the primary proxy.
+  // If no proxy is selected, or the selected proxy is unhealthy default to the primary proxy.
+  if (!selectedProxy || !selectedProxy.healthy) {
     selectedProxy = proxies.find((proxy) => proxy.name === "primary")
   }
 

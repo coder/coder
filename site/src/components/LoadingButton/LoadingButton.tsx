@@ -1,7 +1,7 @@
-import Button, { ButtonProps } from "@material-ui/core/Button"
-import CircularProgress from "@material-ui/core/CircularProgress"
-import { makeStyles } from "@material-ui/core/styles"
-import { Theme } from "@material-ui/core/styles/createTheme"
+import Button, { ButtonProps } from "@mui/material/Button"
+import CircularProgress from "@mui/material/CircularProgress"
+import { makeStyles } from "@mui/styles"
+import { Theme } from "@mui/material/styles"
 import { FC } from "react"
 
 export interface LoadingButtonProps extends ButtonProps {

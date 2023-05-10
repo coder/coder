@@ -1,13 +1,13 @@
-import Checkbox from "@material-ui/core/Checkbox"
-import FormControl from "@material-ui/core/FormControl"
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import FormGroup from "@material-ui/core/FormGroup"
-import FormHelperText from "@material-ui/core/FormHelperText"
-import FormLabel from "@material-ui/core/FormLabel"
-import MenuItem from "@material-ui/core/MenuItem"
-import makeStyles from "@material-ui/core/styles/makeStyles"
-import Switch from "@material-ui/core/Switch"
-import TextField from "@material-ui/core/TextField"
+import Checkbox from "@mui/material/Checkbox"
+import FormControl from "@mui/material/FormControl"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import FormGroup from "@mui/material/FormGroup"
+import FormHelperText from "@mui/material/FormHelperText"
+import FormLabel from "@mui/material/FormLabel"
+import MenuItem from "@mui/material/MenuItem"
+import makeStyles from "@mui/styles/makeStyles"
+import Switch from "@mui/material/Switch"
+import TextField from "@mui/material/TextField"
 import {
   HorizontalForm,
   FormFooter,
@@ -292,7 +292,6 @@ export const WorkspaceScheduleForm: FC<
                 name="autostartEnabled"
                 checked={form.values.autostartEnabled}
                 onChange={handleToggleAutostart}
-                color="primary"
               />
             }
             label={Language.startSwitch}
@@ -301,9 +300,6 @@ export const WorkspaceScheduleForm: FC<
             <TextField
               {...formHelpers("startTime")}
               disabled={isLoading || !form.values.autostartEnabled}
-              InputLabelProps={{
-                shrink: true,
-              }}
               label={Language.startTimeLabel}
               type="time"
               fullWidth
@@ -311,9 +307,6 @@ export const WorkspaceScheduleForm: FC<
             <TextField
               {...formHelpers("timezone")}
               disabled={isLoading || !form.values.autostartEnabled}
-              InputLabelProps={{
-                shrink: true,
-              }}
               label={Language.timezoneLabel}
               select
               fullWidth
@@ -340,9 +333,7 @@ export const WorkspaceScheduleForm: FC<
                       disabled={isLoading || !form.values.autostartEnabled}
                       onChange={form.handleChange}
                       name={checkbox.name}
-                      color="primary"
                       size="small"
-                      disableRipple
                     />
                   }
                   key={checkbox.name}
@@ -369,7 +360,6 @@ export const WorkspaceScheduleForm: FC<
                 name="autostopEnabled"
                 checked={form.values.autostopEnabled}
                 onChange={handleToggleAutostop}
-                color="primary"
               />
             }
             label={Language.stopSwitch}

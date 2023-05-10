@@ -1,8 +1,9 @@
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../utils/combineClasses"
 import { CopyButton } from "../CopyButton/CopyButton"
+import { Theme } from "@mui/material/styles"
 
 export interface CodeExampleProps {
   code: string
@@ -30,7 +31,7 @@ export const CodeExample: FC<React.PropsWithChildren<CodeExampleProps>> = ({
       <CopyButton
         text={code}
         tooltipTitle={tooltipTitle}
-        buttonClassName={combineClasses([styles.button, buttonClassName])}
+        buttonClassName={buttonClassName}
       />
     </div>
   )
@@ -51,26 +52,14 @@ const useStyles = makeStyles<Theme, styleProps>((theme) => ({
     fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 14,
     borderRadius: theme.shape.borderRadius,
-    padding: props.inline ? "0px" : theme.spacing(0.5),
+    padding: theme.spacing(1),
+    lineHeight: "150%",
   }),
-  code: (props) => ({
-    padding: `
-      ${props.inline ? 0 : theme.spacing(0.5)}px
-      ${theme.spacing(0.75)}px
-      ${props.inline ? 0 : theme.spacing(0.5)}px
-      ${props.inline ? theme.spacing(1) : theme.spacing(2)}px
-    `,
+  code: {
+    padding: theme.spacing(0, 1),
     width: "100%",
     display: "flex",
     alignItems: "center",
     wordBreak: "break-all",
-  }),
-  button: (props) => ({
-    border: 0,
-    minWidth: props.inline ? 30 : 42,
-    minHeight: props.inline ? 30 : 42,
-    borderRadius: theme.shape.borderRadius,
-    padding: props.inline ? theme.spacing(0.4) : undefined,
-    background: "transparent",
-  }),
+  },
 }))

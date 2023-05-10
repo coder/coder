@@ -14,7 +14,7 @@ coder:
   #
   # Make sure you set CODER_PRIMARY_ACCESS_URL and CODER_PROXY_SESSION_TOKEN in
   # the environment below. You can get a proxy token using the CLI:
-  #   coder proxy create \
+  #   coder wsproxy create \
   #     --name "proxy-name" \
   #     --display-name "Proxy Name" \
   #     --icon "/emojis/xyz.png"

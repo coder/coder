@@ -149,6 +149,7 @@ const docTemplate = `{
                 ],
                 "summary": "Get applications host",
                 "operationId": "get-applications-host",
+                "deprecated": true,
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -5270,6 +5271,51 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update workspace proxy",
+                "operationId": "update-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchWorkspaceProxy"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                        }
+                    }
+                }
             }
         },
         "/workspaces": {
@@ -8134,6 +8180,33 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.PatchWorkspaceProxy": {
+            "type": "object",
+            "required": [
+                "display_name",
+                "icon",
+                "id",
+                "name"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "regenerate_token": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.PprofConfig": {
             "type": "object",
             "properties": {
@@ -9915,6 +9988,9 @@ const docTemplate = `{
                 },
                 "deleted": {
                     "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
                 },
                 "icon": {
                     "type": "string"

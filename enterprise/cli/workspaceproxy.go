@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -26,8 +27,154 @@ func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 			r.createProxy(),
 			r.deleteProxy(),
 			r.listProxies(),
+			r.patchProxy(),
+			r.regenerateProxyToken(),
 		},
 	}
+
+	return cmd
+}
+
+func (r *RootCmd) regenerateProxyToken() *clibase.Cmd {
+	formatter := newUpdateProxyResponseFormatter()
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
+		Use: "regenerate-token <name|id>",
+		Short: "Regenerate a workspace proxy authentication token. " +
+			"This will invalidate the existing authentication token.",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
+			// This is cheeky, but you can also use a uuid string in
+			// 'DeleteWorkspaceProxyByName' and it will work.
+			proxy, err := client.WorkspaceProxyByName(ctx, inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
+			}
+
+			// Only regenerate the token
+			updated, err := client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
+				ID:              proxy.ID,
+				Name:            proxy.Name,
+				DisplayName:     proxy.DisplayName,
+				Icon:            proxy.Icon,
+				RegenerateToken: true,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace proxy %q: %w", inv.Args[0], err)
+			}
+
+			output, err := formatter.Format(ctx, updated)
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(inv.Stdout, output)
+			return err
+		},
+	}
+	formatter.AttachOptions(&cmd.Options)
+
+	return cmd
+}
+
+func (r *RootCmd) patchProxy() *clibase.Cmd {
+	var (
+		proxyName   string
+		displayName string
+		proxyIcon   string
+		formatter   = cliui.NewOutputFormatter(
+			// Text formatter should be human readable.
+			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+				response, ok := data.(codersdk.WorkspaceProxy)
+				if !ok {
+					return nil, xerrors.Errorf("unexpected type %T", data)
+				}
+				return fmt.Sprintf("Workspace Proxy %q updated successfully.", response.Name), nil
+			}),
+			cliui.JSONFormat(),
+			// Table formatter expects a slice, make a slice of one.
+			cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"proxy name", "proxy url"}),
+				func(data any) (any, error) {
+					response, ok := data.(codersdk.WorkspaceProxy)
+					if !ok {
+						return nil, xerrors.Errorf("unexpected type %T", data)
+					}
+					return []codersdk.WorkspaceProxy{response}, nil
+				}),
+		)
+	)
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
+		Use:   "edit <name|id>",
+		Short: "Edit a workspace proxy",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
+			if proxyIcon == "" && displayName == "" && proxyName == "" {
+				return xerrors.Errorf("specify at least one field to update")
+			}
+
+			// This is cheeky, but you can also use a uuid string in
+			// 'DeleteWorkspaceProxyByName' and it will work.
+			proxy, err := client.WorkspaceProxyByName(ctx, inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
+			}
+
+			// Use the existing values if the user didn't specify them.
+			if proxyName == "" {
+				proxyName = proxy.Name
+			}
+			if displayName == "" {
+				displayName = proxy.DisplayName
+			}
+			if proxyIcon == "" {
+				proxyIcon = proxy.Icon
+			}
+
+			updated, err := client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
+				ID:          proxy.ID,
+				Name:        proxyName,
+				DisplayName: displayName,
+				Icon:        proxyIcon,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace proxy %q: %w", inv.Args[0], err)
+			}
+
+			output, err := formatter.Format(ctx, updated.Proxy)
+			if err != nil {
+				return xerrors.Errorf("format response: %w", err)
+			}
+			_, err = fmt.Fprintln(inv.Stdout, output)
+			return err
+		},
+	}
+
+	formatter.AttachOptions(&cmd.Options)
+	cmd.Options.Add(
+		clibase.Option{
+			Flag:        "name",
+			Description: "(Optional) Name of the proxy. This is used to identify the proxy.",
+			Value:       clibase.StringOf(&proxyName),
+		},
+		clibase.Option{
+			Flag:        "display-name",
+			Description: "(Optional) Display of the proxy. A more human friendly name to be displayed.",
+			Value:       clibase.StringOf(&displayName),
+		},
+		clibase.Option{
+			Flag:        "icon",
+			Description: "(Optional) Display icon of the proxy.",
+			Value:       clibase.StringOf(&proxyIcon),
+		},
+	)
 
 	return cmd
 }
@@ -61,28 +208,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 		proxyName   string
 		displayName string
 		proxyIcon   string
-		onlyToken   bool
-		formatter   = cliui.NewOutputFormatter(
-			// Text formatter should be human readable.
-			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
-				response, ok := data.(codersdk.CreateWorkspaceProxyResponse)
-				if !ok {
-					return nil, xerrors.Errorf("unexpected type %T", data)
-				}
-				return fmt.Sprintf("Workspace Proxy %q created successfully. Save this token, it will not be shown again."+
-					"\nToken: %s", response.Proxy.Name, response.ProxyToken), nil
-			}),
-			cliui.JSONFormat(),
-			// Table formatter expects a slice, make a slice of one.
-			cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.CreateWorkspaceProxyResponse{}, []string{"proxy name", "proxy url", "proxy token"}),
-				func(data any) (any, error) {
-					response, ok := data.(codersdk.CreateWorkspaceProxyResponse)
-					if !ok {
-						return nil, xerrors.Errorf("unexpected type %T", data)
-					}
-					return []codersdk.CreateWorkspaceProxyResponse{response}, nil
-				}),
-		)
+		formatter   = newUpdateProxyResponseFormatter()
 	)
 
 	client := new(codersdk.Client)
@@ -108,16 +234,10 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 				return xerrors.Errorf("create workspace proxy: %w", err)
 			}
 
-			var output string
-			if onlyToken {
-				output = resp.ProxyToken
-			} else {
-				output, err = formatter.Format(ctx, resp)
-				if err != nil {
-					return err
-				}
+			output, err := formatter.Format(ctx, resp)
+			if err != nil {
+				return err
 			}
-
 			_, err = fmt.Fprintln(inv.Stdout, output)
 			return err
 		},
@@ -139,11 +259,6 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 			Flag:        "icon",
 			Description: "Display icon of the proxy.",
 			Value:       clibase.StringOf(&proxyIcon),
-		},
-		clibase.Option{
-			Flag:        "only-token",
-			Description: "Only print the token. This is useful for scripting.",
-			Value:       clibase.BoolOf(&onlyToken),
 		},
 	)
 	return cmd
@@ -204,4 +319,57 @@ func (r *RootCmd) listProxies() *clibase.Cmd {
 
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
+}
+
+// updateProxyResponseFormatter is used for both create and regenerate proxy commands.
+type updateProxyResponseFormatter struct {
+	onlyToken bool
+	formatter *cliui.OutputFormatter
+}
+
+func (f *updateProxyResponseFormatter) Format(ctx context.Context, data codersdk.UpdateWorkspaceProxyResponse) (string, error) {
+	if f.onlyToken {
+		return data.ProxyToken, nil
+	}
+	return f.formatter.Format(ctx, data)
+}
+
+func (f *updateProxyResponseFormatter) AttachOptions(opts *clibase.OptionSet) {
+	opts.Add(
+		clibase.Option{
+			Flag:        "only-token",
+			Description: "Only print the token. This is useful for scripting.",
+			Value:       clibase.BoolOf(&f.onlyToken),
+		},
+	)
+	f.formatter.AttachOptions(opts)
+}
+
+func newUpdateProxyResponseFormatter() *updateProxyResponseFormatter {
+	up := &updateProxyResponseFormatter{
+		onlyToken: false,
+		formatter: cliui.NewOutputFormatter(
+			// Text formatter should be human readable.
+			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+				response, ok := data.(codersdk.UpdateWorkspaceProxyResponse)
+				if !ok {
+					return nil, xerrors.Errorf("unexpected type %T", data)
+				}
+				return fmt.Sprintf("Workspace Proxy %q created successfully. Save this token, it will not be shown again."+
+					"\nToken: %s", response.Proxy.Name, response.ProxyToken), nil
+			}),
+			cliui.JSONFormat(),
+			// Table formatter expects a slice, make a slice of one.
+			cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.UpdateWorkspaceProxyResponse{}, []string{"proxy name", "proxy url", "proxy token"}),
+				func(data any) (any, error) {
+					response, ok := data.(codersdk.UpdateWorkspaceProxyResponse)
+					if !ok {
+						return nil, xerrors.Errorf("unexpected type %T", data)
+					}
+					return []codersdk.UpdateWorkspaceProxyResponse{response}, nil
+				}),
+		),
+	}
+
+	return up
 }

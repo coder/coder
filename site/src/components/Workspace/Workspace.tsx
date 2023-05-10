@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -208,7 +208,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                         onClick={handleBuildRetry}
                         startIcon={<RefreshOutlined />}
                         size="small"
-                        variant="outlined"
                       >
                         {t("actionButton.retryDebugMode")}
                       </Button>
@@ -273,7 +272,7 @@ export const useStyles = makeStyles((theme) => {
     },
 
     actions: {
-      [theme.breakpoints.down("sm")]: {
+      [theme.breakpoints.down("md")]: {
         flexDirection: "column",
       },
     },

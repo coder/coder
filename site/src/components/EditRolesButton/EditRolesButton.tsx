@@ -1,12 +1,12 @@
-import IconButton from "@material-ui/core/IconButton"
+import IconButton from "@mui/material/IconButton"
 import { EditSquare } from "components/Icons/EditSquare"
 import { useRef, useState, FC } from "react"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { useTranslation } from "react-i18next"
-import Popover from "@material-ui/core/Popover"
+import Popover from "@mui/material/Popover"
 import { Stack } from "components/Stack/Stack"
-import Checkbox from "@material-ui/core/Checkbox"
-import UserIcon from "@material-ui/icons/PersonOutline"
+import Checkbox from "@mui/material/Checkbox"
+import UserIcon from "@mui/icons-material/PersonOutline"
 import { Role } from "api/typesGenerated"
 
 const Option: React.FC<{
@@ -24,7 +24,6 @@ const Option: React.FC<{
         <Checkbox
           id={name}
           size="small"
-          color="primary"
           className={styles.checkbox}
           value={value}
           checked={isChecked}

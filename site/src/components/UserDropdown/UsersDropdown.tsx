@@ -1,6 +1,6 @@
-import Badge from "@material-ui/core/Badge"
-import MenuItem from "@material-ui/core/MenuItem"
-import { makeStyles } from "@material-ui/core/styles"
+import Badge from "@mui/material/Badge"
+import MenuItem from "@mui/material/MenuItem"
+import { makeStyles } from "@mui/styles"
 import { useState, FC, PropsWithChildren, MouseEvent } from "react"
 import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
@@ -54,7 +54,6 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
 
       <BorderedMenu
         anchorEl={anchorEl}
-        getContentAnchorEl={null}
         open={Boolean(anchorEl)}
         anchorOrigin={{
           vertical: "bottom",

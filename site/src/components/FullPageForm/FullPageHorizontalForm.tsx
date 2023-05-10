@@ -5,7 +5,7 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader"
-import Button from "@material-ui/core/Button"
+import Button from "@mui/material/Button"
 
 export interface FullPageHorizontalFormProps {
   title: string
@@ -21,7 +21,7 @@ export const FullPageHorizontalForm: FC<
       <PageHeader
         actions={
           onCancel && (
-            <Button variant="outlined" size="small" onClick={onCancel}>
+            <Button size="small" onClick={onCancel}>
               Cancel
             </Button>
           )

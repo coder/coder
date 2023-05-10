@@ -1,6 +1,6 @@
-import Collapse from "@material-ui/core/Collapse"
-import { makeStyles } from "@material-ui/core/styles"
-import TableCell from "@material-ui/core/TableCell"
+import Collapse from "@mui/material/Collapse"
+import { makeStyles } from "@mui/styles"
+import TableCell from "@mui/material/TableCell"
 import { AuditLog } from "api/typesGenerated"
 import {
   CloseDropdown,
@@ -11,11 +11,11 @@ import { Stack } from "components/Stack/Stack"
 import { TimelineEntry } from "components/Timeline/TimelineEntry"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useState } from "react"
-import { PaletteIndex } from "theme/palettes"
 import userAgentParser from "ua-parser-js"
 import { AuditLogDiff, determineGroupDiff } from "./AuditLogDiff"
 import { useTranslation } from "react-i18next"
 import { AuditLogDescription } from "./AuditLogDescription"
+import { PaletteIndex } from "theme/theme"
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
   // redirects are successful

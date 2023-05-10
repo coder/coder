@@ -1,4 +1,4 @@
-import Button from "@material-ui/core/Button"
+import Button from "@mui/material/Button"
 import { FC } from "react"
 import * as TypesGen from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"

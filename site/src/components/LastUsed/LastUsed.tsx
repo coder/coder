@@ -1,9 +1,10 @@
-import { makeStyles, Theme, useTheme } from "@material-ui/core/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import { FC } from "react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { colors } from "theme/colors"
 import { Stack } from "components/Stack/Stack"
+import { Theme } from "@mui/material/styles"
 
 dayjs.extend(relativeTime)
 
