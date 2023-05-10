@@ -13,6 +13,7 @@ import {
   useState,
 } from "react"
 import axios from "axios"
+import { useProxyLatency } from "./useProxyLatency"
 
 interface ProxyContextValue {
   proxy: PreferredProxy
@@ -72,10 +73,6 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   }
 
   const [proxy, setProxy] = useState<PreferredProxy>(savedProxy)
-  const [proxyLatenciesMS, dispatchProxyLatenciesMS] = useReducer(
-    proxyLatenciesReducer,
-    {},
-  )
 
   const dashboard = useDashboard()
   const experimentEnabled = dashboard?.experiments.includes("moons")
@@ -98,91 +95,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   // Everytime we get a new proxiesResponse, update the latency check
   // to each workspace proxy.
-  useEffect(() => {
-    if (!proxiesResp) {
-      return
-    }
-
-    // proxyMap is a map of the proxy path_app_url to the proxy object.
-    // This is for the observer to know which requests are important to
-    // record.
-    const proxyChecks2 = proxiesResp.regions.reduce((acc, proxy) => {
-      if (!proxy.healthy) {
-        return acc
-      }
-
-      const url = new URL("/latency-check", proxy.path_app_url)
-      acc[url.toString()] = proxy
-      return acc
-    }, {} as Record<string, Region>)
-
-    // Start a new performance observer to record of all the requests
-    // to the proxies.
-    const observer = new PerformanceObserver((list) => {
-      list.getEntries().forEach((entry) => {
-        if (entry.entryType !== "resource") {
-          // We should never get these, but just in case.
-          return
-        }
-
-        const check = proxyChecks2[entry.name]
-        if (!check) {
-          // This is not a proxy request.
-          return
-        }
-        // These docs are super useful.
-        // https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing
-        // dispatchProxyLatenciesMS({
-        //   proxyID: check.id,
-        //   latencyMS: entry.duration,
-        // })
-
-        console.log("performance observer entry", entry)
-      })
-      console.log("performance observer", list)
-    })
-    // The resource requests include xmlhttp requests.
-    observer.observe({ entryTypes: ["resource"] })
-    axios
-      .get("https://dev.coder.com/healthz")
-      .then((resp) => {
-        console.log(resp)
-      })
-      .catch((err) => {
-        console.log(err)
-      })
-
-    const proxyChecks = proxiesResp.regions.map((proxy) => {
-      // TODO: Move to /derp/latency-check
-      const url = new URL("/healthz", proxy.path_app_url)
-      return axios
-        .get(url.toString())
-        .then((resp) => {
-          return resp
-        })
-        .catch((err) => {
-          return err
-        })
-
-      // Add a random query param to ensure the request is not cached.
-      // url.searchParams.append("cache_bust", Math.random().toString())
-    })
-
-    Promise.all([proxyChecks])
-      .then((resp) => {
-        console.log(resp)
-        console.log("done", observer.takeRecords())
-        // observer.disconnect()
-      })
-      .catch((err) => {
-        console.log(err)
-        // observer.disconnect()
-      })
-      .finally(() => {
-        console.log("finally", observer.takeRecords())
-        // observer.disconnect()
-      })
-  }, [proxiesResp])
+  const proxyLatenciesMS = useProxyLatency(proxiesResp)
 
   const setAndSaveProxy = (
     selectedProxy?: Region,

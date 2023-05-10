@@ -187,6 +187,23 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		SecureAuthCookie: opts.SecureAuthCookie,
 	}
 
+	// The primary coderd dashboard needs to make some GET requests to
+	// the workspace proxies to check latency.
+	corsMW := cors.Handler(cors.Options{
+		AllowedOrigins: []string{
+			// Allow the dashboard to make requests to the proxy for latency
+			// checks.
+			opts.DashboardURL.String(),
+			"http://localhost:8080",
+			"localhost:8080",
+		},
+		// Only allow GET requests for latency checks.
+		AllowedMethods: []string{http.MethodOptions, http.MethodGet},
+		AllowedHeaders: []string{"Accept", "Content-Type", "X-LATENCY-CHECK", "X-CSRF-TOKEN"},
+		// Do not send any cookies
+		AllowCredentials: false,
+	})
+
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)
 	// Persistent middlewares to all routes
@@ -199,20 +216,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		httpmw.Logger(s.Logger),
 		httpmw.Prometheus(s.PrometheusRegistry),
-		// The primary coderd dashboard needs to make some GET requests to
-		// the workspace proxies to check latency.
-		cors.Handler(cors.Options{
-			AllowedOrigins: []string{
-				// Allow the dashboard to make requests to the proxy for latency
-				// checks.
-				opts.DashboardURL.String(),
-			},
-			// Only allow GET requests for latency checks.
-			AllowedMethods: []string{http.MethodGet},
-			AllowedHeaders: []string{"Accept", "Content-Type"},
-			// Do not send any cookies
-			AllowCredentials: false,
-		}),
+		corsMW,
 
 		// HandleSubdomain is a middleware that handles all requests to the
 		// subdomain-based workspace apps.
@@ -263,7 +267,8 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 	// See coderd/coderd.go for why we need this.
 	rootRouter := chi.NewRouter()
-	rootRouter.Get("/latency-check", coderd.LatencyCheck(s.DashboardURL.String(), s.AppServer.AccessURL.String()))
+	// Make sure to add the cors middleware to the latency check route.
+	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck("localhost:8080", "http://localhost:8080", s.DashboardURL.String(), s.AppServer.AccessURL.String())).ServeHTTP)
 	rootRouter.Mount("/", r)
 	s.Handler = rootRouter
 
