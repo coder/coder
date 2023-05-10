@@ -26,7 +26,7 @@ export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
     <HelmetProvider>
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={dark}>
-          <CssBaseline />
+          <CssBaseline enableColorScheme />
           <ErrorBoundary>
             <QueryClientProvider client={queryClient}>
               <AuthProvider>
