@@ -4106,23 +4106,25 @@ Parameter represents a set value for the scope.
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": ["DEPRECATED_PARAMETERS"]
 }
 ```
 
 ### Properties
 
-| Name              | Type                                               | Required | Restrictions | Description |
-| ----------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `created_at`      | string                                             | false    |              |             |
-| `created_by`      | [codersdk.User](#codersdkuser)                     | false    |              |             |
-| `id`              | string                                             | false    |              |             |
-| `job`             | [codersdk.ProvisionerJob](#codersdkprovisionerjob) | false    |              |             |
-| `name`            | string                                             | false    |              |             |
-| `organization_id` | string                                             | false    |              |             |
-| `readme`          | string                                             | false    |              |             |
-| `template_id`     | string                                             | false    |              |             |
-| `updated_at`      | string                                             | false    |              |             |
+| Name              | Type                                                                        | Required | Restrictions | Description |
+| ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`      | string                                                                      | false    |              |             |
+| `created_by`      | [codersdk.User](#codersdkuser)                                              | false    |              |             |
+| `id`              | string                                                                      | false    |              |             |
+| `job`             | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
+| `name`            | string                                                                      | false    |              |             |
+| `organization_id` | string                                                                      | false    |              |             |
+| `readme`          | string                                                                      | false    |              |             |
+| `template_id`     | string                                                                      | false    |              |             |
+| `updated_at`      | string                                                                      | false    |              |             |
+| `warnings`        | array of [codersdk.TemplateVersionWarning](#codersdktemplateversionwarning) | false    |              |             |
 
 ## codersdk.TemplateVersionGitAuth
 
@@ -4259,6 +4261,20 @@ Parameter represents a set value for the scope.
 | `type`   | `string` |
 | `type`   | `number` |
 | `type`   | `bool`   |
+
+## codersdk.TemplateVersionWarning
+
+```json
+"DEPRECATED_PARAMETERS"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                   |
+| ----------------------- |
+| `DEPRECATED_PARAMETERS` |
 
 ## codersdk.TokenConfig
 
