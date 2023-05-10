@@ -3,6 +3,7 @@ import { getWorkspaceProxies } from "api/api"
 import { Region } from "api/typesGenerated"
 import axios from "axios"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { PerformanceObserver } from "perf_hooks"
 import {
   createContext,
   FC,
@@ -85,6 +86,15 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     if (!proxiesResp) {
       return
     }
+
+    window.performance.getEntries().forEach((entry) => {
+      console.log(entry)
+    })
+    const observer = new PerformanceObserver((list, observer) => {
+      console.log("performance observer", list, observer)
+    })
+
+    observer.observe({ entryTypes: ["http2", "http"] })
   }, [proxiesResp])
 
   const setAndSaveProxy = (
