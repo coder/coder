@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
@@ -69,7 +69,6 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
             fullWidth
             label={Language.emailLabel}
             value={email}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("username")}
@@ -79,7 +78,6 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
             disabled={!editable}
             fullWidth
             label={Language.usernameLabel}
-            variant="outlined"
           />
 
           <div>

@@ -9,7 +9,7 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import * as Yup from "yup"
 import { nameValidator, getFormHelpers, onChangeTrimmed } from "utils/formUtils"
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { Workspace } from "api/typesGenerated"
 
 export type WorkspaceSettingsFormValues = {
@@ -53,7 +53,6 @@ export const WorkspaceSettingsForm: FC<{
             autoFocus
             fullWidth
             label={t("nameLabel")}
-            variant="outlined"
           />
         </FormFields>
       </FormSection>

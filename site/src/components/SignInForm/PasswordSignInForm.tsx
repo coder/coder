@@ -1,5 +1,5 @@
 import { Stack } from "../Stack/Stack"
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { getFormHelpers, onChangeTrimmed } from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Language } from "./SignInForm"
@@ -41,7 +41,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 
   return (
     <form onSubmit={form.handleSubmit}>
-      <Stack>
+      <Stack spacing={2.5}>
         <TextField
           {...getFieldHelpers("email")}
           onChange={onChangeTrimmed(form)}
@@ -50,7 +50,6 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
           fullWidth
           label={Language.emailLabel}
           type="email"
-          variant="outlined"
         />
         <TextField
           {...getFieldHelpers("password")}
@@ -59,14 +58,13 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
           id="password"
           label={Language.passwordLabel}
           type="password"
-          variant="outlined"
         />
         <div>
           <LoadingButton
+            size="large"
             loading={isSigningIn}
             fullWidth
             type="submit"
-            variant="outlined"
           >
             {isSigningIn ? "" : Language.passwordSignIn}
           </LoadingButton>

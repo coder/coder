@@ -1,8 +1,9 @@
-import { Theme, useTheme } from "@material-ui/core/styles"
+import { useTheme } from "@mui/styles"
 import { useMonaco } from "@monaco-editor/react"
 import { useEffect, useState } from "react"
 import { hslToHex } from "utils/colors"
 import { editor } from "monaco-editor"
+import { Theme } from "@mui/material/styles"
 
 // Theme based on https://github.com/brijeshb42/monaco-themes/blob/master/themes/Dracula.json
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- The theme is not typed

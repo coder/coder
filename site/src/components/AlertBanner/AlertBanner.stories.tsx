@@ -1,9 +1,9 @@
 import { Story } from "@storybook/react"
 import { AlertBanner } from "./AlertBanner"
-import Button from "@material-ui/core/Button"
+import Button from "@mui/material/Button"
 import { mockApiError } from "testHelpers/entities"
 import { AlertBannerProps } from "./alertTypes"
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 
 export default {
   title: "components/AlertBanner",

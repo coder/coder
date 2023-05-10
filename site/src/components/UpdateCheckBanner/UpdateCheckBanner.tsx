@@ -1,4 +1,4 @@
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Trans, useTranslation } from "react-i18next"
 import * as TypesGen from "api/typesGenerated"

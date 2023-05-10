@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormikTouched, useFormik } from "formik"
 import { FC, ChangeEvent } from "react"
@@ -14,11 +14,11 @@ import {
   FormFields,
 } from "components/Form/Form"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles } from "@material-ui/core/styles"
-import Link from "@material-ui/core/Link"
-import Checkbox from "@material-ui/core/Checkbox"
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import Switch from "@material-ui/core/Switch"
+import { makeStyles } from "@mui/styles"
+import Link from "@mui/material/Link"
+import Checkbox from "@mui/material/Checkbox"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import Switch from "@mui/material/Switch"
 
 const TTLHelperText = ({
   ttl,
@@ -235,7 +235,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             fullWidth
             inputProps={{ min: 0, step: 1 }}
             label={t("defaultTtlLabel")}
-            variant="outlined"
             type="number"
           />
 
@@ -261,7 +260,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             fullWidth
             inputProps={{ min: 0, step: 1 }}
             label={t("maxTtlLabel")}
-            variant="outlined"
             type="number"
           />
         </Stack>
@@ -276,7 +274,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             <Checkbox
               id="allow_user_autostart"
               size="small"
-              color="primary"
               disabled={isSubmitting || !allowAdvancedScheduling}
               onChange={async () => {
                 await form.setFieldValue(
@@ -297,7 +294,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             <Checkbox
               id="allow-user-autostop"
               size="small"
-              color="primary"
               disabled={isSubmitting || !allowAdvancedScheduling}
               onChange={async () => {
                 await form.setFieldValue(
@@ -334,7 +330,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     name="failureCleanupEnabled"
                     checked={form.values.failure_cleanup_enabled}
                     onChange={handleToggleFailureCleanup}
-                    color="primary"
                   />
                 }
                 label="Enable Failure Cleanup"
@@ -351,7 +346,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 fullWidth
                 inputProps={{ min: 0, step: 1 }}
                 label="Time until cleanup (days)"
-                variant="outlined"
                 type="number"
                 aria-label="Failure Cleanup"
               />
@@ -368,7 +362,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     name="inactivityCleanupEnabled"
                     checked={form.values.inactivity_cleanup_enabled}
                     onChange={handleToggleInactivityCleanup}
-                    color="primary"
                   />
                 }
                 label="Enable Inactivity Cleanup"
@@ -387,7 +380,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 fullWidth
                 inputProps={{ min: 0, step: 1 }}
                 label="Time until cleanup (days)"
-                variant="outlined"
                 type="number"
                 aria-label="Inactivity Cleanup"
               />

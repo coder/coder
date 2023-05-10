@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import EditIcon from "@material-ui/icons/Edit"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import EditIcon from "@mui/icons-material/Edit"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
@@ -43,13 +43,10 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
       <PageHeader
         actions={
           <Link
-            underline="none"
             component={RouterLink}
             to={`/templates/${templateName}/versions/${versionName}/edit`}
           >
-            <Button variant="outlined" startIcon={<EditIcon />}>
-              Edit
-            </Button>
+            <Button startIcon={<EditIcon />}>Edit</Button>
           </Link>
         }
       >

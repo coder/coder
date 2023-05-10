@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
-import Skeleton from "@material-ui/lab/Skeleton"
+import Button from "@mui/material/Button"
+import { makeStyles, useTheme } from "@mui/styles"
+import Skeleton from "@mui/material/Skeleton"
 import { GetLicensesResponse } from "api/api"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { LicenseCard } from "components/LicenseCard/LicenseCard"
@@ -52,16 +52,12 @@ const LicensesSettingsPageView: FC<Props> = ({
           description="Enterprise licenses unlock more features on your deployment."
         />
 
-        <Button
-          variant="outlined"
-          component={Link}
-          to="/settings/deployment/licenses/add"
-        >
+        <Button component={Link} to="/settings/deployment/licenses/add">
           Add new license
         </Button>
       </Stack>
 
-      {isLoading && <Skeleton variant="rect" height={200} />}
+      {isLoading && <Skeleton variant="rectangular" height={200} />}
 
       {!isLoading && licenses && licenses?.length > 0 && (
         <Stack spacing={4}>

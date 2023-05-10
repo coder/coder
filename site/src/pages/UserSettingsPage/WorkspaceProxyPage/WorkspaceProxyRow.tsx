@@ -2,14 +2,14 @@ import { Region } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { Avatar } from "components/Avatar/Avatar"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
-import TableCell from "@material-ui/core/TableCell"
-import TableRow from "@material-ui/core/TableRow"
+import TableCell from "@mui/material/TableCell"
+import TableRow from "@mui/material/TableRow"
 import { FC } from "react"
 import {
   HealthyBadge,
   NotHealthyBadge,
 } from "components/DeploySettingsLayout/Badges"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 
 export const ProxyRow: FC<{
