@@ -1,7 +1,7 @@
 bazil.org/fuse v0.0.0-20160811212531-371fbbdaa898/go.mod h1:Xbm+BRKSBEpa4q4hTSxohYNQpsxXPbPry4JJWOB3LB8=
 bazil.org/fuse v0.0.0-20200407214033-5883e5a4b512/go.mod h1:FbcW6z/2VytnFDhZfumh8Ss8zxHE6qpMP5sHTRe0EaM=
-cdr.dev/slog v1.5.2-0.20230509205428-ec11fd461527 h1:SBLSl7XGaxD0Vmky3XckmtxllYsohbby5CNBI/MIT/U=
-cdr.dev/slog v1.5.2-0.20230509205428-ec11fd461527/go.mod h1:vW6Q4gGoDZSb4Db2wxAZoUba/HRUpen1g0fCu06zrjQ=
+cdr.dev/slog v1.5.3 h1:Ry3RZLX6r1/n7Yud9K9Wz7h230VWKxl8m/COPmnWIyM=
+cdr.dev/slog v1.5.3/go.mod h1:vW6Q4gGoDZSb4Db2wxAZoUba/HRUpen1g0fCu06zrjQ=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=
