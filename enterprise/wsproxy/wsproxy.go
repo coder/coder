@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/cors"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
@@ -21,6 +19,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/tracing"
@@ -261,6 +260,12 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			DashboardURL: opts.DashboardURL.String(),
 		})
 	})
+
+	// See coderd/coderd.go for why we need this.
+	rootRouter := chi.NewRouter()
+	rootRouter.Get("/latency-check", coderd.LatencyCheck(s.DashboardURL.String(), s.AppServer.AccessURL.String()))
+	rootRouter.Mount("/", r)
+	s.Handler = rootRouter
 
 	return s, nil
 }
