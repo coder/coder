@@ -148,10 +148,20 @@ jobs:
           jf docker scan --format=sarif \
             ${{ steps.build.outputs.image }} | \
             tee xray.sarif
+          # JFrog xray generates slightly invalid sarif 🙃.
+          cat xray.sarif | jq '. |
+          .runs[].tool.driver.rules[] |=
+            if .shortDescription == null then
+              .shortDescription |= { "text": "" }
+            else
+              .
+            end |
+          .runs[].tool.driver.rules[].help |= { "text": .markdown } | del(.markdown)' > \
+            xray-fixed.sarif
       - name: Upload JFrog Xray results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: xray.sarif
+          sarif_file: xray-fixed.sarif
           category: "Xray"
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@e5f43133f6e8736992c9f3c1b3296e24b37e17f2
@@ -181,8 +191,7 @@ jobs:
           curl \
             -qfsSL \
             -X POST \
-            -H "Content-Type: application/json" \
-            --data ${msg@Q} \
+            --data "${msg@Q}"" \
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
   advisory-report:
     needs: [codeql, trivy_xray]
@@ -203,7 +212,6 @@ jobs:
           curl \
             -qfsSL \
             -X POST \
-            -H "Content-Type: application/json" \
             --data ${msg@Q} \
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
