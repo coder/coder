@@ -119,6 +119,8 @@ coder:
         secretKeyRef:
           name: "${kubernetes_secret.coder-db.metadata.0.name}"
           key: url
+    - name: "CODER_PROMETHEUS_ENABLE"
+      value: "true"
     - name: "CODER_VERBOSE"
       value: "true"
   image:
@@ -147,6 +149,20 @@ coder:
   - emptyDir:
       sizeLimit: 1024Mi
     name: cache
+  extraTemplates:
+  - |
+    apiVersion: monitoring.googleapis.com/v1
+    kind: PodMonitoring
+    metadata:
+      namespace: ${kubernetes_namespace.coder_namespace.metadata.0.name}
+      name: coder-monitoring
+    spec:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: coder
+      endpoints:
+      - port: prometheus-http
+        interval: 30s
 
 EOF
   ]
