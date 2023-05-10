@@ -45,12 +45,12 @@ data "coder_parameter" "location" {
 }
 
 data "coder_parameter" "data_disk_size" {
-  description = "Size of your data (F:) drive in GB"
+  description  = "Size of your data (F:) drive in GB"
   display_name = "Data disk size"
-  name = "data_disk_size"
-  default = 20
-  mutable = "false"
-  type = "number"
+  name         = "data_disk_size"
+  default      = 20
+  mutable      = "false"
+  type         = "number"
   validation {
     min = 5
     max = 5000
@@ -65,8 +65,8 @@ resource "coder_agent" "main" {
 }
 
 resource "random_password" "admin_password" {
-  length           = 16
-  special          = true
+  length  = 16
+  special = true
   # https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/password-must-meet-complexity-requirements#reference
   # we remove characters that require special handling in XML, as this is how we pass it to the VM
   # namely: <>&'"
@@ -74,7 +74,7 @@ resource "random_password" "admin_password" {
 }
 
 locals {
-  prefix = "coder-win"
+  prefix         = "coder-win"
   admin_username = "coder"
 }
 
@@ -120,7 +120,7 @@ resource "azurerm_network_interface" "main" {
     subnet_id                     = azurerm_subnet.internal.id
     private_ip_address_allocation = "Dynamic"
     // Uncomment for public IP address as well as azurerm_public_ip resource above
-#    public_ip_address_id = azurerm_public_ip.main.id
+    #    public_ip_address_id = azurerm_public_ip.main.id
   }
   tags = {
     Coder_Provisioned = "true"
@@ -161,8 +161,8 @@ resource "azurerm_windows_virtual_machine" "main" {
   resource_group_name   = azurerm_resource_group.main.name
   network_interface_ids = [azurerm_network_interface.main.id]
   size                  = "Standard_DS1_v2"
-  custom_data             = base64encode(
-    templatefile("${path.module}/Initialize.ps1.tftpl", {init_script = coder_agent.main.init_script})
+  custom_data = base64encode(
+    templatefile("${path.module}/Initialize.ps1.tftpl", { init_script = coder_agent.main.init_script })
   )
   os_disk {
     name                 = "myOsDisk"
@@ -194,12 +194,12 @@ resource "azurerm_windows_virtual_machine" "main" {
 resource "coder_metadata" "rdp_login" {
   resource_id = azurerm_windows_virtual_machine.main.id
   item {
-    key = "Username"
+    key   = "Username"
     value = local.admin_username
   }
   item {
-    key = "Password"
-    value = random_password.admin_password.result
+    key       = "Password"
+    value     = random_password.admin_password.result
     sensitive = true
   }
 }

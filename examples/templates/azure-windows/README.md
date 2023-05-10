@@ -19,5 +19,5 @@ authenticate [consult the Terraform docs](https://registry.terraform.io/provider
 
 ## Dependencies
 
-This template depends on the Azure CLI tool (`az`) to start and stop the Windows VM.  Ensure this
+This template depends on the Azure CLI tool (`az`) to start and stop the Windows VM. Ensure this
 tool is installed and available in the path on the machine that runs coderd.
