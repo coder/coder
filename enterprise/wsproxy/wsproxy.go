@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
@@ -197,6 +198,20 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		httpmw.Logger(s.Logger),
 		httpmw.Prometheus(s.PrometheusRegistry),
+		// The primary coderd dashboard needs to make some GET requests to
+		// the workspace proxies to check latency.
+		cors.Handler(cors.Options{
+			AllowedOrigins: []string{
+				// Allow the dashboard to make requests to the proxy for latency
+				// checks.
+				opts.DashboardURL.String(),
+			},
+			// Only allow GET requests for latency checks.
+			AllowedMethods: []string{http.MethodGet},
+			AllowedHeaders: []string{"Accept", "Content-Type"},
+			// Do not send any cookies
+			AllowCredentials: false,
+		}),
 
 		// HandleSubdomain is a middleware that handles all requests to the
 		// subdomain-based workspace apps.
@@ -250,6 +265,12 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 func (s *Server) Close() error {
 	s.cancel()
+
+	// A timeout to prevent the SDK from blocking the server shutdown.
+	tmp, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = s.SDKClient.WorkspaceProxyGoingAway(tmp)
+
 	return s.AppServer.Close()
 }
 
@@ -278,6 +299,16 @@ func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 func (s *Server) healthReport(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var report codersdk.ProxyHealthReport
+
+	// This is to catch edge cases where the server is shutting down, but might
+	// still serve a web request that returns "healthy". This is mainly just for
+	// unit tests, as shutting down the test webserver is tied to the lifecycle
+	// of the test. In practice, the webserver is tied to the lifecycle of the
+	// app, so the webserver AND the proxy will be shut down at the same time.
+	if s.ctx.Err() != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, "workspace proxy in middle of shutting down")
+		return
+	}
 
 	// Hit the build info to do basic version checking.
 	primaryBuild, err := s.SDKClient.SDKClient.BuildInfo(ctx)

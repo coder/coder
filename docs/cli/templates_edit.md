@@ -63,6 +63,15 @@ Edit the template description.
 
 Edit the template display name.
 
+### --failure-ttl
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0h</code>       |
+
+Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).
+
 ### --icon
 
 |      |                     |
@@ -70,6 +79,15 @@ Edit the template display name.
 | Type | <code>string</code> |
 
 Edit the template icon path.
+
+### --inactivity-ttl
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0h</code>       |
+
+Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).
 
 ### --max-ttl
 

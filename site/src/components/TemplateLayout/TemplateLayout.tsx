@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { createContext, FC, Suspense, useContext } from "react"
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"

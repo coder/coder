@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { FC, PropsWithChildren } from "react"
 
 export const FullWidthPageHeader: FC<PropsWithChildren> = ({ children }) => {
@@ -28,6 +28,7 @@ export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
 
 const useStyles = makeStyles((theme) => ({
   header: {
+    ...theme.typography.body2,
     padding: theme.spacing(3),
     background: theme.palette.background.paper,
     borderBottom: `1px solid ${theme.palette.divider}`,
@@ -39,17 +40,17 @@ const useStyles = makeStyles((theme) => ({
     zIndex: 10,
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("lg")]: {
       position: "unset",
       alignItems: "flex-start",
     },
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       flexDirection: "column",
     },
   },
   actions: {
     marginLeft: "auto",
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       marginLeft: "unset",
     },
   },
@@ -57,11 +58,11 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 18,
     fontWeight: 500,
     margin: 0,
+    lineHeight: "24px",
   },
   subtitle: {
     fontSize: 14,
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.25),
     display: "block",
   },
 }))

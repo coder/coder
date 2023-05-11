@@ -174,7 +174,10 @@ require (
 	tailscale.com v1.32.2
 )
 
-require github.com/armon/go-radix v1.0.0 // indirect
+require (
+	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/go-chi/cors v1.2.1 // indirect
+)
 
 require (
 	cloud.google.com/go/compute v1.18.0 // indirect

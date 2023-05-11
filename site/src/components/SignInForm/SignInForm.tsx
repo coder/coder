@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { FormikTouched } from "formik"
 import { FC, useState } from "react"
 import { AuthMethods } from "../../api/typesGenerated"
@@ -7,8 +7,8 @@ import { Maybe } from "../Conditionals/Maybe"
 import { PasswordSignInForm } from "./PasswordSignInForm"
 import { OAuthSignInForm } from "./OAuthSignInForm"
 import { BuiltInAuthFormValues } from "./SignInForm.types"
-import Button from "@material-ui/core/Button"
-import EmailIcon from "@material-ui/icons/EmailOutlined"
+import Button from "@mui/material/Button"
+import EmailIcon from "@mui/icons-material/EmailOutlined"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 export const Language = {
@@ -141,8 +141,8 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
 
         <Button
           fullWidth
+          size="large"
           onClick={() => setShowPasswordAuth(true)}
-          variant="outlined"
           startIcon={<EmailIcon className={styles.icon} />}
         >
           {loginPageTranslation.t("showPassword")}

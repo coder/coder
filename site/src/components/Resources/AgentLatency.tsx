@@ -1,5 +1,5 @@
 import { useRef, useState, FC } from "react"
-import { makeStyles, Theme, useTheme } from "@material-ui/core/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import {
   HelpTooltipText,
   HelpPopover,
@@ -7,6 +7,7 @@ import {
 } from "components/Tooltips/HelpTooltip"
 import { Stack } from "components/Stack/Stack"
 import { WorkspaceAgent, DERPRegion } from "api/typesGenerated"
+import { Theme } from "@mui/material/styles"
 
 const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
   // Find the right latency to display

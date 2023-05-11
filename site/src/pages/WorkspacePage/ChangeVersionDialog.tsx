@@ -1,17 +1,18 @@
 import { DialogProps } from "components/Dialogs/Dialog"
 import { FC, useRef, useState } from "react"
 import { FormFields } from "components/Form/Form"
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
 import { Template, TemplateVersion } from "api/typesGenerated"
 import { Loader } from "components/Loader/Loader"
-import Autocomplete from "@material-ui/lab/Autocomplete"
+import Autocomplete from "@mui/material/Autocomplete"
 import { createDayString } from "utils/createDayString"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { Pill } from "components/Pill/Pill"
 import { Avatar } from "components/Avatar/Avatar"
-import CircularProgress from "@material-ui/core/CircularProgress"
+import CircularProgress from "@mui/material/CircularProgress"
+import Box from "@mui/material/Box"
 
 export type ChangeVersionDialogProps = DialogProps & {
   template: Template | undefined
@@ -67,51 +68,56 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                 onClose={() => {
                   setIsAutocompleteOpen(false)
                 }}
-                getOptionSelected={(
+                isOptionEqualToValue={(
                   option: TemplateVersion,
                   value: TemplateVersion,
                 ) => option.id === value.id}
                 getOptionLabel={(option) => option.name}
-                renderOption={(option: TemplateVersion) => (
-                  <AvatarData
-                    avatar={
-                      <Avatar src={option.created_by.avatar_url}>
-                        {option.name}
-                      </Avatar>
-                    }
-                    title={
-                      <Stack
-                        direction="row"
-                        justifyContent="space-between"
-                        style={{ width: "100%" }}
-                      >
-                        {option.name}
-                        {template?.active_version_id === option.id && (
-                          <Pill text="Active" type="success" />
-                        )}
-                      </Stack>
-                    }
-                    subtitle={createDayString(option.created_at)}
-                  />
+                renderOption={(props, option: TemplateVersion) => (
+                  <Box component="li" {...props}>
+                    <AvatarData
+                      avatar={
+                        <Avatar src={option.created_by.avatar_url}>
+                          {option.name}
+                        </Avatar>
+                      }
+                      title={
+                        <Stack
+                          direction="row"
+                          justifyContent="space-between"
+                          style={{ width: "100%" }}
+                        >
+                          {option.name}
+                          {template?.active_version_id === option.id && (
+                            <Pill text="Active" type="success" />
+                          )}
+                        </Stack>
+                      }
+                      subtitle={createDayString(option.created_at)}
+                    />
+                  </Box>
                 )}
                 renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    fullWidth
-                    variant="outlined"
-                    placeholder="Template version name"
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <>
-                          {!templateVersions ? (
-                            <CircularProgress size={16} />
-                          ) : null}
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
-                    }}
-                  />
+                  <>
+                    {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Need it */}
+                    {/* @ts-ignore -- Issue from lib https://github.com/i18next/react-i18next/issues/1543 */}
+                    <TextField
+                      {...params}
+                      fullWidth
+                      placeholder="Template version name"
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {!templateVersions ? (
+                              <CircularProgress size={16} />
+                            ) : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  </>
                 )}
               />
             </FormFields>

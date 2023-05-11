@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import frontMatter from "front-matter"

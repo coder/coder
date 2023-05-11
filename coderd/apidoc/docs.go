@@ -5093,6 +5093,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/goingaway": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Workspace proxy going away",
+                "operationId": "workspace-proxy-going-away",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceproxies/me/issue-signed-app-token": {
             "post": {
                 "security": [
@@ -8419,13 +8447,13 @@ const docTemplate = `{
         "codersdk.ProxyHealthStatus": {
             "type": "string",
             "enum": [
-                "reachable",
+                "ok",
                 "unreachable",
                 "unhealthy",
                 "unregistered"
             ],
             "x-enum-varnames": [
-                "ProxyReachable",
+                "ProxyHealthy",
                 "ProxyUnreachable",
                 "ProxyUnhealthy",
                 "ProxyUnregistered"

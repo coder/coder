@@ -1,14 +1,14 @@
-import { makeStyles } from "@material-ui/core/styles"
-import Dialog from "@material-ui/core/Dialog"
-import DialogContent from "@material-ui/core/DialogContent"
-import DialogContentText from "@material-ui/core/DialogContentText"
-import DialogTitle from "@material-ui/core/DialogTitle"
+import { makeStyles } from "@mui/styles"
+import Dialog from "@mui/material/Dialog"
+import DialogContent from "@mui/material/DialogContent"
+import DialogContentText from "@mui/material/DialogContentText"
+import DialogTitle from "@mui/material/DialogTitle"
 import { DialogProps } from "components/Dialogs/Dialog"
 import { FC, useEffect, useState } from "react"
 import { FormFields, VerticalForm } from "components/Form/Form"
 import { TemplateVersionVariable, VariableValue } from "api/typesGenerated"
-import DialogActions from "@material-ui/core/DialogActions"
-import Button from "@material-ui/core/Button"
+import DialogActions from "@mui/material/DialogActions"
+import Button from "@mui/material/Button"
 import { VariableInput } from "pages/CreateTemplatePage/VariableInput"
 import { Loader } from "components/Loader/Loader"
 
@@ -93,12 +93,7 @@ export const MissingTemplateVariablesDialog: FC<
         <Button color="primary" fullWidth type="submit" form="updateVariables">
           Submit
         </Button>
-        <Button
-          fullWidth
-          type="button"
-          variant="outlined"
-          onClick={dialogProps.onClose}
-        >
+        <Button fullWidth type="button" onClick={dialogProps.onClose}>
           Cancel
         </Button>
       </DialogActions>

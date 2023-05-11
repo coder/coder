@@ -14,7 +14,7 @@ import { NANO_HOUR, CreateTokenData } from "./utils"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { CodeExample } from "components/CodeExample/CodeExample"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 
 const initialValues: CreateTokenData = {
   name: "",

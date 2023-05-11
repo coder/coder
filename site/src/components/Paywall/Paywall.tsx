@@ -1,7 +1,7 @@
-import Box from "@material-ui/core/Box"
-import Chip from "@material-ui/core/Chip"
-import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
+import Box from "@mui/material/Box"
+import Chip from "@mui/material/Chip"
+import { makeStyles } from "@mui/styles"
+import Typography from "@mui/material/Typography"
 import { Stack } from "components/Stack/Stack"
 import { FC, ReactNode } from "react"
 
