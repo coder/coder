@@ -1192,7 +1192,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
         "errors": ["string"],
         "warnings": ["string"]
       },
-      "status": "reachable"
+      "status": "ok"
     },
     "updated_at": "2019-08-24T14:15:22Z",
     "url": "string",
@@ -1234,7 +1234,7 @@ Status Code **200**
 
 | Property | Value          |
 | -------- | -------------- |
-| `status` | `reachable`    |
+| `status` | `ok`           |
 | `status` | `unreachable`  |
 | `status` | `unhealthy`    |
 | `status` | `unregistered` |
@@ -1289,7 +1289,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
       "errors": ["string"],
       "warnings": ["string"]
     },
-    "status": "reachable"
+    "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
@@ -1342,7 +1342,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
       "errors": ["string"],
       "warnings": ["string"]
     },
-    "status": "reachable"
+    "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
@@ -1453,7 +1453,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
       "errors": ["string"],
       "warnings": ["string"]
     },
-    "status": "reachable"
+    "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",

@@ -170,3 +170,19 @@ func (c *Client) RegisterWorkspaceProxy(ctx context.Context, req RegisterWorkspa
 	var resp RegisterWorkspaceProxyResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+func (c *Client) WorkspaceProxyGoingAway(ctx context.Context) error {
+	res, err := c.Request(ctx, http.MethodPost,
+		"/api/v2/workspaceproxies/me/goingaway",
+		nil,
+	)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
