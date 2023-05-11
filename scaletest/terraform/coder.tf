@@ -204,7 +204,7 @@ resource "local_file" "kubernetes_template" {
       count = data.coder_workspace.me.start_count
       metadata {
         name      = "coder-$${lower(data.coder_workspace.me.owner)}-$${lower(data.coder_workspace.me.name)}"
-        namespace = var.namespace
+        namespace = "${kubernetes_namespace.coder_namespace.metadata.0.name}"
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
           "app.kubernetes.io/instance" = "coder-workspace-$${lower(data.coder_workspace.me.owner)}-$${lower(data.coder_workspace.me.name)}"
