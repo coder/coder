@@ -124,6 +124,15 @@ func TestDERPLatencyCheck(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 }
 
+func TestFastLatencyCheck(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	res, err := client.Request(context.Background(), http.MethodGet, "/latency-check", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+}
+
 func TestHealthz(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
