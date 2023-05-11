@@ -34,6 +34,10 @@ type Workspace struct {
 	AutostartSchedule                    *string        `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64         `json:"ttl_ms,omitempty"`
 	LastUsedAt                           time.Time      `json:"last_used_at" format:"date-time"`
+
+	// DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.
+	// Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.
+	DeletingAt *time.Time `json:"deleting_at" format:"date-time"`
 }
 
 type WorkspacesRequest struct {

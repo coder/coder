@@ -1113,6 +1113,7 @@ export interface Workspace {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly last_used_at: string
+  readonly deleting_at?: string
 }
 
 // From codersdk/workspaceagents.go

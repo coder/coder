@@ -48,6 +48,7 @@
     "name": "test-workspace",
     "autostart_schedule": "CRON_TZ=US/Central 30 9 * * 1-5",
     "ttl_ms": 28800000,
-    "last_used_at": "[timestamp]"
+    "last_used_at": "[timestamp]",
+    "deleting_at": null
   }
 ]

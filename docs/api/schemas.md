@@ -4594,6 +4594,7 @@ Parameter represents a set value for the scope.
 {
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "deleting_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -4731,25 +4732,26 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                                        | Type                                               | Required | Restrictions | Description |
-| ------------------------------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `autostart_schedule`                        | string                                             | false    |              |             |
-| `created_at`                                | string                                             | false    |              |             |
-| `id`                                        | string                                             | false    |              |             |
-| `last_used_at`                              | string                                             | false    |              |             |
-| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |             |
-| `name`                                      | string                                             | false    |              |             |
-| `organization_id`                           | string                                             | false    |              |             |
-| `outdated`                                  | boolean                                            | false    |              |             |
-| `owner_id`                                  | string                                             | false    |              |             |
-| `owner_name`                                | string                                             | false    |              |             |
-| `template_allow_user_cancel_workspace_jobs` | boolean                                            | false    |              |             |
-| `template_display_name`                     | string                                             | false    |              |             |
-| `template_icon`                             | string                                             | false    |              |             |
-| `template_id`                               | string                                             | false    |              |             |
-| `template_name`                             | string                                             | false    |              |             |
-| `ttl_ms`                                    | integer                                            | false    |              |             |
-| `updated_at`                                | string                                             | false    |              |             |
+| Name                                        | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                                  |
+| ------------------------------------------- | -------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `autostart_schedule`                        | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `created_at`                                | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `deleting_at`                               | string                                             | false    |              | Deleting at indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil. Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive. |
+| `id`                                        | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `last_used_at`                              | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |                                                                                                                                                                                                                              |
+| `name`                                      | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `organization_id`                           | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `outdated`                                  | boolean                                            | false    |              |                                                                                                                                                                                                                              |
+| `owner_id`                                  | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `owner_name`                                | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `template_allow_user_cancel_workspace_jobs` | boolean                                            | false    |              |                                                                                                                                                                                                                              |
+| `template_display_name`                     | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `template_icon`                             | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `template_id`                               | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `template_name`                             | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `ttl_ms`                                    | integer                                            | false    |              |                                                                                                                                                                                                                              |
+| `updated_at`                                | string                                             | false    |              |                                                                                                                                                                                                                              |
 
 ## codersdk.WorkspaceAgent
 
@@ -5596,6 +5598,7 @@ Parameter represents a set value for the scope.
     {
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
+      "deleting_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_build": {
