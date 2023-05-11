@@ -16,7 +16,7 @@ import {
 } from "pages/CreateTemplatePage/TemplateUpload"
 import { useFormik } from "formik"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
-import { FC } from "react"
+import { FC, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import {
   nameValidator,
@@ -223,6 +223,18 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error)
   const { t } = useTranslation("createTemplatePage")
   const { t: commonT } = useTranslation("common")
+
+  useEffect(() => {
+    if (error) {
+      window.scrollTo(0, 0)
+    }
+  }, [error])
+
+  useEffect(() => {
+    if (jobError) {
+      window.scrollTo(0, document.body.scrollHeight)
+    }
+  }, [logs, jobError])
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
