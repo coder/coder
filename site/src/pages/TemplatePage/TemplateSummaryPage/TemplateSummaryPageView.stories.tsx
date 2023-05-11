@@ -3,6 +3,7 @@ import {
   MockTemplate,
   MockTemplateDAUResponse,
   MockTemplateVersion,
+  MockTemplateVersion3,
   MockWorkspaceResource,
   MockWorkspaceResource2,
 } from "testHelpers/entities"
@@ -64,4 +65,14 @@ SmallViewport.args = {
 }
 SmallViewport.parameters = {
   chromatic: { viewports: [600] },
+}
+
+export const WithDeprecatedParameters = Template.bind({})
+WithDeprecatedParameters.args = {
+  template: MockTemplate,
+  activeVersion: MockTemplateVersion3,
+  data: {
+    resources: [MockWorkspaceResource, MockWorkspaceResource2],
+    daus: MockTemplateDAUResponse,
+  },
 }
