@@ -6,6 +6,7 @@ import {
   MockTemplate,
   MockTemplateVersion,
   MockMemberPermissions,
+  MockTemplateVersion3,
 } from "testHelpers/entities"
 import { renderWithAuth } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
@@ -49,5 +50,18 @@ describe("TemplateSummaryPage", () => {
     renderPage()
     const dropdownButton = screen.queryByLabelText("open-dropdown")
     expect(dropdownButton).toBe(null)
+  })
+  it("shows the template version warning", async () => {
+    server.use(
+      rest.get(
+        "/api/v2/templateversions/:templateVersionId",
+        async (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json(MockTemplateVersion3))
+        },
+      ),
+    )
+    renderPage()
+    await screen.findByText(MockTemplate.display_name)
+    await screen.findByTestId("warning-deprecated-parameters")
   })
 })

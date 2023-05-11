@@ -312,6 +312,18 @@ You can add instructions here
   created_by: MockUser,
 }
 
+export const MockTemplateVersion3: TypesGen.TemplateVersion = {
+  id: "test-template-version-3",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  template_id: "test-template",
+  job: MockProvisionerJob,
+  name: "test-version-3",
+  readme: "README",
+  created_by: MockUser,
+  warnings: ["DEPRECATED_PARAMETERS"],
+}
+
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "2022-05-17T17:39:01.382927298Z",
