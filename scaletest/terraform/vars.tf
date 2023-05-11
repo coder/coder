@@ -117,3 +117,8 @@ variable "coder_image_tag" {
   description = "Tag to use for Coder image."
   default = "latest"
 }
+
+variable "workspace_image" {
+  description = "Image and tag to use for workspaces."
+  default = "docker.io/codercom/enterprise-minimal:ubuntu"
+}

@@ -1,12 +1,15 @@
 data "google_client_config" "default" {}
 
 locals {
-  coder_helm_repo    = "https://helm.coder.com/v2"
-  coder_helm_chart   = "coder"
-  coder_release_name = "coder-${var.name}"
-  coder_namespace    = "coder-${var.name}"
-  coder_admin_email  = "admin@coder.com"
-  coder_admin_user   = "coder"
+  coder_helm_repo            = "https://helm.coder.com/v2"
+  coder_helm_chart           = "coder"
+  coder_release_name         = "coder-${var.name}"
+  coder_namespace            = "coder-${var.name}"
+  coder_admin_email          = "admin@coder.com"
+  coder_admin_user           = "coder"
+  coder_address              = "${google_compute_address.coder.address}"
+  coder_url                  =  "https://${google_compute_address.coder.address}"
+  rebuilt_workspace_image    =  "gcr.io/coder-dev-1/v2-loadtest/${var.name}/workspace:latest"
 }
 
 provider "kubernetes" {
@@ -167,7 +170,7 @@ coder:
     readOnlyRootFilesystem: true
   service:
     enable: true
-    loadBalancerIP: "${google_compute_address.coder.address}"
+    loadBalancerIP: "${local.coder_address}"
   tls:
     secretNames:
     - "${kubernetes_secret.coder-tls.metadata.0.name}"
@@ -200,7 +203,34 @@ EOF
 
 resource "local_file" "url" {
   filename = "${path.module}/coder_url"
-  content = "https://${google_compute_address.coder.address}"
+  content = "${local.coder_url}"
+}
+
+# Because we use a self-signed certificate, we need to also rebuild the base image.
+resource "local_file" "workspace_dockerfile" {
+  filename = "${path.module}/.coderv2/dockerfile/workspace/Dockerfile"
+  content = <<EOF
+    FROM ${var.workspace_image}
+    USER root
+    RUN openssl s_client -connect ${local.coder_address}:443 -servername ${local.coder_url} </dev/null 2>/dev/null |\
+        sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | tee /usr/local/share/ca-certificates/coder.crt && \
+        update-ca-certificates
+    USER coder
+  EOF
+}
+
+resource "docker_image" "workspace" {
+  name = local.rebuilt_workspace_image
+  build {
+    context = dirname(abspath(local_file.workspace_dockerfile.filename))
+  }
+}
+
+resource "null_resource" "push_workspace_image" {
+  depends_on = [ docker_image.workspace ]
+  provisioner "local-exec" {
+    command = "docker push ${local.rebuilt_workspace_image}"
+  }
 }
 
 resource "local_file" "kubernetes_template" {
@@ -251,7 +281,7 @@ resource "local_file" "kubernetes_template" {
         }
         container {
           name              = "dev"
-          image             = "gcr.io/coder-dev-1/coder-cian/minimal:ubuntu"
+          image             = "${local.rebuilt_workspace_image}"
           image_pull_policy = "Always"
           command           = ["sh", "-c", coder_agent.main.init_script]
           security_context {
