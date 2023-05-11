@@ -2636,7 +2636,5 @@ sigs.k8s.io/structured-merge-diff/v4 v4.1.2/go.mod h1:j/nl6xW8vLS49O8YvXW1ocPhZa
 sigs.k8s.io/yaml v1.1.0/go.mod h1:UJmg0vDUVViEyp3mgSv9WPwZCDxu4rQW1olrI1uml+o=
 sigs.k8s.io/yaml v1.2.0/go.mod h1:yfXDCHCao9+ENCvLSE62v9VSji2MKu5jeNfTrofGhJc=
 software.sslmate.com/src/go-pkcs12 v0.2.0 h1:nlFkj7bTysH6VkC4fGphtjXRbezREPgrHuJG20hBGPE=
-storj.io/drpc v0.0.33-0.20220622181519-9206537a4db7 h1:6jIp39oQGZMjfrG3kiafK2tcL0Fbprh2kvaoJNfhvuM=
-storj.io/drpc v0.0.33-0.20220622181519-9206537a4db7/go.mod h1:6rcOyR/QQkSTX/9L5ZGtlZaE2PtXTTZl8d+ulSeeYEg=
 storj.io/drpc v0.0.33-0.20230420154621-9716137f6037 h1:SYRl2YUthhsXNkrP30KwxkDGN9TESdNrbpr14rOxsnM=
 storj.io/drpc v0.0.33-0.20230420154621-9716137f6037/go.mod h1:vR804UNzhBa49NOJ6HeLjd2H3MakC1j5Gv8bsOQT6N4=

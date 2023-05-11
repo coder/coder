@@ -64,7 +64,7 @@ spec:
             - /opt/coder
           args:
             {{- if .Values.coder.workspaceProxy }}
-            - proxy
+            - wsproxy
             {{- end }}
             - server
           resources:
