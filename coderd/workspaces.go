@@ -1207,13 +1207,18 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 // Calculate the time of the upcoming workspace deletion, if applicable; otherwise, return nil.
 // Workspaces may have impending deletions if InactivityTTL feature is turned on and the workspace is inactive.
 func calculateDeletingAt(workspace database.Workspace, template database.Template) *time.Time {
-	var (
-		year, month, day = time.Now().Date()
-		beginningOfToday = time.Date(year, month, day, 0, 0, 0, 0, time.Now().Location())
-	)
+	// Workspace is recently inactive but hasn't been inactive for longer than
+	// the specified template.InactivityTTL threshold
+
+	fmt.Println("last used at before now (aka inactive)", workspace.LastUsedAt.Before(time.Now()))
+	fmt.Println("last used at is more recent than now minus the TTL ", workspace.LastUsedAt.After(time.Now().Add(-time.Duration(template.InactivityTTL)*time.Nanosecond)))
+
+	workspaceRecentlyInactive := workspace.LastUsedAt.Before(time.Now()) &&
+		workspace.LastUsedAt.After(time.Now().Add(-time.Duration(template.InactivityTTL)*time.Nanosecond))
+
 	// If InactivityTTL is turned off (set to 0), if the workspace has already been deleted,
-	// or if the workspace was used sometime within the last day, there is no impending deletion
-	if template.InactivityTTL == 0 || workspace.Deleted || workspace.LastUsedAt.After(beginningOfToday) {
+	// or if the workspace is only recently inactive, there is no impending deletion
+	if template.InactivityTTL == 0 || workspace.Deleted || workspaceRecentlyInactive {
 		return nil
 	}
 
