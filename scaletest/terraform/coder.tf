@@ -5,6 +5,8 @@ locals {
   coder_helm_chart   = "coder"
   coder_release_name = "coder-${var.name}"
   coder_namespace    = "coder-${var.name}"
+  coder_admin_email  = "admin@coder.com"
+  coder_admin_user   = "coder"
 }
 
 provider "kubernetes" {
@@ -45,7 +47,7 @@ resource "kubernetes_secret" "coder-db" {
     namespace = kubernetes_namespace.coder_namespace.metadata.0.name
   }
   data = {
-    url = "postgres://coder:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}/${google_sql_database.coder.name}?sslmode=disable"
+    url = "postgres://${google_sql_user.coder.name}:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}/${google_sql_database.coder.name}?sslmode=disable"
   }
 }
 
@@ -70,6 +72,10 @@ resource "tls_self_signed_cert" "coder" {
     "${local.coder_release_name}.${local.coder_namespace}.svc.cluster.local",
     "${local.coder_release_name}.${local.coder_namespace}",
     "${local.coder_release_name}",
+  ]
+
+  ip_addresses = [
+    google_compute_address.coder.address
   ]
 }
 
@@ -108,9 +114,29 @@ resource "helm_release" "coder-chart" {
   ]
   values = [<<EOF
 coder:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: "cloud.google.com/gke-nodepool"
+            operator: "In"
+            values: ["${google_container_node_pool.workspaces.name}"]
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchExpressions:
+            - key:      "app.kubernetes.io/instance"
+              operator: "In"
+              values:   ["${local.coder_release_name}"]
   env:
     - name: "CODER_CACHE_DIRECTORY"
       value: "/tmp/coder"
+    - name: "CODER_ENABLE_TELEMETRY"
+      value: "false"
     - name: "CODER_LOGGING_HUMAN"
       value: "/dev/null"
     - name: "CODER_LOGGING_STACKDRIVER"
@@ -121,6 +147,8 @@ coder:
           name: "${kubernetes_secret.coder-db.metadata.0.name}"
           key: url
     - name: "CODER_PROMETHEUS_ENABLE"
+      value: "true"
+    - name: "CODER_TLS_REDIRECT_HTTP_TO_HTTPS"
       value: "true"
     - name: "CODER_VERBOSE"
       value: "true"
@@ -139,6 +167,7 @@ coder:
     readOnlyRootFilesystem: true
   service:
     enable: true
+    loadBalancerIP: "${google_compute_address.coder.address}"
   tls:
     secretNames:
     - "${kubernetes_secret.coder-tls.metadata.0.name}"
@@ -167,6 +196,11 @@ coder:
 
 EOF
   ]
+}
+
+resource "local_file" "url" {
+  filename = "${path.module}/coder_url"
+  content = "https://${google_compute_address.coder.address}"
 }
 
 resource "local_file" "kubernetes_template" {
@@ -242,10 +276,10 @@ resource "local_file" "kubernetes_template" {
         affinity {
           node_affinity {
             required_during_scheduling_ignored_during_execution {
-              node_selector_terms {
+              node_selector_term {
                 match_expressions {
                   key = "cloud.google.com/gke-nodepool"
-                  operator = "in"
+                  operator = "In"
                   values = ["${google_container_node_pool.workspaces.name}"]
                 }
               }

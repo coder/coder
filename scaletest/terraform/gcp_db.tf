@@ -54,7 +54,7 @@ resource "google_sql_database" "coder" {
 resource "google_sql_user" "coder" {
   project = var.project_id
   instance = google_sql_database_instance.db.id
-  name = "coder"
+  name = "${var.name}-coder"
   type = "BUILT_IN"
   password = random_password.coder-postgres-password.result
   # required for postgres, otherwise user fails to delete

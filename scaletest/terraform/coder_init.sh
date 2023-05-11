@@ -13,11 +13,14 @@ fi
 CODER_URL=$1
 CONFIG_DIR="${PWD}/.coderv2"
 ARCH="$(arch)"
+if [[ "$ARCH" == "x86_64" ]]; then
+	ARCH="amd64"
+fi
 PLATFORM="$(uname | tr '[:upper:]' '[:lower:]')"
 
 mkdir -p "${CONFIG_DIR}"
 echo "Fetching Coder CLI for first-time setup!"
-curl -fsSL "${CODER_URL}/bin/coder-${PLATFORM}-${ARCH}" -o "${CONFIG_DIR}/coder"
+curl -fsSLk "${CODER_URL}/bin/coder-${PLATFORM}-${ARCH}" -o "${CONFIG_DIR}/coder"
 chmod +x "${CONFIG_DIR}/coder"
 
 set +o pipefail
