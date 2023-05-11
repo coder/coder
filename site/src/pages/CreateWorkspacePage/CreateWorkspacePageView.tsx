@@ -1,7 +1,6 @@
 import TextField from "@mui/material/TextField"
 import * as TypesGen from "api/typesGenerated"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
@@ -26,6 +25,10 @@ import {
   useValidationSchemaForRichParameters,
   workspaceBuildParameterValue,
 } from "utils/richParameters"
+import {
+  ImmutableTemplateParametersSection,
+  MultableTemplateParametersSection,
+} from "components/TemplateParameters/TemplateParameters"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -308,86 +311,53 @@ export const CreateWorkspacePageView: FC<
           </FormSection>
         )}
 
-        {/* Mutable rich parameters */}
-        {props.templateParameters &&
-          props.templateParameters.filter((p) => p.mutable).length > 0 && (
-            <FormSection
-              title="Parameters"
-              description="These parameters are provided by your template's Terraform configuration and can be changed after creating the workspace."
-            >
-              <FormFields>
-                {props.templateParameters.map(
-                  (parameter, index) =>
-                    parameter.mutable && (
-                      <RichParameterInput
-                        {...getFieldHelpers(
-                          "rich_parameter_values[" + index + "].value",
-                        )}
-                        disabled={form.isSubmitting}
-                        index={index}
-                        key={parameter.name}
-                        onChange={(value) => {
-                          form.setFieldValue("rich_parameter_values." + index, {
-                            name: parameter.name,
-                            value: value,
-                          })
-                        }}
-                        parameter={parameter}
-                        initialValue={workspaceBuildParameterValue(
-                          initialRichParameterValues,
-                          parameter,
-                        )}
-                      />
-                    ),
-                )}
-              </FormFields>
-            </FormSection>
-          )}
-
-        {/* Immutable rich parameters */}
-        {props.templateParameters &&
-          props.templateParameters.filter((p) => !p.mutable).length > 0 && (
-            <FormSection
-              title="Immutable parameters"
+        {props.templateParameters && (
+          <>
+            <MultableTemplateParametersSection
+              templateParameters={props.templateParameters}
+              getInputProps={(parameter, index) => {
+                return {
+                  ...getFieldHelpers(
+                    "rich_parameter_values[" + index + "].value",
+                  ),
+                  onChange: (value) => {
+                    form.setFieldValue("rich_parameter_values." + index, {
+                      name: parameter.name,
+                      value: value,
+                    })
+                  },
+                  initialValue: workspaceBuildParameterValue(
+                    initialRichParameterValues,
+                    parameter,
+                  ),
+                  disabled: form.isSubmitting,
+                }
+              }}
+            />
+            <ImmutableTemplateParametersSection
+              templateParameters={props.templateParameters}
               classes={{ root: styles.warningSection }}
-              description={
-                <>
-                  These parameters are also provided by your Terraform
-                  configuration but they{" "}
-                  <strong className={styles.warningText}>
-                    cannot be changed after creating the workspace.
-                  </strong>
-                </>
-              }
-            >
-              <FormFields>
-                {props.templateParameters.map(
-                  (parameter, index) =>
-                    !parameter.mutable && (
-                      <RichParameterInput
-                        {...getFieldHelpers(
-                          "rich_parameter_values[" + index + "].value",
-                        )}
-                        disabled={form.isSubmitting}
-                        index={index}
-                        key={parameter.name}
-                        onChange={(value) => {
-                          form.setFieldValue("rich_parameter_values." + index, {
-                            name: parameter.name,
-                            value: value,
-                          })
-                        }}
-                        parameter={parameter}
-                        initialValue={workspaceBuildParameterValue(
-                          initialRichParameterValues,
-                          parameter,
-                        )}
-                      />
-                    ),
-                )}
-              </FormFields>
-            </FormSection>
-          )}
+              getInputProps={(parameter, index) => {
+                return {
+                  ...getFieldHelpers(
+                    "rich_parameter_values[" + index + "].value",
+                  ),
+                  onChange: (value) => {
+                    form.setFieldValue("rich_parameter_values." + index, {
+                      name: parameter.name,
+                      value: value,
+                    })
+                  },
+                  initialValue: workspaceBuildParameterValue(
+                    initialRichParameterValues,
+                    parameter,
+                  ),
+                  disabled: form.isSubmitting,
+                }
+              }}
+            />
+          </>
+        )}
 
         <FormFooter
           onCancel={props.onCancel}
@@ -408,7 +378,7 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: 8,
     backgroundColor: theme.palette.background.paper,
     padding: theme.spacing(10),
-    marginLeft: -theme.spacing(10),
-    marginRight: -theme.spacing(10),
+    marginLeft: theme.spacing(-10),
+    marginRight: theme.spacing(-10),
   },
 }))
