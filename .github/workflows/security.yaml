@@ -92,9 +92,10 @@ jobs:
           set -x
           cd dogfood
           DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_path=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
-          chmod +x $protoc_path
+          mkdir -p bin
+          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > ./bin/protoc
+          chmod +x ./bin/protoc
+          echo "./bin" >> $GITHUB_PATH
           protoc --version
 
       - name: Build Coder linux amd64 Docker image
