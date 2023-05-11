@@ -4,12 +4,12 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
 import Link from "@mui/material/Link"
 
-export interface TemplateVersionWarnings {
+export interface TemplateVersionWarningsProps {
   warnings?: TypesGen.TemplateVersionWarning[]
 }
 
 export const TemplateVersionWarnings: FC<
-  React.PropsWithChildren<TemplateVersionWarnings>
+  React.PropsWithChildren<TemplateVersionWarningsProps>
 > = ({ warnings }) => {
   if (!warnings) {
     return <></>
