@@ -169,7 +169,7 @@ EOF
 }
 
 resource "local_file" "kubernetes_template" {
-  filename = "${path.module}/templates/kubernetes/main.tf"
+  filename = "${path.module}/.coderv2/templates/kubernetes/main.tf"
   content = <<EOF
     terraform {
       required_providers {
@@ -202,11 +202,11 @@ resource "local_file" "kubernetes_template" {
     resource "kubernetes_pod" "main" {
       count = data.coder_workspace.me.start_count
       metadata {
-        name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+        name      = "coder-$${lower(data.coder_workspace.me.owner)}-$${lower(data.coder_workspace.me.name)}"
         namespace = var.namespace
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/instance" = "coder-workspace-$${lower(data.coder_workspace.me.owner)}-$${lower(data.coder_workspace.me.name)}"
         }
       }
       spec {
