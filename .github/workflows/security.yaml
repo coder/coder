@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   codeql:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: tsw
     steps:
       - uses: actions/checkout@v3
 
@@ -65,7 +65,7 @@ jobs:
 
   # We share a job because trivy and xray rely on the same Docker image.
   trivy_xray:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: tsw
     steps:
       - uses: actions/checkout@v3
         with:
