@@ -15,9 +15,9 @@ import (
 type ProxyHealthStatus string
 
 const (
-	// ProxyReachable means the proxy access url is reachable and returns a healthy
+	// ProxyHealthy means the proxy access url is reachable and returns a healthy
 	// status code.
-	ProxyReachable ProxyHealthStatus = "reachable"
+	ProxyHealthy ProxyHealthStatus = "ok"
 	// ProxyUnreachable means the proxy access url is not responding.
 	ProxyUnreachable ProxyHealthStatus = "unreachable"
 	// ProxyUnhealthy means the proxy access url is responding, but there is some

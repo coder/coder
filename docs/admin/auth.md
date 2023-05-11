@@ -197,6 +197,15 @@ CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
 CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 ```
 
+## Disable Built-in Authentication
+
+To remove email and password login, set the following environment variable on your
+Coder deployment:
+
+```console
+CODER_DISABLE_PASSWORD_AUTH=true
+```
+
 ## SCIM (enterprise)
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
