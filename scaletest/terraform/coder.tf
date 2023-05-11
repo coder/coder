@@ -50,17 +50,18 @@ resource "kubernetes_secret" "coder-db" {
 }
 
 resource "tls_private_key" "coder" {
-  algorithm = "ED25519"
+  algorithm = "RSA"
 }
 
 resource "tls_self_signed_cert" "coder" {
   private_key_pem = tls_private_key.coder.private_key_pem
+  is_ca_certificate = true
 
   subject {
     common_name = "${local.coder_release_name}.${local.coder_namespace}.svc.cluster.local"
   }
 
-  allowed_uses = ["server_auth", "digital_signature", "data_encipherment", "key_agreement", "key_encipherment"]
+  allowed_uses = ["digital_signature", "cert_signing", "crl_signing"]
 
   # 1 year
   validity_period_hours = 8760
