@@ -30,6 +30,7 @@
   "dependencies": {
     "@emoji-mart/data": "1.0.5",
     "@emoji-mart/react": "1.0.1",
+    "@fastly/performance-observer-polyfill": "^2.0.0",
     "@emotion/react": "^11.10.8",
     "@emotion/styled": "^11.10.8",
     "@fontsource/ibm-plex-mono": "4.5.10",

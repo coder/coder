@@ -7,6 +7,7 @@ import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 import { TemplateVersionFiles } from "utils/templateVersion"
 import { FileTree } from "utils/filetree"
+import { ProxyLatencyReport } from "contexts/useProxyLatency"
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
@@ -112,6 +113,34 @@ export const MockWorkspaceProxies: TypesGen.Region[] = [
     wildcard_hostname: "",
   },
 ]
+
+export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
+  ...MockWorkspaceProxies.reduce((acc, proxy) => {
+    if (!proxy.healthy) {
+      return acc
+    }
+    acc[proxy.id] = {
+      // Make one of them inaccurate.
+      accurate: proxy.id !== "26e84c16-db24-4636-a62d-aa1a4232b858",
+      // This is a deterministic way to generate a latency to for each proxy.
+      // It will be the same for each run as long as the IDs don't change.
+      latencyMS:
+        (Number(
+          Array.from(proxy.id).reduce(
+            // Multiply each char code by some large prime number to increase the
+            // size of the number and allow use to get some decimal points.
+            (acc, char) => acc + char.charCodeAt(0) * 37,
+            0,
+          ),
+        ) /
+          // Cap at 250ms
+          100) %
+        250,
+      at: new Date(),
+    }
+    return acc
+  }, {} as Record<string, ProxyLatencyReport>),
+}
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   external_url: "file:///mock-url",
