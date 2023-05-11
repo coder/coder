@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,8 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		variablesFile   string
 		variables       []string
 		defaultTTL      time.Duration
+		failureTTL      time.Duration
+		inactivityTTL   time.Duration
 
 		uploadFlags templateUploadFlags
 	)
@@ -41,6 +44,30 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			if failureTTL != 0 || inactivityTTL != 0 {
+				// This call can be removed when workspace_actions is no longer experimental
+				experiments, exErr := client.Experiments(inv.Context())
+				if exErr != nil {
+					return xerrors.Errorf("get experiments: %w", exErr)
+				}
+
+				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
+					return xerrors.Errorf("--failure-ttl and --inactivityTTL are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
+				}
+
+				entitlements, err := client.Entitlements(inv.Context())
+				var sdkErr *codersdk.Error
+				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --failure-ttl or --inactivityTTL")
+				} else if err != nil {
+					return xerrors.Errorf("get entitlements: %w", err)
+				}
+
+				if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl or --inactivityTTL")
+				}
+			}
+
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
@@ -96,9 +123,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			}
 
 			createReq := codersdk.CreateTemplateRequest{
-				Name:             templateName,
-				VersionID:        job.ID,
-				DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()),
+				Name:                templateName,
+				VersionID:           job.ID,
+				DefaultTTLMillis:    ptr.Ref(defaultTTL.Milliseconds()),
+				FailureTTLMillis:    ptr.Ref(failureTTL.Milliseconds()),
+				InactivityTTLMillis: ptr.Ref(inactivityTTL.Milliseconds()),
 			}
 
 			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
@@ -142,6 +171,18 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Description: "Specify a default TTL for workspaces created from this template.",
 			Default:     "24h",
 			Value:       clibase.DurationOf(&defaultTTL),
+		},
+		{
+			Flag:        "failure-ttl",
+			Description: "Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&failureTTL),
+		},
+		{
+			Flag:        "inactivity-ttl",
+			Description: "Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Default:     "0h",
+			Value:       clibase.DurationOf(&inactivityTTL),
 		},
 		uploadFlags.option(),
 		{

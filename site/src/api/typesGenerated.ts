@@ -1113,6 +1113,7 @@ export interface Workspace {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly last_used_at: string
+  readonly deleting_at?: string
 }
 
 // From codersdk/workspaceagents.go
@@ -1495,12 +1496,12 @@ export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
 
 // From codersdk/workspaceproxy.go
 export type ProxyHealthStatus =
-  | "reachable"
+  | "ok"
   | "unhealthy"
   | "unreachable"
   | "unregistered"
 export const ProxyHealthStatuses: ProxyHealthStatus[] = [
-  "reachable",
+  "ok",
   "unhealthy",
   "unreachable",
   "unregistered",

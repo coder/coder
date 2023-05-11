@@ -1,9 +1,9 @@
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import MenuItem from "@material-ui/core/MenuItem"
-import Radio from "@material-ui/core/Radio"
-import RadioGroup from "@material-ui/core/RadioGroup"
-import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import MenuItem from "@mui/material/MenuItem"
+import Radio from "@mui/material/Radio"
+import RadioGroup from "@mui/material/RadioGroup"
+import { makeStyles } from "@mui/styles"
+import TextField from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { ParameterSchema } from "../../api/typesGenerated"
@@ -47,7 +47,7 @@ export const ParameterInput: FC<ParameterInputProps> = ({
   const styles = useStyles()
 
   return (
-    <Stack direction="column" spacing={0.75}>
+    <Stack direction="column" spacing={2}>
       <ParameterLabel schema={schema} />
       <div className={styles.input}>
         <ParameterField
@@ -71,7 +71,6 @@ const ParameterField: React.FC<ParameterInputProps> = ({
     return (
       <TextField
         id={schema.name}
-        size="small"
         defaultValue={defaultValue ?? schema.default_source_value}
         placeholder={schema.default_source_value}
         disabled={disabled}
@@ -102,13 +101,13 @@ const ParameterField: React.FC<ParameterInputProps> = ({
         <FormControlLabel
           disabled={disabled}
           value="true"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio />}
           label="True"
         />
         <FormControlLabel
           disabled={disabled}
           value="false"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio />}
           label="False"
         />
       </RadioGroup>
@@ -121,7 +120,6 @@ const ParameterField: React.FC<ParameterInputProps> = ({
   return (
     <TextField
       id={schema.name}
-      size="small"
       disabled={disabled}
       placeholder={schema.default_source_value}
       defaultValue={defaultValue ?? schema.default_source_value}
@@ -137,13 +135,13 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
     display: "block",
-    marginBottom: theme.spacing(0.5),
   },
   labelDescription: {
     fontSize: 16,
     color: theme.palette.text.primary,
     display: "block",
     fontWeight: 600,
+    lineHeight: "24px", // Keep the same as ParameterInput
   },
   input: {
     display: "flex",

@@ -1,6 +1,6 @@
-import Chip from "@material-ui/core/Chip"
-import FormHelperText from "@material-ui/core/FormHelperText"
-import { makeStyles } from "@material-ui/core/styles"
+import Chip from "@mui/material/Chip"
+import FormHelperText from "@mui/material/FormHelperText"
+import { makeStyles } from "@mui/styles"
 import { FC } from "react"
 
 export type MultiTextFieldProps = {

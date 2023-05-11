@@ -1,7 +1,7 @@
 import { FC, PropsWithChildren } from "react"
 import { Section } from "components/SettingsLayout/Section"
 import { WorkspaceProxyView } from "./WorkspaceProxyView"
-import makeStyles from "@material-ui/core/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { useProxy } from "contexts/ProxyContext"
 

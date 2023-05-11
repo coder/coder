@@ -1,5 +1,5 @@
-import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
+import { makeStyles } from "@mui/styles"
+import Typography from "@mui/material/Typography"
 import { FC } from "react"
 import { combineClasses } from "../../utils/combineClasses"
 import { SectionAction } from "../SectionAction/SectionAction"
@@ -68,7 +68,7 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       padding: theme.spacing(4, 3, 4, 3),
     },
   },

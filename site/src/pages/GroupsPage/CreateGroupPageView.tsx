@@ -1,8 +1,9 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { CreateGroupRequest } from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"
 import { Margins } from "components/Margins/Margins"
+import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
@@ -41,23 +42,23 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
     <Margins>
       <FullPageForm title="Create group">
         <form onSubmit={form.handleSubmit}>
-          <TextField
-            {...getFieldHelpers("name")}
-            onChange={onChangeTrimmed(form)}
-            autoComplete="name"
-            autoFocus
-            fullWidth
-            label="Name"
-            variant="outlined"
-          />
-          <TextField
-            {...getFieldHelpers("avatar_url")}
-            onChange={onChangeTrimmed(form)}
-            autoComplete="avatar url"
-            fullWidth
-            label="Avatar URL"
-            variant="outlined"
-          />
+          <Stack spacing={2.5}>
+            <TextField
+              {...getFieldHelpers("name")}
+              onChange={onChangeTrimmed(form)}
+              autoComplete="name"
+              autoFocus
+              fullWidth
+              label="Name"
+            />
+            <TextField
+              {...getFieldHelpers("avatar_url")}
+              onChange={onChangeTrimmed(form)}
+              autoComplete="avatar url"
+              fullWidth
+              label="Avatar URL"
+            />
+          </Stack>
           <FormFooter onCancel={onCancel} isLoading={isLoading} />
         </form>
       </FullPageForm>

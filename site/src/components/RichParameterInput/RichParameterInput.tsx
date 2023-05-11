@@ -1,8 +1,8 @@
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import Radio from "@material-ui/core/Radio"
-import RadioGroup from "@material-ui/core/RadioGroup"
-import { makeStyles } from "@material-ui/core/styles"
-import TextField, { TextFieldProps } from "@material-ui/core/TextField"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import Radio from "@mui/material/Radio"
+import RadioGroup from "@mui/material/RadioGroup"
+import { makeStyles } from "@mui/styles"
+import TextField, { TextFieldProps } from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
 import { TemplateVersionParameter } from "../../api/typesGenerated"
@@ -40,7 +40,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
         )}
 
         {hasDescription ? (
-          <Stack spacing={0.5}>
+          <Stack spacing={0}>
             <span className={styles.labelCaption}>{displayName}</span>
             <span className={styles.labelPrimary}>
               <MemoizedMarkdown>{parameter.description}</MemoizedMarkdown>
@@ -73,7 +73,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
   const styles = useStyles()
 
   return (
-    <Stack direction="column" spacing={0.75}>
+    <Stack direction="column" spacing={2}>
       <ParameterLabel id={fieldProps.id} parameter={parameter} />
       <div className={styles.input}>
         <RichParameterField
@@ -110,13 +110,13 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
         <FormControlLabel
           disabled={disabled}
           value="true"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="True"
         />
         <FormControlLabel
           disabled={disabled}
           value="false"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="False"
         />
       </RadioGroup>
@@ -136,7 +136,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
             disabled={disabled}
             key={option.name}
             value={option.value}
-            control={<Radio color="primary" size="small" disableRipple />}
+            control={<Radio size="small" />}
             label={
               <span className={styles.radioOption}>
                 {option.icon && (
@@ -193,7 +193,6 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
     <TextField
       {...props}
       type={parameter.type}
-      size="small"
       disabled={disabled}
       required={parameter.required}
       placeholder={parameter.default_value}
@@ -223,7 +222,7 @@ const useStyles = makeStyles((theme) => ({
 
     "& p": {
       margin: 0,
-      lineHeight: "20px", // Keep the same as ParameterInput
+      lineHeight: "24px", // Keep the same as ParameterInput
     },
   },
   labelImmutable: {

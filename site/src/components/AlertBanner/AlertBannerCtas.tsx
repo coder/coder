@@ -1,8 +1,8 @@
 import { FC } from "react"
 import { AlertBannerProps } from "./alertTypes"
 import { Stack } from "components/Stack/Stack"
-import Button from "@material-ui/core/Button"
-import RefreshIcon from "@material-ui/icons/Refresh"
+import Button from "@mui/material/Button"
+import RefreshIcon from "@mui/icons-material/Refresh"
 import { useTranslation } from "react-i18next"
 
 type AlertBannerCtasProps = Pick<
@@ -29,12 +29,7 @@ export const AlertBannerCtas: FC<AlertBannerCtasProps> = ({
       {/* retry CTA */}
       {retry && (
         <div>
-          <Button
-            size="small"
-            onClick={retry}
-            startIcon={<RefreshIcon />}
-            variant="outlined"
-          >
+          <Button size="small" onClick={retry} startIcon={<RefreshIcon />}>
             {t("ctas.retry")}
           </Button>
         </div>
@@ -42,7 +37,7 @@ export const AlertBannerCtas: FC<AlertBannerCtasProps> = ({
 
       {/* close CTA */}
       {dismissible && (
-        <Button size="small" onClick={() => setOpen(false)} variant="outlined">
+        <Button size="small" onClick={() => setOpen(false)}>
           {t("ctas.dismissCta")}
         </Button>
       )}

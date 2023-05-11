@@ -1,8 +1,8 @@
-import IconButton from "@material-ui/core/IconButton"
-import { makeStyles } from "@material-ui/core/styles"
-import Tooltip from "@material-ui/core/Tooltip"
-import VisibilityOffOutlined from "@material-ui/icons/VisibilityOffOutlined"
-import VisibilityOutlined from "@material-ui/icons/VisibilityOutlined"
+import IconButton from "@mui/material/IconButton"
+import { makeStyles } from "@mui/styles"
+import Tooltip from "@mui/material/Tooltip"
+import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined"
+import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined"
 import { CopyableValue } from "components/CopyableValue/CopyableValue"
 import { useState } from "react"
 

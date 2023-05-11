@@ -1,8 +1,8 @@
-import PublicOutlinedIcon from "@material-ui/icons/PublicOutlined"
-import GroupOutlinedIcon from "@material-ui/icons/GroupOutlined"
-import LaunchOutlinedIcon from "@material-ui/icons/LaunchOutlined"
+import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined"
+import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined"
+import LaunchOutlinedIcon from "@mui/icons-material/LaunchOutlined"
 import * as TypesGen from "../../api/typesGenerated"
-import Tooltip from "@material-ui/core/Tooltip"
+import Tooltip from "@mui/material/Tooltip"
 import { useTranslation } from "react-i18next"
 
 export interface ShareIconProps {

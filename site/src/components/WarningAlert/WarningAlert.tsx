@@ -1,10 +1,10 @@
 import { useState, FC, ReactElement } from "react"
-import Collapse from "@material-ui/core/Collapse"
+import Collapse from "@mui/material/Collapse"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { colors } from "theme/colors"
-import ReportProblemOutlinedIcon from "@material-ui/icons/ReportProblemOutlined"
-import Button from "@material-ui/core/Button"
+import ReportProblemOutlinedIcon from "@mui/icons-material/ReportProblemOutlined"
+import Button from "@mui/material/Button"
 import { useTranslation } from "react-i18next"
 
 export interface WarningAlertProps {
@@ -42,11 +42,7 @@ export const WarningAlert: FC<WarningAlertProps> = ({
           {actions.length > 0 &&
             actions.map((action) => <div key={String(action)}>{action}</div>)}
           {dismissible && (
-            <Button
-              size="small"
-              onClick={() => setOpen(false)}
-              variant="outlined"
-            >
+            <Button size="small" onClick={() => setOpen(false)}>
               {t("ctas.dismissCta")}
             </Button>
           )}
@@ -56,11 +52,11 @@ export const WarningAlert: FC<WarningAlertProps> = ({
   )
 }
 
-const useStyles = makeStyles<Theme>((theme) => ({
+const useStyles = makeStyles((theme) => ({
   alertContainer: {
     border: `1px solid ${colors.orange[7]}`,
     borderRadius: theme.shape.borderRadius,
-    padding: `${theme.spacing(1)}px ${theme.spacing(2)}px`,
+    padding: `${theme.spacing(1)} ${theme.spacing(2)}`,
     backgroundColor: `${colors.gray[16]}`,
   },
   alertIcon: {
