@@ -50,6 +50,8 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230421140225-
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
+replace gvisor.dev/gvisor => github.com/mtojek/gvisor v0.0.0-20230511160450-8d30a6641e53
+
 require (
 	cdr.dev/slog v1.4.2
 	cloud.google.com/go/compute/metadata v0.2.3
@@ -87,6 +89,7 @@ require (
 	github.com/gliderlabs/ssh v0.3.4
 	github.com/go-chi/chi v1.5.4
 	github.com/go-chi/chi/v5 v5.0.7
+	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httprate v0.7.1
 	github.com/go-chi/render v1.0.1
 	github.com/go-jose/go-jose/v3 v3.0.0
@@ -174,10 +177,7 @@ require (
 	tailscale.com v1.32.2
 )
 
-require (
-	github.com/armon/go-radix v1.0.0 // indirect
-	github.com/go-chi/cors v1.2.1 // indirect
-)
+require github.com/armon/go-radix v1.0.0 // indirect
 
 require (
 	cloud.google.com/go/compute v1.18.0 // indirect
