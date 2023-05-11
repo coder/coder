@@ -96,7 +96,6 @@ jobs:
           docker run --rm --entrypoint cat protoc /tmp/bin/protoc > ./bin/protoc
           chmod +x ./bin/protoc
           echo "./bin" >> $GITHUB_PATH
-          protoc --version
 
       - name: Build Coder linux amd64 Docker image
         id: build
