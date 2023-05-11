@@ -82,4 +82,9 @@ export default defineConfig({
       xServices: path.resolve(__dirname, "./src/xServices"),
     },
   },
+  // https://github.com/vitejs/vite/issues/12434
+  // needed to fix Vite error: "outdated optimize dep"
+  optimizeDeps: {
+    exclude: ["@mui_material"],
+  },
 })
