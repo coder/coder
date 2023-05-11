@@ -11,16 +11,39 @@ import {
 } from "react"
 import { ProxyLatencyReport, useProxyLatency } from "./useProxyLatency"
 
-interface ProxyContextValue {
+export interface ProxyContextValue {
+  // proxy is **always** the workspace proxy that should be used.
+  // The 'proxy.selectedProxy' field is the proxy being used and comes from either:
+  //   1. The user manually selected this proxy. (saved to local storage)
+  //   2. The default proxy auto selected because:
+  //    a. The user has not selected a proxy.
+  //    b. The user's selected proxy is not in the list of proxies.
+  //    c. The user's selected proxy is not healthy.
+  //   3. undefined if there are no proxies.
+  //
+  // The values 'proxy.preferredPathAppURL' and 'proxy.preferredWildcardHostname' can
+  // always be used even if 'proxy.selectedProxy' is undefined. These values are sourced from
+  // the 'selectedProxy', but default to relative paths if the 'selectedProxy' is undefined.
   proxy: PreferredProxy
+
+  // proxies is the list of proxies returned by coderd. This is fetched async.
+  // isFetched, isLoading, and error are used to track the state of the async call.
   proxies?: Region[]
-  proxyLatencies?: Record<string, ProxyLatencyReport>
-  // isfetched is true when the proxy api call is complete.
+  // isFetched is true when the 'proxies' api call is complete.
   isFetched: boolean
-  // isLoading is true if the proxy is in the process of being fetched.
   isLoading: boolean
   error?: Error | unknown
+  // proxyLatencies is a map of proxy id to latency report. If the proxyLatencies[proxy.id] is undefined
+  // then the latency has not been fetched yet. Calculations happen async for each proxy in the list.
+  // Refer to the returned report for a given proxy for more information.
+  proxyLatencies: Record<string, ProxyLatencyReport>
+  // setProxy is a function that sets the user's selected proxy. This function should
+  // only be called if the user is manually selecting a proxy. This value is stored in local
+  // storage and will persist across reloads and tabs.
   setProxy: (selectedProxy: Region) => void
+  // clearProxy is a function that clears the user's selected proxy.
+  // If no proxy is selected, then the default proxy will be used.
+  clearProxy: () => void
 }
 
 interface PreferredProxy {
@@ -45,15 +68,23 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   // Try to load the preferred proxy from local storage.
-  let savedProxy = loadPreferredProxy()
+  const savedProxy = loadUserSelectedProxy()
+  // As the proxies are being loaded, default to using the saved proxy.
+  // If the saved proxy is not valid when the async fetch happens, the
+  // selectedProxy will be updated accordingly.
+  let defaultPreferredProxy: PreferredProxy = {
+    selectedProxy: savedProxy,
+    preferredPathAppURL: savedProxy?.path_app_url.replace(/\/$/, "") || "",
+    preferredWildcardHostname: savedProxy?.wildcard_hostname || "",
+  }
   if (!savedProxy) {
     // If no preferred proxy is saved, then default to using relative paths
     // and no subdomain support until the proxies are properly loaded.
     // This is the same as a user not selecting any proxy.
-    savedProxy = getPreferredProxy([])
+    defaultPreferredProxy = getPreferredProxy([])
   }
 
-  const [proxy, setProxy] = useState<PreferredProxy>(savedProxy)
+  const [proxy, setProxy] = useState<PreferredProxy>(defaultPreferredProxy)
 
   const dashboard = useDashboard()
   const experimentEnabled = dashboard?.experiments.includes("moons")
@@ -68,13 +99,13 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     queryFn: getWorkspaceProxies,
     // This onSuccess ensures the local storage is synchronized with the
     // proxies returned by coderd. If the selected proxy is not in the list,
-    // then the user selection is removed.
+    // then the user selection is ignored.
     onSuccess: (resp) => {
       setAndSaveProxy(proxy.selectedProxy, resp.regions)
     },
   })
 
-  // Everytime we get a new proxiesResponse, update the latency check
+  // Every time we get a new proxiesResponse, update the latency check
   // to each workspace proxy.
   const proxyLatencies = useProxyLatency(proxiesResp)
 
@@ -90,12 +121,25 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
         "proxies are not yet loaded, so selecting a proxy makes no sense. How did you get here?",
       )
     }
+
+    if (selectedProxy) {
+      // Save to local storage to persist the user's preference across reloads
+      // and other tabs. We always save this, even if the selection is "bad".
+      saveUserSelectedProxy(selectedProxy)
+    }
+
+    // The preferred proxy attempts to use the user's selection if it is valid.
     const preferred = getPreferredProxy(proxies, selectedProxy)
-    // Save to local storage to persist the user's preference across reloads
-    // and other tabs.
-    savePreferredProxy(preferred)
     // Set the state for the current context.
     setProxy(preferred)
+  }
+
+  const clearProxy = () => {
+    // Clear the user's selection from local storage.
+    clearUserSelectedProxy()
+    // Set the state for the current context.
+    // If we pass no values, then the default proxy will be used.
+    setAndSaveProxy()
   }
 
   return (
@@ -116,6 +160,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
         // A function that takes the new proxies and selected proxy and updates
         // the state with the appropriate urls.
         setProxy: setAndSaveProxy,
+        clearProxy: clearProxy,
       }}
     >
       {children}
@@ -183,12 +228,16 @@ export const getPreferredProxy = (
 
 // Local storage functions
 
-export const savePreferredProxy = (saved: PreferredProxy): void => {
-  window.localStorage.setItem("preferred-proxy", JSON.stringify(saved))
+export const clearUserSelectedProxy = (): void => {
+  window.localStorage.removeItem("user-selected-proxy")
 }
 
-const loadPreferredProxy = (): PreferredProxy | undefined => {
-  const str = localStorage.getItem("preferred-proxy")
+export const saveUserSelectedProxy = (saved: Region): void => {
+  window.localStorage.setItem("user-selected-proxy", JSON.stringify(saved))
+}
+
+export const loadUserSelectedProxy = (): Region | undefined => {
+  const str = localStorage.getItem("user-selected-proxy")
   if (!str) {
     return undefined
   }

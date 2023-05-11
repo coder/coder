@@ -35,6 +35,9 @@ const Template: Story<WorkspaceProps> = (args) => (
       setProxy: () => {
         return
       },
+      clearProxy: () => {
+        return
+      },
     }}
   >
     <Workspace {...args} />
