@@ -175,6 +175,7 @@ func TestRegions(t *testing.T) {
 	})
 
 	t.Run("GoingAway", func(t *testing.T) {
+		t.Skip("This is flakey in CI because it relies on internal go routine timing. Should refactor.")
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)

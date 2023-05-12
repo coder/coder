@@ -62,7 +62,19 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
+	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing parameter schemas.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, schemas))
 }
 
 // @Summary Patch template version by ID
@@ -156,7 +168,19 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(job), user))
+	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing parameter schemas.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(job), user, schemas))
 }
 
 // @Summary Cancel template version by ID
@@ -887,7 +911,18 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				})
 				return err
 			}
-			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), user))
+			schemas, err := store.GetParameterSchemasByJobID(ctx, job.ID)
+			if errors.Is(err, sql.ErrNoRows) {
+				err = nil
+			}
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error listing parameter schemas.",
+					Detail:  err.Error(),
+				})
+				return err
+			}
+			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), user, schemas))
 		}
 
 		return nil
@@ -951,7 +986,19 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
+	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing parameter schemas.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, schemas))
 }
 
 // @Summary Get template version by organization, template, and name
@@ -1025,7 +1072,19 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
+	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing parameter schemas.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, schemas))
 }
 
 // @Summary Get previous template version by organization, template, and name
@@ -1120,7 +1179,19 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(job), user))
+	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing parameter schemas.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(job), user, schemas))
 }
 
 // @Summary Update active template version by template ID
@@ -1494,7 +1565,19 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), user))
+	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, provisionerJob.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing parameter schemas.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), user, schemas))
 }
 
 // templateVersionResources returns the workspace agent resources associated
@@ -1561,7 +1644,7 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, user database.User) codersdk.TemplateVersion {
+func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, user database.User, schemas []database.ParameterSchema) codersdk.TemplateVersion {
 	createdBy := codersdk.User{
 		ID:        user.ID,
 		Username:  user.Username,
@@ -1570,6 +1653,11 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Status:    codersdk.UserStatus(user.Status),
 		Roles:     []codersdk.Role{},
 		AvatarURL: user.AvatarURL.String,
+	}
+
+	var warnings []codersdk.TemplateVersionWarning
+	if len(schemas) > 0 {
+		warnings = append(warnings, codersdk.TemplateVersionWarningDeprecatedParameters)
 	}
 
 	return codersdk.TemplateVersion{
@@ -1582,6 +1670,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Job:            job,
 		Readme:         version.Readme,
 		CreatedBy:      createdBy,
+		Warnings:       warnings,
 	}
 }
 

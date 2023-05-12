@@ -62,6 +62,7 @@ func Install(ctx context.Context, log slog.Logger, dir string, wantVersion *vers
 	log.Debug(
 		ctx,
 		"installing terraform",
+		slog.F("prev_version", hasVersion),
 		slog.F("dir", dir),
 		slog.F("version", TerraformVersion),
 	)

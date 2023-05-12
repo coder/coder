@@ -9040,6 +9040,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "DEPRECATED_PARAMETERS"
+                        ],
+                        "$ref": "#/definitions/codersdk.TemplateVersionWarning"
+                    }
                 }
             }
         },
@@ -9177,6 +9186,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.TemplateVersionWarning": {
+            "type": "string",
+            "enum": [
+                "DEPRECATED_PARAMETERS"
+            ],
+            "x-enum-varnames": [
+                "TemplateVersionWarningDeprecatedParameters"
+            ]
         },
         "codersdk.TokenConfig": {
             "type": "object",
@@ -9452,6 +9470,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "deleting_at": {
+                    "description": "DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.\nWorkspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.",
                     "type": "string",
                     "format": "date-time"
                 },
