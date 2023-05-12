@@ -24,10 +24,13 @@ resource "google_container_cluster" "primary" {
     google_project_service.api["container.googleapis.com"]
   ]
   monitoring_config {
-    enable_components = []
+    enable_components = ["SYSTEM_COMPONENTS"]
     managed_prometheus {
       enabled = true
     }
+  }
+  workload_identity_config {
+    workload_pool = "${data.google_project.project.project_id}.svc.id.goog"
   }
 }
 
