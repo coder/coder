@@ -58,11 +58,11 @@ export interface ProxyContextValue {
 }
 
 interface PreferredProxy {
-  // selectedProxy is the preferred proxy being used. It is provided for
+  // proxy is the proxy being used. It is provided for
   // getting the fields such as "display_name" and "id"
   // Do not use the fields 'path_app_url' or 'wildcard_hostname' from this
   // object. Use the preferred fields.
-  selectedProxy: Region | undefined
+  proxy: Region | undefined
   // PreferredPathAppURL is the URL of the proxy or it is the empty string
   // to indicate using relative paths. To add a path to this:
   //  PreferredPathAppURL + "/path/to/app"
@@ -86,12 +86,9 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   // As the proxies are being loaded, default to using the saved proxy.
   // If the saved proxy is not valid when the async fetch happens, the
-  // selectedProxy will be updated accordingly.
-  let defaultPreferredProxy: PreferredProxy = {
-    selectedProxy: savedProxy,
-    preferredPathAppURL: savedProxy?.path_app_url.replace(/\/$/, "") || "",
-    preferredWildcardHostname: savedProxy?.wildcard_hostname || "",
-  }
+  // proxy will be updated accordingly.
+  let defaultPreferredProxy = computeUsableURLS(savedProxy)
+
   if (!savedProxy) {
     // If no preferred proxy is saved, then default to using relative paths
     // and no subdomain support until the proxies are properly loaded.
@@ -206,12 +203,12 @@ export const useProxy = (): ProxyContextValue => {
 }
 
 /**
- * getURLs is a helper function to calculate the urls to use for a given proxy configuration. By default, it is
+ * getPreferredProxy is a helper function to calculate the urls to use for a given proxy configuration. By default, it is
  * assumed no proxy is configured and relative paths should be used.
  * Exported for testing.
  *
  * @param proxies Is the list of proxies returned by coderd. If this is empty, default behavior is used.
- * @param selectedProxy Is the proxy the user has selected. If this is undefined, default behavior is used.
+ * @param selectedProxy Is the proxy saved in local storage. If this is undefined, default behavior is used.
  * @param latencies If provided, this is used to determine the best proxy to default to.
  *                  If not, `primary` is always the best default.
  */
@@ -220,11 +217,6 @@ export const getPreferredProxy = (
   selectedProxy?: Region,
   latencies?: Record<string, ProxyLatencyReport>,
 ): PreferredProxy => {
-  // By default we set the path app to relative and disable wildcard hostnames.
-  // We will set these values if we find a proxy we can use that supports them.
-  let pathAppURL = ""
-  let wildcardHostname = ""
-
   // If a proxy is selected, make sure it is in the list of proxies. If it is not
   // we should default to the primary.
   selectedProxy = proxies.find(
@@ -263,23 +255,31 @@ export const getPreferredProxy = (
     }
   }
 
-  // Only use healthy proxies.
-  if (selectedProxy && selectedProxy.healthy) {
+  return computeUsableURLS(selectedProxy)
+}
+
+const computeUsableURLS = (proxy?: Region): PreferredProxy => {
+  if (!proxy) {
     // By default use relative links for the primary proxy.
     // This is the default, and we should not change it.
-    if (selectedProxy.name !== "primary") {
-      pathAppURL = selectedProxy.path_app_url
+    return {
+      proxy: undefined,
+      preferredPathAppURL: "",
+      preferredWildcardHostname: "",
     }
-    wildcardHostname = selectedProxy.wildcard_hostname
   }
 
-  // TODO: @emyrk Should we notify the user if they had an unhealthy proxy selected?
+  let pathAppURL = proxy?.path_app_url.replace(/\/$/, "")
+  // Primary proxy uses relative paths. It's the only exception.
+  if (proxy.name === "primary") {
+    pathAppURL = ""
+  }
 
   return {
-    selectedProxy: selectedProxy,
+    proxy: proxy,
     // Trim trailing slashes to be consistent
-    preferredPathAppURL: pathAppURL.replace(/\/$/, ""),
-    preferredWildcardHostname: wildcardHostname,
+    preferredPathAppURL: pathAppURL,
+    preferredWildcardHostname: proxy.wildcard_hostname,
   }
 }
 

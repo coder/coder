@@ -46,7 +46,7 @@ const renderTerminal = () => {
             value={{
               proxyLatencies: MockProxyLatencies,
               proxy: {
-                selectedProxy: MockPrimaryWorkspaceProxy,
+                proxy: MockPrimaryWorkspaceProxy,
                 preferredPathAppURL: "",
                 preferredWildcardHostname: "",
               },

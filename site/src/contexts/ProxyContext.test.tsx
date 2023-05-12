@@ -146,7 +146,7 @@ const TestingScreen = () => {
       <div data-testid="isLoading" title={isLoading.toString()}></div>
       <div
         data-testid="preferredProxy"
-        title={proxy.selectedProxy && proxy.selectedProxy.id}
+        title={proxy.proxy && proxy.proxy.id}
       ></div>
       <div data-testid="userProxy" title={userProxy && userProxy.id}></div>
       <button data-testid="clearProxy" onClick={clearProxy}></button>
@@ -187,7 +187,6 @@ interface ProxyContextSelectionTest {
 
 describe("ProxyContextSelection", () => {
   beforeEach(() => {
-    // Object.defineProperty(window, "localStorage", { value: localStorageMock })
     window.localStorage.clear()
   })
 
