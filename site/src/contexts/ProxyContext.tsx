@@ -32,9 +32,6 @@ export interface ProxyContextValue {
   // The value `proxy` should always be used instead of `userProxy`. `userProxy` is only exposed
   // so the caller can determine if the proxy being used is the user's selected proxy, or if it
   // was auto selected based on some other criteria.
-  //
-  // if(proxy.selectedProxy.id === userProxy.id) { /* user selected proxy */ }
-  // else { /* proxy was auto selected */ }
   userProxy?: Region
 
   // proxies is the list of proxies returned by coderd. This is fetched async.
@@ -79,27 +76,18 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
-  // Try to load the preferred proxy from local storage.
-  const [savedProxy, setUserProxy] = useState<Region | undefined>(
-    loadUserSelectedProxy(),
-  )
-
-  // As the proxies are being loaded, default to using the saved proxy.
-  // If the saved proxy is not valid when the async fetch happens, the
-  // proxy will be updated accordingly.
-  let defaultPreferredProxy = computeUsableURLS(savedProxy)
-
-  if (!savedProxy) {
-    // If no preferred proxy is saved, then default to using relative paths
-    // and no subdomain support until the proxies are properly loaded.
-    // This is the same as a user not selecting any proxy.
-    defaultPreferredProxy = getPreferredProxy([])
-  }
-
-  const [proxy, setProxy] = useState<PreferredProxy>(defaultPreferredProxy)
-
   const dashboard = useDashboard()
   const experimentEnabled = dashboard?.experiments.includes("moons")
+
+  // Using a useState so the caller always has the latest user saved
+  // proxy.
+  const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy())
+
+  // Load the initial state from local storage.
+  const [proxy, setProxy] = useState<PreferredProxy>(
+    computeUsableURLS(userSavedProxy),
+  )
+
   const queryKey = ["get-proxies"]
   const {
     data: proxiesResp,
@@ -109,57 +97,39 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   } = useQuery({
     queryKey,
     queryFn: getWorkspaceProxies,
-    // This onSuccess ensures the local storage is synchronized with the
-    // proxies returned by coderd. If the selected proxy is not in the list,
-    // then the user selection is ignored.
-    onSuccess: (resp) => {
-      // Always pass in the user's choice.
-      setAndSaveProxy(savedProxy, resp.regions)
-    },
   })
 
   // Every time we get a new proxiesResponse, update the latency check
   // to each workspace proxy.
   const proxyLatencies = useProxyLatency(proxiesResp)
 
-  // If the proxies change or latencies change, we need to update the
-  // callback function.
-  const setAndSaveProxy = useCallback(
-    (
-      selectedProxy?: Region,
-      // By default the proxies come from the api call above.
-      // Allow the caller to override this if they have a more up
-      // to date list of proxies.
-      proxies: Region[] = proxiesResp?.regions || [],
-    ) => {
-      if (!proxies) {
-        throw new Error(
-          "proxies are not yet loaded, so selecting a proxy makes no sense. How did you get here?",
-        )
-      }
-
-      // The preferred proxy attempts to use the user's selection if it is valid.
-      const preferred = getPreferredProxy(
-        proxies,
-        selectedProxy,
+  // updateProxy is a helper function that when called will
+  // update the proxy being used.
+  const updateProxy = useCallback(() => {
+    // Update the saved user proxy for the caller.
+    setUserSavedProxy(loadUserSelectedProxy())
+    setProxy(
+      getPreferredProxy(
+        proxiesResp?.regions ?? [],
+        // For some reason if I use 'userSavedProxy' here,
+        // the tests fail. It does not load "undefined" after a
+        // clear, but takes the previous value.
+        loadUserSelectedProxy(),
         proxyLatencies,
-      )
-      // Set the state for the current context.
-      setProxy(preferred)
-    },
-    [proxiesResp, proxyLatencies],
-  )
+      ),
+    )
+  }, [userSavedProxy, proxiesResp, proxyLatencies])
 
   // This useEffect ensures the proxy to be used is updated whenever the state changes.
   // This includes proxies being loaded, latencies being calculated, and the user selecting a proxy.
   useEffect(() => {
-    setAndSaveProxy(savedProxy)
-  }, [savedProxy, proxiesResp, proxyLatencies, setAndSaveProxy])
+    updateProxy()
+  }, [proxiesResp, proxyLatencies])
 
   return (
     <ProxyContext.Provider
       value={{
-        userProxy: savedProxy,
+        userProxy: userSavedProxy,
         proxyLatencies: proxyLatencies,
         proxy: experimentEnabled
           ? proxy
@@ -177,13 +147,13 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
         setProxy: (proxy: Region) => {
           // Save to local storage to persist the user's preference across reloads
           saveUserSelectedProxy(proxy)
-          // Set the state for the current context.
-          setUserProxy(proxy)
+          // Update the selected proxy
+          updateProxy()
         },
         clearProxy: () => {
           // Clear the user's selection from local storage.
           clearUserSelectedProxy()
-          setUserProxy(undefined)
+          updateProxy()
         },
       }}
     >
