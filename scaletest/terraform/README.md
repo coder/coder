@@ -30,7 +30,7 @@ project_id = "some_google_project_id"
    and emit the Coder URL as an output.
 
 1. Run `coder_init.sh <coder_url>` to setup an initial user and a pre-configured Kubernetes
-   template. It will also down the Coder CLI locally.
+   template. It will also download the Coder CLI from the Coder instance locally.
 
 1. Do whatever you need to do with the Coder instance.
 
