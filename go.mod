@@ -50,7 +50,7 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230421140225-
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
-replace gvisor.dev/gvisor => github.com/mtojek/gvisor v0.0.0-20230511160450-8d30a6641e53
+replace gvisor.dev/gvisor => github.com/mtojek/gvisor v0.0.0-20230512095222-5d9248648316
 
 require (
 	cdr.dev/slog v1.4.2
