@@ -21,7 +21,6 @@ import { rest } from "msw"
 import { Region } from "api/typesGenerated"
 import "testHelpers/localstorage"
 import userEvent from "@testing-library/user-event"
-import UserEvent from "@testing-library/user-event"
 
 // Mock useProxyLatency to use a hard-coded latency. 'jest.mock' must be called
 // here and not inside a unit test.
