@@ -29,9 +29,9 @@ set -o pipefail
 CODER_FIRST_USER_EMAIL="admin@coder.com"
 CODER_FIRST_USER_USERNAME="coder"
 CODER_FIRST_USER_PASSWORD="${RANDOM_ADMIN_PASSWORD}"
-CODER_FIRST_USER_TRIAL=false
+CODER_FIRST_USER_TRIAL="false"
 echo "Running login command!"
-${CONFIG_DIR}/coder login "${CODER_URL}" \
+"${CONFIG_DIR}/coder" login "${CODER_URL}" \
 	--global-config="${CONFIG_DIR}" \
 	--first-user-username="${CODER_FIRST_USER_USERNAME}" \
 	--first-user-email="${CODER_FIRST_USER_EMAIL}" \
@@ -39,11 +39,11 @@ ${CONFIG_DIR}/coder login "${CODER_URL}" \
 	--first-user-trial=false
 
 echo "Writing credentials to ${CONFIG_DIR}/coder.env"
-cat <<EOF > ${CONFIG_DIR}/coder.env
+cat <<EOF > "${CONFIG_DIR}/coder.env"
 CODER_FIRST_USER_EMAIL=admin@coder.com
 CODER_FIRST_USER_USERNAME=coder
 CODER_FIRST_USER_PASSWORD="${RANDOM_ADMIN_PASSWORD}"
-CODER_FIRST_USER_TRIAL=false
+CODER_FIRST_USER_TRIAL="${CODER_FIRST_USER_TRIAL}"
 EOF
 
 echo "Importing kubernetes template"
