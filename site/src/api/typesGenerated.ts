@@ -899,6 +899,7 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User
+  readonly warnings?: TemplateVersionWarning[]
 }
 
 // From codersdk/templateversions.go
@@ -1590,6 +1591,12 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"
 export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
+
+// From codersdk/templateversions.go
+export type TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+export const TemplateVersionWarnings: TemplateVersionWarning[] = [
+  "DEPRECATED_PARAMETERS",
+]
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

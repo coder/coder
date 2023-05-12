@@ -9040,6 +9040,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "DEPRECATED_PARAMETERS"
+                        ],
+                        "$ref": "#/definitions/codersdk.TemplateVersionWarning"
+                    }
                 }
             }
         },
@@ -9177,6 +9186,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.TemplateVersionWarning": {
+            "type": "string",
+            "enum": [
+                "DEPRECATED_PARAMETERS"
+            ],
+            "x-enum-varnames": [
+                "TemplateVersionWarningDeprecatedParameters"
+            ]
         },
         "codersdk.TokenConfig": {
             "type": "object",
