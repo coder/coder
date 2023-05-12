@@ -54,6 +54,7 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
+    templateVersion,
     builds,
     getBuildsError,
     buildError,
@@ -157,6 +158,7 @@ export const WorkspaceReadyPage = ({
         sshPrefix={sshPrefix}
         template={template}
         quota_budget={quotaState.context.quota?.budget}
+        templateWarnings={templateVersion?.warnings}
       />
       <DeleteDialog
         entity="workspace"

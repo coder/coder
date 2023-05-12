@@ -7,6 +7,7 @@ import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
 import { withReactContext } from "storybook-react-context"
 import EventSource from "eventsourcemock"
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
+import { MockProxyLatencies } from "../../testHelpers/entities"
 
 export default {
   title: "components/Workspace",
@@ -26,6 +27,7 @@ export default {
 const Template: Story<WorkspaceProps> = (args) => (
   <ProxyContext.Provider
     value={{
+      proxyLatencies: MockProxyLatencies,
       proxy: getPreferredProxy([], undefined),
       proxies: [],
       isLoading: false,
@@ -657,4 +659,10 @@ function makeFailedBuildLogs(): ProvisionerJobLog[] {
       output: "",
     },
   ]
+}
+
+export const WithDeprecatedParameters = Template.bind({})
+WithDeprecatedParameters.args = {
+  ...Running.args,
+  templateWarnings: ["DEPRECATED_PARAMETERS"],
 }

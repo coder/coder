@@ -6,8 +6,32 @@ import "jest-location-mock"
 import { TextEncoder, TextDecoder } from "util"
 import { Blob } from "buffer"
 import jestFetchMock from "jest-fetch-mock"
+import { ProxyLatencyReport } from "contexts/useProxyLatency"
+import { RegionsResponse } from "api/typesGenerated"
 
 jestFetchMock.enableMocks()
+
+// useProxyLatency does some http requests to determine latency.
+// This would fail unit testing, or at least make it very slow with
+// actual network requests. So just globally mock this hook.
+jest.mock("contexts/useProxyLatency", () => ({
+  useProxyLatency: (proxies?: RegionsResponse) => {
+    if (!proxies) {
+      return {} as Record<string, ProxyLatencyReport>
+    }
+
+    return proxies.regions.reduce((acc, proxy) => {
+      acc[proxy.id] = {
+        accurate: true,
+        // Return a constant latency of 8ms.
+        // If you make this random it could break stories.
+        latencyMS: 8,
+        at: new Date(),
+      }
+      return acc
+    }, {} as Record<string, ProxyLatencyReport>)
+  },
+}))
 
 global.TextEncoder = TextEncoder
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Polyfill for jsdom
