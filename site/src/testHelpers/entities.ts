@@ -721,7 +721,6 @@ export const MockWorkspace: TypesGen.Workspace = {
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
   last_used_at: "2022-05-16T15:29:10.302441433Z",
-  deleting_at: "0001-01-01T00:00:00Z",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -805,6 +804,12 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
     transition: "start",
     status: "pending",
   },
+}
+
+export const MockWorkspaceImpendingDeletion: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-workspace-impending-deletion",
+  deleting_at: new Date().toISOString(),
 }
 
 // just over one page of workspaces

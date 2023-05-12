@@ -3,12 +3,13 @@ import ErrorIcon from "@mui/icons-material/ErrorOutline"
 import StopIcon from "@mui/icons-material/StopOutlined"
 import PlayIcon from "@mui/icons-material/PlayArrowOutlined"
 import QueuedIcon from "@mui/icons-material/HourglassEmpty"
-import { WorkspaceBuild } from "api/typesGenerated"
+import { Workspace, WorkspaceBuild } from "api/typesGenerated"
 import { Pill } from "components/Pill/Pill"
 import i18next from "i18next"
 import { FC, PropsWithChildren } from "react"
 import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
+import { displayImpendingDeletion } from "utils/workspace"
 
 const LoadingIcon: FC = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
@@ -87,22 +88,33 @@ export const getStatus = (buildStatus: WorkspaceBuild["status"]) => {
 }
 
 export type WorkspaceStatusBadgeProps = {
-  build: WorkspaceBuild
+  workspace: Workspace
   className?: string
 }
 
 export const WorkspaceStatusBadge: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
-> = ({ build, className }) => {
-  const { text, icon, type } = getStatus(build.status)
+> = ({ workspace, className }) => {
+  if (displayImpendingDeletion(workspace)) {
+    return (
+      <Pill
+        className={className}
+        icon={<ErrorIcon />}
+        text="Impending deletion"
+        type="error"
+      />
+    )
+  }
+
+  const { text, icon, type } = getStatus(workspace.latest_build.status)
   return <Pill className={className} icon={icon} text={text} type={type} />
 }
 
 export const WorkspaceStatusText: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
-> = ({ build, className }) => {
+> = ({ workspace, className }) => {
   const styles = useStyles()
-  const { text, type } = getStatus(build.status)
+  const { text, type } = getStatus(workspace.latest_build.status)
   return (
     <span
       role="status"
