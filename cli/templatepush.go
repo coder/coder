@@ -116,7 +116,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		alwaysPrompt    bool
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
-		makeActive      bool
+		activate        bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -175,7 +175,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			if makeActive {
+			if activate {
 				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 					ID: job.ID,
 				})
@@ -237,10 +237,10 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Value:       clibase.BoolOf(&alwaysPrompt),
 		},
 		{
-			Flag:        "make-active",
+			Flag:        "activate",
 			Description: "Whether the new template will be marked active.",
 			Default:     "true",
-			Value:       clibase.BoolOf(&makeActive),
+			Value:       clibase.BoolOf(&activate),
 		},
 		cliui.SkipPromptOption(),
 		uploadFlags.option(),
