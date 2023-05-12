@@ -139,7 +139,7 @@ func TestProvisionerJobStatus(t *testing.T) {
 			// Make sure the inserted job has the right values.
 			require.Equal(t, tc.job.StartedAt.Time.UTC(), inserted.StartedAt.Time.UTC(), "started at")
 			require.Equal(t, tc.job.CompletedAt.Time.UTC(), inserted.CompletedAt.Time.UTC(), "completed at")
-			require.Equal(t, tc.job.CanceledAt.Time.UTC(), inserted.CanceledAt.Time.UTC(), "cancelled at")
+			require.Equal(t, tc.job.CanceledAt.Time.UTC(), inserted.CanceledAt.Time.UTC(), "canceled at")
 			require.Equal(t, tc.job.Error, inserted.Error, "error")
 			require.Equal(t, tc.job.ErrorCode, inserted.ErrorCode, "error code")
 

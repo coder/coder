@@ -171,6 +171,12 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						SetLastWorkspaceBuildInTx(&latestBuild).
 						SetLastWorkspaceBuildJobInTx(&latestJob).
 						Reason(reason)
+					log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
+					if nextTransition == database.WorkspaceTransitionStart &&
+						ws.AutomaticUpdates == database.AutomaticUpdatesAlways {
+						log.Debug(e.ctx, "autostarting with active version")
+						builder = builder.ActiveVersion()
+					}
 
 					_, job, err = builder.Build(e.ctx, tx, nil)
 					if err != nil {
