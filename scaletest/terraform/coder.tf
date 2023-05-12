@@ -8,8 +8,7 @@ locals {
   coder_admin_email          = "admin@coder.com"
   coder_admin_user           = "coder"
   coder_address              = "${google_compute_address.coder.address}"
-  coder_url                  =  "https://${google_compute_address.coder.address}"
-  rebuilt_workspace_image    =  "gcr.io/coder-dev-1/v2-loadtest/${var.name}/workspace:latest"
+  coder_url                  =  "http://${google_compute_address.coder.address}"
 }
 
 provider "kubernetes" {
@@ -51,58 +50,6 @@ resource "kubernetes_secret" "coder-db" {
   }
   data = {
     url = "postgres://${google_sql_user.coder.name}:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}/${google_sql_database.coder.name}?sslmode=disable"
-  }
-}
-
-resource "tls_private_key" "coder" {
-  algorithm = "RSA"
-}
-
-resource "tls_self_signed_cert" "coder" {
-  private_key_pem = tls_private_key.coder.private_key_pem
-  is_ca_certificate = true
-
-  subject {
-    common_name = "${local.coder_release_name}.${local.coder_namespace}.svc.cluster.local"
-  }
-
-  allowed_uses = ["digital_signature", "cert_signing", "crl_signing"]
-
-  # 1 year
-  validity_period_hours = 8760
-
-  dns_names = [
-    "${local.coder_release_name}.${local.coder_namespace}.svc.cluster.local",
-    "${local.coder_release_name}.${local.coder_namespace}",
-    "${local.coder_release_name}",
-  ]
-
-  ip_addresses = [
-    google_compute_address.coder.address
-  ]
-}
-
-resource "kubernetes_secret" "coder-tls" {
-  type = "kubernetes.io/tls"
-  metadata {
-    name      = "coder-tls"
-    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
-  }
-
-  data = {
-    "tls.crt" = tls_self_signed_cert.coder.cert_pem
-    "tls.key" = tls_private_key.coder.private_key_pem
-  }
-}
-
-resource "kubernetes_secret" "coder-ca" {
-  type = "Opaque"
-  metadata {
-    name      = "coder-ca"
-    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
-  }
-  data = {
-    "ca.crt" = "${tls_self_signed_cert.coder.cert_pem}"
   }
 }
 
@@ -151,8 +98,6 @@ coder:
           key: url
     - name: "CODER_PROMETHEUS_ENABLE"
       value: "true"
-    - name: "CODER_TLS_REDIRECT_HTTP_TO_HTTPS"
-      value: "true"
     - name: "CODER_VERBOSE"
       value: "true"
   image:
@@ -171,9 +116,6 @@ coder:
   service:
     enable: true
     loadBalancerIP: "${local.coder_address}"
-  tls:
-    secretNames:
-    - "${kubernetes_secret.coder-tls.metadata.0.name}"
   volumeMounts:
   - mountPath: "/tmp"
     name: cache
@@ -226,11 +168,9 @@ resource "docker_image" "workspace" {
   }
 }
 
-resource "null_resource" "push_workspace_image" {
-  depends_on = [ docker_image.workspace ]
-  provisioner "local-exec" {
-    command = "docker push ${local.rebuilt_workspace_image}"
-  }
+resource "local_file" "url" {
+  filename = "${path.module}/coder_url"
+  content = "${local.coder_url}"
 }
 
 resource "local_file" "kubernetes_template" {
@@ -281,7 +221,7 @@ resource "local_file" "kubernetes_template" {
         }
         container {
           name              = "dev"
-          image             = "${local.rebuilt_workspace_image}"
+          image             = "${var.workspace_image}"
           image_pull_policy = "Always"
           command           = ["sh", "-c", coder_agent.main.init_script]
           security_context {
