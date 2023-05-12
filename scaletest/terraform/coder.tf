@@ -148,17 +148,12 @@ spec:
 
 resource "null_resource" "coder-monitoring-manifest_apply" {
   provisioner "local-exec" {
-    working_dir = abspath(path.module)
+    working_dir = "${abspath(path.module)}/.coderv2"
     command = <<EOF
 KUBECONFIG=${var.name}-cluster.kubeconfig gcloud container clusters get-credentials ${var.name}-cluster --project=${var.project_id} --zone=${var.zone} && \
 KUBECONFIG=${var.name}-cluster.kubeconfig kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
     EOF
   }
-}
-
-resource "local_file" "url" {
-  filename = "${path.module}/coder_url"
-  content = "${local.coder_url}"
 }
 
 resource "local_file" "kubernetes_template" {
@@ -262,4 +257,9 @@ resource "local_file" "kubernetes_template" {
       }
     }
   EOF
+}
+
+output "coder_url" {
+  description = "URL of the Coder deployment"
+  value = local.coder_url
 }

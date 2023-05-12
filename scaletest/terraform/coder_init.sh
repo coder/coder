@@ -38,8 +38,8 @@ ${CONFIG_DIR}/coder login "${CODER_URL}" \
 	--first-user-password="${CODER_FIRST_USER_PASSWORD}" \
 	--first-user-trial=false
 
-echo "Writing credentials to coder.env"
-cat <<EOF > ./coder.env
+echo "Writing credentials to "${CONFIG_DIR}/coder.env"
+cat <<EOF > ${CONFIG_DIR}/coder.env
 CODER_FIRST_USER_EMAIL=admin@coder.com
 CODER_FIRST_USER_USERNAME=coder
 CODER_FIRST_USER_PASSWORD="${RANDOM_ADMIN_PASSWORD}"
