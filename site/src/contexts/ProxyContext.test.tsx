@@ -32,6 +32,7 @@ jest.mock("contexts/useProxyLatency", () => ({
 
 let hardCodedLatencies: Record<string, ProxyLatency.ProxyLatencyReport> = {}
 
+// fakeLatency is a helper function to make a Latency report from just a number.
 const fakeLatency = (ms: number): ProxyLatency.ProxyLatencyReport => {
   return {
     latencyMS: ms,
@@ -164,12 +165,23 @@ const TestingScreen = () => {
 }
 
 interface ProxyContextSelectionTest {
+  // Regions is the list of regions to return via the "api" response.
   regions: Region[]
+  // storageProxy should be the proxy stored in local storage before the
+  // component is mounted and context is loaded. This simulates opening a
+  // new window with a selection saved from before.
   storageProxy: Region | undefined
+  // latencies is the hard coded latencies to return. If empty, no latencies
+  // are returned.
   latencies?: Record<string, ProxyLatency.ProxyLatencyReport>
+  // afterLoad are actions to take after loading the component, but before
+  // assertions. This is useful for simulating user actions.
   afterLoad?: (user: typeof userEvent) => Promise<void>
 
+  // Assert these values.
+  // expProxyID is the proxyID returned to be used.
   expProxyID: string
+  // expUserProxyID is the user's stored selection.
   expUserProxyID?: string
 }
 
@@ -301,6 +313,23 @@ describe("ProxyContextSelection", () => {
         },
       },
     ],
+    [
+      // Excess proxies we do not have are low latency.
+      // This will probably never happen in production.
+      "unknown_regions_low_latency",
+      {
+        // Default to primary since we have unknowns
+        expProxyID: MockPrimaryWorkspaceProxy.id,
+        regions: MockWorkspaceProxies,
+        storageProxy: MockUnhealthyWildWorkspaceProxy,
+        expUserProxyID: MockUnhealthyWildWorkspaceProxy.id,
+        latencies: {
+          ["some"]: fakeLatency(500),
+          ["random"]: fakeLatency(100),
+          ["ids"]: fakeLatency(25),
+        },
+      },
+    ],
   ] as [string, ProxyContextSelectionTest][])(
     `%s`,
     async (
@@ -316,12 +345,6 @@ describe("ProxyContextSelection", () => {
     ) => {
       // Mock the latencies
       hardCodedLatencies = latencies
-
-      // jest.mock("contexts/useProxyLatency", () => ({
-      //   useProxyLatency: () => {
-      //     return latencies
-      //   },
-      // }))
 
       // Initial selection if present
       if (storageProxy) {
