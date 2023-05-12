@@ -214,7 +214,7 @@ and are not deleted. [Configure](./configure.md) your SCIM application with an
 auth key and supply it the Coder server.
 
 ```console
-CODER_SCIM_API_KEY="your-api-key"
+CODER_SCIM_AUTH_HEADER="your-api-key"
 ```
 
 ## TLS
