@@ -1,14 +1,14 @@
 data "google_client_config" "default" {}
 
 locals {
-  coder_helm_repo            = "https://helm.coder.com/v2"
-  coder_helm_chart           = "coder"
-  coder_release_name         = "coder-${var.name}"
-  coder_namespace            = "coder-${var.name}"
-  coder_admin_email          = "admin@coder.com"
-  coder_admin_user           = "coder"
-  coder_address              = "${google_compute_address.coder.address}"
-  coder_url                  =  "http://${google_compute_address.coder.address}"
+  coder_helm_repo    = "https://helm.coder.com/v2"
+  coder_helm_chart   = "coder"
+  coder_release_name = "coder-${var.name}"
+  coder_namespace    = "coder-${var.name}"
+  coder_admin_email  = "admin@coder.com"
+  coder_admin_user   = "coder"
+  coder_address      = google_compute_address.coder.address
+  coder_url          = "http://${google_compute_address.coder.address}"
 }
 
 provider "kubernetes" {
@@ -130,7 +130,7 @@ EOF
 
 resource "local_file" "coder-monitoring-manifest" {
   filename = "${path.module}/.coderv2/coder-monitoring.yaml"
-  content = <<EOF
+  content  = <<EOF
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
@@ -149,7 +149,7 @@ spec:
 resource "null_resource" "coder-monitoring-manifest_apply" {
   provisioner "local-exec" {
     working_dir = "${abspath(path.module)}/.coderv2"
-    command = <<EOF
+    command     = <<EOF
 KUBECONFIG=${var.name}-cluster.kubeconfig gcloud container clusters get-credentials ${var.name}-cluster --project=${var.project_id} --zone=${var.zone} && \
 KUBECONFIG=${var.name}-cluster.kubeconfig kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
     EOF
@@ -158,7 +158,7 @@ KUBECONFIG=${var.name}-cluster.kubeconfig kubectl apply -f ${abspath(local_file.
 
 resource "local_file" "kubernetes_template" {
   filename = "${path.module}/.coderv2/templates/kubernetes/main.tf"
-  content = <<EOF
+  content  = <<EOF
     terraform {
       required_providers {
         coder = {
@@ -261,5 +261,5 @@ resource "local_file" "kubernetes_template" {
 
 output "coder_url" {
   description = "URL of the Coder deployment"
-  value = local.coder_url
+  value       = local.coder_url
 }

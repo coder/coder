@@ -25,15 +25,15 @@ resource "google_compute_global_address" "sql_peering" {
 }
 
 resource "google_compute_address" "coder" {
-  project       = var.project_id
-  region        = var.region
-  name          = "${var.name}-coder"
-  address_type  = "EXTERNAL"
-  network_tier  = "PREMIUM"
+  project      = var.project_id
+  region       = var.region
+  name         = "${var.name}-coder"
+  address_type = "EXTERNAL"
+  network_tier = "PREMIUM"
 }
 
 resource "google_service_networking_connection" "private_vpc_connection" {
-  network = google_compute_network.vpc.id
-  service = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [ google_compute_global_address.sql_peering.name ]
+  network                 = google_compute_network.vpc.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.sql_peering.name]
 }

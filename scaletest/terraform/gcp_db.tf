@@ -8,9 +8,9 @@ data "google_compute_global_address" "sql_peering" {
 }
 
 resource "google_sql_database_instance" "db" {
-  name             = "${var.name}-db"
-  region           = var.region
-  database_version = var.cloudsql_version
+  name                = "${var.name}-db"
+  region              = var.region
+  database_version    = var.cloudsql_version
   deletion_protection = false
 
   depends_on = [google_service_networking_connection.private_vpc_connection]
@@ -44,18 +44,18 @@ resource "google_sql_database_instance" "db" {
 }
 
 resource "google_sql_database" "coder" {
-  project = var.project_id
+  project  = var.project_id
   instance = google_sql_database_instance.db.id
-  name = "${var.name}-coder"
-   # required for postgres, otherwise db fails to delete
+  name     = "${var.name}-coder"
+  # required for postgres, otherwise db fails to delete
   deletion_policy = "ABANDON"
 }
 
 resource "google_sql_user" "coder" {
-  project = var.project_id
+  project  = var.project_id
   instance = google_sql_database_instance.db.id
-  name = "${var.name}-coder"
-  type = "BUILT_IN"
+  name     = "${var.name}-coder"
+  type     = "BUILT_IN"
   password = random_password.coder-postgres-password.result
   # required for postgres, otherwise user fails to delete
   deletion_policy = "ABANDON"
