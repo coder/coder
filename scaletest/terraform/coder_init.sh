@@ -24,7 +24,7 @@ curl -fsSLk "${CODER_URL}/bin/coder-${PLATFORM}-${ARCH}" -o "${CONFIG_DIR}/coder
 chmod +x "${CONFIG_DIR}/coder"
 
 set +o pipefail
-RANDOM_ADMIN_PASSWORD=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c16)
+RANDOM_ADMIN_PASSWORD=$(tr </dev/urandom -dc _A-Z-a-z-0-9 | head -c16)
 set -o pipefail
 CODER_FIRST_USER_EMAIL="admin@coder.com"
 CODER_FIRST_USER_USERNAME="coder"
@@ -39,7 +39,7 @@ echo "Running login command!"
 	--first-user-trial=false
 
 echo "Writing credentials to ${CONFIG_DIR}/coder.env"
-cat <<EOF > "${CONFIG_DIR}/coder.env"
+cat <<EOF >"${CONFIG_DIR}/coder.env"
 CODER_FIRST_USER_EMAIL=admin@coder.com
 CODER_FIRST_USER_USERNAME=coder
 CODER_FIRST_USER_PASSWORD="${RANDOM_ADMIN_PASSWORD}"
