@@ -9,7 +9,6 @@ import {
   MockStartingWorkspace,
   MockStoppedWorkspace,
   MockStoppingWorkspace,
-  MockWorkspaceImpendingDeletion,
   MockWorkspace,
 } from "testHelpers/entities"
 import {
@@ -74,9 +73,4 @@ Failed.args = {
 export const Pending = Template.bind({})
 Pending.args = {
   workspace: MockPendingWorkspace,
-}
-
-export const ImpendingDeletion = Template.bind({})
-ImpendingDeletion.args = {
-  workspace: MockWorkspaceImpendingDeletion,
 }

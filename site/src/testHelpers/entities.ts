@@ -806,12 +806,6 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
   },
 }
 
-export const MockWorkspaceImpendingDeletion: TypesGen.Workspace = {
-  ...MockWorkspace,
-  id: "test-workspace-impending-deletion",
-  deleting_at: new Date().toISOString(),
-}
-
 // just over one page of workspaces
 export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
   workspaces: range(1, 27).map((id: number) => ({

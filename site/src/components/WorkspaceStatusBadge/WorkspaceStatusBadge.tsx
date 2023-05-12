@@ -10,6 +10,7 @@ import { FC, PropsWithChildren } from "react"
 import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { displayImpendingDeletion } from "utils/workspace"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const LoadingIcon: FC = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
@@ -92,18 +93,34 @@ export type WorkspaceStatusBadgeProps = {
   className?: string
 }
 
+const ImpendingDeletionBadge: FC<
+  PropsWithChildren<Partial<WorkspaceStatusBadgeProps>>
+> = ({ className }) => {
+  const { entitlements, experiments } = useDashboard()
+  const allowAdvancedScheduling =
+    entitlements.features["advanced_template_scheduling"].enabled
+  // This check can be removed when https://github.com/coder/coder/milestone/19
+  // is merged up
+  const allowWorkspaceActions = experiments.includes("workspace_actions")
+
+  if (!allowAdvancedScheduling || !allowWorkspaceActions) {
+    return null
+  }
+  return (
+    <Pill
+      className={className}
+      icon={<ErrorIcon />}
+      text="Impending deletion"
+      type="error"
+    />
+  )
+}
+
 export const WorkspaceStatusBadge: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ workspace, className }) => {
   if (displayImpendingDeletion(workspace)) {
-    return (
-      <Pill
-        className={className}
-        icon={<ErrorIcon />}
-        text="Impending deletion"
-        type="error"
-      />
-    )
+    return <ImpendingDeletionBadge className={className} />
   }
 
   const { text, icon, type } = getStatus(workspace.latest_build.status)

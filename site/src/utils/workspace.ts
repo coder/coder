@@ -202,24 +202,6 @@ export const displayImpendingDeletion = (workspace: TypesGen.Workspace) => {
   if (!workspace.deleting_at) {
     return false
   }
-
-  console.log("today", today)
-  console.log("workspace.deletingAt", new Date(workspace.deleting_at))
-  console.log(
-    "set",
-    new Date(
-      today.setDate(today.getDate() - IMPENDING_DELETION_DISPLAY_THRESHOLD),
-    ),
-  )
-
-  console.log(
-    "compare",
-    new Date(workspace.deleting_at) <=
-      new Date(
-        today.setDate(today.getDate() + IMPENDING_DELETION_DISPLAY_THRESHOLD),
-      ),
-  )
-
   return (
     new Date(workspace.deleting_at) <=
     new Date(
