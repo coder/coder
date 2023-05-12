@@ -347,8 +347,9 @@ func TestTemplatesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()

@@ -9,13 +9,13 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/atomic"
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/conversion"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
@@ -329,34 +329,9 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	if provisionerJob.WorkerID.Valid {
 		job.WorkerID = &provisionerJob.WorkerID.UUID
 	}
-	job.Status = ConvertProvisionerJobStatus(provisionerJob)
+	job.Status = conversion.ProvisionerJobStatus(provisionerJob)
 
 	return job
-}
-
-func ConvertProvisionerJobStatus(provisionerJob database.ProvisionerJob) codersdk.ProvisionerJobStatus {
-	switch {
-	case provisionerJob.CanceledAt.Valid:
-		if !provisionerJob.CompletedAt.Valid {
-			return codersdk.ProvisionerJobCanceling
-		}
-		if provisionerJob.Error.String == "" {
-			return codersdk.ProvisionerJobCanceled
-		}
-		return codersdk.ProvisionerJobFailed
-	case !provisionerJob.StartedAt.Valid:
-		return codersdk.ProvisionerJobPending
-	case provisionerJob.CompletedAt.Valid:
-		if provisionerJob.Error.String == "" {
-			return codersdk.ProvisionerJobSucceeded
-		}
-		return codersdk.ProvisionerJobFailed
-	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
-		provisionerJob.Error.String = "Worker failed to update job in time."
-		return codersdk.ProvisionerJobFailed
-	default:
-		return codersdk.ProvisionerJobRunning
-	}
 }
 
 func provisionerJobLogsChannel(jobID uuid.UUID) string {

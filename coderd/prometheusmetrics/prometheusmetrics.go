@@ -16,7 +16,7 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/conversion"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/tailnet"
@@ -124,7 +124,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 
 			gauge.Reset()
 			for _, job := range jobs {
-				status := coderd.ConvertProvisionerJobStatus(job)
+				status := conversion.ProvisionerJobStatus(job)
 				gauge.WithLabelValues(string(status)).Add(1)
 			}
 		}
