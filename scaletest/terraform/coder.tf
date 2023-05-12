@@ -124,47 +124,35 @@ coder:
   - emptyDir:
       sizeLimit: 1024Mi
     name: cache
-  extraTemplates:
-  - |
-    apiVersion: monitoring.googleapis.com/v1
-    kind: PodMonitoring
-    metadata:
-      namespace: ${kubernetes_namespace.coder_namespace.metadata.0.name}
-      name: coder-monitoring
-    spec:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: coder
-      endpoints:
-      - port: prometheus-http
-        interval: 30s
-
 EOF
   ]
 }
 
-resource "local_file" "url" {
-  filename = "${path.module}/coder_url"
-  content = "${local.coder_url}"
-}
-
-# Because we use a self-signed certificate, we need to also rebuild the base image.
-resource "local_file" "workspace_dockerfile" {
-  filename = "${path.module}/.coderv2/dockerfile/workspace/Dockerfile"
+resource "local_file" "coder-monitoring-manifest" {
+  filename = "${path.module}/.coderv2/coder-monitoring.yaml"
   content = <<EOF
-    FROM ${var.workspace_image}
-    USER root
-    RUN openssl s_client -connect ${local.coder_address}:443 -servername ${local.coder_url} </dev/null 2>/dev/null |\
-        sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | tee /usr/local/share/ca-certificates/coder.crt && \
-        update-ca-certificates
-    USER coder
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  namespace: ${kubernetes_namespace.coder_namespace.metadata.0.name}
+  name: coder-monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: coder
+  endpoints:
+  - port: prometheus-http
+    interval: 30s
   EOF
 }
 
-resource "docker_image" "workspace" {
-  name = local.rebuilt_workspace_image
-  build {
-    context = dirname(abspath(local_file.workspace_dockerfile.filename))
+resource "null_resource" "coder-monitoring-manifest_apply" {
+  provisioner "local-exec" {
+    working_dir = abspath(path.module)
+    command = <<EOF
+KUBECONFIG=${var.name}-cluster.kubeconfig gcloud container clusters get-credentials ${var.name}-cluster --project=${var.project_id} --zone=${var.zone} && \
+KUBECONFIG=${var.name}-cluster.kubeconfig kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
+    EOF
   }
 }
 
