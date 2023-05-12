@@ -216,8 +216,8 @@ resource "local_file" "kubernetes_template" {
           }
           resources {
             requests = {
-              "cpu"    = "1"
-              "memory" = "1Gi"
+              "cpu"    = "0.1"
+              "memory" = "128Mi"
             }
             limits = {
               "cpu"    = "1"
