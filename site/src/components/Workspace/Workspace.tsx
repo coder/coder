@@ -26,6 +26,7 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader"
+import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -52,6 +53,7 @@ export interface WorkspaceProps {
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
+  templateWarnings?: TypesGen.TemplateVersionWarning[]
   canUpdateWorkspace: boolean
   canUpdateTemplate: boolean
   canChangeVersions: boolean
@@ -96,6 +98,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   quota_budget,
   failedBuildLogs,
   handleBuildRetry,
+  templateWarnings,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -185,6 +188,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             workspace={workspace}
             handleClick={() => navigate(`/templates`)}
           />
+
+          <TemplateVersionWarnings warnings={templateWarnings} />
 
           {failedBuildLogs && (
             <Stack>

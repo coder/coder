@@ -11,6 +11,7 @@ import { FC, useEffect } from "react"
 import { DAUChart } from "../../../components/DAUChart/DAUChart"
 import { TemplateSummaryData } from "./data"
 import { useLocation, useNavigate } from "react-router-dom"
+import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
 
 export interface TemplateSummaryPageViewProps {
   data?: TemplateSummaryData
@@ -48,6 +49,7 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
 
   return (
     <Stack spacing={4}>
+      <TemplateVersionWarnings warnings={activeVersion.warnings} />
       <TemplateStats template={template} activeVersion={activeVersion} />
       {daus && <DAUChart daus={daus} />}
       <TemplateResourcesTable resources={getStartedResources(resources)} />

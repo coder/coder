@@ -663,3 +663,9 @@ function makeFailedBuildLogs(): ProvisionerJobLog[] {
     },
   ]
 }
+
+export const WithDeprecatedParameters = Template.bind({})
+WithDeprecatedParameters.args = {
+  ...Running.args,
+  templateWarnings: ["DEPRECATED_PARAMETERS"],
+}
