@@ -911,7 +911,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				})
 				return err
 			}
-			schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
+			schemas, err := store.GetParameterSchemasByJobID(ctx, job.ID)
 			if errors.Is(err, sql.ErrNoRows) {
 				err = nil
 			}
