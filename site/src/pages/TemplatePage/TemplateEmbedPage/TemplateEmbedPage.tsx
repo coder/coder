@@ -4,6 +4,7 @@ import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
 import { useQuery } from "@tanstack/react-query"
 import { getTemplateVersionRichParameters } from "api/api"
+import { Template, TemplateVersionParameter } from "api/typesGenerated"
 import { VerticalForm } from "components/Form/Form"
 import { Loader } from "components/Loader/Loader"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
@@ -13,7 +14,7 @@ import {
   TemplateParametersSectionProps,
 } from "components/TemplateParameters/TemplateParameters"
 import { useClipboard } from "hooks/useClipboard"
-import { useState } from "react"
+import { FC, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import {
@@ -25,10 +26,28 @@ type ButtonValues = Record<string, string>
 
 const TemplateEmbedPage = () => {
   const { template } = useTemplateLayoutContext()
-  const { data: templateParameters, isLoading } = useQuery({
+  const { data: templateParameters } = useQuery({
     queryKey: ["template", template.id, "embed"],
     queryFn: () => getTemplateVersionRichParameters(template.active_version_id),
   })
+
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle(`${template.name} · Embed`)}</title>
+      </Helmet>
+      <TemplateEmbedPageView
+        template={template}
+        templateParameters={templateParameters}
+      />
+    </>
+  )
+}
+
+export const TemplateEmbedPageView: FC<{
+  template: Template
+  templateParameters?: TemplateVersionParameter[]
+}> = ({ template, templateParameters }) => {
   const [buttonValues, setButtonValues] = useState<ButtonValues>({})
   const initialRichParametersValues = templateParameters
     ? selectInitialRichParametersValues(templateParameters)
@@ -66,11 +85,11 @@ const TemplateEmbedPage = () => {
       <Helmet>
         <title>{pageTitle(`${template.name} · Embed`)}</title>
       </Helmet>
-      {isLoading ? (
+      {!templateParameters ? (
         <Loader />
       ) : (
         <Box display="flex" alignItems="flex-start" gap={6}>
-          {templateParameters && (
+          {templateParameters.length > 0 && (
             <Box flex={1} maxWidth={400}>
               <VerticalForm>
                 <MultableTemplateParametersSection
