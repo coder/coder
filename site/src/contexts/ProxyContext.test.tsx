@@ -10,24 +10,44 @@ import {
   saveUserSelectedProxy,
   useProxy,
 } from "./ProxyContext"
-import * as ProxyContextModule from "./ProxyContext"
+import * as ProxyLatency from "./useProxyLatency"
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
 import { screen } from "@testing-library/react"
 import { server } from "testHelpers/server"
-import "testHelpers/localstorage"
 import { rest } from "msw"
 import { Region } from "api/typesGenerated"
+import "testHelpers/localstorage"
+import userEvent from "@testing-library/user-event"
+
+// Mock useProxyLatency to use a hard-coded latency. 'jest.mock' must be called
+// here and not inside a unit test.
+jest.mock("contexts/useProxyLatency", () => ({
+  useProxyLatency: () => {
+    return hardCodedLatencies
+  },
+}))
+
+let hardCodedLatencies: Record<string, ProxyLatency.ProxyLatencyReport> = {}
+
+const fakeLatency = (ms: number): ProxyLatency.ProxyLatencyReport => {
+  return {
+    latencyMS: ms,
+    accurate: true,
+    at: new Date(),
+  }
+}
 
 describe("ProxyContextGetURLs", () => {
   it.each([
-    ["empty", [], undefined, "", ""],
+    ["empty", [], {}, undefined, "", ""],
     // Primary has no path app URL. Uses relative links
     [
       "primary",
       [MockPrimaryWorkspaceProxy],
+      {},
       MockPrimaryWorkspaceProxy,
       "",
       MockPrimaryWorkspaceProxy.wildcard_hostname,
@@ -35,6 +55,7 @@ describe("ProxyContextGetURLs", () => {
     [
       "regions selected",
       MockWorkspaceProxies,
+      {},
       MockHealthyWildWorkspaceProxy,
       MockHealthyWildWorkspaceProxy.path_app_url,
       MockHealthyWildWorkspaceProxy.wildcard_hostname,
@@ -43,6 +64,7 @@ describe("ProxyContextGetURLs", () => {
     [
       "no selected",
       [MockPrimaryWorkspaceProxy],
+      {},
       undefined,
       "",
       MockPrimaryWorkspaceProxy.wildcard_hostname,
@@ -50,6 +72,7 @@ describe("ProxyContextGetURLs", () => {
     [
       "regions no select primary default",
       MockWorkspaceProxies,
+      {},
       undefined,
       "",
       MockPrimaryWorkspaceProxy.wildcard_hostname,
@@ -58,16 +81,40 @@ describe("ProxyContextGetURLs", () => {
     [
       "unhealthy selection",
       MockWorkspaceProxies,
+      {},
       MockUnhealthyWildWorkspaceProxy,
       "",
       MockPrimaryWorkspaceProxy.wildcard_hostname,
     ],
     // This should never happen, when there is no primary
-    ["no primary", [MockHealthyWildWorkspaceProxy], undefined, "", ""],
+    ["no primary", [MockHealthyWildWorkspaceProxy], {}, undefined, "", ""],
+    // Latency behavior
+    [
+      "best latency",
+      MockWorkspaceProxies,
+      {
+        [MockPrimaryWorkspaceProxy.id]: fakeLatency(100),
+        [MockHealthyWildWorkspaceProxy.id]: fakeLatency(50),
+        // This should be ignored because it's unhealthy
+        [MockUnhealthyWildWorkspaceProxy.id]: fakeLatency(25),
+        // This should be ignored because it is not in the list.
+        ["not a proxy"]: fakeLatency(10),
+      },
+      undefined,
+      MockHealthyWildWorkspaceProxy.path_app_url,
+      MockHealthyWildWorkspaceProxy.wildcard_hostname,
+    ],
   ])(
     `%p`,
-    (_, regions, selected, preferredPathAppURL, preferredWildcardHostname) => {
-      const preferred = getPreferredProxy(regions, selected)
+    (
+      _,
+      regions,
+      latencies,
+      selected,
+      preferredPathAppURL,
+      preferredWildcardHostname,
+    ) => {
+      const preferred = getPreferredProxy(regions, selected, latencies)
       expect(preferred.preferredPathAppURL).toBe(preferredPathAppURL)
       expect(preferred.preferredWildcardHostname).toBe(
         preferredWildcardHostname,
@@ -75,11 +122,6 @@ describe("ProxyContextGetURLs", () => {
     },
   )
 })
-
-// interface ProxySelectTest {
-//   name: string
-//   actions: ()
-// }
 
 const TestingComponent = () => {
   return renderWithAuth(
@@ -95,7 +137,8 @@ const TestingComponent = () => {
 
 // TestingScreen just mounts some components that we can check in the unit test.
 const TestingScreen = () => {
-  const { proxy, isFetched, isLoading } = useProxy()
+  const { proxy, userProxy, isFetched, isLoading, clearProxy, setProxy } =
+    useProxy()
   return (
     <>
       <div data-testid="isFetched" title={isFetched.toString()}></div>
@@ -104,34 +147,71 @@ const TestingScreen = () => {
         data-testid="preferredProxy"
         title={proxy.selectedProxy && proxy.selectedProxy.id}
       ></div>
+      <div data-testid="userProxy" title={userProxy && userProxy.id}></div>
+      <button data-testid="clearProxy" onClick={clearProxy}></button>
+      <div data-testid="userSelectProxyData"></div>
+      <button
+        data-testid="userSelectProxy"
+        onClick={() => {
+          const data = screen.getByTestId("userSelectProxyData")
+          if (data.innerText) {
+            setProxy(JSON.parse(data.innerText))
+          }
+        }}
+      ></button>
     </>
   )
 }
 
 interface ProxyContextSelectionTest {
-  expSelectedProxyID: string
   regions: Region[]
   storageProxy: Region | undefined
+  latencies?: Record<string, ProxyLatency.ProxyLatencyReport>
+  afterLoad?: (user: typeof userEvent) => Promise<void>
+
+  expProxyID: string
+  expUserProxyID?: string
 }
 
 describe("ProxyContextSelection", () => {
   beforeEach(() => {
+    // Object.defineProperty(window, "localStorage", { value: localStorageMock })
     window.localStorage.clear()
   })
 
+  // A way to simulate a user clearing the proxy selection.
+  const clearProxyAction = async (user: typeof userEvent): Promise<void> => {
+    const clearProxyButton = screen.getByTestId("clearProxy")
+    await user.click(clearProxyButton)
+  }
+
+  const userSelectProxy = (
+    proxy: Region,
+  ): ((user: typeof userEvent) => Promise<void>) => {
+    return async (user): Promise<void> => {
+      const selectData = screen.getByTestId("userSelectProxyData")
+      selectData.innerText = JSON.stringify(proxy)
+
+      const selectProxyButton = screen.getByTestId("userSelectProxy")
+      await user.click(selectProxyButton)
+    }
+  }
+
   it.each([
+    // Not latency behavior
     [
       "empty",
       {
-        expSelectedProxyID: "",
+        expProxyID: "",
         regions: [],
         storageProxy: undefined,
+        latencies: {},
       },
     ],
     [
       "regions_no_selection",
       {
-        expSelectedProxyID: MockPrimaryWorkspaceProxy.id,
+        expProxyID: MockPrimaryWorkspaceProxy.id,
         regions: MockWorkspaceProxies,
         storageProxy: undefined,
       },
@@ -139,14 +219,110 @@ describe("ProxyContextSelection", () => {
     [
       "regions_selected_unhealthy",
       {
-        expSelectedProxyID: MockPrimaryWorkspaceProxy.id,
+        expProxyID: MockPrimaryWorkspaceProxy.id,
         regions: MockWorkspaceProxies,
         storageProxy: MockUnhealthyWildWorkspaceProxy,
+        expUserProxyID: MockUnhealthyWildWorkspaceProxy.id,
+      },
+    ],
+    [
+      "regions_selected_healthy",
+      {
+        expProxyID: MockHealthyWildWorkspaceProxy.id,
+        regions: MockWorkspaceProxies,
+        storageProxy: MockHealthyWildWorkspaceProxy,
+        expUserProxyID: MockHealthyWildWorkspaceProxy.id,
+      },
+    ],
+    [
+      "regions_selected_clear",
+      {
+        expProxyID: MockPrimaryWorkspaceProxy.id,
+        regions: MockWorkspaceProxies,
+        storageProxy: MockHealthyWildWorkspaceProxy,
+        afterLoad: clearProxyAction,
+        expUserProxyID: undefined,
+      },
+    ],
+    [
+      "regions_make_selection",
+      {
+        expProxyID: MockHealthyWildWorkspaceProxy.id,
+        regions: MockWorkspaceProxies,
+        afterLoad: userSelectProxy(MockHealthyWildWorkspaceProxy),
+        expUserProxyID: MockHealthyWildWorkspaceProxy.id,
+      },
+    ],
+    // Latency behavior
+    [
+      "regions_default_low_latency",
+      {
+        expProxyID: MockHealthyWildWorkspaceProxy.id,
+        regions: MockWorkspaceProxies,
+        storageProxy: undefined,
+        latencies: {
+          [MockPrimaryWorkspaceProxy.id]: fakeLatency(100),
+          [MockHealthyWildWorkspaceProxy.id]: fakeLatency(50),
+          // This is a trick. It's unhealthy so should be ignored.
+          [MockUnhealthyWildWorkspaceProxy.id]: fakeLatency(25),
+        },
+      },
+    ],
+    [
+      // User intentionally selected a high latency proxy.
+      "regions_select_high_latency",
+      {
+        expProxyID: MockHealthyWildWorkspaceProxy.id,
+        regions: MockWorkspaceProxies,
+        storageProxy: undefined,
+        afterLoad: userSelectProxy(MockHealthyWildWorkspaceProxy),
+        expUserProxyID: MockHealthyWildWorkspaceProxy.id,
+        latencies: {
+          [MockHealthyWildWorkspaceProxy.id]: fakeLatency(500),
+          [MockPrimaryWorkspaceProxy.id]: fakeLatency(100),
+          // This is a trick. It's unhealthy so should be ignored.
+          [MockUnhealthyWildWorkspaceProxy.id]: fakeLatency(25),
+        },
+      },
+    ],
+    [
+      // Low latency proxy is selected, but it is unhealthy
+      "regions_select_unhealthy_low_latency",
+      {
+        expProxyID: MockPrimaryWorkspaceProxy.id,
+        regions: MockWorkspaceProxies,
+        storageProxy: MockUnhealthyWildWorkspaceProxy,
+        expUserProxyID: MockUnhealthyWildWorkspaceProxy.id,
+        latencies: {
+          [MockHealthyWildWorkspaceProxy.id]: fakeLatency(500),
+          [MockPrimaryWorkspaceProxy.id]: fakeLatency(100),
+          // This is a trick. It's unhealthy so should be ignored.
+          [MockUnhealthyWildWorkspaceProxy.id]: fakeLatency(25),
+        },
       },
     ],
   ] as [string, ProxyContextSelectionTest][])(
     `%s`,
-    async (_, { expSelectedProxyID, regions, storageProxy }) => {
+    async (
+      _,
+      {
+        expUserProxyID,
+        expProxyID: expSelectedProxyID,
+        regions,
+        storageProxy,
+        latencies = {},
+        afterLoad,
+      },
+    ) => {
+      // Mock the latencies
+      hardCodedLatencies = latencies
+
+      // jest.mock("contexts/useProxyLatency", () => ({
+      //   useProxyLatency: () => {
+      //     return latencies
+      //   },
+      // }))
+
       // Initial selection if present
       if (storageProxy) {
         saveUserSelectedProxy(storageProxy)
@@ -167,6 +343,11 @@ describe("ProxyContextSelection", () => {
       TestingComponent()
       await waitForLoaderToBeRemoved()
 
+      const user = userEvent.setup()
+      if (afterLoad) {
+        await afterLoad(user)
+      }
+
       await screen.findByTestId("isFetched").then((x) => {
         expect(x.title).toBe("true")
       })
@@ -176,17 +357,9 @@ describe("ProxyContextSelection", () => {
       await screen.findByTestId("preferredProxy").then((x) => {
         expect(x.title).toBe(expSelectedProxyID)
       })
-
-      // const { proxy, proxies, isFetched, isLoading, proxyLatencies } = useProxy()
-      // expect(isLoading).toBe(false)
-      // expect(isFetched).toBe(true)
-
-      // expect(x).toBe(2)
-      // const preferred = getPreferredProxy(regions, selected)
-      // expect(preferred.preferredPathAppURL).toBe(preferredPathAppURL)
-      // expect(preferred.preferredWildcardHostname).toBe(
-      //   preferredWildcardHostname,
-      // )
+      await screen.findByTestId("userProxy").then((x) => {
+        expect(x.title).toBe(expUserProxyID || "")
+      })
     },
   )
 })
