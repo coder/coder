@@ -71,7 +71,7 @@ coder:
         - matchExpressions:
           - key: "cloud.google.com/gke-nodepool"
             operator: "In"
-            values: ["${google_container_node_pool.workspaces.name}"]
+            values: ["${google_container_node_pool.coder.name}"]
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 1
