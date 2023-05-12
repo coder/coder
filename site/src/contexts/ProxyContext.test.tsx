@@ -21,6 +21,7 @@ import { rest } from "msw"
 import { Region } from "api/typesGenerated"
 import "testHelpers/localstorage"
 import userEvent from "@testing-library/user-event"
+import UserEvent from "@testing-library/user-event"
 
 // Mock useProxyLatency to use a hard-coded latency. 'jest.mock' must be called
 // here and not inside a unit test.
@@ -176,7 +177,7 @@ interface ProxyContextSelectionTest {
   latencies?: Record<string, ProxyLatency.ProxyLatencyReport>
   // afterLoad are actions to take after loading the component, but before
   // assertions. This is useful for simulating user actions.
-  afterLoad?: (user: typeof userEvent) => Promise<void>
+  afterLoad?: () => Promise<void>
 
   // Assert these values.
   // expProxyID is the proxyID returned to be used.
@@ -192,15 +193,15 @@ describe("ProxyContextSelection", () => {
   })
 
   // A way to simulate a user clearing the proxy selection.
-  const clearProxyAction = async (user: typeof userEvent): Promise<void> => {
+  const clearProxyAction = async (): Promise<void> => {
+    const user = userEvent.setup()
     const clearProxyButton = screen.getByTestId("clearProxy")
     await user.click(clearProxyButton)
   }
 
-  const userSelectProxy = (
-    proxy: Region,
-  ): ((user: typeof userEvent) => Promise<void>) => {
-    return async (user): Promise<void> => {
+  const userSelectProxy = (proxy: Region): (() => Promise<void>) => {
+    return async (): Promise<void> => {
+      const user = userEvent.setup()
       const selectData = screen.getByTestId("userSelectProxyData")
       selectData.innerText = JSON.stringify(proxy)
 
@@ -366,9 +367,8 @@ describe("ProxyContextSelection", () => {
       TestingComponent()
       await waitForLoaderToBeRemoved()
 
-      const user = userEvent.setup()
       if (afterLoad) {
-        await afterLoad(user)
+        await afterLoad()
       }
 
       await screen.findByTestId("isFetched").then((x) => {
