@@ -1,4 +1,3 @@
-import { makeStyles } from "@material-ui/core/styles"
 import {
   Template,
   TemplateVersion,
@@ -12,6 +11,7 @@ import { FC, useEffect } from "react"
 import { DAUChart } from "../../../components/DAUChart/DAUChart"
 import { TemplateSummaryData } from "./data"
 import { useLocation, useNavigate } from "react-router-dom"
+import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
 
 export interface TemplateSummaryPageViewProps {
   data?: TemplateSummaryData
@@ -49,32 +49,10 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
 
   return (
     <Stack spacing={4}>
+      <TemplateVersionWarnings warnings={activeVersion.warnings} />
       <TemplateStats template={template} activeVersion={activeVersion} />
       {daus && <DAUChart daus={daus} />}
       <TemplateResourcesTable resources={getStartedResources(resources)} />
     </Stack>
   )
 }
-
-export const useStyles = makeStyles((theme) => {
-  return {
-    markdownSection: {
-      background: theme.palette.background.paper,
-      border: `1px solid ${theme.palette.divider}`,
-      borderRadius: theme.shape.borderRadius,
-    },
-
-    readmeLabel: {
-      color: theme.palette.text.secondary,
-      fontWeight: 600,
-      padding: theme.spacing(2, 3),
-      borderBottom: `1px solid ${theme.palette.divider}`,
-    },
-
-    markdownWrapper: {
-      padding: theme.spacing(0, 3, 5),
-      maxWidth: 800,
-      margin: "auto",
-    },
-  }
-})

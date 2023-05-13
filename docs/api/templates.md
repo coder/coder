@@ -47,8 +47,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "default_ttl_ms": 0,
     "description": "string",
     "display_name": "string",
+    "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "inactivity_ttl_ms": 0,
     "max_ttl_ms": 0,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -86,8 +88,10 @@ Status Code **200**
 | `» default_ttl_ms`                   | integer                                                                      | false    |              |                                                                                                                                                                         |
 | `» description`                      | string                                                                       | false    |              |                                                                                                                                                                         |
 | `» display_name`                     | string                                                                       | false    |              |                                                                                                                                                                         |
+| `» failure_ttl_ms`                   | integer                                                                      | false    |              | Failure ttl ms and InactivityTTLMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.          |
 | `» icon`                             | string                                                                       | false    |              |                                                                                                                                                                         |
 | `» id`                               | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
+| `» inactivity_ttl_ms`                | integer                                                                      | false    |              |                                                                                                                                                                         |
 | `» max_ttl_ms`                       | integer                                                                      | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                               |
 | `» name`                             | string                                                                       | false    |              |                                                                                                                                                                         |
 | `» organization_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
@@ -126,7 +130,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "parameter_values": [
@@ -176,8 +182,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -301,8 +309,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -384,7 +394,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": ["DEPRECATED_PARAMETERS"]
 }
 ```
 
@@ -461,7 +472,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": ["DEPRECATED_PARAMETERS"]
 }
 ```
 
@@ -570,7 +582,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": ["DEPRECATED_PARAMETERS"]
 }
 ```
 
@@ -628,8 +641,10 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -736,8 +751,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -863,7 +880,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "readme": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "warnings": ["DEPRECATED_PARAMETERS"]
   }
 ]
 ```
@@ -913,6 +931,7 @@ Status Code **200**
 | `» readme`            | string                                                                   | false    |              |             |
 | `» template_id`       | string(uuid)                                                             | false    |              |             |
 | `» updated_at`        | string(date-time)                                                        | false    |              |             |
+| `» warnings`          | array                                                                    | false    |              |             |
 
 #### Enumerated Values
 
@@ -1050,7 +1069,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "readme": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "warnings": ["DEPRECATED_PARAMETERS"]
   }
 ]
 ```
@@ -1100,6 +1120,7 @@ Status Code **200**
 | `» readme`            | string                                                                   | false    |              |             |
 | `» template_id`       | string(uuid)                                                             | false    |              |             |
 | `» updated_at`        | string(date-time)                                                        | false    |              |             |
+| `» warnings`          | array                                                                    | false    |              |             |
 
 #### Enumerated Values
 
@@ -1181,7 +1202,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": ["DEPRECATED_PARAMETERS"]
 }
 ```
 
@@ -1266,7 +1288,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": ["DEPRECATED_PARAMETERS"]
 }
 ```
 

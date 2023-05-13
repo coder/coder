@@ -1,22 +1,9 @@
 import * as API from "api/api"
-import {
-  ApiError,
-  FieldErrors,
-  getErrorMessage,
-  hasApiFieldErrors,
-  isApiError,
-  mapApiErrorToFieldErrors,
-} from "api/errors"
 import * as TypesGen from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 
-export const Language = {
-  createFirstUserError: "Failed to create the user.",
-}
-
 export interface SetupContext {
-  createFirstUserErrorMessage?: string
-  createFirstUserFormErrors?: FieldErrors
+  error?: unknown
   firstUser?: TypesGen.CreateFirstUserRequest
 }
 
@@ -52,7 +39,7 @@ export const setupMachine =
           },
         },
         creatingFirstUser: {
-          entry: "clearCreateFirstUserError",
+          entry: "clearError",
           invoke: {
             src: "createFirstUser",
             id: "createFirstUser",
@@ -62,17 +49,10 @@ export const setupMachine =
                 target: "firstUserCreated",
               },
             ],
-            onError: [
-              {
-                actions: "assignCreateFirstUserFormErrors",
-                cond: "hasFieldErrors",
-                target: "idle",
-              },
-              {
-                actions: "assignCreateFirstUserError",
-                target: "idle",
-              },
-            ],
+            onError: {
+              actions: "assignError",
+              target: "idle",
+            },
           },
           tags: "loading",
         },
@@ -86,28 +66,16 @@ export const setupMachine =
       services: {
         createFirstUser: (_, event) => API.createFirstUser(event.firstUser),
       },
-      guards: {
-        hasFieldErrors: (_, event) =>
-          isApiError(event.data) && hasApiFieldErrors(event.data),
-      },
       actions: {
         assignFirstUserData: assign({
           firstUser: (_, event) => event.firstUser,
         }),
-        assignCreateFirstUserError: assign({
-          createFirstUserErrorMessage: (_, event) =>
-            getErrorMessage(event.data, Language.createFirstUserError),
+        assignError: assign({
+          error: (_, event) => event.data,
         }),
-        assignCreateFirstUserFormErrors: assign({
-          // the guard ensures it is ApiError
-          createFirstUserFormErrors: (_, event) =>
-            mapApiErrorToFieldErrors((event.data as ApiError).response.data),
+        clearError: assign({
+          error: (_) => undefined,
         }),
-        clearCreateFirstUserError: assign((context: SetupContext) => ({
-          ...context,
-          createFirstUserErrorMessage: undefined,
-          createFirstUserFormErrors: undefined,
-        })),
       },
     },
   )

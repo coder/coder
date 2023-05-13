@@ -1,8 +1,8 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import Popover from "@material-ui/core/Popover"
-import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import Popover from "@mui/material/Popover"
+import { makeStyles } from "@mui/styles"
+import TextField from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { useRef, useState, Fragment } from "react"
 import { colors } from "theme/colors"
@@ -43,6 +43,7 @@ export const portForwardURL = (
 
 const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
   const { host, workspaceName, agentName, agentId, username } = props
+
   const styles = useStyles()
   const [port, setPort] = useState("3000")
   const urlExample = portForwardURL(
@@ -82,6 +83,7 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
         <TextField
           label="Port"
           type="number"
+          size="small"
           value={port}
           className={styles.portField}
           onChange={(e) => {
@@ -89,7 +91,6 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
           }}
         />
         <Link
-          underline="none"
           href={urlExample}
           target="_blank"
           rel="noreferrer"
@@ -180,9 +181,9 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
-    padding: `${theme.spacing(2.5)}px ${theme.spacing(3.5)}px ${theme.spacing(
+    padding: `${theme.spacing(2.5)} ${theme.spacing(3.5)} ${theme.spacing(
       3.5,
-    )}px`,
+    )}`,
     width: theme.spacing(52),
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.25),
@@ -204,6 +205,6 @@ const useStyles = makeStyles((theme) => ({
   },
 
   form: {
-    margin: theme.spacing(1.5, 0, 0),
+    margin: theme.spacing(2, 0),
   },
 }))

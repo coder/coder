@@ -1,13 +1,13 @@
-import { makeStyles } from "@material-ui/core/styles"
-import ScheduleIcon from "@material-ui/icons/TimerOutlined"
-import VariablesIcon from "@material-ui/icons/CodeOutlined"
+import { makeStyles } from "@mui/styles"
+import ScheduleIcon from "@mui/icons-material/TimerOutlined"
+import VariablesIcon from "@mui/icons-material/CodeOutlined"
 import { Template } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
 import { Link, NavLink } from "react-router-dom"
 import { combineClasses } from "utils/combineClasses"
-import GeneralIcon from "@material-ui/icons/SettingsOutlined"
-import SecurityIcon from "@material-ui/icons/LockOutlined"
+import GeneralIcon from "@mui/icons-material/SettingsOutlined"
+import SecurityIcon from "@mui/icons-material/LockOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 
 const SidebarNavItem: FC<
@@ -127,6 +127,7 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(2),
   },
   templateInfo: {
+    ...theme.typography.body2,
     marginBottom: theme.spacing(2),
   },
   templateData: {

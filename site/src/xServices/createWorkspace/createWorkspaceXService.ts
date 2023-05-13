@@ -258,7 +258,7 @@ export const createWorkspaceMachine =
               },
               action: "create",
             },
-          }
+          } as const
 
           return checkAuthorization({
             checks: permissionsToCheck,

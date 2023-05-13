@@ -1,5 +1,5 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
 
 interface PageButtonProps {
   activePage?: number
@@ -21,7 +21,6 @@ export const PageButton = ({
   const styles = useStyles()
   return (
     <Button
-      variant="outlined"
       className={
         activePage === page
           ? `${styles.pageButton} ${styles.activePageButton}`

@@ -6,6 +6,8 @@ import * as Mocks from "../../testHelpers/entities"
 import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
 import { withReactContext } from "storybook-react-context"
 import EventSource from "eventsourcemock"
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
+import { MockProxyLatencies } from "../../testHelpers/entities"
 
 export default {
   title: "components/Workspace",
@@ -22,7 +24,22 @@ export default {
   ],
 }
 
-const Template: Story<WorkspaceProps> = (args) => <Workspace {...args} />
+const Template: Story<WorkspaceProps> = (args) => (
+  <ProxyContext.Provider
+    value={{
+      proxyLatencies: MockProxyLatencies,
+      proxy: getPreferredProxy([], undefined),
+      proxies: [],
+      isLoading: false,
+      isFetched: true,
+      setProxy: () => {
+        return
+      },
+    }}
+  >
+    <Workspace {...args} />
+  </ProxyContext.Provider>
+)
 
 export const Running = Template.bind({})
 Running.args = {
@@ -80,7 +97,7 @@ Failed.args = {
   ...Running.args,
   workspace: Mocks.MockFailedWorkspace,
   workspaceErrors: {
-    [WorkspaceErrors.BUILD_ERROR]: Mocks.makeMockApiError({
+    [WorkspaceErrors.BUILD_ERROR]: Mocks.mockApiError({
       message: "A workspace build is already active.",
     }),
   },
@@ -137,7 +154,7 @@ export const GetBuildsError = Template.bind({})
 GetBuildsError.args = {
   ...Running.args,
   workspaceErrors: {
-    [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.makeMockApiError({
+    [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.mockApiError({
       message: "There is a problem fetching builds.",
     }),
   },
@@ -147,7 +164,7 @@ export const CancellationError = Template.bind({})
 CancellationError.args = {
   ...Failed.args,
   workspaceErrors: {
-    [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.makeMockApiError({
+    [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.mockApiError({
       message: "Job could not be canceled.",
     }),
   },
@@ -642,4 +659,10 @@ function makeFailedBuildLogs(): ProvisionerJobLog[] {
       output: "",
     },
   ]
+}
+
+export const WithDeprecatedParameters = Template.bind({})
+WithDeprecatedParameters.args = {
+  ...Running.args,
+  templateWarnings: ["DEPRECATED_PARAMETERS"],
 }

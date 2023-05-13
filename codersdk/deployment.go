@@ -1350,7 +1350,7 @@ when required by your organization's security policy.`,
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
 			Env:         "CODER_BROWSER_ONLY",
-			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationExternalProxies, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true"),
 			Value:       &c.BrowserOnly,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "browserOnly",
@@ -1667,6 +1667,9 @@ const (
 	// ExperimentMoons enabled the workspace proxy endpoints and CRUD. This
 	// feature is not yet complete in functionality.
 	ExperimentMoons Experiment = "moons"
+
+	// https://github.com/coder/coder/milestone/19
+	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"

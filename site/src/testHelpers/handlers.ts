@@ -15,7 +15,15 @@ export const handlers = [
   rest.get("/api/v2/insights/daus", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockDeploymentDAUResponse))
   }),
-
+  // Workspace proxies
+  rest.get("/api/v2/regions", async (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({
+        regions: M.MockWorkspaceProxies,
+      }),
+    )
+  }),
   // build info
   rest.get("/api/v2/buildinfo", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockBuildInfo))
@@ -377,4 +385,12 @@ export const handlers = [
       )
     },
   ),
+
+  rest.get("/api/v2/deployment/ssh", (_, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockDeploymentSSH))
+  }),
+
+  rest.get("/api/v2/workspaceagents/:agent/startup-logs", (_, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockStartupLogs))
+  }),
 ]

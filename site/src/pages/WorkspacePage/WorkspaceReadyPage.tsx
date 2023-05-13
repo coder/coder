@@ -30,6 +30,8 @@ import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog"
 import { ChangeVersionDialog } from "./ChangeVersionDialog"
 import { useQuery } from "@tanstack/react-query"
 import { getTemplateVersions } from "api/api"
+import { useRestartWorkspace } from "./hooks"
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -52,11 +54,11 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
+    templateVersion,
     builds,
     getBuildsError,
     buildError,
     cancellationError,
-    applicationsHost,
     sshPrefix,
     permissions,
     missedParameters,
@@ -76,6 +78,13 @@ export const WorkspaceReadyPage = ({
     queryFn: () => getTemplateVersions(workspace.template_id),
     enabled: changeVersionDialogOpen,
   })
+  const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false)
+
+  const {
+    mutate: restartWorkspace,
+    error: restartBuildError,
+    isLoading: isRestarting,
+  } = useRestartWorkspace()
 
   // keep banner machine in sync with workspace
   useEffect(() => {
@@ -120,11 +129,13 @@ export const WorkspaceReadyPage = ({
           ),
         }}
         isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
+        isRestarting={isRestarting}
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
+        handleRestart={() => restartWorkspace(workspace)}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
-        handleUpdate={() => workspaceSend({ type: "UPDATE" })}
+        handleUpdate={() => setIsConfirmingUpdate(true)}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
         handleSettings={() => navigate("settings")}
         handleBuildRetry={() => workspaceSend({ type: "RETRY_BUILD" })}
@@ -140,14 +151,14 @@ export const WorkspaceReadyPage = ({
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
           [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
-          [WorkspaceErrors.BUILD_ERROR]: buildError,
+          [WorkspaceErrors.BUILD_ERROR]: buildError || restartBuildError,
           [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
         }}
         buildInfo={buildInfo}
-        applicationsHost={applicationsHost}
         sshPrefix={sshPrefix}
         template={template}
         quota_budget={quotaState.context.quota?.budget}
+        templateWarnings={templateVersion?.warnings}
       />
       <DeleteDialog
         entity="workspace"
@@ -190,6 +201,19 @@ export const WorkspaceReadyPage = ({
             templateVersionId: templateVersion.id,
           })
         }}
+      />
+      <ConfirmDialog
+        type="info"
+        hideCancel={false}
+        open={isConfirmingUpdate}
+        onConfirm={() => {
+          workspaceSend({ type: "UPDATE" })
+          setIsConfirmingUpdate(false)
+        }}
+        onClose={() => setIsConfirmingUpdate(false)}
+        title="Confirm update"
+        confirmText="Update"
+        description="Are you sure you want to update your workspace? Updating your workspace will stop all running processes and delete non-persistent data."
       />
     </>
   )

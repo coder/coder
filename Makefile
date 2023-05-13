@@ -526,7 +526,7 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl
 	go test ./cli -run="Test(CommandHelp|ServerYAML)" -update
 	touch "$@"
 
-helm/tests/testdata/.gen-golden: $(wildcard helm/tests/testdata/*.golden) $(GO_SRC_FILES)
+helm/tests/testdata/.gen-golden: $(wildcard helm/tests/testdata/*.yaml) $(wildcard helm/tests/testdata/*.golden) $(GO_SRC_FILES)
 	go test ./helm/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 

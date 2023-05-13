@@ -54,8 +54,9 @@ To support any infrastructure and software stack, Coder provides a generic appro
 
      # Prompt the user for the git repo URL
      data "coder_parameter" "git_repo" {
-         name     = "Git repository"
-         default  = "https://github.com/coder/coder"
+         name          = "git_repo"
+         display_name  = "Git repository"
+         default       = "https://github.com/coder/coder"
      }
 
      locals {
@@ -90,7 +91,7 @@ To support any infrastructure and software stack, Coder provides a generic appro
    This can be used to pre-fill the git repo URL, disk size, image, etc.
 
    ```md
-   [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?param.Git%20repository=https://github.com/coder/slog&param.Home%20Disk%20Size%20%28GB%29=20)
+   [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?param.git_repo=https://github.com/coder/slog&param.home_disk_size%20%28GB%29=20)
    ```
 
    ![Pre-filled parameters](../images/templates/pre-filled-parameters.png)

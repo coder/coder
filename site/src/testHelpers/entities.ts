@@ -7,6 +7,7 @@ import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 import { TemplateVersionFiles } from "utils/templateVersion"
 import { FileTree } from "utils/filetree"
+import { ProxyLatencyReport } from "contexts/useProxyLatency"
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
@@ -68,9 +69,84 @@ export const MockTokens: TypesGen.APIKeyWithOwner[] = [
   },
 ]
 
+export const MockPrimaryWorkspaceProxy: TypesGen.Region = {
+  id: "4aa23000-526a-481f-a007-0f20b98b1e12",
+  name: "primary",
+  display_name: "Default",
+  icon_url: "/emojis/1f60e.png",
+  healthy: true,
+  path_app_url: "https://coder.com",
+  wildcard_hostname: "*.coder.com",
+}
+
+export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
+  id: "5e2c1ab7-479b-41a9-92ce-aa85625de52c",
+  name: "haswildcard",
+  display_name: "Subdomain Supported",
+  icon_url: "/emojis/1f319.png",
+  healthy: true,
+  path_app_url: "https://external.com",
+  wildcard_hostname: "*.external.com",
+}
+
+export const MockUnhealthyWildWorkspaceProxy: TypesGen.Region = {
+  id: "8444931c-0247-4171-842a-569d9f9cbadb",
+  name: "unhealthy",
+  display_name: "Unhealthy",
+  icon_url: "/emojis/1f92e.png",
+  healthy: false,
+  path_app_url: "https://unhealthy.coder.com",
+  wildcard_hostname: "*unhealthy..coder.com",
+}
+
+export const MockWorkspaceProxies: TypesGen.Region[] = [
+  MockPrimaryWorkspaceProxy,
+  MockHealthyWildWorkspaceProxy,
+  MockUnhealthyWildWorkspaceProxy,
+  {
+    id: "26e84c16-db24-4636-a62d-aa1a4232b858",
+    name: "nowildcard",
+    display_name: "No wildcard",
+    icon_url: "/emojis/1f920.png",
+    healthy: true,
+    path_app_url: "https://cowboy.coder.com",
+    wildcard_hostname: "",
+  },
+]
+
+export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
+  ...MockWorkspaceProxies.reduce((acc, proxy) => {
+    if (!proxy.healthy) {
+      return acc
+    }
+    acc[proxy.id] = {
+      // Make one of them inaccurate.
+      accurate: proxy.id !== "26e84c16-db24-4636-a62d-aa1a4232b858",
+      // This is a deterministic way to generate a latency to for each proxy.
+      // It will be the same for each run as long as the IDs don't change.
+      latencyMS:
+        (Number(
+          Array.from(proxy.id).reduce(
+            // Multiply each char code by some large prime number to increase the
+            // size of the number and allow use to get some decimal points.
+            (acc, char) => acc + char.charCodeAt(0) * 37,
+            0,
+          ),
+        ) /
+          // Cap at 250ms
+          100) %
+        250,
+      at: new Date(),
+    }
+    return acc
+  }, {} as Record<string, ProxyLatencyReport>),
+}
+
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   external_url: "file:///mock-url",
   version: "v99.999.9999+c9cdf14",
+  dashboard_url: "https:///mock-url",
+  workspace_proxy: false,
 }
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -265,6 +341,18 @@ You can add instructions here
   created_by: MockUser,
 }
 
+export const MockTemplateVersion3: TypesGen.TemplateVersion = {
+  id: "test-template-version-3",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  template_id: "test-template",
+  job: MockProvisionerJob,
+  name: "test-version-3",
+  readme: "README",
+  created_by: MockUser,
+  warnings: ["DEPRECATED_PARAMETERS"],
+}
+
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -296,6 +384,10 @@ export const MockTemplate: TypesGen.Template = {
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
   allow_user_cancel_workspace_jobs: true,
+  failure_ttl_ms: 0,
+  inactivity_ttl_ms: 0,
+  allow_user_autostart: false,
+  allow_user_autostop: false,
 }
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -670,6 +762,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
   last_used_at: "2022-05-16T15:29:10.302441433Z",
+  deleting_at: "0001-01-01T00:00:00Z",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -1206,6 +1299,7 @@ type MockAPIInput = {
 }
 
 type MockAPIOutput = {
+  isAxiosError: true
   response: {
     data: {
       message: string
@@ -1213,16 +1307,15 @@ type MockAPIOutput = {
       validations: FieldError[] | undefined
     }
   }
-  isAxiosError: boolean
 }
 
-type MakeMockApiErrorFunction = (input: MockAPIInput) => MockAPIOutput
-
-export const makeMockApiError: MakeMockApiErrorFunction = ({
+export const mockApiError = ({
   message,
   detail,
   validations,
-}) => ({
+}: MockAPIInput): MockAPIOutput => ({
+  // This is how axios can check if it is an axios error when calling isAxiosError
+  isAxiosError: true,
   response: {
     data: {
       message: message ?? "Something went wrong.",
@@ -1230,7 +1323,6 @@ export const makeMockApiError: MakeMockApiErrorFunction = ({
       validations: validations ?? undefined,
     },
   },
-  isAxiosError: true,
 })
 
 export const MockEntitlements: TypesGen.Entitlements = {
@@ -1294,7 +1386,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   }),
 }
 
-export const MockExperiments: TypesGen.Experiment[] = []
+export const MockExperiments: TypesGen.Experiment[] = ["workspace_actions"]
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
@@ -1487,6 +1579,11 @@ export const MockWorkspaceBuildParameter2: TypesGen.WorkspaceBuildParameter = {
   value: "3",
 }
 
+export const MockWorkspaceBuildParameter3: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter3.name,
+  value: "my-database",
+}
+
 export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
   name: MockTemplateVersionParameter5.name,
   value: "5",
@@ -1588,3 +1685,36 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
     tx_bytes: 36113513253,
   },
 }
+
+export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
+  hostname_prefix: " coder.",
+  ssh_config_options: {},
+}
+
+export const MockStartupLogs: TypesGen.WorkspaceAgentStartupLog[] = [
+  {
+    id: 166663,
+    created_at: "2023-05-04T11:30:41.402072Z",
+    output: "+ curl -fsSL https://code-server.dev/install.sh",
+    level: "info",
+  },
+  {
+    id: 166664,
+    created_at: "2023-05-04T11:30:41.40228Z",
+    output:
+      "+ sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3",
+    level: "info",
+  },
+  {
+    id: 166665,
+    created_at: "2023-05-04T11:30:42.590731Z",
+    output: "Ubuntu 22.04.2 LTS",
+    level: "info",
+  },
+  {
+    id: 166666,
+    created_at: "2023-05-04T11:30:42.593686Z",
+    output: "Installing v4.8.3 of the amd64 release from GitHub.",
+    level: "info",
+  },
+]

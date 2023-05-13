@@ -1,8 +1,13 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import { MockWorkspace, MockWorkspaceResource } from "testHelpers/entities"
+import {
+  MockProxyLatencies,
+  MockWorkspace,
+  MockWorkspaceResource,
+} from "testHelpers/entities"
 import { AgentRow } from "./AgentRow"
 import { ResourceCard, ResourceCardProps } from "./ResourceCard"
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
 
 export default {
   title: "components/ResourceCard",
@@ -15,15 +20,27 @@ export const Example = Template.bind({})
 Example.args = {
   resource: MockWorkspaceResource,
   agentRow: (agent) => (
-    <AgentRow
-      showApps
-      key={agent.id}
-      agent={agent}
-      workspace={MockWorkspace}
-      applicationsHost=""
-      serverVersion=""
-      onUpdateAgent={action("updateAgent")}
-    />
+    <ProxyContext.Provider
+      value={{
+        proxyLatencies: MockProxyLatencies,
+        proxy: getPreferredProxy([], undefined),
+        proxies: [],
+        isLoading: false,
+        isFetched: true,
+        setProxy: () => {
+          return
+        },
+      }}
+    >
+      <AgentRow
+        showApps
+        key={agent.id}
+        agent={agent}
+        workspace={MockWorkspace}
+        serverVersion=""
+        onUpdateAgent={action("updateAgent")}
+      />
+    </ProxyContext.Provider>
   ),
 }
 
@@ -70,14 +87,26 @@ BunchOfMetadata.args = {
     ],
   },
   agentRow: (agent) => (
-    <AgentRow
-      showApps
-      key={agent.id}
-      agent={agent}
-      workspace={MockWorkspace}
-      applicationsHost=""
-      serverVersion=""
-      onUpdateAgent={action("updateAgent")}
-    />
+    <ProxyContext.Provider
+      value={{
+        proxyLatencies: MockProxyLatencies,
+        proxy: getPreferredProxy([], undefined),
+        proxies: [],
+        isLoading: false,
+        isFetched: true,
+        setProxy: () => {
+          return
+        },
+      }}
+    >
+      <AgentRow
+        showApps
+        key={agent.id}
+        agent={agent}
+        workspace={MockWorkspace}
+        serverVersion=""
+        onUpdateAgent={action("updateAgent")}
+      />
+    </ProxyContext.Provider>
   ),
 }

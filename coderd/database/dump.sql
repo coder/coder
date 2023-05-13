@@ -346,7 +346,8 @@ CREATE TABLE provisioner_jobs (
     worker_id uuid,
     file_id uuid NOT NULL,
     tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL,
-    error_code text
+    error_code text,
+    trace_metadata jsonb
 );
 
 CREATE TABLE replicas (
@@ -477,7 +478,9 @@ CREATE TABLE templates (
     allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL,
     max_ttl bigint DEFAULT '0'::bigint NOT NULL,
     allow_user_autostart boolean DEFAULT true NOT NULL,
-    allow_user_autostop boolean DEFAULT true NOT NULL
+    allow_user_autostop boolean DEFAULT true NOT NULL,
+    failure_ttl bigint DEFAULT 0 NOT NULL,
+    inactivity_ttl bigint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';

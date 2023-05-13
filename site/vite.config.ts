@@ -2,8 +2,14 @@ import react from "@vitejs/plugin-react"
 import path from "path"
 import { defineConfig, PluginOption } from "vite"
 import { visualizer } from "rollup-plugin-visualizer"
+import checker from "vite-plugin-checker"
 
-const plugins: PluginOption[] = [react()]
+const plugins: PluginOption[] = [
+  react(),
+  checker({
+    typescript: true,
+  }),
+]
 
 if (process.env.STATS !== undefined) {
   plugins.push(
@@ -67,6 +73,7 @@ export default defineConfig({
       api: path.resolve(__dirname, "./src/api"),
       components: path.resolve(__dirname, "./src/components"),
       hooks: path.resolve(__dirname, "./src/hooks"),
+      contexts: path.resolve(__dirname, "./src/contexts"),
       i18n: path.resolve(__dirname, "./src/i18n"),
       pages: path.resolve(__dirname, "./src/pages"),
       testHelpers: path.resolve(__dirname, "./src/testHelpers"),

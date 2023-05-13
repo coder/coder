@@ -1,8 +1,8 @@
-import CircularProgress from "@material-ui/core/CircularProgress"
-import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
-import Tooltip from "@material-ui/core/Tooltip"
-import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
+import CircularProgress from "@mui/material/CircularProgress"
+import Link from "@mui/material/Link"
+import { makeStyles } from "@mui/styles"
+import Tooltip from "@mui/material/Tooltip"
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline"
 import { PrimaryAgentButton } from "components/Resources/AgentButton"
 import { FC } from "react"
 import { combineClasses } from "utils/combineClasses"
@@ -10,6 +10,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../utils/random"
 import { BaseIcon } from "./BaseIcon"
 import { ShareIcon } from "./ShareIcon"
+import { useProxy } from "contexts/ProxyContext"
 
 const Language = {
   appTitle: (appName: string, identifier: string): string =>
@@ -17,18 +18,16 @@ const Language = {
 }
 
 export interface AppLinkProps {
-  appsHost?: string
   workspace: TypesGen.Workspace
   app: TypesGen.WorkspaceApp
   agent: TypesGen.WorkspaceAgent
 }
 
-export const AppLink: FC<AppLinkProps> = ({
-  appsHost,
-  app,
-  workspace,
-  agent,
-}) => {
+export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
+  const { proxy } = useProxy()
+  const preferredPathBase = proxy.preferredPathAppURL
+  const appsHost = proxy.preferredWildcardHostname
+
   const styles = useStyles()
   const username = workspace.owner_name
 
@@ -43,14 +42,15 @@ export const AppLink: FC<AppLinkProps> = ({
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
-  let href = `/@${username}/${workspace.name}.${
+  let href = `${preferredPathBase}/@${username}/${workspace.name}.${
     agent.name
   }/apps/${encodeURIComponent(appSlug)}/`
   if (app.command) {
-    href = `/@${username}/${workspace.name}.${
+    href = `${preferredPathBase}/@${username}/${workspace.name}.${
       agent.name
     }/terminal?command=${encodeURIComponent(app.command)}`
   }
+
   if (appsHost && app.subdomain) {
     const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`
     href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)

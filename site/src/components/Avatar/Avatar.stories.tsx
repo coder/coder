@@ -1,6 +1,6 @@
 import { Story } from "@storybook/react"
 import { Avatar, AvatarIcon, AvatarProps } from "./Avatar"
-import PauseIcon from "@material-ui/icons/PauseOutlined"
+import PauseIcon from "@mui/icons-material/PauseOutlined"
 
 export default {
   title: "components/Avatar",

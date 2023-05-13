@@ -1,5 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
-import { alpha } from "@material-ui/core/styles/colorManipulator"
+import { makeStyles } from "@mui/styles"
 import { FC } from "react"
 import { TabSidebar, TabSidebarItem } from "../TabSidebar/TabSidebar"
 
@@ -40,7 +39,7 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: 1920,
     padding: theme.spacing(5, 3.5, 0, 4),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       flexDirection: "column",
       padding: 0,
     },
@@ -51,7 +50,7 @@ const useStyles = makeStyles((theme) => ({
     position: "absolute",
     left: -50,
     top: 31,
-    color: alpha(theme.palette.common.black, 0.1),
+    color: theme.palette.text.secondary,
     transition: "transform 0.3s ease",
     zIndex: -1,
   },
@@ -59,7 +58,7 @@ const useStyles = makeStyles((theme) => ({
   menuPanel: {
     paddingRight: 40,
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       padding: 0,
     },
   },
@@ -87,12 +86,12 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 
-  [theme.breakpoints.down("lg")]: {
+  [theme.breakpoints.down("xl")]: {
     contentPanel: {
       width: 890,
     },
   },
-  [theme.breakpoints.down("sm")]: {
+  [theme.breakpoints.down("md")]: {
     contentPanel: {
       width: "auto",
     },

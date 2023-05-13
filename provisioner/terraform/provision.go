@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/terraform-provider-coder/provider"
@@ -17,6 +18,9 @@ import (
 
 // Provision executes `terraform apply` or `terraform plan` for dry runs.
 func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
+	ctx, span := s.startTrace(stream.Context(), tracing.FuncName())
+	defer span.End()
+
 	request, err := stream.Recv()
 	if err != nil {
 		return err
@@ -42,7 +46,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	// Create a context for graceful cancellation bound to the stream
 	// context. This ensures that we will perform graceful cancellation
 	// even on connection loss.
-	ctx, cancel := context.WithCancel(stream.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// Create a separate context for forcefull cancellation not tied to

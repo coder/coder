@@ -245,8 +245,6 @@ resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
 
-  login_before_ready = false
-
   metadata {
     key          = "cpu"
     display_name = "CPU Usage"

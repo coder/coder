@@ -1,21 +1,23 @@
-import CircularProgress from "@material-ui/core/CircularProgress"
-import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
-import Autocomplete from "@material-ui/lab/Autocomplete"
+import CircularProgress from "@mui/material/CircularProgress"
+import { makeStyles } from "@mui/styles"
+import TextField from "@mui/material/TextField"
+import Autocomplete from "@mui/material/Autocomplete"
 import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
-import { ChangeEvent, FC, useEffect, useState } from "react"
+import { ChangeEvent, ComponentProps, FC, useEffect, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 import { useTranslation } from "react-i18next"
+import Box from "@mui/material/Box"
 
 export type UserAutocompleteProps = {
   value: User | null
   onChange: (user: User | null) => void
   label?: string
   className?: string
+  size?: ComponentProps<typeof TextField>["size"]
 }
 
 export const UserAutocomplete: FC<UserAutocompleteProps> = ({
@@ -23,6 +25,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   onChange,
   label,
   className,
+  size = "small",
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("common")
@@ -50,7 +53,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
     <Autocomplete
       noOptionsText={t("forms.typeToSearch")}
       className={className}
-      options={searchResults}
+      options={searchResults ?? []}
       loading={searchState.matches("searching")}
       value={value}
       id="user-autocomplete"
@@ -68,46 +71,55 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 
         onChange(newValue)
       }}
-      getOptionSelected={(option: User, value: User) =>
+      isOptionEqualToValue={(option: User, value: User) =>
         option.username === value.username
       }
       getOptionLabel={(option) => option.email}
-      renderOption={(option: User) => (
-        <AvatarData
-          title={option.username}
-          subtitle={option.email}
-          src={option.avatar_url}
-        />
+      renderOption={(props, option) => (
+        <Box component="li" {...props}>
+          <AvatarData
+            title={option.username}
+            subtitle={option.email}
+            src={option.avatar_url}
+          />
+        </Box>
       )}
       renderInput={(params) => (
-        <TextField
-          {...params}
-          fullWidth
-          variant="outlined"
-          label={label ?? undefined}
-          placeholder="User email or username"
-          className={styles.textField}
-          InputProps={{
-            ...params.InputProps,
-            onChange: handleFilterChange,
-            startAdornment: value && (
-              <Avatar size="sm" src={value.avatar_url}>
-                {value.username}
-              </Avatar>
-            ),
-            endAdornment: (
-              <>
-                {searchState.matches("searching") ? (
-                  <CircularProgress size={16} />
-                ) : null}
-                {params.InputProps.endAdornment}
-              </>
-            ),
-            classes: {
-              root: styles.inputRoot,
-            },
-          }}
-        />
+        <>
+          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Need it */}
+          {/* @ts-ignore -- Issue from lib https://github.com/i18next/react-i18next/issues/1543 */}
+          <TextField
+            {...params}
+            fullWidth
+            size={size}
+            label={label}
+            placeholder="User email or username"
+            className={styles.textField}
+            InputProps={{
+              ...params.InputProps,
+              onChange: handleFilterChange,
+              startAdornment: value && (
+                <Avatar size="sm" src={value.avatar_url}>
+                  {value.username}
+                </Avatar>
+              ),
+              endAdornment: (
+                <>
+                  {searchState.matches("searching") ? (
+                    <CircularProgress size={16} />
+                  ) : null}
+                  {params.InputProps.endAdornment}
+                </>
+              ),
+              classes: {
+                root: styles.inputRoot,
+              },
+            }}
+            InputLabelProps={{
+              shrink: true,
+            }}
+          />
+        </>
       )}
     />
   )
@@ -120,7 +132,7 @@ export const useStyles = makeStyles((theme) => ({
     },
   },
   inputRoot: {
-    paddingLeft: `${theme.spacing(1.75)}px !important`, // Same padding left as input
+    paddingLeft: `${theme.spacing(1.75)} !important`, // Same padding left as input
     gap: theme.spacing(0.5),
   },
 }))

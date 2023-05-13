@@ -2,7 +2,7 @@ import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { ComponentProps, FC } from "react"
 import { TemplateScheduleForm } from "./TemplateScheduleForm"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 
 export interface TemplateSchedulePageViewProps {
   template: Template
@@ -12,6 +12,7 @@ export interface TemplateSchedulePageViewProps {
   submitError?: unknown
   initialTouched?: ComponentProps<typeof TemplateScheduleForm>["initialTouched"]
   allowAdvancedScheduling: boolean
+  allowWorkspaceActions: boolean
 }
 
 export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
@@ -20,6 +21,7 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
   onSubmit,
   isSubmitting,
   allowAdvancedScheduling,
+  allowWorkspaceActions,
   submitError,
   initialTouched,
 }) => {
@@ -33,6 +35,7 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
 
       <TemplateScheduleForm
         allowAdvancedScheduling={allowAdvancedScheduling}
+        allowWorkspaceActions={allowWorkspaceActions}
         initialTouched={initialTouched}
         isSubmitting={isSubmitting}
         template={template}

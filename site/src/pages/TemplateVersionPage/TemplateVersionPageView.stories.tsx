@@ -2,7 +2,7 @@ import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import { UseTabResult } from "hooks/useTab"
 import {
-  makeMockApiError,
+  mockApiError,
   MockOrganization,
   MockTemplate,
   MockTemplateVersion,
@@ -41,7 +41,6 @@ const defaultArgs: TemplateVersionPageViewProps = {
   tab,
   templateName: MockTemplate.name,
   versionName: MockTemplateVersion.name,
-  canEdit: true,
   context: {
     templateName: MockTemplate.name,
     orgId: MockOrganization.id,
@@ -64,7 +63,7 @@ Error.args = {
     ...defaultArgs.context,
     currentVersion: undefined,
     currentFiles: undefined,
-    error: makeMockApiError({
+    error: mockApiError({
       message: "Error on loading the template version",
     }),
   },

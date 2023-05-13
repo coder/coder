@@ -1,8 +1,8 @@
-import Link from "@material-ui/core/Link"
-import Popover, { PopoverProps } from "@material-ui/core/Popover"
-import { makeStyles } from "@material-ui/core/styles"
-import HelpIcon from "@material-ui/icons/HelpOutline"
-import OpenInNewIcon from "@material-ui/icons/OpenInNew"
+import Link from "@mui/material/Link"
+import Popover, { PopoverProps } from "@mui/material/Popover"
+import { makeStyles } from "@mui/styles"
+import HelpIcon from "@mui/icons-material/HelpOutline"
+import OpenInNewIcon from "@mui/icons-material/OpenInNew"
 import {
   createContext,
   useContext,
@@ -17,17 +17,13 @@ import { Stack } from "../../Stack/Stack"
 type Icon = typeof HelpIcon
 
 type Size = "small" | "medium"
-interface HelpTooltipProps {
+export interface HelpTooltipProps {
   // Useful to test on storybook
   open?: boolean
   size?: Size
   icon?: Icon
   iconClassName?: string
   buttonClassName?: string
-}
-
-export const Language = {
-  ariaLabel: "tooltip",
 }
 
 export const HelpTooltipContext = createContext<
@@ -108,7 +104,7 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
         onMouseLeave={() => {
           setIsOpen(false)
         }}
-        aria-label={Language.ariaLabel}
+        aria-label="More info"
       >
         <Icon className={combineClasses([styles.icon, iconClassName])} />
       </button>
@@ -253,22 +249,27 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(2.5),
     color: theme.palette.text.secondary,
     pointerEvents: "auto",
+    ...theme.typography.body2,
   },
 
   title: {
     marginTop: 0,
     marginBottom: theme.spacing(1),
     color: theme.palette.text.primary,
+    fontSize: 14,
+    fontWeight: 600,
   },
 
   text: {
     marginTop: theme.spacing(0.5),
     marginBottom: theme.spacing(0.5),
+    ...theme.typography.body2,
   },
 
   link: {
     display: "flex",
     alignItems: "center",
+    ...theme.typography.body2,
   },
 
   linkIcon: {

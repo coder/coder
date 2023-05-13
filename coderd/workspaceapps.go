@@ -27,6 +27,7 @@ import (
 // @Tags Applications
 // @Success 200 {object} codersdk.AppHostResponse
 // @Router /applications/host [get]
+// @Deprecated use api/v2/regions and see the primary proxy.
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	host := api.AppHostname
 	if host != "" && api.AccessURL.Port() != "" {

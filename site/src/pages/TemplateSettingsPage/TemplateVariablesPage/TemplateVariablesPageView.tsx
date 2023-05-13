@@ -8,7 +8,7 @@ import { Loader } from "components/Loader/Loader"
 import { ComponentProps, FC } from "react"
 import { TemplateVariablesForm } from "./TemplateVariablesForm"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { useTranslation } from "react-i18next"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 

@@ -1,3 +1,4 @@
+import { mockApiError } from "testHelpers/entities"
 import {
   getValidationErrorMessage,
   isApiError,
@@ -7,17 +8,14 @@ import {
 describe("isApiError", () => {
   it("returns true when the object is an API Error", () => {
     expect(
-      isApiError({
-        isAxiosError: true,
-        response: {
-          data: {
-            message: "Invalid entry",
-            errors: [
-              { detail: "Username is already in use", field: "username" },
-            ],
-          },
-        },
-      }),
+      isApiError(
+        mockApiError({
+          message: "Invalid entry",
+          validations: [
+            { detail: "Username is already in use", field: "username" },
+          ],
+        }),
+      ),
     ).toBe(true)
   })
 
@@ -48,24 +46,21 @@ describe("mapApiErrorToFieldErrors", () => {
 describe("getValidationErrorMessage", () => {
   it("returns multiple validation messages", () => {
     expect(
-      getValidationErrorMessage({
-        response: {
-          data: {
-            message: "Invalid user search query.",
-            validations: [
-              {
-                field: "status",
-                detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
-              },
-              {
-                field: "q",
-                detail: `Query element "role:a:e" can only contain 1 ':'`,
-              },
-            ],
-          },
-        },
-        isAxiosError: true,
-      }),
+      getValidationErrorMessage(
+        mockApiError({
+          message: "Invalid user search query.",
+          validations: [
+            {
+              field: "status",
+              detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+            },
+            {
+              field: "q",
+              detail: `Query element "role:a:e" can only contain 1 ':'`,
+            },
+          ],
+        }),
+      ),
     ).toEqual(
       `Query param "status" has invalid value: "inactive" is not a valid user status\nQuery element "role:a:e" can only contain 1 ':'`,
     )
@@ -73,28 +68,18 @@ describe("getValidationErrorMessage", () => {
 
   it("non-API error returns empty validation message", () => {
     expect(
-      getValidationErrorMessage({
-        response: {
-          data: {
-            error: "Invalid user search query.",
-          },
-        },
-        isAxiosError: true,
-      }),
+      getValidationErrorMessage(new Error("Invalid user search query.")),
     ).toEqual("")
   })
 
   it("no validations field returns empty validation message", () => {
     expect(
-      getValidationErrorMessage({
-        response: {
-          data: {
-            message: "Invalid user search query.",
-            detail: `Query element "role:a:e" can only contain 1 ':'`,
-          },
-        },
-        isAxiosError: true,
-      }),
+      getValidationErrorMessage(
+        mockApiError({
+          message: "Invalid user search query.",
+          detail: `Query element "role:a:e" can only contain 1 ':'`,
+        }),
+      ),
     ).toEqual("")
   })
 })

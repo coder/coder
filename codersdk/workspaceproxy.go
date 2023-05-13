@@ -15,9 +15,9 @@ import (
 type ProxyHealthStatus string
 
 const (
-	// ProxyReachable means the proxy access url is reachable and returns a healthy
+	// ProxyHealthy means the proxy access url is reachable and returns a healthy
 	// status code.
-	ProxyReachable ProxyHealthStatus = "reachable"
+	ProxyHealthy ProxyHealthStatus = "ok"
 	// ProxyUnreachable means the proxy access url is not responding.
 	ProxyUnreachable ProxyHealthStatus = "unreachable"
 	// ProxyUnhealthy means the proxy access url is responding, but there is some
@@ -29,7 +29,7 @@ const (
 )
 
 type WorkspaceProxyStatus struct {
-	Status ProxyHealthStatus `json:"status" table:"status"`
+	Status ProxyHealthStatus `json:"status" table:"status,default_sort"`
 	// Report provides more information about the health of the workspace proxy.
 	Report    ProxyHealthReport `json:"report,omitempty" table:"report"`
 	CheckedAt time.Time         `json:"checked_at" table:"checked_at" format:"date-time"`
@@ -39,16 +39,17 @@ type WorkspaceProxyStatus struct {
 // A healthy report will have no errors. Warnings are not fatal.
 type ProxyHealthReport struct {
 	// Errors are problems that prevent the workspace proxy from being healthy
-	Errors []string
+	Errors []string `json:"errors"`
 	// Warnings do not prevent the workspace proxy from being healthy, but
 	// should be addressed.
-	Warnings []string
+	Warnings []string `json:"warnings"`
 }
 
 type WorkspaceProxy struct {
-	ID   uuid.UUID `json:"id" format:"uuid" table:"id"`
-	Name string    `json:"name" table:"name,default_sort"`
-	Icon string    `json:"icon" table:"icon"`
+	ID          uuid.UUID `json:"id" format:"uuid" table:"id"`
+	Name        string    `json:"name" table:"name,default_sort"`
+	DisplayName string    `json:"display_name" table:"display_name"`
+	Icon        string    `json:"icon" table:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
 	URL string `json:"url" table:"url"`
 	// WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com
@@ -60,35 +61,35 @@ type WorkspaceProxy struct {
 	// Status is the latest status check of the proxy. This will be empty for deleted
 	// proxies. This value can be used to determine if a workspace proxy is healthy
 	// and ready to use.
-	Status WorkspaceProxyStatus `json:"status,omitempty" table:"status"`
+	Status WorkspaceProxyStatus `json:"status,omitempty" table:"proxy,recursive"`
 }
 
 type CreateWorkspaceProxyRequest struct {
-	Name        string `json:"name"`
+	Name        string `json:"name" validate:"required"`
 	DisplayName string `json:"display_name"`
 	Icon        string `json:"icon"`
 }
 
-type CreateWorkspaceProxyResponse struct {
+type UpdateWorkspaceProxyResponse struct {
 	Proxy WorkspaceProxy `json:"proxy" table:"proxy,recursive"`
 	// The recursive table sort is not working very well.
 	ProxyToken string `json:"proxy_token" table:"proxy token,default_sort"`
 }
 
-func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (CreateWorkspaceProxyResponse, error) {
+func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (UpdateWorkspaceProxyResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost,
 		"/api/v2/workspaceproxies",
 		req,
 	)
 	if err != nil {
-		return CreateWorkspaceProxyResponse{}, xerrors.Errorf("make request: %w", err)
+		return UpdateWorkspaceProxyResponse{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return CreateWorkspaceProxyResponse{}, ReadBodyAsError(res)
+		return UpdateWorkspaceProxyResponse{}, ReadBodyAsError(res)
 	}
-	var resp CreateWorkspaceProxyResponse
+	var resp UpdateWorkspaceProxyResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -110,6 +111,31 @@ func (c *Client) WorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
 	return proxies, json.NewDecoder(res.Body).Decode(&proxies)
 }
 
+type PatchWorkspaceProxy struct {
+	ID              uuid.UUID `json:"id" format:"uuid" validate:"required"`
+	Name            string    `json:"name" validate:"required"`
+	DisplayName     string    `json:"display_name" validate:"required"`
+	Icon            string    `json:"icon" validate:"required"`
+	RegenerateToken bool      `json:"regenerate_token"`
+}
+
+func (c *Client) PatchWorkspaceProxy(ctx context.Context, req PatchWorkspaceProxy) (UpdateWorkspaceProxyResponse, error) {
+	res, err := c.Request(ctx, http.MethodPatch,
+		fmt.Sprintf("/api/v2/workspaceproxies/%s", req.ID.String()),
+		req,
+	)
+	if err != nil {
+		return UpdateWorkspaceProxyResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UpdateWorkspaceProxyResponse{}, ReadBodyAsError(res)
+	}
+	var resp UpdateWorkspaceProxyResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 func (c *Client) DeleteWorkspaceProxyByName(ctx context.Context, name string) error {
 	res, err := c.Request(ctx, http.MethodDelete,
 		fmt.Sprintf("/api/v2/workspaceproxies/%s", name),
@@ -129,6 +155,28 @@ func (c *Client) DeleteWorkspaceProxyByName(ctx context.Context, name string) er
 
 func (c *Client) DeleteWorkspaceProxyByID(ctx context.Context, id uuid.UUID) error {
 	return c.DeleteWorkspaceProxyByName(ctx, id.String())
+}
+
+func (c *Client) WorkspaceProxyByName(ctx context.Context, name string) (WorkspaceProxy, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/workspaceproxies/%s", name),
+		nil,
+	)
+	if err != nil {
+		return WorkspaceProxy{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceProxy{}, ReadBodyAsError(res)
+	}
+
+	var resp WorkspaceProxy
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) WorkspaceProxyByID(ctx context.Context, id uuid.UUID) (WorkspaceProxy, error) {
+	return c.WorkspaceProxyByName(ctx, id.String())
 }
 
 type RegionsResponse struct {

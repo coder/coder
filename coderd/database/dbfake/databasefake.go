@@ -1945,6 +1945,8 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.UpdatedAt = database.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.MaxTTL = arg.MaxTTL
+		tpl.FailureTTL = arg.FailureTTL
+		tpl.InactivityTTL = arg.InactivityTTL
 		q.templates[idx] = tpl
 		return tpl.DeepCopy(), nil
 	}
@@ -5224,6 +5226,31 @@ func (q *fakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 			p.Url = arg.Url
 			p.WildcardHostname = arg.WildcardHostname
 			p.UpdatedAt = database.Now()
+			q.workspaceProxies[i] = p
+			return p, nil
+		}
+	}
+	return database.WorkspaceProxy{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, p := range q.workspaceProxies {
+		if p.Name == arg.Name && p.ID != arg.ID {
+			return database.WorkspaceProxy{}, errDuplicateKey
+		}
+	}
+
+	for i, p := range q.workspaceProxies {
+		if p.ID == arg.ID {
+			p.Name = arg.Name
+			p.DisplayName = arg.DisplayName
+			p.Icon = arg.Icon
+			if len(p.TokenHashedSecret) > 0 {
+				p.TokenHashedSecret = arg.TokenHashedSecret
+			}
 			q.workspaceProxies[i] = p
 			return p, nil
 		}

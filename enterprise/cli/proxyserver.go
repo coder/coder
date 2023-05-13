@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -136,7 +137,12 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			defer http.DefaultClient.CloseIdleConnections()
 			closers.Add(http.DefaultClient.CloseIdleConnections)
 
-			tracer, _ := cli.ConfigureTraceProvider(ctx, logger, inv, cfg)
+			tracer, _, closeTracing := cli.ConfigureTraceProvider(ctx, logger, inv, cfg)
+			defer func() {
+				logger.Debug(ctx, "closing tracing")
+				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
+				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
+			}()
 
 			httpServers, err := cli.ConfigureHTTPServers(inv, cfg)
 			if err != nil {
@@ -243,6 +249,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
 			}
+			closers.Add(func() { _ = proxy.Close() })
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
@@ -344,4 +351,10 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 	}
 
 	return cmd
+}
+
+func shutdownWithTimeout(shutdown func(context.Context) error, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return shutdown(ctx)
 }

@@ -20,7 +20,7 @@ export const CreateGroupPage: FC = () => {
       },
     },
   })
-  const { createGroupFormErrors } = createState.context
+  const { error } = createState.context
 
   return (
     <>
@@ -34,7 +34,7 @@ export const CreateGroupPage: FC = () => {
             data,
           })
         }}
-        formErrors={createGroupFormErrors}
+        formErrors={error}
         isLoading={createState.matches("creatingGroup")}
       />
     </>

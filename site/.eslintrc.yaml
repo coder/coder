@@ -86,6 +86,9 @@ rules:
     - argsIgnorePattern: "^_"
       varsIgnorePattern: "^_"
       ignoreRestSiblings: true
+  "@typescript-eslint/no-empty-interface":
+    - error
+    - allowSingleExtends: true
   "brace-style": "off"
   "curly": ["error", "all"]
   "eslint-comments/require-description": "error"
@@ -113,19 +116,15 @@ rules:
   no-restricted-imports:
     - error
     - paths:
-        - name: "@material-ui/core"
+        - name: "@mui/material"
           message:
             "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
-        - name: "@material-ui/icons"
+        - name: "@mui/icons-material"
           message:
             "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
-        - name: "@material-ui/styles"
-          message:
-            "Use path imports to avoid pulling in unused modules. See:
-            https://material-ui.com/guides/minimizing-bundle-size/"
-        - name: "@material-ui/core/Avatar"
+        - name: "@mui/material/Avatar"
           message:
             "You should use the Avatar component provided on
             components/Avatar/Avatar"

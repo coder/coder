@@ -1,7 +1,7 @@
-import Box from "@material-ui/core/Box"
-import Button from "@material-ui/core/Button"
-import Paper from "@material-ui/core/Paper"
-import { makeStyles } from "@material-ui/core/styles"
+import Box from "@mui/material/Box"
+import Button from "@mui/material/Button"
+import Paper from "@mui/material/Paper"
+import { makeStyles } from "@mui/styles"
 import { License } from "api/typesGenerated"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
@@ -30,12 +30,7 @@ export const LicenseCard = ({
   >(undefined)
 
   return (
-    <Paper
-      variant="outlined"
-      key={license.id}
-      elevation={2}
-      className={styles.licenseCard}
-    >
+    <Paper key={license.id} elevation={2} className={styles.licenseCard}>
       <ConfirmDialog
         type="info"
         hideCancel={false}
@@ -69,20 +64,23 @@ export const LicenseCard = ({
           justifyContent="space-between"
           alignItems="self-end"
         >
-          <div className={styles.userLimit}>
-            <span className={styles.userLimitActual}>{userLimitActual}</span>
-            <span className={styles.userLimitLimit}>
-              / {userLimitLimit || "Unlimited"} users
-            </span>
-          </div>
+          <Stack direction="column" spacing={0} className={styles.userLimit}>
+            <span className={styles.secondaryMaincolor}>Users</span>
+            <div className={styles.primaryMainColor}>
+              <span className={styles.userLimitActual}>{userLimitActual}</span>
+              <span className={styles.userLimitLimit}>
+                {` / ${userLimitLimit || "Unlimited"}`}
+              </span>
+            </div>
+          </Stack>
 
           <Stack direction="column" spacing={0} alignItems="center">
-            <span className={styles.expirationDate}>
+            <span className={styles.secondaryMaincolor}>Valid until</span>
+            <span className={styles.primaryMainColor}>
               {dayjs
                 .unix(license.claims.license_expires)
                 .format("MMMM D, YYYY")}
             </span>
-            <span className={styles.expirationDateLabel}>Valid until</span>
           </Stack>
           <div className={styles.actions}>
             <Button
@@ -109,16 +107,14 @@ const useStyles = makeStyles((theme) => ({
     textAlign: "right",
   },
   userLimitActual: {
-    // fontWeight: 600,
-    paddingRight: "5px",
     color: theme.palette.primary.main,
   },
   userLimitLimit: {
     color: theme.palette.secondary.main,
-    // fontSize: theme.typography.h5.fontSize,
     fontWeight: 600,
   },
   licenseCard: {
+    ...theme.typography.body2,
     padding: theme.spacing(2),
   },
   cardContent: {
@@ -127,20 +123,18 @@ const useStyles = makeStyles((theme) => ({
   licenseId: {
     color: theme.palette.secondary.main,
     fontWeight: 600,
-    // fontSize: theme.typography.h5.fontSize,
   },
   accountType: {
     fontWeight: 600,
-    fontSize: theme.typography.h4.fontSize,
+    fontSize: 24,
     justifyContent: "center",
     alignItems: "center",
     textTransform: "capitalize",
   },
-  expirationDate: {
-    // fontWeight: 600,
+  primaryMainColor: {
     color: theme.palette.primary.main,
   },
-  expirationDateLabel: {
+  secondaryMaincolor: {
     color: theme.palette.secondary.main,
   },
   removeButton: {

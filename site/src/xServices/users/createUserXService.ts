@@ -1,24 +1,14 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import {
-  ApiError,
-  FieldErrors,
-  getErrorMessage,
-  hasApiFieldErrors,
-  isApiError,
-  mapApiErrorToFieldErrors,
-} from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
 import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
   createUserSuccess: "Successfully created user.",
-  createUserError: "Error on creating the user.",
 }
 
 export interface CreateUserContext {
-  createUserErrorMessage?: string
-  createUserFormErrors?: FieldErrors
+  error?: unknown
 }
 
 export type CreateUserEvent =
@@ -44,11 +34,11 @@ export const createUserMachine = createMachine(
       idle: {
         on: {
           CREATE: "creatingUser",
-          CANCEL_CREATE_USER: { actions: ["clearCreateUserError"] },
+          CANCEL_CREATE_USER: { actions: ["clearError"] },
         },
       },
       creatingUser: {
-        entry: "clearCreateUserError",
+        entry: "clearError",
         invoke: {
           src: "createUser",
           id: "createUser",
@@ -56,17 +46,10 @@ export const createUserMachine = createMachine(
             target: "idle",
             actions: ["displayCreateUserSuccess", "redirectToUsersPage"],
           },
-          onError: [
-            {
-              target: "idle",
-              cond: "hasFieldErrors",
-              actions: ["assignCreateUserFormErrors"],
-            },
-            {
-              target: "idle",
-              actions: ["assignCreateUserError"],
-            },
-          ],
+          onError: {
+            target: "idle",
+            actions: ["assignError"],
+          },
         },
         tags: "loading",
       },
@@ -76,25 +59,11 @@ export const createUserMachine = createMachine(
     services: {
       createUser: (_, event) => API.createUser(event.user),
     },
-    guards: {
-      hasFieldErrors: (_, event) =>
-        isApiError(event.data) && hasApiFieldErrors(event.data),
-    },
     actions: {
-      assignCreateUserError: assign({
-        createUserErrorMessage: (_, event) =>
-          getErrorMessage(event.data, Language.createUserError),
+      assignError: assign({
+        error: (_, event) => event.data,
       }),
-      assignCreateUserFormErrors: assign({
-        // the guard ensures it is ApiError
-        createUserFormErrors: (_, event) =>
-          mapApiErrorToFieldErrors((event.data as ApiError).response.data),
-      }),
-      clearCreateUserError: assign((context: CreateUserContext) => ({
-        ...context,
-        createUserErrorMessage: undefined,
-        createUserFormErrors: undefined,
-      })),
+      clearError: assign({ error: (_) => undefined }),
       displayCreateUserSuccess: () => {
         displaySuccess(Language.createUserSuccess)
       },

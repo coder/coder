@@ -3,6 +3,7 @@
 package pty
 
 import (
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -213,4 +214,14 @@ func (p *windowsProcess) Wait() error {
 
 func (p *windowsProcess) Kill() error {
 	return p.proc.Kill()
+}
+
+// killOnContext waits for the context to be done and kills the process, unless it exits on its own first.
+func (p *windowsProcess) killOnContext(ctx context.Context) {
+	select {
+	case <-p.cmdDone:
+		return
+	case <-ctx.Done():
+		p.Kill()
+	}
 }

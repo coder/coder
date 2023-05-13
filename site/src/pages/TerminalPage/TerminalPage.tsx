@@ -1,4 +1,7 @@
-import { makeStyles } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
+import WarningIcon from "@mui/icons-material/ErrorOutlineRounded"
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { useMachine } from "@xstate/react"
 import { portForwardURL } from "components/PortForwardButton/PortForwardButton"
 import { Stack } from "components/Stack/Stack"
@@ -14,39 +17,13 @@ import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { pageTitle } from "../../utils/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
+import { useProxy } from "contexts/ProxyContext"
+import { combineClasses } from "utils/combineClasses"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
   workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
   websocketErrorMessagePrefix: "WebSocket failed: ",
-}
-
-const useReloading = (isDisconnected: boolean) => {
-  const [status, setStatus] = useState<"reloading" | "notReloading">(
-    "notReloading",
-  )
-
-  // Retry connection on key press when it is disconnected
-  useEffect(() => {
-    if (!isDisconnected) {
-      return
-    }
-
-    const keyDownHandler = () => {
-      setStatus("reloading")
-      window.location.reload()
-    }
-
-    document.addEventListener("keydown", keyDownHandler)
-
-    return () => {
-      document.removeEventListener("keydown", keyDownHandler)
-    }
-  }, [isDisconnected])
-
-  return {
-    status,
-  }
 }
 
 const TerminalPage: FC<
@@ -56,6 +33,7 @@ const TerminalPage: FC<
 > = ({ renderer }) => {
   const navigate = useNavigate()
   const styles = useStyles()
+  const { proxy } = useProxy()
   const { username, workspace: workspaceName } = useParams()
   const xtermRef = useRef<HTMLDivElement>(null)
   const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null)
@@ -76,6 +54,7 @@ const TerminalPage: FC<
       workspaceName: workspaceNameParts?.[0],
       username: username,
       command: command,
+      baseURL: proxy.preferredPathAppURL,
     },
     actions: {
       readMessage: (_, event) => {
@@ -97,14 +76,24 @@ const TerminalPage: FC<
     workspaceAgentError,
     workspaceAgent,
     websocketError,
-    applicationsHost,
   } = terminalState.context
   const reloading = useReloading(isDisconnected)
+  const shouldDisplayStartupWarning = workspaceAgent
+    ? ["starting", "starting_timeout"].includes(workspaceAgent.lifecycle_state)
+    : false
+  const shouldDisplayStartupError = workspaceAgent
+    ? workspaceAgent.lifecycle_state === "start_error"
+    : false
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
     (uri: string) => {
-      if (!workspaceAgent || !workspace || !username || !applicationsHost) {
+      if (
+        !workspaceAgent ||
+        !workspace ||
+        !username ||
+        !proxy.preferredWildcardHostname
+      ) {
         return
       }
 
@@ -132,7 +121,7 @@ const TerminalPage: FC<
         }
         open(
           portForwardURL(
-            applicationsHost,
+            proxy.preferredWildcardHostname,
             parseInt(url.port),
             workspaceAgent.name,
             workspace.name,
@@ -143,7 +132,7 @@ const TerminalPage: FC<
         open(uri)
       }
     },
-    [workspaceAgent, workspace, username, applicationsHost],
+    [workspaceAgent, workspace, username, proxy.preferredWildcardHostname],
   )
 
   // Create the terminal!
@@ -309,12 +298,80 @@ const TerminalPage: FC<
           </Stack>
         )}
       </div>
+      {shouldDisplayStartupError && (
+        <div
+          className={combineClasses([styles.alert, styles.alertError])}
+          role="alert"
+        >
+          <WarningIcon className={styles.alertIcon} />
+          <div>
+            <div className={styles.alertTitle}>Startup script failed</div>
+            <div className={styles.alertMessage}>
+              You can continue using this terminal, but something may be missing
+              or not fully set up.
+            </div>
+          </div>
+        </div>
+      )}
+      {shouldDisplayStartupWarning && (
+        <div className={styles.alert} role="alert">
+          <WarningIcon className={styles.alertIcon} />
+          <div>
+            <div className={styles.alertTitle}>
+              Startup script is still running
+            </div>
+            <div className={styles.alertMessage}>
+              You can continue using this terminal, but something may be missing
+              or not fully set up.
+            </div>
+          </div>
+          <div className={styles.alertActions}>
+            <Button
+              startIcon={<RefreshOutlined />}
+              size="small"
+              onClick={() => {
+                // By redirecting the user without the session in the URL we
+                // create a new one
+                window.location.href = window.location.pathname
+              }}
+            >
+              Refresh session
+            </Button>
+          </div>
+        </div>
+      )}
       <div className={styles.terminal} ref={xtermRef} data-testid="terminal" />
     </>
   )
 }
 
-export default TerminalPage
+const useReloading = (isDisconnected: boolean) => {
+  const [status, setStatus] = useState<"reloading" | "notReloading">(
+    "notReloading",
+  )
+
+  // Retry connection on key press when it is disconnected
+  useEffect(() => {
+    if (!isDisconnected) {
+      return
+    }
+
+    const keyDownHandler = () => {
+      setStatus("reloading")
+      window.location.reload()
+    }
+
+    document.addEventListener("keydown", keyDownHandler)
+
+    return () => {
+      document.removeEventListener("keydown", keyDownHandler)
+    }
+  }, [isDisconnected])
+
+  return {
+    status,
+  }
+}
 
 const useStyles = makeStyles((theme) => ({
   overlay: {
@@ -348,6 +405,8 @@ const useStyles = makeStyles((theme) => ({
     width: "100vw",
     height: "100vh",
     overflow: "hidden",
+    padding: theme.spacing(1),
+    backgroundColor: theme.palette.background.paper,
     // These styles attempt to mimic the VS Code scrollbar.
     "& .xterm": {
       padding: 4,
@@ -370,4 +429,34 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: "rgba(255, 255, 255, 0.18)",
     },
   },
+  alert: {
+    display: "flex",
+    background: theme.palette.background.paperLight,
+    alignItems: "center",
+    padding: theme.spacing(2),
+    gap: theme.spacing(2),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+  },
+  alertIcon: {
+    color: theme.palette.warning.light,
+    fontSize: theme.spacing(3),
+  },
+  alertError: {
+    "& $alertIcon": {
+      color: theme.palette.error.light,
+    },
+  },
+  alertTitle: {
+    fontWeight: 600,
+    color: theme.palette.text.primary,
+  },
+  alertMessage: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+  alertActions: {
+    marginLeft: "auto",
+  },
 }))
+
+export default TerminalPage

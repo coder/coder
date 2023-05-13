@@ -29,6 +29,7 @@ site/e2e/test-results/*
 site/e2e/states/*.json
 site/playwright-report/*
 site/.swc
+site/dist/
 
 # Make target for updating golden files (any dir).
 .gen-golden
@@ -52,3 +53,4 @@ site/stats/
 
 # direnv
 .envrc
+*.test

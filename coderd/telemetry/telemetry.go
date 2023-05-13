@@ -233,8 +233,8 @@ func (r *remoteReporter) deployment() error {
 
 	// Tracks where Coder was installed from!
 	installSource := os.Getenv("CODER_TELEMETRY_INSTALL_SOURCE")
-	if installSource != "" && installSource != "aws_marketplace" && installSource != "fly.io" {
-		return xerrors.Errorf("invalid installce source: %s", installSource)
+	if len(installSource) > 64 {
+		return xerrors.Errorf("install source must be <=64 chars: %s", installSource)
 	}
 
 	data, err := json.Marshal(&Deployment{

@@ -1,7 +1,7 @@
-import Box from "@material-ui/core/Box"
-import { makeStyles } from "@material-ui/core/styles"
-import TableCell from "@material-ui/core/TableCell"
-import TableRow from "@material-ui/core/TableRow"
+import Box from "@mui/material/Box"
+import { makeStyles } from "@mui/styles"
+import TableCell from "@mui/material/TableCell"
+import TableRow from "@mui/material/TableRow"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { LastUsed } from "components/LastUsed/LastUsed"
 import { Pill } from "components/Pill/Pill"
@@ -70,7 +70,7 @@ export const UsersTableBody: FC<
   return (
     <ChooseOne>
       <Cond condition={Boolean(isLoading)}>
-        <TableLoaderSkeleton columns={4} useAvatarData />
+        <TableLoaderSkeleton columns={5} useAvatarData />
       </Cond>
       <Cond condition={!users || users.length === 0}>
         <ChooseOne>

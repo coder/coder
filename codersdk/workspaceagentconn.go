@@ -165,9 +165,9 @@ type WorkspaceAgentReconnectingPTYInit struct {
 // to pipe data to a PTY.
 // @typescript-ignore ReconnectingPTYRequest
 type ReconnectingPTYRequest struct {
-	Data   string `json:"data"`
-	Height uint16 `json:"height"`
-	Width  uint16 `json:"width"`
+	Data   string `json:"data,omitempty"`
+	Height uint16 `json:"height,omitempty"`
+	Width  uint16 `json:"width,omitempty"`
 }
 
 // ReconnectingPTY spawns a new reconnecting terminal session.

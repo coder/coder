@@ -1,7 +1,6 @@
-import Button from "@material-ui/core/Button"
-import TextField from "@material-ui/core/TextField"
-import { makeStyles } from "@material-ui/core/styles"
-import { ApiErrorResponse } from "api/errors"
+import Button from "@mui/material/Button"
+import TextField from "@mui/material/TextField"
+import { makeStyles } from "@mui/styles"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
@@ -15,7 +14,7 @@ import { Link as RouterLink } from "react-router-dom"
 type AddNewLicenseProps = {
   onSaveLicenseKey: (license: string) => void
   isSavingLicense: boolean
-  savingLicenseError?: ApiErrorResponse
+  savingLicenseError?: unknown
 }
 
 export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
@@ -57,11 +56,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
           title="Add your license"
           description="Enterprise licenses unlock more features on your deployment."
         />
-        <Button
-          component={RouterLink}
-          to="/settings/deployment/licenses"
-          variant="outlined"
-        >
+        <Button component={RouterLink} to="/settings/deployment/licenses">
           Back to licenses
         </Button>
       </Stack>

@@ -45,7 +45,7 @@ func Test_ProxyCRUD(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, conf := newCLI(
 			t,
-			"proxy", "create",
+			"wsproxy", "create",
 			"--name", expectedName,
 			"--display-name", "Test Proxy",
 			"--icon", "/emojis/1f4bb.png",
@@ -65,6 +65,21 @@ func Test_ProxyCRUD(t *testing.T) {
 		_, err = uuid.Parse(parts[0])
 		require.NoError(t, err, "expected token to be a uuid")
 
+		// Fetch proxies and check output
+		inv, conf = newCLI(
+			t,
+			"wsproxy", "ls",
+		)
+
+		pty = ptytest.New(t)
+		inv.Stdout = pty.Output()
+		clitest.SetupConfig(t, client, conf)
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		pty.ExpectMatch(expectedName)
+
+		// Also check via the api
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err, "failed to get workspace proxies")
 		require.Len(t, proxies, 1, "expected 1 proxy")
@@ -103,7 +118,7 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		inv, conf := newCLI(
 			t,
-			"proxy", "delete", expectedName,
+			"wsproxy", "delete", expectedName,
 		)
 
 		pty := ptytest.New(t)

@@ -2499,7 +2499,7 @@ WHERE
 		SKIP LOCKED
 		LIMIT
 			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
+	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
 `
 
 type AcquireProvisionerJobParams struct {
@@ -2541,13 +2541,14 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.FileID,
 		&i.Tags,
 		&i.ErrorCode,
+		&i.TraceMetadata,
 	)
 	return i, err
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
 FROM
 	provisioner_jobs
 WHERE
@@ -2575,13 +2576,14 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.FileID,
 		&i.Tags,
 		&i.ErrorCode,
+		&i.TraceMetadata,
 	)
 	return i, err
 }
 
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
 FROM
 	provisioner_jobs
 WHERE
@@ -2615,6 +2617,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			&i.FileID,
 			&i.Tags,
 			&i.ErrorCode,
+			&i.TraceMetadata,
 		); err != nil {
 			return nil, err
 		}
@@ -2630,7 +2633,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
-SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code FROM provisioner_jobs WHERE created_at > $1
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata FROM provisioner_jobs WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
@@ -2660,6 +2663,7 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 			&i.FileID,
 			&i.Tags,
 			&i.ErrorCode,
+			&i.TraceMetadata,
 		); err != nil {
 			return nil, err
 		}
@@ -2687,10 +2691,11 @@ INSERT INTO
 		file_id,
 		"type",
 		"input",
-		tags
+		tags,
+		trace_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
 `
 
 type InsertProvisionerJobParams struct {
@@ -2705,6 +2710,7 @@ type InsertProvisionerJobParams struct {
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
 	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
+	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
@@ -2720,6 +2726,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.Type,
 		arg.Input,
 		arg.Tags,
+		arg.TraceMetadata,
 	)
 	var i ProvisionerJob
 	err := row.Scan(
@@ -2740,6 +2747,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.FileID,
 		&i.Tags,
 		&i.ErrorCode,
+		&i.TraceMetadata,
 	)
 	return i, err
 }
@@ -3053,6 +3061,60 @@ type RegisterWorkspaceProxyParams struct {
 
 func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error) {
 	row := q.db.QueryRowContext(ctx, registerWorkspaceProxy, arg.Url, arg.WildcardHostname, arg.ID)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+		&i.TokenHashedSecret,
+	)
+	return i, err
+}
+
+const updateWorkspaceProxy = `-- name: UpdateWorkspaceProxy :one
+UPDATE
+	workspace_proxies
+SET
+	-- These values should always be provided.
+	name = $1,
+	display_name = $2,
+	icon = $3,
+	-- Only update the token if a new one is provided.
+	-- So this is an optional field.
+	token_hashed_secret = CASE
+		WHEN length($4 :: bytea) > 0  THEN $4 :: bytea
+		ELSE  workspace_proxies.token_hashed_secret
+	END,
+	-- Always update this timestamp.
+	updated_at = Now()
+WHERE
+	id = $5
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+`
+
+type UpdateWorkspaceProxyParams struct {
+	Name              string    `db:"name" json:"name"`
+	DisplayName       string    `db:"display_name" json:"display_name"`
+	Icon              string    `db:"icon" json:"icon"`
+	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
+	ID                uuid.UUID `db:"id" json:"id"`
+}
+
+// This allows editing the properties of a workspace proxy.
+func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceProxy,
+		arg.Name,
+		arg.DisplayName,
+		arg.Icon,
+		arg.TokenHashedSecret,
+		arg.ID,
+	)
 	var i WorkspaceProxy
 	err := row.Scan(
 		&i.ID,
@@ -3482,7 +3544,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl
 FROM
 	templates
 WHERE
@@ -3514,13 +3576,15 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.MaxTTL,
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
+		&i.FailureTTL,
+		&i.InactivityTTL,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl
 FROM
 	templates
 WHERE
@@ -3560,12 +3624,14 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.MaxTTL,
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
+		&i.FailureTTL,
+		&i.InactivityTTL,
 	)
 	return i, err
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop FROM templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl FROM templates
 ORDER BY (name, id) ASC
 `
 
@@ -3598,6 +3664,8 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.MaxTTL,
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
+			&i.FailureTTL,
+			&i.InactivityTTL,
 		); err != nil {
 			return nil, err
 		}
@@ -3614,7 +3682,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl
 FROM
 	templates
 WHERE
@@ -3684,6 +3752,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.MaxTTL,
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
+			&i.FailureTTL,
+			&i.InactivityTTL,
 		); err != nil {
 			return nil, err
 		}
@@ -3717,7 +3787,7 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl
 `
 
 type InsertTemplateParams struct {
@@ -3775,6 +3845,8 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.MaxTTL,
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
+		&i.FailureTTL,
+		&i.InactivityTTL,
 	)
 	return i, err
 }
@@ -3788,7 +3860,7 @@ SET
 WHERE
 	id = $3
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl
 `
 
 type UpdateTemplateACLByIDParams struct {
@@ -3820,6 +3892,8 @@ func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTempla
 		&i.MaxTTL,
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
+		&i.FailureTTL,
+		&i.InactivityTTL,
 	)
 	return i, err
 }
@@ -3879,7 +3953,7 @@ SET
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -3923,6 +3997,8 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.MaxTTL,
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
+		&i.FailureTTL,
+		&i.InactivityTTL,
 	)
 	return i, err
 }
@@ -3935,11 +4011,13 @@ SET
 	allow_user_autostart = $3,
 	allow_user_autostop = $4,
 	default_ttl = $5,
-	max_ttl = $6
+	max_ttl = $6,
+	failure_ttl = $7,
+	inactivity_ttl = $8
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl
 `
 
 type UpdateTemplateScheduleByIDParams struct {
@@ -3949,6 +4027,8 @@ type UpdateTemplateScheduleByIDParams struct {
 	AllowUserAutostop  bool      `db:"allow_user_autostop" json:"allow_user_autostop"`
 	DefaultTTL         int64     `db:"default_ttl" json:"default_ttl"`
 	MaxTTL             int64     `db:"max_ttl" json:"max_ttl"`
+	FailureTTL         int64     `db:"failure_ttl" json:"failure_ttl"`
+	InactivityTTL      int64     `db:"inactivity_ttl" json:"inactivity_ttl"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) (Template, error) {
@@ -3959,6 +4039,8 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.AllowUserAutostop,
 		arg.DefaultTTL,
 		arg.MaxTTL,
+		arg.FailureTTL,
+		arg.InactivityTTL,
 	)
 	var i Template
 	err := row.Scan(
@@ -3981,6 +4063,8 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		&i.MaxTTL,
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
+		&i.FailureTTL,
+		&i.InactivityTTL,
 	)
 	return i, err
 }

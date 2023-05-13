@@ -194,6 +194,8 @@ export interface CreateTemplateRequest {
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
+  readonly failure_ttl_ms?: number
+  readonly inactivity_ttl_ms?: number
 }
 
 // From codersdk/templateversions.go
@@ -260,12 +262,6 @@ export interface CreateWorkspaceProxyRequest {
   readonly name: string
   readonly display_name: string
   readonly icon: string
-}
-
-// From codersdk/workspaceproxy.go
-export interface CreateWorkspaceProxyResponse {
-  readonly proxy: WorkspaceProxy
-  readonly proxy_token: string
 }
 
 // From codersdk/organizations.go
@@ -630,6 +626,15 @@ export interface PatchTemplateVersionRequest {
   readonly name: string
 }
 
+// From codersdk/workspaceproxy.go
+export interface PatchWorkspaceProxy {
+  readonly id: string
+  readonly name: string
+  readonly display_name: string
+  readonly icon: string
+  readonly regenerate_token: boolean
+}
+
 // From codersdk/deployment.go
 export interface PprofConfig {
   readonly enable: boolean
@@ -692,8 +697,8 @@ export interface ProvisionerJobLog {
 
 // From codersdk/workspaceproxy.go
 export interface ProxyHealthReport {
-  readonly Errors: string[]
-  readonly Warnings: string[]
+  readonly errors: string[]
+  readonly warnings: string[]
 }
 
 // From codersdk/workspaces.go
@@ -841,6 +846,8 @@ export interface Template {
   readonly allow_user_autostart: boolean
   readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
+  readonly failure_ttl_ms: number
+  readonly inactivity_ttl_ms: number
 }
 
 // From codersdk/templates.go
@@ -892,6 +899,7 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User
+  readonly warnings?: TemplateVersionWarning[]
 }
 
 // From codersdk/templateversions.go
@@ -1010,6 +1018,8 @@ export interface UpdateTemplateMeta {
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
+  readonly failure_ttl_ms?: number
+  readonly inactivity_ttl_ms?: number
 }
 
 // From codersdk/users.go
@@ -1026,6 +1036,12 @@ export interface UpdateUserProfileRequest {
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface UpdateWorkspaceProxyResponse {
+  readonly proxy: WorkspaceProxy
+  readonly proxy_token: string
 }
 
 // From codersdk/workspaces.go
@@ -1098,6 +1114,7 @@ export interface Workspace {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly last_used_at: string
+  readonly deleting_at?: string
 }
 
 // From codersdk/workspaceagents.go
@@ -1258,6 +1275,7 @@ export interface WorkspaceOptions {
 export interface WorkspaceProxy {
   readonly id: string
   readonly name: string
+  readonly display_name: string
   readonly icon: string
   readonly url: string
   readonly wildcard_hostname: string
@@ -1361,8 +1379,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons"
-export const Experiments: Experiment[] = ["moons"]
+export type Experiment = "moons" | "workspace_actions"
+export const Experiments: Experiment[] = ["moons", "workspace_actions"]
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1479,12 +1497,12 @@ export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
 
 // From codersdk/workspaceproxy.go
 export type ProxyHealthStatus =
-  | "reachable"
+  | "ok"
   | "unhealthy"
   | "unreachable"
   | "unregistered"
 export const ProxyHealthStatuses: ProxyHealthStatus[] = [
-  "reachable",
+  "ok",
   "unhealthy",
   "unreachable",
   "unregistered",
@@ -1573,6 +1591,12 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"
 export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
+
+// From codersdk/templateversions.go
+export type TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+export const TemplateVersionWarnings: TemplateVersionWarning[] = [
+  "DEPRECATED_PARAMETERS",
+]
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

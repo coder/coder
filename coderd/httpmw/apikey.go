@@ -379,7 +379,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			Roles:  rbac.RoleNames(roles.Roles),
 			Groups: roles.Groups,
 			Scope:  rbac.ScopeName(key.Scope),
-		},
+		}.WithCachedASTValue(),
 	}
 
 	return &key, &authz, true

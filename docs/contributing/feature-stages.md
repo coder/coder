@@ -22,4 +22,4 @@ coder server --experiments=feature1,feature2
 # Alternatively, use the `CODER_EXPERIMENTS` environment variable.
 ```
 
-Visit `https://<your-coder-url>/api/v2/experiments` to see which experimental features are available for your deployment.
+For a list of all experiments, refer to the [codersdk reference](https://pkg.go.dev/github.com/coder/coder/codersdk#Experiment).

@@ -1,5 +1,5 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import { Welcome } from "components/Welcome/Welcome"
@@ -30,13 +30,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
       <CodeExample code={sessionToken} />
 
       <div className={styles.links}>
-        <Button
-          component={RouterLink}
-          size="large"
-          to="/workspaces"
-          fullWidth
-          variant="outlined"
-        >
+        <Button component={RouterLink} size="large" to="/workspaces" fullWidth>
           Go to workspaces
         </Button>
       </div>

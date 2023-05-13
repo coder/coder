@@ -64,14 +64,6 @@ function dispatchNotificationEvent(
   })
 }
 
-export const displayMsg = (msg: string, additionalMsg?: string): void => {
-  dispatchNotificationEvent(
-    MsgType.Info,
-    msg,
-    additionalMsg ? [additionalMsg] : undefined,
-  )
-}
-
 export const displaySuccess = (msg: string, additionalMsg?: string): void => {
   dispatchNotificationEvent(
     MsgType.Success,

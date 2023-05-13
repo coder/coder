@@ -1,11 +1,12 @@
-import { makeStyles } from "@material-ui/core/styles"
-import ScheduleIcon from "@material-ui/icons/TimerOutlined"
+import { makeStyles } from "@mui/styles"
+import ScheduleIcon from "@mui/icons-material/TimerOutlined"
 import { Workspace } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
 import { Link, NavLink } from "react-router-dom"
 import { combineClasses } from "utils/combineClasses"
-import GeneralIcon from "@material-ui/icons/SettingsOutlined"
+import GeneralIcon from "@mui/icons-material/SettingsOutlined"
+import ParameterIcon from "@mui/icons-material/CodeOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 
 const SidebarNavItem: FC<
@@ -66,6 +67,12 @@ export const Sidebar: React.FC<{ username: string; workspace: Workspace }> = ({
         General
       </SidebarNavItem>
       <SidebarNavItem
+        href="parameters"
+        icon={<SidebarNavItemIcon icon={ParameterIcon} />}
+      >
+        Parameters
+      </SidebarNavItem>
+      <SidebarNavItem
         href="schedule"
         icon={<SidebarNavItemIcon icon={ScheduleIcon} />}
       >
@@ -116,6 +123,7 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(2),
   },
   workspaceInfo: {
+    ...theme.typography.body2,
     marginBottom: theme.spacing(2),
   },
   workspaceData: {

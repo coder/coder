@@ -1,19 +1,30 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { ComponentProps, FC, PropsWithChildren } from "react"
+import { combineClasses } from "utils/combineClasses"
 
-export const Stats: FC<PropsWithChildren<ComponentProps<"div">>> = (props) => {
+export const Stats: FC<ComponentProps<"div">> = (props) => {
   const styles = useStyles()
-  return <div className={styles.stats} {...props} />
+  return (
+    <div
+      {...props}
+      className={combineClasses([styles.stats, props.className])}
+    />
+  )
 }
 
-export const StatsItem: FC<{
-  label: string
-  value: string | number | JSX.Element
-}> = ({ label, value }) => {
+export const StatsItem: FC<
+  {
+    label: string
+    value: string | number | JSX.Element
+  } & ComponentProps<"div">
+> = ({ label, value, ...divProps }) => {
   const styles = useStyles()
 
   return (
-    <div className={styles.statItem}>
+    <div
+      {...divProps}
+      className={combineClasses([styles.statItem, divProps.className])}
+    >
       <span className={styles.statsLabel}>{label}:</span>
       <span className={styles.statsValue}>{value}</span>
     </div>
@@ -22,6 +33,7 @@ export const StatsItem: FC<{
 
 const useStyles = makeStyles((theme) => ({
   stats: {
+    ...theme.typography.body2,
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
     borderRadius: theme.shape.borderRadius,
@@ -32,7 +44,7 @@ const useStyles = makeStyles((theme) => ({
     margin: "0px",
     flexWrap: "wrap",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       display: "block",
       padding: theme.spacing(2),
     },
@@ -46,7 +58,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "baseline",
     gap: theme.spacing(1),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       padding: theme.spacing(1),
     },
   },

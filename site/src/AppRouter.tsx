@@ -38,6 +38,10 @@ const SSHKeysPage = lazy(
 const TokensPage = lazy(
   () => import("./pages/UserSettingsPage/TokensPage/TokensPage"),
 )
+const WorkspaceProxyPage = lazy(
+  () =>
+    import("./pages/UserSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"),
+)
 const CreateUserPage = lazy(
   () => import("./pages/UsersPage/CreateUserPage/CreateUserPage"),
 )
@@ -49,6 +53,12 @@ const WorkspaceSchedulePage = lazy(
   () =>
     import(
       "./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
+    ),
+)
+const WorkspaceParametersPage = lazy(
+  () =>
+    import(
+      "./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
     ),
 )
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
@@ -272,6 +282,10 @@ export const AppRouter: FC = () => {
                   <Route index element={<TokensPage />} />
                   <Route path="new" element={<CreateTokenPage />} />
                 </Route>
+                <Route
+                  path="workspace-proxies"
+                  element={<WorkspaceProxyPage />}
+                />
               </Route>
 
               <Route path="/@:username">
@@ -283,6 +297,10 @@ export const AppRouter: FC = () => {
                   />
                   <Route path="settings" element={<WorkspaceSettingsLayout />}>
                     <Route index element={<WorkspaceSettingsPage />} />
+                    <Route
+                      path="parameters"
+                      element={<WorkspaceParametersPage />}
+                    />
                     <Route
                       path="schedule"
                       element={<WorkspaceSchedulePage />}

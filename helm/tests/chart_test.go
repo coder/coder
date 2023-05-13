@@ -44,6 +44,10 @@ var TestCases = []TestCase{
 		name:          "labels_annotations",
 		expectedError: "",
 	},
+	{
+		name:          "workspace_proxy",
+		expectedError: "",
+	},
 }
 
 type TestCase struct {

@@ -1,7 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import * as API from "../../../api/api"
 import { Language as FormLanguage } from "../../../components/CreateUserForm/CreateUserForm"
 import { Language as FooterLanguage } from "../../../components/FormFooter/FormFooter"
 import {
@@ -14,7 +13,9 @@ import { Language as CreateUserLanguage } from "../../../xServices/users/createU
 import { CreateUserPage } from "./CreateUserPage"
 
 const renderCreateUserPage = async () => {
-  renderWithAuth(<CreateUserPage />)
+  renderWithAuth(<CreateUserPage />, {
+    extraRoutes: [{ path: "/users", element: <div>Users Page</div> }],
+  })
   await waitForLoaderToBeRemoved()
 }
 
@@ -48,18 +49,6 @@ describe("Create User Page", () => {
     await renderCreateUserPage()
     await fillForm({ email: "test" })
     const errorMessage = await screen.findByText(FormLanguage.emailInvalid)
-    expect(errorMessage).toBeDefined()
-  })
-
-  it("shows generic error message", async () => {
-    jest.spyOn(API, "createUser").mockRejectedValueOnce({
-      data: "unknown error",
-    })
-    await renderCreateUserPage()
-    await fillForm({})
-    const errorMessage = await screen.findByText(
-      CreateUserLanguage.createUserError,
-    )
     expect(errorMessage).toBeDefined()
   })
 

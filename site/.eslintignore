@@ -32,6 +32,7 @@ e2e/test-results/*
 e2e/states/*.json
 playwright-report/*
 .swc
+dist/
 
 # Make target for updating golden files (any dir).
 .gen-golden
@@ -55,6 +56,7 @@ stats/
 
 # direnv
 .envrc
+*.test
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.

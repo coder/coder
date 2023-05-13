@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func TestStart(t *testing.T) {
 	t.Parallel()
 	t.Run("Echo", func(t *testing.T) {
 		t.Parallel()
-		ptty, ps := ptytest.Start(t, exec.Command("cmd.exe", "/c", "echo", "test"))
+		ptty, ps := ptytest.Start(t, pty.Command("cmd.exe", "/c", "echo", "test"))
 		ptty.ExpectMatch("test")
 		err := ps.Wait()
 		require.NoError(t, err)
@@ -32,7 +33,7 @@ func TestStart(t *testing.T) {
 	})
 	t.Run("Resize", func(t *testing.T) {
 		t.Parallel()
-		ptty, _ := ptytest.Start(t, exec.Command("cmd.exe"))
+		ptty, _ := ptytest.Start(t, pty.Command("cmd.exe"))
 		err := ptty.Resize(100, 50)
 		require.NoError(t, err)
 		err = ptty.Close()
@@ -40,7 +41,7 @@ func TestStart(t *testing.T) {
 	})
 	t.Run("Kill", func(t *testing.T) {
 		t.Parallel()
-		ptty, ps := ptytest.Start(t, exec.Command("cmd.exe"))
+		ptty, ps := ptytest.Start(t, pty.Command("cmd.exe"))
 		err := ps.Kill()
 		assert.NoError(t, err)
 		err = ps.Wait()
@@ -66,3 +67,9 @@ const (
 )
 
 var argCount = []string{"/c", fmt.Sprintf("for /L %%n in (1,1,%d) do @echo %%n", countEnd)}
+
+// these constants/vars are used by Test_Start_cancel_context
+
+const cmdSleep = "cmd.exe"
+
+var argSleep = []string{"/c", "timeout", "/t", "30"}
