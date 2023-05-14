@@ -595,7 +595,7 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 	done < "$<"
 
 test: test-clean
-	gotestsum -- -v -short ./...
+	gotestsum --format standard-quiet -- -v -short ./...
 .PHONY: test
 
 # When updating -timeout for this test, keep in sync with
