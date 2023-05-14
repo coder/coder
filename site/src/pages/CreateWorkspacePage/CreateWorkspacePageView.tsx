@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import * as TypesGen from "api/typesGenerated"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
@@ -20,7 +20,7 @@ import {
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import {
   selectInitialRichParametersValues,
   useValidationSchemaForRichParameters,
@@ -242,7 +242,6 @@ export const CreateWorkspacePageView: FC<
               autoFocus
               fullWidth
               label={t("nameLabel")}
-              variant="outlined"
             />
           </FormFields>
         </FormSection>
@@ -258,6 +257,7 @@ export const CreateWorkspacePageView: FC<
                 value={props.owner}
                 onChange={props.setOwner}
                 label={t("ownerLabel")}
+                size="medium"
               />
             </FormFields>
           </FormSection>

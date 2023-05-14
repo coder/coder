@@ -1,4 +1,4 @@
-import { TextFieldProps } from "@material-ui/core/TextField"
+import { TextFieldProps } from "@mui/material/TextField"
 
 export type IconFieldProps = TextFieldProps & {
   onPickEmoji: (value: string) => void

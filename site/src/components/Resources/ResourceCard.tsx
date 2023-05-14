@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { FC, useState } from "react"
 import { WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
@@ -8,8 +8,8 @@ import {
   OpenDropdown,
   CloseDropdown,
 } from "components/DropdownArrows/DropdownArrows"
-import IconButton from "@material-ui/core/IconButton"
-import Tooltip from "@material-ui/core/Tooltip"
+import IconButton from "@mui/material/IconButton"
+import Tooltip from "@mui/material/Tooltip"
 import { Maybe } from "components/Conditionals/Maybe"
 import { CopyableValue } from "components/CopyableValue/CopyableValue"
 
@@ -89,6 +89,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                 onClick={() => {
                   setShouldDisplayAllMetadata((value) => !value)
                 }}
+                size="large"
               >
                 {shouldDisplayAllMetadata ? (
                   <CloseDropdown margin={false} />
@@ -114,7 +115,7 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
 
-    "&:not(:first-child)": {
+    "&:not(:first-of-type)": {
       borderTop: 0,
       borderTopLeftRadius: 0,
       borderTopRightRadius: 0,
@@ -148,7 +149,8 @@ const useStyles = makeStyles((theme) => ({
   },
 
   metadata: {
-    fontSize: 16,
+    ...theme.typography.body2,
+    lineHeight: "120%",
   },
 
   metadataLabel: {
@@ -163,5 +165,6 @@ const useStyles = makeStyles((theme) => ({
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
+    ...theme.typography.body1,
   },
 }))

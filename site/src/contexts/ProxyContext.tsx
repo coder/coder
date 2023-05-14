@@ -9,10 +9,12 @@ import {
   useContext,
   useState,
 } from "react"
+import { ProxyLatencyReport, useProxyLatency } from "./useProxyLatency"
 
 interface ProxyContextValue {
   proxy: PreferredProxy
   proxies?: Region[]
+  proxyLatencies?: Record<string, ProxyLatencyReport>
   // isfetched is true when the proxy api call is complete.
   isFetched: boolean
   // isLoading is true if the proxy is in the process of being fetched.
@@ -72,6 +74,10 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     },
   })
 
+  // Everytime we get a new proxiesResponse, update the latency check
+  // to each workspace proxy.
+  const proxyLatencies = useProxyLatency(proxiesResp)
+
   const setAndSaveProxy = (
     selectedProxy?: Region,
     // By default the proxies come from the api call above.
@@ -95,6 +101,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <ProxyContext.Provider
       value={{
+        proxyLatencies: proxyLatencies,
         proxy: experimentEnabled
           ? proxy
           : {
@@ -149,8 +156,8 @@ export const getPreferredProxy = (
     (proxy) => selectedProxy && proxy.id === selectedProxy.id,
   )
 
-  if (!selectedProxy) {
-    // If no proxy is selected, default to the primary proxy.
+  // If no proxy is selected, or the selected proxy is unhealthy default to the primary proxy.
+  if (!selectedProxy || !selectedProxy.healthy) {
     selectedProxy = proxies.find((proxy) => proxy.name === "primary")
   }
 

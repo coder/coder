@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import ArrowRightAltOutlined from "@material-ui/icons/ArrowRightAltOutlined"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
 import { Paywall } from "components/Paywall/Paywall"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
@@ -16,7 +16,6 @@ export const AuditPaywall: FC = () => {
       cta={
         <Stack direction="row" alignItems="center">
           <Link
-            underline="none"
             href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
             target="_blank"
             rel="noreferrer"
@@ -26,7 +25,6 @@ export const AuditPaywall: FC = () => {
             </Button>
           </Link>
           <Link
-            underline="none"
             href="https://coder.com/docs/coder-oss/latest/admin/audit-logs"
             target="_blank"
             rel="noreferrer"

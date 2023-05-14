@@ -1,17 +1,17 @@
-import Tooltip from "@material-ui/core/Tooltip"
-import { makeStyles } from "@material-ui/core/styles"
+import Tooltip from "@mui/material/Tooltip"
+import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { useTranslation } from "react-i18next"
-import WarningRounded from "@material-ui/icons/WarningRounded"
+import WarningRounded from "@mui/icons-material/WarningRounded"
 import {
   HelpPopover,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/Tooltips/HelpTooltip"
 import { useRef, useState } from "react"
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,

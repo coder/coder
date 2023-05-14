@@ -1169,7 +1169,10 @@ func convertWorkspace(
 		autostartSchedule = &workspace.AutostartSchedule.String
 	}
 
-	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	var (
+		ttlMillis  = convertWorkspaceTTLMillis(workspace.Ttl)
+		deletingAt = calculateDeletingAt(workspace, template)
+	)
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -1188,6 +1191,7 @@ func convertWorkspace(
 		AutostartSchedule:                    autostartSchedule,
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
+		DeletingAt:                           deletingAt,
 	}
 }
 
@@ -1198,6 +1202,22 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 
 	millis := time.Duration(i.Int64).Milliseconds()
 	return &millis
+}
+
+// Calculate the time of the upcoming workspace deletion, if applicable; otherwise, return nil.
+// Workspaces may have impending deletions if InactivityTTL feature is turned on and the workspace is inactive.
+func calculateDeletingAt(workspace database.Workspace, template database.Template) *time.Time {
+	var (
+		year, month, day = time.Now().Date()
+		beginningOfToday = time.Date(year, month, day, 0, 0, 0, 0, time.Now().Location())
+	)
+	// If InactivityTTL is turned off (set to 0), if the workspace has already been deleted,
+	// or if the workspace was used sometime within the last day, there is no impending deletion
+	if template.InactivityTTL == 0 || workspace.Deleted || workspace.LastUsedAt.After(beginningOfToday) {
+		return nil
+	}
+
+	return ptr.Ref(workspace.LastUsedAt.Add(time.Duration(template.InactivityTTL) * time.Nanosecond))
 }
 
 func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Duration) (sql.NullInt64, error) {

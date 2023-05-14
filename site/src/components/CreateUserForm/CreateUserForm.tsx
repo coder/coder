@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { FormikContextType, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
@@ -62,7 +62,7 @@ export const CreateUserForm: FC<
   return (
     <FullPageForm title="Create user">
       <form onSubmit={form.handleSubmit} autoComplete="off">
-        <Stack spacing={1}>
+        <Stack spacing={2.5}>
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}
@@ -70,7 +70,6 @@ export const CreateUserForm: FC<
             autoFocus
             fullWidth
             label={Language.usernameLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("email")}
@@ -78,7 +77,6 @@ export const CreateUserForm: FC<
             autoComplete="email"
             fullWidth
             label={Language.emailLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("password")}
@@ -87,7 +85,6 @@ export const CreateUserForm: FC<
             id="password"
             label={Language.passwordLabel}
             type="password"
-            variant="outlined"
           />
         </Stack>
         <FormFooter onCancel={onCancel} isLoading={isLoading} />

@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { Template, TemplateExample } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { Stack } from "components/Stack/Stack"
@@ -26,7 +26,7 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
         {template.name}
       </Avatar>
 
-      <Stack direction="column" spacing={0.5}>
+      <Stack direction="column" spacing={0}>
         <span className={styles.templateName}>
           {"display_name" in template && template.display_name.length > 0
             ? template.display_name

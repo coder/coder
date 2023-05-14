@@ -1,7 +1,7 @@
-import Box from "@material-ui/core/Box"
-import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
+import Box from "@mui/material/Box"
+import Link from "@mui/material/Link"
+import { makeStyles } from "@mui/styles"
+import Typography from "@mui/material/Typography"
 import { FC } from "react"
 import { UserAvatar, UserAvatarProps } from "../UserAvatar/UserAvatar"
 

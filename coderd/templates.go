@@ -214,14 +214,22 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		defaultTTL time.Duration
-		maxTTL     time.Duration
+		defaultTTL    time.Duration
+		maxTTL        time.Duration
+		failureTTL    time.Duration
+		inactivityTTL time.Duration
 	)
 	if createTemplate.DefaultTTLMillis != nil {
 		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
 	}
 	if createTemplate.MaxTTLMillis != nil {
 		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
+	}
+	if createTemplate.FailureTTLMillis != nil {
+		failureTTL = time.Duration(*createTemplate.FailureTTLMillis) * time.Millisecond
+	}
+	if createTemplate.InactivityTTLMillis != nil {
+		inactivityTTL = time.Duration(*createTemplate.InactivityTTLMillis) * time.Millisecond
 	}
 
 	var validErrs []codersdk.ValidationError
@@ -233,6 +241,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	if maxTTL != 0 && defaultTTL > maxTTL {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
+	}
+	if failureTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if inactivityTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
 	}
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -279,7 +293,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			UserAutostartEnabled: allowUserAutostart,
 			UserAutostopEnabled:  allowUserAutostop,
 			DefaultTTL:           defaultTTL,
-			MaxTTL:               maxTTL,
+			// Some of these values are enterprise-only, but the
+			// TemplateScheduleStore will handle avoiding setting them if
+			// unlicensed.
+			MaxTTL:        maxTTL,
+			FailureTTL:    failureTTL,
+			InactivityTTL: inactivityTTL,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)

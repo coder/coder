@@ -4,11 +4,12 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "dogfood/**"
-  pull_request:
-    paths:
-      - "dogfood/**"
+  # Uncomment these lines when testing with CI.
+  #   paths:
+  #     - "dogfood/**"
+  # pull_request:
+  #   paths:
+  #     - "dogfood/**"
   workflow_dispatch:
 
 jobs:

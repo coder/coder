@@ -1,7 +1,7 @@
-import MenuItem from "@material-ui/core/MenuItem"
-import Menu from "@material-ui/core/Menu"
-import { makeStyles } from "@material-ui/core/styles"
-import MoreVertOutlined from "@material-ui/icons/MoreVertOutlined"
+import MenuItem from "@mui/material/MenuItem"
+import Menu from "@mui/material/Menu"
+import { makeStyles } from "@mui/styles"
+import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined"
 import { FC, ReactNode, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { WorkspaceStatus } from "api/typesGenerated"
@@ -19,10 +19,10 @@ import {
   ButtonTypesEnum,
   actionsByWorkspaceStatus,
 } from "./constants"
-import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
-import HistoryOutlined from "@material-ui/icons/HistoryOutlined"
-import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
-import IconButton from "@material-ui/core/IconButton"
+import SettingsOutlined from "@mui/icons-material/SettingsOutlined"
+import HistoryOutlined from "@mui/icons-material/HistoryOutlined"
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
+import IconButton from "@mui/material/IconButton"
 
 export interface WorkspaceActionsProps {
   workspaceStatus: WorkspaceStatus

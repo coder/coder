@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
@@ -77,35 +77,23 @@ export const SecurityForm: FC<SecurityFormProps> = ({
           )}
           <TextField
             {...getFieldHelpers("old_password")}
-            InputLabelProps={{
-              shrink: true,
-            }}
             autoComplete="old_password"
             fullWidth
             label={Language.oldPasswordLabel}
-            variant="outlined"
             type="password"
           />
           <TextField
             {...getFieldHelpers("password")}
-            InputLabelProps={{
-              shrink: true,
-            }}
             autoComplete="password"
             fullWidth
             label={Language.newPasswordLabel}
-            variant="outlined"
             type="password"
           />
           <TextField
             {...getFieldHelpers("confirm_password")}
-            InputLabelProps={{
-              shrink: true,
-            }}
             autoComplete="confirm_password"
             fullWidth
             label={Language.confirmPasswordLabel}
-            variant="outlined"
             type="password"
           />
 

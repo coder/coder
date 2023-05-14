@@ -20,6 +20,8 @@
     "codersdk",
     "cronstrue",
     "databasefake",
+    "dbfake",
+    "dbgen",
     "dbtype",
     "DERP",
     "derphttp",
