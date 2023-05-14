@@ -608,9 +608,8 @@ test-postgres: test-clean test-postgres-docker
 		--jsonfile="gotests.json" \
 		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
-		-parallel=4 \
 		-coverpkg=./... \
-		-count=1 -race -failfast
+		-race -failfast
 .PHONY: test-postgres
 
 test-postgres-docker:
@@ -627,6 +626,8 @@ test-postgres-docker:
 		--detach \
 		postgres:13 \
 		-c shared_buffers=1GB \
+		-c work_mem=1GB \
+		-c effective_cache_size=1GB \
 		-c max_connections=1000 \
 		-c fsync=off \
 		-c synchronous_commit=off \
