@@ -1,7 +1,7 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
-import AddIcon from "@material-ui/icons/AddOutlined"
-import Skeleton from "@material-ui/lab/Skeleton"
+import Button from "@mui/material/Button"
+import { makeStyles, useTheme } from "@mui/styles"
+import Skeleton from "@mui/material/Skeleton"
+import AddIcon from "@mui/icons-material/AddOutlined"
 import { GetLicensesResponse } from "api/api"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { LicenseCard } from "components/LicenseCard/LicenseCard"
@@ -55,7 +55,6 @@ const LicensesSettingsPageView: FC<Props> = ({
         />
 
         <Button
-          variant="outlined"
           component={Link}
           to="/settings/deployment/licenses/add"
           startIcon={<AddIcon />}
@@ -64,7 +63,7 @@ const LicensesSettingsPageView: FC<Props> = ({
         </Button>
       </Stack>
 
-      {isLoading && <Skeleton variant="rect" height={200} />}
+      {isLoading && <Skeleton variant="rectangular" height={200} />}
 
       {!isLoading && licenses && licenses?.length > 0 && (
         <Stack spacing={4}>

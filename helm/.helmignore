@@ -23,3 +23,5 @@
 .vscode/
 Makefile
 artifacthub-repo.yml
+
+tests

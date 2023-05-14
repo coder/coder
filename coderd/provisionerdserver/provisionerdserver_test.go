@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -59,6 +60,7 @@ func TestAcquireJob(t *testing.T) {
 			AcquireJobDebounce:    time.Hour,
 			Auditor:               mockAuditor(),
 			TemplateScheduleStore: testTemplateScheduleStore(),
+			Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
 		}
 		job, err := srv.AcquireJob(context.Background(), nil)
 		require.NoError(t, err)
@@ -1202,6 +1204,7 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 		Telemetry:             telemetry.NewNoop(),
 		Auditor:               mockAuditor(),
 		TemplateScheduleStore: testTemplateScheduleStore(),
+		Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
 	}
 }
 

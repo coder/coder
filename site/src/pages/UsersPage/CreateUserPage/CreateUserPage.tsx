@@ -23,13 +23,7 @@ export const CreateUserPage: FC = () => {
       },
     },
   })
-  const { createUserErrorMessage, createUserFormErrors } =
-    createUserState.context
-  // There is no field for organization id in Community Edition, so handle its field error like a generic error
-  const genericError =
-    createUserErrorMessage ||
-    createUserFormErrors?.organization_id ||
-    (!myOrgId ? Language.unknownError : undefined)
+  const { error } = createUserState.context
 
   return (
     <Margins>
@@ -37,7 +31,7 @@ export const CreateUserPage: FC = () => {
         <title>{pageTitle("Create User")}</title>
       </Helmet>
       <CreateUserForm
-        formErrors={createUserFormErrors}
+        error={error}
         onSubmit={(user: TypesGen.CreateUserRequest) =>
           createUserSend({ type: "CREATE", user })
         }
@@ -46,7 +40,6 @@ export const CreateUserPage: FC = () => {
           navigate("/users")
         }}
         isLoading={createUserState.hasTag("loading")}
-        error={genericError}
         myOrgId={myOrgId}
       />
     </Margins>

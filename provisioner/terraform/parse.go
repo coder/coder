@@ -16,6 +16,7 @@ import (
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -39,7 +40,10 @@ var providerFeaturesConfigSchema = &hcl.BodySchema{
 }
 
 // Parse extracts Terraform variables from source-code.
-func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
+func (s *server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
+	_, span := s.startTrace(stream.Context(), tracing.FuncName())
+	defer span.End()
+
 	// Load the module and print any parse errors.
 	module, diags := tfconfig.LoadModule(request.Directory)
 	if diags.HasErrors() {

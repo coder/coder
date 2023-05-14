@@ -1,7 +1,7 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
-import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import { makeStyles } from "@mui/styles"
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { BuildInfoResponse } from "api/typesGenerated"
 import { CopyButton } from "components/CopyButton/CopyButton"
 import { CoderIcon } from "components/Icons/CoderIcon"
@@ -88,7 +88,7 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
               >
                 Reload page
               </Button>
-              <Button component="a" href="/" variant="outlined">
+              <Button component="a" href="/">
                 Go to dashboard
               </Button>
             </Stack>

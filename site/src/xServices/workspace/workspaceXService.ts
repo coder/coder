@@ -59,6 +59,7 @@ export interface WorkspaceContext {
   eventSource?: EventSource
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
+  templateVersion?: TypesGen.TemplateVersion
   build?: TypesGen.WorkspaceBuild
   getWorkspaceError?: AxiosError
   getTemplateWarning: Error | unknown
@@ -157,6 +158,9 @@ export const workspaceMachine = createMachine(
         getTemplate: {
           data: TypesGen.Template
         }
+        getTemplateVersion: {
+          data: TypesGen.TemplateVersion
+        }
         getTemplateParameters: {
           data: TypesGen.TemplateVersionParameter[]
         }
@@ -221,6 +225,28 @@ export const workspaceMachine = createMachine(
           onDone: [
             {
               actions: ["assignTemplate", "clearGetTemplateWarning"],
+              target: "gettingTemplateVersion",
+            },
+          ],
+          onError: [
+            {
+              actions: [
+                "assignGetTemplateWarning",
+                "displayGetTemplateWarning",
+              ],
+              target: "error",
+            },
+          ],
+        },
+        tags: "loading",
+      },
+      gettingTemplateVersion: {
+        invoke: {
+          src: "getTemplateVersion",
+          id: "getTemplateVersion",
+          onDone: [
+            {
+              actions: ["assignTemplateVersion", "clearGetTemplateWarning"],
               target: "gettingPermissions",
             },
           ],
@@ -557,6 +583,9 @@ export const workspaceMachine = createMachine(
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
+      assignTemplateVersion: assign({
+        templateVersion: (_, event) => event.data,
+      }),
       assignPermissions: assign({
         // Setting event.data as Permissions to be more stricted. So we know
         // what permissions we asked for.
@@ -687,6 +716,15 @@ export const workspaceMachine = createMachine(
           return await API.getTemplate(context.workspace.template_id)
         } else {
           throw Error("Cannot get template without workspace")
+        }
+      },
+      getTemplateVersion: async (context) => {
+        if (context.template) {
+          return await API.getTemplateVersion(
+            context.template.active_version_id,
+          )
+        } else {
+          throw Error("Cannot get template version without template")
         }
       },
       updateWorkspace:

@@ -17,6 +17,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
@@ -33,6 +35,7 @@ import (
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
@@ -55,6 +58,7 @@ type Server struct {
 	Database              database.Store
 	Pubsub                database.Pubsub
 	Telemetry             telemetry.Reporter
+	Tracer                trace.Tracer
 	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
 	Auditor               *atomic.Pointer[audit.Auditor]
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
@@ -129,12 +133,22 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		return nil, failJob(fmt.Sprintf("get user: %s", err))
 	}
 
-	protoJob := &proto.AcquiredJob{
-		JobId:       job.ID.String(),
-		CreatedAt:   job.CreatedAt.UnixMilli(),
-		Provisioner: string(job.Provisioner),
-		UserName:    user.Username,
+	jobTraceMetadata := map[string]string{}
+	if job.TraceMetadata.Valid {
+		err := json.Unmarshal(job.TraceMetadata.RawMessage, &jobTraceMetadata)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("unmarshal metadata: %s", err))
+		}
 	}
+
+	protoJob := &proto.AcquiredJob{
+		JobId:         job.ID.String(),
+		CreatedAt:     job.CreatedAt.UnixMilli(),
+		Provisioner:   string(job.Provisioner),
+		UserName:      user.Username,
+		TraceMetadata: jobTraceMetadata,
+	}
+
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		var input WorkspaceProvisionJob
@@ -411,6 +425,9 @@ func (server *Server) includeLastVariableValues(ctx context.Context, templateVer
 }
 
 func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	ctx, span := server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(request.JobId)
@@ -442,6 +459,9 @@ func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuot
 }
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+	ctx, span := server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	parsedID, err := uuid.Parse(request.JobId)
@@ -671,6 +691,9 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 }
 
 func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
+	ctx, span := server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(failJob.JobId)
@@ -822,6 +845,9 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 //
 //nolint:gocyclo
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
+	ctx, span := server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(completed.JobId)
@@ -1190,6 +1216,12 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 	server.Logger.Debug(ctx, "CompleteJob done", slog.F("job_id", jobID))
 	return &proto.Empty{}, nil
+}
+
+func (server *Server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return server.Tracer.Start(ctx, name, append(opts, trace.WithAttributes(
+		semconv.ServiceNameKey.String("coderd.provisionerd"),
+	))...)
 }
 
 func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {

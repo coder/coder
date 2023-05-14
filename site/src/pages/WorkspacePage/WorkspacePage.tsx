@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { useQuery } from "@tanstack/react-query"
 import { useMachine } from "@xstate/react"
 import { getWorkspaceBuildLogs } from "api/api"

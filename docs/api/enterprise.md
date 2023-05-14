@@ -1182,6 +1182,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
   {
     "created_at": "2019-08-24T14:15:22Z",
     "deleted": true,
+    "display_name": "string",
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
@@ -1191,7 +1192,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
         "errors": ["string"],
         "warnings": ["string"]
       },
-      "status": "reachable"
+      "status": "ok"
     },
     "updated_at": "2019-08-24T14:15:22Z",
     "url": "string",
@@ -1215,6 +1216,7 @@ Status Code **200**
 | `[array item]`        | array                                                                    | false    |              |                                                                                                                                                                               |
 | `» created_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                               |
 | `» deleted`           | boolean                                                                  | false    |              |                                                                                                                                                                               |
+| `» display_name`      | string                                                                   | false    |              |                                                                                                                                                                               |
 | `» icon`              | string                                                                   | false    |              |                                                                                                                                                                               |
 | `» id`                | string(uuid)                                                             | false    |              |                                                                                                                                                                               |
 | `» name`              | string                                                                   | false    |              |                                                                                                                                                                               |
@@ -1232,7 +1234,7 @@ Status Code **200**
 
 | Property | Value          |
 | -------- | -------------- |
-| `status` | `reachable`    |
+| `status` | `ok`           |
 | `status` | `unreachable`  |
 | `status` | `unhealthy`    |
 | `status` | `unregistered` |
@@ -1277,6 +1279,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
+  "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
@@ -1286,7 +1289,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
       "errors": ["string"],
       "warnings": ["string"]
     },
-    "status": "reachable"
+    "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
@@ -1299,6 +1302,59 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 | Status | Meaning                                                      | Description | Schema                                                       |
 | ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------ |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace proxy
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceproxies/{workspaceproxy}`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description      |
+| ---------------- | ---- | ------------ | -------- | ---------------- |
+| `workspaceproxy` | path | string(uuid) | true     | Proxy ID or name |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "status": {
+    "checked_at": "2019-08-24T14:15:22Z",
+    "report": {
+      "errors": ["string"],
+      "warnings": ["string"]
+    },
+    "status": "ok"
+  },
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1343,5 +1399,72 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy}
 | Status | Meaning                                                 | Description | Schema                                           |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update workspace proxy
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /workspaceproxies/{workspaceproxy}`
+
+> Body parameter
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "regenerate_token": true
+}
+```
+
+### Parameters
+
+| Name             | In   | Type                                                                   | Required | Description                    |
+| ---------------- | ---- | ---------------------------------------------------------------------- | -------- | ------------------------------ |
+| `workspaceproxy` | path | string(uuid)                                                           | true     | Proxy ID or name               |
+| `body`           | body | [codersdk.PatchWorkspaceProxy](schemas.md#codersdkpatchworkspaceproxy) | true     | Update workspace proxy request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "status": {
+    "checked_at": "2019-08-24T14:15:22Z",
+    "report": {
+      "errors": ["string"],
+      "warnings": ["string"]
+    },
+    "status": "ok"
+  },
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string",
+  "wildcard_hostname": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

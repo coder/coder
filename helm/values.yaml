@@ -1,9 +1,27 @@
 # coder -- Primary configuration for `coder server`.
 coder:
-  # coder.replicaCount -- The number of Kubernetes deployment replicas.
-  # This should only be increased if High Availability is enabled.
+  # coder.replicaCount -- The number of Kubernetes deployment replicas. This
+  # should only be increased if High Availability is enabled.
+  #
   # This is an Enterprise feature. Contact sales@coder.com.
   replicaCount: 1
+
+  # coder.workspaceProxy -- Whether or not this deployment of Coder is a Coder
+  # Workspace Proxy. Workspace Proxies reduce the latency between the user and
+  # their workspace for web connections (workspace apps and web terminal) and
+  # proxied connections from the CLI. Workspace Proxies are optional and only
+  # recommended for geographically sparse teams.
+  #
+  # Make sure you set CODER_PRIMARY_ACCESS_URL and CODER_PROXY_SESSION_TOKEN in
+  # the environment below. You can get a proxy token using the CLI:
+  #   coder wsproxy create \
+  #     --name "proxy-name" \
+  #     --display-name "Proxy Name" \
+  #     --icon "/emojis/xyz.png"
+  #
+  # This is an Enterprise feature. Contact sales@coder.com
+  # Docs: https://coder.com/docs/v2/latest/admin/workspace-proxies
+  workspaceProxy: false
 
   # coder.image -- The image to use for Coder.
   image:

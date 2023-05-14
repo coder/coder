@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { FC } from "react"
 import { useLocation } from "react-router-dom"

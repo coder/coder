@@ -5,10 +5,10 @@ import { FormFields } from "components/Form/Form"
 import { useFormik } from "formik"
 import * as Yup from "yup"
 import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import Checkbox from "@material-ui/core/Checkbox"
-import FormControlLabel from "@material-ui/core/FormControlLabel"
+import Checkbox from "@mui/material/Checkbox"
+import FormControlLabel from "@mui/material/FormControlLabel"
 import { Stack } from "components/Stack/Stack"
 
 export type PublishTemplateVersionDialogProps = DialogProps & {
@@ -68,9 +68,6 @@ export const PublishTemplateVersionDialog: FC<
               label="Version name"
               autoFocus
               disabled={isPublishing}
-              InputLabelProps={{
-                shrink: true,
-              }}
             />
 
             <FormControlLabel
@@ -86,7 +83,6 @@ export const PublishTemplateVersionDialog: FC<
                     )
                   }}
                   name="isActiveVersion"
-                  color="primary"
                 />
               }
             />

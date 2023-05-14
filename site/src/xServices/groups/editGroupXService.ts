@@ -1,11 +1,5 @@
 import { getGroup, patchGroup } from "api/api"
-import {
-  ApiError,
-  getErrorMessage,
-  hasApiFieldErrors,
-  isApiError,
-  mapApiErrorToFieldErrors,
-} from "api/errors"
+import { getErrorMessage } from "api/errors"
 import { Group } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
@@ -17,7 +11,7 @@ export const editGroupMachine = createMachine(
       context: {} as {
         groupId: string
         group?: Group
-        updateGroupFormErrors?: unknown
+        error?: unknown
       },
       services: {} as {
         loadGroup: {
@@ -61,26 +55,15 @@ export const editGroupMachine = createMachine(
           onDone: {
             actions: ["onUpdate"],
           },
-          onError: [
-            {
-              target: "idle",
-              cond: "hasFieldErrors",
-              actions: ["assignUpdateGroupFormErrors"],
-            },
-            {
-              target: "idle",
-              actions: ["displayUpdateGroupError"],
-            },
-          ],
+          onError: {
+            target: "idle",
+            actions: ["assignError"],
+          },
         },
       },
     },
   },
   {
-    guards: {
-      hasFieldErrors: (_, event) =>
-        isApiError(event.data) && hasApiFieldErrors(event.data),
-    },
     services: {
       loadGroup: ({ groupId }) => getGroup(groupId),
 
@@ -104,12 +87,9 @@ export const editGroupMachine = createMachine(
         const message = getErrorMessage(data, "Failed to the group.")
         displayError(message)
       },
-      displayUpdateGroupError: (_, { data }) => {
-        const message = getErrorMessage(data, "Failed to update the group.")
-        displayError(message)
-      },
-      assignUpdateGroupFormErrors: (_, event) =>
-        mapApiErrorToFieldErrors((event.data as ApiError).response.data),
+      assignError: assign({
+        error: (_, event) => event.data,
+      }),
     },
   },
 )

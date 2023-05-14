@@ -1,7 +1,6 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
-import AddOutlined from "@material-ui/icons/AddOutlined"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
+import AddOutlined from "@mui/icons-material/AddOutlined"
 import { Workspace } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
@@ -29,7 +28,7 @@ export const WorkspacesTableBody: FC<
   }
 
   if (!workspaces) {
-    return <TableLoaderSkeleton columns={4} useAvatarData />
+    return <TableLoaderSkeleton columns={5} useAvatarData />
   }
 
   if (workspaces.length === 0) {
@@ -45,11 +44,14 @@ export const WorkspacesTableBody: FC<
             message={t("emptyCreateWorkspaceMessage")}
             description={t("emptyCreateWorkspaceDescription")}
             cta={
-              <Link underline="none" component={RouterLink} to="/templates">
-                <Button startIcon={<AddOutlined />}>
-                  {t("createFromTemplateButton")}
-                </Button>
-              </Link>
+              <Button
+                component={RouterLink}
+                to="/templates"
+                startIcon={<AddOutlined />}
+                variant="contained"
+              >
+                {t("createFromTemplateButton")}
+              </Button>
             }
             image={
               <div className={styles.emptyImage}>

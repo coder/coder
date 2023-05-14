@@ -51,6 +51,8 @@ overrides:
       template_max_ttl: TemplateMaxTTL
       motd_file: MOTDFile
       uuid: UUID
+      failure_ttl: FailureTTL
+      inactivity_ttl: InactivityTTL
 
 sql:
   - schema: "./dump.sql"

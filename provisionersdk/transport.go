@@ -9,6 +9,8 @@ import (
 	"github.com/valyala/fasthttp/fasthttputil"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcconn"
+
+	"github.com/coder/coder/coderd/tracing"
 )
 
 const (
@@ -95,7 +97,7 @@ func (m *memDRPC) Invoke(ctx context.Context, rpc string, enc drpc.Encoding, inM
 		return err
 	}
 
-	dConn := drpcconn.New(conn)
+	dConn := &tracing.DRPCConn{Conn: drpcconn.New(conn)}
 	defer func() {
 		_ = dConn.Close()
 		_ = conn.Close()
@@ -108,7 +110,7 @@ func (m *memDRPC) NewStream(ctx context.Context, rpc string, enc drpc.Encoding) 
 	if err != nil {
 		return nil, err
 	}
-	dConn := drpcconn.New(conn)
+	dConn := &tracing.DRPCConn{Conn: drpcconn.New(conn)}
 	stream, err := dConn.NewStream(ctx, rpc, enc)
 	if err != nil {
 		_ = dConn.Close()

@@ -1380,6 +1380,7 @@ type ProvisionerJob struct {
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
 	ErrorCode      sql.NullString           `db:"error_code" json:"error_code"`
+	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
 }
 
 type ProvisionerJobLog struct {
@@ -1435,7 +1436,9 @@ type Template struct {
 	// Allow users to specify an autostart schedule for workspaces (enterprise).
 	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
 	// Allow users to specify custom autostop values for workspaces (enterprise).
-	AllowUserAutostop bool `db:"allow_user_autostop" json:"allow_user_autostop"`
+	AllowUserAutostop bool  `db:"allow_user_autostop" json:"allow_user_autostop"`
+	FailureTTL        int64 `db:"failure_ttl" json:"failure_ttl"`
+	InactivityTTL     int64 `db:"inactivity_ttl" json:"inactivity_ttl"`
 }
 
 type TemplateVersion struct {

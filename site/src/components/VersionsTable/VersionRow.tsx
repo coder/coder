@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import TableCell from "@material-ui/core/TableCell"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
+import TableCell from "@mui/material/TableCell"
 import { TemplateVersion } from "api/typesGenerated"
 import { Pill } from "components/Pill/Pill"
 import { Stack } from "components/Stack/Stack"
@@ -74,7 +74,6 @@ export const VersionRow: React.FC<VersionRowProps> = ({
             onPromoteClick && (
               <Button
                 size="small"
-                variant="outlined"
                 className={styles.promoteButton}
                 onClick={(e) => {
                   e.preventDefault()

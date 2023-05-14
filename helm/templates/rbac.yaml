@@ -7,10 +7,26 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["*"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs: ["*"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1

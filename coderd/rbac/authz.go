@@ -2,11 +2,14 @@ package rbac
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/json"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/ammario/tlru"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,6 +45,31 @@ type AuthCall struct {
 	Object Object
 }
 
+// hashAuthorizeCall guarantees a unique hash for a given auth call.
+// If two hashes are equal, then the result of a given authorize() call
+// will be the same.
+//
+// Note that this ignores some fields such as the permissions within a given
+// role, as this assumes all roles are static to a given role name.
+func hashAuthorizeCall(actor Subject, action Action, object Object) [32]byte {
+	var hashOut [32]byte
+	hash := sha256.New()
+
+	// We use JSON for the forward security benefits if the rbac structs are
+	// modified without consideration for the caching layer.
+	enc := json.NewEncoder(hash)
+	_ = enc.Encode(actor)
+	_ = enc.Encode(action)
+	_ = enc.Encode(object)
+
+	// We might be able to avoid this extra copy?
+	// sha256.Sum256() returns a [32]byte. We need to return
+	// an array vs a slice so we can use it as a key in the cache.
+	image := hash.Sum(nil)
+	copy(hashOut[:], image)
+	return hashOut
+}
+
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
 type Subject struct {
@@ -49,6 +77,20 @@ type Subject struct {
 	Roles  ExpandableRoles
 	Groups []string
 	Scope  ExpandableScope
+
+	// cachedASTValue is the cached ast value for this subject.
+	cachedASTValue ast.Value
+}
+
+// WithCachedASTValue can be called if the subject is static. This will compute
+// the ast value once and cache it for future calls.
+func (s Subject) WithCachedASTValue() Subject {
+	tmp := s
+	v, err := tmp.regoValue()
+	if err == nil {
+		tmp.cachedASTValue = v
+	}
+	return tmp
 }
 
 func (s Subject) Equal(b Subject) bool {
@@ -87,6 +129,9 @@ func (s Subject) SafeRoleNames() []string {
 }
 
 type Authorizer interface {
+	// Authorize will authorize the given subject to perform the given action
+	// on the given object. Authorize is pure and deterministic with respect to
+	// its arguments and the surrounding object.
 	Authorize(ctx context.Context, subject Subject, action Action, object Object) error
 	Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error)
 }
@@ -296,6 +341,7 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action A
 	defer span.End()
 
 	err := a.authorize(ctx, subject, action, object)
+
 	span.SetAttributes(attribute.Bool("authorized", err == nil))
 
 	dur := time.Since(start)
@@ -591,7 +637,12 @@ func (a *authorizedSQLFilter) SQLString() string {
 	return a.sqlString
 }
 
-type cachedCalls struct {
+type authCache struct {
+	// cache is a cache of hashed Authorize inputs to the result of the Authorize
+	// call.
+	// determistic function.
+	cache *tlru.Cache[[32]byte, error]
+
 	authz Authorizer
 }
 
@@ -603,92 +654,33 @@ type cachedCalls struct {
 //
 // Cacher is safe for multiple actors.
 func Cacher(authz Authorizer) Authorizer {
-	return &cachedCalls{authz: authz}
+	return &authCache{
+		authz: authz,
+		// In practice, this cache should never come close to filling since the
+		// authorization calls are kept for a minute at most.
+		cache: tlru.New[[32]byte](tlru.ConstantCost[error], 64*1024),
+	}
 }
 
-func (c *cachedCalls) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
-	cache := cacheFromContext(ctx)
+func (c *authCache) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
+	authorizeCacheKey := hashAuthorizeCall(subject, action, object)
 
-	resp, ok := cache.Load(subject, action, object)
-	if ok {
-		return resp
+	var err error
+	err, _, ok := c.cache.Get(authorizeCacheKey)
+	if !ok {
+		err = c.authz.Authorize(ctx, subject, action, object)
+		// In case there is a caching bug, bound the TTL to 1 minute.
+		c.cache.Set(authorizeCacheKey, err, time.Minute)
 	}
 
-	err := c.authz.Authorize(ctx, subject, action, object)
-	cache.Save(subject, action, object, err)
 	return err
 }
 
 // Prepare returns the underlying PreparedAuthorized. The cache does not apply
 // to prepared authorizations. These should be using a SQL filter, and
 // therefore the cache is not needed.
-func (c *cachedCalls) Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error) {
+func (c *authCache) Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error) {
 	return c.authz.Prepare(ctx, subject, action, objectType)
-}
-
-// authorizeCache enabled caching of Authorizer calls for a given request. This
-// prevents the cost of running the same rbac checks multiple times.
-// A cache hit must match on all 3 values: subject, action, and object.
-type authorizeCache struct {
-	sync.Mutex
-	// calls is a list of all calls made to the Authorizer.
-	// This list is cached per request context. The size of this list is expected
-	// to be incredibly small. Often 1 or 2 calls.
-	calls []cachedAuthCall
-}
-
-type cachedAuthCall struct {
-	AuthCall
-	Err error
-}
-
-// cacheContextKey is a context key used to store the cache in the context.
-type cacheContextKey struct{}
-
-// cacheFromContext returns the cache from the context.
-// If there is no cache, a nil value is returned.
-// The nil cache can still be called as a normal cache, but will not cache or
-// return any values.
-func cacheFromContext(ctx context.Context) *authorizeCache {
-	cache, _ := ctx.Value(cacheContextKey{}).(*authorizeCache)
-	return cache
-}
-
-func WithCacheCtx(ctx context.Context) context.Context {
-	return context.WithValue(ctx, cacheContextKey{}, &authorizeCache{})
-}
-
-//nolint:revive
-func (c *authorizeCache) Load(subject Subject, action Action, object Object) (error, bool) {
-	if c == nil {
-		return nil, false
-	}
-	c.Lock()
-	defer c.Unlock()
-
-	for _, call := range c.calls {
-		if call.Action == action && call.Object.Equal(object) && call.Actor.Equal(subject) {
-			return call.Err, true
-		}
-	}
-	return nil, false
-}
-
-func (c *authorizeCache) Save(subject Subject, action Action, object Object, err error) {
-	if c == nil {
-		return
-	}
-	c.Lock()
-	defer c.Unlock()
-
-	c.calls = append(c.calls, cachedAuthCall{
-		AuthCall: AuthCall{
-			Actor:  subject,
-			Action: action,
-			Object: object,
-		},
-		Err: err,
-	})
 }
 
 // rbacTraceAttributes are the attributes that are added to all spans created by

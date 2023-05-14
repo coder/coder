@@ -1,12 +1,11 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import * as API from "api/api"
 import { rest } from "msw"
-import { history, MockUser, render } from "testHelpers/renderHelpers"
+import { history, render } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
-import { Language as SetupLanguage } from "xServices/setup/setupXService"
 import { SetupPage } from "./SetupPage"
 import { Language as PageViewLanguage } from "./SetupPageView"
+import { MockUser } from "testHelpers/entities"
 
 const fillForm = async ({
   username = "someuser",
@@ -44,18 +43,6 @@ describe("Setup Page", () => {
     render(<SetupPage />)
     await fillForm({ email: "test" })
     const errorMessage = await screen.findByText(PageViewLanguage.emailInvalid)
-    expect(errorMessage).toBeDefined()
-  })
-
-  it("shows generic error message", async () => {
-    jest.spyOn(API, "createFirstUser").mockRejectedValueOnce({
-      data: "unknown error",
-    })
-    render(<SetupPage />)
-    await fillForm()
-    const errorMessage = await screen.findByText(
-      SetupLanguage.createFirstUserError,
-    )
     expect(errorMessage).toBeDefined()
   })
 

@@ -1,9 +1,10 @@
 import { Story } from "@storybook/react"
 import {
-  makeMockApiError,
+  mockApiError,
   MockWorkspaceProxies,
   MockPrimaryWorkspaceProxy,
   MockHealthyWildWorkspaceProxy,
+  MockProxyLatencies,
 } from "testHelpers/entities"
 import {
   WorkspaceProxyView,
@@ -27,6 +28,7 @@ PrimarySelected.args = {
   isLoading: false,
   hasLoaded: true,
   proxies: MockWorkspaceProxies,
+  proxyLatencies: MockProxyLatencies,
   preferredProxy: MockPrimaryWorkspaceProxy,
   onSelect: () => {
     return Promise.resolve()
@@ -38,6 +40,7 @@ Example.args = {
   isLoading: false,
   hasLoaded: true,
   proxies: MockWorkspaceProxies,
+  proxyLatencies: MockProxyLatencies,
   preferredProxy: MockHealthyWildWorkspaceProxy,
   onSelect: () => {
     return Promise.resolve()
@@ -61,7 +64,7 @@ export const WithProxiesError = Template.bind({})
 WithProxiesError.args = {
   ...Example.args,
   hasLoaded: false,
-  getWorkspaceProxiesError: makeMockApiError({
+  getWorkspaceProxiesError: mockApiError({
     message: "Failed to get proxies.",
   }),
 }
@@ -70,7 +73,7 @@ export const WithSelectProxyError = Template.bind({})
 WithSelectProxyError.args = {
   ...Example.args,
   hasLoaded: false,
-  selectProxyError: makeMockApiError({
+  selectProxyError: mockApiError({
     message: "Failed to select proxy.",
   }),
 }

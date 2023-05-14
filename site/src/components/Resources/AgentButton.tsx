@@ -1,5 +1,5 @@
-import { makeStyles } from "@material-ui/core/styles"
-import Button, { ButtonProps } from "@material-ui/core/Button"
+import { makeStyles } from "@mui/styles"
+import Button, { ButtonProps } from "@mui/material/Button"
 import { FC, forwardRef } from "react"
 import { combineClasses } from "utils/combineClasses"
 
@@ -25,7 +25,6 @@ export const SecondaryAgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Button
         ref={ref}
-        variant="outlined"
         className={combineClasses([styles.secondaryButton, className])}
         {...props}
       />

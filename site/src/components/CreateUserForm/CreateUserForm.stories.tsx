@@ -1,6 +1,7 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import { CreateUserForm, CreateUserFormProps } from "./CreateUserForm"
+import { mockApiError } from "testHelpers/entities"
 
 export default {
   title: "components/CreateUserForm",
@@ -18,22 +19,14 @@ Ready.args = {
   isLoading: false,
 }
 
-export const UnknownError = Template.bind({})
-UnknownError.args = {
-  onCancel: action("cancel"),
-  onSubmit: action("submit"),
-  isLoading: false,
-  error: "Something went wrong",
-}
-
 export const FormError = Template.bind({})
 FormError.args = {
   onCancel: action("cancel"),
   onSubmit: action("submit"),
   isLoading: false,
-  formErrors: {
-    username: "Username taken",
-  },
+  error: mockApiError({
+    validations: [{ field: "username", detail: "Username taken" }],
+  }),
 }
 
 export const Loading = Template.bind({})

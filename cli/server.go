@@ -243,13 +243,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			notifyCtx, notifyStop := signal.NotifyContext(ctx, InterruptSignals...)
 			defer notifyStop()
 
-			// Ensure we have a unique cache directory for this process.
-			cacheDir := filepath.Join(cfg.CacheDir.String(), uuid.NewString())
+			cacheDir := cfg.CacheDir.String()
 			err = os.MkdirAll(cacheDir, 0o700)
 			if err != nil {
 				return xerrors.Errorf("create cache directory: %w", err)
 			}
-			defer os.RemoveAll(cacheDir)
 
 			// Clean up idle connections at the end, e.g.
 			// embedded-postgres can leave an idle connection
@@ -1185,6 +1183,7 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
+	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
 	wg.Add(1)
 	go func() {
@@ -1204,6 +1203,7 @@ func newProvisionerDaemon(
 			},
 			CachePath: cacheDir,
 			Logger:    logger,
+			Tracer:    tracer,
 		})
 		if err != nil && !xerrors.Is(err, context.Canceled) {
 			select {

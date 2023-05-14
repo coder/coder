@@ -1,7 +1,7 @@
-import IconButton from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import Tooltip from "@material-ui/core/Tooltip"
-import Check from "@material-ui/icons/Check"
+import IconButton from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
+import Tooltip from "@mui/material/Tooltip"
+import Check from "@mui/icons-material/Check"
 import { useClipboard } from "hooks/useClipboard"
 import { combineClasses } from "../../utils/combineClasses"
 import { FileCopyIcon } from "../Icons/FileCopyIcon"
@@ -42,6 +42,7 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
           onClick={copyToClipboard}
           size="small"
           aria-label={Language.ariaLabel}
+          variant="text"
         >
           {isCopied ? (
             <Check className={styles.fileCopyIcon} />

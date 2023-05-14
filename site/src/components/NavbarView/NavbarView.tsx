@@ -1,9 +1,9 @@
-import Drawer from "@material-ui/core/Drawer"
-import IconButton from "@material-ui/core/IconButton"
-import List from "@material-ui/core/List"
-import ListItem from "@material-ui/core/ListItem"
-import { makeStyles } from "@material-ui/core/styles"
-import MenuIcon from "@material-ui/icons/Menu"
+import Drawer from "@mui/material/Drawer"
+import IconButton from "@mui/material/IconButton"
+import List from "@mui/material/List"
+import ListItem from "@mui/material/ListItem"
+import { makeStyles } from "@mui/styles"
+import MenuIcon from "@mui/icons-material/Menu"
 import { CoderIcon } from "components/Icons/CoderIcon"
 import { useState } from "react"
 import { NavLink, useLocation } from "react-router-dom"
@@ -104,6 +104,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           onClick={() => {
             setIsDrawerOpen(true)
           }}
+          size="large"
         >
           <MenuIcon />
         </IconButton>
@@ -231,7 +232,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flex: 1,
     fontSize: 16,
-    padding: `${theme.spacing(1.5)}px ${theme.spacing(2)}px`,
+    padding: `${theme.spacing(1.5)} ${theme.spacing(2)}`,
     textDecoration: "none",
     transition: "background-color 0.15s ease-in-out",
 
@@ -247,7 +248,7 @@ const useStyles = makeStyles((theme) => ({
 
     [theme.breakpoints.up("md")]: {
       height: navHeight,
-      padding: `0 ${theme.spacing(3)}px`,
+      padding: `0 ${theme.spacing(3)}`,
     },
   },
 }))

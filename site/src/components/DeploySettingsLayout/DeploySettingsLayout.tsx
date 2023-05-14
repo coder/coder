@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
 import { Sidebar } from "./Sidebar"

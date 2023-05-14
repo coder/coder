@@ -113,6 +113,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				)
 				r.Post("/issue-signed-app-token", api.workspaceProxyIssueSignedAppToken)
 				r.Post("/register", api.workspaceProxyRegister)
+				r.Post("/goingaway", api.workspaceProxyGoingAway)
 			})
 			r.Route("/{workspaceproxy}", func(r chi.Router) {
 				r.Use(
@@ -120,6 +121,8 @@ func New(ctx context.Context, options *Options) (*API, error) {
 					httpmw.ExtractWorkspaceProxyParam(api.Database),
 				)
 
+				r.Get("/", api.workspaceProxy)
+				r.Patch("/", api.patchWorkspaceProxy)
 				r.Delete("/", api.deleteWorkspaceProxy)
 			})
 		})
@@ -237,7 +240,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
 		// Proxy health is a moon feature.
 		api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
-			Interval:   time.Minute * 1,
+			Interval:   options.ProxyHealthInterval,
 			DB:         api.Database,
 			Logger:     options.Logger.Named("proxyhealth"),
 			Client:     api.HTTPClient,
@@ -326,7 +329,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			codersdk.FeatureWorkspaceProxy:             true,
-			codersdk.FeatureWorkspaceActions:           true,
 		})
 	if err != nil {
 		return err

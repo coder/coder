@@ -1,6 +1,5 @@
-import FormHelperText from "@material-ui/core/FormHelperText"
-import TextField from "@material-ui/core/TextField"
-import { FormikContextType, FormikErrors, useFormik } from "formik"
+import TextField from "@mui/material/TextField"
+import { FormikContextType, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
@@ -27,9 +26,8 @@ export const Language = {
 export interface CreateUserFormProps {
   onSubmit: (user: TypesGen.CreateUserRequest) => void
   onCancel: () => void
-  formErrors?: FormikErrors<TypesGen.CreateUserRequest>
+  error?: unknown
   isLoading: boolean
-  error?: string
   myOrgId: string
 }
 
@@ -44,7 +42,7 @@ const validationSchema = Yup.object({
 
 export const CreateUserForm: FC<
   React.PropsWithChildren<CreateUserFormProps>
-> = ({ onSubmit, onCancel, formErrors, isLoading, error, myOrgId }) => {
+> = ({ onSubmit, onCancel, error, isLoading, myOrgId }) => {
   const form: FormikContextType<TypesGen.CreateUserRequest> =
     useFormik<TypesGen.CreateUserRequest>({
       initialValues: {
@@ -58,13 +56,13 @@ export const CreateUserForm: FC<
     })
   const getFieldHelpers = getFormHelpers<TypesGen.CreateUserRequest>(
     form,
-    formErrors,
+    error,
   )
 
   return (
     <FullPageForm title="Create user">
       <form onSubmit={form.handleSubmit} autoComplete="off">
-        <Stack spacing={1}>
+        <Stack spacing={2.5}>
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}
@@ -72,7 +70,6 @@ export const CreateUserForm: FC<
             autoFocus
             fullWidth
             label={Language.usernameLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("email")}
@@ -80,7 +77,6 @@ export const CreateUserForm: FC<
             autoComplete="email"
             fullWidth
             label={Language.emailLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("password")}
@@ -89,10 +85,8 @@ export const CreateUserForm: FC<
             id="password"
             label={Language.passwordLabel}
             type="password"
-            variant="outlined"
           />
         </Stack>
-        {error && <FormHelperText error>{error}</FormHelperText>}
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>
     </FullPageForm>

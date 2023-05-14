@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import Paper from "@material-ui/core/Paper"
-import { makeStyles } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import Paper from "@mui/material/Paper"
+import { makeStyles } from "@mui/styles"
 import { License } from "api/typesGenerated"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
@@ -29,12 +29,7 @@ export const LicenseCard = ({
   >(undefined)
 
   return (
-    <Paper
-      variant="outlined"
-      key={license.id}
-      elevation={2}
-      className={styles.licenseCard}
-    >
+    <Paper key={license.id} elevation={2} className={styles.licenseCard}>
       <ConfirmDialog
         type="info"
         hideCancel={false}
@@ -106,6 +101,7 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
   },
   licenseCard: {
+    ...theme.typography.body2,
     padding: theme.spacing(2),
   },
   cardContent: {},
@@ -124,7 +120,7 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
   },
   secondaryMaincolor: {
-    color: theme.palette.text.hint,
+    color: theme.palette.text.secondary,
   },
   removeButton: {
     height: "17px",

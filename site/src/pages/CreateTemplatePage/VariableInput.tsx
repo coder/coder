@@ -1,8 +1,8 @@
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import Radio from "@material-ui/core/Radio"
-import RadioGroup from "@material-ui/core/RadioGroup"
-import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import Radio from "@mui/material/Radio"
+import RadioGroup from "@mui/material/RadioGroup"
+import { makeStyles } from "@mui/styles"
+import TextField from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { TemplateVersionVariable } from "../../api/typesGenerated"
@@ -75,13 +75,13 @@ const VariableField: React.FC<VariableInputProps> = ({
         <FormControlLabel
           disabled={disabled}
           value="true"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="True"
         />
         <FormControlLabel
           disabled={disabled}
           value="false"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="False"
         />
       </RadioGroup>

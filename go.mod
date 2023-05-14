@@ -170,8 +170,13 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20221203005347-703fd9b7fbc0
 	nhooyr.io/websocket v1.8.7
-	storj.io/drpc v0.0.33-0.20220622181519-9206537a4db7
+	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
 	tailscale.com v1.32.2
+)
+
+require (
+	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/go-chi/cors v1.2.1 // indirect
 )
 
 require (
@@ -189,6 +194,7 @@ require (
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
+	github.com/ammario/tlru v0.3.0
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/aymanbagabas/go-osc52 v1.2.1 // indirect
