@@ -1,4 +1,3 @@
-import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
 import Paper from "@mui/material/Paper"
 import { makeStyles } from "@mui/styles"
@@ -43,55 +42,54 @@ export const LicenseCard = ({
           setLicenseIDMarkedForRemoval(undefined)
         }}
         onClose={() => setLicenseIDMarkedForRemoval(undefined)}
-        title="Confirm license removal"
+        title="Confirm License Removal"
         confirmLoading={isRemoving}
         confirmText="Remove"
-        description="Are you sure you want to remove this license?"
+        description="Removing this license will disable all Enterprise features. You add a new license at any time."
       />
       <Stack
-        direction="column"
+        direction="row"
+        spacing={2}
         className={styles.cardContent}
-        justifyContent="space-between"
+        justifyContent="left"
+        alignItems="center"
       >
-        <Box className={styles.licenseId}>
-          <span>#{license.id}</span>
-        </Box>
-        <Stack className={styles.accountType}>
-          <span>{license.claims.trial ? "Trial" : "Enterprise"}</span>
-        </Stack>
+        <span className={styles.licenseId}>#{license.id}</span>
+        <span className={styles.accountType}>
+          {license.claims.trial ? "Trial" : "Enterprise"}
+        </span>
         <Stack
           direction="row"
-          justifyContent="space-between"
+          justifyContent="right"
+          spacing={8}
           alignItems="self-end"
+          style={{
+            flex: 1,
+          }}
         >
-          <Stack direction="column" spacing={0} className={styles.userLimit}>
+          <Stack direction="column" spacing={0}>
             <span className={styles.secondaryMaincolor}>Users</span>
-            <div className={styles.primaryMainColor}>
-              <span className={styles.userLimitActual}>{userLimitActual}</span>
-              <span className={styles.userLimitLimit}>
-                {` / ${userLimitLimit || "Unlimited"}`}
-              </span>
-            </div>
+            <span className={styles.userLimit}>
+              {userLimitActual} {` / ${userLimitLimit || "Unlimited"}`}
+            </span>
           </Stack>
 
-          <Stack direction="column" spacing={0} alignItems="center">
-            <span className={styles.secondaryMaincolor}>Valid until</span>
-            <span className={styles.primaryMainColor}>
+          <Stack direction="column" spacing={0}>
+            <span className={styles.secondaryMaincolor}>Valid Until</span>
+            <span className={styles.licenseExpires}>
               {dayjs
                 .unix(license.claims.license_expires)
                 .format("MMMM D, YYYY")}
             </span>
           </Stack>
-          <div className={styles.actions}>
-            <Button
-              className={styles.removeButton}
-              variant="text"
-              size="small"
-              onClick={() => setLicenseIDMarkedForRemoval(license.id)}
-            >
-              Remove
-            </Button>
-          </div>
+          <Button
+            className={styles.removeButton}
+            variant="text"
+            size="small"
+            onClick={() => setLicenseIDMarkedForRemoval(license.id)}
+          >
+            Remove
+          </Button>
         </Stack>
       </Stack>
     </Paper>
@@ -100,42 +98,29 @@ export const LicenseCard = ({
 
 const useStyles = makeStyles((theme) => ({
   userLimit: {
-    width: "33%",
-  },
-  actions: {
-    width: "33%",
-    textAlign: "right",
-  },
-  userLimitActual: {
-    color: theme.palette.primary.main,
-  },
-  userLimitLimit: {
-    color: theme.palette.secondary.main,
-    fontWeight: 600,
+    color: theme.palette.text.primary,
   },
   licenseCard: {
     ...theme.typography.body2,
     padding: theme.spacing(2),
   },
-  cardContent: {
-    minHeight: 100,
-  },
+  cardContent: {},
   licenseId: {
     color: theme.palette.secondary.main,
+    fontSize: 18,
     fontWeight: 600,
   },
   accountType: {
     fontWeight: 600,
-    fontSize: 24,
-    justifyContent: "center",
+    fontSize: 18,
     alignItems: "center",
     textTransform: "capitalize",
   },
-  primaryMainColor: {
-    color: theme.palette.primary.main,
+  licenseExpires: {
+    color: theme.palette.text.secondary,
   },
   secondaryMaincolor: {
-    color: theme.palette.secondary.main,
+    color: theme.palette.text.secondary,
   },
   removeButton: {
     height: "17px",
