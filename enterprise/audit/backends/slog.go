@@ -23,10 +23,14 @@ func (slogBackend) Decision() audit.FilterDecision {
 }
 
 func (b slogBackend) Export(ctx context.Context, alog database.AuditLog) error {
-	m := structs.Map(alog)
-	fields := make([]slog.Field, 0, len(m))
-	for k, v := range m {
-		fields = append(fields, slog.F(k, v))
+	// We don't use structs.Map because we don't want to recursively convert
+	// fields into maps. When we keep the type information, slog can more
+	// pleasantly format the output. For example, the clean result of
+	// (*NullString).Value() may be printed instead of {String: "foo", Valid: true}.
+	sfs := structs.Fields(alog)
+	var fields []slog.Field
+	for _, sf := range sfs {
+		fields = append(fields, slog.F(sf.Name(), sf.Value()))
 	}
 
 	b.log.Info(ctx, "audit_log", fields...)

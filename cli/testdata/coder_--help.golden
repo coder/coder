@@ -3,11 +3,11 @@ Usage: coder [global-flags] <subcommand>
 Coder v0.0.0-devel — A tool for provisioning self-hosted development environments with Terraform.
   - Start a Coder server:                                                       
 
-      [;m$ coder server[0m 
+     [40m [0m[91;40m$ coder server[0m[40m [0m
 
   - Get started by creating a template from an example:                         
 
-      [;m$ coder templates init[0m
+     [40m [0m[91;40m$ coder templates init[0m[40m [0m
 
 [1mSubcommands[0m
     config-ssh        Add an SSH Host entry for your workspaces "ssh

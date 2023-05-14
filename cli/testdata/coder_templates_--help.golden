@@ -7,15 +7,15 @@ Aliases: template
 Templates are written in standard Terraform and describe the infrastructure for workspaces
   - Create a template for developers to create workspaces:                      
 
-      [;m$ coder templates create[0m 
+     [40m [0m[91;40m$ coder templates create[0m[40m [0m
 
   - Make changes to your template, and plan the changes:                        
 
-      [;m$ coder templates plan my-template[0m 
+     [40m [0m[91;40m$ coder templates plan my-template[0m[40m [0m
 
   - Push an update to the template. Your developers can update their workspaces:
 
-      [;m$ coder templates push my-template[0m
+     [40m [0m[91;40m$ coder templates push my-template[0m[40m [0m
 
 [1mSubcommands[0m
     create      Create a template from the current directory or as specified by
