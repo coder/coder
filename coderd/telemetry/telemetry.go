@@ -700,6 +700,7 @@ type Snapshot struct {
 	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
+	CLIInvokations            []CLIInvocation             `json:"cli_invocations"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -872,6 +873,16 @@ type ParameterSchema struct {
 type License struct {
 	UploadedAt time.Time `json:"uploaded_at"`
 	UUID       uuid.UUID `json:"uuid"`
+}
+
+type CLIOption struct {
+	Name        string `json:"name"`
+	ValueSource string `json:"set_via"`
+}
+
+type CLIInvocation struct {
+	Command string `json:"command"`
+	Options []CLIOption
 }
 
 type noopReporter struct{}

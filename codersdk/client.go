@@ -179,15 +179,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 
-	if c.PlainLogger != nil {
-		out, err := httputil.DumpRequest(req, c.LogBodies)
-		if err != nil {
-			return nil, xerrors.Errorf("dump request: %w", err)
-		}
-		out = prefixLines([]byte("http --> "), out)
-		_, _ = c.PlainLogger.Write(out)
-	}
-
 	tokenHeader := c.SessionTokenHeader
 	if tokenHeader == "" {
 		tokenHeader = SessionTokenHeader
@@ -221,6 +212,18 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	})
 
 	resp, err := c.HTTPClient.Do(req)
+
+	// We log after sending the request because the HTTP Transport may modify
+	// the request within Do, e.g. by adding headers.
+	if resp != nil && c.PlainLogger != nil {
+		out, err := httputil.DumpRequest(resp.Request, c.LogBodies)
+		if err != nil {
+			return nil, xerrors.Errorf("dump request: %w", err)
+		}
+		out = prefixLines([]byte("http --> "), out)
+		_, _ = c.PlainLogger.Write(out)
+	}
+
 	if err != nil {
 		return nil, err
 	}
