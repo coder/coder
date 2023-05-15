@@ -14,15 +14,15 @@ export type TemplateParametersSectionProps = {
   ) => Omit<RichParameterInputProps, "parameter" | "index">
 } & Pick<ComponentProps<typeof FormSection>, "classes">
 
-export const MultableTemplateParametersSection: FC<
+export const MutableTemplateParametersSection: FC<
   TemplateParametersSectionProps
 > = ({ templateParameters, getInputProps, ...formSectionProps }) => {
-  const hasMultableParameters =
+  const hasMutableParameters =
     templateParameters.filter((p) => p.mutable).length > 0
 
   return (
     <>
-      {hasMultableParameters && (
+      {hasMutableParameters && (
         <FormSection
           {...formSectionProps}
           title="Parameters"

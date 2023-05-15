@@ -10,7 +10,7 @@ import { Loader } from "components/Loader/Loader"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import {
   ImmutableTemplateParametersSection,
-  MultableTemplateParametersSection,
+  MutableTemplateParametersSection,
   TemplateParametersSectionProps,
 } from "components/TemplateParameters/TemplateParameters"
 import { useClipboard } from "hooks/useClipboard"
@@ -92,7 +92,7 @@ export const TemplateEmbedPageView: FC<{
           {templateParameters.length > 0 && (
             <Box flex={1} maxWidth={400}>
               <VerticalForm>
-                <MultableTemplateParametersSection
+                <MutableTemplateParametersSection
                   templateParameters={templateParameters}
                   getInputProps={getInputProps}
                 />

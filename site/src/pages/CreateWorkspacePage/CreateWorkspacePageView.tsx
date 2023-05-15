@@ -27,7 +27,7 @@ import {
 } from "utils/richParameters"
 import {
   ImmutableTemplateParametersSection,
-  MultableTemplateParametersSection,
+  MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters"
 
 export enum CreateWorkspaceErrors {
@@ -313,7 +313,7 @@ export const CreateWorkspacePageView: FC<
 
         {props.templateParameters && (
           <>
-            <MultableTemplateParametersSection
+            <MutableTemplateParametersSection
               templateParameters={props.templateParameters}
               getInputProps={(parameter, index) => {
                 return {
