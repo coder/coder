@@ -1,7 +1,6 @@
 import { makeStyles } from "@mui/styles"
 import { Pill } from "components/Pill/Pill"
 import ReactMarkdown from "react-markdown"
-import { colors } from "theme/colors"
 import { hex } from "color-convert"
 
 export interface ServiceBannerViewProps {
@@ -60,7 +59,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     "&.error": {
-      backgroundColor: colors.red[12],
+      backgroundColor: theme.palette.error.main,
     },
   },
   flex: {

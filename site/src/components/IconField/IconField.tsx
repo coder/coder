@@ -6,7 +6,6 @@ import { OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { useRef, FC, useState } from "react"
 import Picker from "@emoji-mart/react"
 import { makeStyles } from "@mui/styles"
-import { colors } from "theme/colors"
 import { useTranslation } from "react-i18next"
 import data from "@emoji-mart/data/sets/14/twitter.json"
 import { IconFieldProps } from "./types"
@@ -89,8 +88,8 @@ const useStyles = makeStyles((theme) => ({
   "@global": {
     "em-emoji-picker": {
       "--rgb-background": theme.palette.background.paper,
-      "--rgb-input": colors.gray[17],
-      "--rgb-color": colors.gray[4],
+      "--rgb-input": theme.palette.neutral.main,
+      "--rgb-color": theme.palette.neutral.contrastText,
     },
   },
   adornment: {

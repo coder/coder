@@ -39,7 +39,6 @@ import { TemplatesContext } from "xServices/templates/templatesXService"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
 import { Template } from "api/typesGenerated"
 import { combineClasses } from "utils/combineClasses"
-import { colors } from "theme/colors"
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 
@@ -256,7 +255,7 @@ const useStyles = makeStyles((theme) => ({
   tableRow: {
     "&:hover $actionButton": {
       color: theme.palette.text.primary,
-      borderColor: colors.gray[11],
+      borderColor: theme.palette.primary.main,
       "&:hover": {
         borderColor: theme.palette.text.primary,
       },

@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import WarningIcon from "@mui/icons-material/ErrorOutlineRounded"
 import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { useMachine } from "@xstate/react"
@@ -8,7 +8,6 @@ import { Stack } from "components/Stack/Stack"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { colors } from "theme/colors"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
 import { FitAddon } from "xterm-addon-fit"
@@ -32,6 +31,7 @@ const TerminalPage: FC<
     readonly renderer?: XTerm.RendererType
   }>
 > = ({ renderer }) => {
+  const theme = useTheme()
   const navigate = useNavigate()
   const styles = useStyles()
   const { proxy } = useProxy()
@@ -147,7 +147,7 @@ const TerminalPage: FC<
       fontFamily: MONOSPACE_FONT_FAMILY,
       fontSize: 16,
       theme: {
-        background: colors.gray[16],
+        background: theme.palette.background.default,
       },
       rendererType: renderer,
     })
@@ -187,7 +187,13 @@ const TerminalPage: FC<
       window.removeEventListener("resize", listener)
       terminal.dispose()
     }
-  }, [renderer, sendEvent, xtermRef, handleWebLink])
+  }, [
+    renderer,
+    sendEvent,
+    xtermRef,
+    handleWebLink,
+    theme.palette.background.default,
+  ])
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found

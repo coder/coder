@@ -6,7 +6,6 @@ import TextField, { TextFieldProps } from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
 import { TemplateVersionParameter } from "../../api/typesGenerated"
-import { colors } from "theme/colors"
 import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { MultiTextField } from "components/MultiTextField/MultiTextField"
 
@@ -228,7 +227,7 @@ const useStyles = makeStyles((theme) => ({
   labelImmutable: {
     marginTop: theme.spacing(0.5),
     marginBottom: theme.spacing(0.5),
-    color: colors.yellow[7],
+    color: theme.palette.warning.main,
   },
   input: {
     display: "flex",

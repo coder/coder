@@ -5,7 +5,6 @@ import { makeStyles } from "@mui/styles"
 import TextField from "@mui/material/TextField"
 import { Stack } from "components/Stack/Stack"
 import { useRef, useState, Fragment } from "react"
-import { colors } from "theme/colors"
 import { CodeExample } from "../CodeExample/CodeExample"
 import {
   HelpTooltipLink,
@@ -196,7 +195,7 @@ const useStyles = makeStyles((theme) => ({
   portField: {
     // The default border don't contrast well with the popover
     "& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline": {
-      borderColor: colors.gray[10],
+      borderColor: theme.palette.divider,
     },
   },
 

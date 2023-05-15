@@ -9,7 +9,6 @@ import {
 } from "./HelpTooltip"
 import InfoIcon from "@mui/icons-material/InfoOutlined"
 import { makeStyles } from "@mui/styles"
-import { colors } from "theme/colors"
 
 export const Language = {
   outdatedLabel: "Outdated",
@@ -51,9 +50,9 @@ export const OutdatedHelpTooltip: FC<React.PropsWithChildren<TooltipProps>> = ({
   )
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   icon: {
-    color: colors.yellow[5],
+    color: theme.palette.warning.main,
   },
 
   button: {

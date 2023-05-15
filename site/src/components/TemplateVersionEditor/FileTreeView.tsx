@@ -8,7 +8,6 @@ import MenuItem from "@mui/material/MenuItem"
 import { CSSProperties, FC, useState } from "react"
 import { FileTree } from "utils/filetree"
 import { DockerIcon } from "components/Icons/DockerIcon"
-import { colors } from "theme/colors"
 
 const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
   const contentA = fileTree[a]
@@ -195,7 +194,7 @@ const useStyles = makeStyles((theme) => ({
     "&.active": {
       "& > .MuiTreeItem-content": {
         color: theme.palette.text.primary,
-        background: colors.gray[13],
+        background: theme.palette.background.paper,
         pointerEvents: "none",
       },
     },

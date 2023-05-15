@@ -3,7 +3,6 @@ import { makeStyles } from "@mui/styles"
 import { Expander } from "components/Expander/Expander"
 import { Pill } from "components/Pill/Pill"
 import { useState } from "react"
-import { colors } from "theme/colors"
 
 export const Language = {
   licenseIssue: "License Issue",
@@ -86,7 +85,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
 
     "&.error": {
-      backgroundColor: colors.red[12],
+      backgroundColor: theme.palette.error.main,
     },
   },
   flex: {

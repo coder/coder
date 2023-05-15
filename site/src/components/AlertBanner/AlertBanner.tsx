@@ -2,14 +2,14 @@ import { useState, FC, Children } from "react"
 import Collapse from "@mui/material/Collapse"
 import { Stack } from "components/Stack/Stack"
 import { makeStyles } from "@mui/styles"
-import { colors } from "theme/colors"
 import { useTranslation } from "react-i18next"
 import { getErrorDetail, getErrorMessage } from "api/errors"
 import { Expander } from "components/Expander/Expander"
-import { Severity, AlertBannerProps } from "./alertTypes"
+import { AlertBannerProps } from "./alertTypes"
 import { severityConstants } from "./severityConstants"
 import { AlertBannerCtas } from "./AlertBannerCtas"
 import { Theme } from "@mui/material/styles"
+import { combineClasses } from "utils/combineClasses"
 
 /**
  * @param children: the children to be displayed in the alert
@@ -48,14 +48,17 @@ export const AlertBanner: FC<React.PropsWithChildren<AlertBannerProps>> = ({
 
   // if we have an error, check if there's detail to display
   const detail = error ? getErrorDetail(error) : undefined
-  const classes = useStyles({ severity, hasDetail: Boolean(detail) })
+  const classes = useStyles({ hasDetail: Boolean(detail) })
 
   const [showDetails, setShowDetails] = useState(false)
 
   return (
     <Collapse in={open} onExited={() => onDismiss && onDismiss()}>
       <Stack
-        className={classes.alertContainer}
+        className={combineClasses([
+          classes.alertContainer,
+          classes[`alert-${severity}`],
+        ])}
         direction="row"
         alignItems="center"
         spacing={0}
@@ -91,18 +94,17 @@ export const AlertBanner: FC<React.PropsWithChildren<AlertBannerProps>> = ({
 }
 
 interface StyleProps {
-  severity: Severity
   hasDetail: boolean
 }
 
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   alertContainer: (props) => ({
     ...theme.typography.body2,
-    borderColor: severityConstants[props.severity].color,
-    border: `1px solid ${colors.orange[7]}`,
+    borderWidth: 1,
+    borderStyle: "solid",
     borderRadius: theme.shape.borderRadius,
     padding: theme.spacing(2),
-    backgroundColor: `${colors.gray[16]}`,
+    backgroundColor: `${theme.palette.background.paper}`,
     textAlign: "left",
 
     "& > span": {
@@ -115,6 +117,18 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
       marginRight: theme.spacing(1),
     },
   }),
+
+  "alert-warning": {
+    borderColor: theme.palette.warning.main,
+  },
+
+  "alert-error": {
+    borderColor: theme.palette.error.main,
+  },
+
+  "alert-info": {
+    borderColor: theme.palette.info.main,
+  },
 
   fullWidth: {
     width: "100%",

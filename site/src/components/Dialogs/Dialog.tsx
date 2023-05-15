@@ -1,8 +1,5 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog"
-import { makeStyles } from "@mui/styles"
 import * as React from "react"
-import { colors } from "theme/colors"
-import { combineClasses } from "../../utils/combineClasses"
 import {
   LoadingButton,
   LoadingButtonProps,
@@ -29,9 +26,12 @@ export interface DialogActionButtonsProps {
 
 const typeToColor = (type: ConfirmDialogType): LoadingButtonProps["color"] => {
   if (type === "delete") {
-    return "secondary"
+    return "error"
   }
-  return "primary"
+
+  if (type === "success") {
+    return "success"
+  }
 }
 
 /**
@@ -46,8 +46,6 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   onConfirm,
   type = "info",
 }) => {
-  const styles = useButtonStyles({ type })
-
   return (
     <>
       {onCancel && (
@@ -65,10 +63,6 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           loading={confirmLoading}
           disabled={disabled}
           type="submit"
-          className={combineClasses({
-            [styles.errorButton]: type === "delete",
-            [styles.successButton]: type === "success",
-          })}
         >
           {confirmText}
         </LoadingButton>
@@ -76,77 +70,6 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
     </>
   )
 }
-
-const useButtonStyles = makeStyles((theme) => ({
-  errorButton: {
-    "&.MuiButton-contained": {
-      backgroundColor: colors.red[10],
-      borderColor: colors.red[9],
-      color: theme.palette.text.primary,
-
-      "&:hover:not(:disabled)": {
-        backgroundColor: colors.red[9],
-        borderColor: colors.red[9],
-      },
-
-      "&.Mui-disabled": {
-        backgroundColor: colors.red[15],
-        borderColor: colors.red[15],
-        color: colors.red[9],
-      },
-    },
-  },
-  successButton: {
-    "&.MuiButton-contained": {
-      backgroundColor: theme.palette.success.main,
-      color: theme.palette.primary.contrastText,
-      "&:hover": {
-        backgroundColor: theme.palette.success.dark,
-        "@media (hover: none)": {
-          backgroundColor: "transparent",
-        },
-        "&.Mui-disabled": {
-          backgroundColor: "transparent",
-        },
-      },
-      "&.Mui-disabled": {
-        backgroundColor: theme.palette.action.disabledBackground,
-        color: theme.palette.text.secondary,
-      },
-    },
-
-    "&.MuiButton-outlined": {
-      color: theme.palette.success.main,
-      borderColor: theme.palette.success.main,
-      "&:hover": {
-        backgroundColor: theme.palette.success.dark,
-        "@media (hover: none)": {
-          backgroundColor: "transparent",
-        },
-        "&.Mui-disabled": {
-          backgroundColor: "transparent",
-        },
-      },
-      "&.Mui-disabled": {
-        color: theme.palette.text.secondary,
-        borderColor: theme.palette.action.disabled,
-      },
-    },
-
-    "&.MuiButton-text": {
-      color: theme.palette.success.main,
-      "&:hover": {
-        backgroundColor: theme.palette.success.dark,
-        "@media (hover: none)": {
-          backgroundColor: "transparent",
-        },
-      },
-      "&.Mui-disabled": {
-        color: theme.palette.text.secondary,
-      },
-    },
-  },
-}))
 
 export type DialogProps = MuiDialogProps
 

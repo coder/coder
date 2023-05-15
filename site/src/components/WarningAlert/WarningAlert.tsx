@@ -2,7 +2,6 @@ import { useState, FC, ReactElement } from "react"
 import Collapse from "@mui/material/Collapse"
 import { Stack } from "components/Stack/Stack"
 import { makeStyles } from "@mui/styles"
-import { colors } from "theme/colors"
 import ReportProblemOutlinedIcon from "@mui/icons-material/ReportProblemOutlined"
 import Button from "@mui/material/Button"
 import { useTranslation } from "react-i18next"
@@ -54,12 +53,12 @@ export const WarningAlert: FC<WarningAlertProps> = ({
 
 const useStyles = makeStyles((theme) => ({
   alertContainer: {
-    border: `1px solid ${colors.orange[7]}`,
+    border: `1px solid ${theme.palette.warning.main}`,
     borderRadius: theme.shape.borderRadius,
     padding: `${theme.spacing(1)} ${theme.spacing(2)}`,
-    backgroundColor: `${colors.gray[16]}`,
+    backgroundColor: theme.palette.background.default,
   },
   alertIcon: {
-    color: `${colors.orange[7]}`,
+    color: `${theme.palette.warning.main}`,
   },
 }))

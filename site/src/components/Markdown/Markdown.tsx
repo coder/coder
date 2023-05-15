@@ -10,8 +10,8 @@ import { FC, memo } from "react"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import gfm from "remark-gfm"
-import { colors } from "theme/colors"
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
+import { teal } from "@mui/material/colors"
 
 export interface MarkdownProps {
   children: string
@@ -142,7 +142,7 @@ const useStyles = makeStyles((theme) => ({
       },
 
       "& .key, & .property, & .inserted, .keyword": {
-        color: colors.turquoise[7],
+        color: teal["A200"],
       },
 
       "& .deleted": {

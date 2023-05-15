@@ -9,7 +9,6 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { colors } from "theme/colors"
 import { combineClasses } from "utils/combineClasses"
 
 export interface VersionRowProps {
@@ -95,7 +94,7 @@ const useStyles = makeStyles((theme) => ({
   row: {
     "&:hover $promoteButton": {
       color: theme.palette.text.primary,
-      borderColor: colors.gray[11],
+      borderColor: theme.palette.divider,
       "&:hover": {
         borderColor: theme.palette.text.primary,
       },

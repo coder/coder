@@ -1,8 +1,7 @@
 import Badge from "@mui/material/Badge"
 import MenuItem from "@mui/material/MenuItem"
-import { makeStyles } from "@mui/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import { useState, FC, PropsWithChildren, MouseEvent } from "react"
-import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
 import { BorderedMenu } from "../BorderedMenu/BorderedMenu"
@@ -23,6 +22,7 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
   supportLinks,
   onSignOut,
 }: UserDropdownProps) => {
+  const theme = useTheme()
   const styles = useStyles()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
 
@@ -45,9 +45,9 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
             <UserAvatar username={user.username} avatarURL={user.avatar_url} />
           </Badge>
           {anchorEl ? (
-            <CloseDropdown color={colors.gray[6]} />
+            <CloseDropdown color={theme.palette.text.secondary} />
           ) : (
-            <OpenDropdown color={colors.gray[6]} />
+            <OpenDropdown color={theme.palette.text.secondary} />
           )}
         </div>
       </MenuItem>

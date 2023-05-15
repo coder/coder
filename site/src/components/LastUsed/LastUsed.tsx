@@ -2,9 +2,7 @@ import { makeStyles, useTheme } from "@mui/styles"
 import { FC } from "react"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
-import { colors } from "theme/colors"
 import { Stack } from "components/Stack/Stack"
-import { Theme } from "@mui/material/styles"
 
 dayjs.extend(relativeTime)
 
@@ -32,7 +30,7 @@ interface LastUsedProps {
 }
 
 export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
-  const theme: Theme = useTheme()
+  const theme = useTheme()
   const styles = useStyles()
   const t = dayjs(lastUsedAt)
   const now = dayjs()
@@ -42,7 +40,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
   )
 
   if (t.isAfter(now.subtract(1, "hour"))) {
-    circle = <Circle color={colors.green[9]} />
+    circle = <Circle color={theme.palette.success.main} />
     // Since the agent reports on a 10m interval,
     // the last_used_at can be inaccurate when recent.
     message = "Now"
@@ -51,7 +49,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
   } else if (t.isAfter(now.subtract(1, "month"))) {
     circle = <Circle color={theme.palette.warning.light} />
   } else if (t.isAfter(now.subtract(100, "year"))) {
-    circle = <Circle color={colors.red[10]} />
+    circle = <Circle color={theme.palette.error.main} />
   } else {
     // color = theme.palette.error.light
     message = "Never"

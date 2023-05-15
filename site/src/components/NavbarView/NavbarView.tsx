@@ -7,7 +7,6 @@ import MenuIcon from "@mui/icons-material/Menu"
 import { CoderIcon } from "components/Icons/CoderIcon"
 import { useState } from "react"
 import { NavLink, useLocation } from "react-router-dom"
-import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
 import { combineClasses } from "../../utils/combineClasses"
@@ -228,7 +227,7 @@ const useStyles = makeStyles((theme) => ({
   },
   link: {
     alignItems: "center",
-    color: colors.gray[6],
+    color: theme.palette.text.secondary,
     display: "flex",
     flex: 1,
     fontSize: 16,

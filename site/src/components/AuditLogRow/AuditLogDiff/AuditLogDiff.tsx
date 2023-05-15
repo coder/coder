@@ -1,6 +1,5 @@
 import { makeStyles } from "@mui/styles"
 import { AuditLog } from "api/typesGenerated"
-import { colors } from "theme/colors"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "utils/combineClasses"
 import { FC } from "react"
@@ -126,10 +125,10 @@ const useStyles = makeStyles((theme) => ({
   },
 
   diffValueOld: {
-    backgroundColor: colors.red[12],
+    backgroundColor: theme.palette.error.main,
   },
 
   diffValueNew: {
-    backgroundColor: colors.green[12],
+    backgroundColor: theme.palette.success.main,
   },
 }))

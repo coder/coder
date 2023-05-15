@@ -23,7 +23,6 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { FixedSizeList as List, ListOnScrollProps } from "react-window"
-import { colors } from "theme/colors"
 import { combineClasses } from "utils/combineClasses"
 import {
   LineWithID,
@@ -567,7 +566,7 @@ const useStyles = makeStyles((theme) => ({
 
     "&:hover": {
       color: theme.palette.text.primary,
-      backgroundColor: colors.gray[14],
+      backgroundColor: theme.palette.action.hover,
     },
 
     "& svg": {
