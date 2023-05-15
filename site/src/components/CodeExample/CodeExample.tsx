@@ -11,6 +11,7 @@ export interface CodeExampleProps {
   buttonClassName?: string
   tooltipTitle?: string
   inline?: boolean
+  password?: boolean
 }
 
 /**
@@ -39,6 +40,7 @@ export const CodeExample: FC<React.PropsWithChildren<CodeExampleProps>> = ({
 
 interface styleProps {
   inline?: boolean
+  password?: boolean
 }
 
 const useStyles = makeStyles<Theme, styleProps>((theme) => ({
@@ -61,5 +63,6 @@ const useStyles = makeStyles<Theme, styleProps>((theme) => ({
     display: "flex",
     alignItems: "center",
     wordBreak: "break-all",
+    "-webkit-text-security": (props) => (props.password ? "disc" : undefined),
   },
 }))
