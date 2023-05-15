@@ -27,7 +27,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
         <strong className={styles.lineBreak}>paste it in your terminal</strong>.
       </p>
 
-      <CodeExample code={sessionToken} />
+      <CodeExample code={sessionToken} password />
 
       <div className={styles.links}>
         <Button component={RouterLink} size="large" to="/workspaces" fullWidth>
