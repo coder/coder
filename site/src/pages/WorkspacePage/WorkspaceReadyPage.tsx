@@ -79,6 +79,7 @@ export const WorkspaceReadyPage = ({
     enabled: changeVersionDialogOpen,
   })
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false)
+  const [isConfirmingRestart, setIsConfirmingRestart] = useState(false)
 
   const {
     mutate: restartWorkspace,
@@ -133,7 +134,7 @@ export const WorkspaceReadyPage = ({
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
-        handleRestart={() => restartWorkspace(workspace)}
+        handleRestart={() => setIsConfirmingRestart(true)}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => setIsConfirmingUpdate(true)}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
@@ -214,6 +215,20 @@ export const WorkspaceReadyPage = ({
         title="Confirm update"
         confirmText="Update"
         description="Are you sure you want to update your workspace? Updating your workspace will stop all running processes and delete non-persistent data."
+      />
+
+      <ConfirmDialog
+        type="info"
+        hideCancel={false}
+        open={isConfirmingRestart}
+        onConfirm={() => {
+          restartWorkspace(workspace)
+          setIsConfirmingRestart(false)
+        }}
+        onClose={() => setIsConfirmingRestart(false)}
+        title="Confirm restart"
+        confirmText="Restart"
+        description="Are you sure you want to restart your workspace? Updating your workspace will stop all running processes and delete non-persistent data."
       />
     </>
   )
