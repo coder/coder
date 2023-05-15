@@ -94,15 +94,11 @@ export type WorkspaceStatusBadgeProps = {
 }
 
 const ImpendingDeletionBadge: FC<
-  PropsWithChildren<Partial<WorkspaceStatusBadgeProps>>
-> = ({ className }) => {
-  const { entitlements, experiments } = useDashboard()
-  const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled
-  // This check can be removed when https://github.com/coder/coder/milestone/19
-  // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions")
-
+  Partial<WorkspaceStatusBadgeProps> & {
+    allowAdvancedScheduling: boolean
+    allowWorkspaceActions: boolean
+  }
+> = ({ allowAdvancedScheduling, allowWorkspaceActions, className }) => {
   if (!allowAdvancedScheduling || !allowWorkspaceActions) {
     return null
   }
@@ -119,8 +115,21 @@ const ImpendingDeletionBadge: FC<
 export const WorkspaceStatusBadge: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ workspace, className }) => {
+  const { entitlements, experiments } = useDashboard()
+  const allowAdvancedScheduling =
+    entitlements.features["advanced_template_scheduling"].enabled
+  // This check can be removed when https://github.com/coder/coder/milestone/19
+  // is merged up
+  const allowWorkspaceActions = experiments.includes("workspace_actions")
+
   if (displayImpendingDeletion(workspace)) {
-    return <ImpendingDeletionBadge className={className} />
+    return (
+      <ImpendingDeletionBadge
+        className={className}
+        allowAdvancedScheduling={allowAdvancedScheduling}
+        allowWorkspaceActions={allowWorkspaceActions}
+      />
+    )
   }
 
   const { text, icon, type } = getStatus(workspace.latest_build.status)
