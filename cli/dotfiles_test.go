@@ -116,6 +116,17 @@ func TestDotfiles(t *testing.T) {
 		b, err = os.ReadFile(filepath.Join(string(root), ".bashrc.bak"))
 		require.NoError(t, err)
 		require.Equal(t, string(b), "backup")
+
+		// check for idempotency
+		inv, _ = clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
+		err = inv.Run()
+		require.NoError(t, err)
+		b, err = os.ReadFile(filepath.Join(string(root), ".bashrc"))
+		require.NoError(t, err)
+		require.Equal(t, string(b), "wow")
+		b, err = os.ReadFile(filepath.Join(string(root), ".bashrc.bak"))
+		require.NoError(t, err)
+		require.Equal(t, string(b), "backup")
 	})
 }
 
