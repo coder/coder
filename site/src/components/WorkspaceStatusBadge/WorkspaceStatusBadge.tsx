@@ -93,9 +93,9 @@ export type WorkspaceStatusBadgeProps = {
   className?: string
 }
 
-const ImpendingDeletionBadge: FC<
-  PropsWithChildren<Partial<WorkspaceStatusBadgeProps>>
-> = ({ className }) => {
+const ImpendingDeletionBadge: FC<Partial<WorkspaceStatusBadgeProps>> = ({
+  className,
+}) => {
   const { entitlements, experiments } = useDashboard()
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled
@@ -119,6 +119,9 @@ const ImpendingDeletionBadge: FC<
 export const WorkspaceStatusBadge: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ workspace, className }) => {
+  // The ImpendingDeletionBadge component itself checks to see if the
+  // Advanced Scheduling feature is turned on and if the
+  // Workspace Actions flag is turned on.
   if (displayImpendingDeletion(workspace)) {
     return <ImpendingDeletionBadge className={className} />
   }
