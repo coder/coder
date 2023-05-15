@@ -72,7 +72,7 @@ const useStyles = makeStyles((theme) => ({
     // It also give a more pleasant distance to the site content when
     // the banner is visible.
     marginTop: theme.spacing(2),
-    marginBottom: -theme.spacing(2),
+    marginBottom: theme.spacing(-2),
   },
   siteContent: {
     flex: 1,

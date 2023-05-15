@@ -54,7 +54,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
   )
 }
 
-export type RichParameterInputProps = TextFieldProps & {
+export type RichParameterInputProps = Omit<TextFieldProps, "onChange"> & {
   index: number
   parameter: TemplateVersionParameter
   onChange: (value: string) => void

@@ -73,7 +73,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   menuItem: {
-    letterSpacing: -theme.spacing(0.0375),
+    letterSpacing: theme.spacing(-0.0375),
     padding: 0,
     fontSize: 18,
     color: theme.palette.text.secondary,
