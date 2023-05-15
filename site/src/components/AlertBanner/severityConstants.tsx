@@ -8,21 +8,21 @@ export const severityConstants: Record<Severity, { icon: ReactElement }> = {
   warning: {
     icon: (
       <ReportProblemOutlinedIcon
-        sx={{ color: (theme) => theme.palette.warning.main, fontSize: 16 }}
+        sx={{ color: (theme) => theme.palette.warning.light, fontSize: 16 }}
       />
     ),
   },
   error: {
     icon: (
       <ErrorOutlineOutlinedIcon
-        sx={{ color: (theme) => theme.palette.error.main, fontSize: 16 }}
+        sx={{ color: (theme) => theme.palette.error.light, fontSize: 16 }}
       />
     ),
   },
   info: {
     icon: (
       <InfoOutlinedIcon
-        sx={{ color: (theme) => theme.palette.info.main, fontSize: 16 }}
+        sx={{ color: (theme) => theme.palette.info.light, fontSize: 16 }}
       />
     ),
   },
