@@ -95,48 +95,75 @@ resource "coder_agent" "dev" {
 
   metadata {
     display_name = "CPU Usage"
-    key          = "cpu"
+    interval     = 10
+    timeout      = 1
+    key          = "0_cpu_usage"
+    script       = <<EOT
+      #!/bin/bash
+      # interval in microseconds should be metadata.interval * 1000000
+      interval=10000000
+      ncores=$(nproc)
+      cusage_p=$(cat /tmp/cusage || echo 0)
+      cusage=$(cat /sys/fs/cgroup/cpu.stat | head -n 1 | awk '{ print $2 }') && echo "$cusage $cusage_p $interval $ncores" | awk '{ printf "%2.0f%%\n", (($1 - $2)/$3/$4)*100 }'
+      echo $cusage > /tmp/cusage
+      EOT
+  }
+
+  metadata {
+    display_name = "RAM Usage"
+    interval     = 10
+    timeout      = 1
+    key          = "1_ram_usage"
+    script       = <<EOT
+      #!/bin/bash
+      echo "`cat /sys/fs/cgroup/memory.current` `cat /sys/fs/cgroup/memory.max`" | awk '{ used=$1/1024/1024/1024; total=$2/1024/1024/1024; printf "%0.2f / %0.2f GB\n", used, total }'
+      EOT
+  }
+
+
+  metadata {
+    display_name = "CPU Usage (Host)"
+    key          = "2_cpu_host"
     script       = <<EOT
     vmstat | awk 'FNR==3 {printf "%2.0f%%", $13+$14+$16}'
     EOT
-    interval     = 1
+    interval     = 10
     timeout      = 1
   }
 
   metadata {
-    display_name = "Load Average"
-    key          = "load"
-    script       = "awk '{print $1}' /proc/loadavg"
-    interval     = 1
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "Disk Usage"
-    key          = "disk"
-    script       = "df -h | awk '$6 ~ /^\\/$/ { print $5 }'"
-    interval     = 1
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "Memory Usage"
-    key          = "mem"
+    display_name = "Memory Usage (Host)"
+    key          = "3_mem_host"
     script       = <<EOT
-	free | awk '/^Mem/ { printf("%.0f%%", $4/$2 * 100.0) }'
-	EOT
-    interval     = 1
+      free | awk '/^Mem/ { printf("%.0f%%", $4/$2 * 100.0) }'
+      EOT
+    interval     = 10
     timeout      = 1
   }
 
+  metadata {
+    display_name = "Load Average (Host)"
+    key          = "4_load_host"
+    script       = "awk '{print $1}' /proc/loadavg"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "Disk Usage (Host)"
+    key          = "5_disk_host"
+    script       = "df -h | awk '$6 ~ /^\\/$/ { print $5 }'"
+    interval     = 600
+    timeout      = 10 #getting disk usage can take a while
+  }
 
   metadata {
     display_name = "Word of the Day"
-    key          = "word"
+    key          = "6_word"
     script       = <<EOT
-	curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
-	EOT
-    interval     = 60
+      curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
+    EOT
+    interval     = 86400
     timeout      = 5
   }
 
