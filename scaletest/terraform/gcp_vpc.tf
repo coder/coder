@@ -1,6 +1,6 @@
 resource "google_compute_network" "vpc" {
   project                 = var.project_id
-  name                    = "${var.name}-vpc"
+  name                    = var.name
   auto_create_subnetworks = "false"
   depends_on = [
     google_project_service.api["compute.googleapis.com"]
@@ -8,7 +8,7 @@ resource "google_compute_network" "vpc" {
 }
 
 resource "google_compute_subnetwork" "subnet" {
-  name          = "${var.name}-subnet"
+  name          = var.name
   project       = var.project_id
   region        = var.region
   network       = google_compute_network.vpc.name

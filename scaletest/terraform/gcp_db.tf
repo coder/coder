@@ -1,14 +1,5 @@
-data "google_compute_network" "default" {
-  project = var.project_id
-  name    = "default"
-}
-
-data "google_compute_global_address" "sql_peering" {
-  name = "sql-ip-address"
-}
-
 resource "google_sql_database_instance" "db" {
-  name                = "${var.name}-db"
+  name                = var.name
   region              = var.region
   database_version    = var.cloudsql_version
   deletion_protection = false
@@ -26,7 +17,7 @@ resource "google_sql_database_instance" "db" {
 
     database_flags {
       name  = "max_connections"
-      value = "500"
+      value = var.cloudsql_max_connections
     }
 
     ip_configuration {

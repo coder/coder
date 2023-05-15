@@ -87,6 +87,11 @@ variable "cloudsql_tier" {
   default     = "db-f1-micro"
 }
 
+variable "cloudsql_max_connections" {
+  description = "CloudSQL database max_connections"
+  default = 500
+}
+
 // These variables control the Coder deployment.
 variable "coder_replicas" {
   description = "Number of Coder replicas to provision"

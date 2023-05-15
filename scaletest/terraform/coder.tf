@@ -3,7 +3,7 @@ data "google_client_config" "default" {}
 locals {
   coder_helm_repo    = "https://helm.coder.com/v2"
   coder_helm_chart   = "coder"
-  coder_release_name = "coder-${var.name}"
+  coder_release_name = var.name
   coder_namespace    = "coder-${var.name}"
   coder_admin_email  = "admin@coder.com"
   coder_admin_user   = "coder"
@@ -234,21 +234,6 @@ resource "local_file" "kubernetes_template" {
                   key = "cloud.google.com/gke-nodepool"
                   operator = "In"
                   values = ["${google_container_node_pool.workspaces.name}"]
-                }
-              }
-            }
-          }
-          pod_affinity {
-            preferred_during_scheduling_ignored_during_execution {
-              weight = 1
-              pod_affinity_term {
-                topology_key = "kubernetes.io/hostname"
-                label_selector {
-                  match_expressions {
-                    key      = "app.kubernetes.io/name"
-                    operator = "In"
-                    values   = ["coder-workspace"]
-                  }
                 }
               }
             }

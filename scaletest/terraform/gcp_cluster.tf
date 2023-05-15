@@ -3,7 +3,7 @@ data "google_compute_default_service_account" "default" {
 }
 
 resource "google_container_cluster" "primary" {
-  name            = "${var.name}-cluster"
+  name            = var.name
   location        = var.zone
   project         = var.project_id
   network         = google_compute_network.vpc.name
@@ -35,7 +35,7 @@ resource "google_container_cluster" "primary" {
 }
 
 resource "google_container_node_pool" "coder" {
-  name       = "${var.name}-node-pool-coder"
+  name       = "${var.name}-coder"
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
@@ -62,14 +62,10 @@ resource "google_container_node_pool" "coder" {
       disable-legacy-endpoints = "true"
     }
   }
-
-  depends_on = [
-    google_container_cluster.primary
-  ]
 }
 
 resource "google_container_node_pool" "workspaces" {
-  name       = "${var.name}-node-pool-workspaces"
+  name       = "${var.name}-workspaces"
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
@@ -96,14 +92,10 @@ resource "google_container_node_pool" "workspaces" {
       disable-legacy-endpoints = "true"
     }
   }
-
-  depends_on = [
-    google_container_cluster.primary
-  ]
 }
 
 resource "google_container_node_pool" "misc" {
-  name       = "${var.name}-node-pool-misc"
+  name       = "${var.name}-misc"
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
@@ -130,8 +122,4 @@ resource "google_container_node_pool" "misc" {
       disable-legacy-endpoints = "true"
     }
   }
-
-  depends_on = [
-    google_container_cluster.primary
-  ]
 }
