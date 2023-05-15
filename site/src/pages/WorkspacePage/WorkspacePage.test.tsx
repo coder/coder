@@ -161,10 +161,19 @@ describe("WorkspacePage", () => {
       .spyOn(api, "stopWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
 
-    await testButton("Restart", stopWorkspaceMock)
+    // Render
+    await renderWorkspacePage()
 
-    const button = await screen.findByText("Restarting")
-    expect(button).toBeInTheDocument()
+    // Actions
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId("workspace-restart-button"))
+    const confirmButton = await screen.findByTestId("confirm-button")
+    await user.click(confirmButton)
+
+    // Assertions
+    await waitFor(() => {
+      expect(stopWorkspaceMock).toBeCalled()
+    })
   })
 
   it("requests cancellation when the user presses Cancel", async () => {
