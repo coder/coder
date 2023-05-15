@@ -29,7 +29,7 @@ const (
 	WorkspaceStatusStopped   WorkspaceStatus = "stopped"
 	WorkspaceStatusFailed    WorkspaceStatus = "failed"
 	WorkspaceStatusCanceling WorkspaceStatus = "canceling"
-	WorkspaceStatusCanceled  WorkspaceStatus = "canceled" //
+	WorkspaceStatusCanceled  WorkspaceStatus = "canceled"
 	WorkspaceStatusDeleting  WorkspaceStatus = "deleting"
 	WorkspaceStatusDeleted   WorkspaceStatus = "deleted"
 )
