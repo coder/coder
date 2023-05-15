@@ -59,7 +59,12 @@ export const RestartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   const { t } = useTranslation("workspacePage")
 
   return (
-    <Button size="small" startIcon={<ReplayIcon />} onClick={handleAction}>
+    <Button
+      size="small"
+      startIcon={<ReplayIcon />}
+      onClick={handleAction}
+      data-testid="workspace-restart-button"
+    >
       {t("actionButton.restart")}
     </Button>
   )
