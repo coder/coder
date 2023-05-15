@@ -89,7 +89,7 @@ variable "cloudsql_tier" {
 
 variable "cloudsql_max_connections" {
   description = "CloudSQL database max_connections"
-  default = 500
+  default     = 500
 }
 
 // These variables control the Coder deployment.
