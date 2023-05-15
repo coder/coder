@@ -14,8 +14,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -896,13 +900,14 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
-		tickInterval    time.Duration
-		bytesPerTick    int64
-		client          = &codersdk.Client{}
-		tracingFlags    = &scaletestTracingFlags{}
-		strategy        = &scaletestStrategyFlags{}
-		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
-		output          = &scaletestOutputFlags{}
+		tickInterval      time.Duration
+		bytesPerTick      int64
+		prometheusAddress string
+		client            = &codersdk.Client{}
+		tracingFlags      = &scaletestTracingFlags{}
+		strategy          = &scaletestStrategyFlags{}
+		cleanupStrategy   = &scaletestStrategyFlags{cleanup: true}
+		output            = &scaletestOutputFlags{}
 	)
 
 	cmd := &clibase.Cmd{
@@ -913,6 +918,12 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
+			reg := prometheus.NewRegistry()
+			metrics := workspacetraffic.NewMetrics(reg)
+
+			logger := slog.Make(sloghuman.Sink(io.Discard))
+			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
+			defer prometheusSrvClose()
 
 			// Bypass rate limiting
 			client.HTTPClient = &http.Client{
@@ -955,9 +966,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 			for idx, ws := range workspaces {
 				var (
-					agentID uuid.UUID
-					name    = "workspace-traffic"
-					id      = strconv.Itoa(idx)
+					agentID   uuid.UUID
+					agentName string
+					name      = "workspace-traffic"
+					id        = strconv.Itoa(idx)
 				)
 
 				for _, res := range ws.LatestBuild.Resources {
@@ -965,6 +977,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 						continue
 					}
 					agentID = res.Agents[0].ID
+					agentName = res.Agents[0].Name
 				}
 
 				if agentID == uuid.Nil {
@@ -974,16 +987,19 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
-					AgentID:      agentID,
-					BytesPerTick: bytesPerTick,
-					Duration:     strategy.timeout,
-					TickInterval: tickInterval,
+					AgentID:        agentID,
+					AgentName:      agentName,
+					BytesPerTick:   bytesPerTick,
+					Duration:       strategy.timeout,
+					TickInterval:   tickInterval,
+					WorkspaceName:  ws.Name,
+					WorkspaceOwner: ws.OwnerName,
 				}
 
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
 				}
-				var runner harness.Runnable = workspacetraffic.NewRunner(client, config)
+				var runner harness.Runnable = workspacetraffic.NewRunner(client, config, metrics)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -1033,6 +1049,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Default:     "100ms",
 			Description: "How often to send traffic.",
 			Value:       clibase.DurationOf(&tickInterval),
+		},
+		{
+			Flag:        "prometheus-address",
+			Env:         "CODER_SCALETEST_PROMETHEUS_ADDRESS",
+			Default:     "0.0.0.0:2112",
+			Description: "Address on which to expose prometheus metrics.",
+			Value:       clibase.StringOf(&prometheusAddress),
 		},
 	}
 

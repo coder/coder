@@ -150,7 +150,7 @@ resource "null_resource" "coder-monitoring-manifest_apply" {
   provisioner "local-exec" {
     working_dir = "${abspath(path.module)}/.coderv2"
     command     = <<EOF
-KUBECONFIG=${var.name}-cluster.kubeconfig gcloud container clusters get-credentials ${var.name}-cluster --project=${var.project_id} --zone=${var.zone} && \
+KUBECONFIG=${var.name}-cluster.kubeconfig gcloud container clusters get-credentials ${google_container_cluster.primary.name} --project=${var.project_id} --zone=${var.zone} && \
 KUBECONFIG=${var.name}-cluster.kubeconfig kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
     EOF
   }

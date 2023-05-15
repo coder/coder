@@ -22,8 +22,9 @@ import (
 )
 
 type Runner struct {
-	client *codersdk.Client
-	cfg    Config
+	client  *codersdk.Client
+	cfg     Config
+	metrics *Metrics
 }
 
 var (
@@ -31,10 +32,11 @@ var (
 	_ harness.Cleanable = &Runner{}
 )
 
-func NewRunner(client *codersdk.Client, cfg Config) *Runner {
+func NewRunner(client *codersdk.Client, cfg Config, metrics *Metrics) *Runner {
 	return &Runner{
-		client: client,
-		cfg:    cfg,
+		client:  client,
+		cfg:     cfg,
+		metrics: metrics,
 	}
 }
 
@@ -186,20 +188,28 @@ type countReadWriter struct {
 	io.ReadWriter
 	bytesRead    atomic.Int64
 	bytesWritten atomic.Int64
+	metrics      Metrics
+	labels       []string
 }
 
 func (w *countReadWriter) Read(p []byte) (int, error) {
+	start := time.Now()
 	n, err := w.ReadWriter.Read(p)
-	if err == nil {
+	w.metrics.ReadLatencyMS.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
+	if n > 0 {
 		w.bytesRead.Add(int64(n))
+		w.metrics.BytesRead.WithLabelValues(w.labels...).Add(float64(n))
 	}
 	return n, err
 }
 
 func (w *countReadWriter) Write(p []byte) (int, error) {
+	start := time.Now()
 	n, err := w.ReadWriter.Write(p)
-	if err == nil {
+	w.metrics.WriteLatencyMS.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
+	if n > 0 {
 		w.bytesWritten.Add(int64(n))
+		w.metrics.BytesWritten.WithLabelValues(w.labels...).Add(float64(n))
 	}
 	return n, err
 }
