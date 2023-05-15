@@ -126,6 +126,9 @@ dark = createTheme(dark, {
           height: BUTTON_MD_HEIGHT,
           padding: theme.spacing(1, 2),
           whiteSpace: "nowrap",
+          ":focus-visible": {
+            outline: `2px solid ${theme.palette.primary.main}`,
+          },
         }),
         sizeSmall: {
           borderRadius: 6,
