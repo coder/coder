@@ -762,7 +762,6 @@ export const MockWorkspace: TypesGen.Workspace = {
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
   last_used_at: "2022-05-16T15:29:10.302441433Z",
-  deleting_at: "0001-01-01T00:00:00Z",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {

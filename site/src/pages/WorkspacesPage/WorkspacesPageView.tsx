@@ -58,6 +58,10 @@ export const WorkspacesPageView: FC<
       query: workspaceFilterQuery.running,
       name: Language.runningWorkspacesButton,
     },
+    {
+      query: workspaceFilterQuery.failed,
+      name: "Failed workspaces",
+    },
   ]
 
   return (

@@ -3,12 +3,14 @@ import ErrorIcon from "@mui/icons-material/ErrorOutline"
 import StopIcon from "@mui/icons-material/StopOutlined"
 import PlayIcon from "@mui/icons-material/PlayArrowOutlined"
 import QueuedIcon from "@mui/icons-material/HourglassEmpty"
-import { WorkspaceBuild } from "api/typesGenerated"
+import { Workspace, WorkspaceBuild } from "api/typesGenerated"
 import { Pill } from "components/Pill/Pill"
 import i18next from "i18next"
 import { FC, PropsWithChildren } from "react"
 import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
+import { displayImpendingDeletion } from "utils/workspace"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const LoadingIcon: FC = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
@@ -87,22 +89,52 @@ export const getStatus = (buildStatus: WorkspaceBuild["status"]) => {
 }
 
 export type WorkspaceStatusBadgeProps = {
-  build: WorkspaceBuild
+  workspace: Workspace
   className?: string
+}
+
+const ImpendingDeletionBadge: FC<Partial<WorkspaceStatusBadgeProps>> = ({
+  className,
+}) => {
+  const { entitlements, experiments } = useDashboard()
+  const allowAdvancedScheduling =
+    entitlements.features["advanced_template_scheduling"].enabled
+  // This check can be removed when https://github.com/coder/coder/milestone/19
+  // is merged up
+  const allowWorkspaceActions = experiments.includes("workspace_actions")
+
+  if (!allowAdvancedScheduling || !allowWorkspaceActions) {
+    return null
+  }
+  return (
+    <Pill
+      className={className}
+      icon={<ErrorIcon />}
+      text="Impending deletion"
+      type="error"
+    />
+  )
 }
 
 export const WorkspaceStatusBadge: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
-> = ({ build, className }) => {
-  const { text, icon, type } = getStatus(build.status)
+> = ({ workspace, className }) => {
+  // The ImpendingDeletionBadge component itself checks to see if the
+  // Advanced Scheduling feature is turned on and if the
+  // Workspace Actions flag is turned on.
+  if (displayImpendingDeletion(workspace)) {
+    return <ImpendingDeletionBadge className={className} />
+  }
+
+  const { text, icon, type } = getStatus(workspace.latest_build.status)
   return <Pill className={className} icon={icon} text={text} type={type} />
 }
 
 export const WorkspaceStatusText: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
-> = ({ build, className }) => {
+> = ({ workspace, className }) => {
   const styles = useStyles()
-  const { text, type } = getStatus(build.status)
+  const { text, type } = getStatus(workspace.latest_build.status)
   return (
     <span
       role="status"
