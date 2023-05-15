@@ -1,6 +1,6 @@
+import { colors } from "./colors"
 import { ThemeOptions, createTheme, Theme } from "@mui/material/styles"
 import { BODY_FONT_FAMILY, borderRadius } from "./constants"
-import { blueGrey } from "@mui/material/colors"
 
 // MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
 const BUTTON_LG_HEIGHT = 46
@@ -16,12 +16,67 @@ export type PaletteStatusIndex = Extract<
 export let dark = createTheme({
   palette: {
     mode: "dark",
+    primary: {
+      main: colors.blue[7],
+      contrastText: colors.blue[1],
+      light: colors.blue[6],
+      dark: colors.blue[9],
+    },
+    secondary: {
+      main: colors.gray[11],
+      contrastText: colors.gray[4],
+      dark: colors.indigo[7],
+    },
+    background: {
+      default: colors.gray[17],
+      paper: colors.gray[16],
+      paperLight: colors.gray[15],
+    },
+    text: {
+      primary: colors.gray[1],
+      secondary: colors.gray[5],
+      disabled: colors.gray[7],
+    },
+    divider: colors.gray[13],
+    warning: {
+      light: colors.orange[7],
+      main: colors.orange[11],
+      dark: colors.orange[15],
+    },
+    success: {
+      main: colors.green[11],
+      dark: colors.green[15],
+    },
+    info: {
+      main: colors.blue[11],
+      dark: colors.blue[15],
+      contrastText: colors.gray[4],
+    },
+    error: {
+      main: colors.red[5],
+      dark: colors.red[15],
+      contrastText: colors.gray[4],
+    },
+    action: {
+      hover: colors.gray[14],
+    },
     neutral: {
-      main: blueGrey[50],
+      main: colors.gray[1],
     },
   },
   typography: {
     fontFamily: BODY_FONT_FAMILY,
+    body1: {
+      fontSize: 16,
+      lineHeight: "24px",
+    },
+    body2: {
+      fontSize: 14,
+      lineHeight: "20px",
+    },
+  },
+  shape: {
+    borderRadius,
   },
 })
 
@@ -47,6 +102,9 @@ dark = createTheme(dark, {
           "& .MuiSvgIcon-root": {
             width: "50%",
           },
+        },
+        colorDefault: {
+          backgroundColor: colors.gray[6],
         },
       },
     },
@@ -77,13 +135,13 @@ dark = createTheme(dark, {
           height: BUTTON_LG_HEIGHT,
         },
         outlinedNeutral: {
-          //borderColor: colors.gray[12],
+          borderColor: colors.gray[12],
         },
         containedNeutral: {
-          //borderColor: colors.gray[12],
-          //backgroundColor: colors.gray[13],
+          borderColor: colors.gray[12],
+          backgroundColor: colors.gray[13],
           "&:hover": {
-            //backgroundColor: colors.gray[12],
+            backgroundColor: colors.gray[12],
           },
         },
         iconSizeMedium: {
@@ -191,7 +249,13 @@ dark = createTheme(dark, {
         },
       },
     },
-
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          backgroundColor: colors.gray[12],
+        },
+      },
+    },
     MuiMenu: {
       defaultProps: {
         anchorOrigin: {
