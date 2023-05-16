@@ -212,17 +212,17 @@ RUN systemctl enable \
 
 # Install tools with published releases, where that is the
 # preferred/recommended installation method.
-ARG CLOUD_SQL_PROXY_VERSION=1.26.0 \
+ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	DIVE_VERSION=0.10.0 \
-	DOCKER_GCR_VERSION=2.1.0 \
+	DOCKER_GCR_VERSION=2.1.8 \
 	GOLANGCI_LINT_VERSION=1.51.0 \
-	GRYPE_VERSION=0.24.0 \
-	HELM_VERSION=3.8.0 \
-	KUBE_LINTER_VERSION=0.2.5 \
+	GRYPE_VERSION=0.61.1 \
+	HELM_VERSION=3.12.0 \
+	KUBE_LINTER_VERSION=0.6.3 \
 	KUBECTX_VERSION=0.9.4 \
-	STRIPE_VERSION=1.7.4 \
-	TERRAGRUNT_VERSION=0.34.1 \
-	TRIVY_VERSION=0.23.0
+	STRIPE_VERSION=1.14.5 \
+	TERRAGRUNT_VERSION=0.45.11 \
+	TRIVY_VERSION=0.41.0
 
 # cloud_sql_proxy, for connecting to cloudsql instances
 # the upstream go.mod prevents this from being installed with go install
