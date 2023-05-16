@@ -61,6 +61,16 @@ const (
 	// Only owners can bypass rate limits. This is typically used for scale testing.
 	// nolint: gosec
 	BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit"
+
+	// Note: the use of X- prefix is deprecated, and we should eventually remove
+	// it from BypassRatelimitHeader.
+	//
+	// See: https://datatracker.ietf.org/doc/html/rfc6648.
+
+	// CLIInvokableHeader contains a base64-encoded representation of the CLI
+	// command that was invoked to produce the request. It is for internal use
+	// only and should not be relied upon.
+	CLITelemetryHeader = "Coder-CLI-Telemetry"
 )
 
 // loggableMimeTypes is a list of MIME types that are safe to log

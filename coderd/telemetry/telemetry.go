@@ -700,7 +700,7 @@ type Snapshot struct {
 	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
-	CLIInvokations            []CLIInvocation             `json:"cli_invocations"`
+	CLIInvocations            []CLIInvocation             `json:"cli_invocations"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -881,8 +881,8 @@ type CLIOption struct {
 }
 
 type CLIInvocation struct {
-	Command string `json:"command"`
-	Options []CLIOption
+	Command string      `json:"command"`
+	Options []CLIOption `json:"options"`
 }
 
 type noopReporter struct{}

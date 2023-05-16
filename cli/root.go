@@ -431,7 +431,7 @@ type RootCmd struct {
 func telemetryInvocation(i *clibase.Invocation) telemetry.CLIInvocation {
 	var topts []telemetry.CLIOption
 	for _, opt := range i.Command.FullOptions() {
-		if opt.Value.String() == opt.Default {
+		if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
 			continue
 		}
 		topts = append(topts, telemetry.CLIOption{
@@ -493,7 +493,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 			}
 			err = r.setClient(
 				client, r.clientURL,
-				append(r.header, "Coder-CLI-Invokation="+
+				append(r.header, codersdk.CLITelemetryHeader+"="+
 					base64.StdEncoding.EncodeToString(byt),
 				),
 			)
