@@ -36,7 +36,8 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230509173035-f4cdcfb4826e
+// replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230509173035-f4cdcfb4826e
+replace tailscale.com => /home/coder/tailscale
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -171,7 +172,7 @@ require (
 	gvisor.dev/gvisor v0.0.0-20230328175328-162ed5ef888d
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
-	tailscale.com v1.38.4
+	tailscale.com v1.40.0
 )
 
 require (

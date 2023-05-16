@@ -21,6 +21,7 @@ import (
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/connstats"
 	"tailscale.com/net/dns"
+	"tailscale.com/net/netmon"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsdial"
 	"tailscale.com/net/tstun"
@@ -33,7 +34,6 @@ import (
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/filter"
 	"tailscale.com/wgengine/magicsock"
-	"tailscale.com/wgengine/monitor"
 	"tailscale.com/wgengine/netstack"
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg/nmcfg"
@@ -127,7 +127,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		AllowedIPs: options.Addresses,
 	}
 
-	wireguardMonitor, err := monitor.New(Logger(options.Logger.Named("wgmonitor")))
+	wireguardMonitor, err := netmon.New(Logger(options.Logger.Named("wgmonitor")))
 	if err != nil {
 		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
 	}
@@ -141,9 +141,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		Logf: Logger(options.Logger.Named("tsdial")),
 	}
 	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("wgengine")), wgengine.Config{
-		LinkMonitor: wireguardMonitor,
-		Dialer:      dialer,
-		ListenPort:  options.ListenPort,
+		NetMon:     wireguardMonitor,
+		Dialer:     dialer,
+		ListenPort: options.ListenPort,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
@@ -312,7 +312,7 @@ type Conn struct {
 	netMap           *netmap.NetworkMap
 	netStack         *netstack.Impl
 	magicConn        *magicsock.Conn
-	wireguardMonitor *monitor.Mon
+	wireguardMonitor *netmon.Monitor
 	wireguardRouter  *router.Config
 	wireguardEngine  wgengine.Engine
 	listeners        map[listenKey]*listener
@@ -389,6 +389,11 @@ func (c *Conn) RemoveAllPeers() error {
 func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
+	if c.isClosed() {
+		return xerrors.New("connection closed")
+	}
+
 	status := c.Status()
 	if replacePeers {
 		c.netMap.Peers = []*tailcfg.Node{}
