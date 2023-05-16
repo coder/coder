@@ -883,6 +883,8 @@ type CLIOption struct {
 type CLIInvocation struct {
 	Command string      `json:"command"`
 	Options []CLIOption `json:"options"`
+	// InvokedAt is provided for deduplication purposes.
+	InvokedAt time.Time `json:"invoked_at"`
 }
 
 type noopReporter struct{}

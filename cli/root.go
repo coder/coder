@@ -440,8 +440,9 @@ func telemetryInvocation(i *clibase.Invocation) telemetry.CLIInvocation {
 		})
 	}
 	return telemetry.CLIInvocation{
-		Command: i.Command.FullName(),
-		Options: topts,
+		Command:   i.Command.FullName(),
+		Options:   topts,
+		InvokedAt: time.Now(),
 	}
 }
 
