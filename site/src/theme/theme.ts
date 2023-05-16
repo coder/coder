@@ -326,6 +326,12 @@ dark = createTheme(dark, {
         multiline: {
           height: "auto",
         },
+        colorPrimary: {
+          // The default outlined input color is white, which seemed jarring.
+          "&:hover:not(.Mui-error) .MuiOutlinedInput-notchedOutline": {
+            borderColor: colors.gray[7],
+          },
+        },
       },
     },
     MuiFormHelperText: {
