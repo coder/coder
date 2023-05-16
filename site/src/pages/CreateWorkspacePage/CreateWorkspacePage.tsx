@@ -98,9 +98,7 @@ const CreateWorkspacePage: FC = () => {
   )
 }
 
-const getName = (
-  urlSearchParams: URLSearchParams,
-): string => {
+const getName = (urlSearchParams: URLSearchParams): string => {
   return urlSearchParams.get("name") ?? ""
 }
 
