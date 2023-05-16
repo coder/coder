@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
@@ -900,14 +901,14 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
-		tickInterval      time.Duration
-		bytesPerTick      int64
-		prometheusAddress string
-		client            = &codersdk.Client{}
-		tracingFlags      = &scaletestTracingFlags{}
-		strategy          = &scaletestStrategyFlags{}
-		cleanupStrategy   = &scaletestStrategyFlags{cleanup: true}
-		output            = &scaletestOutputFlags{}
+		tickInterval               time.Duration
+		bytesPerTick               int64
+		scaletestPrometheusAddress string
+		client                     = &codersdk.Client{}
+		tracingFlags               = &scaletestTracingFlags{}
+		strategy                   = &scaletestStrategyFlags{}
+		cleanupStrategy            = &scaletestStrategyFlags{cleanup: true}
+		output                     = &scaletestOutputFlags{}
 	)
 
 	cmd := &clibase.Cmd{
@@ -922,7 +923,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
 
 			logger := slog.Make(sloghuman.Sink(io.Discard))
-			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), scaletestPrometheusAddress, "prometheus")
 			defer prometheusSrvClose()
 
 			// Bypass rate limiting
@@ -1052,11 +1053,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Value:       clibase.DurationOf(&tickInterval),
 		},
 		{
-			Flag:        "prometheus-address",
+			Flag:        "scaletest-prometheus-address",
 			Env:         "CODER_SCALETEST_PROMETHEUS_ADDRESS",
-			Default:     "0.0.0.0:2112",
-			Description: "Address on which to expose prometheus metrics.",
-			Value:       clibase.StringOf(&prometheusAddress),
+			Default:     "0.0.0.0:21112",
+			Description: "Address on which to expose scaletest prometheus metrics.",
+			Value:       clibase.StringOf(&scaletestPrometheusAddress),
 		},
 	}
 
