@@ -180,11 +180,6 @@ require (
 )
 
 require (
-	github.com/armon/go-radix v1.0.0 // indirect
-	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-)
-
-require (
 	cloud.google.com/go/compute v1.18.0 // indirect
 	cloud.google.com/go/logging v1.6.1 // indirect
 	cloud.google.com/go/longrunning v0.3.0 // indirect
@@ -202,6 +197,8 @@ require (
 	github.com/ammario/tlru v0.3.0
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
+	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/godartsass v0.16.0 // indirect
@@ -223,7 +220,7 @@ require (
 	github.com/elastic/go-windows v1.0.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.4.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/gin-gonic/gin v1.7.7 // indirect
+	github.com/gin-gonic/gin v1.9.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
