@@ -121,9 +121,7 @@ func TestServer(t *testing.T) {
 		)
 
 		const superDuperLong = testutil.WaitSuperLong * 3
-
-		ctx, cancelFunc := context.WithTimeout(context.Background(), superDuperLong)
-		defer cancelFunc()
+		ctx := testutil.Context(t, superDuperLong)
 		clitest.Start(t, inv.WithContext(ctx))
 
 		//nolint:gocritic // Embedded postgres take a while to fire up.
@@ -1431,6 +1429,7 @@ func TestServer(t *testing.T) {
 					wantConfig.Options[i].Name,
 				)
 			}
+			w.Cancel()
 			w.RequireSuccess()
 		})
 	})
