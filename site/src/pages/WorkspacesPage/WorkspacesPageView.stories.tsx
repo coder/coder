@@ -7,10 +7,7 @@ import {
   WorkspaceStatus,
   WorkspaceStatuses,
 } from "../../api/typesGenerated"
-import {
-  MockWorkspace,
-  MockWorkspacesResponseWithDeletions,
-} from "../../testHelpers/entities"
+import { MockWorkspace } from "../../testHelpers/entities"
 import { workspaceFilterQuery } from "../../utils/filters"
 import {
   WorkspacesPageView,
@@ -88,12 +85,4 @@ NoSearchResults.args = {
   workspaces: [],
   filter: "searchtearmwithnoresults",
   count: 0,
-}
-
-export const ImpendingDeletionBanner = Template.bind({})
-ImpendingDeletionBanner.args = {
-  workspaces: MockWorkspacesResponseWithDeletions.workspaces,
-  count: MockWorkspacesResponseWithDeletions.count,
-  allowAdvancedScheduling: true,
-  allowWorkspaceActions: true,
 }
