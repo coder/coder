@@ -23,6 +23,8 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 		queue   []telemetry.CLIInvocation
 	)
 
+	log = log.Named("cli-telemetry")
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			defer next.ServeHTTP(rw, r)
@@ -39,7 +41,7 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 			if err != nil {
 				log.Error(
 					r.Context(),
-					"base64 decode CLI telemetry header",
+					"base64 decode",
 					slog.F("error", err),
 				)
 				return
@@ -50,7 +52,7 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 			if err != nil {
 				log.Error(
 					r.Context(),
-					"unmarshal CLI telemetry header",
+					"unmarshal header",
 					slog.Error(err),
 				)
 				return
@@ -69,7 +71,7 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 				})
 				log.Debug(
 					r.Context(),
-					"reported CLI telemetry", slog.F("count", len(queue)),
+					"report sent", slog.F("count", len(queue)),
 				)
 				queue = queue[:0]
 			}()
