@@ -90,7 +90,7 @@ func TestGenerate(t *testing.T) {
 				LifetimeSeconds:  int64(time.Hour.Seconds()),
 				TokenName:        "hello",
 				RemoteAddr:       "1.2.3.4",
-				Scope:            database.APIKeyScopeApplicationConnect,
+				Scope:            "",
 			},
 		},
 	}
