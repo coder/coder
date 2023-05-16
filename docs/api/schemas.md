@@ -3063,6 +3063,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "scope": "template",
   "scope_id": "5d3fe357-12dd-4f62-b004-6d1fb3b8454f",
   "source_scheme": "none",
+  "source_value": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
@@ -3080,6 +3081,7 @@ Parameter represents a set value for the scope.
 | `scope`              | [codersdk.ParameterScope](#codersdkparameterscope)                         | false    |              |             |
 | `scope_id`           | string                                                                     | false    |              |             |
 | `source_scheme`      | [codersdk.ParameterSourceScheme](#codersdkparametersourcescheme)           | false    |              |             |
+| `source_value`       | string                                                                     | false    |              |             |
 | `updated_at`         | string                                                                     | false    |              |             |
 
 #### Enumerated Values

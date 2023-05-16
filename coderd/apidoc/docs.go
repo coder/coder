@@ -8049,6 +8049,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "source_value": {
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"

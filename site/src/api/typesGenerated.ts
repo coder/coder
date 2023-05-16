@@ -141,7 +141,6 @@ export interface BuildInfoResponse {
 
 // From codersdk/parameters.go
 export interface ComputedParameter extends Parameter {
-  readonly source_value: string
   readonly schema_id: string
   readonly default_source_value: boolean
 }
@@ -589,6 +588,13 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
   readonly created_at: string
   readonly updated_at: string
+  readonly source_value: string
+}
+
+// From codersdk/richparameters.go
+export interface ParameterResolver {
+  readonly Legacy: Parameter[]
+  readonly Rich: WorkspaceBuildParameter[]
 }
 
 // From codersdk/parameters.go
