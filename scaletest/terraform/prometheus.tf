@@ -126,7 +126,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: coder
+      app.kubernetes.io/name: coder-scaletest-workspace-traffic
   podMetricsEndpoints:
   - port: prometheus-http
     interval: 15s
