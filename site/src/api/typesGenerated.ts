@@ -591,12 +591,6 @@ export interface Parameter {
   readonly source_value: string
 }
 
-// From codersdk/richparameters.go
-export interface ParameterResolver {
-  readonly Legacy: Parameter[]
-  readonly Rich: WorkspaceBuildParameter[]
-}
-
 // From codersdk/parameters.go
 export interface ParameterSchema {
   readonly id: string

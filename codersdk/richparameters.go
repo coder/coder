@@ -120,6 +120,7 @@ func validationEnabled(param TemplateVersionParameter) bool {
 // ParameterResolver should be populated with legacy workload and rich parameter values from the previous build.  It then
 // supports queries against a current TemplateVersionParameter to determine whether a new value is required, or a value
 // correctly validates.
+// @typescript-ignore ParameterResolver
 type ParameterResolver struct {
 	Legacy []Parameter
 	Rich   []WorkspaceBuildParameter
