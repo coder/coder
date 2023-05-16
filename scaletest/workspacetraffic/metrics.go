@@ -8,35 +8,36 @@ type Metrics struct {
 	Errors         prometheus.CounterVec
 	ReadLatencyMS  prometheus.HistogramVec
 	WriteLatencyMS prometheus.HistogramVec
+	LabelNames     []string
 }
 
-func NewMetrics(reg prometheus.Registerer) *Metrics {
+func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 	m := &Metrics{
 		BytesRead: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "bytes_read",
-		}, []string{"username", "workspace_name", "agent_name"}),
+		}, labelNames),
 		BytesWritten: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "bytes_written",
-		}, []string{"username", "workspace_name", "agent_name"}),
+		}, labelNames),
 		Errors: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "errors",
-		}, []string{"username", "workspace_name", "agent_name"}),
+		}, labelNames),
 		ReadLatencyMS: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "read_latency_seconds",
-		}, []string{"username", "workspace_name", "agent_name"}),
+		}, labelNames),
 		WriteLatencyMS: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "write_latency_seconds",
-		}, []string{"username", "workspace_name", "agent_name"}),
+		}, labelNames),
 	}
 
 	reg.MustRegister(m.BytesRead)

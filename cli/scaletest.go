@@ -919,7 +919,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			reg := prometheus.NewRegistry()
-			metrics := workspacetraffic.NewMetrics(reg)
+			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
 
 			logger := slog.Make(sloghuman.Sink(io.Discard))
 			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
@@ -994,6 +994,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					TickInterval:   tickInterval,
 					WorkspaceName:  ws.Name,
 					WorkspaceOwner: ws.OwnerName,
+					Registry:       reg,
 				}
 
 				if err := config.Validate(); err != nil {

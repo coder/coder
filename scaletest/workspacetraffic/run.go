@@ -92,7 +92,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	}()
 
 	// Wrap the conn in a countReadWriter so we can monitor bytes sent/rcvd.
-	crw := countReadWriter{ReadWriter: conn}
+	crw := countReadWriter{ReadWriter: conn, metrics: r.metrics, labels: []string{r.cfg.WorkspaceOwner, r.cfg.WorkspaceName, r.cfg.AgentName}}
 
 	// Create a ticker for sending data to the PTY.
 	tick := time.NewTicker(tickInterval)
@@ -188,7 +188,7 @@ type countReadWriter struct {
 	io.ReadWriter
 	bytesRead    atomic.Int64
 	bytesWritten atomic.Int64
-	metrics      Metrics
+	metrics      *Metrics
 	labels       []string
 }
 
