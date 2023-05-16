@@ -5,6 +5,7 @@ import {
   MockWorkspace,
   MockWorkspacesResponse,
   MockEntitlementsWithScheduling,
+  MockWorkspacesResponseWithDeletions,
 } from "testHelpers/entities"
 import { history, renderWithAuth } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
@@ -49,19 +50,6 @@ describe("WorkspacesPage", () => {
   })
 
   it("displays banner for impending deletions", async () => {
-    const MockWorkspaceWithDeletion = {
-      ...MockWorkspace,
-      deleting_at: new Date().toISOString(),
-    }
-
-    const MockWorkspacesResponseWithDeletions = {
-      workspaces: [
-        ...MockWorkspacesResponse.workspaces,
-        MockWorkspaceWithDeletion,
-      ],
-      count: MockWorkspacesResponse.count + 1,
-    }
-
     jest
       .spyOn(API, "getEntitlements")
       .mockResolvedValue(MockEntitlementsWithScheduling)
