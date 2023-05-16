@@ -1,7 +1,9 @@
-package conversion
+// Package db2sdk provides common conversion routines from database types to codersdk types
+package db2sdk
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
@@ -83,5 +85,30 @@ func Parameter(parameterValue database.ParameterValue) codersdk.Parameter {
 		SourceScheme:      codersdk.ParameterSourceScheme(parameterValue.SourceScheme),
 		DestinationScheme: codersdk.ParameterDestinationScheme(parameterValue.DestinationScheme),
 		SourceValue:       parameterValue.SourceValue,
+	}
+}
+
+func ProvisionerJobStatus(provisionerJob database.ProvisionerJob) codersdk.ProvisionerJobStatus {
+	switch {
+	case provisionerJob.CanceledAt.Valid:
+		if !provisionerJob.CompletedAt.Valid {
+			return codersdk.ProvisionerJobCanceling
+		}
+		if provisionerJob.Error.String == "" {
+			return codersdk.ProvisionerJobCanceled
+		}
+		return codersdk.ProvisionerJobFailed
+	case !provisionerJob.StartedAt.Valid:
+		return codersdk.ProvisionerJobPending
+	case provisionerJob.CompletedAt.Valid:
+		if provisionerJob.Error.String == "" {
+			return codersdk.ProvisionerJobSucceeded
+		}
+		return codersdk.ProvisionerJobFailed
+	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
+		provisionerJob.Error.String = "Worker failed to update job in time."
+		return codersdk.ProvisionerJobFailed
+	default:
+		return codersdk.ProvisionerJobRunning
 	}
 }

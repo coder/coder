@@ -15,8 +15,8 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/conversion"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
@@ -329,7 +329,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	if provisionerJob.WorkerID.Valid {
 		job.WorkerID = &provisionerJob.WorkerID.UUID
 	}
-	job.Status = conversion.ProvisionerJobStatus(provisionerJob)
+	job.Status = db2sdk.ProvisionerJobStatus(provisionerJob)
 
 	return job
 }

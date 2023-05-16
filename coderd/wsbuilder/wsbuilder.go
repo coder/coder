@@ -14,8 +14,8 @@ import (
 	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/conversion"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
@@ -518,11 +518,11 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch last parameter values", err}
 	}
 	resolver := codersdk.ParameterResolver{
-		Rich:   conversion.WorkspaceBuildParameters(lastBuildParameters),
-		Legacy: conversion.Parameters(lastParameterValues),
+		Rich:   db2sdk.WorkspaceBuildParameters(lastBuildParameters),
+		Legacy: db2sdk.Parameters(lastParameterValues),
 	}
 	for _, templateVersionParameter := range templateVersionParameters {
-		tvp, err := conversion.TemplateVersionParameter(templateVersionParameter)
+		tvp, err := db2sdk.TemplateVersionParameter(templateVersionParameter)
 		if err != nil {
 			return nil, nil, BuildError{http.StatusInternalServerError, "failed to convert template version parameter", err}
 		}
@@ -697,7 +697,7 @@ func (b *Builder) checkTemplateJobStatus() error {
 		}
 	}
 
-	templateVersionJobStatus := conversion.ProvisionerJobStatus(*templateVersionJob)
+	templateVersionJobStatus := db2sdk.ProvisionerJobStatus(*templateVersionJob)
 	switch templateVersionJobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
 		return BuildError{
@@ -730,7 +730,7 @@ func (b *Builder) checkRunningBuild() error {
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "failed to fetch prior build", err}
 	}
-	if conversion.ProvisionerJobStatus(*job).Active() {
+	if db2sdk.ProvisionerJobStatus(*job).Active() {
 		return BuildError{
 			http.StatusConflict,
 			"A workspace build is already active.",

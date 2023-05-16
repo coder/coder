@@ -14,8 +14,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/conversion"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -540,7 +540,7 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	apiParameters := conversion.WorkspaceBuildParameters(parameters)
+	apiParameters := db2sdk.WorkspaceBuildParameters(parameters)
 	httpapi.Write(ctx, rw, http.StatusOK, apiParameters)
 }
 
