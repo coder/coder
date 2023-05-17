@@ -67,9 +67,9 @@ const (
 	//
 	// See: https://datatracker.ietf.org/doc/html/rfc6648.
 
-	// CLIInvokableHeader contains a base64-encoded representation of the CLI
+	// CLITelemetryHeader contains a base64-encoded representation of the CLI
 	// command that was invoked to produce the request. It is for internal use
-	// only and should not be relied upon.
+	// only.
 	CLITelemetryHeader = "Coder-CLI-Telemetry"
 )
 

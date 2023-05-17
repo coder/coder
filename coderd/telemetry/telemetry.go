@@ -877,7 +877,7 @@ type License struct {
 
 type CLIOption struct {
 	Name        string `json:"name"`
-	ValueSource string `json:"set_via"`
+	ValueSource string `json:"value_source"`
 }
 
 type CLIInvocation struct {
