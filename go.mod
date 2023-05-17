@@ -36,8 +36,8 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-// replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230509173035-f4cdcfb4826e
-replace tailscale.com => /home/coder/tailscale
+// replace tailscale.com => /home/coder/tailscale
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230517160930-fd8139dcb4ff
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -163,7 +163,7 @@ require (
 	golang.org/x/term v0.7.0
 	golang.org/x/tools v0.7.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
-	golang.zx2c4.com/wireguard v0.0.0-20230223181233-21636207a675
+	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
 	google.golang.org/api v0.108.0
 	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.30.0
