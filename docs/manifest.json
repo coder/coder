@@ -301,14 +301,14 @@
           "icon_path": "./images/icons/scale.svg"
         },
         {
-          "title": "External Provisioners",
+          "title": "Provisioners",
           "description": "Run provisioners isolated from the Coder server",
           "path": "./admin/provisioners.md",
           "icon_path": "./images/icons/queue.svg",
           "state": "enterprise"
         },
         {
-          "title": "External Workspace Proxies",
+          "title": "Workspace Proxies",
           "description": "Run geo distributed workspace proxies",
           "path": "./admin/workspace-proxies.md",
           "icon_path": "./images/icons/networking.svg",

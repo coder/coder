@@ -1,12 +1,12 @@
-import Link from "@material-ui/core/Link"
-import Button from "@material-ui/core/Button"
-import GitHubIcon from "@material-ui/icons/GitHub"
-import KeyIcon from "@material-ui/icons/VpnKey"
-import Box from "@material-ui/core/Box"
+import Link from "@mui/material/Link"
+import Button from "@mui/material/Button"
+import GitHubIcon from "@mui/icons-material/GitHub"
+import KeyIcon from "@mui/icons-material/VpnKey"
+import Box from "@mui/material/Box"
 import { Language } from "./SignInForm"
 import { AuthMethods } from "../../api/typesGenerated"
 import { FC } from "react"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 
 type OAuthSignInFormProps = {
   isSigningIn: boolean
@@ -29,10 +29,9 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
   const styles = useStyles()
 
   return (
-    <Box display="grid" gridGap="16px">
+    <Box display="grid" gap="16px">
       {authMethods?.github.enabled && (
         <Link
-          underline="none"
           href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
             redirectTo,
           )}`}
@@ -42,7 +41,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
             disabled={isSigningIn}
             fullWidth
             type="submit"
-            variant="outlined"
+            size="large"
           >
             {Language.githubSignIn}
           </Button>
@@ -51,12 +50,12 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 
       {authMethods?.oidc.enabled && (
         <Link
-          underline="none"
           href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
             redirectTo,
           )}`}
         >
           <Button
+            size="large"
             startIcon={
               authMethods.oidc.iconUrl ? (
                 <img
@@ -71,7 +70,6 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
             disabled={isSigningIn}
             fullWidth
             type="submit"
-            variant="outlined"
           >
             {authMethods.oidc.signInText || Language.oidcSignIn}
           </Button>

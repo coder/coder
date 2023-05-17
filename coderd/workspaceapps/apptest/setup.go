@@ -63,11 +63,6 @@ type Deployment struct {
 	SDKClient      *codersdk.Client
 	FirstUser      codersdk.CreateFirstUserResponse
 	PathAppBaseURL *url.URL
-
-	// AppHostIsPrimary is true if the app host is also the primary coder API
-	// server. This disables any tests that test API passthrough or rely on the
-	// app server not being the API server.
-	AppHostIsPrimary bool
 }
 
 // DeploymentFactory generates a deployment with an API client, a path base URL,

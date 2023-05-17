@@ -13,6 +13,7 @@ export const workspaceFilterQuery = {
   me: "owner:me",
   all: "",
   running: "status:running",
+  failed: "status:failed",
 }
 
 export const userFilterQuery = {

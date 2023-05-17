@@ -1,6 +1,7 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
-import Skeleton from "@material-ui/lab/Skeleton"
+import Button from "@mui/material/Button"
+import { makeStyles, useTheme } from "@mui/styles"
+import Skeleton from "@mui/material/Skeleton"
+import AddIcon from "@mui/icons-material/AddOutlined"
 import { GetLicensesResponse } from "api/api"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { LicenseCard } from "components/LicenseCard/LicenseCard"
@@ -37,8 +38,9 @@ const LicensesSettingsPageView: FC<Props> = ({
   return (
     <>
       <Confetti
-        width={width}
-        height={height}
+        // For some reason this overflows the window and adds scrollbars if we don't subtract here.
+        width={width - 1}
+        height={height - 1}
         numberOfPieces={showConfetti ? 200 : 0}
         colors={[theme.palette.primary.main, theme.palette.secondary.main]}
       />
@@ -49,19 +51,19 @@ const LicensesSettingsPageView: FC<Props> = ({
       >
         <Header
           title="Licenses"
-          description="Enterprise licenses unlock more features on your deployment."
+          description="Manage licenses to unlock Enterprise features."
         />
 
         <Button
-          variant="outlined"
           component={Link}
           to="/settings/deployment/licenses/add"
+          startIcon={<AddIcon />}
         >
-          Add new license
+          Add a License
         </Button>
       </Stack>
 
-      {isLoading && <Skeleton variant="rect" height={200} />}
+      {isLoading && <Skeleton variant="rectangular" height={200} />}
 
       {!isLoading && licenses && licenses?.length > 0 && (
         <Stack spacing={4}>
@@ -82,11 +84,14 @@ const LicensesSettingsPageView: FC<Props> = ({
         <div className={styles.root}>
           <Stack alignItems="center" spacing={1}>
             <Stack alignItems="center" spacing={0.5}>
-              <span className={styles.title}>No licenses yet</span>
+              <span className={styles.title}>
+                You don{"'"}t have any licenses!
+              </span>
               <span className={styles.description}>
-                Contact <a href="mailto:sales@coder.com">sales</a> or{" "}
+                You{"'"}re missing out on high availability, RBAC, quotas, and
+                much more. Contact <a href="mailto:sales@coder.com">sales</a> or{" "}
                 <a href="https://coder.com/trial">request a trial license</a> to
-                learn more.
+                get started.
               </span>
             </Stack>
           </Stack>
@@ -109,16 +114,13 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
     padding: theme.spacing(6),
-
-    "&:hover": {
-      backgroundColor: theme.palette.background.paper,
-    },
   },
 
   description: {
     color: theme.palette.text.secondary,
     textAlign: "center",
-    maxWidth: theme.spacing(50),
+    maxWidth: theme.spacing(58),
+    marginTop: theme.spacing(1),
   },
 }))
 

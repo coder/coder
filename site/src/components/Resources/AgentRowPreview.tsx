@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { AppPreviewLink } from "components/AppLink/AppPreviewLink"
 import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
@@ -158,7 +158,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       gap: theme.spacing(2),
       flexWrap: "wrap",
     },
@@ -187,7 +187,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   agentDataItem: {
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       flexDirection: "column",
       alignItems: "flex-start",
       gap: theme.spacing(1),

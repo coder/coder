@@ -1,8 +1,8 @@
-import Box from "@material-ui/core/Box"
-import Checkbox from "@material-ui/core/Checkbox"
-import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
-import Typography from "@material-ui/core/Typography"
+import Box from "@mui/material/Box"
+import Checkbox from "@mui/material/Checkbox"
+import { makeStyles } from "@mui/styles"
+import TextField from "@mui/material/TextField"
+import Typography from "@mui/material/Typography"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import { Stack } from "components/Stack/Stack"
@@ -71,7 +71,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             autoComplete="username"
             fullWidth
             label={Language.usernameLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("email")}
@@ -79,7 +78,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             autoComplete="email"
             fullWidth
             label={Language.emailLabel}
-            variant="outlined"
           />
           <TextField
             {...getFieldHelpers("password")}
@@ -88,7 +86,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             id="password"
             label={Language.passwordLabel}
             type="password"
-            variant="outlined"
           />
           <div className={styles.callout}>
             <Box display="flex">
@@ -113,12 +110,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
               </Box>
             </Box>
           </div>
-          <LoadingButton
-            fullWidth
-            variant="outlined"
-            loading={isLoading}
-            type="submit"
-          >
+          <LoadingButton fullWidth loading={isLoading} type="submit">
             {Language.create}
           </LoadingButton>
         </Stack>

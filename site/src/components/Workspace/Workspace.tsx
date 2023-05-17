@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -26,6 +26,7 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader"
+import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -52,6 +53,7 @@ export interface WorkspaceProps {
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
+  templateWarnings?: TypesGen.TemplateVersionWarning[]
   canUpdateWorkspace: boolean
   canUpdateTemplate: boolean
   canChangeVersions: boolean
@@ -96,6 +98,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   quota_budget,
   failedBuildLogs,
   handleBuildRetry,
+  templateWarnings,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -186,6 +189,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             handleClick={() => navigate(`/templates`)}
           />
 
+          <TemplateVersionWarnings warnings={templateWarnings} />
+
           {failedBuildLogs && (
             <Stack>
               <AlertBanner severity="error">
@@ -208,7 +213,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                         onClick={handleBuildRetry}
                         startIcon={<RefreshOutlined />}
                         size="small"
-                        variant="outlined"
                       >
                         {t("actionButton.retryDebugMode")}
                       </Button>
@@ -273,7 +277,7 @@ export const useStyles = makeStyles((theme) => {
     },
 
     actions: {
-      [theme.breakpoints.down("sm")]: {
+      [theme.breakpoints.down("md")]: {
         flexDirection: "column",
       },
     },

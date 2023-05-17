@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -805,6 +806,17 @@ func New(options *Options) *API {
 		return []string{}
 	})
 	r.NotFound(cspMW(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP))).ServeHTTP)
+
+	// This must be before all middleware to improve the response time.
+	// So make a new router, and mount the old one as the root.
+	rootRouter := chi.NewRouter()
+	// This is the only route we add before all the middleware.
+	// We want to time the latency of the request, so any middleware will
+	// interfere with that timing.
+	rootRouter.Get("/latency-check", LatencyCheck(api.AccessURL))
+	rootRouter.Mount("/", r)
+	api.RootHandler = rootRouter
+
 	return api
 }
 
@@ -878,7 +890,12 @@ func (api *API) Close() error {
 }
 
 func compressHandler(h http.Handler) http.Handler {
-	cmp := middleware.NewCompressor(5,
+	level := 5
+	if flag.Lookup("test.v") != nil {
+		level = 1
+	}
+
+	cmp := middleware.NewCompressor(level,
 		"text/*",
 		"application/*",
 		"image/*",

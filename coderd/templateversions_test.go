@@ -138,6 +138,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Len(t, auditor.AuditLogs(), 2)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
 	})
+
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -1452,4 +1453,46 @@ func TestTemplateVersionPatch(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+}
+
+func TestTemplateVersionWarnings(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: []*proto.Parse_Response{{
+			Type: &proto.Parse_Response_Complete{
+				Complete: &proto.Parse_Complete{
+					ParameterSchemas: []*proto.ParameterSchema{
+						{
+							AllowOverrideSource: true,
+							Name:                "example",
+							Description:         "description 1",
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "tomato",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						},
+					},
+				},
+			},
+		}},
+		ProvisionApply: echo.ProvisionComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+
+	templateVersion, err := client.TemplateVersion(ctx, template.ActiveVersionID)
+	require.NoError(t, err)
+
+	require.Contains(t, templateVersion.Warnings, codersdk.TemplateVersionWarningDeprecatedParameters)
 }

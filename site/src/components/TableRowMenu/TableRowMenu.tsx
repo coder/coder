@@ -1,7 +1,7 @@
-import IconButton from "@material-ui/core/IconButton"
-import Menu, { MenuProps } from "@material-ui/core/Menu"
-import MenuItem from "@material-ui/core/MenuItem"
-import MoreVertIcon from "@material-ui/icons/MoreVert"
+import IconButton from "@mui/material/IconButton"
+import Menu, { MenuProps } from "@mui/material/Menu"
+import MenuItem from "@mui/material/MenuItem"
+import MoreVertIcon from "@mui/icons-material/MoreVert"
 import { MouseEvent, useState } from "react"
 
 export interface TableRowMenuProps<TData> {

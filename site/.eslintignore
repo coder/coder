@@ -51,12 +51,17 @@ stats/
 *.lock.hcl
 .terraform/
 
-../.coderv2/*
+**/.coderv2/*
 **/__debug_bin
 
 # direnv
 .envrc
 *.test
+
+# Loadtesting
+.././scaletest/terraform/.terraform
+.././scaletest/terraform/.terraform.lock.hcl
+terraform.tfstate.*
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.

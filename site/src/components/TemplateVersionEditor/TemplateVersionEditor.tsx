@@ -1,10 +1,10 @@
-import Button from "@material-ui/core/Button"
-import IconButton from "@material-ui/core/IconButton"
-import { makeStyles, Theme } from "@material-ui/core/styles"
-import Tooltip from "@material-ui/core/Tooltip"
-import CreateIcon from "@material-ui/icons/AddOutlined"
-import BuildIcon from "@material-ui/icons/BuildOutlined"
-import PreviewIcon from "@material-ui/icons/VisibilityOutlined"
+import Button from "@mui/material/Button"
+import IconButton from "@mui/material/IconButton"
+import { makeStyles } from "@mui/styles"
+import Tooltip from "@mui/material/Tooltip"
+import CreateIcon from "@mui/icons-material/AddOutlined"
+import BuildIcon from "@mui/icons-material/BuildOutlined"
+import PreviewIcon from "@mui/icons-material/VisibilityOutlined"
 import {
   ProvisionerJobLog,
   Template,
@@ -46,6 +46,7 @@ import {
   getStatus,
   TemplateVersionStatusBadge,
 } from "./TemplateVersionStatusBadge"
+import { Theme } from "@mui/material/styles"
 
 export interface TemplateVersionEditorProps {
   template: Template
@@ -206,7 +207,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             <Button
               title="Build template (Ctrl + Enter)"
               size="small"
-              variant="outlined"
               disabled={disablePreview}
               onClick={() => {
                 triggerPreview()
@@ -216,6 +216,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             </Button>
 
             <Button
+              variant="contained"
               title={
                 dirty
                   ? "You have edited files! Run another build before updating."
@@ -581,7 +582,7 @@ const useStyles = makeStyles<
     top: 0,
     background: theme.palette.background.default,
     borderBottom: `1px solid ${theme.palette.divider}`,
-    color: theme.palette.text.hint,
+    color: theme.palette.text.primary,
     textTransform: "uppercase",
     fontSize: 12,
 

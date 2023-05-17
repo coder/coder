@@ -6,18 +6,28 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/testutil"
 )
 
+// We need to override the global color profile to test escape codes.
+//
+//nolint:tparallel,paralleltest
 func TestVersion(t *testing.T) {
-	t.Parallel()
+	ogColorProfile := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.ANSI)
+	t.Cleanup(func() {
+		lipgloss.SetColorProfile(ogColorProfile)
+	})
+
 	expectedText := `Coder v0.0.0-devel
 https://github.com/coder/coder
 
-Full build of Coder, supports the  [;mserver[0m  subcommand.
+Full build of Coder, supports the [40m [0m[91;40mserver[0m[40m [0m subcommand.
 `
 	expectedJSON := `{
   "version": "v0.0.0-devel",

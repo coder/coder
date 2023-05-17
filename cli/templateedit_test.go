@@ -453,6 +453,8 @@ func TestTemplateEdit(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.MaxTTLMillis = nil
+				ctr.FailureTTLMillis = nil
+				ctr.InactivityTTLMillis = nil
 			})
 
 			// Test the cli command with --allow-user-autostart.
@@ -496,6 +498,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
+			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
+			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
 		})
 
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
@@ -582,6 +586,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
+			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
+			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
 		})
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
@@ -672,6 +678,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
+			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
+			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
 		})
 	})
 }

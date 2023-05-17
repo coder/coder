@@ -5093,6 +5093,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/goingaway": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Workspace proxy going away",
+                "operationId": "workspace-proxy-going-away",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceproxies/me/issue-signed-app-token": {
             "post": {
                 "security": [
@@ -8419,13 +8447,13 @@ const docTemplate = `{
         "codersdk.ProxyHealthStatus": {
             "type": "string",
             "enum": [
-                "reachable",
+                "ok",
                 "unreachable",
                 "unhealthy",
                 "unregistered"
             ],
             "x-enum-varnames": [
-                "ProxyReachable",
+                "ProxyHealthy",
                 "ProxyUnreachable",
                 "ProxyUnhealthy",
                 "ProxyUnregistered"
@@ -9012,6 +9040,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "DEPRECATED_PARAMETERS"
+                        ],
+                        "$ref": "#/definitions/codersdk.TemplateVersionWarning"
+                    }
                 }
             }
         },
@@ -9149,6 +9186,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.TemplateVersionWarning": {
+            "type": "string",
+            "enum": [
+                "DEPRECATED_PARAMETERS"
+            ],
+            "x-enum-varnames": [
+                "TemplateVersionWarningDeprecatedParameters"
+            ]
         },
         "codersdk.TokenConfig": {
             "type": "object",
@@ -9424,6 +9470,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "deleting_at": {
+                    "description": "DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.\nWorkspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.",
                     "type": "string",
                     "format": "date-time"
                 },

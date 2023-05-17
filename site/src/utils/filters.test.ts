@@ -13,6 +13,7 @@ describe("queryToFilter", () => {
     ["me/dev", { q: "me/dev" }],
     ["me/", { q: "me/" }],
     ["    key:val      owner:me       ", { q: "key:val owner:me" }],
+    ["status:failed", { q: "status:failed" }],
   ])(`query=%p, filter=%p`, (query, filter) => {
     expect(queryToFilter(query)).toEqual(filter)
   })

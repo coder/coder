@@ -11,6 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type TemplateVersionWarning string
+
+const (
+	TemplateVersionWarningDeprecatedParameters TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+)
+
 // TemplateVersion represents a single version of a template.
 type TemplateVersion struct {
 	ID             uuid.UUID      `json:"id" format:"uuid"`
@@ -22,6 +28,8 @@ type TemplateVersion struct {
 	Job            ProvisionerJob `json:"job"`
 	Readme         string         `json:"readme"`
 	CreatedBy      User           `json:"created_by"`
+
+	Warnings []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
 }
 
 type TemplateVersionGitAuth struct {

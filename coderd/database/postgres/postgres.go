@@ -46,13 +46,10 @@ func Open() (string, func(), error) {
 			return "", nil, xerrors.Errorf("create db with template: %w", err)
 		}
 
-		deleteDB := func() {
-			ddb, _ := sql.Open("postgres", dbURL)
-			defer ddb.Close()
-			_, _ = ddb.Exec("DROP DATABASE " + dbName)
-		}
-
-		return "postgres://postgres:postgres@127.0.0.1:5432/" + dbName + "?sslmode=disable", deleteDB, nil
+		return "postgres://postgres:postgres@127.0.0.1:5432/" + dbName + "?sslmode=disable", func() {
+			// We don't need to clean anything up here... it's just a database in a container,
+			// so cleaning up the container will clean up the database.
+		}, nil
 	}
 
 	pool, err := dockertest.NewPool("")

@@ -181,39 +181,39 @@ Prior to completing the steps below, please review the following Podman document
 1. Enable [smart-device-manager](https://gitlab.com/arm-research/smarter/smarter-device-manager#enabling-access) to securely expose a FUSE devices to pods.
 
    ```sh
-     cat <<EOF | kubectl create -f -
-     apiVersion: apps/v1
-     kind: DaemonSet
-     metadata:
+   cat <<EOF | kubectl create -f -
+   apiVersion: apps/v1
+   kind: DaemonSet
+   metadata:
      name: fuse-device-plugin-daemonset
      namespace: kube-system
-     spec:
+   spec:
      selector:
-     matchLabels:
+       matchLabels:
          name: fuse-device-plugin-ds
      template:
-     metadata:
+       metadata:
          labels:
-         name: fuse-device-plugin-ds
-     spec:
+           name: fuse-device-plugin-ds
+       spec:
          hostNetwork: true
          containers:
-         - image: soolaugust/fuse-device-plugin:v1.0
-         name: fuse-device-plugin-ctr
-         securityContext:
+         - name: fuse-device-plugin-ctr
+           image: soolaugust/fuse-device-plugin:v1.0
+           securityContext:
              allowPrivilegeEscalation: false
              capabilities:
-             drop: ["ALL"]
-         volumeMounts:
-             - name: device-plugin
+               drop: ["ALL"]
+           volumeMounts:
+           - name: device-plugin
              mountPath: /var/lib/kubelet/device-plugins
          volumes:
          - name: device-plugin
-             hostPath:
+           hostPath:
              path: /var/lib/kubelet/device-plugins
          imagePullSecrets:
          - name: registry-secret
-     EOF
+   EOF
    ```
 
 2. Be sure to label your nodes to enable smarter-device-manager:

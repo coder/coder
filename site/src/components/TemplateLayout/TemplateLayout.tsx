@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { createContext, FC, Suspense, useContext } from "react"
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
@@ -145,6 +145,17 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
               }
             >
               Versions
+            </NavLink>
+            <NavLink
+              to={`/templates/${templateName}/embed`}
+              className={({ isActive }) =>
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
+              }
+            >
+              Embed
             </NavLink>
           </Stack>
         </Margins>

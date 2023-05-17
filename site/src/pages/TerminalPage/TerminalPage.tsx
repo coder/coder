@@ -1,7 +1,7 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import WarningIcon from "@material-ui/icons/ErrorOutlineRounded"
-import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
+import WarningIcon from "@mui/icons-material/ErrorOutlineRounded"
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { useMachine } from "@xstate/react"
 import { portForwardURL } from "components/PortForwardButton/PortForwardButton"
 import { Stack } from "components/Stack/Stack"
@@ -19,6 +19,7 @@ import { pageTitle } from "../../utils/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
 import { useProxy } from "contexts/ProxyContext"
 import { combineClasses } from "utils/combineClasses"
+import Box from "@mui/material/Box"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -313,34 +314,40 @@ const TerminalPage: FC<
           </div>
         </div>
       )}
-      {shouldDisplayStartupWarning && (
-        <div className={styles.alert} role="alert">
-          <WarningIcon className={styles.alertIcon} />
-          <div>
-            <div className={styles.alertTitle}>
-              Startup script is still running
+      <Box display="flex" flexDirection="column" height="100vh">
+        {shouldDisplayStartupWarning && (
+          <div className={styles.alert} role="alert">
+            <WarningIcon className={styles.alertIcon} />
+            <div>
+              <div className={styles.alertTitle}>
+                Startup script is still running
+              </div>
+              <div className={styles.alertMessage}>
+                You can continue using this terminal, but something may be
+                missing or not fully set up.
+              </div>
             </div>
-            <div className={styles.alertMessage}>
-              You can continue using this terminal, but something may be missing
-              or not fully set up.
+            <div className={styles.alertActions}>
+              <Button
+                startIcon={<RefreshOutlined />}
+                size="small"
+                onClick={() => {
+                  // By redirecting the user without the session in the URL we
+                  // create a new one
+                  window.location.href = window.location.pathname
+                }}
+              >
+                Refresh session
+              </Button>
             </div>
           </div>
-          <div className={styles.alertActions}>
-            <Button
-              startIcon={<RefreshOutlined />}
-              size="small"
-              onClick={() => {
-                // By redirecting the user without the session in the URL we
-                // create a new one
-                window.location.href = window.location.pathname
-              }}
-            >
-              Refresh session
-            </Button>
-          </div>
-        </div>
-      )}
-      <div className={styles.terminal} ref={xtermRef} data-testid="terminal" />
+        )}
+        <div
+          className={styles.terminal}
+          ref={xtermRef}
+          data-testid="terminal"
+        />
+      </Box>
     </>
   )
 }
@@ -403,10 +410,10 @@ const useStyles = makeStyles((theme) => ({
   },
   terminal: {
     width: "100vw",
-    height: "100vh",
     overflow: "hidden",
     padding: theme.spacing(1),
     backgroundColor: theme.palette.background.paper,
+    flex: 1,
     // These styles attempt to mimic the VS Code scrollbar.
     "& .xterm": {
       padding: 4,
@@ -436,6 +443,7 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(2),
     gap: theme.spacing(2),
     borderBottom: `1px solid ${theme.palette.divider}`,
+    ...theme.typography.body2,
   },
   alertIcon: {
     color: theme.palette.warning.light,

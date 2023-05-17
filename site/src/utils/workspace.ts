@@ -1,10 +1,9 @@
-import { Theme } from "@material-ui/core/styles"
+import { Theme } from "@mui/material/styles"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import minMax from "dayjs/plugin/minMax"
 import utc from "dayjs/plugin/utc"
 import semver from "semver"
-import { PaletteIndex } from "theme/palettes"
 import * as TypesGen from "../api/typesGenerated"
 
 dayjs.extend(duration)
@@ -27,48 +26,44 @@ const DisplayAgentVersionLanguage = {
 export const getDisplayWorkspaceBuildStatus = (
   theme: Theme,
   build: TypesGen.WorkspaceBuild,
-): {
-  color: string
-  status: string
-  type: PaletteIndex
-} => {
+) => {
   switch (build.job.status) {
     case "succeeded":
       return {
         type: "success",
         color: theme.palette.success.main,
         status: DisplayWorkspaceBuildStatusLanguage.succeeded,
-      }
+      } as const
     case "pending":
       return {
         type: "secondary",
         color: theme.palette.text.secondary,
         status: DisplayWorkspaceBuildStatusLanguage.pending,
-      }
+      } as const
     case "running":
       return {
         type: "info",
         color: theme.palette.primary.main,
         status: DisplayWorkspaceBuildStatusLanguage.running,
-      }
+      } as const
     case "failed":
       return {
         type: "error",
         color: theme.palette.text.secondary,
         status: DisplayWorkspaceBuildStatusLanguage.failed,
-      }
+      } as const
     case "canceling":
       return {
         type: "warning",
         color: theme.palette.warning.light,
         status: DisplayWorkspaceBuildStatusLanguage.canceling,
-      }
+      } as const
     case "canceled":
       return {
         type: "secondary",
         color: theme.palette.text.secondary,
         status: DisplayWorkspaceBuildStatusLanguage.canceled,
-      }
+      } as const
   }
 }
 
@@ -189,4 +184,28 @@ export const getDisplayWorkspaceTemplateName = (
   return workspace.template_display_name.length > 0
     ? workspace.template_display_name
     : workspace.template_name
+}
+
+// This const dictates how far out we alert the user that a workspace
+// has an impending deletion (due to template.InactivityTTL being set)
+const IMPENDING_DELETION_DISPLAY_THRESHOLD = 14 // 14 days
+
+/**
+ * Returns a boolean indicating if an impending deletion indicator should be
+ * displayed in the UI. Impending deletions are configured by setting the
+ * Template.InactivityTTL
+ * @param {TypesGen.Workspace} workspace
+ * @returns {boolean}
+ */
+export const displayImpendingDeletion = (workspace: TypesGen.Workspace) => {
+  const today = new Date()
+  if (!workspace.deleting_at) {
+    return false
+  }
+  return (
+    new Date(workspace.deleting_at) <=
+    new Date(
+      today.setDate(today.getDate() + IMPENDING_DELETION_DISPLAY_THRESHOLD),
+    )
+  )
 }

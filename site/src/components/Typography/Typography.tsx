@@ -3,10 +3,10 @@
  * verbatim port from `@coder/ui`.
  */
 
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import MuiTypography, {
   TypographyProps as MuiTypographyProps,
-} from "@material-ui/core/Typography"
+} from "@mui/material/Typography"
 import * as React from "react"
 import { appendCSSString, combineClasses } from "../../utils/combineClasses"
 

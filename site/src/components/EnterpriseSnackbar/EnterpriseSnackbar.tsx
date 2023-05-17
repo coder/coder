@@ -1,9 +1,9 @@
-import IconButton from "@material-ui/core/IconButton"
+import IconButton from "@mui/material/IconButton"
 import Snackbar, {
   SnackbarProps as MuiSnackbarProps,
-} from "@material-ui/core/Snackbar"
-import { makeStyles } from "@material-ui/core/styles"
-import CloseIcon from "@material-ui/icons/Close"
+} from "@mui/material/Snackbar"
+import { makeStyles } from "@mui/styles"
+import CloseIcon from "@mui/icons-material/Close"
 import { FC } from "react"
 import { combineClasses } from "../../utils/combineClasses"
 
@@ -42,7 +42,11 @@ export const EnterpriseSnackbar: FC<
       action={
         <div className={styles.actionWrapper}>
           {action}
-          <IconButton onClick={onClose} className={styles.iconButton}>
+          <IconButton
+            onClick={onClose}
+            className={styles.iconButton}
+            size="large"
+          >
             <CloseIcon className={styles.closeIcon} aria-label="close" />
           </IconButton>
         </div>

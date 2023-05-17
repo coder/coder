@@ -7,6 +7,7 @@ import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 import { TemplateVersionFiles } from "utils/templateVersion"
 import { FileTree } from "utils/filetree"
+import { ProxyLatencyReport } from "contexts/useProxyLatency"
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
@@ -88,18 +89,20 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
   wildcard_hostname: "*.external.com",
 }
 
+export const MockUnhealthyWildWorkspaceProxy: TypesGen.Region = {
+  id: "8444931c-0247-4171-842a-569d9f9cbadb",
+  name: "unhealthy",
+  display_name: "Unhealthy",
+  icon_url: "/emojis/1f92e.png",
+  healthy: false,
+  path_app_url: "https://unhealthy.coder.com",
+  wildcard_hostname: "*unhealthy..coder.com",
+}
+
 export const MockWorkspaceProxies: TypesGen.Region[] = [
   MockPrimaryWorkspaceProxy,
   MockHealthyWildWorkspaceProxy,
-  {
-    id: "8444931c-0247-4171-842a-569d9f9cbadb",
-    name: "unhealthy",
-    display_name: "Unhealthy",
-    icon_url: "/emojis/1f92e.png",
-    healthy: false,
-    path_app_url: "https://unhealthy.coder.com",
-    wildcard_hostname: "*unhealthy..coder.com",
-  },
+  MockUnhealthyWildWorkspaceProxy,
   {
     id: "26e84c16-db24-4636-a62d-aa1a4232b858",
     name: "nowildcard",
@@ -110,6 +113,34 @@ export const MockWorkspaceProxies: TypesGen.Region[] = [
     wildcard_hostname: "",
   },
 ]
+
+export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
+  ...MockWorkspaceProxies.reduce((acc, proxy) => {
+    if (!proxy.healthy) {
+      return acc
+    }
+    acc[proxy.id] = {
+      // Make one of them inaccurate.
+      accurate: proxy.id !== "26e84c16-db24-4636-a62d-aa1a4232b858",
+      // This is a deterministic way to generate a latency to for each proxy.
+      // It will be the same for each run as long as the IDs don't change.
+      latencyMS:
+        (Number(
+          Array.from(proxy.id).reduce(
+            // Multiply each char code by some large prime number to increase the
+            // size of the number and allow use to get some decimal points.
+            (acc, char) => acc + char.charCodeAt(0) * 37,
+            0,
+          ),
+        ) /
+          // Cap at 250ms
+          100) %
+        250,
+      at: new Date(),
+    }
+    return acc
+  }, {} as Record<string, ProxyLatencyReport>),
+}
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   external_url: "file:///mock-url",
@@ -308,6 +339,18 @@ You can add instructions here
 
 [Some link info](https://coder.com)`,
   created_by: MockUser,
+}
+
+export const MockTemplateVersion3: TypesGen.TemplateVersion = {
+  id: "test-template-version-3",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  template_id: "test-template",
+  job: MockProvisionerJob,
+  name: "test-version-3",
+  readme: "README",
+  created_by: MockUser,
+  warnings: ["DEPRECATED_PARAMETERS"],
 }
 
 export const MockTemplate: TypesGen.Template = {
@@ -781,6 +824,12 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
     status: "deleting",
   },
 }
+
+export const MockWorkspaceWithDeletion = {
+  ...MockWorkspace,
+  deleting_at: new Date().toISOString(),
+}
+
 export const MockDeletedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   id: "test-deleted-workspace",
@@ -812,6 +861,11 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
     name: `${MockWorkspace.name}${id}`,
   })),
   count: 26,
+}
+
+export const MockWorkspacesResponseWithDeletions = {
+  workspaces: [...MockWorkspacesResponse.workspaces, MockWorkspaceWithDeletion],
+  count: MockWorkspacesResponse.count + 1,
 }
 
 export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
