@@ -18,6 +18,7 @@ import { WorkspacesTable } from "components/WorkspacesTable/WorkspacesTable"
 import { workspaceFilterQuery } from "utils/filters"
 import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
+import { DeletionBanner } from "components/WorkspaceDeletion"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -51,8 +52,8 @@ export interface WorkspacesPageViewProps {
   onPageChange: (page: number) => void
   onFilter: (query: string) => void
   onUpdateWorkspace: (workspace: Workspace) => void
-  allowAdvancedScheduling: boolean
-  allowWorkspaceActions: boolean
+  // allowAdvancedScheduling: boolean
+  // allowWorkspaceActions: boolean
 }
 
 export const WorkspacesPageView: FC<
@@ -67,8 +68,6 @@ export const WorkspacesPageView: FC<
   onFilter,
   onPageChange,
   onUpdateWorkspace,
-  allowAdvancedScheduling,
-  allowWorkspaceActions,
 }) => {
   const { saveLocal, getLocal } = useLocalStorage()
 
@@ -96,14 +95,6 @@ export const WorkspacesPageView: FC<
 
     return diff && diff.length > 0
   }
-
-  const displayImpendingDeletionBanner =
-    (allowAdvancedScheduling &&
-      allowWorkspaceActions &&
-      workspaceIdsWithImpendingDeletions &&
-      workspaceIdsWithImpendingDeletions.length > 0 &&
-      isNewWorkspacesImpendingDeletion()) ??
-    false
 
   return (
     <Margins>
@@ -135,19 +126,17 @@ export const WorkspacesPageView: FC<
             }
           />
         </Maybe>
-        <Maybe condition={displayImpendingDeletionBanner}>
-          <AlertBanner
-            severity="info"
-            onDismiss={() =>
-              saveLocal(
-                "dismissedWorkspaceList",
-                JSON.stringify(workspaceIdsWithImpendingDeletions),
-              )
-            }
-            dismissible
-            text="You have workspaces that will be deleted soon."
-          />
-        </Maybe>
+        {/* <DeletionBanner/> determines its own visibility */}
+        <DeletionBanner
+          workspace={workspaces?.find((workspace) => workspace.deleting_at)}
+          displayImpendingDeletionBanner={isNewWorkspacesImpendingDeletion()}
+          onDismiss={() =>
+            saveLocal(
+              "dismissedWorkspaceList",
+              JSON.stringify(workspaceIdsWithImpendingDeletions),
+            )
+          }
+        />
 
         <SearchBarWithFilter
           filter={filter}
