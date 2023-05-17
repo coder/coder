@@ -38,6 +38,7 @@ export enum CreateWorkspaceErrors {
 }
 
 export interface CreateWorkspacePageViewProps {
+  name: string
   loadingTemplates: boolean
   loadingTemplateSchema: boolean
   creatingWorkspace: boolean
@@ -95,7 +96,7 @@ export const CreateWorkspacePageView: FC<
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
-        name: "",
+        name: props.name,
         template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
         rich_parameter_values: initialRichParameterValues,
       },

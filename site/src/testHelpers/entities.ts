@@ -824,6 +824,12 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
     status: "deleting",
   },
 }
+
+export const MockWorkspaceWithDeletion = {
+  ...MockWorkspace,
+  deleting_at: new Date().toISOString(),
+}
+
 export const MockDeletedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   id: "test-deleted-workspace",
@@ -855,6 +861,11 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
     name: `${MockWorkspace.name}${id}`,
   })),
   count: 26,
+}
+
+export const MockWorkspacesResponseWithDeletions = {
+  workspaces: [...MockWorkspacesResponse.workspaces, MockWorkspaceWithDeletion],
+  count: MockWorkspacesResponse.count + 1,
 }
 
 export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
