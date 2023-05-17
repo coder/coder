@@ -15,7 +15,11 @@ export const ErrorAlert: FC<
       {detail ? (
         <>
           <AlertTitle>{message}</AlertTitle>
-          <Box component="span" color={(theme) => theme.palette.text.secondary}>
+          <Box
+            component="span"
+            color={(theme) => theme.palette.text.secondary}
+            fontSize={13}
+          >
             {detail}
           </Box>
         </>

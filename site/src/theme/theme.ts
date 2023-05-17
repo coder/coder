@@ -403,6 +403,9 @@ dark = createTheme(dark, {
         variant: "outlined",
       },
       styleOverrides: {
+        root: ({ theme }) => ({
+          background: theme.palette.background.paper,
+        }),
         action: {
           paddingTop: 2, // Idk why it is not aligned as expected
         },

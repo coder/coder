@@ -1,4 +1,3 @@
-import { Alert } from "./Alert"
 import Button from "@mui/material/Button"
 import { mockApiError } from "testHelpers/entities"
 import type { Meta, StoryObj } from "@storybook/react"
@@ -15,17 +14,27 @@ const meta: Meta<typeof ErrorAlert> = {
   component: ErrorAlert,
   args: {
     error: mockError,
+    dismissible: false,
+    onRetry: undefined,
   },
 }
 
 export default meta
-type Story = StoryObj<typeof Alert>
+type Story = StoryObj<typeof ErrorAlert>
 
 const ExampleAction = (
   <Button onClick={() => null} size="small" variant="text">
     Button
   </Button>
 )
+
+export const WithOnlyMessage: Story = {
+  args: {
+    error: mockApiError({
+      message: "Email or password was invalid",
+    }),
+  },
+}
 
 export const WithDismiss: Story = {
   args: {
@@ -58,5 +67,11 @@ export const WithActionRetryAndDismiss: Story = {
     actions: [ExampleAction],
     onRetry: action("retry"),
     dismissible: true,
+  },
+}
+
+export const WithNonApiError: Story = {
+  args: {
+    error: new Error("Non API error here"),
   },
 }
