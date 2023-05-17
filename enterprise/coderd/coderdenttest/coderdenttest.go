@@ -48,6 +48,7 @@ type Options struct {
 	EntitlementsUpdateInterval time.Duration
 	SCIMAPIKey                 []byte
 	UserWorkspaceQuota         int
+	ProxyHealthInterval        time.Duration
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -74,6 +75,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys:                       Keys,
+		ProxyHealthInterval:        options.ProxyHealthInterval,
 	})
 	assert.NoError(t, err)
 	setHandler(coderAPI.AGPL.RootHandler)

@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -1169,7 +1170,10 @@ func convertWorkspace(
 		autostartSchedule = &workspace.AutostartSchedule.String
 	}
 
-	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	var (
+		ttlMillis  = convertWorkspaceTTLMillis(workspace.Ttl)
+		deletingAt = calculateDeletingAt(workspace, template, workspaceBuild)
+	)
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -1188,6 +1192,7 @@ func convertWorkspace(
 		AutostartSchedule:                    autostartSchedule,
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
+		DeletingAt:                           deletingAt,
 	}
 }
 
@@ -1198,6 +1203,19 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 
 	millis := time.Duration(i.Int64).Milliseconds()
 	return &millis
+}
+
+// Calculate the time of the upcoming workspace deletion, if applicable; otherwise, return nil.
+// Workspaces may have impending deletions if InactivityTTL feature is turned on and the workspace is inactive.
+func calculateDeletingAt(workspace database.Workspace, template database.Template, build codersdk.WorkspaceBuild) *time.Time {
+	inactiveStatuses := []codersdk.WorkspaceStatus{codersdk.WorkspaceStatusStopped, codersdk.WorkspaceStatusCanceled, codersdk.WorkspaceStatusFailed, codersdk.WorkspaceStatusDeleted}
+	isInactive := slices.Contains(inactiveStatuses, build.Status)
+	// If InactivityTTL is turned off (set to 0) or if the workspace is active, there is no impending deletion
+	if template.InactivityTTL == 0 || !isInactive {
+		return nil
+	}
+
+	return ptr.Ref(workspace.LastUsedAt.Add(time.Duration(template.InactivityTTL) * time.Nanosecond))
 }
 
 func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Duration) (sql.NullInt64, error) {

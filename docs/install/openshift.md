@@ -26,28 +26,55 @@ oc new-project coder
 
 ### 2. Configure SecurityContext values
 
-Depending upon your configured Security Context Constraints (SCC), you'll need to set
-the following `securityContext` values in the Coder Helm chart:
+Depending upon your configured Security Context Constraints (SCC), you'll need to modify
+some or all of the following `securityContext` values from the default values:
+
+The below values are modified from Coder defaults and allow the Coder deployment to run
+under the SCC `restricted-v2`.
+
+> Note: `readOnlyRootFilesystem: true` is not technically required under
+> `restricted-v2`, but is often mandated in OpenShift environments.
 
 ```yaml
 coder:
   securityContext:
-    runAsNonRoot: true
-    runAsUser: <project-specific UID>
-    runAsGroup: <project-specific GID>
-    readOnlyRootFilesystem: false
+    runAsNonRoot: true # Unchanged from default
+    runAsUser: <project-specific UID> # Default: 1000, replace this with the correct UID for your project.
+    runAsGroup: <project-specific GID> # Default: 1000, replace this with the correct GID for your project.
+    readOnlyRootFilesystem: true # Default: false, this is often required in OpenShift environments.
+    seccompProfile: RuntimeDefault # Unchanged from default
 ```
 
-The above values are the Coder defaults. You will need to change these values in
-accordance with the applied SCC. Retrieve the project UID range with the following
-command:
+- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project UID and project GID with the following
+  command:
 
-```console
-oc get project coder -o json | jq -r '.metadata.annotations'
-{
-  "openshift.io/sa.scc.uid-range": "1000680000/10000"
-}
-```
+      ```console
+      oc get project coder -o json | jq -r '.metadata.annotations'
+      {
+        "openshift.io/sa.scc.supplemental-groups": "1000680000/10000",
+        "openshift.io/sa.scc.uid-range": "1000680000/10000"
+      }
+      ```
+
+  Alternatively, you can set these values to `null` to allow OpenShift to automatically select
+  the correct value for the project.
+
+- For `readOnlyRootFilesystem`, consult the SCC under which Coder needs to run.
+  In the below example, the `restricted-v2` SCC does not require a read-only root filesystem,
+  while `restricted-custom` does:
+
+  ```console
+  oc get scc -o wide
+  NAME               PRIV    CAPS                   SELINUX     RUNASUSER          FSGROUP     SUPGROUP    PRIORITY     READONLYROOTFS   VOLUMES
+  restricted-custom   false   ["NET_BIND_SERVICE"]   MustRunAs   MustRunAsRange     MustRunAs   RunAsAny    <no value>   true             ["configMap","downwardAPI","emptyDir","ephemeral","persistentVolumeClaim","projected","secret"]
+  restricted-v2       false   ["NET_BIND_SERVICE"]   MustRunAs   MustRunAsRange     MustRunAs   RunAsAny    <no value>   false            ["configMap","downwardAPI","emptyDir","ephemeral","persistentVolumeClaim","projected","secret"]
+  ```
+
+  If you are unsure, we recommend setting `readOnlyRootFilesystem` to `true` in an OpenShift
+  environment.
+
+- For `seccompProfile`: in some environments, you may need to set this to `null` to allow OpenShift
+  to pick its preferred value.
 
 ### 3. Configure the Coder service, connection URLs, and cache values
 
@@ -59,8 +86,15 @@ value.
 By default, Coder creates the cache directory in `/home/coder/.cache`. Given the
 OpenShift-provided UID and `readOnlyRootFS` security context constraint, the Coder
 container does not have permission to write to this directory.
+
 To fix this, you can mount a temporary volume in the pod and set
 the `CODER_CACHE_DIRECTORY` environment variable to that location.
+In the below example, we mount this under `/tmp` and set the cache location to
+`/tmp/coder`. This enables Coder to run with `readOnlyRootFilesystem: true`.
+
+> Note: Depending on the number of templates and provisioners you use, you may
+> need to increase the size of the volume, as the `coder` pod will be automatically
+> restarted when this volume fills up.
 
 Additionally, create the Coder service as a `ClusterIP`. In the next step,
 you will create an OpenShift route that points to the service HTTP target port.
@@ -71,7 +105,7 @@ coder:
     type: ClusterIP
   env:
     - name: CODER_CACHE_DIRECTORY
-      value: /cache
+      value: /tmp/coder
     - name: CODER_PG_CONNECTION_URL
       valueFrom:
         secretKeyRef:
@@ -87,10 +121,10 @@ coder:
   volumes:
     - name: "cache"
       emptyDir:
-        sizeLimit: 500Mi
+        sizeLimit: 1Gi
   volumeMounts:
     - name: "cache"
-      mountPath: "/cache"
+      mountPath: "/tmp"
       readOnly: false
 ```
 
@@ -142,6 +176,40 @@ helm install coder coder-v2/coder \
   --values values.yaml
 ```
 
+> Note: If the Helm installation fails with a Kubernetes RBAC error, check the permissions
+> of your OpenShift user using the `oc auth can-i` command.
+>
+> The below permissions are the minimum required:
+>
+> ```console
+> oc auth can-i --list
+> Resources                                          Non-Resource URLs   Resource Names    Verbs
+> selfsubjectaccessreviews.authorization.k8s.io      []                  []                [create]
+> selfsubjectrulesreviews.authorization.k8s.io       []                  []                [create]
+> *                                                  []                  []                [get list watch create update patch delete deletecollection]
+> *.apps                                             []                  []                [get list watch create update patch delete deletecollection]
+> *.rbac.authorization.k8s.io                        []                  []                [get list watch create update patch delete deletecollection]
+>                                                    [/.well-known/*]    []                [get]
+>                                                    [/.well-known]      []                [get]
+>                                                    [/api/*]            []                [get]
+>                                                    [/api]              []                [get]
+>                                                    [/apis/*]           []                [get]
+>                                                    [/apis]             []                [get]
+>                                                    [/healthz]          []                [get]
+>                                                    [/healthz]          []                [get]
+>                                                    [/livez]            []                [get]
+>                                                    [/livez]            []                [get]
+>                                                    [/openapi/*]        []                [get]
+>                                                    [/openapi]          []                [get]
+>                                                    [/readyz]           []                [get]
+>                                                    [/readyz]           []                [get]
+>                                                    [/version/]         []                [get]
+>                                                    [/version/]         []                [get]
+>                                                    [/version]          []                [get]
+>                                                    [/version]          []                [get]
+> securitycontextconstraints.security.openshift.io   []                  [restricted-v2]   [use]
+> ```
+
 ### 6. Create an OpenShift-compatible image
 
 While the deployment is spinning up, we will need to create some images that
@@ -163,8 +231,9 @@ the Security Context Constraints (SCCs) in OpenShift.
    ```
 
    Note the `uid-range` and `supplemental-groups`. In this case, the project `coder`
-   has been allocated 10,000 UIDs starting at 1000680000, and 10,000 GIDs starting
-   at 1000680000. In this example, we will pick UID and GID 1000680000.
+   has been allocated 10,000 UIDs and GIDs, both starting at `1000680000`.
+
+   In this example, we will pick both UID and GID `1000680000`.
 
 1. Create a `BuildConfig` referencing the source image you want to customize.
    This will automatically kick off a `Build` that will remain pending until step 3.

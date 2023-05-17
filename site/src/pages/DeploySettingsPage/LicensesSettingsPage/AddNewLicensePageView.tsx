@@ -1,11 +1,11 @@
-import Button from "@material-ui/core/Button"
-import TextField from "@material-ui/core/TextField"
-import { makeStyles } from "@material-ui/core/styles"
-import { ApiErrorResponse } from "api/errors"
+import Button from "@mui/material/Button"
+import TextField from "@mui/material/TextField"
+import { makeStyles } from "@mui/styles"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { FileUpload } from "components/FileUpload/FileUpload"
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { Stack } from "components/Stack/Stack"
 import { DividerWithText } from "pages/DeploySettingsPage/LicensesSettingsPage/DividerWithText"
@@ -15,7 +15,7 @@ import { Link as RouterLink } from "react-router-dom"
 type AddNewLicenseProps = {
   onSaveLicenseKey: (license: string) => void
   isSavingLicense: boolean
-  savingLicenseError?: ApiErrorResponse
+  savingLicenseError?: unknown
 }
 
 export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
@@ -54,15 +54,15 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         justifyContent="space-between"
       >
         <Header
-          title="Add your license"
-          description="Enterprise licenses unlock more features on your deployment."
+          title="Add a License"
+          description="Get access to high availability, RBAC, quotas, and more."
         />
         <Button
           component={RouterLink}
+          startIcon={<KeyboardArrowLeft />}
           to="/settings/deployment/licenses"
-          variant="outlined"
         >
-          Back to licenses
+          All Licenses
         </Button>
       </Stack>
 
@@ -74,15 +74,15 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         isUploading={isUploading}
         onUpload={onUpload}
         removeLabel="Remove File"
-        title="Upload your license"
-        description="Upload a text file containing your license key"
+        title="Upload Your License"
+        description="Select a text file that contains your license key."
       />
 
       <Stack className={styles.main}>
         <DividerWithText>or</DividerWithText>
 
         <Fieldset
-          title="Paste your license key"
+          title="Paste Your License"
           onSubmit={(e) => {
             e.preventDefault()
 
@@ -95,15 +95,15 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
           }}
           button={
             <Button type="submit" disabled={isSavingLicense}>
-              Add license
+              Upload License
             </Button>
           }
         >
           <TextField
             name="licenseKey"
-            placeholder="Paste your license key here"
+            placeholder="Enter your license..."
             multiline
-            rows={4}
+            rows={1}
             fullWidth
           />
         </Fieldset>

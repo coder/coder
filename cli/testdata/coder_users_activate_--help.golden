@@ -5,7 +5,7 @@ platform
 
 Aliases: active
 
-[;m$ coder users activate example_user[0m
+[40m [0m[91;40m$ coder users activate example_user[0m[40m [0m
 
 [1mOptions[0m
   -c, --column string-array (default: username,email,created_at,status)

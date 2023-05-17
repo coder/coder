@@ -1,6 +1,6 @@
 import { WorkspaceApp } from "api/typesGenerated"
 import { FC } from "react"
-import ComputerIcon from "@material-ui/icons/Computer"
+import ComputerIcon from "@mui/icons-material/Computer"
 
 export const BaseIcon: FC<{ app: WorkspaceApp }> = ({ app }) => {
   return app.icon ? (

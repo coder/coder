@@ -1,5 +1,5 @@
-import DialogActions from "@material-ui/core/DialogActions"
-import { makeStyles } from "@material-ui/core/styles"
+import DialogActions from "@mui/material/DialogActions"
+import { makeStyles } from "@mui/styles"
 import { ReactNode, FC, PropsWithChildren } from "react"
 import {
   Dialog,
@@ -64,7 +64,7 @@ const useStyles = makeStyles((theme) => ({
       maxWidth: theme.spacing(55),
     },
     "& .MuiDialogActions-spacing": {
-      padding: `0 ${theme.spacing(5)}px ${theme.spacing(5)}px`,
+      padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,
     },
   },
   dialogContent: {

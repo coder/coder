@@ -930,7 +930,12 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 
-	api.Logger.Info(ctx, "accepting agent", slog.F("agent", workspaceAgent))
+	api.Logger.Info(ctx, "accepting agent",
+		slog.F("owner", owner.Username),
+		slog.F("workspace", workspace.Name),
+		slog.F("name", workspaceAgent.Name),
+	)
+	api.Logger.Debug(ctx, "accepting agent details", slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 

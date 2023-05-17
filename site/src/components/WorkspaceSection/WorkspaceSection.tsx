@@ -1,8 +1,6 @@
-import Paper from "@material-ui/core/Paper"
-import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
+import Paper from "@mui/material/Paper"
+import { makeStyles } from "@mui/styles"
 import { HTMLProps, ReactNode, FC, PropsWithChildren } from "react"
-import { CardPadding } from "../../theme/constants"
 import { combineClasses } from "../../utils/combineClasses"
 
 export interface WorkspaceSectionProps {
@@ -26,7 +24,7 @@ export const WorkspaceSection: FC<PropsWithChildren<WorkspaceSectionProps>> = ({
     <Paper className={styles.root} elevation={0}>
       {title && (
         <div className={styles.header}>
-          <Typography variant="h6">{title}</Typography>
+          <h6 className={styles.title}>{title}</h6>
           {action && <div>{action}</div>}
         </div>
       )}
@@ -53,9 +51,11 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     display: "flex",
     justifyContent: "space-between",
-    paddingBottom: theme.spacing(1.5),
-    paddingTop: theme.spacing(2),
-    paddingLeft: CardPadding + theme.spacing(1.5),
-    paddingRight: CardPadding / 2,
+    padding: theme.spacing(1.5, 2),
+  },
+  title: {
+    margin: 0,
+    fontSize: 14,
+    fontWeight: 600,
   },
 }))

@@ -46,7 +46,6 @@ const (
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
-	FeatureWorkspaceActions           FeatureName = "workspace_actions"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -62,7 +61,6 @@ var FeatureNames = []FeatureName{
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
-	FeatureWorkspaceActions,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -1352,7 +1350,7 @@ when required by your organization's security policy.`,
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
 			Env:         "CODER_BROWSER_ONLY",
-			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationExternalProxies, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true"),
 			Value:       &c.BrowserOnly,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "browserOnly",

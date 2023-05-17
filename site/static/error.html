@@ -7,7 +7,10 @@ running). */}}
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ .Error.Status }} - {{ .Error.Title }}</title>
+    <title>
+      {{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
+      .Error.Title }}
+    </title>
     <style>
       * {
         padding: 0;
@@ -123,7 +126,10 @@ running). */}}
         </defs>
       </svg>
 
-      <h1>{{ .Error.Status }} - {{ .Error.Title }}</h1>
+      <h1>
+        {{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
+        .Error.Title }}
+      </h1>
       <p>{{ .Error.Description }}</p>
       <div class="button-group">
         {{- if .Error.RetryEnabled }}

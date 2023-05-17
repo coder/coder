@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { PropsWithChildren, FC, ReactNode } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { DisabledBadge, EnabledBadge } from "./Badges"

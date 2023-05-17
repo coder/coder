@@ -225,6 +225,10 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 					}
 				}
 
+				// attempt to delete the file before creating a new symlink.  This overwrites any existing symlinks
+				// which are typically leftover from a previous call to coder dotfiles.  We do this best effort and
+				// ignore errors because the symlink may or may not exist.  Any regular files are backed up above.
+				_ = os.Remove(to)
 				err = os.Symlink(from, to)
 				if err != nil {
 					return xerrors.Errorf("symlinking %s to %s: %w", from, to, err)

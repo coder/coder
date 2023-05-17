@@ -293,7 +293,9 @@ func (api *API) moonsEnabledMW(next http.Handler) http.Handler {
 		proxy := api.entitlements.Features[codersdk.FeatureWorkspaceProxy].Enabled
 		api.entitlementsMu.RUnlock()
 		if !proxy {
-			httpapi.RouteNotFound(rw)
+			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+				Message: "External workspace proxies is an Enterprise feature. Contact sales!",
+			})
 			return
 		}
 

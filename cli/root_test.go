@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,8 +35,17 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
 
+// We need to override the global color profile.
+//
+//nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T) {
-	t.Parallel()
+	ogColorProfile := lipgloss.ColorProfile()
+	// ANSI256 escape codes are far easier for humans to parse in a diff,
+	// but TrueColor is probably more popular with modern terminals.
+	lipgloss.SetColorProfile(termenv.ANSI)
+	t.Cleanup(func() {
+		lipgloss.SetColorProfile(ogColorProfile)
+	})
 	rootClient, replacements := prepareTestData(t)
 
 	type testCase struct {

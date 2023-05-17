@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
@@ -30,7 +30,7 @@ const getAutostop = (workspace: TypesGen.Workspace) =>
 
 const useStyles = makeStyles((theme) => ({
   topMargin: {
-    marginTop: `${theme.spacing(3)}px`,
+    marginTop: theme.spacing(3),
   },
   pageHeader: {
     paddingTop: 0,

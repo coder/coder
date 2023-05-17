@@ -106,6 +106,13 @@ type CreateTemplateRequest struct {
 	// false, the DefaultTTL will always be used. This can only be disabled when
 	// using an enterprise license.
 	AllowUserAutostop *bool `json:"allow_user_autostop"`
+
+	// FailureTTLMillis allows optionally specifying the max lifetime before Coder
+	// stops all resources for failed workspaces created from this template.
+	FailureTTLMillis *int64 `json:"failure_ttl_ms,omitempty"`
+	// InactivityTTLMillis allows optionally specifying the max lifetime before Coder
+	// deletes inactive workspaces created from this template.
+	InactivityTTLMillis *int64 `json:"inactivity_ttl_ms,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.

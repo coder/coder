@@ -6,21 +6,21 @@ import {
   EnterpriseBadge,
   EntitledBadge,
 } from "components/DeploySettingsLayout/Badges"
-import InputAdornment from "@material-ui/core/InputAdornment"
+import InputAdornment from "@mui/material/InputAdornment"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { getFormHelpers } from "utils/formUtils"
-import Button from "@material-ui/core/Button"
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import FormHelperText from "@material-ui/core/FormHelperText"
+import Button from "@mui/material/Button"
+import FormControlLabel from "@mui/material/FormControlLabel"
 import { BlockPicker } from "react-color"
 import { useTranslation } from "react-i18next"
-import makeStyles from "@material-ui/core/styles/makeStyles"
-import Switch from "@material-ui/core/Switch"
-import TextField from "@material-ui/core/TextField"
+import makeStyles from "@mui/styles/makeStyles"
+import Switch from "@mui/material/Switch"
+import TextField from "@mui/material/TextField"
 import { UpdateAppearanceConfig } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
-import { useTheme } from "@material-ui/core/styles"
+import { useTheme } from "@mui/styles"
+import Link from "@mui/material/Link"
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig
@@ -82,6 +82,8 @@ export const AppearanceSettingsPageView = ({
 
       <Fieldset
         title="Logo URL"
+        subtitle="Specify a custom URL for your logo to be displayed in the top left
+          corner of the dashboard."
         validation={
           isEntitled
             ? "We recommend a transparent image with 3:1 aspect ratio."
@@ -90,10 +92,6 @@ export const AppearanceSettingsPageView = ({
         onSubmit={logoForm.handleSubmit}
         button={!isEntitled && <Button disabled>Submit</Button>}
       >
-        <p>
-          Specify a custom URL for your logo to be displayed in the top left
-          corner of the dashboard.
-        </p>
         <TextField
           {...logoFieldHelpers("logo_url")}
           defaultValue={appearance.logo_url}
@@ -119,6 +117,7 @@ export const AppearanceSettingsPageView = ({
 
       <Fieldset
         title="Service Banner"
+        subtitle="Configure a banner that displays a message to all users."
         onSubmit={serviceBannerForm.handleSubmit}
         button={
           !isEntitled && (
@@ -145,19 +144,17 @@ export const AppearanceSettingsPageView = ({
           !isEntitled && (
             <p>
               Your license does not include Service Banners.{" "}
-              <a href="mailto:sales@coder.com">Contact sales</a> to learn more.
+              <Link href="mailto:sales@coder.com">Contact sales</Link> to learn
+              more.
             </p>
           )
         }
       >
-        <p>Configure a banner that displays a message to all users.</p>
-
         {isEntitled && (
           <Stack>
             <FormControlLabel
               control={
                 <Switch
-                  color="primary"
                   checked={serviceBannerForm.values.enabled}
                   onChange={async () => {
                     const newState = !serviceBannerForm.values.enabled
@@ -179,13 +176,14 @@ export const AppearanceSettingsPageView = ({
             />
             <Stack spacing={0}>
               <TextField
-                {...serviceBannerFieldHelpers("message")}
+                {...serviceBannerFieldHelpers(
+                  "message",
+                  t("messageHelperText"),
+                )}
                 fullWidth
                 label="Message"
-                variant="outlined"
                 multiline
               />
-              <FormHelperText>{t("messageHelperText")}</FormHelperText>
             </Stack>
 
             <Stack spacing={0}>

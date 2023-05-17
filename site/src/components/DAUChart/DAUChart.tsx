@@ -1,5 +1,5 @@
-import { Theme } from "@material-ui/core/styles"
-import useTheme from "@material-ui/styles/useTheme"
+import { Theme } from "@mui/material/styles"
+import useTheme from "@mui/styles/useTheme"
 import * as TypesGen from "api/typesGenerated"
 import {
   CategoryScale,

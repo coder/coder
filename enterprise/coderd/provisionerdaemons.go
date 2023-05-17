@@ -324,12 +324,16 @@ func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 		UserAutostopEnabled:  tpl.AllowUserAutostop,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
 		MaxTTL:               time.Duration(tpl.MaxTTL),
+		FailureTTL:           time.Duration(tpl.FailureTTL),
+		InactivityTTL:        time.Duration(tpl.InactivityTTL),
 	}, nil
 }
 
 func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
+		int64(opts.FailureTTL) == tpl.FailureTTL &&
+		int64(opts.InactivityTTL) == tpl.InactivityTTL &&
 		opts.UserAutostartEnabled == tpl.AllowUserAutostart &&
 		opts.UserAutostopEnabled == tpl.AllowUserAutostop {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
@@ -343,6 +347,8 @@ func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.C
 		AllowUserAutostop:  opts.UserAutostopEnabled,
 		DefaultTTL:         int64(opts.DefaultTTL),
 		MaxTTL:             int64(opts.MaxTTL),
+		FailureTTL:         int64(opts.FailureTTL),
+		InactivityTTL:      int64(opts.InactivityTTL),
 	})
 	if err != nil {
 		return database.Template{}, xerrors.Errorf("update template schedule: %w", err)

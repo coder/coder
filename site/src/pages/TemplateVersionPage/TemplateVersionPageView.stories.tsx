@@ -41,7 +41,6 @@ const defaultArgs: TemplateVersionPageViewProps = {
   tab,
   templateName: MockTemplate.name,
   versionName: MockTemplateVersion.name,
-  canEdit: true,
   context: {
     templateName: MockTemplate.name,
     orgId: MockOrganization.id,

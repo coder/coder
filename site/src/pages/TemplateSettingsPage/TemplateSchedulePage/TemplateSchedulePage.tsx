@@ -14,9 +14,13 @@ const TemplateSchedulePage: FC = () => {
   const { template: templateName } = useParams() as { template: string }
   const navigate = useNavigate()
   const { template } = useTemplateSettingsContext()
-  const { entitlements } = useDashboard()
+  const { entitlements, experiments } = useDashboard()
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled
+  // This check can be removed when https://github.com/coder/coder/milestone/19
+  // is merged up
+  const allowWorkspaceActions = experiments.includes("workspace_actions")
+
   const {
     mutate: updateTemplate,
     isLoading: isSubmitting,
@@ -37,6 +41,7 @@ const TemplateSchedulePage: FC = () => {
       </Helmet>
       <TemplateSchedulePageView
         allowAdvancedScheduling={allowAdvancedScheduling}
+        allowWorkspaceActions={allowWorkspaceActions}
         isSubmitting={isSubmitting}
         template={template}
         submitError={submitError}

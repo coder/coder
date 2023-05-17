@@ -163,7 +163,7 @@ jobs:
       - name: Send Slack notification on failure
         if: ${{ failure() }}
         run: |
-          msg="❌ CodeQL Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          msg="❌ Trivy Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           curl \
             -qfsSL \
             -X POST \

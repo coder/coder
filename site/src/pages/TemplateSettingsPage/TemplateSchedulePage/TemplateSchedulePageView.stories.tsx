@@ -11,6 +11,7 @@ export default {
   component: TemplateSchedulePageView,
   args: {
     allowAdvancedScheduling: true,
+    allowWorkspaceActions: true,
     template: MockTemplate,
     onSubmit: action("onSubmit"),
     onCancel: action("cancel"),

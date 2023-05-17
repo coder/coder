@@ -34,7 +34,7 @@ func TestMigrate(t *testing.T) {
 	t.Parallel()
 
 	if testing.Short() {
-		t.Skip()
+		t.SkipNow()
 		return
 	}
 
@@ -198,7 +198,7 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 	t.Parallel()
 
 	if testing.Short() {
-		t.Skip()
+		t.SkipNow()
 		return
 	}
 

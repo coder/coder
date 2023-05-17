@@ -1,5 +1,5 @@
-import { makeStyles } from "@material-ui/core/styles"
-import TableCell from "@material-ui/core/TableCell"
+import { makeStyles } from "@mui/styles"
+import TableCell from "@mui/material/TableCell"
 import { WorkspaceBuild } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { TimelineEntry } from "components/Timeline/TimelineEntry"

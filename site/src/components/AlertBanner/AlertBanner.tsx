@@ -1,7 +1,7 @@
 import { useState, FC, Children } from "react"
-import Collapse from "@material-ui/core/Collapse"
+import Collapse from "@mui/material/Collapse"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { colors } from "theme/colors"
 import { useTranslation } from "react-i18next"
 import { getErrorDetail, getErrorMessage } from "api/errors"
@@ -9,6 +9,7 @@ import { Expander } from "components/Expander/Expander"
 import { Severity, AlertBannerProps } from "./alertTypes"
 import { severityConstants } from "./severityConstants"
 import { AlertBannerCtas } from "./AlertBannerCtas"
+import { Theme } from "@mui/material/styles"
 
 /**
  * @param children: the children to be displayed in the alert
@@ -96,6 +97,7 @@ interface StyleProps {
 
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   alertContainer: (props) => ({
+    ...theme.typography.body2,
     borderColor: severityConstants[props.severity].color,
     border: `1px solid ${colors.orange[7]}`,
     borderRadius: theme.shape.borderRadius,
@@ -104,13 +106,13 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     textAlign: "left",
 
     "& > span": {
-      paddingTop: `${theme.spacing(0.25)}px`,
+      paddingTop: theme.spacing(0.25),
     },
 
     // targeting the alert icon rather than the expander icon
     "& svg:nth-child(2)": {
-      marginTop: props.hasDetail ? `${theme.spacing(1)}px` : "inherit",
-      marginRight: `${theme.spacing(1)}px`,
+      marginTop: props.hasDetail ? theme.spacing(1) : "inherit",
+      marginRight: theme.spacing(1),
     },
   }),
 

@@ -2,22 +2,26 @@ import { Region } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { Avatar } from "components/Avatar/Avatar"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
-import TableCell from "@material-ui/core/TableCell"
-import TableRow from "@material-ui/core/TableRow"
+import TableCell from "@mui/material/TableCell"
+import TableRow from "@mui/material/TableRow"
 import { FC } from "react"
 import {
   HealthyBadge,
   NotHealthyBadge,
 } from "components/DeploySettingsLayout/Badges"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
+import { ProxyLatencyReport } from "contexts/useProxyLatency"
+import { getLatencyColor } from "utils/colors"
 
 export const ProxyRow: FC<{
+  latency?: ProxyLatencyReport
   proxy: Region
   onSelectRegion: (proxy: Region) => void
   preferred: boolean
-}> = ({ proxy, onSelectRegion, preferred }) => {
+}> = ({ proxy, onSelectRegion, preferred, latency }) => {
   const styles = useStyles()
+  const theme = useTheme()
 
   const clickable = useClickableTableRow(() => {
     onSelectRegion(proxy)
@@ -52,6 +56,15 @@ export const ProxyRow: FC<{
       <TableCell>{proxy.path_app_url}</TableCell>
       <TableCell>
         <ProxyStatus proxy={proxy} />
+      </TableCell>
+      <TableCell>
+        <span
+          style={{
+            color: latency ? getLatencyColor(theme, latency.latencyMS) : "",
+          }}
+        >
+          {latency ? `${latency.latencyMS.toFixed(1)} ms` : "?"}
+        </span>
       </TableCell>
     </TableRow>
   )

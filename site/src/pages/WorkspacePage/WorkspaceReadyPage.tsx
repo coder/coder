@@ -3,7 +3,7 @@ import { ProvisionerJobLog } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import dayjs from "dayjs"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
-import { useEffect, useState } from "react"
+import { FC, useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -31,6 +31,13 @@ import { ChangeVersionDialog } from "./ChangeVersionDialog"
 import { useQuery } from "@tanstack/react-query"
 import { getTemplateVersions } from "api/api"
 import { useRestartWorkspace } from "./hooks"
+import {
+  ConfirmDialog,
+  ConfirmDialogProps,
+} from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import { useMe } from "hooks/useMe"
+import Checkbox from "@mui/material/Checkbox"
+import FormControlLabel from "@mui/material/FormControlLabel"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -53,6 +60,7 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
+    templateVersion,
     builds,
     getBuildsError,
     buildError,
@@ -76,6 +84,10 @@ export const WorkspaceReadyPage = ({
     queryFn: () => getTemplateVersions(workspace.template_id),
     enabled: changeVersionDialogOpen,
   })
+  const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false)
+  const [isConfirmingRestart, setIsConfirmingRestart] = useState(false)
+  const user = useMe()
+  const { isWarningIgnored, ignoreWarning } = useIgnoreWarnings(user.id)
 
   const {
     mutate: restartWorkspace,
@@ -130,9 +142,21 @@ export const WorkspaceReadyPage = ({
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
-        handleRestart={() => restartWorkspace(workspace)}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
-        handleUpdate={() => workspaceSend({ type: "UPDATE" })}
+        handleRestart={() => {
+          if (isWarningIgnored("restart")) {
+            restartWorkspace(workspace)
+          } else {
+            setIsConfirmingRestart(true)
+          }
+        }}
+        handleUpdate={() => {
+          if (isWarningIgnored("update")) {
+            workspaceSend({ type: "UPDATE" })
+          } else {
+            setIsConfirmingUpdate(true)
+          }
+        }}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
         handleSettings={() => navigate("settings")}
         handleBuildRetry={() => workspaceSend({ type: "RETRY_BUILD" })}
@@ -155,6 +179,7 @@ export const WorkspaceReadyPage = ({
         sshPrefix={sshPrefix}
         template={template}
         quota_budget={quotaState.context.quota?.budget}
+        templateWarnings={templateVersion?.warnings}
       />
       <DeleteDialog
         entity="workspace"
@@ -198,6 +223,107 @@ export const WorkspaceReadyPage = ({
           })
         }}
       />
+      <WarningDialog
+        open={isConfirmingUpdate}
+        onConfirm={(shouldIgnore) => {
+          if (shouldIgnore) {
+            ignoreWarning("update")
+          }
+          workspaceSend({ type: "UPDATE" })
+          setIsConfirmingUpdate(false)
+        }}
+        onClose={() => setIsConfirmingUpdate(false)}
+        title="Confirm update"
+        confirmText="Update"
+        description="Are you sure you want to update your workspace? Updating your workspace will stop all running processes and delete non-persistent data."
+      />
+
+      <WarningDialog
+        open={isConfirmingRestart}
+        onConfirm={(shouldIgnore) => {
+          if (shouldIgnore) {
+            ignoreWarning("restart")
+          }
+          restartWorkspace(workspace)
+          setIsConfirmingRestart(false)
+        }}
+        onClose={() => setIsConfirmingRestart(false)}
+        title="Confirm restart"
+        confirmText="Restart"
+        description="Are you sure you want to restart your workspace? Updating your workspace will stop all running processes and delete non-persistent data."
+      />
     </>
+  )
+}
+
+type IgnoredWarnings = Record<string, string>
+
+const useIgnoreWarnings = (prefix: string) => {
+  const ignoredWarningsJSON = localStorage.getItem(`${prefix}_ignoredWarnings`)
+  let ignoredWarnings: IgnoredWarnings | undefined
+  if (ignoredWarningsJSON) {
+    ignoredWarnings = JSON.parse(ignoredWarningsJSON)
+  }
+
+  const isWarningIgnored = (warningId: string) => {
+    return Boolean(ignoredWarnings?.[warningId])
+  }
+
+  const ignoreWarning = (warningId: string) => {
+    if (!ignoredWarnings) {
+      ignoredWarnings = {}
+    }
+    ignoredWarnings[warningId] = new Date().toISOString()
+    localStorage.setItem(
+      `${prefix}_ignoredWarnings`,
+      JSON.stringify(ignoredWarnings),
+    )
+  }
+
+  return {
+    isWarningIgnored,
+    ignoreWarning,
+  }
+}
+
+const WarningDialog: FC<
+  Pick<
+    ConfirmDialogProps,
+    "open" | "onClose" | "title" | "confirmText" | "description"
+  > & { onConfirm: (shouldIgnore: boolean) => void }
+> = ({ open, onConfirm, onClose, title, confirmText, description }) => {
+  const [shouldIgnore, setShouldIgnore] = useState(false)
+
+  return (
+    <ConfirmDialog
+      type="info"
+      hideCancel={false}
+      open={open}
+      onConfirm={() => {
+        onConfirm(shouldIgnore)
+      }}
+      onClose={onClose}
+      title={title}
+      confirmText={confirmText}
+      description={
+        <>
+          <div>{description}</div>
+          <FormControlLabel
+            sx={{
+              marginTop: 2,
+            }}
+            control={
+              <Checkbox
+                size="small"
+                onChange={(e) => {
+                  setShouldIgnore(e.target.checked)
+                }}
+              />
+            }
+            label="Don't show me this message again"
+          />
+        </>
+      }
+    />
   )
 }

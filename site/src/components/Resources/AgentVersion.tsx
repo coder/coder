@@ -1,5 +1,5 @@
 import { useRef, useState, FC } from "react"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { getDisplayVersionStatus } from "utils/workspace"
 import { AgentOutdatedTooltip } from "components/Tooltips/AgentOutdatedTooltip"

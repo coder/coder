@@ -60,6 +60,13 @@ spec:
         - name: coder
           image: {{ include "coder.image" . | quote }}
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
+          command:
+            - /opt/coder
+          args:
+            {{- if .Values.coder.workspaceProxy }}
+            - wsproxy
+            {{- end }}
+            - server
           resources:
             {{- toYaml .Values.coder.resources | nindent 12 }}
           lifecycle:

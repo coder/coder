@@ -1,7 +1,7 @@
 import { Avatar } from "components/Avatar/Avatar"
-import Badge from "@material-ui/core/Badge"
-import { withStyles } from "@material-ui/core/styles"
-import Group from "@material-ui/icons/Group"
+import Badge from "@mui/material/Badge"
+import { withStyles } from "@mui/styles"
+import Group from "@mui/icons-material/Group"
 import { FC } from "react"
 
 const StyledBadge = withStyles((theme) => ({
