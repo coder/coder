@@ -1,6 +1,6 @@
 import { DeploymentOption } from "api/types"
 import { DeploymentDAUsResponse } from "api/typesGenerated"
-import { Alert } from "components/Alert/Alert"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { DAUChart } from "components/DAUChart/DAUChart"
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
@@ -26,7 +26,7 @@ export const GeneralSettingsPageView = ({
       />
       <Stack spacing={4}>
         {Boolean(getDeploymentDAUsError) && (
-          <Alert error={getDeploymentDAUsError} severity="error" />
+          <ErrorAlert error={getDeploymentDAUsError} />
         )}
         {deploymentDAUs && <DAUChart daus={deploymentDAUs} />}
         <OptionsTable
