@@ -170,7 +170,7 @@ func TestTemplatePush(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ProvisionComplete,
 		})
-		inv, root := clitest.New(t, "templates", "push", template.Name, "--make-active", "false", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
+		inv, root := clitest.New(t, "templates", "push", template.Name, "--activate", "false", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
