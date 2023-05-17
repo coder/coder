@@ -1,5 +1,6 @@
 import { AlertProps, Alert } from "./Alert"
 import AlertTitle from "@mui/material/AlertTitle"
+import Box from "@mui/material/Box"
 import { getErrorMessage, getErrorDetail } from "api/errors"
 import { FC } from "react"
 
@@ -14,7 +15,9 @@ export const ErrorAlert: FC<
       {detail ? (
         <>
           <AlertTitle>{message}</AlertTitle>
-          {detail}
+          <Box component="span" color={(theme) => theme.palette.text.secondary}>
+            {detail}
+          </Box>
         </>
       ) : (
         message

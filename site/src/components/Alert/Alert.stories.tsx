@@ -12,7 +12,7 @@ export default meta
 type Story = StoryObj<typeof Alert>
 
 const ExampleAction = (
-  <Button onClick={() => null} size="small">
+  <Button onClick={() => null} size="small" variant="text">
     Button
   </Button>
 )
@@ -21,13 +21,6 @@ export const Warning: Story = {
   args: {
     children: "This is a warning",
     severity: "warning",
-  },
-}
-
-export const ErrorWithDefaultMessage: Story = {
-  args: {
-    children: "This is an error",
-    severity: "error",
   },
 }
 
@@ -58,6 +51,7 @@ export const WarningWithActionAndDismiss: Story = {
 
 export const WithChildren: Story = {
   args: {
+    severity: "warning",
     children: (
       <div>
         This is a message with a <Link href="#">link</Link>
