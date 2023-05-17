@@ -169,7 +169,7 @@ user.click(within(form).getByRole("button"))
 
 #### `jest.spyOn` with the API is not working
 
-For some unkown reason, we figured out the `jest.spyOn` is not able to mock the API function when they are passed directly into the services XState machine configuration.
+For some unknown reason, we figured out the `jest.spyOn` is not able to mock the API function when they are passed directly into the services XState machine configuration.
 
 ❌ Does not work
 
