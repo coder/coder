@@ -7,20 +7,41 @@ import {
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
-} from "../../testHelpers/entities"
+  MockBuildInfo,
+  MockEntitlementsWithScheduling,
+  MockExperiments,
+  MockAppearance,
+} from "testHelpers/entities"
 import {
   CreateWorkspaceErrors,
   CreateWorkspacePageView,
   CreateWorkspacePageViewProps,
 } from "./CreateWorkspacePageView"
+import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
 
 export default {
   title: "pages/CreateWorkspacePageView",
   component: CreateWorkspacePageView,
 } as ComponentMeta<typeof CreateWorkspacePageView>
 
+const MockedAppearance = {
+  config: MockAppearance,
+  preview: false,
+  setPreview: () => null,
+  save: () => null,
+}
+
 const Template: Story<CreateWorkspacePageViewProps> = (args) => (
-  <CreateWorkspacePageView {...args} />
+  <DashboardProviderContext.Provider
+    value={{
+      buildInfo: MockBuildInfo,
+      entitlements: MockEntitlementsWithScheduling,
+      experiments: MockExperiments,
+      appearance: MockedAppearance,
+    }}
+  >
+    <CreateWorkspacePageView {...args} />
+  </DashboardProviderContext.Provider>
 )
 
 export const NoParameters = Template.bind({})
