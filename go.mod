@@ -99,7 +99,7 @@ require (
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.12.0
 	github.com/gofrs/flock v0.8.1
-	github.com/gohugoio/hugo v0.110.0
+	github.com/gohugoio/hugo v0.111.3
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/golang-migrate/migrate/v4 v4.15.2
@@ -168,7 +168,7 @@ require (
 	golang.org/x/tools v0.6.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
-	google.golang.org/api v0.108.0
+	google.golang.org/api v0.110.0
 	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.28.2-0.20230118093459-a9481185b34d
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -242,7 +242,7 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.2.1 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.1 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
@@ -295,7 +295,7 @@ require (
 	github.com/muesli/ansi v0.0.0-20221106050444-61f0cd9a192a // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.1
-	github.com/niklasfasching/go-org v1.6.5 // indirect
+	github.com/niklasfasching/go-org v1.6.6 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -321,7 +321,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20221219190806-4fa124729667 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
-	github.com/tdewolff/parse/v2 v2.6.4 // indirect
+	github.com/tdewolff/parse/v2 v2.6.5 // indirect
 	github.com/u-root/uio v0.0.0-20221213070652-c3537552635f // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54 // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
@@ -334,7 +334,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
-	github.com/yuin/goldmark v1.5.3 // indirect
+	github.com/yuin/goldmark v1.5.4 // indirect
 	github.com/yuin/goldmark-emoji v1.0.1 // indirect
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
