@@ -1464,15 +1464,3 @@ func expandDirectory(dir string) (string, error) {
 // specialized environment in which the agent is running
 // (e.g. envbox, envbuilder).
 const EnvAgentSubsystem = "CODER_AGENT_SUBSYSTEM"
-
-// SubsystemFromEnv returns the subsystem (if any) the agent
-// is running inside of.
-func SubsystemFromEnv() codersdk.AgentSubsystem {
-	ss := os.Getenv(EnvAgentSubsystem)
-	switch codersdk.AgentSubsystem(ss) {
-	case codersdk.AgentSubsystemEnvbox:
-		return codersdk.AgentSubsystemEnvbox
-	default:
-		return ""
-	}
-}
