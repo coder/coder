@@ -1,71 +1,21 @@
-import Button, { ButtonProps } from "@mui/material/Button"
-import CircularProgress from "@mui/material/CircularProgress"
-import { makeStyles } from "@mui/styles"
-import { Theme } from "@mui/material/styles"
 import { FC } from "react"
+import MuiLoadingButton, {
+  LoadingButtonProps as MuiLoadingButtonProps,
+} from "@mui/lab/LoadingButton"
 
-export interface LoadingButtonProps extends ButtonProps {
-  /** Whether or not to disable the button and show a spinner */
-  loading?: boolean
-  /** An optional label to display with the loading spinner */
-  loadingLabel?: string
-}
+export type LoadingButtonProps = MuiLoadingButtonProps
 
-/**
- * LoadingButton is a small wrapper around Material-UI's button to show a loading spinner
- *
- * In Material-UI 5+ - this is built-in, but since we're on an earlier version,
- * we have to roll our own.
- */
-export const LoadingButton: FC<React.PropsWithChildren<LoadingButtonProps>> = ({
-  loading = false,
-  loadingLabel,
+export const LoadingButton: FC<LoadingButtonProps> = ({
   children,
-  ...rest
+  loadingIndicator,
+  ...buttonProps
 }) => {
-  const styles = useStyles({ hasLoadingLabel: Boolean(loadingLabel) })
-  const hidden = loading ? { opacity: 0 } : undefined
-
   return (
-    <Button {...rest} disabled={rest.disabled || loading}>
-      <span style={hidden}>{children}</span>
-      {loading && (
-        <div className={styles.loader}>
-          <CircularProgress size={16} className={styles.spinner} />
-        </div>
-      )}
-      {Boolean(loadingLabel) && loadingLabel}
-    </Button>
+    <MuiLoadingButton variant="outlined" color="neutral" {...buttonProps}>
+      {/* known issue: https://github.com/mui/material-ui/issues/27853 */}
+      <span>
+        {buttonProps.loading && loadingIndicator ? loadingIndicator : children}
+      </span>
+    </MuiLoadingButton>
   )
 }
-
-interface StyleProps {
-  hasLoadingLabel?: boolean
-}
-
-const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
-  loader: {
-    position: (props) => {
-      if (!props.hasLoadingLabel) {
-        return "absolute"
-      }
-    },
-    transform: (props) => {
-      if (!props.hasLoadingLabel) {
-        return "translate(-50%, -50%)"
-      }
-    },
-    marginRight: (props) => {
-      if (props.hasLoadingLabel) {
-        return "10px"
-      }
-    },
-    top: "50%",
-    left: "50%",
-    height: 22, // centering loading icon
-    width: 16,
-  },
-  spinner: {
-    color: theme.palette.text.disabled,
-  },
-}))

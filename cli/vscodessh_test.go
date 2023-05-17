@@ -68,6 +68,7 @@ func TestVSCodeSSH(t *testing.T) {
 		}
 		return len(entries) > 0
 	}, testutil.WaitLong, testutil.IntervalFast)
+	waiter.Cancel()
 
 	if err := waiter.Wait(); err != nil {
 		waiter.RequireIs(context.Canceled)
