@@ -27,8 +27,8 @@ Generate traffic to scaletest workspaces through coderd
           Output format specs in the format "<format>[:<path>]". Not specifying
           a path will default to stdout. Available formats: text, json.
 
-      --prometheus-address string, $CODER_SCALETEST_PROMETHEUS_ADDRESS (default: 0.0.0.0:2112)
-          Address on which to expose prometheus metrics.
+      --scaletest-prometheus-address string, $CODER_SCALETEST_PROMETHEUS_ADDRESS (default: 0.0.0.0:21112)
+          Address on which to expose scaletest prometheus metrics.
 
       --tick-interval duration, $CODER_SCALETEST_WORKSPACE_TRAFFIC_TICK_INTERVAL (default: 100ms)
           How often to send traffic.

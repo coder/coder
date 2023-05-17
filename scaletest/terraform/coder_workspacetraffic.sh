@@ -13,6 +13,7 @@ fi
 LOADTEST_NAME="$1"
 CODER_TOKEN=$(./coder_shim.sh tokens create)
 CODER_URL="http://coder.coder-${LOADTEST_NAME}.svc.cluster.local"
+export KUBECONFIG="${PWD}/.coderv2/${LOADTEST_NAME}-cluster.kubeconfig"
 
 cat <<EOF | kubectl apply -f -
 apiVersion: v1

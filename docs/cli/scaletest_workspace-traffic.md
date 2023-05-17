@@ -82,6 +82,16 @@ Timeout per job. Jobs may take longer to complete under higher concurrency limit
 
 Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.
 
+### --scaletest-prometheus-address
+
+|             |                                                  |
+| ----------- | ------------------------------------------------ |
+| Type        | <code>string</code>                              |
+| Environment | <code>$CODER_SCALETEST_PROMETHEUS_ADDRESS</code> |
+| Default     | <code>0.0.0.0:21112</code>                       |
+
+Address on which to expose scaletest prometheus metrics.
+
 ### --tick-interval
 
 |             |                                                               |
