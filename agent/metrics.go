@@ -9,6 +9,19 @@ import (
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
+var (
+	// ReconnectingPTY
+	metricReconnectingPTYHandler            = clientmetric.NewCounter("ssh_reconnecting_pty_handler")
+	metricReconnectingPTYError              = clientmetric.NewCounter("ssh_reconnecting_pty_error")
+	metricReconnectingPTYCreateCommandError = clientmetric.NewCounter("ssh_reconnecting_pty_create_command_error")
+	metricReconnectingPTYCmdStartError      = clientmetric.NewCounter("ssh_reconnecting_pty_cmd_start_error")
+	metricReconnectingPTYReadError          = clientmetric.NewCounter("ssh_reconnecting_pty_read_error")
+	metricReconnectingPTYWriteError         = clientmetric.NewCounter("ssh_reconnecting_pty_write_error")
+	metricReconnectingPTYResizeError        = clientmetric.NewCounter("ssh_reconnecting_pty_resize_error")
+	metricReconnectingPTYOutputReaderError  = clientmetric.NewCounter("ssh_reconnecting_pty_output_reader_error")
+	metricReconnectingPTYInputWriterError   = clientmetric.NewCounter("ssh_reconnecting_pty_input_writer_error")
+)
+
 func collectMetrics() []agentsdk.AgentMetric {
 	// Tailscale metrics
 	metrics := clientmetric.Metrics()

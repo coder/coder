@@ -979,6 +979,7 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan str
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
+	metricReconnectingPTYHandler.Add(1)
 
 	a.connCountReconnectingPTY.Add(1)
 	defer a.connCountReconnectingPTY.Add(-1)
@@ -999,6 +1000,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 				logger.Debug(ctx, "session error after agent close", slog.Error(err))
 			} else {
 				logger.Error(ctx, "session error", slog.Error(err))
+				metricReconnectingPTYError.Add(1)
 			}
 		}
 		logger.Debug(ctx, "session closed")
@@ -1018,6 +1020,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		// Empty command will default to the users shell!
 		cmd, err := a.sshServer.CreateCommand(ctx, msg.Command, nil)
 		if err != nil {
+			metricReconnectingPTYCreateCommandError.Add(1)
 			return xerrors.Errorf("create command: %w", err)
 		}
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
@@ -1030,6 +1033,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
+			metricReconnectingPTYCmdStartError.Add(1)
 			return xerrors.Errorf("start command: %w", err)
 		}
 
@@ -1056,7 +1060,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 				if err != nil {
 					// When the PTY is closed, this is triggered.
 					// Error is typically a benign EOF, so only log for debugging.
-					logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
+					if errors.Is(err, io.EOF) {
+						logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
+					} else {
+						logger.Warn(ctx, "unable to read pty output, command exited?", slog.Error(err))
+						metricReconnectingPTYOutputReaderError.Add(1)
+					}
 					break
 				}
 				part := buffer[:read]
@@ -1071,11 +1080,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 				for cid, conn := range rpty.activeConns {
 					_, err = conn.Write(part)
 					if err != nil {
-						logger.Debug(ctx,
+						logger.Warn(ctx,
 							"error writing to active conn",
 							slog.F("other_conn_id", cid),
 							slog.Error(err),
 						)
+						metricReconnectingPTYWriteError.Add(1)
 					}
 				}
 				rpty.activeConnsMutex.Unlock()
@@ -1095,6 +1105,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	if err != nil {
 		// We can continue after this, it's not fatal!
 		logger.Error(ctx, "resize", slog.Error(err))
+		metricReconnectingPTYResizeError.Add(1)
 	}
 	// Write any previously stored data for the TTY.
 	rpty.circularBufferMutex.RLock()
@@ -1107,6 +1118,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	// while also holding circularBufferMutex seems dangerous.
 	_, err = conn.Write(prevBuf)
 	if err != nil {
+		metricReconnectingPTYWriteError.Add(1)
 		return xerrors.Errorf("write buffer to conn: %w", err)
 	}
 	// Multiple connections to the same TTY are permitted.
@@ -1157,6 +1169,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
 			logger.Warn(ctx, "write to pty", slog.Error(err))
+			metricReconnectingPTYInputWriterError.Add(1)
 			return nil
 		}
 		// Check if a resize needs to happen!
@@ -1167,6 +1180,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		if err != nil {
 			// We can continue after this, it's not fatal!
 			logger.Error(ctx, "resize", slog.Error(err))
+			metricReconnectingPTYResizeError.Add(1)
 		}
 	}
 }
