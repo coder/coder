@@ -62,7 +62,7 @@ type Options struct {
 	IgnorePorts            map[int]string
 	SSHMaxTimeout          time.Duration
 	TailnetListenPort      uint16
-	Subsystem              agentsdk.AgentSubsystem
+	Subsystem              codersdk.AgentSubsystem
 }
 
 type Client interface {
@@ -138,7 +138,7 @@ type agent struct {
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
 	ignorePorts map[int]string
-	subsystem   agentsdk.AgentSubsystem
+	subsystem   codersdk.AgentSubsystem
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -1467,11 +1467,11 @@ const EnvAgentSubsystem = "CODER_AGENT_SUBSYSTEM"
 
 // SubsystemFromEnv returns the subsystem (if any) the agent
 // is running inside of.
-func SubsystemFromEnv() agentsdk.AgentSubsystem {
+func SubsystemFromEnv() codersdk.AgentSubsystem {
 	ss := os.Getenv(EnvAgentSubsystem)
-	switch agentsdk.AgentSubsystem(ss) {
-	case agentsdk.AgentSubsystemEnvbox:
-		return agentsdk.AgentSubsystemEnvbox
+	switch codersdk.AgentSubsystem(ss) {
+	case codersdk.AgentSubsystemEnvbox:
+		return codersdk.AgentSubsystemEnvbox
 	default:
 		return ""
 	}

@@ -453,12 +453,6 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 	}), nil
 }
 
-type AgentSubsystem string
-
-const (
-	AgentSubsystemEnvbox AgentSubsystem = "envbox"
-)
-
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 type Stats struct {
@@ -550,9 +544,9 @@ func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) er
 }
 
 type PostStartupRequest struct {
-	Version           string         `json:"version"`
-	ExpandedDirectory string         `json:"expanded_directory"`
-	Subsystem         AgentSubsystem `json:"subsystem"`
+	Version           string                  `json:"version"`
+	ExpandedDirectory string                  `json:"expanded_directory"`
+	Subsystem         codersdk.AgentSubsystem `json:"subsystem"`
 }
 
 func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error {

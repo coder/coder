@@ -1130,6 +1130,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
 		ShutdownScript:               dbAgent.ShutdownScript.String,
 		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
+		Subsystem:                    codersdk.AgentSubsystem(dbAgent.Subsystem),
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -1985,9 +1986,9 @@ func convertWorkspaceAgentStartupLog(logEntry database.WorkspaceAgentStartupLog)
 	}
 }
 
-func convertWorkspaceAgentSubsystem(ss agentsdk.AgentSubsystem) database.WorkspaceAgentSubsystem {
+func convertWorkspaceAgentSubsystem(ss codersdk.AgentSubsystem) database.WorkspaceAgentSubsystem {
 	switch ss {
-	case agentsdk.AgentSubsystemEnvbox:
+	case codersdk.AgentSubsystemEnvbox:
 		return database.WorkspaceAgentSubsystemEnvbox
 	default:
 		return database.WorkspaceAgentSubsystemNone
