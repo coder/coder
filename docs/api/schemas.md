@@ -56,20 +56,6 @@
 | `counter` |
 | `gauge`   |
 
-## agentsdk.AgentSubsystem
-
-```json
-"envbox"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value    |
-| -------- |
-| `envbox` |
-
 ## agentsdk.AuthenticateResponse
 
 ```json
@@ -351,7 +337,7 @@
 | Name                 | Type                                               | Required | Restrictions | Description |
 | -------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
 | `expanded_directory` | string                                             | false    |              |             |
-| `subsystem`          | [agentsdk.AgentSubsystem](#agentsdkagentsubsystem) | false    |              |             |
+| `subsystem`          | [codersdk.AgentSubsystem](#codersdkagentsubsystem) | false    |              |             |
 | `version`            | string                                             | false    |              |             |
 
 ## agentsdk.StartupLog
@@ -798,6 +784,20 @@
 | Name      | Type   | Required | Restrictions | Description |
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
+
+## codersdk.AgentSubsystem
+
+```json
+"envbox"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value    |
+| -------- |
+| `envbox` |
 
 ## codersdk.AppHostResponse
 
@@ -4714,6 +4714,7 @@ Parameter represents a set value for the scope.
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
+            "subsystem": "envbox",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
@@ -4844,6 +4845,7 @@ Parameter represents a set value for the scope.
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
+  "subsystem": "envbox",
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
@@ -4881,6 +4883,7 @@ Parameter represents a set value for the scope.
 | `startup_script`                  | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `startup_script_timeout_seconds`  | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
 | `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
+| `subsystem`                       | [codersdk.AgentSubsystem](#codersdkagentsubsystem)                   | false    |              |                                                                                                                                                                                                            |
 | `troubleshooting_url`             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `updated_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `version`                         | string                                                               | false    |              |                                                                                                                                                                                                            |
@@ -5235,6 +5238,7 @@ Parameter represents a set value for the scope.
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
+          "subsystem": "envbox",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
           "version": "string"
@@ -5516,6 +5520,7 @@ Parameter represents a set value for the scope.
       "startup_script": "string",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
+      "subsystem": "envbox",
       "troubleshooting_url": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "version": "string"
@@ -5714,6 +5719,7 @@ Parameter represents a set value for the scope.
                 "startup_script": "string",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
+                "subsystem": "envbox",
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",
                 "version": "string"

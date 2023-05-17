@@ -5800,15 +5800,6 @@ const docTemplate = `{
                 "AgentMetricTypeGauge"
             ]
         },
-        "agentsdk.AgentSubsystem": {
-            "type": "string",
-            "enum": [
-                "envbox"
-            ],
-            "x-enum-varnames": [
-                "AgentSubsystemEnvbox"
-            ]
-        },
         "agentsdk.AuthenticateResponse": {
             "type": "object",
             "properties": {
@@ -5976,7 +5967,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "subsystem": {
-                    "$ref": "#/definitions/agentsdk.AgentSubsystem"
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "version": {
                     "type": "string"
@@ -6417,6 +6408,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AgentSubsystem": {
+            "type": "string",
+            "enum": [
+                "envbox"
+            ],
+            "x-enum-varnames": [
+                "AgentSubsystemEnvbox"
+            ]
         },
         "codersdk.AppHostResponse": {
             "type": "object",
@@ -9638,6 +9638,9 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
+                },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "troubleshooting_url": {
                     "type": "string"
