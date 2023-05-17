@@ -27,8 +27,8 @@ export default {
 const MockedAppearance = {
   config: Mocks.MockAppearance,
   preview: false,
-  setPreview: () => {},
-  save: () => {},
+  setPreview: () => null,
+  save: () => null,
 }
 
 const Template: Story<WorkspaceProps> = (args) => (
