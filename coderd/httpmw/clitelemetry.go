@@ -15,9 +15,9 @@ import (
 )
 
 func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handler) http.Handler {
-	var mu sync.Mutex
-
 	var (
+		mu sync.Mutex
+
 		// We send telemetry at most once per minute.
 		limiter = rate.NewLimiter(rate.Every(time.Minute), 1)
 		queue   []telemetry.CLIInvocation
@@ -27,12 +27,10 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// No matter what, we proceed with the request.
 			defer next.ServeHTTP(rw, r)
-			payload := r.Header.Get(codersdk.CLITelemetryHeader)
 
-			// We do simple checks and processing outside of the goroutine
-			// to avoid the overhead of an additional goroutine on every
-			// request.
+			payload := r.Header.Get(codersdk.CLITelemetryHeader)
 			if payload == "" {
 				return
 			}
@@ -58,6 +56,8 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 				return
 			}
 
+			// We do expensive work in a goroutine so we don't block the
+			// request.
 			go func() {
 				mu.Lock()
 				defer mu.Unlock()
