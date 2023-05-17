@@ -106,7 +106,8 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 			"session":                        ssh.DefaultSessionHandler,
 		},
 		ConnectionFailedCallback: func(_ net.Conn, err error) {
-			s.logger.Info(ctx, "ssh connection ended", slog.Error(err))
+			s.logger.Warn(ctx, "ssh connection failed", slog.Error(err))
+			metricConnectionFailedCallback.Add(1)
 		},
 		Handler:     s.sessionHandler,
 		HostSigners: []ssh.Signer{randomSigner},
@@ -115,9 +116,11 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 			s.logger.Debug(ctx, "local port forward",
 				slog.F("destination-host", destinationHost),
 				slog.F("destination-port", destinationPort))
+			metricLocalPortForwardingCallback.Add(1)
 			return true
 		},
 		PtyCallback: func(ctx ssh.Context, pty ssh.Pty) bool {
+			metricPtyCallback.Add(1)
 			return true
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
@@ -125,6 +128,7 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 			s.logger.Debug(ctx, "local port forward",
 				slog.F("bind-host", bindHost),
 				slog.F("bind-port", bindPort))
+			metricReversePortForwardingCallback.Add(1)
 			return true
 		},
 		RequestHandlers: map[string]ssh.RequestHandler{
@@ -205,6 +209,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		s.logger.Warn(ctx, "ssh session failed", slog.Error(err))
 		// This exit code is designed to be unlikely to be confused for a legit exit code
 		// from the process.
+		metricsSessionError.Add(1)
 		_ = session.Exit(MagicSessionErrorCode)
 		return
 	}
@@ -238,12 +243,14 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 
 	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env)
 	if err != nil {
+		metricsAgentCreateCommandError.Add(1)
 		return err
 	}
 
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
 		if err != nil {
+			metricsAgentListenerError.Add(1)
 			return xerrors.Errorf("new agent listener: %w", err)
 		}
 		defer l.Close()
@@ -259,20 +266,27 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 }
 
 func startNonPTYSession(session ssh.Session, cmd *exec.Cmd) error {
+	metricsStartNonPTYSession.Add(1)
+
 	cmd.Stdout = session
 	cmd.Stderr = session.Stderr()
 	// This blocks forever until stdin is received if we don't
 	// use StdinPipe. It's unknown what causes this.
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
+		metricsNonPTYStdinPipeError.Add(1)
 		return xerrors.Errorf("create stdin pipe: %w", err)
 	}
 	go func() {
-		_, _ = io.Copy(stdinPipe, session)
+		_, err := io.Copy(stdinPipe, session)
+		if err != nil {
+			metricsNonPTYStdinIoCopyError.Add(1)
+		}
 		_ = stdinPipe.Close()
 	}()
 	err = cmd.Start()
 	if err != nil {
+		metricsNonPTYCmdStartError.Add(1)
 		return xerrors.Errorf("start: %w", err)
 	}
 	return cmd.Wait()
@@ -288,6 +302,8 @@ type ptySession interface {
 }
 
 func (s *Server) startPTYSession(session ptySession, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
+	metricsStartPTYSession.Add(1)
+
 	ctx := session.Context()
 	// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
 	// See https://github.com/coder/coder/issues/3371.
@@ -299,6 +315,7 @@ func (s *Server) startPTYSession(session ptySession, cmd *pty.Cmd, sshPty ssh.Pt
 			err := showMOTD(session, manifest.MOTDFile)
 			if err != nil {
 				s.logger.Error(ctx, "show MOTD", slog.Error(err))
+				metricsPTYMotdError.Add(1)
 			}
 		} else {
 			s.logger.Warn(ctx, "metadata lookup failed, unable to show MOTD")
@@ -313,12 +330,14 @@ func (s *Server) startPTYSession(session ptySession, cmd *pty.Cmd, sshPty ssh.Pt
 		pty.WithLogger(slog.Stdlib(ctx, s.logger, slog.LevelInfo)),
 	))
 	if err != nil {
+		metricsPTYCmdStartError.Add(1)
 		return xerrors.Errorf("start command: %w", err)
 	}
 	defer func() {
 		closeErr := ptty.Close()
 		if closeErr != nil {
 			s.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
+			metricsPTYCloseError.Add(1)
 			if retErr == nil {
 				retErr = closeErr
 			}
@@ -330,12 +349,16 @@ func (s *Server) startPTYSession(session ptySession, cmd *pty.Cmd, sshPty ssh.Pt
 			// If the pty is closed, then command has exited, no need to log.
 			if resizeErr != nil && !errors.Is(resizeErr, pty.ErrClosed) {
 				s.logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
+				metricsPTYResizeError.Add(1)
 			}
 		}
 	}()
 
 	go func() {
-		_, _ = io.Copy(ptty.InputWriter(), session)
+		_, err := io.Copy(ptty.InputWriter(), session)
+		if err != nil {
+			metricsPTYInputIoCopyError.Add(1)
+		}
 	}()
 
 	// We need to wait for the command output to finish copying.  It's safe to
@@ -349,6 +372,7 @@ func (s *Server) startPTYSession(session ptySession, cmd *pty.Cmd, sshPty ssh.Pt
 	n, err := io.Copy(session, ptty.OutputReader())
 	s.logger.Debug(ctx, "copy output done", slog.F("bytes", n), slog.Error(err))
 	if err != nil {
+		metricsPTYOutputIoCopyError.Add(1)
 		return xerrors.Errorf("copy error: %w", err)
 	}
 	// We've gotten all the output, but we need to wait for the process to
@@ -360,6 +384,7 @@ func (s *Server) startPTYSession(session ptySession, cmd *pty.Cmd, sshPty ssh.Pt
 	// and not something to be concerned about.  But, if it's something else, we should log it.
 	if err != nil && !xerrors.As(err, &exitErr) {
 		s.logger.Warn(ctx, "wait error", slog.Error(err))
+		metricsPTYWaitError.Add(1)
 	}
 	if err != nil {
 		return xerrors.Errorf("process wait: %w", err)
@@ -368,6 +393,8 @@ func (s *Server) startPTYSession(session ptySession, cmd *pty.Cmd, sshPty ssh.Pt
 }
 
 func (s *Server) sftpHandler(session ssh.Session) {
+	metricSftpHandler.Add(1)
+
 	ctx := session.Context()
 
 	// Typically sftp sessions don't request a TTY, but if they do,
@@ -407,6 +434,7 @@ func (s *Server) sftpHandler(session ssh.Session) {
 		return
 	}
 	s.logger.Warn(ctx, "sftp server closed with error", slog.Error(err))
+	metricSftpServerError.Add(1)
 	_ = session.Exit(1)
 }
 
