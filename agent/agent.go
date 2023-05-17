@@ -491,6 +491,7 @@ func (a *agent) run(ctx context.Context) error {
 	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
 		Version:           buildinfo.Version(),
 		ExpandedDirectory: manifest.Directory,
+		Subsystem:         a.subsystem,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
@@ -1180,7 +1181,6 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		stats := &agentsdk.Stats{
 			ConnectionCount:    int64(len(networkStats)),
 			ConnectionsByProto: map[string]int64{},
-			Subsystem:          a.subsystem,
 		}
 		for conn, counts := range networkStats {
 			stats.ConnectionsByProto[conn.Proto.String()]++

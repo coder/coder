@@ -488,8 +488,7 @@ type Stats struct {
 	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
 	// SessionCountSSH is the number of connections received by an agent
 	// that are normal, non-tagged SSH sessions.
-	SessionCountSSH int64          `json:"session_count_ssh"`
-	Subsystem       AgentSubsystem `json:"subsystem"`
+	SessionCountSSH int64 `json:"session_count_ssh"`
 
 	// Metrics collected by the agent
 	Metrics []AgentMetric `json:"metrics"`
@@ -551,8 +550,9 @@ func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) er
 }
 
 type PostStartupRequest struct {
-	Version           string `json:"version"`
-	ExpandedDirectory string `json:"expanded_directory"`
+	Version           string         `json:"version"`
+	ExpandedDirectory string         `json:"expanded_directory"`
+	Subsystem         AgentSubsystem `json:"subsytem"`
 }
 
 func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error {

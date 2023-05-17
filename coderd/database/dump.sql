@@ -569,8 +569,7 @@ CREATE TABLE workspace_agent_stats (
     session_count_vscode bigint DEFAULT 0 NOT NULL,
     session_count_jetbrains bigint DEFAULT 0 NOT NULL,
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
-    session_count_ssh bigint DEFAULT 0 NOT NULL,
-    subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL
+    session_count_ssh bigint DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -604,6 +603,7 @@ CREATE TABLE workspace_agents (
     shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     startup_logs_length integer DEFAULT 0 NOT NULL,
     startup_logs_overflowed boolean DEFAULT false NOT NULL,
+    subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL,
     CONSTRAINT max_startup_logs_length CHECK ((startup_logs_length <= 1048576))
 );
 

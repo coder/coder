@@ -5553,7 +5553,7 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) err
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
 FROM
 	workspace_agents
 WHERE
@@ -5596,13 +5596,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.ShutdownScriptTimeoutSeconds,
 		&i.StartupLogsLength,
 		&i.StartupLogsOverflowed,
+		&i.Subsystem,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
 FROM
 	workspace_agents
 WHERE
@@ -5643,13 +5644,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.ShutdownScriptTimeoutSeconds,
 		&i.StartupLogsLength,
 		&i.StartupLogsOverflowed,
+		&i.Subsystem,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
 FROM
 	workspace_agents
 WHERE
@@ -5692,6 +5694,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.ShutdownScriptTimeoutSeconds,
 		&i.StartupLogsLength,
 		&i.StartupLogsOverflowed,
+		&i.Subsystem,
 	)
 	return i, err
 }
@@ -5786,7 +5789,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg 
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
 FROM
 	workspace_agents
 WHERE
@@ -5833,6 +5836,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.ShutdownScriptTimeoutSeconds,
 			&i.StartupLogsLength,
 			&i.StartupLogsOverflowed,
+			&i.Subsystem,
 		); err != nil {
 			return nil, err
 		}
@@ -5848,7 +5852,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -5891,6 +5895,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.ShutdownScriptTimeoutSeconds,
 			&i.StartupLogsLength,
 			&i.StartupLogsOverflowed,
+			&i.Subsystem,
 		); err != nil {
 			return nil, err
 		}
@@ -5907,7 +5912,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 
 const getWorkspaceAgentsInLatestBuildByWorkspaceID = `-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceID :many
 SELECT
-	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.startup_script, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.login_before_ready, workspace_agents.startup_script_timeout_seconds, workspace_agents.expanded_directory, workspace_agents.shutdown_script, workspace_agents.shutdown_script_timeout_seconds, workspace_agents.startup_logs_length, workspace_agents.startup_logs_overflowed
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.startup_script, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.login_before_ready, workspace_agents.startup_script_timeout_seconds, workspace_agents.expanded_directory, workspace_agents.shutdown_script, workspace_agents.shutdown_script_timeout_seconds, workspace_agents.startup_logs_length, workspace_agents.startup_logs_overflowed, workspace_agents.subsystem
 FROM
 	workspace_agents
 JOIN
@@ -5966,6 +5971,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Co
 			&i.ShutdownScriptTimeoutSeconds,
 			&i.StartupLogsLength,
 			&i.StartupLogsOverflowed,
+			&i.Subsystem,
 		); err != nil {
 			return nil, err
 		}
@@ -6006,7 +6012,7 @@ INSERT INTO
 		shutdown_script_timeout_seconds
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -6089,6 +6095,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.ShutdownScriptTimeoutSeconds,
 		&i.StartupLogsLength,
 		&i.StartupLogsOverflowed,
+		&i.Subsystem,
 	)
 	return i, err
 }
@@ -6275,19 +6282,26 @@ UPDATE
 	workspace_agents
 SET
 	version = $2,
-	expanded_directory = $3
+	expanded_directory = $3,
+	subsystem = $4
 WHERE
 	id = $1
 `
 
 type UpdateWorkspaceAgentStartupByIDParams struct {
-	ID                uuid.UUID `db:"id" json:"id"`
-	Version           string    `db:"version" json:"version"`
-	ExpandedDirectory string    `db:"expanded_directory" json:"expanded_directory"`
+	ID                uuid.UUID               `db:"id" json:"id"`
+	Version           string                  `db:"version" json:"version"`
+	ExpandedDirectory string                  `db:"expanded_directory" json:"expanded_directory"`
+	Subsystem         WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg UpdateWorkspaceAgentStartupByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentStartupByID, arg.ID, arg.Version, arg.ExpandedDirectory)
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentStartupByID,
+		arg.ID,
+		arg.Version,
+		arg.ExpandedDirectory,
+		arg.Subsystem,
+	)
 	return err
 }
 
@@ -6378,7 +6392,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, subsystem, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1
 )
@@ -6478,7 +6492,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, subsystem, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
@@ -6561,7 +6575,7 @@ WITH agent_stats AS (
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
 		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, subsystem, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats
 		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 		WHERE created_at > $1 AND connection_median_latency_ms > 0
@@ -6661,32 +6675,30 @@ INSERT INTO
 		session_count_jetbrains,
 		session_count_reconnecting_pty,
 		session_count_ssh,
-		connection_median_latency_ms,
-		subsystem
+		connection_median_latency_ms
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, subsystem
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh
 `
 
 type InsertWorkspaceAgentStatParams struct {
-	ID                          uuid.UUID               `db:"id" json:"id"`
-	CreatedAt                   time.Time               `db:"created_at" json:"created_at"`
-	UserID                      uuid.UUID               `db:"user_id" json:"user_id"`
-	WorkspaceID                 uuid.UUID               `db:"workspace_id" json:"workspace_id"`
-	TemplateID                  uuid.UUID               `db:"template_id" json:"template_id"`
-	AgentID                     uuid.UUID               `db:"agent_id" json:"agent_id"`
-	ConnectionsByProto          json.RawMessage         `db:"connections_by_proto" json:"connections_by_proto"`
-	ConnectionCount             int64                   `db:"connection_count" json:"connection_count"`
-	RxPackets                   int64                   `db:"rx_packets" json:"rx_packets"`
-	RxBytes                     int64                   `db:"rx_bytes" json:"rx_bytes"`
-	TxPackets                   int64                   `db:"tx_packets" json:"tx_packets"`
-	TxBytes                     int64                   `db:"tx_bytes" json:"tx_bytes"`
-	SessionCountVSCode          int64                   `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountJetBrains       int64                   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64                   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	SessionCountSSH             int64                   `db:"session_count_ssh" json:"session_count_ssh"`
-	ConnectionMedianLatencyMS   float64                 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
-	Subsystem                   WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
+	ID                          uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`
+	UserID                      uuid.UUID       `db:"user_id" json:"user_id"`
+	WorkspaceID                 uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID                  uuid.UUID       `db:"template_id" json:"template_id"`
+	AgentID                     uuid.UUID       `db:"agent_id" json:"agent_id"`
+	ConnectionsByProto          json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount             int64           `db:"connection_count" json:"connection_count"`
+	RxPackets                   int64           `db:"rx_packets" json:"rx_packets"`
+	RxBytes                     int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets                   int64           `db:"tx_packets" json:"tx_packets"`
+	TxBytes                     int64           `db:"tx_bytes" json:"tx_bytes"`
+	SessionCountVSCode          int64           `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	ConnectionMedianLatencyMS   float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error) {
@@ -6708,7 +6720,6 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		arg.SessionCountReconnectingPTY,
 		arg.SessionCountSSH,
 		arg.ConnectionMedianLatencyMS,
-		arg.Subsystem,
 	)
 	var i WorkspaceAgentStat
 	err := row.Scan(
@@ -6729,7 +6740,6 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		&i.SessionCountJetBrains,
 		&i.SessionCountReconnectingPTY,
 		&i.SessionCountSSH,
-		&i.Subsystem,
 	)
 	return i, err
 }

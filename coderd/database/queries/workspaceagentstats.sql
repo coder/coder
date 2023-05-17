@@ -17,11 +17,10 @@ INSERT INTO
 		session_count_jetbrains,
 		session_count_reconnecting_pty,
 		session_count_ssh,
-		connection_median_latency_ms,
-		subsystem
+		connection_median_latency_ms
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *;
 
 -- name: GetTemplateDAUs :many
 SELECT

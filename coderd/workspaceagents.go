@@ -220,6 +220,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 		ID:                apiAgent.ID,
 		Version:           req.Version,
 		ExpandedDirectory: req.ExpandedDirectory,
+		Subsystem:         convertWorkspaceAgentSubsystem(req.Subsystem),
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error setting agent version",
@@ -1240,7 +1241,6 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
 			SessionCountSSH:             req.SessionCountSSH,
 			ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
-			Subsystem:                   convertWorkspaceAgentSubsystem(req.Subsystem),
 		})
 		if err != nil {
 			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
@@ -1988,7 +1988,7 @@ func convertWorkspaceAgentStartupLog(logEntry database.WorkspaceAgentStartupLog)
 func convertWorkspaceAgentSubsystem(ss agentsdk.AgentSubsystem) database.WorkspaceAgentSubsystem {
 	switch ss {
 	case agentsdk.AgentSubsystemEnvbox:
-		return database.WorkspaceAgentSubsystemEnvbuilder
+		return database.WorkspaceAgentSubsystemEnvbox
 	default:
 		return database.WorkspaceAgentSubsystemNone
 	}
