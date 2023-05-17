@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -3689,6 +3690,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 
 func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
+		debug.PrintStack()
 		return err
 	}
 
@@ -3702,6 +3704,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 
 		agent.Version = arg.Version
 		agent.ExpandedDirectory = arg.ExpandedDirectory
+		agent.Subsystem = arg.Subsystem
 		q.workspaceAgents[index] = agent
 		return nil
 	}
