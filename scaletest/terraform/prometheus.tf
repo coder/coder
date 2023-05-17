@@ -117,19 +117,6 @@ spec:
   podMetricsEndpoints:
   - port: prometheus-http
     interval: 30s
----
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  namespace: ${kubernetes_namespace.coder_namespace.metadata.0.name}
-  name: coder-workspacetraffic-monitoring
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: coder-scaletest-workspace-traffic
-  podMetricsEndpoints:
-  - port: prometheus-http
-    interval: 15s
   EOF
 }
 
