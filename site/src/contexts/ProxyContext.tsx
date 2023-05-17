@@ -11,7 +11,7 @@ import {
 } from "react"
 import { ProxyLatencyReport, useProxyLatency } from "./useProxyLatency"
 
-interface ProxyContextValue {
+export interface ProxyContextValue {
   proxy: PreferredProxy
   proxies?: Region[]
   proxyLatencies?: Record<string, ProxyLatencyReport>
