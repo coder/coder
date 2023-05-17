@@ -133,12 +133,26 @@ dark = createTheme(dark, {
         sizeSmall: {
           borderRadius: 6,
           height: BUTTON_SM_HEIGHT,
+
+          "& .MuiCircularProgress-root": {
+            width: "14px !important",
+            height: "14px !important",
+          },
         },
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
         outlinedNeutral: {
           borderColor: colors.gray[12],
+
+          "&.Mui-disabled": {
+            borderColor: colors.gray[13],
+            color: colors.gray[11],
+
+            "& > .MuiLoadingButton-loadingIndicator": {
+              color: colors.gray[11],
+            },
+          },
         },
         containedNeutral: {
           borderColor: colors.gray[12],
