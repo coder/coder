@@ -2,12 +2,12 @@ import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata"
 import { ProvisionerJobLog } from "api/typesGenerated"
-import * as Mocks from "testHelpers/entities"
+import * as Mocks from "../../testHelpers/entities"
 import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
 import { withReactContext } from "storybook-react-context"
 import EventSource from "eventsourcemock"
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
-import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
+import { MockProxyLatencies } from "../../testHelpers/entities"
 
 export default {
   title: "components/Workspace",
@@ -24,37 +24,21 @@ export default {
   ],
 }
 
-const MockedAppearance = {
-  config: Mocks.MockAppearance,
-  preview: false,
-  setPreview: () => {},
-  save: () => {},
-}
-
 const Template: Story<WorkspaceProps> = (args) => (
-  <DashboardProviderContext.Provider
+  <ProxyContext.Provider
     value={{
-      buildInfo: Mocks.MockBuildInfo,
-      entitlements: Mocks.MockEntitlementsWithScheduling,
-      experiments: Mocks.MockExperiments,
-      appearance: MockedAppearance,
+      proxyLatencies: MockProxyLatencies,
+      proxy: getPreferredProxy([], undefined),
+      proxies: [],
+      isLoading: false,
+      isFetched: true,
+      setProxy: () => {
+        return
+      },
     }}
   >
-    <ProxyContext.Provider
-      value={{
-        proxyLatencies: Mocks.MockProxyLatencies,
-        proxy: getPreferredProxy([], undefined),
-        proxies: [],
-        isLoading: false,
-        isFetched: true,
-        setProxy: () => {
-          return
-        },
-      }}
-    >
-      <Workspace {...args} />
-    </ProxyContext.Provider>
-  </DashboardProviderContext.Provider>
+    <Workspace {...args} />
+  </ProxyContext.Provider>
 )
 
 export const Running = Template.bind({})
