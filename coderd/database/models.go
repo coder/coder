@@ -1096,6 +1096,67 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+type WorkspaceAgentSubsystem string
+
+const (
+	WorkspaceAgentSubsystemEnvbuilder WorkspaceAgentSubsystem = "envbuilder"
+	WorkspaceAgentSubsystemEnvbox     WorkspaceAgentSubsystem = "envbox"
+	WorkspaceAgentSubsystemNone       WorkspaceAgentSubsystem = "none"
+)
+
+func (e *WorkspaceAgentSubsystem) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentSubsystem(s)
+	case string:
+		*e = WorkspaceAgentSubsystem(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentSubsystem: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentSubsystem struct {
+	WorkspaceAgentSubsystem WorkspaceAgentSubsystem
+	Valid                   bool // Valid is true if WorkspaceAgentSubsystem is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentSubsystem) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentSubsystem, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentSubsystem.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentSubsystem) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentSubsystem), nil
+}
+
+func (e WorkspaceAgentSubsystem) Valid() bool {
+	switch e {
+	case WorkspaceAgentSubsystemEnvbuilder,
+		WorkspaceAgentSubsystemEnvbox,
+		WorkspaceAgentSubsystemNone:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentSubsystemValues() []WorkspaceAgentSubsystem {
+	return []WorkspaceAgentSubsystem{
+		WorkspaceAgentSubsystemEnvbuilder,
+		WorkspaceAgentSubsystemEnvbox,
+		WorkspaceAgentSubsystemNone,
+	}
+}
+
 type WorkspaceAppHealth string
 
 const (
@@ -1611,23 +1672,24 @@ type WorkspaceAgentStartupLog struct {
 }
 
 type WorkspaceAgentStat struct {
-	ID                          uuid.UUID       `db:"id" json:"id"`
-	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`
-	UserID                      uuid.UUID       `db:"user_id" json:"user_id"`
-	AgentID                     uuid.UUID       `db:"agent_id" json:"agent_id"`
-	WorkspaceID                 uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID                  uuid.UUID       `db:"template_id" json:"template_id"`
-	ConnectionsByProto          json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
-	ConnectionCount             int64           `db:"connection_count" json:"connection_count"`
-	RxPackets                   int64           `db:"rx_packets" json:"rx_packets"`
-	RxBytes                     int64           `db:"rx_bytes" json:"rx_bytes"`
-	TxPackets                   int64           `db:"tx_packets" json:"tx_packets"`
-	TxBytes                     int64           `db:"tx_bytes" json:"tx_bytes"`
-	ConnectionMedianLatencyMS   float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
-	SessionCountVSCode          int64           `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	ID                          uuid.UUID               `db:"id" json:"id"`
+	CreatedAt                   time.Time               `db:"created_at" json:"created_at"`
+	UserID                      uuid.UUID               `db:"user_id" json:"user_id"`
+	AgentID                     uuid.UUID               `db:"agent_id" json:"agent_id"`
+	WorkspaceID                 uuid.UUID               `db:"workspace_id" json:"workspace_id"`
+	TemplateID                  uuid.UUID               `db:"template_id" json:"template_id"`
+	ConnectionsByProto          json.RawMessage         `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount             int64                   `db:"connection_count" json:"connection_count"`
+	RxPackets                   int64                   `db:"rx_packets" json:"rx_packets"`
+	RxBytes                     int64                   `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets                   int64                   `db:"tx_packets" json:"tx_packets"`
+	TxBytes                     int64                   `db:"tx_bytes" json:"tx_bytes"`
+	ConnectionMedianLatencyMS   float64                 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	SessionCountVSCode          int64                   `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountJetBrains       int64                   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64                   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64                   `db:"session_count_ssh" json:"session_count_ssh"`
+	Subsystem                   WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
 }
 
 type WorkspaceApp struct {

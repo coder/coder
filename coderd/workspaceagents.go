@@ -1240,6 +1240,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
 			SessionCountSSH:             req.SessionCountSSH,
 			ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
+			Subsystem:                   convertWorkspaceAgentSubsystem(req.Subsystem),
 		})
 		if err != nil {
 			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
@@ -1981,5 +1982,14 @@ func convertWorkspaceAgentStartupLog(logEntry database.WorkspaceAgentStartupLog)
 		CreatedAt: logEntry.CreatedAt,
 		Output:    logEntry.Output,
 		Level:     codersdk.LogLevel(logEntry.Level),
+	}
+}
+
+func convertWorkspaceAgentSubsystem(ss agentsdk.AgentSubsystem) database.WorkspaceAgentSubsystem {
+	switch ss {
+	case agentsdk.AgentSubsystemEnvbox:
+		return database.WorkspaceAgentSubsystemEnvbuilder
+	default:
+		return database.WorkspaceAgentSubsystemNone
 	}
 }

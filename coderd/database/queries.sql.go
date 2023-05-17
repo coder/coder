@@ -6378,7 +6378,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, subsystem, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1
 )
@@ -6478,7 +6478,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, subsystem, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
@@ -6561,7 +6561,7 @@ WITH agent_stats AS (
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
 		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, subsystem, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats
 		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 		WHERE created_at > $1 AND connection_median_latency_ms > 0
@@ -6661,30 +6661,32 @@ INSERT INTO
 		session_count_jetbrains,
 		session_count_reconnecting_pty,
 		session_count_ssh,
-		connection_median_latency_ms
+		connection_median_latency_ms,
+		subsystem
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, subsystem
 `
 
 type InsertWorkspaceAgentStatParams struct {
-	ID                          uuid.UUID       `db:"id" json:"id"`
-	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`
-	UserID                      uuid.UUID       `db:"user_id" json:"user_id"`
-	WorkspaceID                 uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID                  uuid.UUID       `db:"template_id" json:"template_id"`
-	AgentID                     uuid.UUID       `db:"agent_id" json:"agent_id"`
-	ConnectionsByProto          json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
-	ConnectionCount             int64           `db:"connection_count" json:"connection_count"`
-	RxPackets                   int64           `db:"rx_packets" json:"rx_packets"`
-	RxBytes                     int64           `db:"rx_bytes" json:"rx_bytes"`
-	TxPackets                   int64           `db:"tx_packets" json:"tx_packets"`
-	TxBytes                     int64           `db:"tx_bytes" json:"tx_bytes"`
-	SessionCountVSCode          int64           `db:"session_count_vscode" json:"session_count_vscode"`
-	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
-	ConnectionMedianLatencyMS   float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	ID                          uuid.UUID               `db:"id" json:"id"`
+	CreatedAt                   time.Time               `db:"created_at" json:"created_at"`
+	UserID                      uuid.UUID               `db:"user_id" json:"user_id"`
+	WorkspaceID                 uuid.UUID               `db:"workspace_id" json:"workspace_id"`
+	TemplateID                  uuid.UUID               `db:"template_id" json:"template_id"`
+	AgentID                     uuid.UUID               `db:"agent_id" json:"agent_id"`
+	ConnectionsByProto          json.RawMessage         `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount             int64                   `db:"connection_count" json:"connection_count"`
+	RxPackets                   int64                   `db:"rx_packets" json:"rx_packets"`
+	RxBytes                     int64                   `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets                   int64                   `db:"tx_packets" json:"tx_packets"`
+	TxBytes                     int64                   `db:"tx_bytes" json:"tx_bytes"`
+	SessionCountVSCode          int64                   `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountJetBrains       int64                   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64                   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64                   `db:"session_count_ssh" json:"session_count_ssh"`
+	ConnectionMedianLatencyMS   float64                 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	Subsystem                   WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error) {
@@ -6706,6 +6708,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		arg.SessionCountReconnectingPTY,
 		arg.SessionCountSSH,
 		arg.ConnectionMedianLatencyMS,
+		arg.Subsystem,
 	)
 	var i WorkspaceAgentStat
 	err := row.Scan(
@@ -6726,6 +6729,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		&i.SessionCountJetBrains,
 		&i.SessionCountReconnectingPTY,
 		&i.SessionCountSSH,
+		&i.Subsystem,
 	)
 	return i, err
 }

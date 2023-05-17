@@ -453,6 +453,12 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 	}), nil
 }
 
+type AgentSubsystem string
+
+const (
+	AgentSubsystemEnvbox AgentSubsystem = "envbox"
+)
+
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 type Stats struct {
@@ -482,7 +488,8 @@ type Stats struct {
 	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
 	// SessionCountSSH is the number of connections received by an agent
 	// that are normal, non-tagged SSH sessions.
-	SessionCountSSH int64 `json:"session_count_ssh"`
+	SessionCountSSH int64          `json:"session_count_ssh"`
+	Subsystem       AgentSubsystem `json:"subsystem"`
 
 	// Metrics collected by the agent
 	Metrics []AgentMetric `json:"metrics"`

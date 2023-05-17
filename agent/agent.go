@@ -62,6 +62,7 @@ type Options struct {
 	IgnorePorts            map[int]string
 	SSHMaxTimeout          time.Duration
 	TailnetListenPort      uint16
+	Subsystem              agentsdk.AgentSubsystem
 }
 
 type Client interface {
@@ -119,6 +120,7 @@ func New(options Options) Agent {
 		ignorePorts:            options.IgnorePorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 		sshMaxTimeout:          options.SSHMaxTimeout,
+		subsystem:              options.Subsystem,
 	}
 	a.init(ctx)
 	return a
@@ -136,6 +138,7 @@ type agent struct {
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
 	ignorePorts map[int]string
+	subsystem   agentsdk.AgentSubsystem
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -1177,6 +1180,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		stats := &agentsdk.Stats{
 			ConnectionCount:    int64(len(networkStats)),
 			ConnectionsByProto: map[string]int64{},
+			Subsystem:          a.subsystem,
 		}
 		for conn, counts := range networkStats {
 			stats.ConnectionsByProto[conn.Proto.String()]++
@@ -1454,4 +1458,21 @@ func expandDirectory(dir string) (string, error) {
 		dir = filepath.Join(home, dir)
 	}
 	return dir, nil
+}
+
+// EnvAgentSubsystem is the environment variable used to denote the
+// specialized environment in which the agent is running
+// (e.g. envbox, envbuilder).
+const EnvAgentSubsytem = "CODER_AGENT_SUBSYSTEM"
+
+// SubsystemFromEnv returns the subsystem (if any) the agent
+// is running inside of.
+func SubsystemFromEnv() agentsdk.AgentSubsystem {
+	ss := os.Getenv(EnvAgentSubsytem)
+	switch agentsdk.AgentSubsystem(ss) {
+	case agentsdk.AgentSubsystemEnvbox:
+		return agentsdk.AgentSubsystemEnvbox
+	default:
+		return ""
+	}
 }

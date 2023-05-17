@@ -116,6 +116,12 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'off'
 );
 
+CREATE TYPE workspace_agent_subsystem AS ENUM (
+    'envbuilder',
+    'envbox',
+    'none'
+);
+
 CREATE TYPE workspace_app_health AS ENUM (
     'disabled',
     'initializing',
@@ -563,7 +569,8 @@ CREATE TABLE workspace_agent_stats (
     session_count_vscode bigint DEFAULT 0 NOT NULL,
     session_count_jetbrains bigint DEFAULT 0 NOT NULL,
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
-    session_count_ssh bigint DEFAULT 0 NOT NULL
+    session_count_ssh bigint DEFAULT 0 NOT NULL,
+    subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL
 );
 
 CREATE TABLE workspace_agents (
