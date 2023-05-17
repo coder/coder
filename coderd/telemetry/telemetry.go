@@ -784,7 +784,7 @@ type WorkspaceAgent struct {
 	DisconnectedAt           *time.Time `json:"disconnected_at"`
 	ConnectionTimeoutSeconds int32      `json:"connection_timeout_seconds"`
 	ShutdownScript           bool       `json:"shutdown_script"`
-	Subsystem                string     `json:"subystem"`
+	Subsystem                string     `json:"subsystem"`
 }
 
 type WorkspaceAgentStat struct {
