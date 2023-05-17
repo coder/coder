@@ -203,7 +203,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				return nil, failJob(fmt.Sprintf("regenerate session token: %s", err))
 			}
 		case database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete:
-			err = server.deleteSessionToken(ctx, workspace)
+			err = deleteSessionToken(ctx, server.Database, workspace)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("delete session token: %s", err))
 			}
@@ -1432,7 +1432,7 @@ func workspaceSessionTokenName(workspace database.Workspace) string {
 }
 
 func (server *Server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {
-	secret, newkey, err := apikey.Generate(apikey.CreateParams{
+	newkey, sessionToken, err := apikey.Generate(apikey.CreateParams{
 		UserID:           user.ID,
 		LoginType:        user.LoginType,
 		DeploymentValues: server.DeploymentValues,
@@ -1443,30 +1443,43 @@ func (server *Server) regenerateSessionToken(ctx context.Context, user database.
 		return "", xerrors.Errorf("generate API key: %w", err)
 	}
 
-	err = server.deleteSessionToken(ctx, workspace)
+	err = server.Database.InTx(func(tx database.Store) error {
+		err := deleteSessionToken(ctx, tx, workspace)
+		if err != nil {
+			return xerrors.Errorf("delete session token: %w", err)
+		}
+
+		_, err = tx.InsertAPIKey(ctx, newkey)
+		if err != nil {
+			return xerrors.Errorf("insert API key: %w", err)
+		}
+		return nil
+	}, nil)
 	if err != nil {
-		return "", xerrors.Errorf("delete session token: %w", err)
+		return "", xerrors.Errorf("create API key: %w", err)
 	}
 
-	_, err = server.Database.InsertAPIKey(ctx, newkey)
-	if err != nil {
-		return "", xerrors.Errorf("insert API key: %w", err)
-	}
-
-	return secret, nil
+	return sessionToken, nil
 }
 
-func (server *Server) deleteSessionToken(ctx context.Context, workspace database.Workspace) error {
-	key, err := server.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
-		UserID:    workspace.OwnerID,
-		TokenName: workspaceSessionTokenName(workspace),
-	})
-	if err == nil {
-		err = server.Database.DeleteAPIKeyByID(ctx, key.ID)
-	}
+func deleteSessionToken(ctx context.Context, db database.Store, workspace database.Workspace) error {
+	err := db.InTx(func(tx database.Store) error {
+		key, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+			UserID:    workspace.OwnerID,
+			TokenName: workspaceSessionTokenName(workspace),
+		})
+		if err == nil {
+			err = tx.DeleteAPIKeyByID(ctx, key.ID)
+		}
 
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return xerrors.Errorf("get api key by name: %w", err)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get api key by name: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		return xerrors.Errorf("in tx: %w", err)
 	}
 
 	return nil

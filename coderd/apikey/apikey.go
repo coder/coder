@@ -31,10 +31,10 @@ type CreateParams struct {
 // Generate generates an API key, returning the key as a string as well as the
 // database representation. It is the responsibility of the caller to insert it
 // into the database.
-func Generate(params CreateParams) (string, database.InsertAPIKeyParams, error) {
+func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) {
 	keyID, keySecret, err := generateKey()
 	if err != nil {
-		return "", database.InsertAPIKeyParams{}, xerrors.Errorf("generate API key: %w", err)
+		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("generate API key: %w", err)
 	}
 
 	hashed := sha256.Sum256([]byte(keySecret))
@@ -67,12 +67,12 @@ func Generate(params CreateParams) (string, database.InsertAPIKeyParams, error) 
 	switch scope {
 	case database.APIKeyScopeAll, database.APIKeyScopeApplicationConnect:
 	default:
-		return "", database.InsertAPIKeyParams{}, xerrors.Errorf("invalid API key scope: %q", scope)
+		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", scope)
 	}
 
-	keyStr := fmt.Sprintf("%s-%s", keyID, keySecret)
+	token := fmt.Sprintf("%s-%s", keyID, keySecret)
 
-	return keyStr, database.InsertAPIKeyParams{
+	return database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,
 		LifetimeSeconds: params.LifetimeSeconds,
@@ -91,7 +91,7 @@ func Generate(params CreateParams) (string, database.InsertAPIKeyParams, error) 
 		LoginType:    params.LoginType,
 		Scope:        scope,
 		TokenName:    params.TokenName,
-	}, nil
+	}, token, nil
 }
 
 // generateKey a new ID and secret for an API key.

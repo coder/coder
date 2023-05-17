@@ -374,7 +374,7 @@ func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 }
 
 func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {
-	secret, key, err := apikey.Generate(params)
+	key, sessionToken, err := apikey.Generate(params)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("generate API key: %w", err)
 	}
@@ -390,7 +390,7 @@ func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*
 
 	return &http.Cookie{
 		Name:     codersdk.SessionTokenCookie,
-		Value:    secret,
+		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,

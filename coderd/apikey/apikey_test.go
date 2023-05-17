@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
@@ -100,7 +101,7 @@ func TestGenerate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			keystr, key, err := apikey.Generate(tc.params)
+			key, keystr, err := apikey.Generate(tc.params)
 			if tc.fail {
 				require.Error(t, err)
 				return
@@ -117,46 +118,46 @@ func TestGenerate(t *testing.T) {
 
 			// Assert that the hashed secret is correct.
 			hashed := sha256.Sum256([]byte(keytokens[1]))
-			require.ElementsMatch(t, hashed, key.HashedSecret[:])
+			assert.ElementsMatch(t, hashed, key.HashedSecret[:])
 
-			require.Equal(t, tc.params.UserID, key.UserID)
-			require.WithinDuration(t, database.Now(), key.CreatedAt, time.Second*5)
-			require.WithinDuration(t, database.Now(), key.UpdatedAt, time.Second*5)
+			assert.Equal(t, tc.params.UserID, key.UserID)
+			assert.WithinDuration(t, database.Now(), key.CreatedAt, time.Second*5)
+			assert.WithinDuration(t, database.Now(), key.UpdatedAt, time.Second*5)
 
 			if tc.params.LifetimeSeconds > 0 {
-				require.Equal(t, tc.params.LifetimeSeconds, key.LifetimeSeconds)
+				assert.Equal(t, tc.params.LifetimeSeconds, key.LifetimeSeconds)
 			} else if !tc.params.ExpiresAt.IsZero() {
 				// Should not be a delta greater than 5 seconds.
-				require.InDelta(t, time.Until(tc.params.ExpiresAt).Seconds(), key.LifetimeSeconds, 5)
+				assert.InDelta(t, time.Until(tc.params.ExpiresAt).Seconds(), key.LifetimeSeconds, 5)
 			} else {
-				require.Equal(t, int64(tc.params.DeploymentValues.SessionDuration.Value().Seconds()), key.LifetimeSeconds)
+				assert.Equal(t, int64(tc.params.DeploymentValues.SessionDuration.Value().Seconds()), key.LifetimeSeconds)
 			}
 
 			if !tc.params.ExpiresAt.IsZero() {
-				require.Equal(t, tc.params.ExpiresAt.UTC(), key.ExpiresAt)
+				assert.Equal(t, tc.params.ExpiresAt.UTC(), key.ExpiresAt)
 			} else if tc.params.LifetimeSeconds > 0 {
-				require.WithinDuration(t, database.Now().Add(time.Duration(tc.params.LifetimeSeconds)), key.ExpiresAt, time.Second*5)
+				assert.WithinDuration(t, database.Now().Add(time.Duration(tc.params.LifetimeSeconds)), key.ExpiresAt, time.Second*5)
 			} else {
-				require.WithinDuration(t, database.Now().Add(tc.params.DeploymentValues.SessionDuration.Value()), key.ExpiresAt, time.Second*5)
+				assert.WithinDuration(t, database.Now().Add(tc.params.DeploymentValues.SessionDuration.Value()), key.ExpiresAt, time.Second*5)
 			}
 
 			if tc.params.RemoteAddr != "" {
-				require.Equal(t, tc.params.RemoteAddr, key.IPAddress.IPNet.IP.String())
+				assert.Equal(t, tc.params.RemoteAddr, key.IPAddress.IPNet.IP.String())
 			} else {
-				require.Equal(t, "0.0.0.0", key.IPAddress.IPNet.IP.String())
+				assert.Equal(t, "0.0.0.0", key.IPAddress.IPNet.IP.String())
 			}
 
 			if tc.params.Scope != "" {
-				require.Equal(t, tc.params.Scope, key.Scope)
+				assert.Equal(t, tc.params.Scope, key.Scope)
 			} else {
-				require.Equal(t, database.APIKeyScopeAll, key.Scope)
+				assert.Equal(t, database.APIKeyScopeAll, key.Scope)
 			}
 
 			if tc.params.TokenName != "" {
-				require.Equal(t, tc.params.TokenName, key.TokenName)
+				assert.Equal(t, tc.params.TokenName, key.TokenName)
 			}
 			if tc.params.LoginType != "" {
-				require.Equal(t, tc.params.LoginType, key.LoginType)
+				assert.Equal(t, tc.params.LoginType, key.LoginType)
 			}
 		})
 	}
