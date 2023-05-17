@@ -5097,6 +5097,11 @@
       "enum": ["counter", "gauge"],
       "x-enum-varnames": ["AgentMetricTypeCounter", "AgentMetricTypeGauge"]
     },
+    "agentsdk.AgentSubsystem": {
+      "type": "string",
+      "enum": ["envbox"],
+      "x-enum-varnames": ["AgentSubsystemEnvbox"]
+    },
     "agentsdk.AuthenticateResponse": {
       "type": "object",
       "properties": {
@@ -5257,6 +5262,9 @@
       "properties": {
         "expanded_directory": {
           "type": "string"
+        },
+        "subsystem": {
+          "$ref": "#/definitions/agentsdk.AgentSubsystem"
         },
         "version": {
           "type": "string"

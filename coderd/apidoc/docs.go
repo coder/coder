@@ -5800,6 +5800,15 @@ const docTemplate = `{
                 "AgentMetricTypeGauge"
             ]
         },
+        "agentsdk.AgentSubsystem": {
+            "type": "string",
+            "enum": [
+                "envbox"
+            ],
+            "x-enum-varnames": [
+                "AgentSubsystemEnvbox"
+            ]
+        },
         "agentsdk.AuthenticateResponse": {
             "type": "object",
             "properties": {
@@ -5965,6 +5974,9 @@ const docTemplate = `{
             "properties": {
                 "expanded_directory": {
                     "type": "string"
+                },
+                "subsystem": {
+                    "$ref": "#/definitions/agentsdk.AgentSubsystem"
                 },
                 "version": {
                     "type": "string"

@@ -1463,12 +1463,12 @@ func expandDirectory(dir string) (string, error) {
 // EnvAgentSubsystem is the environment variable used to denote the
 // specialized environment in which the agent is running
 // (e.g. envbox, envbuilder).
-const EnvAgentSubsytem = "CODER_AGENT_SUBSYSTEM"
+const EnvAgentSubsystem = "CODER_AGENT_SUBSYSTEM"
 
 // SubsystemFromEnv returns the subsystem (if any) the agent
 // is running inside of.
 func SubsystemFromEnv() agentsdk.AgentSubsystem {
-	ss := os.Getenv(EnvAgentSubsytem)
+	ss := os.Getenv(EnvAgentSubsystem)
 	switch agentsdk.AgentSubsystem(ss) {
 	case agentsdk.AgentSubsystemEnvbox:
 		return agentsdk.AgentSubsystemEnvbox

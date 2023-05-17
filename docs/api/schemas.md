@@ -56,6 +56,20 @@
 | `counter` |
 | `gauge`   |
 
+## agentsdk.AgentSubsystem
+
+```json
+"envbox"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value    |
+| -------- |
+| `envbox` |
+
 ## agentsdk.AuthenticateResponse
 
 ```json
@@ -327,16 +341,18 @@
 ```json
 {
   "expanded_directory": "string",
+  "subsystem": "envbox",
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name                 | Type   | Required | Restrictions | Description |
-| -------------------- | ------ | -------- | ------------ | ----------- |
-| `expanded_directory` | string | false    |              |             |
-| `version`            | string | false    |              |             |
+| Name                 | Type                                               | Required | Restrictions | Description |
+| -------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `expanded_directory` | string                                             | false    |              |             |
+| `subsystem`          | [agentsdk.AgentSubsystem](#agentsdkagentsubsystem) | false    |              |             |
+| `version`            | string                                             | false    |              |             |
 
 ## agentsdk.StartupLog
 
