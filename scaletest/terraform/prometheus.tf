@@ -102,9 +102,9 @@ prometheus:
 # after creating a cluster, and we want this to be brought up
 # with a single command.
 resource "local_file" "coder-monitoring-manifest" {
-  filename = "${path.module}/.coderv2/coder-monitoring.yaml"
-  depends_on = [ helm_release.prometheus-chart ]
-  content  = <<EOF
+  filename   = "${path.module}/.coderv2/coder-monitoring.yaml"
+  depends_on = [helm_release.prometheus-chart]
+  content    = <<EOF
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -141,5 +141,5 @@ KUBECONFIG=${var.name}-cluster.kubeconfig gcloud container clusters get-credenti
 KUBECONFIG=${var.name}-cluster.kubeconfig kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
     EOF
   }
-  depends_on = [ helm_release.prometheus-chart ]
+  depends_on = [helm_release.prometheus-chart]
 }

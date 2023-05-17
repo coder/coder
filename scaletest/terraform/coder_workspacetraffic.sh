@@ -36,12 +36,20 @@ spec:
   - command:
     - sh
     - -c
-    - "curl -fsSL $CODER_URL/bin/coder-linux-amd64 -o /tmp/coder && chmod +x /tmp/coder && /tmp/coder --url=$CODER_URL --token=$CODER_TOKEN scaletest workspace-traffic --concurrency 0 --job-timeout=30m --scaletest-prometheus-address 0.0.0.0:21112"
+    - "curl -fsSL $CODER_URL/bin/coder-linux-amd64 -o /tmp/coder && chmod +x /tmp/coder && /tmp/coder --url=$CODER_URL --token=$CODER_TOKEN scaletest workspace-traffic"
     env:
     - name: CODER_URL
       value: $CODER_URL
     - name: CODER_TOKEN
       value: $CODER_TOKEN
+    - name: CODER_SCALETEST_PROMETHEUS_ADDRESS
+      value: "0.0.0.0:21112"
+    - name: CODER_SCALETEST_JOB_TIMEOUT
+      value: "30m"
+    - name: CODER_SCALETEST_CONCURRENCY
+      value: "0"
+    - name: CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK
+      value: "2048"
     ports:
     - containerPort: 21112
       name: prometheus-http
@@ -62,4 +70,3 @@ spec:
   - port: prometheus-http
     interval: 15s
 EOF
-
