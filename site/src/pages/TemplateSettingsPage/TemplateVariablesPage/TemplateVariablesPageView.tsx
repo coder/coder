@@ -10,7 +10,7 @@ import { TemplateVariablesForm } from "./TemplateVariablesForm"
 import { makeStyles } from "@mui/styles"
 import { useTranslation } from "react-i18next"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface TemplateVariablesPageViewProps {
   templateVersion?: TemplateVersion
@@ -51,26 +51,12 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         <PageHeaderTitle>{t("title")}</PageHeaderTitle>
       </PageHeader>
       {Boolean(errors.getTemplateDataError) && (
-        <Alert severity="error">
-          {getErrorMessage(
-            errors.getTemplateDataError,
-            "Error getting template data",
-          )}
-        </Alert>
+        <ErrorAlert error={errors.getTemplateDataError} />
       )}
       {Boolean(errors.updateTemplateError) && (
-        <Alert severity="error">
-          {getErrorMessage(
-            errors.updateTemplateError,
-            "Error updating template",
-          )}
-        </Alert>
+        <ErrorAlert error={errors.updateTemplateError} />
       )}
-      {Boolean(errors.jobError) && (
-        <Alert severity="error">
-          {getErrorMessage(errors.jobError, "Job error")}
-        </Alert>
-      )}
+      {Boolean(errors.jobError) && <ErrorAlert error={errors.jobError} />}
       {isLoading && <Loader />}
       {templateVersion && templateVariables && templateVariables.length > 0 && (
         <TemplateVariablesForm

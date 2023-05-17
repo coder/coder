@@ -10,7 +10,7 @@ import { BuiltInAuthFormValues } from "./SignInForm.types"
 import Button from "@mui/material/Button"
 import EmailIcon from "@mui/icons-material/EmailOutlined"
 import { Alert } from "components/Alert/Alert"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
   emailLabel: "Email",
@@ -101,9 +101,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       </h1>
       <Maybe condition={error !== undefined}>
         <div className={styles.error}>
-          <Alert severity="error">
-            {getErrorMessage(error, "Error on sign in")}
-          </Alert>
+          <ErrorAlert error={error} />
         </div>
       </Maybe>
       <Maybe condition={passwordEnabled && showPasswordAuth}>

@@ -5,7 +5,7 @@ import { Stack } from "components/Stack/Stack"
 import MuiAlert, { AlertProps as MuiAlertProps } from "@mui/material/Alert"
 import Button from "@mui/material/Button"
 
-export interface AlertProps {
+export interface AlertProps extends PropsWithChildren {
   severity: MuiAlertProps["severity"]
   actions?: ReactNode[]
   dismissible?: boolean
@@ -13,7 +13,7 @@ export interface AlertProps {
   onDismiss?: () => void
 }
 
-export const Alert: FC<PropsWithChildren<AlertProps>> = ({
+export const Alert: FC<AlertProps> = ({
   children,
   actions = [],
   onRetry,

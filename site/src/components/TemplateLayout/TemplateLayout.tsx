@@ -7,7 +7,6 @@ import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
 import { Loader } from "components/Loader/Loader"
 import { TemplatePageHeader } from "./TemplatePageHeader"
-import { Alert } from "components/Alert/Alert"
 import {
   checkAuthorization,
   getTemplateByName,
@@ -15,7 +14,7 @@ import {
 } from "api/api"
 import { useQuery } from "@tanstack/react-query"
 import { AuthorizationRequest } from "api/typesGenerated"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 const templatePermissions = (
   templateId: string,
@@ -76,9 +75,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   if (error) {
     return (
       <div className={styles.error}>
-        <Alert severity="error">
-          {getErrorMessage(error, "Error on get template")}
-        </Alert>
+        <ErrorAlert error={error} />
       </div>
     )
   }

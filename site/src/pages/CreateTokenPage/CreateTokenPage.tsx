@@ -11,11 +11,10 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { createToken, getTokenConfig } from "api/api"
 import { CreateTokenForm } from "./CreateTokenForm"
 import { NANO_HOUR, CreateTokenData } from "./utils"
-import { Alert } from "components/Alert/Alert"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { makeStyles } from "@mui/styles"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 const initialValues: CreateTokenData = {
   name: "",
@@ -88,11 +87,7 @@ export const CreateTokenPage: FC = () => {
       <Helmet>
         <title>{pageTitle(t("createToken.title"))}</title>
       </Helmet>
-      {tokenFetchFailed && (
-        <Alert severity="error">
-          {getErrorMessage(tokenFetchError, "Error getting token")}
-        </Alert>
-      )}
+      {tokenFetchFailed && <ErrorAlert error={tokenFetchError} />}
       <FullPageHorizontalForm
         title={t("createToken.title")}
         detail={t("createToken.detail")}

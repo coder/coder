@@ -8,7 +8,6 @@ import TableContainer from "@mui/material/TableContainer"
 import TableHead from "@mui/material/TableHead"
 import TableRow from "@mui/material/TableRow"
 import AddIcon from "@mui/icons-material/AddOutlined"
-import { Alert } from "components/Alert/Alert"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
@@ -42,7 +41,7 @@ import { combineClasses } from "utils/combineClasses"
 import { colors } from "theme/colors"
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined"
 import { Avatar } from "components/Avatar/Avatar"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -194,9 +193,7 @@ export const TemplatesPageView: FC<
 
       <ChooseOne>
         <Cond condition={Boolean(error)}>
-          <Alert severity="error">
-            {getErrorMessage(error, "Error getting templates")}
-          </Alert>
+          <ErrorAlert error={error} />
         </Cond>
 
         <Cond>

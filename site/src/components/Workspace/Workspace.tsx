@@ -27,7 +27,7 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader"
 import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -107,23 +107,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const { t } = useTranslation("workspacePage")
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <Alert severity="error" dismissible>
-      {getErrorMessage(
-        workspaceErrors[WorkspaceErrors.BUILD_ERROR],
-        "Error during build",
-      )}
-    </Alert>
+    <ErrorAlert error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} />
   )
 
   const cancellationError = Boolean(
     workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
   ) && (
-    <Alert severity="error" dismissible>
-      {getErrorMessage(
-        workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
-        "Error during cancelation",
-      )}
-    </Alert>
+    <ErrorAlert error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} />
   )
 
   let transitionStats: TypesGen.TransitionStats | undefined = undefined
@@ -254,12 +244,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           )}
 
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <Alert severity="error">
-              {getErrorMessage(
-                workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR],
-                "Error getting builds",
-              )}
-            </Alert>
+            <ErrorAlert
+              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
+            />
           ) : (
             <BuildsTable builds={builds} />
           )}

@@ -3,11 +3,10 @@ import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
 import CircularProgress from "@mui/material/CircularProgress"
 import { GitSSHKey } from "api/typesGenerated"
-import { Alert } from "components/Alert/Alert"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
   errorRegenerateSSHKey: "Error on regenerating the SSH Key",
@@ -47,15 +46,9 @@ export const SSHKeysPageView: FC<
     <Stack>
       {/* Regenerating the key is not an option if getSSHKey fails.
         Only one of the error messages will exist at a single time */}
-      {Boolean(getSSHKeyError) && (
-        <Alert severity="error">
-          {getErrorMessage(getSSHKeyError, "Error getting ssh key")}
-        </Alert>
-      )}
+      {Boolean(getSSHKeyError) && <ErrorAlert error={getSSHKeyError} />}
       {Boolean(regenerateSSHKeyError) && (
-        <Alert severity="error" dismissible>
-          {getErrorMessage(regenerateSSHKeyError, "Error regenerating ssh key")}
-        </Alert>
+        <ErrorAlert error={regenerateSSHKeyError} dismissible />
       )}
       {hasLoaded && sshKey && (
         <>

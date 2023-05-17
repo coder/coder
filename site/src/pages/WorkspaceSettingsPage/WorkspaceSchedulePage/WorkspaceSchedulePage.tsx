@@ -22,7 +22,7 @@ import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
 } from "./formToRequest"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 const getAutostart = (workspace: TypesGen.Workspace) =>
   scheduleToAutostart(workspace.autostart_schedule)
@@ -76,12 +76,7 @@ export const WorkspaceSchedulePage: FC = () => {
       </PageHeader>
       {(scheduleState.hasTag("loading") || !template) && <Loader />}
       {scheduleState.matches("error") && (
-        <Alert severity="error">
-          {getErrorMessage(
-            checkPermissionsError || getTemplateError,
-            "Error getting the worspace schedule",
-          )}
-        </Alert>
+        <ErrorAlert error={checkPermissionsError || getTemplateError} />
       )}
       {permissions && !permissions.updateWorkspace && (
         <Alert severity="error">{t("forbiddenError")}</Alert>

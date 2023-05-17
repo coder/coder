@@ -9,11 +9,10 @@ import { Stack } from "components/Stack/Stack"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { FC } from "react"
-import { Alert } from "components/Alert/Alert"
 import { Region } from "api/typesGenerated"
 import { ProxyRow } from "./WorkspaceProxyRow"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface WorkspaceProxyViewProps {
   proxies?: Region[]
@@ -41,15 +40,9 @@ export const WorkspaceProxyView: FC<
   return (
     <Stack>
       {Boolean(getWorkspaceProxiesError) && (
-        <Alert severity="error">
-          {getErrorMessage(getWorkspaceProxiesError, "Error getting proxies")}
-        </Alert>
+        <ErrorAlert error={getWorkspaceProxiesError} />
       )}
-      {Boolean(selectProxyError) && (
-        <Alert severity="error">
-          {getErrorMessage(selectProxyError, "Error selecting proxy")}
-        </Alert>
-      )}
+      {Boolean(selectProxyError) && <ErrorAlert error={selectProxyError} />}
       <TableContainer>
         <Table>
           <TableHead>

@@ -8,7 +8,6 @@ import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
 import * as Yup from "yup"
-import { Alert } from "components/Alert/Alert"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { SelectedTemplate } from "./SelectedTemplate"
 import { Loader } from "components/Loader/Loader"
@@ -29,7 +28,7 @@ import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters"
-import { getErrorMessage } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -175,42 +174,39 @@ export const CreateWorkspacePageView: FC<
                 CreateWorkspaceErrors.GET_TEMPLATES_ERROR
               ],
             ) && (
-              <Alert severity="error">
-                {getErrorMessage(
+              <ErrorAlert
+                error={
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATES_ERROR
-                  ],
-                  "Error creating workspace",
-                )}
-              </Alert>
+                  ]
+                }
+              />
             )}
             {Boolean(
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
               ],
             ) && (
-              <Alert severity="error">
-                {getErrorMessage(
+              <ErrorAlert
+                error={
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
-                  ],
-                  "Error creating workspace",
-                )}
-              </Alert>
+                  ]
+                }
+              />
             )}
             {Boolean(
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
               ],
             ) && (
-              <Alert severity="error">
-                {getErrorMessage(
+              <ErrorAlert
+                error={
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
-                  ],
-                  "Error creating workspace",
-                )}
-              </Alert>
+                  ]
+                }
+              />
             )}
           </Stack>
         )}
@@ -220,14 +216,13 @@ export const CreateWorkspacePageView: FC<
             CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
           ],
         ) && (
-          <Alert severity="error">
-            {getErrorMessage(
+          <ErrorAlert
+            error={
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
-              ],
-              "Error creating workspace",
-            )}
-          </Alert>
+              ]
+            }
+          />
         )}
 
         {/* General info */}
