@@ -52,8 +52,6 @@ export interface WorkspacesPageViewProps {
   onPageChange: (page: number) => void
   onFilter: (query: string) => void
   onUpdateWorkspace: (workspace: Workspace) => void
-  // allowAdvancedScheduling: boolean
-  // allowWorkspaceActions: boolean
 }
 
 export const WorkspacesPageView: FC<
@@ -126,7 +124,6 @@ export const WorkspacesPageView: FC<
             }
           />
         </Maybe>
-        {/* <DeletionBanner/> determines its own visibility */}
         <DeletionBanner
           workspace={workspaces?.find((workspace) => workspace.deleting_at)}
           displayImpendingDeletionBanner={isNewWorkspacesImpendingDeletion()}
