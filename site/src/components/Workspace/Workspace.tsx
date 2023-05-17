@@ -12,7 +12,7 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { AlertBanner } from "../AlertBanner/AlertBanner"
+import { Alert } from "../Alert/Alert"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
 import { Resources } from "../Resources/Resources"
@@ -107,23 +107,23 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const { t } = useTranslation("workspacePage")
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <AlertBanner severity="error" dismissible>
+    <Alert severity="error" dismissible>
       {getErrorMessage(
         workspaceErrors[WorkspaceErrors.BUILD_ERROR],
         "Error during build",
       )}
-    </AlertBanner>
+    </Alert>
   )
 
   const cancellationError = Boolean(
     workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
   ) && (
-    <AlertBanner severity="error" dismissible>
+    <Alert severity="error" dismissible>
       {getErrorMessage(
         workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
         "Error during cancelation",
       )}
-    </AlertBanner>
+    </Alert>
   )
 
   let transitionStats: TypesGen.TransitionStats | undefined = undefined
@@ -196,7 +196,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
           {failedBuildLogs && (
             <Stack>
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 <Stack
                   className={styles.fullWidth}
                   direction="row"
@@ -222,7 +222,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                     </div>
                   )}
                 </Stack>
-              </AlertBanner>
+              </Alert>
               <WorkspaceBuildLogs logs={failedBuildLogs} />
             </Stack>
           )}
@@ -254,12 +254,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           )}
 
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <AlertBanner severity="error">
+            <Alert severity="error">
               {getErrorMessage(
                 workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR],
                 "Error getting builds",
               )}
-            </AlertBanner>
+            </Alert>
           ) : (
             <BuildsTable builds={builds} />
           )}

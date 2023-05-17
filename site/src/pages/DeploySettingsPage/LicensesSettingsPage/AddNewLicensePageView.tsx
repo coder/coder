@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button"
 import TextField from "@mui/material/TextField"
 import { makeStyles } from "@mui/styles"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { FileUpload } from "components/FileUpload/FileUpload"
@@ -67,7 +67,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
       </Stack>
 
       {savingLicenseError && (
-        <AlertBanner severity="error" error={savingLicenseError}></AlertBanner>
+        <Alert severity="error" error={savingLicenseError}></Alert>
       )}
 
       <FileUpload

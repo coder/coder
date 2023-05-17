@@ -7,7 +7,7 @@ import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
 import { Loader } from "components/Loader/Loader"
 import { TemplatePageHeader } from "./TemplatePageHeader"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import {
   checkAuthorization,
   getTemplateByName,
@@ -76,9 +76,9 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   if (error) {
     return (
       <div className={styles.error}>
-        <AlertBanner severity="error">
+        <Alert severity="error">
           {getErrorMessage(error, "Error on get template")}
-        </AlertBanner>
+        </Alert>
       </div>
     )
   }

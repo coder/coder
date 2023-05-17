@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
 import EditIcon from "@mui/icons-material/Edit"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
 import {
@@ -57,7 +57,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
       {!currentFiles && !error && <Loader />}
 
       <Stack spacing={4}>
-        {Boolean(error) && <AlertBanner severity="error" error={error} />}
+        {Boolean(error) && <Alert severity="error" error={error} />}
         {currentVersion && currentFiles && (
           <>
             <Stats>

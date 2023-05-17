@@ -9,7 +9,7 @@ import {
 } from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { getErrorMessage } from "api/errors"
 
 export interface AccountFormValues {
@@ -63,9 +63,9 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
       <form onSubmit={form.handleSubmit}>
         <Stack>
           {Boolean(updateProfileError) && (
-            <AlertBanner severity="error">
+            <Alert severity="error">
               {getErrorMessage(updateProfileError, "Error updating profile")}
-            </AlertBanner>
+            </Alert>
           )}
           <TextField
             disabled

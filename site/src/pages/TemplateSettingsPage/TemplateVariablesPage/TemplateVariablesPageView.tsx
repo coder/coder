@@ -3,7 +3,7 @@ import {
   TemplateVersion,
   TemplateVersionVariable,
 } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Loader } from "components/Loader/Loader"
 import { ComponentProps, FC } from "react"
 import { TemplateVariablesForm } from "./TemplateVariablesForm"
@@ -51,25 +51,25 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         <PageHeaderTitle>{t("title")}</PageHeaderTitle>
       </PageHeader>
       {Boolean(errors.getTemplateDataError) && (
-        <AlertBanner severity="error">
+        <Alert severity="error">
           {getErrorMessage(
             errors.getTemplateDataError,
             "Error getting template data",
           )}
-        </AlertBanner>
+        </Alert>
       )}
       {Boolean(errors.updateTemplateError) && (
-        <AlertBanner severity="error">
+        <Alert severity="error">
           {getErrorMessage(
             errors.updateTemplateError,
             "Error updating template",
           )}
-        </AlertBanner>
+        </Alert>
       )}
       {Boolean(errors.jobError) && (
-        <AlertBanner severity="error">
+        <Alert severity="error">
           {getErrorMessage(errors.jobError, "Job error")}
-        </AlertBanner>
+        </Alert>
       )}
       {isLoading && <Loader />}
       {templateVersion && templateVariables && templateVariables.length > 0 && (
@@ -84,7 +84,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         />
       )}
       {templateVariables && templateVariables.length === 0 && (
-        <AlertBanner severity="info">{t("unusedVariablesNotice")}</AlertBanner>
+        <Alert severity="info">{t("unusedVariablesNotice")}</Alert>
       )}
     </>
   )

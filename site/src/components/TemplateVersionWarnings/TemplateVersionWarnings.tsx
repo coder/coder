@@ -1,6 +1,6 @@
 import { FC } from "react"
 import * as TypesGen from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Maybe } from "components/Conditionals/Maybe"
 import Link from "@mui/material/Link"
 
@@ -18,7 +18,7 @@ export const TemplateVersionWarnings: FC<
   return (
     <Maybe condition={Boolean(warnings.includes("DEPRECATED_PARAMETERS"))}>
       <div data-testid="warning-deprecated-parameters">
-        <AlertBanner severity="warning">
+        <Alert severity="warning">
           <div>
             This template uses legacy parameters which will be deprecated in the
             next Coder release. Learn how to migrate in{" "}
@@ -27,7 +27,7 @@ export const TemplateVersionWarnings: FC<
             </Link>
             .
           </div>
-        </AlertBanner>
+        </Alert>
       </div>
     </Maybe>
   )

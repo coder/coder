@@ -12,7 +12,7 @@ import { TableLoader } from "components/TableLoader/TableLoader"
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline"
 import dayjs from "dayjs"
 import { FC } from "react"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import IconButton from "@mui/material/IconButton/IconButton"
 import { useTranslation } from "react-i18next"
 import { APIKeyWithOwner } from "api/typesGenerated"
@@ -52,14 +52,14 @@ export const TokensPageView: FC<
   return (
     <Stack>
       {Boolean(getTokensError) && (
-        <AlertBanner severity="error">
+        <Alert severity="error">
           {getErrorMessage(getTokensError, "Error getting tokens")}
-        </AlertBanner>
+        </Alert>
       )}
       {Boolean(deleteTokenError) && (
-        <AlertBanner severity="error">
+        <Alert severity="error">
           {getErrorMessage(deleteTokenError, "Error deleting token")}
-        </AlertBanner>
+        </Alert>
       )}
       <TableContainer>
         <Table>

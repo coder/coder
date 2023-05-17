@@ -1,6 +1,6 @@
 import { makeStyles } from "@mui/styles"
 import { useMachine } from "@xstate/react"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Loader } from "components/Loader/Loader"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
@@ -76,15 +76,15 @@ export const WorkspaceSchedulePage: FC = () => {
       </PageHeader>
       {(scheduleState.hasTag("loading") || !template) && <Loader />}
       {scheduleState.matches("error") && (
-        <AlertBanner severity="error">
+        <Alert severity="error">
           {getErrorMessage(
             checkPermissionsError || getTemplateError,
             "Error getting the worspace schedule",
           )}
-        </AlertBanner>
+        </Alert>
       )}
       {permissions && !permissions.updateWorkspace && (
-        <AlertBanner severity="error">{t("forbiddenError")}</AlertBanner>
+        <Alert severity="error">{t("forbiddenError")}</Alert>
       )}
       {template &&
         workspace &&

@@ -1,18 +1,19 @@
 import { useState, FC, ReactNode, PropsWithChildren } from "react"
 import Collapse from "@mui/material/Collapse"
 import { Stack } from "components/Stack/Stack"
-import Alert, { AlertProps } from "@mui/material/Alert"
+// eslint-disable-next-line no-restricted-imports -- It is the base component
+import MuiAlert, { AlertProps as MuiAlertProps } from "@mui/material/Alert"
 import Button from "@mui/material/Button"
 
-export interface AlertBannerProps {
-  severity: AlertProps["severity"]
+export interface AlertProps {
+  severity: MuiAlertProps["severity"]
   actions?: ReactNode[]
   dismissible?: boolean
   onRetry?: () => void
   onDismiss?: () => void
 }
 
-export const AlertBanner: FC<PropsWithChildren<AlertBannerProps>> = ({
+export const Alert: FC<PropsWithChildren<AlertProps>> = ({
   children,
   actions = [],
   onRetry,
@@ -24,7 +25,7 @@ export const AlertBanner: FC<PropsWithChildren<AlertBannerProps>> = ({
 
   return (
     <Collapse in={open}>
-      <Alert
+      <MuiAlert
         severity={severity}
         action={
           <Stack direction="row">
@@ -58,7 +59,7 @@ export const AlertBanner: FC<PropsWithChildren<AlertBannerProps>> = ({
         }
       >
         {children}
-      </Alert>
+      </MuiAlert>
     </Collapse>
   )
 }

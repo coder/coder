@@ -1,6 +1,6 @@
 import Link from "@mui/material/Link"
 import { Workspace } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
 import { FC } from "react"
@@ -127,7 +127,7 @@ export const WorkspacesPageView: FC<
 
       <Stack>
         <Maybe condition={Boolean(error)}>
-          <AlertBanner
+          <Alert
             severity={
               workspaces !== undefined && workspaces.length > 0
                 ? "warning"
@@ -135,10 +135,10 @@ export const WorkspacesPageView: FC<
             }
           >
             {getErrorMessage(error, "Unknown workspace error")}
-          </AlertBanner>
+          </Alert>
         </Maybe>
         <Maybe condition={displayImpendingDeletionBanner}>
-          <AlertBanner
+          <Alert
             severity="info"
             onDismiss={() =>
               saveLocal(
@@ -149,7 +149,7 @@ export const WorkspacesPageView: FC<
             dismissible
           >
             You have workspaces that will be deleted soon.
-          </AlertBanner>
+          </Alert>
         </Maybe>
 
         <SearchBarWithFilter

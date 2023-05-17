@@ -9,7 +9,7 @@ import { OAuthSignInForm } from "./OAuthSignInForm"
 import { BuiltInAuthFormValues } from "./SignInForm.types"
 import Button from "@mui/material/Button"
 import EmailIcon from "@mui/icons-material/EmailOutlined"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { getErrorMessage } from "api/errors"
 
 export const Language = {
@@ -101,9 +101,9 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       </h1>
       <Maybe condition={error !== undefined}>
         <div className={styles.error}>
-          <AlertBanner severity="error">
+          <Alert severity="error">
             {getErrorMessage(error, "Error on sign in")}
-          </AlertBanner>
+          </Alert>
         </div>
       </Maybe>
       <Maybe condition={passwordEnabled && showPasswordAuth}>
@@ -129,9 +129,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       </Maybe>
 
       <Maybe condition={!passwordEnabled && !oAuthEnabled}>
-        <AlertBanner severity="error">
-          No authentication methods configured!
-        </AlertBanner>
+        <Alert severity="error">No authentication methods configured!</Alert>
       </Maybe>
 
       <Maybe condition={passwordEnabled && !showPasswordAuth}>

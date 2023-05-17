@@ -1,6 +1,6 @@
 import { useMachine } from "@xstate/react"
 import { isApiValidationError } from "api/errors"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Maybe } from "components/Conditionals/Maybe"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
@@ -64,7 +64,7 @@ const CreateTemplatePage: FC = () => {
 
         <Stack spacing={6}>
           <Maybe condition={Boolean(error && !isApiValidationError(error))}>
-            <AlertBanner error={error} severity="error" />
+            <Alert error={error} severity="error" />
           </Maybe>
 
           {shouldDisplayForm && (

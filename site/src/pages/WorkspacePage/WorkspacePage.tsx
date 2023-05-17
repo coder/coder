@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useMachine } from "@xstate/react"
 import { getWorkspaceBuildLogs } from "api/api"
 import { Workspace } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Loader } from "components/Loader/Loader"
 import { FC, useRef } from "react"
@@ -62,38 +62,38 @@ export const WorkspacePage: FC = () => {
         <Cond condition={workspaceState.matches("error")}>
           <div className={styles.error}>
             {Boolean(getWorkspaceError) && (
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 {getErrorMessage(getWorkspaceError, "Error loading workspace")}
-              </AlertBanner>
+              </Alert>
             )}
             {Boolean(getTemplateWarning) && (
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 {getErrorMessage(
                   getTemplateWarning,
                   "Error loading template warning",
                 )}
-              </AlertBanner>
+              </Alert>
             )}
             {Boolean(getTemplateParametersWarning) && (
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 {getErrorMessage(
                   getTemplateParametersWarning,
                   "Error loading template parameters warning",
                 )}
-              </AlertBanner>
+              </Alert>
             )}
             {Boolean(checkPermissionsError) && (
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 {getErrorMessage(
                   checkPermissionsError,
                   "Error checking permissions",
                 )}
-              </AlertBanner>
+              </Alert>
             )}
             {Boolean(getQuotaError) && (
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 {getErrorMessage(getQuotaError, "Error getting quota")}
-              </AlertBanner>
+              </Alert>
             )}
           </div>
         </Cond>

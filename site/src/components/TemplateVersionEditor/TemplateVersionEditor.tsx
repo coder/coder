@@ -13,7 +13,7 @@ import {
   VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
@@ -377,9 +377,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 }`}
               >
                 {templateVersion.job.error && (
-                  <AlertBanner severity="error">
-                    {templateVersion.job.error}
-                  </AlertBanner>
+                  <Alert severity="error">{templateVersion.job.error}</Alert>
                 )}
 
                 {buildLogs && buildLogs.length > 0 && (

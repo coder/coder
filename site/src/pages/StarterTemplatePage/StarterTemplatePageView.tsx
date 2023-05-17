@@ -12,7 +12,7 @@ import { FC } from "react"
 import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService"
 import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined"
 import PlusIcon from "@mui/icons-material/AddOutlined"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { useTranslation } from "react-i18next"
 import { Stack } from "components/Stack/Stack"
 import { Link } from "react-router-dom"
@@ -32,9 +32,9 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
   if (context.error) {
     return (
       <Margins>
-        <AlertBanner severity="error">
+        <Alert severity="error">
           {getErrorMessage(context.error, "Error loading starter template")}
-        </AlertBanner>
+        </Alert>
       </Margins>
     )
   }

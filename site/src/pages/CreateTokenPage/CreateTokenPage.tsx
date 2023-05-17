@@ -11,7 +11,7 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { createToken, getTokenConfig } from "api/api"
 import { CreateTokenForm } from "./CreateTokenForm"
 import { NANO_HOUR, CreateTokenData } from "./utils"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { makeStyles } from "@mui/styles"
@@ -89,9 +89,9 @@ export const CreateTokenPage: FC = () => {
         <title>{pageTitle(t("createToken.title"))}</title>
       </Helmet>
       {tokenFetchFailed && (
-        <AlertBanner severity="error">
+        <Alert severity="error">
           {getErrorMessage(tokenFetchError, "Error getting token")}
-        </AlertBanner>
+        </Alert>
       )}
       <FullPageHorizontalForm
         title={t("createToken.title")}

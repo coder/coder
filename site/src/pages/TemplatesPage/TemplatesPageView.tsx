@@ -8,7 +8,7 @@ import TableContainer from "@mui/material/TableContainer"
 import TableHead from "@mui/material/TableHead"
 import TableRow from "@mui/material/TableRow"
 import AddIcon from "@mui/icons-material/AddOutlined"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
@@ -194,9 +194,9 @@ export const TemplatesPageView: FC<
 
       <ChooseOne>
         <Cond condition={Boolean(error)}>
-          <AlertBanner severity="error">
+          <Alert severity="error">
             {getErrorMessage(error, "Error getting templates")}
-          </AlertBanner>
+          </Alert>
         </Cond>
 
         <Cond>

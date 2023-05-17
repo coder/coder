@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button"
 import { FC } from "react"
 import * as TypesGen from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { useTranslation } from "react-i18next"
 import { Maybe } from "components/Conditionals/Maybe"
 
@@ -23,9 +23,9 @@ export const WorkspaceDeletedBanner: FC<
 
   return (
     <Maybe condition={workspace.latest_build.status === "deleted"}>
-      <AlertBanner severity="warning" actions={[NewWorkspaceButton]}>
+      <Alert severity="warning" actions={[NewWorkspaceButton]}>
         {t("warningsAndErrors.workspaceDeletedWarning")}
-      </AlertBanner>
+      </Alert>
     </Maybe>
   )
 }

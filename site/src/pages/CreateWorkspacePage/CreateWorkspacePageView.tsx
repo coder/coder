@@ -8,7 +8,7 @@ import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
 import * as Yup from "yup"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { SelectedTemplate } from "./SelectedTemplate"
 import { Loader } from "components/Loader/Loader"
@@ -175,42 +175,42 @@ export const CreateWorkspacePageView: FC<
                 CreateWorkspaceErrors.GET_TEMPLATES_ERROR
               ],
             ) && (
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 {getErrorMessage(
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATES_ERROR
                   ],
                   "Error creating workspace",
                 )}
-              </AlertBanner>
+              </Alert>
             )}
             {Boolean(
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
               ],
             ) && (
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 {getErrorMessage(
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
                   ],
                   "Error creating workspace",
                 )}
-              </AlertBanner>
+              </Alert>
             )}
             {Boolean(
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
               ],
             ) && (
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 {getErrorMessage(
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
                   ],
                   "Error creating workspace",
                 )}
-              </AlertBanner>
+              </Alert>
             )}
           </Stack>
         )}
@@ -220,14 +220,14 @@ export const CreateWorkspacePageView: FC<
             CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
           ],
         ) && (
-          <AlertBanner severity="error">
+          <Alert severity="error">
             {getErrorMessage(
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
               ],
               "Error creating workspace",
             )}
-          </AlertBanner>
+          </Alert>
         )}
 
         {/* General info */}
