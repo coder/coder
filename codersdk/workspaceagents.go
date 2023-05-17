@@ -133,7 +133,7 @@ type WorkspaceAgent struct {
 	StartupScriptTimeoutSeconds  int32          `json:"startup_script_timeout_seconds"`
 	ShutdownScript               string         `json:"shutdown_script,omitempty"`
 	ShutdownScriptTimeoutSeconds int32          `json:"shutdown_script_timeout_seconds"`
-	Subsystem                    AgentSubsystem `json:"subsytem"`
+	Subsystem                    AgentSubsystem `json:"subsystem"`
 }
 
 type DERPRegion struct {
