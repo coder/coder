@@ -106,7 +106,6 @@ func ProvisionerJobStatus(provisionerJob database.ProvisionerJob) codersdk.Provi
 		}
 		return codersdk.ProvisionerJobFailed
 	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
-		provisionerJob.Error.String = "Worker failed to update job in time."
 		return codersdk.ProvisionerJobFailed
 	default:
 		return codersdk.ProvisionerJobRunning
