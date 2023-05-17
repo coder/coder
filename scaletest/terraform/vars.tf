@@ -150,7 +150,7 @@ variable "prometheus_remote_write_insecure_skip_verify" {
 
 variable "prometheus_remote_write_metrics_regex" {
   description = "Allowlist regex of metrics for Prometheus remote write."
-  default     = ".*(coderd_|pg_database_size_bytes|pg_stat_|coderloader_|go_goroutines|go_memstats_heap_inuse_bytes|kube_pod_container_resource_requests|kube_pod_container_resource_limits|container_cpu_usage_seconds_total|container_memory_working_set_bytes).*"
+  default     = ".*"
 }
 
 variable "prometheus_remote_write_send_interval" {
