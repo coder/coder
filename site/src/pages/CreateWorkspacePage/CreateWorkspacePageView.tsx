@@ -29,6 +29,7 @@ import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters"
+import { getErrorMessage } from "api/errors"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -174,42 +175,42 @@ export const CreateWorkspacePageView: FC<
                 CreateWorkspaceErrors.GET_TEMPLATES_ERROR
               ],
             ) && (
-              <AlertBanner
-                severity="error"
-                error={
+              <AlertBanner severity="error">
+                {getErrorMessage(
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATES_ERROR
-                  ]
-                }
-              />
+                  ],
+                  "Error creating workspace",
+                )}
+              </AlertBanner>
             )}
             {Boolean(
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
               ],
             ) && (
-              <AlertBanner
-                severity="error"
-                error={
+              <AlertBanner severity="error">
+                {getErrorMessage(
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
-                  ]
-                }
-              />
+                  ],
+                  "Error creating workspace",
+                )}
+              </AlertBanner>
             )}
             {Boolean(
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
               ],
             ) && (
-              <AlertBanner
-                severity="error"
-                error={
+              <AlertBanner severity="error">
+                {getErrorMessage(
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
-                  ]
-                }
-              />
+                  ],
+                  "Error creating workspace",
+                )}
+              </AlertBanner>
             )}
           </Stack>
         )}
@@ -219,14 +220,14 @@ export const CreateWorkspacePageView: FC<
             CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
           ],
         ) && (
-          <AlertBanner
-            severity="error"
-            error={
+          <AlertBanner severity="error">
+            {getErrorMessage(
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
-              ]
-            }
-          />
+              ],
+              "Error creating workspace",
+            )}
+          </AlertBanner>
         )}
 
         {/* General info */}

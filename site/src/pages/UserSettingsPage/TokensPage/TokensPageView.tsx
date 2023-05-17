@@ -17,6 +17,7 @@ import IconButton from "@mui/material/IconButton/IconButton"
 import { useTranslation } from "react-i18next"
 import { APIKeyWithOwner } from "api/typesGenerated"
 import relativeTime from "dayjs/plugin/relativeTime"
+import { getErrorMessage } from "api/errors"
 
 dayjs.extend(relativeTime)
 
@@ -51,10 +52,14 @@ export const TokensPageView: FC<
   return (
     <Stack>
       {Boolean(getTokensError) && (
-        <AlertBanner severity="error" error={getTokensError} />
+        <AlertBanner severity="error">
+          {getErrorMessage(getTokensError, "Error getting tokens")}
+        </AlertBanner>
       )}
       {Boolean(deleteTokenError) && (
-        <AlertBanner severity="error" error={deleteTokenError} />
+        <AlertBanner severity="error">
+          {getErrorMessage(deleteTokenError, "Error deleting token")}
+        </AlertBanner>
       )}
       <TableContainer>
         <Table>

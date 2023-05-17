@@ -23,11 +23,9 @@ export const WorkspaceDeletedBanner: FC<
 
   return (
     <Maybe condition={workspace.latest_build.status === "deleted"}>
-      <AlertBanner
-        text={t("warningsAndErrors.workspaceDeletedWarning")}
-        actions={[NewWorkspaceButton]}
-        severity="warning"
-      />
+      <AlertBanner severity="warning" actions={[NewWorkspaceButton]}>
+        {t("warningsAndErrors.workspaceDeletedWarning")}
+      </AlertBanner>
     </Maybe>
   )
 }

@@ -7,6 +7,7 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
+import { getErrorMessage } from "api/errors"
 
 export const Language = {
   errorRegenerateSSHKey: "Error on regenerating the SSH Key",
@@ -47,15 +48,14 @@ export const SSHKeysPageView: FC<
       {/* Regenerating the key is not an option if getSSHKey fails.
         Only one of the error messages will exist at a single time */}
       {Boolean(getSSHKeyError) && (
-        <AlertBanner severity="error" error={getSSHKeyError} />
+        <AlertBanner severity="error">
+          {getErrorMessage(getSSHKeyError, "Error getting ssh key")}
+        </AlertBanner>
       )}
       {Boolean(regenerateSSHKeyError) && (
-        <AlertBanner
-          severity="error"
-          error={regenerateSSHKeyError}
-          text={Language.errorRegenerateSSHKey}
-          dismissible
-        />
+        <AlertBanner severity="error" dismissible>
+          {getErrorMessage(regenerateSSHKeyError, "Error regenerating ssh key")}
+        </AlertBanner>
       )}
       {hasLoaded && sshKey && (
         <>

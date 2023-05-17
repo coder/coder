@@ -18,6 +18,7 @@ import { WorkspacesTable } from "components/WorkspacesTable/WorkspacesTable"
 import { workspaceFilterQuery } from "utils/filters"
 import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
+import { getErrorMessage } from "api/errors"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -127,13 +128,14 @@ export const WorkspacesPageView: FC<
       <Stack>
         <Maybe condition={Boolean(error)}>
           <AlertBanner
-            error={error}
             severity={
               workspaces !== undefined && workspaces.length > 0
                 ? "warning"
                 : "error"
             }
-          />
+          >
+            {getErrorMessage(error, "Unknown workspace error")}
+          </AlertBanner>
         </Maybe>
         <Maybe condition={displayImpendingDeletionBanner}>
           <AlertBanner
@@ -145,8 +147,9 @@ export const WorkspacesPageView: FC<
               )
             }
             dismissible
-            text="You have workspaces that will be deleted soon."
-          />
+          >
+            You have workspaces that will be deleted soon.
+          </AlertBanner>
         </Maybe>
 
         <SearchBarWithFilter

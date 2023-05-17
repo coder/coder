@@ -27,6 +27,7 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader"
 import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
+import { getErrorMessage } from "api/errors"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -106,21 +107,23 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const { t } = useTranslation("workspacePage")
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <AlertBanner
-      severity="error"
-      error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
-      dismissible
-    />
+    <AlertBanner severity="error" dismissible>
+      {getErrorMessage(
+        workspaceErrors[WorkspaceErrors.BUILD_ERROR],
+        "Error during build",
+      )}
+    </AlertBanner>
   )
 
   const cancellationError = Boolean(
     workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
   ) && (
-    <AlertBanner
-      severity="error"
-      error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
-      dismissible
-    />
+    <AlertBanner severity="error" dismissible>
+      {getErrorMessage(
+        workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
+        "Error during cancelation",
+      )}
+    </AlertBanner>
   )
 
   let transitionStats: TypesGen.TransitionStats | undefined = undefined
@@ -251,10 +254,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           )}
 
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <AlertBanner
-              severity="error"
-              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
-            />
+            <AlertBanner severity="error">
+              {getErrorMessage(
+                workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR],
+                "Error getting builds",
+              )}
+            </AlertBanner>
           ) : (
             <BuildsTable builds={builds} />
           )}

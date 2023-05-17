@@ -1,4 +1,5 @@
 import { makeStyles } from "@mui/styles"
+import { getErrorMessage } from "api/errors"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
 import { Loader } from "components/Loader/Loader"
@@ -57,7 +58,9 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
       </PageHeader>
 
       <Maybe condition={Boolean(context.error)}>
-        <AlertBanner error={context.error} severity="error" />
+        <AlertBanner severity="error">
+          {getErrorMessage(context.error, "Error getting starter templates")}
+        </AlertBanner>
       </Maybe>
 
       <Maybe condition={Boolean(!starterTemplatesByTag)}>

@@ -42,6 +42,7 @@ import { combineClasses } from "utils/combineClasses"
 import { colors } from "theme/colors"
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined"
 import { Avatar } from "components/Avatar/Avatar"
+import { getErrorMessage } from "api/errors"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -193,7 +194,9 @@ export const TemplatesPageView: FC<
 
       <ChooseOne>
         <Cond condition={Boolean(error)}>
-          <AlertBanner severity="error" error={error} />
+          <AlertBanner severity="error">
+            {getErrorMessage(error, "Error getting templates")}
+          </AlertBanner>
         </Cond>
 
         <Cond>

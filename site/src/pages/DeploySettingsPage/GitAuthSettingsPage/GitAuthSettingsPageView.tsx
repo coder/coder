@@ -42,9 +42,10 @@ export const GitAuthSettingsPageView = ({
       <div className={styles.description}>
         <AlertBanner
           severity="info"
-          text="Integrating with multiple Git providers is an Enterprise feature."
           actions={[<EnterpriseBadge key="enterprise" />]}
-        />
+        >
+          Integrating with multiple Git providers is an Enterprise feature.
+        </AlertBanner>
       </div>
 
       <TableContainer>

@@ -15,6 +15,7 @@ import {
 } from "api/api"
 import { useQuery } from "@tanstack/react-query"
 import { AuthorizationRequest } from "api/typesGenerated"
+import { getErrorMessage } from "api/errors"
 
 const templatePermissions = (
   templateId: string,
@@ -75,7 +76,9 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   if (error) {
     return (
       <div className={styles.error}>
-        <AlertBanner severity="error" error={error} />
+        <AlertBanner severity="error">
+          {getErrorMessage(error, "Error on get template")}
+        </AlertBanner>
       </div>
     )
   }

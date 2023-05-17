@@ -15,6 +15,7 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { makeStyles } from "@mui/styles"
+import { getErrorMessage } from "api/errors"
 
 const initialValues: CreateTokenData = {
   name: "",
@@ -88,7 +89,9 @@ export const CreateTokenPage: FC = () => {
         <title>{pageTitle(t("createToken.title"))}</title>
       </Helmet>
       {tokenFetchFailed && (
-        <AlertBanner severity="error" error={tokenFetchError} />
+        <AlertBanner severity="error">
+          {getErrorMessage(tokenFetchError, "Error getting token")}
+        </AlertBanner>
       )}
       <FullPageHorizontalForm
         title={t("createToken.title")}

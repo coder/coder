@@ -381,5 +381,10 @@ dark = createTheme(dark, {
         },
       },
     },
+    MuiAlert: {
+      defaultProps: {
+        variant: "outlined",
+      },
+    },
   },
 } as ThemeOptions)

@@ -377,10 +377,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 }`}
               >
                 {templateVersion.job.error && (
-                  <AlertBanner
-                    severity="error"
-                    text={templateVersion.job.error}
-                  />
+                  <AlertBanner severity="error">
+                    {templateVersion.job.error}
+                  </AlertBanner>
                 )}
 
                 {buildLogs && buildLogs.length > 0 && (

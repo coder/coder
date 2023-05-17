@@ -16,6 +16,7 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 import { Stack } from "components/Stack/Stack"
 import { Link } from "react-router-dom"
+import { getErrorMessage } from "api/errors"
 
 export interface StarterTemplatePageViewProps {
   context: StarterTemplateContext
@@ -31,7 +32,9 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
   if (context.error) {
     return (
       <Margins>
-        <AlertBanner error={context.error} severity="error" />
+        <AlertBanner severity="error">
+          {getErrorMessage(context.error, "Error loading starter template")}
+        </AlertBanner>
       </Margins>
     )
   }

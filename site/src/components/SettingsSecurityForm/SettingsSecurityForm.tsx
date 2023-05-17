@@ -6,6 +6,7 @@ import { getFormHelpers } from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { getErrorMessage } from "api/errors"
 
 interface SecurityFormValues {
   old_password: string
@@ -73,7 +74,9 @@ export const SecurityForm: FC<SecurityFormProps> = ({
       <form onSubmit={form.handleSubmit}>
         <Stack>
           {Boolean(updateSecurityError) && (
-            <AlertBanner severity="error" error={updateSecurityError} />
+            <AlertBanner severity="error">
+              {getErrorMessage(updateSecurityError, "Error updating password")}
+            </AlertBanner>
           )}
           <TextField
             {...getFieldHelpers("old_password")}

@@ -13,6 +13,7 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Region } from "api/typesGenerated"
 import { ProxyRow } from "./WorkspaceProxyRow"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
+import { getErrorMessage } from "api/errors"
 
 export interface WorkspaceProxyViewProps {
   proxies?: Region[]
@@ -40,10 +41,14 @@ export const WorkspaceProxyView: FC<
   return (
     <Stack>
       {Boolean(getWorkspaceProxiesError) && (
-        <AlertBanner severity="error" error={getWorkspaceProxiesError} />
+        <AlertBanner severity="error">
+          {getErrorMessage(getWorkspaceProxiesError, "Error getting proxies")}
+        </AlertBanner>
       )}
       {Boolean(selectProxyError) && (
-        <AlertBanner severity="error" error={selectProxyError} />
+        <AlertBanner severity="error">
+          {getErrorMessage(selectProxyError, "Error selecting proxy")}
+        </AlertBanner>
       )}
       <TableContainer>
         <Table>

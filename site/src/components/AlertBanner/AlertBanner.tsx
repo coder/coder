@@ -1,122 +1,64 @@
-import { useState, FC, Children } from "react"
+import { useState, FC, ReactNode, PropsWithChildren } from "react"
 import Collapse from "@mui/material/Collapse"
 import { Stack } from "components/Stack/Stack"
-import { makeStyles } from "@mui/styles"
-import { colors } from "theme/colors"
-import { useTranslation } from "react-i18next"
-import { getErrorDetail, getErrorMessage } from "api/errors"
-import { Expander } from "components/Expander/Expander"
-import { Severity, AlertBannerProps } from "./alertTypes"
-import { severityConstants } from "./severityConstants"
-import { AlertBannerCtas } from "./AlertBannerCtas"
-import { Theme } from "@mui/material/styles"
+import Alert, { AlertProps } from "@mui/material/Alert"
+import Button from "@mui/material/Button"
 
-/**
- * @param children: the children to be displayed in the alert
- * @param severity: the level of alert severity (see ./severityTypes.ts)
- * @param text: default text to be displayed to the user; useful for warnings or as a fallback error message
- * @param error: should be passed in if the severity is 'Error'; warnings can use 'text' instead
- * @param actions: an array of CTAs passed in by the consumer
- * @param retry: a handler to retry the action that spawned the error
- * @param dismissible: determines whether or not the banner should have a `Dismiss` CTA
- * @param onDismiss: a handler that is called when the `Dismiss` CTA is clicked, after the animation has finished
- */
-export const AlertBanner: FC<React.PropsWithChildren<AlertBannerProps>> = ({
+export interface AlertBannerProps {
+  severity: AlertProps["severity"]
+  actions?: ReactNode[]
+  dismissible?: boolean
+  onRetry?: () => void
+  onDismiss?: () => void
+}
+
+export const AlertBanner: FC<PropsWithChildren<AlertBannerProps>> = ({
   children,
-  severity,
-  text,
-  error,
   actions = [],
-  retry,
-  dismissible = false,
+  onRetry,
+  dismissible,
+  severity,
   onDismiss,
 }) => {
-  const { t } = useTranslation("common")
-
   const [open, setOpen] = useState(true)
 
-  // Set a fallback message if no text or children are provided.
-  const defaultMessage =
-    text ??
-    (Children.count(children) === 0
-      ? t("warningsAndErrors.somethingWentWrong")
-      : "")
-
-  // if an error is passed in, display that error, otherwise
-  // display the text passed in, e.g. warning text
-  const alertMessage = getErrorMessage(error, defaultMessage)
-
-  // if we have an error, check if there's detail to display
-  const detail = error ? getErrorDetail(error) : undefined
-  const classes = useStyles({ severity, hasDetail: Boolean(detail) })
-
-  const [showDetails, setShowDetails] = useState(false)
-
   return (
-    <Collapse in={open} onExited={() => onDismiss && onDismiss()}>
-      <Stack
-        className={classes.alertContainer}
-        direction="row"
-        alignItems="center"
-        spacing={0}
-        justifyContent="space-between"
-      >
-        <Stack
-          direction="row"
-          alignItems="center"
-          spacing={2}
-          className={classes.fullWidth}
-        >
-          {severityConstants[severity].icon}
-          <Stack spacing={0} className={classes.fullWidth}>
-            {children}
-            {alertMessage}
-            {detail && (
-              <Expander expanded={showDetails} setExpanded={setShowDetails}>
-                <div>{detail}</div>
-              </Expander>
+    <Collapse in={open}>
+      <Alert
+        severity={severity}
+        action={
+          <Stack direction="row">
+            {/* CTAs passed in by the consumer */}
+            {actions.length > 0 &&
+              actions.map((action) => <div key={String(action)}>{action}</div>)}
+
+            {/* retry CTA */}
+            {onRetry && (
+              <div>
+                <Button size="small" onClick={onRetry}>
+                  Retry
+                </Button>
+              </div>
+            )}
+
+            {/* close CTA */}
+            {dismissible && (
+              <Button
+                size="small"
+                onClick={() => {
+                  setOpen(false)
+                  onDismiss && onDismiss()
+                }}
+                data-testid="dismiss-banner-btn"
+              >
+                Dismiss
+              </Button>
             )}
           </Stack>
-        </Stack>
-
-        <AlertBannerCtas
-          actions={actions}
-          dismissible={dismissible}
-          retry={retry}
-          setOpen={setOpen}
-        />
-      </Stack>
+        }
+      >
+        {children}
+      </Alert>
     </Collapse>
   )
 }
-
-interface StyleProps {
-  severity: Severity
-  hasDetail: boolean
-}
-
-const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
-  alertContainer: (props) => ({
-    ...theme.typography.body2,
-    borderColor: severityConstants[props.severity].color,
-    border: `1px solid ${colors.orange[7]}`,
-    borderRadius: theme.shape.borderRadius,
-    padding: theme.spacing(2),
-    backgroundColor: `${colors.gray[16]}`,
-    textAlign: "left",
-
-    "& > span": {
-      paddingTop: theme.spacing(0.25),
-    },
-
-    // targeting the alert icon rather than the expander icon
-    "& svg:nth-child(2)": {
-      marginTop: props.hasDetail ? theme.spacing(1) : "inherit",
-      marginRight: theme.spacing(1),
-    },
-  }),
-
-  fullWidth: {
-    width: "100%",
-  },
-}))
