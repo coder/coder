@@ -132,7 +132,7 @@ func New(options Options) Agent {
 		subsystem:              options.Subsystem,
 
 		prometheusRegistry: prometheusRegistry,
-		metrics:            newAgentMetrics(options.PrometheusRegistry),
+		metrics:            newAgentMetrics(prometheusRegistry),
 	}
 	a.init(ctx)
 	return a
