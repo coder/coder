@@ -161,16 +161,19 @@ resource "coder_agent" "dev" {
   metadata {
     display_name = "Load Average (Host)"
     key          = "4_load_host"
-    script       = "awk '{print $1}' /proc/loadavg"
-    interval     = 10
-    timeout      = 1
+    # get laod avg scaled by number of cores
+    script   = <<EOT
+      echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
+    EOT
+    interval = 10
+    timeout  = 1
   }
 
   metadata {
     display_name = "Disk Usage (Host)"
     key          = "5_disk_host"
     script       = <<EOT
-      cat /sys/fs/cgroup/cpuacct.usage"
+      df --output=pcent / | sed -n "2p"
     EOT
     interval     = 600
     timeout      = 10 #getting disk usage can take a while
