@@ -106,9 +106,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		logger:       logger,
 		x11SocketDir: x11SocketDir,
 
-		prometheusRegistry: prometheusRegistry,
-		metrics:            metrics,
-		sessionMetrics:     sessionMetrics,
+		metrics:        metrics,
+		sessionMetrics: sessionMetrics,
 	}
 
 	s.srv = &ssh.Server{
