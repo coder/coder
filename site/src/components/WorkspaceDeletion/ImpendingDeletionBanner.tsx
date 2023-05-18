@@ -4,7 +4,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { Maybe } from "components/Conditionals/Maybe"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
-export const DeletionBanner = ({
+export const ImpendingDeletionBanner = ({
   workspace,
   onDismiss,
   displayImpendingDeletionBanner,

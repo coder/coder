@@ -18,7 +18,7 @@ import { WorkspacesTable } from "components/WorkspacesTable/WorkspacesTable"
 import { workspaceFilterQuery } from "utils/filters"
 import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
-import { DeletionBanner } from "components/WorkspaceDeletion"
+import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -124,7 +124,7 @@ export const WorkspacesPageView: FC<
             }
           />
         </Maybe>
-        <DeletionBanner
+        <ImpendingDeletionBanner
           workspace={workspaces?.find((workspace) => workspace.deleting_at)}
           displayImpendingDeletionBanner={isNewWorkspacesImpendingDeletion()}
           onDismiss={() =>

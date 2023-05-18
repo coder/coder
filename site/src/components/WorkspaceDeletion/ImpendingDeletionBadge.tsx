@@ -4,7 +4,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { Pill } from "components/Pill/Pill"
 import ErrorIcon from "@mui/icons-material/ErrorOutline"
 
-export const DeletionBadge = ({
+export const ImpendingDeletionBadge = ({
   workspace,
 }: {
   workspace: Workspace

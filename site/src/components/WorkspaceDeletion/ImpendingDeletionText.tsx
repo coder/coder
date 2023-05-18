@@ -4,7 +4,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 import styled from "@emotion/styled"
 import { Theme as MaterialUITheme } from "@mui/material/styles"
 
-export const DeletionText = ({
+export const ImpendingDeletionText = ({
   workspace,
 }: {
   workspace: Workspace

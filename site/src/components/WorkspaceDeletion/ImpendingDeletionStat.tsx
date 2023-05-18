@@ -7,7 +7,7 @@ import { Workspace } from "api/typesGenerated"
 import { displayImpendingDeletion } from "./utils"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 
-export const DeletionStat = ({
+export const ImpendingDeletionStat = ({
   workspace,
 }: {
   workspace: Workspace

@@ -10,7 +10,10 @@ import { FC, PropsWithChildren } from "react"
 import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { DeletionBadge, DeletionText } from "components/WorkspaceDeletion"
+import {
+  ImpendingDeletionBadge,
+  ImpendingDeletionText,
+} from "components/WorkspaceDeletion"
 
 const LoadingIcon: FC = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
@@ -99,9 +102,9 @@ export const WorkspaceStatusBadge: FC<
   const { text, icon, type } = getStatus(workspace.latest_build.status)
   return (
     <ChooseOne>
-      {/* <DeletionBadge/> determines its own visibility */}
-      <Cond condition={Boolean(DeletionBadge({ workspace }))}>
-        <DeletionBadge workspace={workspace} />
+      {/* <ImpendingDeletionBadge/> determines its own visibility */}
+      <Cond condition={Boolean(ImpendingDeletionBadge({ workspace }))}>
+        <ImpendingDeletionBadge workspace={workspace} />
       </Cond>
       <Cond>
         <Pill className={className} icon={icon} text={text} type={type} />
@@ -118,9 +121,9 @@ export const WorkspaceStatusText: FC<
 
   return (
     <ChooseOne>
-      {/* <DeletionText/> determines its own visibility */}
-      <Cond condition={Boolean(DeletionText({ workspace }))}>
-        <DeletionText workspace={workspace} />
+      {/* <ImpendingDeletionText/> determines its own visibility */}
+      <Cond condition={Boolean(ImpendingDeletionText({ workspace }))}>
+        <ImpendingDeletionText workspace={workspace} />
       </Cond>
       <Cond>
         <span
