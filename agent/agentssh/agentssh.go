@@ -20,6 +20,7 @@ import (
 
 	"github.com/gliderlabs/ssh"
 	"github.com/pkg/sftp"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
@@ -69,9 +70,12 @@ type Server struct {
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
 	connCountSSHSession atomic.Int64
+
+	prometheusRegistry *prometheus.Registry
+	metrics            *sshServerMetrics
 }
 
-func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout time.Duration, x11SocketDir string) (*Server, error) {
+func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, maxTimeout time.Duration, x11SocketDir string) (*Server, error) {
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
@@ -90,6 +94,7 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	unixForwardHandler := &forwardedUnixHandler{log: logger}
 
+	metrics := newSSHServerMetrics(prometheusRegistry)
 	s := &Server{
 		listeners:    make(map[net.Listener]struct{}),
 		fs:           fs,
@@ -97,6 +102,9 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 		sessions:     make(map[ssh.Session]struct{}),
 		logger:       logger,
 		x11SocketDir: x11SocketDir,
+
+		prometheusRegistry: prometheusRegistry,
+		metrics:            metrics,
 	}
 
 	s.srv = &ssh.Server{
@@ -107,7 +115,7 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 		},
 		ConnectionFailedCallback: func(_ net.Conn, err error) {
 			s.logger.Warn(ctx, "ssh connection failed", slog.Error(err))
-			metricConnectionFailedCallback.Add(1)
+			metrics.connectionFailedCallback.Add(1)
 		},
 		Handler:     s.sessionHandler,
 		HostSigners: []ssh.Signer{randomSigner},
@@ -116,11 +124,11 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 			s.logger.Debug(ctx, "local port forward",
 				slog.F("destination-host", destinationHost),
 				slog.F("destination-port", destinationPort))
-			metricLocalPortForwardingCallback.Add(1)
+			metrics.localPortForwardingCallback.Add(1)
 			return true
 		},
 		PtyCallback: func(ctx ssh.Context, pty ssh.Pty) bool {
-			metricPtyCallback.Add(1)
+			metrics.ptyCallback.Add(1)
 			return true
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
@@ -128,7 +136,7 @@ func NewServer(ctx context.Context, logger slog.Logger, fs afero.Fs, maxTimeout 
 			s.logger.Debug(ctx, "local port forward",
 				slog.F("bind-host", bindHost),
 				slog.F("bind-port", bindPort))
-			metricReversePortForwardingCallback.Add(1)
+			metrics.reversePortForwardingCallback.Add(1)
 			return true
 		},
 		RequestHandlers: map[string]ssh.RequestHandler{
@@ -405,7 +413,7 @@ func (s *Server) startPTYSession(session ptySession, m sessionMetricsObject, cmd
 }
 
 func (s *Server) sftpHandler(session ssh.Session) {
-	metricSftpHandler.Add(1)
+	s.metrics.sftpHandler.Add(1)
 
 	ctx := session.Context()
 
@@ -446,7 +454,7 @@ func (s *Server) sftpHandler(session ssh.Session) {
 		return
 	}
 	s.logger.Warn(ctx, "sftp server closed with error", slog.Error(err))
-	metricSftpServerError.Add(1)
+	s.metrics.sftpServerError.Add(1)
 	_ = session.Exit(1)
 }
 

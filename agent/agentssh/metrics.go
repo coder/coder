@@ -3,25 +3,85 @@ package agentssh
 import (
 	"fmt"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"tailscale.com/util/clientmetric"
 )
 
-var (
+type sshServerMetrics struct {
 	// SSH callbacks
-	metricConnectionFailedCallback      = clientmetric.NewCounter("ssh_connection_failed_callback")
-	metricLocalPortForwardingCallback   = clientmetric.NewCounter("ssh_local_port_forwarding_callback")
-	metricPtyCallback                   = clientmetric.NewCounter("ssh_pty_callback")
-	metricReversePortForwardingCallback = clientmetric.NewCounter("ssh_reverse_port_forwarding_callback")
-	metricX11Callback                   = clientmetric.NewCounter("ssh_x11_callback")
+	connectionFailedCallback      prometheus.Counter
+	localPortForwardingCallback   prometheus.Counter
+	ptyCallback                   prometheus.Counter
+	reversePortForwardingCallback prometheus.Counter
+	x11Callback                   prometheus.Counter
 
 	// SFTP
-	metricSftpHandler     = clientmetric.NewCounter("ssh_sftp_handler")
-	metricSftpServerError = clientmetric.NewCounter("ssh_sftp_server_error")
+	sftpHandler     prometheus.Counter
+	sftpServerError prometheus.Counter
 
 	// X11
-	metricX11SocketDirError  = clientmetric.NewCounter("ssh_x11_socket_dir_error")
-	metricX11XauthorityError = clientmetric.NewCounter("ssh_x11_xauthority_error")
-)
+	x11SocketDirError  prometheus.Counter
+	x11XauthorityError prometheus.Counter
+}
+
+func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
+	connectionFailedCallback := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "connection_failed_callback",
+	})
+	registerer.MustRegister(connectionFailedCallback)
+
+	localPortForwardingCallback := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "local_port_forwarding_callback",
+	})
+	registerer.MustRegister(localPortForwardingCallback)
+
+	ptyCallback := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "pty_callback",
+	})
+	registerer.MustRegister(ptyCallback)
+
+	reversePortForwardingCallback := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "reverse_port_forwarding_callback",
+	})
+	registerer.MustRegister(reversePortForwardingCallback)
+
+	x11Callback := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "x11_callback",
+	})
+	registerer.MustRegister(x11Callback)
+
+	sftpHandler := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "sftp_handler",
+	})
+	registerer.MustRegister(sftpHandler)
+
+	sftpServerError := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "sftp_server_error",
+	})
+	registerer.MustRegister(sftpServerError)
+
+	x11SocketDirError := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "x11_socket_dir_error",
+	})
+	registerer.MustRegister(x11SocketDirError)
+
+	x11XauthorityError := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "x11_xauthority_error",
+	})
+	registerer.MustRegister(x11XauthorityError)
+
+	return &sshServerMetrics{
+		connectionFailedCallback:      connectionFailedCallback,
+		localPortForwardingCallback:   localPortForwardingCallback,
+		ptyCallback:                   ptyCallback,
+		reversePortForwardingCallback: reversePortForwardingCallback,
+		x11Callback:                   x11Callback,
+		sftpHandler:                   sftpHandler,
+		sftpServerError:               sftpServerError,
+		x11SocketDirError:             x11SocketDirError,
+		x11XauthorityError:            x11XauthorityError,
+	}
+}
 
 var sessionMetrics = map[string]sessionMetricsObject{}
 

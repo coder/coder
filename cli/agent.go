@@ -27,6 +27,8 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 )
 
 func (r *RootCmd) workspaceAgent() *clibase.Cmd {
@@ -129,8 +131,6 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				ignorePorts[port] = "pprof"
 			}
 
-			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
-			defer prometheusSrvClose()
 			// Do a best effort here. If this fails, it's not a big deal.
 			if port, err := urlPort(prometheusAddress); err == nil {
 				ignorePorts[port] = "prometheus"
@@ -197,6 +197,8 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
+			prometheusRegistry := prometheus.NewRegistry()
+
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -218,7 +220,12 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
+
+				PrometheusRegistry: prometheusRegistry,
 			})
+
+			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
+			defer prometheusSrvClose()
 
 			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
 			defer debugSrvClose()
@@ -376,11 +383,22 @@ func urlPort(u string) (int, error) {
 	return -1, xerrors.Errorf("invalid port: %s", u)
 }
 
-func prometheusMetricsHandler() http.Handler {
+func prometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
 	// We don't have any other internal metrics so far, so it's safe to expose metrics this way.
 	// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
+
 		clientmetric.WritePrometheusExpositionFormat(w)
+
+		metricFamilies, err := prometheusRegistry.Gather()
+		if err != nil {
+			logger.Error(context.Background(), "Prometheus handler can't gather metric families", slog.Error(err))
+			return
+		}
+
+		for _, metricFamily := range metricFamilies {
+			expfmt.MetricFamilyToText(w, metricFamily)
+		}
 	})
 }

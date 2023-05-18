@@ -24,6 +24,7 @@ import (
 
 	"github.com/armon/circbuf"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
@@ -62,6 +63,8 @@ type Options struct {
 	IgnorePorts            map[int]string
 	SSHMaxTimeout          time.Duration
 	TailnetListenPort      uint16
+
+	PrometheusRegistry *prometheus.Registry
 }
 
 type Client interface {
@@ -101,6 +104,10 @@ func New(options Options) Agent {
 			return "", nil
 		}
 	}
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
 		tailnetListenPort:      options.TailnetListenPort,
@@ -119,6 +126,8 @@ func New(options Options) Agent {
 		ignorePorts:            options.IgnorePorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 		sshMaxTimeout:          options.SSHMaxTimeout,
+		prometheusRegistry:     options.PrometheusRegistry,
+		metrics:                newAgentMetrics(options.PrometheusRegistry),
 	}
 	a.init(ctx)
 	return a
@@ -162,10 +171,13 @@ type agent struct {
 	latestStat    atomic.Pointer[agentsdk.Stats]
 
 	connCountReconnectingPTY atomic.Int64
+
+	prometheusRegistry *prometheus.Registry
+	metrics            *agentMetrics
 }
 
 func (a *agent) init(ctx context.Context) {
-	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.filesystem, a.sshMaxTimeout, "")
+	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, a.sshMaxTimeout, "")
 	if err != nil {
 		panic(err)
 	}
@@ -979,7 +991,7 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan str
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
-	metricReconnectingPTYHandler.Add(1)
+	a.metrics.handler.Add(1)
 
 	a.connCountReconnectingPTY.Add(1)
 	defer a.connCountReconnectingPTY.Add(-1)
@@ -1000,7 +1012,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 				logger.Debug(ctx, "session error after agent close", slog.Error(err))
 			} else {
 				logger.Error(ctx, "session error", slog.Error(err))
-				metricReconnectingPTYError.Add(1)
+				a.metrics.handlerError.Add(1)
 			}
 		}
 		logger.Debug(ctx, "session closed")
@@ -1020,7 +1032,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		// Empty command will default to the users shell!
 		cmd, err := a.sshServer.CreateCommand(ctx, msg.Command, nil)
 		if err != nil {
-			metricReconnectingPTYCreateCommandError.Add(1)
+			a.metrics.createCommandError.Add(1)
 			return xerrors.Errorf("create command: %w", err)
 		}
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
@@ -1033,7 +1045,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
-			metricReconnectingPTYCmdStartError.Add(1)
+			a.metrics.cmdStartError.Add(1)
 			return xerrors.Errorf("start command: %w", err)
 		}
 
@@ -1064,7 +1076,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 						logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
 					} else {
 						logger.Warn(ctx, "unable to read pty output, command exited?", slog.Error(err))
-						metricReconnectingPTYOutputReaderError.Add(1)
+						a.metrics.outputReaderError.Add(1)
 					}
 					break
 				}
@@ -1085,7 +1097,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 							slog.F("other_conn_id", cid),
 							slog.Error(err),
 						)
-						metricReconnectingPTYWriteError.Add(1)
+						a.metrics.writeError.Add(1)
 					}
 				}
 				rpty.activeConnsMutex.Unlock()
@@ -1105,7 +1117,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	if err != nil {
 		// We can continue after this, it's not fatal!
 		logger.Error(ctx, "resize", slog.Error(err))
-		metricReconnectingPTYResizeError.Add(1)
+		a.metrics.resizeError.Add(1)
 	}
 	// Write any previously stored data for the TTY.
 	rpty.circularBufferMutex.RLock()
@@ -1118,7 +1130,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	// while also holding circularBufferMutex seems dangerous.
 	_, err = conn.Write(prevBuf)
 	if err != nil {
-		metricReconnectingPTYWriteError.Add(1)
+		a.metrics.writeError.Add(1)
 		return xerrors.Errorf("write buffer to conn: %w", err)
 	}
 	// Multiple connections to the same TTY are permitted.
@@ -1169,7 +1181,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
 			logger.Warn(ctx, "write to pty", slog.Error(err))
-			metricReconnectingPTYInputWriterError.Add(1)
+			a.metrics.inputWriterError.Add(1)
 			return nil
 		}
 		// Check if a resize needs to happen!
@@ -1180,7 +1192,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		if err != nil {
 			// We can continue after this, it's not fatal!
 			logger.Error(ctx, "resize", slog.Error(err))
-			metricReconnectingPTYResizeError.Add(1)
+			a.metrics.resizeError.Add(1)
 		}
 	}
 }
@@ -1213,7 +1225,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		var mu sync.Mutex
 		status := a.network.Status()
 		durations := []float64{}
-		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+		pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
 		for nodeID, peer := range status.Peer {
 			if !peer.Active {
@@ -1229,7 +1241,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				duration, _, _, err := a.network.Ping(ctx, addresses[0].Addr())
+				duration, _, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
 				if err != nil {
 					return
 				}
@@ -1254,7 +1266,10 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		// Collect agent metrics.
 		// Agent metrics are changing all the time, so there is no need to perform
 		// reflect.DeepEqual to see if stats should be transferred.
-		stats.Metrics = collectMetrics()
+
+		metricsCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+		defer cancelFunc()
+		stats.Metrics = a.collectMetrics(metricsCtx)
 
 		a.latestStat.Store(stats)
 
