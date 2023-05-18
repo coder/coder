@@ -6262,7 +6262,7 @@
     },
     "codersdk.CreateUserRequest": {
       "type": "object",
-      "required": ["email", "organization_id", "password", "username"],
+      "required": ["email", "password", "username"],
       "properties": {
         "email": {
           "type": "string",

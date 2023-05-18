@@ -921,7 +921,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 					Username:       params.Username,
 					OrganizationID: organizationID,
 				},
-				LoginType: params.LoginType,
+				CreateOrganization: len(organizations) == 0,
+				LoginType:          params.LoginType,
 			})
 			if err != nil {
 				return xerrors.Errorf("create user: %w", err)

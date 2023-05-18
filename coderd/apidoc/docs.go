@@ -7044,7 +7044,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "organization_id",
                 "password",
                 "username"
             ],

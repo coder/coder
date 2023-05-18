@@ -478,6 +478,31 @@ func TestPostUsers(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
+	t.Run("CreateWithoutOrg", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		numLogs := len(auditor.AuditLogs())
+
+		_ = coderdtest.CreateFirstUser(t, client)
+		numLogs++ // add an audit log for user create
+		numLogs++ // add an audit log for login
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:    "another@user.org",
+			Username: "someone-else",
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-2].Action)
+	})
+
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
