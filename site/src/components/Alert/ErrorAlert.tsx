@@ -7,7 +7,7 @@ import { FC } from "react"
 export const ErrorAlert: FC<
   Omit<AlertProps, "severity" | "children"> & { error: unknown }
 > = ({ error, ...alertProps }) => {
-  const message = getErrorMessage(error, "An error occurred")
+  const message = getErrorMessage(error, "Something went wrong.")
   const detail = getErrorDetail(error)
 
   return (

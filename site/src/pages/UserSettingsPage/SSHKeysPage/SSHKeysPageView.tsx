@@ -9,7 +9,6 @@ import { FC } from "react"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
-  errorRegenerateSSHKey: "Error on regenerating the SSH Key",
   regenerateLabel: "Regenerate",
 }
 
