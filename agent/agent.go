@@ -63,6 +63,7 @@ type Options struct {
 	IgnorePorts            map[int]string
 	SSHMaxTimeout          time.Duration
 	TailnetListenPort      uint16
+	Subsystem              codersdk.AgentSubsystem
 
 	PrometheusRegistry *prometheus.Registry
 }
@@ -126,8 +127,10 @@ func New(options Options) Agent {
 		ignorePorts:            options.IgnorePorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 		sshMaxTimeout:          options.SSHMaxTimeout,
-		prometheusRegistry:     options.PrometheusRegistry,
-		metrics:                newAgentMetrics(options.PrometheusRegistry),
+		subsystem:              options.Subsystem,
+
+		prometheusRegistry: options.PrometheusRegistry,
+		metrics:            newAgentMetrics(options.PrometheusRegistry),
 	}
 	a.init(ctx)
 	return a
@@ -145,6 +148,7 @@ type agent struct {
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
 	ignorePorts map[int]string
+	subsystem   codersdk.AgentSubsystem
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -500,6 +504,7 @@ func (a *agent) run(ctx context.Context) error {
 	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
 		Version:           buildinfo.Version(),
 		ExpandedDirectory: manifest.Directory,
+		Subsystem:         a.subsystem,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
@@ -1484,3 +1489,8 @@ func expandDirectory(dir string) (string, error) {
 	}
 	return dir, nil
 }
+
+// EnvAgentSubsystem is the environment variable used to denote the
+// specialized environment in which the agent is running
+// (e.g. envbox, envbuilder).
+const EnvAgentSubsystem = "CODER_AGENT_SUBSYSTEM"

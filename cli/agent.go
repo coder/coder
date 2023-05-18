@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
@@ -198,7 +199,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			}
 
 			prometheusRegistry := prometheus.NewRegistry()
-
+			subsystem := inv.Environ.Get(agent.EnvAgentSubsystem)
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -220,6 +221,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
+				Subsystem:     codersdk.AgentSubsystem(subsystem),
 
 				PrometheusRegistry: prometheusRegistry,
 			})
