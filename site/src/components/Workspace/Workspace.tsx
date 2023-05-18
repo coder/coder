@@ -107,13 +107,19 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const { t } = useTranslation("workspacePage")
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <ErrorAlert error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} />
+    <ErrorAlert
+      error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
+      dismissible
+    />
   )
 
   const cancellationError = Boolean(
     workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
   ) && (
-    <ErrorAlert error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} />
+    <ErrorAlert
+      error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
+      dismissible
+    />
   )
 
   let transitionStats: TypesGen.TransitionStats | undefined = undefined
