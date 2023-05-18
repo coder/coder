@@ -72,7 +72,9 @@ type Server struct {
 	connCountSSHSession atomic.Int64
 
 	prometheusRegistry *prometheus.Registry
-	metrics            *sshServerMetrics
+
+	metrics        *sshServerMetrics
+	sessionMetrics sessionMetrics
 }
 
 func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, maxTimeout time.Duration, x11SocketDir string) (*Server, error) {
@@ -95,6 +97,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	unixForwardHandler := &forwardedUnixHandler{log: logger}
 
 	metrics := newSSHServerMetrics(prometheusRegistry)
+	sessionMetrics := newSessionMetrics(prometheusRegistry)
 	s := &Server{
 		listeners:    make(map[net.Listener]struct{}),
 		fs:           fs,
@@ -105,6 +108,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            metrics,
+		sessionMetrics:     sessionMetrics,
 	}
 
 	s.srv = &ssh.Server{
@@ -206,7 +210,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
-	m := metricsForSession(magicType(session))
+	m := metricsForSession(s.sessionMetrics, magicType(session))
 	err := s.sessionStart(session, m, extraEnv)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
