@@ -104,7 +104,15 @@ resource "coder_agent" "dev" {
       interval=10000000
       ncores=$(nproc)
       cusage_p=$(cat /tmp/cusage || echo 0)
-      cusage=$(cat /sys/fs/cgroup/cpu.stat | head -n 1 | awk '{ print $2 }') && echo "$cusage $cusage_p $interval $ncores" | awk '{ printf "%2.0f%%\n", (($1 - $2)/$3/$4)*100 }'
+      # check if we are in cgroup v2 or v1
+      if [ -d /sys/fs/cgroup/cpu.stat ]; then
+        # cgroup v2
+        cusage=$(cat /sys/fs/cgroup/cpu.stat | head -n 1 | awk '{ print $2 }')
+      else
+        # cgroup v1
+        cusage=$(cat /sys/fs/cgroup/cpuacct,cpu/cpuacct.usage)
+      fi
+      echo "$cusage $cusage_p $interval $ncores" | awk '{ printf "%2.0f%%\n", (($1 - $2)/$3/$4)*100 }'
       echo $cusage > /tmp/cusage
       EOT
   }
@@ -116,7 +124,14 @@ resource "coder_agent" "dev" {
     key          = "1_ram_usage"
     script       = <<EOT
       #!/bin/bash
-      echo "`cat /sys/fs/cgroup/memory.current` `cat /sys/fs/cgroup/memory.max`" | awk '{ used=$1/1024/1024/1024; total=$2/1024/1024/1024; printf "%0.2f / %0.2f GB\n", used, total }'
+      # first check if we are in cgroup v2 or v1
+      if [ -d /sys/fs/cgroup/memory.max ]; then
+        # cgroup v2
+        echo "`cat /sys/fs/cgroup/memory.current` `cat /sys/fs/cgroup/memory.max`" | awk '{ used=$1/1024/1024/1024; total=$2/1024/1024/1024; printf "%0.2f / %0.2f GB\n", used, total }'
+      else
+        # cgroup v1
+        echo "`cat /sys/fs/cgroup/memory/memory.usage_in_bytes` `cat /sys/fs/cgroup/memory/memory.limit_in_bytes`" | awk '{ used=$1/1024/1024/1024; total=$2/1024/1024/1024; printf "%0.2f / %0.2f GB\n", used, total }'
+      fi
       EOT
   }
 
@@ -132,10 +147,12 @@ resource "coder_agent" "dev" {
   }
 
   metadata {
-    display_name = "Memory Usage (Host)"
-    key          = "3_mem_host"
+    display_name = "Memory and Swap Usage (Host)"
+    key          = "3_mem_swap_host"
     script       = <<EOT
-      free | awk '/^Mem/ { printf("%.0f%%", $4/$2 * 100.0) }'
+      mem_usage=`free | awk '/^Mem/ { printf("%.0f%%", $3/$2 * 100.0) }'`
+      swp_usage=`free | awk '/^Swap/ { printf("%.0f%%", $3/$2 * 100.0) }'`
+      echo "Memory: $mem_usage, Swap: $swp_usage"
       EOT
     interval     = 10
     timeout      = 1
@@ -152,7 +169,9 @@ resource "coder_agent" "dev" {
   metadata {
     display_name = "Disk Usage (Host)"
     key          = "5_disk_host"
-    script       = "df -h | awk '$6 ~ /^\\/$/ { print $5 }'"
+    script       = <<EOT
+      cat /sys/fs/cgroup/cpuacct.usage"
+    EOT
     interval     = 600
     timeout      = 10 #getting disk usage can take a while
   }
