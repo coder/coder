@@ -52,7 +52,6 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                   href="https://coder.com/docs/coder-oss/latest/enterprise"
                   target="_blank"
                   rel="noreferrer"
-                  size="small"
                   startIcon={<ArrowRightAltOutlined />}
                   variant="contained"
                 >

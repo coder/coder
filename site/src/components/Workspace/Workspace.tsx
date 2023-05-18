@@ -12,7 +12,7 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { AlertBanner } from "../AlertBanner/AlertBanner"
+import { Alert } from "../Alert/Alert"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
 import { Resources } from "../Resources/Resources"
@@ -27,6 +27,7 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader"
 import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -106,8 +107,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const { t } = useTranslation("workspacePage")
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <AlertBanner
-      severity="error"
+    <ErrorAlert
       error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
       dismissible
     />
@@ -116,8 +116,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const cancellationError = Boolean(
     workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
   ) && (
-    <AlertBanner
-      severity="error"
+    <ErrorAlert
       error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
       dismissible
     />
@@ -193,7 +192,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
           {failedBuildLogs && (
             <Stack>
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 <Stack
                   className={styles.fullWidth}
                   direction="row"
@@ -219,7 +218,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                     </div>
                   )}
                 </Stack>
-              </AlertBanner>
+              </Alert>
               <WorkspaceBuildLogs logs={failedBuildLogs} />
             </Stack>
           )}
@@ -251,8 +250,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           )}
 
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <AlertBanner
-              severity="error"
+            <ErrorAlert
               error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
             />
           ) : (

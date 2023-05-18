@@ -3,14 +3,14 @@ import {
   TemplateVersion,
   TemplateVersionVariable,
 } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Loader } from "components/Loader/Loader"
 import { ComponentProps, FC } from "react"
 import { TemplateVariablesForm } from "./TemplateVariablesForm"
-import { Stack } from "components/Stack/Stack"
 import { makeStyles } from "@mui/styles"
 import { useTranslation } from "react-i18next"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface TemplateVariablesPageViewProps {
   templateVersion?: TemplateVersion
@@ -50,21 +50,15 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
       <PageHeader className={classes.pageHeader}>
         <PageHeaderTitle>{t("title")}</PageHeaderTitle>
       </PageHeader>
-      {Boolean(errors.getTemplateDataError) && (
-        <Stack className={classes.errorContainer}>
-          <AlertBanner severity="error" error={errors.getTemplateDataError} />
-        </Stack>
-      )}
-      {Boolean(errors.updateTemplateError) && (
-        <Stack className={classes.errorContainer}>
-          <AlertBanner severity="error" error={errors.updateTemplateError} />
-        </Stack>
-      )}
-      {Boolean(errors.jobError) && (
-        <Stack className={classes.errorContainer}>
-          <AlertBanner severity="error" text={errors.jobError} />
-        </Stack>
-      )}
+      <div className={classes.errorContainer}>
+        {Boolean(errors.getTemplateDataError) && (
+          <ErrorAlert error={errors.getTemplateDataError} />
+        )}
+        {Boolean(errors.updateTemplateError) && (
+          <ErrorAlert error={errors.updateTemplateError} />
+        )}
+        {Boolean(errors.jobError) && <ErrorAlert error={errors.jobError} />}
+      </div>
       {isLoading && <Loader />}
       {templateVersion && templateVariables && templateVariables.length > 0 && (
         <TemplateVariablesForm
@@ -78,7 +72,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         />
       )}
       {templateVariables && templateVariables.length === 0 && (
-        <AlertBanner severity="info" text={t("unusedVariablesNotice")} />
+        <Alert severity="info">{t("unusedVariablesNotice")}</Alert>
       )}
     </>
   )
