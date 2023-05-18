@@ -24,7 +24,7 @@ import (
 // x11Callback is called when the client requests X11 forwarding.
 // It adds an Xauthority entry to the Xauthority file.
 func (s *Server) x11Callback(ctx ssh.Context, x11 ssh.X11) bool {
-	metricX11Callback.Add(1)
+	s.metrics.x11Callback.Add(1)
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -35,14 +35,14 @@ func (s *Server) x11Callback(ctx ssh.Context, x11 ssh.X11) bool {
 	err = s.fs.MkdirAll(s.x11SocketDir, 0o700)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to make the x11 socket dir", slog.F("dir", s.x11SocketDir), slog.Error(err))
-		metricX11SocketDirError.Add(1)
+		s.metrics.x11SocketDirError.Add(1)
 		return false
 	}
 
 	err = addXauthEntry(ctx, s.fs, hostname, strconv.Itoa(int(x11.ScreenNumber)), x11.AuthProtocol, x11.AuthCookie)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to add Xauthority entry", slog.Error(err))
-		metricX11XauthorityError.Add(1)
+		s.metrics.x11XauthorityError.Add(1)
 		return false
 	}
 	return true

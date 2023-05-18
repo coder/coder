@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"tailscale.com/util/clientmetric"
 )
 
 type sshServerMetrics struct {
@@ -83,56 +82,133 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	}
 }
 
-var sessionMetrics = map[string]sessionMetricsObject{}
-
 type sessionMetricsObject struct {
 	// Agent sessions
-	agentCreateCommandError *clientmetric.Metric
-	agentListenerError      *clientmetric.Metric
-	startPTYSession         *clientmetric.Metric
-	startNonPTYSession      *clientmetric.Metric
-	sessionError            *clientmetric.Metric
+	agentCreateCommandError prometheus.Counter
+	agentListenerError      prometheus.Counter
+	startPTYSession         prometheus.Counter
+	startNonPTYSession      prometheus.Counter
+	sessionError            prometheus.Counter
 
 	// Non-PTY sessions
-	nonPTYStdinPipeError   *clientmetric.Metric
-	nonPTYStdinIoCopyError *clientmetric.Metric
-	nonPTYCmdStartError    *clientmetric.Metric
+	nonPTYStdinPipeError   prometheus.Counter
+	nonPTYStdinIoCopyError prometheus.Counter
+	nonPTYCmdStartError    prometheus.Counter
 
 	// PTY sessions
-	ptyMotdError         *clientmetric.Metric
-	ptyCmdStartError     *clientmetric.Metric
-	ptyCloseError        *clientmetric.Metric
-	ptyResizeError       *clientmetric.Metric
-	ptyInputIoCopyError  *clientmetric.Metric
-	ptyOutputIoCopyError *clientmetric.Metric
-	ptyWaitError         *clientmetric.Metric
+	ptyMotdError         prometheus.Counter
+	ptyCmdStartError     prometheus.Counter
+	ptyCloseError        prometheus.Counter
+	ptyResizeError       prometheus.Counter
+	ptyInputIoCopyError  prometheus.Counter
+	ptyOutputIoCopyError prometheus.Counter
+	ptyWaitError         prometheus.Counter
 }
 
-func init() {
+type sessionMetrics map[string]sessionMetricsObject
+
+func newSessionMetrics(registerer prometheus.Registerer) sessionMetrics {
+	sm := sessionMetrics{}
 	for _, magicType := range []string{MagicSessionTypeVSCode, MagicSessionTypeJetBrains, "ssh", "unknown"} {
-		sessionMetrics[magicType] = sessionMetricsObject{
-			agentCreateCommandError: clientmetric.NewCounter(fmt.Sprintf("ssh_agent_%s_create_command_error", magicType)),
-			agentListenerError:      clientmetric.NewCounter(fmt.Sprintf("ssh_agent_%s_listener_error", magicType)),
-			startPTYSession:         clientmetric.NewCounter(fmt.Sprintf("ssh_agent_%s_start_pty_session", magicType)),
-			startNonPTYSession:      clientmetric.NewCounter(fmt.Sprintf("ssh_agent_%s_start_non_pty_session", magicType)),
-			sessionError:            clientmetric.NewCounter(fmt.Sprintf("ssh_agent_%s_session_error", magicType)),
+		agentCreateCommandError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "create_command_error",
+		})
+		registerer.MustRegister(agentCreateCommandError)
 
-			nonPTYStdinPipeError:   clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_non_pty_stdin_pipe_error", magicType)),
-			nonPTYStdinIoCopyError: clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_non_pty_stdin_io_copy_error", magicType)),
-			nonPTYCmdStartError:    clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_non_pty_cmd_start_error", magicType)),
+		agentListenerError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "listener_error",
+		})
+		registerer.MustRegister(agentListenerError)
 
-			ptyMotdError:         clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_pty_motd_error", magicType)),
-			ptyCmdStartError:     clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_pty_cmd_start_error", magicType)),
-			ptyCloseError:        clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_pty_close_error", magicType)),
-			ptyResizeError:       clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_pty_resize_error", magicType)),
-			ptyInputIoCopyError:  clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_pty_input_io_copy_error", magicType)),
-			ptyOutputIoCopyError: clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_pty_output_io_copy_error", magicType)),
-			ptyWaitError:         clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_pty_wait_error", magicType)),
+		startPTYSession := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "start_pty_session",
+		})
+		registerer.MustRegister(startPTYSession)
+
+		startNonPTYSession := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "start_non_pty_session",
+		})
+		registerer.MustRegister(startNonPTYSession)
+
+		sessionError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "session_error",
+		})
+		registerer.MustRegister(sessionError)
+
+		nonPTYStdinPipeError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "non_pty_stdin_pipe_error",
+		})
+		registerer.MustRegister(nonPTYStdinPipeError)
+
+		nonPTYStdinIoCopyError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "non_pty_io_copy_error",
+		})
+		registerer.MustRegister(nonPTYStdinIoCopyError)
+
+		nonPTYCmdStartError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "non_pty_io_start_error",
+		})
+		registerer.MustRegister(nonPTYCmdStartError)
+
+		ptyMotdError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_motd_error",
+		})
+		registerer.MustRegister(ptyMotdError)
+
+		ptyCmdStartError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_cmd_start_error",
+		})
+		registerer.MustRegister(ptyCmdStartError)
+
+		ptyCloseError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_close_error",
+		})
+		registerer.MustRegister(ptyCloseError)
+
+		ptyResizeError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_resize_error",
+		})
+		registerer.MustRegister(ptyResizeError)
+
+		ptyInputIoCopyError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_input_io_copy_error",
+		})
+		registerer.MustRegister(ptyInputIoCopyError)
+
+		ptyOutputIoCopyError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_output_io_copy_error",
+		})
+		registerer.MustRegister(ptyOutputIoCopyError)
+
+		ptyWaitError := prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_wait_error",
+		})
+		registerer.MustRegister(ptyWaitError)
+
+		sm[magicType] = sessionMetricsObject{
+			agentCreateCommandError: agentCreateCommandError,
+			agentListenerError:      agentListenerError,
+			startPTYSession:         startPTYSession,
+			startNonPTYSession:      startNonPTYSession,
+			sessionError:            sessionError,
+
+			nonPTYStdinPipeError:   nonPTYStdinPipeError,
+			nonPTYStdinIoCopyError: nonPTYStdinIoCopyError,
+			nonPTYCmdStartError:    nonPTYCmdStartError,
+
+			ptyMotdError:         ptyMotdError,
+			ptyCmdStartError:     ptyCmdStartError,
+			ptyCloseError:        ptyCloseError,
+			ptyResizeError:       ptyResizeError,
+			ptyInputIoCopyError:  ptyInputIoCopyError,
+			ptyOutputIoCopyError: ptyOutputIoCopyError,
+			ptyWaitError:         ptyWaitError,
 		}
 	}
+	return sm
 }
 
-func metricsForSession(magicType string) sessionMetricsObject {
+func metricsForSession(m sessionMetrics, magicType string) sessionMetricsObject {
 	switch magicType {
 	case MagicSessionTypeVSCode:
 	case MagicSessionTypeJetBrains:
@@ -141,5 +217,5 @@ func metricsForSession(magicType string) sessionMetricsObject {
 	default:
 		magicType = "unknown"
 	}
-	return sessionMetrics[magicType]
+	return m[magicType]
 }
