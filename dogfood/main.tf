@@ -105,7 +105,7 @@ resource "coder_agent" "dev" {
       ncores=$(nproc)
       cusage_p=$(cat /tmp/cusage || echo 0)
       # check if we are in cgroup v2 or v1
-      if [ -d /sys/fs/cgroup/cpu.stat ]; then
+      if [ -e /sys/fs/cgroup/cpu.stat ]; then
         # cgroup v2
         cusage=$(cat /sys/fs/cgroup/cpu.stat | head -n 1 | awk '{ print $2 }')
       else
