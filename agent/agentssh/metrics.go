@@ -21,7 +21,34 @@ type sshServerMetrics struct {
 	// X11
 	x11SocketDirError  prometheus.Counter
 	x11XauthorityError prometheus.Counter
+
+	sessions sessionMetrics
 }
+
+type sessionMetricsObject struct {
+	// Agent sessions
+	agentCreateCommandError prometheus.Counter
+	agentListenerError      prometheus.Counter
+	startPTYSession         prometheus.Counter
+	startNonPTYSession      prometheus.Counter
+	sessionError            prometheus.Counter
+
+	// Non-PTY sessions
+	nonPTYStdinPipeError   prometheus.Counter
+	nonPTYStdinIoCopyError prometheus.Counter
+	nonPTYCmdStartError    prometheus.Counter
+
+	// PTY sessions
+	ptyMotdError         prometheus.Counter
+	ptyCmdStartError     prometheus.Counter
+	ptyCloseError        prometheus.Counter
+	ptyResizeError       prometheus.Counter
+	ptyInputIoCopyError  prometheus.Counter
+	ptyOutputIoCopyError prometheus.Counter
+	ptyWaitError         prometheus.Counter
+}
+
+type sessionMetrics map[string]sessionMetricsObject
 
 func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	connectionFailedCallback := prometheus.NewCounter(prometheus.CounterOpts{
@@ -69,6 +96,8 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	})
 	registerer.MustRegister(x11XauthorityError)
 
+	sessions := newSessionMetrics(registerer)
+
 	return &sshServerMetrics{
 		connectionFailedCallback:      connectionFailedCallback,
 		localPortForwardingCallback:   localPortForwardingCallback,
@@ -79,33 +108,10 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 		sftpServerError:               sftpServerError,
 		x11SocketDirError:             x11SocketDirError,
 		x11XauthorityError:            x11XauthorityError,
+
+		sessions: sessions,
 	}
 }
-
-type sessionMetricsObject struct {
-	// Agent sessions
-	agentCreateCommandError prometheus.Counter
-	agentListenerError      prometheus.Counter
-	startPTYSession         prometheus.Counter
-	startNonPTYSession      prometheus.Counter
-	sessionError            prometheus.Counter
-
-	// Non-PTY sessions
-	nonPTYStdinPipeError   prometheus.Counter
-	nonPTYStdinIoCopyError prometheus.Counter
-	nonPTYCmdStartError    prometheus.Counter
-
-	// PTY sessions
-	ptyMotdError         prometheus.Counter
-	ptyCmdStartError     prometheus.Counter
-	ptyCloseError        prometheus.Counter
-	ptyResizeError       prometheus.Counter
-	ptyInputIoCopyError  prometheus.Counter
-	ptyOutputIoCopyError prometheus.Counter
-	ptyWaitError         prometheus.Counter
-}
-
-type sessionMetrics map[string]sessionMetricsObject
 
 func newSessionMetrics(registerer prometheus.Registerer) sessionMetrics {
 	sm := sessionMetrics{}
