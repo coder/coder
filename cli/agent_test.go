@@ -12,8 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
@@ -234,5 +236,44 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		_, err = uuid.Parse(strings.TrimSpace(string(token)))
 		require.NoError(t, err)
+	})
+
+	t.Run("PostStartup", func(t *testing.T) {
+		t.Parallel()
+
+		authToken := uuid.NewString()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		logDir := t.TempDir()
+		inv, _ := clitest.New(t,
+			"agent",
+			"--auth", "token",
+			"--agent-token", authToken,
+			"--agent-url", client.URL.String(),
+			"--log-dir", logDir,
+		)
+		// Set the subsystem for the agent.
+		inv.Environ.Set(agent.EnvAgentSubsystem, string(codersdk.AgentSubsystemEnvbox))
+
+		pty := ptytest.New(t).Attach(inv)
+
+		clitest.Start(t, inv)
+		pty.ExpectMatch("starting agent")
+
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		require.Len(t, resources, 1)
+		require.Len(t, resources[0].Agents, 1)
+		require.Equal(t, codersdk.AgentSubsystemEnvbox, resources[0].Agents[0].Subsystem)
 	})
 }

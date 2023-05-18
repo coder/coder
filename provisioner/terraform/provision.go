@@ -220,6 +220,7 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 		"CODER_WORKSPACE_OWNER_OIDC_ACCESS_TOKEN="+config.Metadata.WorkspaceOwnerOidcAccessToken,
 		"CODER_WORKSPACE_ID="+config.Metadata.WorkspaceId,
 		"CODER_WORKSPACE_OWNER_ID="+config.Metadata.WorkspaceOwnerId,
+		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+config.Metadata.WorkspaceOwnerSessionToken,
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
