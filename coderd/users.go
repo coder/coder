@@ -337,7 +337,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		organizations, err := api.Database.GetOrganizations(ctx)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching user.",
+				Message: "Internal error fetching orgs.",
 				Detail:  err.Error(),
 			})
 			return
