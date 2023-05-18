@@ -5,11 +5,11 @@ Add an SSH Host entry for your workspaces "ssh coder.workspace"
 - You can use -o (or --ssh-option) so set SSH options to be used for all your 
     workspaces:                                                                 
 
-      [;m$ coder config-ssh -o ForwardAgent=yes[0m 
+     [40m [0m[91;40m$ coder config-ssh -o ForwardAgent=yes[0m[40m [0m
 
   - You can use --dry-run (or -n) to see the changes that would be made:        
 
-      [;m$ coder config-ssh --dry-run[0m
+     [40m [0m[91;40m$ coder config-ssh --dry-run[0m[40m [0m
 
 [1mOptions[0m
   -n, --dry-run bool, $CODER_SSH_DRY_RUN

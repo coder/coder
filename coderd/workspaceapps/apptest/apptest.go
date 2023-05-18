@@ -32,7 +32,12 @@ import (
 
 // Run runs the entire workspace app test suite against deployments minted
 // by the provided factory.
-func Run(t *testing.T, factory DeploymentFactory) {
+//
+// appHostIsPrimary is true if the app host is also the primary coder API
+// server. This disables any tests that test API passthrough or rely on the
+// app server not being the API server.
+// nolint:revive
+func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 	setupProxyTest := func(t *testing.T, opts *DeploymentOptions) *Details {
 		return setupProxyTestWithFactory(t, factory, opts)
 	}
@@ -109,11 +114,11 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
 			t.Parallel()
-
-			appDetails := setupProxyTest(t, nil)
-			if appDetails.AppHostIsPrimary {
+			if appHostIsPrimary {
 				t.Skip("Tickets are not used for terminal requests on the primary.")
 			}
+
+			appDetails := setupProxyTest(t, nil)
 
 			u := *appDetails.PathAppBaseURL
 			if u.Scheme == "http" {
@@ -197,7 +202,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		t.Run("LoginWithoutAuthOnPrimary", func(t *testing.T) {
 			t.Parallel()
 
-			if !appDetails.AppHostIsPrimary {
+			if !appHostIsPrimary {
 				t.Skip("This test only applies when testing apps on the primary.")
 			}
 
@@ -222,7 +227,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		t.Run("LoginWithoutAuthOnProxy", func(t *testing.T) {
 			t.Parallel()
 
-			if appDetails.AppHostIsPrimary {
+			if appHostIsPrimary {
 				t.Skip("This test only applies when testing apps on workspace proxies.")
 			}
 
@@ -448,7 +453,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			for _, c := range cases {
 				c := c
 
-				if c.name == "Path" && appDetails.AppHostIsPrimary {
+				if c.name == "Path" && appHostIsPrimary {
 					// Workspace application auth does not apply to path apps
 					// served from the primary access URL as no smuggling needs
 					// to take place (they're already logged in with a session
@@ -599,16 +604,15 @@ func Run(t *testing.T, factory DeploymentFactory) {
 	// --app-hostname is not set by the admin.
 	t.Run("WorkspaceAppsProxySubdomainPassthrough", func(t *testing.T) {
 		t.Parallel()
-
+		if !appHostIsPrimary {
+			t.Skip("app hostname does not serve API")
+		}
 		// No Hostname set.
 		appDetails := setupProxyTest(t, &DeploymentOptions{
 			AppHost:              "",
 			DisableSubdomainApps: true,
 			noWorkspace:          true,
 		})
-		if !appDetails.AppHostIsPrimary {
-			t.Skip("app hostname does not serve API")
-		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -1031,7 +1035,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 						require.NoError(t, err, msg)
 
 						expectedPath := "/login"
-						if !isPathApp || !appDetails.AppHostIsPrimary {
+						if !isPathApp || !appHostIsPrimary {
 							expectedPath = "/api/v2/applications/auth-redirect"
 						}
 						assert.Equal(t, expectedPath, location.Path, "should not have access, expected redirect to applicable login endpoint. "+msg)

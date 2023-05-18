@@ -501,6 +501,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   startup_logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
+  subsystem: "envbox",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -762,7 +763,6 @@ export const MockWorkspace: TypesGen.Workspace = {
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
   last_used_at: "2022-05-16T15:29:10.302441433Z",
-  deleting_at: "0001-01-01T00:00:00Z",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -825,6 +825,12 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
     status: "deleting",
   },
 }
+
+export const MockWorkspaceWithDeletion = {
+  ...MockWorkspace,
+  deleting_at: new Date().toISOString(),
+}
+
 export const MockDeletedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   id: "test-deleted-workspace",
@@ -856,6 +862,11 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
     name: `${MockWorkspace.name}${id}`,
   })),
   count: 26,
+}
+
+export const MockWorkspacesResponseWithDeletions = {
+  workspaces: [...MockWorkspacesResponse.workspaces, MockWorkspaceWithDeletion],
+  count: MockWorkspacesResponse.count + 1,
 }
 
 export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =

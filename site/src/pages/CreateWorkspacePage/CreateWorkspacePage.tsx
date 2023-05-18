@@ -44,6 +44,7 @@ const CreateWorkspacePage: FC = () => {
   } = createWorkspaceState.context
   const [searchParams] = useSearchParams()
   const defaultParameterValues = getDefaultParameterValues(searchParams)
+  const name = getName(searchParams)
 
   return (
     <>
@@ -51,6 +52,7 @@ const CreateWorkspacePage: FC = () => {
         <title>{pageTitle("Create Workspace")}</title>
       </Helmet>
       <CreateWorkspacePageView
+        name={name}
         defaultParameterValues={defaultParameterValues}
         loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
         loadingTemplateSchema={createWorkspaceState.matches(
@@ -94,6 +96,10 @@ const CreateWorkspacePage: FC = () => {
       />
     </>
   )
+}
+
+const getName = (urlSearchParams: URLSearchParams): string => {
+  return urlSearchParams.get("name") ?? ""
 }
 
 const getDefaultParameterValues = (

@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
       time: "06:00"
       timezone: "America/Chicago"
     labels: []
@@ -28,7 +28,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
       time: "06:00"
       timezone: "America/Chicago"
     commit-message:
@@ -39,6 +39,18 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-patch
+
+  # Update our Dockerfile.
+  - package-ecosystem: "docker"
+    directory: "/scripts/"
+    schedule:
+      interval: "weekly"
+      time: "06:00"
+      timezone: "America/Chicago"
+    ignore:
+      # We need to coordinate terraform updates with the version hardcoded in
+      # our Go code.
+      - dependency-name: "terraform"
 
   - package-ecosystem: "npm"
     directory: "/site/"

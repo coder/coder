@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
@@ -197,6 +198,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
+			subsystem := inv.Environ.Get(agent.EnvAgentSubsystem)
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -218,6 +220,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
+				Subsystem:     codersdk.AgentSubsystem(subsystem),
 			})
 
 			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")

@@ -116,6 +116,12 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'off'
 );
 
+CREATE TYPE workspace_agent_subsystem AS ENUM (
+    'envbuilder',
+    'envbox',
+    'none'
+);
+
 CREATE TYPE workspace_app_health AS ENUM (
     'disabled',
     'initializing',
@@ -597,6 +603,7 @@ CREATE TABLE workspace_agents (
     shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     startup_logs_length integer DEFAULT 0 NOT NULL,
     startup_logs_overflowed boolean DEFAULT false NOT NULL,
+    subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL,
     CONSTRAINT max_startup_logs_length CHECK ((startup_logs_length <= 1048576))
 );
 

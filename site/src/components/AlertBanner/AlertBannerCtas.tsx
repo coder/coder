@@ -37,7 +37,11 @@ export const AlertBannerCtas: FC<AlertBannerCtasProps> = ({
 
       {/* close CTA */}
       {dismissible && (
-        <Button size="small" onClick={() => setOpen(false)}>
+        <Button
+          size="small"
+          onClick={() => setOpen(false)}
+          data-testid="dismiss-banner-btn"
+        >
           {t("ctas.dismissCta")}
         </Button>
       )}

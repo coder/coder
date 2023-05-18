@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -1171,7 +1172,7 @@ func convertWorkspace(
 
 	var (
 		ttlMillis  = convertWorkspaceTTLMillis(workspace.Ttl)
-		deletingAt = calculateDeletingAt(workspace, template)
+		deletingAt = calculateDeletingAt(workspace, template, workspaceBuild)
 	)
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
@@ -1206,14 +1207,11 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 
 // Calculate the time of the upcoming workspace deletion, if applicable; otherwise, return nil.
 // Workspaces may have impending deletions if InactivityTTL feature is turned on and the workspace is inactive.
-func calculateDeletingAt(workspace database.Workspace, template database.Template) *time.Time {
-	var (
-		year, month, day = time.Now().Date()
-		beginningOfToday = time.Date(year, month, day, 0, 0, 0, 0, time.Now().Location())
-	)
-	// If InactivityTTL is turned off (set to 0), if the workspace has already been deleted,
-	// or if the workspace was used sometime within the last day, there is no impending deletion
-	if template.InactivityTTL == 0 || workspace.Deleted || workspace.LastUsedAt.After(beginningOfToday) {
+func calculateDeletingAt(workspace database.Workspace, template database.Template, build codersdk.WorkspaceBuild) *time.Time {
+	inactiveStatuses := []codersdk.WorkspaceStatus{codersdk.WorkspaceStatusStopped, codersdk.WorkspaceStatusCanceled, codersdk.WorkspaceStatusFailed, codersdk.WorkspaceStatusDeleted}
+	isInactive := slices.Contains(inactiveStatuses, build.Status)
+	// If InactivityTTL is turned off (set to 0) or if the workspace is active, there is no impending deletion
+	if template.InactivityTTL == 0 || !isInactive {
 		return nil
 	}
 

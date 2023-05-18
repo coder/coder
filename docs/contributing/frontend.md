@@ -166,3 +166,31 @@ user.click(screen.getByRole("button"))
 const form = screen.getByTestId("form")
 user.click(within(form).getByRole("button"))
 ```
+
+#### `jest.spyOn` with the API is not working
+
+For some unknown reason, we figured out the `jest.spyOn` is not able to mock the API function when they are passed directly into the services XState machine configuration.
+
+❌ Does not work
+
+```ts
+import { getUpdateCheck } from "api/api"
+
+createMachine({ ... }, {
+  services: {
+    getUpdateCheck,
+  },
+})
+```
+
+✅ It works
+
+```ts
+import { getUpdateCheck } from "api/api"
+
+createMachine({ ... }, {
+  services: {
+    getUpdateCheck: () => getUpdateCheck(),
+  },
+})
+```

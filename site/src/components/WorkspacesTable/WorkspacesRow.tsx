@@ -62,7 +62,7 @@ export const WorkspacesRow: FC<{
       </TableCell>
 
       <TableCell>
-        <WorkspaceStatusBadge build={workspace.latest_build} />
+        <WorkspaceStatusBadge workspace={workspace} />
       </TableCell>
 
       <TableCell>

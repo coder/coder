@@ -7,15 +7,15 @@ Aliases: token
 Tokens are used to authenticate automated clients to Coder.
   - Create a token for automation:                                              
 
-      [;m$ coder tokens create[0m 
+     [40m [0m[91;40m$ coder tokens create[0m[40m [0m
 
   - List your tokens:                                                           
 
-      [;m$ coder tokens ls[0m 
+     [40m [0m[91;40m$ coder tokens ls[0m[40m [0m
 
   - Remove a token by ID:                                                       
 
-      [;m$ coder tokens rm WuoWs4ZsMX[0m
+     [40m [0m[91;40m$ coder tokens rm WuoWs4ZsMX[0m[40m [0m
 
 [1mSubcommands[0m
     create    Create a token

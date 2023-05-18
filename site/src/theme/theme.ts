@@ -48,6 +48,7 @@ export let dark = createTheme({
       dark: colors.green[15],
     },
     info: {
+      light: colors.blue[9],
       main: colors.blue[11],
       dark: colors.blue[15],
       contrastText: colors.gray[4],
@@ -126,16 +127,33 @@ dark = createTheme(dark, {
           height: BUTTON_MD_HEIGHT,
           padding: theme.spacing(1, 2),
           whiteSpace: "nowrap",
+          ":focus-visible": {
+            outline: `2px solid ${theme.palette.primary.main}`,
+          },
         }),
         sizeSmall: {
           borderRadius: 6,
           height: BUTTON_SM_HEIGHT,
+
+          "& .MuiCircularProgress-root": {
+            width: "14px !important",
+            height: "14px !important",
+          },
         },
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
         outlinedNeutral: {
           borderColor: colors.gray[12],
+
+          "&.Mui-disabled": {
+            borderColor: colors.gray[13],
+            color: colors.gray[11],
+
+            "& > .MuiLoadingButton-loadingIndicator": {
+              color: colors.gray[11],
+            },
+          },
         },
         containedNeutral: {
           borderColor: colors.gray[12],
@@ -322,6 +340,12 @@ dark = createTheme(dark, {
         },
         multiline: {
           height: "auto",
+        },
+        colorPrimary: {
+          // The default outlined input color is white, which seemed jarring.
+          "&:hover:not(.Mui-error) .MuiOutlinedInput-notchedOutline": {
+            borderColor: colors.gray[7],
+          },
         },
       },
     },
