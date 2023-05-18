@@ -111,77 +111,77 @@ func newSessionMetrics(registerer prometheus.Registerer) sessionMetrics {
 	sm := sessionMetrics{}
 	for _, magicType := range []string{MagicSessionTypeVSCode, MagicSessionTypeJetBrains, "ssh", "unknown"} {
 		agentCreateCommandError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "create_command_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "create_command_error",
 		})
 		registerer.MustRegister(agentCreateCommandError)
 
 		agentListenerError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "listener_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "listener_error",
 		})
 		registerer.MustRegister(agentListenerError)
 
 		startPTYSession := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "start_pty_session",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "start_pty_session",
 		})
 		registerer.MustRegister(startPTYSession)
 
 		startNonPTYSession := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "start_non_pty_session",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "start_non_pty_session",
 		})
 		registerer.MustRegister(startNonPTYSession)
 
 		sessionError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "session_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "error",
 		})
 		registerer.MustRegister(sessionError)
 
 		nonPTYStdinPipeError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "non_pty_stdin_pipe_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "non_pty_stdin_pipe_error",
 		})
 		registerer.MustRegister(nonPTYStdinPipeError)
 
 		nonPTYStdinIoCopyError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "non_pty_io_copy_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "non_pty_io_copy_error",
 		})
 		registerer.MustRegister(nonPTYStdinIoCopyError)
 
 		nonPTYCmdStartError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "non_pty_io_start_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "non_pty_io_start_error",
 		})
 		registerer.MustRegister(nonPTYCmdStartError)
 
 		ptyMotdError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_motd_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "pty_motd_error",
 		})
 		registerer.MustRegister(ptyMotdError)
 
 		ptyCmdStartError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_cmd_start_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "pty_cmd_start_error",
 		})
 		registerer.MustRegister(ptyCmdStartError)
 
 		ptyCloseError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_close_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "pty_close_error",
 		})
 		registerer.MustRegister(ptyCloseError)
 
 		ptyResizeError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_resize_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "pty_resize_error",
 		})
 		registerer.MustRegister(ptyResizeError)
 
 		ptyInputIoCopyError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_input_io_copy_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "pty_input_io_copy_error",
 		})
 		registerer.MustRegister(ptyInputIoCopyError)
 
 		ptyOutputIoCopyError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_output_io_copy_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "pty_output_io_copy_error",
 		})
 		registerer.MustRegister(ptyOutputIoCopyError)
 
 		ptyWaitError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("ssh_session_%s", magicType), Name: "pty_wait_error",
+			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "pty_wait_error",
 		})
 		registerer.MustRegister(ptyWaitError)
 
