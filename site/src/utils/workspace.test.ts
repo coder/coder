@@ -6,7 +6,6 @@ import {
   getDisplayVersionStatus,
   getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceTemplateName,
-  displayImpendingDeletion,
   isWorkspaceOn,
 } from "./workspace"
 
@@ -138,23 +137,6 @@ describe("util > workspace", () => {
       }
       const displayed = getDisplayWorkspaceTemplateName(workspace)
       expect(displayed).toEqual(workspace.template_display_name)
-    })
-  })
-
-  describe("displayImpendingDeletion", () => {
-    const today = new Date()
-    it.each<[string, boolean]>([
-      [new Date(new Date().setDate(today.getDate() + 15)).toISOString(), false], // today + 15 days out
-      [new Date(new Date().setDate(today.getDate() + 14)).toISOString(), true], // today + 14
-      [new Date(new Date().setDate(today.getDate() + 13)).toISOString(), true], // today + 13
-      [new Date(new Date().setDate(today.getDate() + 1)).toISOString(), true], // today + 1
-      [new Date().toISOString(), true], // today + 0
-    ])(`deleting_at=%p, isWorkspaceOn=%p`, (deleting_at, shouldDisplay) => {
-      const workspace: TypesGen.Workspace = {
-        ...Mocks.MockWorkspace,
-        deleting_at,
-      }
-      expect(displayImpendingDeletion(workspace)).toBe(shouldDisplay)
     })
   })
 })
