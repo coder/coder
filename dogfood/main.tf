@@ -110,7 +110,7 @@ resource "coder_agent" "dev" {
         cusage=$(cat /sys/fs/cgroup/cpu.stat | head -n 1 | awk '{ print $2 }')
       else
         # cgroup v1
-        cusage=$(cat /sys/fs/cgroup/cpuacct,cpu/cpuacct.usage)
+        cusage=$(cat /sys/fs/cgroup/cpu,cpuacct/cpuacct.usage)
       fi
       echo "$cusage $cusage_p $interval $ncores" | awk '{ printf "%2.0f%%\n", (($1 - $2)/$3/$4)*100 }'
       echo $cusage > /tmp/cusage
