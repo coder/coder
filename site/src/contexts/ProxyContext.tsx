@@ -124,6 +124,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   // This includes proxies being loaded, latencies being calculated, and the user selecting a proxy.
   useEffect(() => {
     updateProxy()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only update if the source data changes
   }, [proxiesResp, proxyLatencies])
 
   return (
