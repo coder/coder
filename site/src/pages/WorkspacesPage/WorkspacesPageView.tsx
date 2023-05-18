@@ -1,6 +1,5 @@
 import Link from "@mui/material/Link"
 import { Workspace } from "api/typesGenerated"
-import { Alert } from "components/Alert/Alert"
 import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
 import { FC } from "react"
