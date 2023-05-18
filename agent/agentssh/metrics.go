@@ -23,9 +23,7 @@ var (
 	metricX11XauthorityError = clientmetric.NewCounter("ssh_x11_xauthority_error")
 )
 
-var (
-	sessionMetrics = map[string]sessionMetricsObject{}
-)
+var sessionMetrics = map[string]sessionMetricsObject{}
 
 type sessionMetricsObject struct {
 	// Agent sessions
