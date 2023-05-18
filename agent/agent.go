@@ -105,8 +105,10 @@ func New(options Options) Agent {
 			return "", nil
 		}
 	}
-	if options.PrometheusRegistry == nil {
-		options.PrometheusRegistry = prometheus.NewRegistry()
+
+	prometheusRegistry := options.PrometheusRegistry
+	if prometheusRegistry == nil {
+		prometheusRegistry = prometheus.NewRegistry()
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -129,7 +131,7 @@ func New(options Options) Agent {
 		sshMaxTimeout:          options.SSHMaxTimeout,
 		subsystem:              options.Subsystem,
 
-		prometheusRegistry: options.PrometheusRegistry,
+		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(options.PrometheusRegistry),
 	}
 	a.init(ctx)

@@ -20,6 +20,9 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 	"tailscale.com/util/clientmetric"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/agent"
@@ -28,8 +31,6 @@ import (
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/expfmt"
 )
 
 func (r *RootCmd) workspaceAgent() *clibase.Cmd {
@@ -400,7 +401,12 @@ func prometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger sl
 		}
 
 		for _, metricFamily := range metricFamilies {
-			expfmt.MetricFamilyToText(w, metricFamily)
+			_, err = expfmt.MetricFamilyToText(w, metricFamily)
+			if err != nil {
+				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
+				return
+
+			}
 		}
 	})
 }

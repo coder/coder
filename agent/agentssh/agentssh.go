@@ -71,8 +71,6 @@ type Server struct {
 	connCountJetBrains  atomic.Int64
 	connCountSSHSession atomic.Int64
 
-	prometheusRegistry *prometheus.Registry
-
 	metrics *sshServerMetrics
 }
 
