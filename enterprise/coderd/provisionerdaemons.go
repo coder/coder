@@ -232,6 +232,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 		Tags:                  rawTags,
 		Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
+		DeploymentValues:      api.DeploymentValues,
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
