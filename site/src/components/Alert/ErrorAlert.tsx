@@ -19,6 +19,7 @@ export const ErrorAlert: FC<
             component="span"
             color={(theme) => theme.palette.text.secondary}
             fontSize={13}
+            data-chromatic="ignore"
           >
             {detail}
           </Box>

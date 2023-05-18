@@ -54,7 +54,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         justifyContent="space-between"
       >
         <Header
-          title="Add a License"
+          title="Add a license"
           description="Get access to high availability, RBAC, quotas, and more."
         />
         <Button

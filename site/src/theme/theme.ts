@@ -48,14 +48,14 @@ export let dark = createTheme({
       dark: colors.green[15],
     },
     info: {
-      light: colors.blue[9],
-      main: colors.blue[11],
+      light: colors.blue[7],
+      main: colors.blue[9],
       dark: colors.blue[15],
       contrastText: colors.gray[4],
     },
     error: {
-      light: colors.red[7],
-      main: colors.red[9],
+      light: colors.red[6],
+      main: colors.red[8],
       dark: colors.red[15],
       contrastText: colors.gray[4],
     },

@@ -19,14 +19,12 @@ export const TemplateVersionWarnings: FC<
     <Maybe condition={Boolean(warnings.includes("DEPRECATED_PARAMETERS"))}>
       <div data-testid="warning-deprecated-parameters">
         <Alert severity="warning">
-          <div>
-            This template uses legacy parameters which will be deprecated in the
-            next Coder release. Learn how to migrate in{" "}
-            <Link href="https://coder.com/docs/v2/latest/templates/parameters#migration">
-              our documentation
-            </Link>
-            .
-          </div>
+          This template uses legacy parameters which will be deprecated in the
+          next Coder release. Learn how to migrate in{" "}
+          <Link href="https://coder.com/docs/v2/latest/templates/parameters#migration">
+            our documentation
+          </Link>
+          .
         </Alert>
       </div>
     </Maybe>

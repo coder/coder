@@ -206,7 +206,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
             <Button
               title="Build template (Ctrl + Enter)"
-              size="small"
               disabled={disablePreview}
               onClick={() => {
                 triggerPreview()
@@ -224,7 +223,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   ? "Something"
                   : ""
               }
-              size="small"
               disabled={dirty || disableUpdate}
               onClick={onPublish}
             >
@@ -240,7 +238,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               <div className={styles.sidebarActions}>
                 <Tooltip title="Create File" placement="top">
                   <IconButton
-                    size="small"
                     aria-label="Create File"
                     onClick={(event) => {
                       setCreateFileOpen(true)

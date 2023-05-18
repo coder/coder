@@ -50,13 +50,15 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
       <PageHeader className={classes.pageHeader}>
         <PageHeaderTitle>{t("title")}</PageHeaderTitle>
       </PageHeader>
-      {Boolean(errors.getTemplateDataError) && (
-        <ErrorAlert error={errors.getTemplateDataError} />
-      )}
-      {Boolean(errors.updateTemplateError) && (
-        <ErrorAlert error={errors.updateTemplateError} />
-      )}
-      {Boolean(errors.jobError) && <ErrorAlert error={errors.jobError} />}
+      <div className={classes.errorContainer}>
+        {Boolean(errors.getTemplateDataError) && (
+          <ErrorAlert error={errors.getTemplateDataError} />
+        )}
+        {Boolean(errors.updateTemplateError) && (
+          <ErrorAlert error={errors.updateTemplateError} />
+        )}
+        {Boolean(errors.jobError) && <ErrorAlert error={errors.jobError} />}
+      </div>
       {isLoading && <Loader />}
       {templateVersion && templateVariables && templateVariables.length > 0 && (
         <TemplateVariablesForm

@@ -16,7 +16,7 @@ export const WorkspaceDeletedBanner: FC<
   const { t } = useTranslation("workspacePage")
 
   const NewWorkspaceButton = (
-    <Button onClick={handleClick} size="small">
+    <Button onClick={handleClick} size="small" variant="text">
       {t("ctas.createWorkspaceCta")}
     </Button>
   )
