@@ -501,6 +501,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   startup_logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
+  subsystem: "envbox",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {

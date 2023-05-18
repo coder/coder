@@ -1,6 +1,6 @@
 import Link from "@mui/material/Link"
 import { Workspace } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
 import { FC } from "react"
@@ -19,6 +19,7 @@ import { workspaceFilterQuery } from "utils/filters"
 import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
 import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -115,14 +116,7 @@ export const WorkspacesPageView: FC<
 
       <Stack>
         <Maybe condition={Boolean(error)}>
-          <AlertBanner
-            error={error}
-            severity={
-              workspaces !== undefined && workspaces.length > 0
-                ? "warning"
-                : "error"
-            }
-          />
+          <ErrorAlert error={error} />
         </Maybe>
         <ImpendingDeletionBanner
           workspace={workspaces?.find((workspace) => workspace.deleting_at)}

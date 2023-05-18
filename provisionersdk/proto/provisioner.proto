@@ -241,6 +241,7 @@ message Provision {
         string template_name = 8;
         string template_version = 9;
         string workspace_owner_oidc_access_token = 10;
+        string workspace_owner_session_token = 11;
     }
 
     // Config represents execution configuration shared by both Plan and

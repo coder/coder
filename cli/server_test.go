@@ -121,7 +121,6 @@ func TestServer(t *testing.T) {
 		)
 
 		const superDuperLong = testutil.WaitSuperLong * 3
-
 		ctx := testutil.Context(t, superDuperLong)
 		clitest.Start(t, inv.WithContext(ctx))
 
@@ -1430,6 +1429,7 @@ func TestServer(t *testing.T) {
 					wantConfig.Options[i].Name,
 				)
 			}
+			w.Cancel()
 			w.RequireSuccess()
 		})
 	})
@@ -1460,8 +1460,8 @@ func TestServer(t *testing.T) {
 	})
 }
 
-//nolint:tparallel,paralleltest // This test spawns or connects to an existing PostgreSQL instance.
 func TestServer_Production(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" || testing.Short() {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
 		t.SkipNow()
@@ -1471,7 +1471,8 @@ func TestServer_Production(t *testing.T) {
 	defer closeFunc()
 
 	// Postgres + race detector + CI = slow.
-	ctx := testutil.Context(t, testutil.WaitSuperLong*3)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong*3)
+	defer cancelFunc()
 
 	inv, cfg := clitest.New(t,
 		"server",

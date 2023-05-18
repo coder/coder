@@ -82,7 +82,8 @@ UPDATE
 	workspace_agents
 SET
 	version = $2,
-	expanded_directory = $3
+	expanded_directory = $3,
+	subsystem = $4
 WHERE
 	id = $1;
 

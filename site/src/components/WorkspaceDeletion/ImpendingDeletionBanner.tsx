@@ -2,7 +2,7 @@ import { Workspace } from "api/typesGenerated"
 import { displayImpendingDeletion } from "./utils"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { Maybe } from "components/Conditionals/Maybe"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 
 export const ImpendingDeletionBanner = ({
   workspace,
@@ -32,12 +32,9 @@ export const ImpendingDeletionBanner = ({
           displayImpendingDeletionBanner,
       )}
     >
-      <AlertBanner
-        severity="info"
-        onDismiss={onDismiss}
-        dismissible
-        text="You have workspaces that will be deleted soon."
-      />
+      <Alert severity="info" onDismiss={onDismiss} dismissible>
+        You have workspaces that will be deleted soon.
+      </Alert>
     </Maybe>
   )
 }
