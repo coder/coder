@@ -198,10 +198,12 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
-	err := s.sessionStart(session, extraEnv)
+	m := metricsForSession(magicType(session))
+	err := s.sessionStart(session, m, extraEnv)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
-		s.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
+		s.logger.Warn(ctx, "ssh session returned", slog.Error(exitError))
+		m.sessionError.Add(1)
 		_ = session.Exit(exitError.ExitCode())
 		return
 	}
@@ -209,14 +211,24 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		s.logger.Warn(ctx, "ssh session failed", slog.Error(err))
 		// This exit code is designed to be unlikely to be confused for a legit exit code
 		// from the process.
-		metricSessionError.Add(1)
+		m.sessionError.Add(1)
 		_ = session.Exit(MagicSessionErrorCode)
 		return
 	}
 	_ = session.Exit(0)
 }
 
-func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr error) {
+func magicType(session ssh.Session) string {
+	for _, kv := range session.Environ() {
+		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
+			continue
+		}
+		return strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
+	}
+	return ""
+}
+
+func (s *Server) sessionStart(session ssh.Session, m sessionMetricsObject, extraEnv []string) (retErr error) {
 	ctx := session.Context()
 	env := append(session.Environ(), extraEnv...)
 	var magicType string
@@ -241,7 +253,6 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 		s.logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
 	}
 
-	m := metricsForSession(magicType)
 	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env)
 	if err != nil {
 		m.agentCreateCommandError.Add(1)

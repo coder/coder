@@ -14,8 +14,6 @@ var (
 	metricReversePortForwardingCallback = clientmetric.NewCounter("ssh_reverse_port_forwarding_callback")
 	metricX11Callback                   = clientmetric.NewCounter("ssh_x11_callback")
 
-	metricSessionError = clientmetric.NewCounter("ssh_session_error")
-
 	// PTY sessions
 
 	// SFTP
@@ -37,6 +35,7 @@ type sessionMetricsObject struct {
 	agentListenerError      *clientmetric.Metric
 	startPTYSession         *clientmetric.Metric
 	startNonPTYSession      *clientmetric.Metric
+	sessionError            *clientmetric.Metric
 
 	// Non-PTY sessions
 	nonPTYStdinPipeError   *clientmetric.Metric
@@ -60,6 +59,7 @@ func init() {
 			agentListenerError:      clientmetric.NewCounter(fmt.Sprintf("ssh_agent_%s_listener_error", magicType)),
 			startPTYSession:         clientmetric.NewCounter(fmt.Sprintf("ssh_agent_%s_start_pty_session", magicType)),
 			startNonPTYSession:      clientmetric.NewCounter(fmt.Sprintf("ssh_agent_%s_start_non_pty_session", magicType)),
+			sessionError:            clientmetric.NewCounter(fmt.Sprintf("ssh_agent_%s_session_error", magicType)),
 
 			nonPTYStdinPipeError:   clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_non_pty_stdin_pipe_error", magicType)),
 			nonPTYStdinIoCopyError: clientmetric.NewCounter(fmt.Sprintf("ssh_server_%s_non_pty_stdin_io_copy_error", magicType)),
