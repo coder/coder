@@ -302,7 +302,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 					WorkspaceOwnerId:              owner.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
-					CoderSessionToken:             sessionToken,
+					WorkspaceOwnerSessionToken:    sessionToken,
 				},
 				LogLevel: input.LogLevel,
 			},

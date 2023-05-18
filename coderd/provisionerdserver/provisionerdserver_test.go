@@ -228,7 +228,7 @@ func TestAcquireJob(t *testing.T) {
 		require.NoError(t, err)
 
 		// Validate that a session token is generated during the job.
-		sessionToken := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.CoderSessionToken
+		sessionToken := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
 		require.NotEmpty(t, sessionToken)
 		toks := strings.Split(sessionToken, "-")
 		require.Len(t, toks, 2, "invalid api key")
@@ -268,7 +268,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerId:              user.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               version.Name,
-					CoderSessionToken:             sessionToken,
+					WorkspaceOwnerSessionToken:    sessionToken,
 				},
 			},
 		})
@@ -315,7 +315,7 @@ func TestAcquireJob(t *testing.T) {
 		<-stopPublished
 
 		// Validate that a session token is deleted during a stop job.
-		sessionToken = job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.CoderSessionToken
+		sessionToken = job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
 		require.Empty(t, sessionToken)
 		_, err = srv.Database.GetAPIKeyByID(ctx, key.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
