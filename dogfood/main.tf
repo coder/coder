@@ -161,7 +161,7 @@ resource "coder_agent" "dev" {
   metadata {
     display_name = "Load Average (Host)"
     key          = "4_load_host"
-    # get laod avg scaled by number of cores
+    # get load avg scaled by number of cores
     script   = <<EOT
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
