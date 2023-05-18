@@ -405,7 +405,6 @@ func prometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger sl
 			if err != nil {
 				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
 				return
-
 			}
 		}
 	})
