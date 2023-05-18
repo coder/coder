@@ -562,6 +562,7 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 		Directory:                agent.Directory != "",
 		ConnectionTimeoutSeconds: agent.ConnectionTimeoutSeconds,
 		ShutdownScript:           agent.ShutdownScript.Valid,
+		Subsystem:                string(agent.Subsystem),
 	}
 	if agent.FirstConnectedAt.Valid {
 		snapAgent.FirstConnectedAt = &agent.FirstConnectedAt.Time
@@ -783,6 +784,7 @@ type WorkspaceAgent struct {
 	DisconnectedAt           *time.Time `json:"disconnected_at"`
 	ConnectionTimeoutSeconds int32      `json:"connection_timeout_seconds"`
 	ShutdownScript           bool       `json:"shutdown_script"`
+	Subsystem                string     `json:"subsystem"`
 }
 
 type WorkspaceAgentStat struct {

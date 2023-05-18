@@ -1,7 +1,6 @@
 package telemetry_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -37,7 +37,7 @@ func TestTelemetry(t *testing.T) {
 
 		db := dbfake.New()
 
-		ctx := context.Background()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		_, _ = dbgen.APIKey(t, db, database.APIKey{})
 		_ = dbgen.ParameterSchema(t, db, database.ParameterSchema{
 			DefaultSourceScheme:      database.ParameterSourceSchemeNone,
@@ -59,7 +59,18 @@ func TestTelemetry(t *testing.T) {
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
 		})
-		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
+		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			Subsystem: database.WorkspaceAgentSubsystemEnvbox,
+		})
+		// Update the workspace agent to have a valid subsystem.
+		err = db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
+			ID:                wsagent.ID,
+			Version:           wsagent.Version,
+			ExpandedDirectory: wsagent.ExpandedDirectory,
+			Subsystem:         database.WorkspaceAgentSubsystemEnvbox,
+		})
+		require.NoError(t, err)
+
 		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			Transition: database.WorkspaceTransitionStart,
 			Reason:     database.BuildReasonAutostart,
@@ -88,6 +99,9 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceBuilds, 1)
 		require.Len(t, snapshot.WorkspaceResources, 1)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
+
+		wsa := snapshot.WorkspaceAgents[0]
+		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystem)
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()

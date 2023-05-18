@@ -1147,6 +1147,7 @@ export interface WorkspaceAgent {
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
+  readonly subsystem: AgentSubsystem
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1340,6 +1341,10 @@ export interface WorkspacesResponse {
 // From codersdk/apikey.go
 export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
+
+// From codersdk/workspaceagents.go
+export type AgentSubsystem = "envbox"
+export const AgentSubsystems: AgentSubsystem[] = ["envbox"]
 
 // From codersdk/audit.go
 export type AuditAction =

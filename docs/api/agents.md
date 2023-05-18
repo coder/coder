@@ -474,6 +474,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
+  "subsystem": "envbox",
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
