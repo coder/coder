@@ -60,11 +60,33 @@ type Builder struct {
 	lastBuildJob              *database.ProvisionerJob
 }
 
+type Option func(Builder) Builder
+
+// versionTarget expresses how to determine the template version for the build.
+//
+// The zero value of this struct means to use the version from the last build.  If there is no last build,
+// the build will fail.
+//
+// setting active: true means to use the active version from the template.
+//
+// setting specific to a non-nil value means to use the provided template version ID.
+//
+// active and specific are mutually exclusive and setting them both results in undefined behavior.
 type versionTarget struct {
 	active   bool
 	specific *uuid.UUID
 }
 
+// stateTarget expresses how to determine the provisioner state for the build.
+//
+// The zero value of this struct means to use state from the last build.  If there is no last build, no state is
+// provided (i.e. first build on a newly created workspace).
+//
+// setting orphan: true means not to send any state.  This can be used to deleted orphaned workspaces
+//
+// setting explicit to a non-nil value means to use the provided state
+//
+// orphan and explicit are mutually exclusive and setting them both results in undefined behavior.
 type stateTarget struct {
 	orphan   bool
 	explicit *[]byte
@@ -397,7 +419,7 @@ func (b *Builder) getTemplate() (*database.Template, error) {
 	}
 	t, err := b.store.GetTemplateByID(b.ctx, b.workspace.TemplateID)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get template %s: %w", b.workspace.TemplateID, err)
 	}
 	b.template = &t
 	return b.template, nil
@@ -409,11 +431,11 @@ func (b *Builder) getTemplateVersionJob() (*database.ProvisionerJob, error) {
 	}
 	v, err := b.getTemplateVersion()
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get template version so we can get provisioner job: %w", err)
 	}
 	j, err := b.store.GetProvisionerJobByID(b.ctx, v.JobID)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get template provisioner job %s: %w", v.JobID, err)
 	}
 	b.templateVersionJob = &j
 	return b.templateVersionJob, err
@@ -425,11 +447,11 @@ func (b *Builder) getTemplateVersion() (*database.TemplateVersion, error) {
 	}
 	id, err := b.getTemplateVersionID()
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get template version ID so we can get version: %w", err)
 	}
 	v, err := b.store.GetTemplateVersionByID(b.ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get template version %s: %w", id, err)
 	}
 	b.templateVersion = &v
 	return b.templateVersion, err
@@ -442,14 +464,14 @@ func (b *Builder) getTemplateVersionID() (uuid.UUID, error) {
 	if b.version.active {
 		t, err := b.getTemplate()
 		if err != nil {
-			return uuid.Nil, err
+			return uuid.Nil, xerrors.Errorf("get template so we can get active version: %w", err)
 		}
 		return t.ActiveVersionID, nil
 	}
 	// default is prior version
 	bld, err := b.getLastBuild()
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, xerrors.Errorf("get last build so we can get version: %w", err)
 	}
 	return bld.TemplateVersionID, nil
 }
@@ -464,8 +486,10 @@ func (b *Builder) getLastBuild() (*database.WorkspaceBuild, error) {
 		return nil, *b.lastBuildErr
 	}
 	bld, err := b.store.GetLatestWorkspaceBuildByWorkspaceID(b.ctx, b.workspace.ID)
-	b.lastBuildErr = &err
+
 	if err != nil {
+		err = xerrors.Errorf("get workspace %s last build: %w", b.workspace.ID, err)
+		b.lastBuildErr = &err
 		return nil, err
 	}
 	b.lastBuild = &bld
@@ -479,7 +503,7 @@ func (b *Builder) getBuildNumber() (int32, error) {
 		return 1, nil
 	}
 	if err != nil {
-		return 0, err
+		return 0, xerrors.Errorf("get last build to compute build number: %w", err)
 	}
 	return bld.BuildNumber + 1, nil
 }
@@ -499,7 +523,7 @@ func (b *Builder) getState() ([]byte, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get last build to get state: %w", err)
 	}
 	return bld.ProvisionerState, nil
 }
@@ -562,11 +586,11 @@ func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, 
 		return *b.lastBuildParameters, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get last build to get parameters: %w", err)
 	}
 	values, err := b.store.GetWorkspaceBuildParameters(b.ctx, bld.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, err
+		return nil, xerrors.Errorf("get last build %s parameters: %w", bld.ID, err)
 	}
 	b.lastBuildParameters = &values
 	return values, nil
@@ -578,11 +602,11 @@ func (b *Builder) getTemplateVersionParameters() ([]database.TemplateVersionPara
 	}
 	tvID, err := b.getTemplateVersionID()
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get template version ID to get parameters: %w", err)
 	}
 	tvp, err := b.store.GetTemplateVersionParameters(b.ctx, tvID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, err
+		return nil, xerrors.Errorf("get template version %s parameters: %w", tvID, err)
 	}
 	b.templateVersionParameters = &tvp
 	return tvp, nil
@@ -597,7 +621,7 @@ func (b *Builder) getLastParameterValues() ([]database.ParameterValue, error) {
 		ScopeIds: []uuid.UUID{b.workspace.ID},
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, err
+		return nil, xerrors.Errorf("get workspace %w parameter values: %w", b.workspace.ID, err)
 	}
 	b.lastParameterValues = &pv
 	return pv, nil
@@ -609,11 +633,11 @@ func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
 	}
 	bld, err := b.getLastBuild()
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get last build to get job: %w", err)
 	}
 	job, err := b.store.GetProvisionerJobByID(b.ctx, bld.JobID)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get build provisioner job %s: %w", bld.JobID, err)
 	}
 	b.lastBuildJob = &job
 	return b.lastBuildJob, nil

@@ -72,7 +72,8 @@ RUN mkdir --parents "$GOPATH" && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.30.6 && \
-	mv /tmp/bin/yq /tmp/bin/yq4
+	mv /tmp/bin/yq /tmp/bin/yq4 && \
+	go install github.com/golang/mock/mockgen@v1.6.0
 
 FROM alpine:3.16 as proto
 WORKDIR /tmp
