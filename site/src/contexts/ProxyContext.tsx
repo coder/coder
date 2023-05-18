@@ -118,7 +118,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
         proxyLatencies,
       ),
     )
-  }, [userSavedProxy, proxiesResp, proxyLatencies])
+  }, [proxiesResp, proxyLatencies])
 
   // This useEffect ensures the proxy to be used is updated whenever the state changes.
   // This includes proxies being loaded, latencies being calculated, and the user selecting a proxy.
