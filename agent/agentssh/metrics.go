@@ -14,8 +14,6 @@ var (
 	metricReversePortForwardingCallback = clientmetric.NewCounter("ssh_reverse_port_forwarding_callback")
 	metricX11Callback                   = clientmetric.NewCounter("ssh_x11_callback")
 
-	// PTY sessions
-
 	// SFTP
 	metricSftpHandler     = clientmetric.NewCounter("ssh_sftp_handler")
 	metricSftpServerError = clientmetric.NewCounter("ssh_sftp_server_error")
