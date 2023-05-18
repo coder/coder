@@ -921,6 +921,9 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 					Username:       params.Username,
 					OrganizationID: organizationID,
 				},
+				// All of the userauth tests depend on this being able to create
+				// the first organization. It shouldn't be possible in normal
+				// operation.
 				CreateOrganization: len(organizations) == 0,
 				LoginType:          params.LoginType,
 			})
