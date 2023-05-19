@@ -27,7 +27,6 @@ type sessionMetricsObject struct {
 	agentListenerError      prometheus.Counter
 	startPTYSession         prometheus.Counter
 	startNonPTYSession      prometheus.Counter
-	sessionError            prometheus.Counter
 
 	// Non-PTY sessions
 	nonPTYStdinPipeError   prometheus.Counter
@@ -114,11 +113,6 @@ func newSessionMetrics(registerer prometheus.Registerer) sessionMetrics {
 		})
 		registerer.MustRegister(startNonPTYSession)
 
-		sessionError := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "error",
-		})
-		registerer.MustRegister(sessionError)
-
 		nonPTYStdinPipeError := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "agent", Subsystem: fmt.Sprintf("sessions_%s", magicType), Name: "non_pty_stdin_pipe_error",
 		})
@@ -174,7 +168,6 @@ func newSessionMetrics(registerer prometheus.Registerer) sessionMetrics {
 			agentListenerError:      agentListenerError,
 			startPTYSession:         startPTYSession,
 			startNonPTYSession:      startNonPTYSession,
-			sessionError:            sessionError,
 
 			nonPTYStdinPipeError:   nonPTYStdinPipeError,
 			nonPTYStdinIoCopyError: nonPTYStdinIoCopyError,

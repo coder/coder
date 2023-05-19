@@ -206,7 +206,6 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
 		s.logger.Warn(ctx, "ssh session returned", slog.Error(exitError))
-		m.sessionError.Add(1)
 		_ = session.Exit(exitError.ExitCode())
 		return
 	}
@@ -214,7 +213,6 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		s.logger.Warn(ctx, "ssh session failed", slog.Error(err))
 		// This exit code is designed to be unlikely to be confused for a legit exit code
 		// from the process.
-		m.sessionError.Add(1)
 		_ = session.Exit(MagicSessionErrorCode)
 		return
 	}
