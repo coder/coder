@@ -239,6 +239,10 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceStatusStopped, workspacesResponse.Workspaces[2].LatestBuild.Status, "The stopped one should be last")
 
 	require.Equal(t, workspace3.ID, workspacesResponse.Workspaces[0].ID, "If both are running, and have the same owner, sort by last used (in this case, the last one created)")
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {

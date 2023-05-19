@@ -1,9 +1,12 @@
 package coderd
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
@@ -78,5 +81,108 @@ func Test_calculateDeletingAt(t *testing.T) {
 				require.WithinDuration(t, *tc.expected, *found, time.Second, "incorrect impending deletion")
 			}
 		})
+	}
+}
+
+func TestSortWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Running First", func(t *testing.T) {
+		t.Parallel()
+		workspaces := []codersdk.Workspace{
+			WorkspaceFactory(t, "test-workspace-sort-1", uuid.New(), "user1", codersdk.WorkspaceStatusPending),
+			WorkspaceFactory(t, "test-workspace-sort-2", uuid.New(), "user2", codersdk.WorkspaceStatusRunning),
+			WorkspaceFactory(t, "test-workspace-sort-3", uuid.New(), "user2", codersdk.WorkspaceStatusRunning),
+			WorkspaceFactory(t, "test-workspace-sort-4", uuid.New(), "user1", codersdk.WorkspaceStatusPending),
+		}
+
+		sortWorkspaces(workspaces)
+
+		assert.Equal(t, workspaces[0].LatestBuild.Status, codersdk.WorkspaceStatusRunning)
+		assert.Equal(t, workspaces[1].LatestBuild.Status, codersdk.WorkspaceStatusRunning)
+		assert.Equal(t, workspaces[2].LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		assert.Equal(t, workspaces[3].LatestBuild.Status, codersdk.WorkspaceStatusPending)
+	})
+
+	t.Run("Then sort by owner Name", func(t *testing.T) {
+		t.Parallel()
+		workspaces := []codersdk.Workspace{
+			WorkspaceFactory(t, "test-workspace-sort-1", uuid.New(), "userZ", codersdk.WorkspaceStatusRunning),
+			WorkspaceFactory(t, "test-workspace-sort-2", uuid.New(), "userA", codersdk.WorkspaceStatusRunning),
+			WorkspaceFactory(t, "test-workspace-sort-3", uuid.New(), "userB", codersdk.WorkspaceStatusRunning),
+		}
+
+		sortWorkspaces(workspaces)
+
+		t.Log("uuid ", uuid.New().String())
+		t.Log("uuid ", uuid.New().String())
+
+		assert.Equal(t, "userA", workspaces[0].OwnerName)
+		assert.Equal(t, "userB", workspaces[1].OwnerName)
+		assert.Equal(t, "userZ", workspaces[2].OwnerName)
+	})
+
+	t.Run("Then sort by last used at (recent first)", func(t *testing.T) {
+		t.Parallel()
+		var workspaces []codersdk.Workspace
+
+		useruuid := uuid.New()
+
+		for i := 0; i < 4; i++ {
+			workspaces = append(workspaces, WorkspaceFactory(t, fmt.Sprintf("test-workspace-sort-%d", i+1), useruuid, "user2", codersdk.WorkspaceStatusRunning))
+		}
+
+		sortWorkspaces(workspaces)
+
+		// in this case, the last used at is the creation time
+		assert.Equal(t, workspaces[0].Name, "test-workspace-sort-4")
+		assert.Equal(t, workspaces[1].Name, "test-workspace-sort-3")
+		assert.Equal(t, workspaces[2].Name, "test-workspace-sort-2")
+		assert.Equal(t, workspaces[3].Name, "test-workspace-sort-1")
+	})
+}
+
+func WorkspaceFactory(t *testing.T, name string, ownerID uuid.UUID, ownerName string, status codersdk.WorkspaceStatus) codersdk.Workspace {
+	t.Helper()
+	return codersdk.Workspace{
+		ID:                                   uuid.New(),
+		CreatedAt:                            time.Time{},
+		UpdatedAt:                            time.Time{},
+		OwnerID:                              ownerID,
+		OwnerName:                            ownerName,
+		OrganizationID:                       [16]byte{},
+		TemplateID:                           [16]byte{},
+		TemplateName:                         name,
+		TemplateDisplayName:                  name,
+		TemplateIcon:                         "",
+		TemplateAllowUserCancelWorkspaceJobs: false,
+		LatestBuild: codersdk.WorkspaceBuild{
+			ID:                  uuid.New(),
+			CreatedAt:           time.Time{},
+			UpdatedAt:           time.Time{},
+			WorkspaceID:         [16]byte{},
+			WorkspaceName:       name,
+			WorkspaceOwnerID:    [16]byte{},
+			WorkspaceOwnerName:  ownerName,
+			TemplateVersionID:   [16]byte{},
+			TemplateVersionName: name,
+			BuildNumber:         0,
+			Transition:          "",
+			InitiatorID:         [16]byte{},
+			InitiatorUsername:   name,
+			Job:                 codersdk.ProvisionerJob{},
+			Reason:              "",
+			Resources:           []codersdk.WorkspaceResource{},
+			Deadline:            codersdk.NullTime{},
+			MaxDeadline:         codersdk.NullTime{},
+			Status:              status,
+			DailyCost:           0,
+		},
+		Outdated:          false,
+		Name:              name,
+		AutostartSchedule: new(string),
+		TTLMillis:         new(int64),
+		LastUsedAt:        time.Now(),
+		DeletingAt:        &time.Time{},
 	}
 }

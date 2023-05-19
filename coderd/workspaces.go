@@ -1147,9 +1147,16 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 			&owner,
 		))
 	}
-	sort.Slice(apiWorkspaces, func(i, j int) bool {
-		iw := apiWorkspaces[i]
-		jw := apiWorkspaces[j]
+
+	sortWorkspaces(apiWorkspaces)
+
+	return apiWorkspaces, nil
+}
+
+func sortWorkspaces(workspaces []codersdk.Workspace) {
+	sort.Slice(workspaces, func(i, j int) bool {
+		iw := workspaces[i]
+		jw := workspaces[j]
 
 		if iw.LatestBuild.Status == codersdk.WorkspaceStatusRunning && jw.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
 			return true
@@ -1168,8 +1175,6 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 		}
 		return iw.LastUsedAt.After(jw.LastUsedAt)
 	})
-
-	return apiWorkspaces, nil
 }
 
 func convertWorkspace(
