@@ -101,12 +101,12 @@ resource "coder_agent" "dev" {
     script       = <<EOT
       #!/bin/bash
       # check if we are in cgroup v2 or v1
-      if [ -d /sys/fs/cgroup/cpu.stat ]; then
+      if [ -e /sys/fs/cgroup/cpu.stat ]; then
         # cgroup v2
         cusage=$(cat /sys/fs/cgroup/cpu.stat | head -n 1 | awk '{ print $2 }')
       else
         # cgroup v1
-        cusage=$(cat /sys/fs/cgroup/cpuacct,cpu/cpuacct.usage)
+        cusage=$(cat /sys/fs/cgroup/cpu,cpuacct/cpuacct.usage)
       fi
 
       # get previous usage
@@ -170,7 +170,7 @@ resource "coder_agent" "dev" {
   metadata {
     display_name = "Load Average (Host)"
     key          = "4_load_host"
-    # get laod avg scaled by number of cores
+    # get load avg scaled by number of cores
     script   = <<EOT
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
