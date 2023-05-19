@@ -447,7 +447,7 @@ func (s *Server) sftpHandler(session ssh.Session) {
 		return
 	}
 	s.logger.Warn(ctx, "sftp server closed with error", slog.Error(err))
-	s.metrics.sftpServerError.Add(1)
+	s.metrics.sftpServerErrors.Add(1)
 	_ = session.Exit(1)
 }
 

@@ -11,7 +11,7 @@ type sshServerMetrics struct {
 
 	// SFTP
 	sftpConnectionsTotal prometheus.Counter
-	sftpServerError      prometheus.Counter
+	sftpServerErrors     prometheus.Counter
 
 	// X11
 	x11SocketDirError  prometheus.Counter
@@ -56,10 +56,10 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	})
 	registerer.MustRegister(sftpConnectionsTotal)
 
-	sftpServerError := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "ssh_server", Name: "sftp_server_error",
+	sftpServerErrors := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "sftp_server_errors_total",
 	})
-	registerer.MustRegister(sftpServerError)
+	registerer.MustRegister(sftpServerErrors)
 
 	x11HostnameError := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "agent", Subsystem: "ssh_server", Name: "x11_hostname_error",
@@ -81,7 +81,7 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	return &sshServerMetrics{
 		failedConnectionsTotal: failedConnectionsTotal,
 		sftpConnectionsTotal:   sftpConnectionsTotal,
-		sftpServerError:        sftpServerError,
+		sftpServerErrors:       sftpServerErrors,
 		x11HostnameError:       x11HostnameError,
 		x11SocketDirError:      x11SocketDirError,
 		x11XauthorityError:     x11XauthorityError,
