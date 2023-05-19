@@ -113,9 +113,6 @@ func TestSortWorkspaces(t *testing.T) {
 
 		sortWorkspaces(workspaces)
 
-		t.Log("uuid ", uuid.New().String())
-		t.Log("uuid ", uuid.New().String())
-
 		require.Equal(t, "userA", workspaces[0].OwnerName)
 		require.Equal(t, "userB", workspaces[1].OwnerName)
 		require.Equal(t, "userZ", workspaces[2].OwnerName)
