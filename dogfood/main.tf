@@ -95,48 +95,106 @@ resource "coder_agent" "dev" {
 
   metadata {
     display_name = "CPU Usage"
-    key          = "cpu"
+    interval     = 10
+    timeout      = 1
+    key          = "0_cpu_usage"
+    script       = <<EOT
+      #!/bin/bash
+      # check if we are in cgroup v2 or v1
+      if [ -e /sys/fs/cgroup/cpu.stat ]; then
+        # cgroup v2
+        cusage=$(cat /sys/fs/cgroup/cpu.stat | head -n 1 | awk '{ print $2 }')
+      else
+        # cgroup v1
+        cusage=$(cat /sys/fs/cgroup/cpu,cpuacct/cpuacct.usage)
+      fi
+
+      # get previous usage
+      if [ -e /tmp/cusage ]; then
+        cusage_p=$(cat /tmp/cusage)
+      else
+        echo $cusage > /tmp/cusage
+        echo "Unknown"
+        exit 0
+      fi
+
+      # interval in microseconds should be metadata.interval * 1000000
+      interval=10000000
+      ncores=$(nproc)
+      echo "$cusage $cusage_p $interval $ncores" | awk '{ printf "%2.0f%%\n", (($1 - $2)/$3/$4)*100 }'
+
+      EOT
+  }
+
+  metadata {
+    display_name = "RAM Usage"
+    interval     = 10
+    timeout      = 1
+    key          = "1_ram_usage"
+    script       = <<EOT
+      #!/bin/bash
+      # first check if we are in cgroup v2 or v1
+      if [ -e /sys/fs/cgroup/memory.stat ]; then
+        # cgroup v2
+        echo "`cat /sys/fs/cgroup/memory.current` `cat /sys/fs/cgroup/memory.max`" | awk '{ used=$1/1024/1024/1024; total=$2/1024/1024/1024; printf "%0.2f / %0.2f GB\n", used, total }'
+      else
+        # cgroup v1
+        echo "`cat /sys/fs/cgroup/memory/memory.usage_in_bytes` `cat /sys/fs/cgroup/memory/memory.limit_in_bytes`" | awk '{ used=$1/1024/1024/1024; total=$2/1024/1024/1024; printf "%0.2f / %0.2f GB\n", used, total }'
+      fi
+      EOT
+  }
+
+
+  metadata {
+    display_name = "CPU Usage (Host)"
+    key          = "2_cpu_host"
     script       = <<EOT
     vmstat | awk 'FNR==3 {printf "%2.0f%%", $13+$14+$16}'
     EOT
-    interval     = 1
+    interval     = 10
     timeout      = 1
   }
 
   metadata {
-    display_name = "Load Average"
-    key          = "load"
-    script       = "awk '{print $1}' /proc/loadavg"
-    interval     = 1
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "Disk Usage"
-    key          = "disk"
-    script       = "df -h | awk '$6 ~ /^\\/$/ { print $5 }'"
-    interval     = 1
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "Memory Usage"
-    key          = "mem"
+    display_name = "Memory and Swap Usage (Host)"
+    key          = "3_mem_swap_host"
     script       = <<EOT
-	free | awk '/^Mem/ { printf("%.0f%%", $4/$2 * 100.0) }'
-	EOT
-    interval     = 1
+      mem_usage=`free | awk '/^Mem/ { printf("%.0f%%", $3/$2 * 100.0) }'`
+      swp_usage=`free | awk '/^Swap/ { printf("%.0f%%", $3/$2 * 100.0) }'`
+      echo "Memory: $mem_usage, Swap: $swp_usage"
+      EOT
+    interval     = 10
     timeout      = 1
   }
 
+  metadata {
+    display_name = "Load Average (Host)"
+    key          = "4_load_host"
+    # get load avg scaled by number of cores
+    script   = <<EOT
+      echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
+    EOT
+    interval = 10
+    timeout  = 1
+  }
+
+  metadata {
+    display_name = "Disk Usage (Host)"
+    key          = "5_disk_host"
+    script       = <<EOT
+      df --output=pcent / | sed -n "2p"
+    EOT
+    interval     = 600
+    timeout      = 10 #getting disk usage can take a while
+  }
 
   metadata {
     display_name = "Word of the Day"
-    key          = "word"
+    key          = "6_word"
     script       = <<EOT
-	curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
-	EOT
-    interval     = 60
+      curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
+    EOT
+    interval     = 86400
     timeout      = 5
   }
 
