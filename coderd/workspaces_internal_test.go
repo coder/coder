@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
@@ -98,10 +97,10 @@ func TestSortWorkspaces(t *testing.T) {
 
 		sortWorkspaces(workspaces)
 
-		assert.Equal(t, workspaces[0].LatestBuild.Status, codersdk.WorkspaceStatusRunning)
-		assert.Equal(t, workspaces[1].LatestBuild.Status, codersdk.WorkspaceStatusRunning)
-		assert.Equal(t, workspaces[2].LatestBuild.Status, codersdk.WorkspaceStatusPending)
-		assert.Equal(t, workspaces[3].LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspaces[0].LatestBuild.Status, codersdk.WorkspaceStatusRunning)
+		require.Equal(t, workspaces[1].LatestBuild.Status, codersdk.WorkspaceStatusRunning)
+		require.Equal(t, workspaces[2].LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspaces[3].LatestBuild.Status, codersdk.WorkspaceStatusPending)
 	})
 
 	t.Run("Then sort by owner Name", func(t *testing.T) {
@@ -117,9 +116,9 @@ func TestSortWorkspaces(t *testing.T) {
 		t.Log("uuid ", uuid.New().String())
 		t.Log("uuid ", uuid.New().String())
 
-		assert.Equal(t, "userA", workspaces[0].OwnerName)
-		assert.Equal(t, "userB", workspaces[1].OwnerName)
-		assert.Equal(t, "userZ", workspaces[2].OwnerName)
+		require.Equal(t, "userA", workspaces[0].OwnerName)
+		require.Equal(t, "userB", workspaces[1].OwnerName)
+		require.Equal(t, "userZ", workspaces[2].OwnerName)
 	})
 
 	t.Run("Then sort by last used at (recent first)", func(t *testing.T) {
@@ -135,10 +134,10 @@ func TestSortWorkspaces(t *testing.T) {
 		sortWorkspaces(workspaces)
 
 		// in this case, the last used at is the creation time
-		assert.Equal(t, workspaces[0].Name, "test-workspace-sort-4")
-		assert.Equal(t, workspaces[1].Name, "test-workspace-sort-3")
-		assert.Equal(t, workspaces[2].Name, "test-workspace-sort-2")
-		assert.Equal(t, workspaces[3].Name, "test-workspace-sort-1")
+		require.Equal(t, workspaces[0].Name, "test-workspace-sort-4")
+		require.Equal(t, workspaces[1].Name, "test-workspace-sort-3")
+		require.Equal(t, workspaces[2].Name, "test-workspace-sort-2")
+		require.Equal(t, workspaces[3].Name, "test-workspace-sort-1")
 	})
 }
 
