@@ -33,8 +33,8 @@ const WorkspacesPage: FC = () => {
       <WorkspacesPageView
         workspaces={data?.workspaces}
         error={error}
-        filter={filter.query}
-        onFilter={filter.setFilter}
+        filterQuery={filter.query}
+        onFilterQueryChange={filter.setFilter}
         count={data?.count}
         page={pagination.page}
         limit={pagination.limit}

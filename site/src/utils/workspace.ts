@@ -10,59 +10,59 @@ dayjs.extend(duration)
 dayjs.extend(utc)
 dayjs.extend(minMax)
 
-const DisplayWorkspaceBuildStatusLanguage = {
-  succeeded: "Succeeded",
-  pending: "Pending",
-  running: "Running",
-  canceling: "Canceling",
-  canceled: "Canceled",
-  failed: "Failed",
-}
-
 const DisplayAgentVersionLanguage = {
   unknown: "Unknown",
 }
 
-export const getDisplayWorkspaceBuildStatus = (
+export const jobStatuses: Record<TypesGen.ProvisionerJobStatus, string> = {
+  succeeded: "Succeeded",
+  running: "Running",
+  failed: "Failed",
+  canceling: "Canceling",
+  canceled: "Canceled",
+  pending: "Pending",
+}
+
+export const getDisplayJobStatus = (
   theme: Theme,
-  build: TypesGen.WorkspaceBuild,
+  status: TypesGen.ProvisionerJobStatus,
 ) => {
-  switch (build.job.status) {
+  switch (status) {
     case "succeeded":
       return {
         type: "success",
         color: theme.palette.success.main,
-        status: DisplayWorkspaceBuildStatusLanguage.succeeded,
+        status: jobStatuses.succeeded,
       } as const
     case "pending":
       return {
         type: "secondary",
         color: theme.palette.text.secondary,
-        status: DisplayWorkspaceBuildStatusLanguage.pending,
+        status: jobStatuses.pending,
       } as const
     case "running":
       return {
         type: "info",
         color: theme.palette.primary.main,
-        status: DisplayWorkspaceBuildStatusLanguage.running,
+        status: jobStatuses.running,
       } as const
     case "failed":
       return {
         type: "error",
         color: theme.palette.text.secondary,
-        status: DisplayWorkspaceBuildStatusLanguage.failed,
+        status: jobStatuses.failed,
       } as const
     case "canceling":
       return {
         type: "warning",
         color: theme.palette.warning.light,
-        status: DisplayWorkspaceBuildStatusLanguage.canceling,
+        status: jobStatuses.canceling,
       } as const
     case "canceled":
       return {
         type: "secondary",
         color: theme.palette.text.secondary,
-        status: DisplayWorkspaceBuildStatusLanguage.canceled,
+        status: jobStatuses.canceled,
       } as const
   }
 }

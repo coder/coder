@@ -344,10 +344,15 @@ dark = createTheme(dark, {
           height: "auto",
         },
         colorPrimary: {
-          // The default outlined input color is white, which seemed jarring.
-          "&:hover:not(.Mui-error) .MuiOutlinedInput-notchedOutline": {
-            borderColor: colors.gray[7],
+          // Same as button
+          "& .MuiOutlinedInput-notchedOutline": {
+            borderColor: colors.gray[12],
           },
+          // The default outlined input color is white, which seemed jarring.
+          "&:hover:not(.Mui-error):not(.Mui-focused) .MuiOutlinedInput-notchedOutline":
+            {
+              borderColor: colors.gray[7],
+            },
         },
       },
     },

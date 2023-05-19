@@ -76,13 +76,13 @@ AllStates.args = {
 export const OwnerHasNoWorkspaces = Template.bind({})
 OwnerHasNoWorkspaces.args = {
   workspaces: [],
-  filter: workspaceFilterQuery.me,
+  filterQuery: workspaceFilterQuery.me,
   count: 0,
 }
 
 export const NoSearchResults = Template.bind({})
 NoSearchResults.args = {
   workspaces: [],
-  filter: "searchtearmwithnoresults",
+  filterQuery: "searchtearmwithnoresults",
   count: 0,
 }
