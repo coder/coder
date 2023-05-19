@@ -998,7 +998,7 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan str
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
-	a.metrics.handler.Add(1)
+	a.metrics.connectionsTotal.Add(1)
 
 	a.connCountReconnectingPTY.Add(1)
 	defer a.connCountReconnectingPTY.Add(-1)
