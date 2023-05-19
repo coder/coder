@@ -29,6 +29,7 @@ func (s *Server) x11Callback(ctx ssh.Context, x11 ssh.X11) bool {
 	hostname, err := os.Hostname()
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get hostname", slog.Error(err))
+		s.metrics.x11HostnameError.Add(1)
 		return false
 	}
 
