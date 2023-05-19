@@ -7,12 +7,7 @@ import (
 )
 
 type sshServerMetrics struct {
-	// SSH callbacks
-	connectionFailedCallback      prometheus.Counter
-	localPortForwardingCallback   prometheus.Counter
-	ptyCallback                   prometheus.Counter
-	reversePortForwardingCallback prometheus.Counter
-	x11Callback                   prometheus.Counter
+	connectionFailedCallback prometheus.Counter
 
 	// SFTP
 	sftpHandler     prometheus.Counter
@@ -57,26 +52,6 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	})
 	registerer.MustRegister(connectionFailedCallback)
 
-	localPortForwardingCallback := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "ssh_server", Name: "local_port_forwarding_callback",
-	})
-	registerer.MustRegister(localPortForwardingCallback)
-
-	ptyCallback := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "ssh_server", Name: "pty_callback",
-	})
-	registerer.MustRegister(ptyCallback)
-
-	reversePortForwardingCallback := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "ssh_server", Name: "reverse_port_forwarding_callback",
-	})
-	registerer.MustRegister(reversePortForwardingCallback)
-
-	x11Callback := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "ssh_server", Name: "x11_callback",
-	})
-	registerer.MustRegister(x11Callback)
-
 	sftpHandler := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "agent", Subsystem: "ssh_server", Name: "sftp_handler",
 	})
@@ -105,16 +80,12 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	sessions := newSessionMetrics(registerer)
 
 	return &sshServerMetrics{
-		connectionFailedCallback:      connectionFailedCallback,
-		localPortForwardingCallback:   localPortForwardingCallback,
-		ptyCallback:                   ptyCallback,
-		reversePortForwardingCallback: reversePortForwardingCallback,
-		x11Callback:                   x11Callback,
-		sftpHandler:                   sftpHandler,
-		sftpServerError:               sftpServerError,
-		x11HostnameError:              x11HostnameError,
-		x11SocketDirError:             x11SocketDirError,
-		x11XauthorityError:            x11XauthorityError,
+		connectionFailedCallback: connectionFailedCallback,
+		sftpHandler:              sftpHandler,
+		sftpServerError:          sftpServerError,
+		x11HostnameError:         x11HostnameError,
+		x11SocketDirError:        x11SocketDirError,
+		x11XauthorityError:       x11XauthorityError,
 
 		sessions: sessions,
 	}

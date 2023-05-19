@@ -122,11 +122,9 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			s.logger.Debug(ctx, "local port forward",
 				slog.F("destination-host", destinationHost),
 				slog.F("destination-port", destinationPort))
-			metrics.localPortForwardingCallback.Add(1)
 			return true
 		},
 		PtyCallback: func(ctx ssh.Context, pty ssh.Pty) bool {
-			metrics.ptyCallback.Add(1)
 			return true
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
@@ -134,7 +132,6 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			s.logger.Debug(ctx, "local port forward",
 				slog.F("bind-host", bindHost),
 				slog.F("bind-port", bindPort))
-			metrics.reversePortForwardingCallback.Add(1)
 			return true
 		},
 		RequestHandlers: map[string]ssh.RequestHandler{

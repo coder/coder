@@ -24,8 +24,6 @@ import (
 // x11Callback is called when the client requests X11 forwarding.
 // It adds an Xauthority entry to the Xauthority file.
 func (s *Server) x11Callback(ctx ssh.Context, x11 ssh.X11) bool {
-	s.metrics.x11Callback.Add(1)
-
 	hostname, err := os.Hostname()
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get hostname", slog.Error(err))
