@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -84,101 +83,94 @@ func Test_calculateDeletingAt(t *testing.T) {
 }
 
 func TestSortWorkspaces(t *testing.T) {
+	// the correct sorting order is:
+	// 1. first show workspaces that are currently running,
+	// 2. then sort by user_name,
+	// 3. then sort by last_used_at (descending),
 	t.Parallel()
 
-	t.Run("Running First", func(t *testing.T) {
-		t.Parallel()
-		workspaces := []codersdk.Workspace{
-			WorkspaceFactory(t, "test-workspace-sort-1", uuid.New(), "user1", codersdk.WorkspaceStatusPending),
-			WorkspaceFactory(t, "test-workspace-sort-2", uuid.New(), "user2", codersdk.WorkspaceStatusRunning),
-			WorkspaceFactory(t, "test-workspace-sort-3", uuid.New(), "user2", codersdk.WorkspaceStatusRunning),
-			WorkspaceFactory(t, "test-workspace-sort-4", uuid.New(), "user1", codersdk.WorkspaceStatusPending),
+	workspaceFactory := func(t *testing.T, name string, ownerID uuid.UUID, ownerName string, status codersdk.WorkspaceStatus, lastUsedAt time.Time) codersdk.Workspace {
+		t.Helper()
+		return codersdk.Workspace{
+			ID:        uuid.New(),
+			OwnerID:   ownerID,
+			OwnerName: ownerName,
+			LatestBuild: codersdk.WorkspaceBuild{
+				Status: status,
+			},
+			Name:       name,
+			LastUsedAt: lastUsedAt,
 		}
+	}
 
-		sortWorkspaces(workspaces)
+	userAuuid := uuid.New()
 
-		require.Equal(t, workspaces[0].LatestBuild.Status, codersdk.WorkspaceStatusRunning)
-		require.Equal(t, workspaces[1].LatestBuild.Status, codersdk.WorkspaceStatusRunning)
-		require.Equal(t, workspaces[2].LatestBuild.Status, codersdk.WorkspaceStatusPending)
-		require.Equal(t, workspaces[3].LatestBuild.Status, codersdk.WorkspaceStatusPending)
-	})
+	workspaceRunningUserA := workspaceFactory(t, "running-userA", userAuuid, "userA", codersdk.WorkspaceStatusRunning, time.Now())
+	workspaceRunningUserB := workspaceFactory(t, "running-userB", uuid.New(), "userB", codersdk.WorkspaceStatusRunning, time.Now())
+	workspacePendingUserC := workspaceFactory(t, "pending-userC", uuid.New(), "userC", codersdk.WorkspaceStatusPending, time.Now())
+	workspaceRunningUserA2 := workspaceFactory(t, "running-userA2", userAuuid, "userA", codersdk.WorkspaceStatusRunning, time.Now())
+	workspaceRunningUserZ := workspaceFactory(t, "running-userZ", uuid.New(), "userZ", codersdk.WorkspaceStatusRunning, time.Now().Add(time.Minute))
+	workspaceRunningUserA3 := workspaceFactory(t, "running-userA3", userAuuid, "userA", codersdk.WorkspaceStatusRunning, time.Now().Add(time.Hour))
 
-	t.Run("Then sort by owner Name", func(t *testing.T) {
-		t.Parallel()
-		workspaces := []codersdk.Workspace{
-			WorkspaceFactory(t, "test-workspace-sort-1", uuid.New(), "userZ", codersdk.WorkspaceStatusRunning),
-			WorkspaceFactory(t, "test-workspace-sort-2", uuid.New(), "userA", codersdk.WorkspaceStatusRunning),
-			WorkspaceFactory(t, "test-workspace-sort-3", uuid.New(), "userB", codersdk.WorkspaceStatusRunning),
-		}
-
-		sortWorkspaces(workspaces)
-
-		require.Equal(t, "userA", workspaces[0].OwnerName)
-		require.Equal(t, "userB", workspaces[1].OwnerName)
-		require.Equal(t, "userZ", workspaces[2].OwnerName)
-	})
-
-	t.Run("Then sort by last used at (recent first)", func(t *testing.T) {
-		t.Parallel()
-		var workspaces []codersdk.Workspace
-
-		useruuid := uuid.New()
-
-		for i := 0; i < 4; i++ {
-			workspaces = append(workspaces, WorkspaceFactory(t, fmt.Sprintf("test-workspace-sort-%d", i+1), useruuid, "user2", codersdk.WorkspaceStatusRunning))
-		}
-
-		sortWorkspaces(workspaces)
-
-		// in this case, the last used at is the creation time
-		require.Equal(t, workspaces[0].Name, "test-workspace-sort-4")
-		require.Equal(t, workspaces[1].Name, "test-workspace-sort-3")
-		require.Equal(t, workspaces[2].Name, "test-workspace-sort-2")
-		require.Equal(t, workspaces[3].Name, "test-workspace-sort-1")
-	})
-}
-
-func WorkspaceFactory(t *testing.T, name string, ownerID uuid.UUID, ownerName string, status codersdk.WorkspaceStatus) codersdk.Workspace {
-	t.Helper()
-	return codersdk.Workspace{
-		ID:                                   uuid.New(),
-		CreatedAt:                            time.Time{},
-		UpdatedAt:                            time.Time{},
-		OwnerID:                              ownerID,
-		OwnerName:                            ownerName,
-		OrganizationID:                       [16]byte{},
-		TemplateID:                           [16]byte{},
-		TemplateName:                         name,
-		TemplateDisplayName:                  name,
-		TemplateIcon:                         "",
-		TemplateAllowUserCancelWorkspaceJobs: false,
-		LatestBuild: codersdk.WorkspaceBuild{
-			ID:                  uuid.New(),
-			CreatedAt:           time.Time{},
-			UpdatedAt:           time.Time{},
-			WorkspaceID:         [16]byte{},
-			WorkspaceName:       name,
-			WorkspaceOwnerID:    [16]byte{},
-			WorkspaceOwnerName:  ownerName,
-			TemplateVersionID:   [16]byte{},
-			TemplateVersionName: name,
-			BuildNumber:         0,
-			Transition:          "",
-			InitiatorID:         [16]byte{},
-			InitiatorUsername:   name,
-			Job:                 codersdk.ProvisionerJob{},
-			Reason:              "",
-			Resources:           []codersdk.WorkspaceResource{},
-			Deadline:            codersdk.NullTime{},
-			MaxDeadline:         codersdk.NullTime{},
-			Status:              status,
-			DailyCost:           0,
+	testCases := []struct {
+		name          string
+		input         []codersdk.Workspace
+		expectedOrder []string
+	}{
+		{
+			name: "Running workspaces should be first",
+			input: []codersdk.Workspace{
+				workspaceRunningUserB,
+				workspacePendingUserC,
+				workspaceRunningUserA,
+			},
+			expectedOrder: []string{
+				"running-userA",
+				"running-userB",
+				"pending-userC",
+			},
 		},
-		Outdated:          false,
-		Name:              name,
-		AutostartSchedule: new(string),
-		TTLMillis:         new(int64),
-		LastUsedAt:        time.Now(),
-		DeletingAt:        &time.Time{},
+		{
+			name: "then sort by owner name",
+			input: []codersdk.Workspace{
+				workspaceRunningUserZ,
+				workspaceRunningUserA,
+				workspaceRunningUserB,
+			},
+			expectedOrder: []string{
+				"running-userA",
+				"running-userB",
+				"running-userZ",
+			},
+		},
+		{
+			name: "then sort by last used at (recent first)",
+			input: []codersdk.Workspace{
+				workspaceRunningUserA,
+				workspaceRunningUserA2,
+				workspaceRunningUserA3,
+			},
+			expectedOrder: []string{
+				"running-userA3",
+				"running-userA2",
+				"running-userA",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			workspaces := tc.input
+			sortWorkspaces(workspaces)
+
+			var resultNames []string
+			for _, workspace := range workspaces {
+				resultNames = append(resultNames, workspace.Name)
+			}
+
+			require.Equal(t, tc.expectedOrder, resultNames, tc.name)
+		})
 	}
 }
