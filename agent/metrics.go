@@ -15,7 +15,6 @@ import (
 
 type agentMetrics struct {
 	connectionsTotal   prometheus.Counter
-	handlerError       prometheus.Counter
 	createCommandError prometheus.Counter
 	cmdStartError      prometheus.Counter
 	writeError         prometheus.Counter
@@ -29,11 +28,6 @@ func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
 		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "connections_total",
 	})
 	registerer.MustRegister(connectionsTotal)
-
-	handlerError := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "error",
-	})
-	registerer.MustRegister(handlerError)
 
 	createCommandError := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "create_command_error",
@@ -67,7 +61,6 @@ func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
 
 	return &agentMetrics{
 		connectionsTotal:   connectionsTotal,
-		handlerError:       handlerError,
 		createCommandError: createCommandError,
 		cmdStartError:      cmdStartError,
 		writeError:         writeError,
