@@ -106,7 +106,9 @@ resource "coder_agent" "dev" {
         cusage=$(cat /sys/fs/cgroup/cpu.stat | head -n 1 | awk '{ print $2 }')
       else
         # cgroup v1
-        cusage=$(cat /sys/fs/cgroup/cpu,cpuacct/cpuacct.usage)
+#         cusage=$(cat /sys/fs/cgroup/cpu,cpuacct/cpuacct.usage)
+        echo "Coming Soon!"
+        exit 0
       fi
 
       # get previous usage
