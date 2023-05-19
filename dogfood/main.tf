@@ -110,8 +110,8 @@ resource "coder_agent" "dev" {
       fi
 
       # get previous usage
-      if [ -f /tmp/cpu_usage ]; then
-        cusage_p=$(cat /tmp/cpu_usage)
+      if [ -e /tmp/cusage ]; then
+        cusage_p=$(cat /tmp/cusage)
       else
         echo $cusage > /tmp/cusage
         echo "Unknown"
@@ -134,7 +134,7 @@ resource "coder_agent" "dev" {
     script       = <<EOT
       #!/bin/bash
       # first check if we are in cgroup v2 or v1
-      if [ -d /sys/fs/cgroup/memory.max ]; then
+      if [ -e /sys/fs/cgroup/memory.stat ]; then
         # cgroup v2
         echo "`cat /sys/fs/cgroup/memory.current` `cat /sys/fs/cgroup/memory.max`" | awk '{ used=$1/1024/1024/1024; total=$2/1024/1024/1024; printf "%0.2f / %0.2f GB\n", used, total }'
       else
