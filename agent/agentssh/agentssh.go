@@ -408,7 +408,7 @@ func (s *Server) startPTYSession(session ptySession, m sessionMetricsObject, cmd
 }
 
 func (s *Server) sftpHandler(session ssh.Session) {
-	s.metrics.sftpHandler.Add(1)
+	s.metrics.sftpConnectionsTotal.Add(1)
 
 	ctx := session.Context()
 
