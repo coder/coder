@@ -100,10 +100,6 @@ resource "coder_agent" "dev" {
     key          = "0_cpu_usage"
     script       = <<EOT
       #!/bin/bash
-      # interval in microseconds should be metadata.interval * 1000000
-      interval=10000000
-      ncores=$(nproc)
-      cusage_p=$(cat /tmp/cusage || echo 0)
       # check if we are in cgroup v2 or v1
       if [ -d /sys/fs/cgroup/cpu.stat ]; then
         # cgroup v2
@@ -112,8 +108,21 @@ resource "coder_agent" "dev" {
         # cgroup v1
         cusage=$(cat /sys/fs/cgroup/cpuacct,cpu/cpuacct.usage)
       fi
+
+      # get previous usage
+      if [ -f /tmp/cpu_usage ]; then
+        cusage_p=$(cat /tmp/cpu_usage)
+      else
+        echo $cusage > /tmp/cusage
+        echo "Unknown"
+        exit 0
+      fi
+
+      # interval in microseconds should be metadata.interval * 1000000
+      interval=10000000
+      ncores=$(nproc)
       echo "$cusage $cusage_p $interval $ncores" | awk '{ printf "%2.0f%%\n", (($1 - $2)/$3/$4)*100 }'
-      echo $cusage > /tmp/cusage
+
       EOT
   }
 
