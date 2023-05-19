@@ -8,19 +8,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"tailscale.com/util/clientmetric"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
 type agentMetrics struct {
-	connectionsTotal   prometheus.Counter
-	createCommandError prometheus.Counter
-	cmdStartError      prometheus.Counter
-	writeError         prometheus.Counter
-	resizeError        prometheus.Counter
-	outputReaderError  prometheus.Counter
-	inputWriterError   prometheus.Counter
+	connectionsTotal      prometheus.Counter
+	reconnectingPTYErrors *prometheus.CounterVec
 }
 
 func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
@@ -29,44 +22,19 @@ func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
 	})
 	registerer.MustRegister(connectionsTotal)
 
-	createCommandError := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "create_command_error",
-	})
-	registerer.MustRegister(createCommandError)
-
-	cmdStartError := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "cmd_start_error",
-	})
-	registerer.MustRegister(cmdStartError)
-
-	writeError := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "write_error",
-	})
-	registerer.MustRegister(writeError)
-
-	resizeError := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "resize_error",
-	})
-	registerer.MustRegister(resizeError)
-
-	outputReaderError := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "output_reader_error",
-	})
-	registerer.MustRegister(outputReaderError)
-
-	inputWriterError := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "reconnecting_pty", Name: "input_writer_error",
-	})
-	registerer.MustRegister(inputWriterError)
+	reconnectingPTYErrors := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "agent",
+			Subsystem: "reconnecting_pty",
+			Name:      "errors_total",
+		},
+		[]string{"error_type"},
+	)
+	registerer.MustRegister(reconnectingPTYErrors)
 
 	return &agentMetrics{
-		connectionsTotal:   connectionsTotal,
-		createCommandError: createCommandError,
-		cmdStartError:      cmdStartError,
-		writeError:         writeError,
-		resizeError:        resizeError,
-		outputReaderError:  outputReaderError,
-		inputWriterError:   inputWriterError,
+		connectionsTotal:      connectionsTotal,
+		reconnectingPTYErrors: reconnectingPTYErrors,
 	}
 }
 
@@ -87,8 +55,8 @@ func (a *agent) collectMetrics(ctx context.Context) []agentsdk.AgentMetric {
 		})
 	}
 
-	// Agent metrics
-	metricFamilies, err := a.prometheusRegistry.Gather()
+	// FIXME Agent metrics
+	/*metricFamilies, err := a.prometheusRegistry.Gather()
 	if err != nil {
 		a.logger.Error(ctx, "can't gather agent metrics", slog.Error(err))
 		return collected
@@ -112,7 +80,7 @@ func (a *agent) collectMetrics(ctx context.Context) []agentsdk.AgentMetric {
 				a.logger.Error(ctx, "unsupported metric type", slog.F("type", metricFamily.Type.String()))
 			}
 		}
-	}
+	}*/
 	return collected
 }
 

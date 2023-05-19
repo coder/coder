@@ -1019,7 +1019,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 				logger.Debug(ctx, "session error after agent close", slog.Error(err))
 			} else {
 				logger.Error(ctx, "session error", slog.Error(err))
-				a.metrics.handlerError.Add(1)
 			}
 		}
 		logger.Debug(ctx, "session closed")
@@ -1039,7 +1038,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		// Empty command will default to the users shell!
 		cmd, err := a.sshServer.CreateCommand(ctx, msg.Command, nil)
 		if err != nil {
-			a.metrics.createCommandError.Add(1)
+			a.metrics.reconnectingPTYErrors.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)
 		}
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
@@ -1052,7 +1051,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
-			a.metrics.cmdStartError.Add(1)
+			a.metrics.reconnectingPTYErrors.WithLabelValues("start_command").Add(1)
 			return xerrors.Errorf("start command: %w", err)
 		}
 
@@ -1083,7 +1082,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 						logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
 					} else {
 						logger.Warn(ctx, "unable to read pty output, command exited?", slog.Error(err))
-						a.metrics.outputReaderError.Add(1)
+						a.metrics.reconnectingPTYErrors.WithLabelValues("output_reader").Add(1)
 					}
 					break
 				}
@@ -1104,7 +1103,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 							slog.F("other_conn_id", cid),
 							slog.Error(err),
 						)
-						a.metrics.writeError.Add(1)
+						a.metrics.reconnectingPTYErrors.WithLabelValues("write").Add(1)
 					}
 				}
 				rpty.activeConnsMutex.Unlock()
@@ -1124,7 +1123,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	if err != nil {
 		// We can continue after this, it's not fatal!
 		logger.Error(ctx, "resize", slog.Error(err))
-		a.metrics.resizeError.Add(1)
+		a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 	}
 	// Write any previously stored data for the TTY.
 	rpty.circularBufferMutex.RLock()
@@ -1137,7 +1136,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	// while also holding circularBufferMutex seems dangerous.
 	_, err = conn.Write(prevBuf)
 	if err != nil {
-		a.metrics.writeError.Add(1)
+		a.metrics.reconnectingPTYErrors.WithLabelValues("write").Add(1)
 		return xerrors.Errorf("write buffer to conn: %w", err)
 	}
 	// Multiple connections to the same TTY are permitted.
@@ -1188,7 +1187,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
 			logger.Warn(ctx, "write to pty", slog.Error(err))
-			a.metrics.inputWriterError.Add(1)
+			a.metrics.reconnectingPTYErrors.WithLabelValues("input_writer").Add(1)
 			return nil
 		}
 		// Check if a resize needs to happen!
@@ -1199,7 +1198,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		if err != nil {
 			// We can continue after this, it's not fatal!
 			logger.Error(ctx, "resize", slog.Error(err))
-			a.metrics.resizeError.Add(1)
+			a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 		}
 	}
 }

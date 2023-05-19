@@ -201,8 +201,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
-	m := metricsForSession(s.metrics.sessions, magicType(session))
-	err := s.sessionStart(session, m, extraEnv)
+	err := s.sessionStart(session, extraEnv)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
 		s.logger.Warn(ctx, "ssh session returned", slog.Error(exitError))
@@ -229,7 +228,7 @@ func magicType(session ssh.Session) string {
 	return ""
 }
 
-func (s *Server) sessionStart(session ssh.Session, m sessionMetricsObject, extraEnv []string) (retErr error) {
+func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr error) {
 	ctx := session.Context()
 	env := append(session.Environ(), extraEnv...)
 	var magicType string
@@ -254,16 +253,18 @@ func (s *Server) sessionStart(session ssh.Session, m sessionMetricsObject, extra
 		s.logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
 	}
 
+	magicTypeLabel := magicTypeMetricLabel(magicType)
+
 	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env)
 	if err != nil {
-		m.agentCreateCommandError.Add(1)
+		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "create_command").Add(1)
 		return err
 	}
 
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
 		if err != nil {
-			m.agentListenerError.Add(1)
+			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "listener").Add(1)
 			return xerrors.Errorf("new agent listener: %w", err)
 		}
 		defer l.Close()
@@ -273,13 +274,13 @@ func (s *Server) sessionStart(session ssh.Session, m sessionMetricsObject, extra
 
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
-		return s.startPTYSession(session, m, cmd, sshPty, windowSize)
+		return s.startPTYSession(session, magicTypeLabel, cmd, sshPty, windowSize)
 	}
-	return startNonPTYSession(session, m, cmd.AsExec())
+	return s.startNonPTYSession(session, magicTypeLabel, cmd.AsExec())
 }
 
-func startNonPTYSession(session ssh.Session, m sessionMetricsObject, cmd *exec.Cmd) error {
-	m.startNonPTYSession.Add(1)
+func (s *Server) startNonPTYSession(session ssh.Session, magicTypeLabel string, cmd *exec.Cmd) error {
+	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "no").Add(1)
 
 	cmd.Stdout = session
 	cmd.Stderr = session.Stderr()
@@ -287,19 +288,19 @@ func startNonPTYSession(session ssh.Session, m sessionMetricsObject, cmd *exec.C
 	// use StdinPipe. It's unknown what causes this.
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		m.nonPTYStdinPipeError.Add(1)
+		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "stdin_pipe").Add(1)
 		return xerrors.Errorf("create stdin pipe: %w", err)
 	}
 	go func() {
 		_, err := io.Copy(stdinPipe, session)
 		if err != nil {
-			m.nonPTYStdinIoCopyError.Add(1)
+			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "stdin_io_copy").Add(1)
 		}
 		_ = stdinPipe.Close()
 	}()
 	err = cmd.Start()
 	if err != nil {
-		m.nonPTYCmdStartError.Add(1)
+		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "start_command").Add(1)
 		return xerrors.Errorf("start: %w", err)
 	}
 	return cmd.Wait()
@@ -314,8 +315,8 @@ type ptySession interface {
 	RawCommand() string
 }
 
-func (s *Server) startPTYSession(session ptySession, m sessionMetricsObject, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
-	m.startPTYSession.Add(1)
+func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
+	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "yes").Add(1)
 
 	ctx := session.Context()
 	// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
@@ -328,7 +329,7 @@ func (s *Server) startPTYSession(session ptySession, m sessionMetricsObject, cmd
 			err := showMOTD(session, manifest.MOTDFile)
 			if err != nil {
 				s.logger.Error(ctx, "show MOTD", slog.Error(err))
-				m.ptyMotdError.Add(1)
+				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
 			}
 		} else {
 			s.logger.Warn(ctx, "metadata lookup failed, unable to show MOTD")
@@ -343,14 +344,14 @@ func (s *Server) startPTYSession(session ptySession, m sessionMetricsObject, cmd
 		pty.WithLogger(slog.Stdlib(ctx, s.logger, slog.LevelInfo)),
 	))
 	if err != nil {
-		m.ptyCmdStartError.Add(1)
+		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "start_command").Add(1)
 		return xerrors.Errorf("start command: %w", err)
 	}
 	defer func() {
 		closeErr := ptty.Close()
 		if closeErr != nil {
 			s.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
-			m.ptyCloseError.Add(1)
+			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "close").Add(1)
 			if retErr == nil {
 				retErr = closeErr
 			}
@@ -362,7 +363,7 @@ func (s *Server) startPTYSession(session ptySession, m sessionMetricsObject, cmd
 			// If the pty is closed, then command has exited, no need to log.
 			if resizeErr != nil && !errors.Is(resizeErr, pty.ErrClosed) {
 				s.logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
-				m.ptyResizeError.Add(1)
+				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "resize").Add(1)
 			}
 		}
 	}()
@@ -370,7 +371,7 @@ func (s *Server) startPTYSession(session ptySession, m sessionMetricsObject, cmd
 	go func() {
 		_, err := io.Copy(ptty.InputWriter(), session)
 		if err != nil {
-			m.ptyInputIoCopyError.Add(1)
+			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "input_io_copy").Add(1)
 		}
 	}()
 
@@ -385,7 +386,7 @@ func (s *Server) startPTYSession(session ptySession, m sessionMetricsObject, cmd
 	n, err := io.Copy(session, ptty.OutputReader())
 	s.logger.Debug(ctx, "copy output done", slog.F("bytes", n), slog.Error(err))
 	if err != nil {
-		m.ptyOutputIoCopyError.Add(1)
+		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "output_io_copy").Add(1)
 		return xerrors.Errorf("copy error: %w", err)
 	}
 	// We've gotten all the output, but we need to wait for the process to
@@ -397,7 +398,7 @@ func (s *Server) startPTYSession(session ptySession, m sessionMetricsObject, cmd
 	// and not something to be concerned about.  But, if it's something else, we should log it.
 	if err != nil && !xerrors.As(err, &exitErr) {
 		s.logger.Warn(ctx, "wait error", slog.Error(err))
-		m.ptyWaitError.Add(1)
+		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "wait").Add(1)
 	}
 	if err != nil {
 		return xerrors.Errorf("process wait: %w", err)
