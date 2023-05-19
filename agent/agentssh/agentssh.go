@@ -113,7 +113,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		},
 		ConnectionFailedCallback: func(_ net.Conn, err error) {
 			s.logger.Warn(ctx, "ssh connection failed", slog.Error(err))
-			metrics.connectionFailedCallback.Add(1)
+			metrics.failedConnectionsTotal.Add(1)
 		},
 		Handler:     s.sessionHandler,
 		HostSigners: []ssh.Signer{randomSigner},

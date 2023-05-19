@@ -7,7 +7,7 @@ import (
 )
 
 type sshServerMetrics struct {
-	connectionFailedCallback prometheus.Counter
+	failedConnectionsTotal prometheus.Counter
 
 	// SFTP
 	sftpHandler     prometheus.Counter
@@ -47,10 +47,10 @@ type sessionMetricsObject struct {
 type sessionMetrics map[string]sessionMetricsObject
 
 func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
-	connectionFailedCallback := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "agent", Subsystem: "ssh_server", Name: "connection_failed_callback",
+	failedConnectionsTotal := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "failed_connections_total",
 	})
-	registerer.MustRegister(connectionFailedCallback)
+	registerer.MustRegister(failedConnectionsTotal)
 
 	sftpHandler := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "agent", Subsystem: "ssh_server", Name: "sftp_handler",
@@ -80,12 +80,12 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	sessions := newSessionMetrics(registerer)
 
 	return &sshServerMetrics{
-		connectionFailedCallback: connectionFailedCallback,
-		sftpHandler:              sftpHandler,
-		sftpServerError:          sftpServerError,
-		x11HostnameError:         x11HostnameError,
-		x11SocketDirError:        x11SocketDirError,
-		x11XauthorityError:       x11XauthorityError,
+		failedConnectionsTotal: failedConnectionsTotal,
+		sftpHandler:            sftpHandler,
+		sftpServerError:        sftpServerError,
+		x11HostnameError:       x11HostnameError,
+		x11SocketDirError:      x11SocketDirError,
+		x11XauthorityError:     x11XauthorityError,
 
 		sessions: sessions,
 	}
