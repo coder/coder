@@ -387,11 +387,10 @@ func urlPort(u string) (int, error) {
 }
 
 func prometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
-	// We don't have any other internal metrics so far, so it's safe to expose metrics this way.
-	// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 
+		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
 		clientmetric.WritePrometheusExpositionFormat(w)
 
 		metricFamilies, err := prometheusRegistry.Gather()

@@ -20,6 +20,7 @@ type sshServerMetrics struct {
 
 	// X11
 	x11SocketDirError  prometheus.Counter
+	x11HostnameError   prometheus.Counter
 	x11XauthorityError prometheus.Counter
 
 	sessions sessionMetrics
@@ -86,6 +87,11 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	})
 	registerer.MustRegister(sftpServerError)
 
+	x11HostnameError := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "agent", Subsystem: "ssh_server", Name: "x11_hostname_error",
+	})
+	registerer.MustRegister(x11HostnameError)
+
 	x11SocketDirError := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "agent", Subsystem: "ssh_server", Name: "x11_socket_dir_error",
 	})
@@ -106,6 +112,7 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 		x11Callback:                   x11Callback,
 		sftpHandler:                   sftpHandler,
 		sftpServerError:               sftpServerError,
+		x11HostnameError:              x11HostnameError,
 		x11SocketDirError:             x11SocketDirError,
 		x11XauthorityError:            x11XauthorityError,
 
