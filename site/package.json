@@ -123,7 +123,7 @@
     "@typescript-eslint/eslint-plugin": "5.50.0",
     "@typescript-eslint/parser": "5.45.1",
     "@xstate/cli": "0.3.0",
-    "chromatic": "6.15.0",
+    "chromatic": "6.17.4",
     "eslint": "8.35.0",
     "eslint-config-prettier": "8.5.0",
     "eslint-import-resolver-typescript": "3.5.0",
