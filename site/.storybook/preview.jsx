@@ -1,37 +1,26 @@
-import CssBaseline from "@mui/material/CssBaseline"
-import { StyledEngineProvider, ThemeProvider } from "@mui/material/styles"
-import { createMemoryHistory } from "history"
-import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
-import { HelmetProvider } from "react-helmet-async"
-import { dark } from "../src/theme"
 import "../src/theme/globalFonts"
 import "../src/i18n"
+import { initialize, mswDecorator } from "msw-storybook-addon"
+import { handlers } from "../src/testHelpers/handlers"
+import { AppProviders } from "../src/app"
 
-const history = createMemoryHistory()
+// Initialize MSW
+
+initialize({
+  onUnhandledRequest: (req, print) => {
+    if (req.url.pathname.startsWith("/api")) {
+      print.warning()
+    }
+  },
+})
 
 export const decorators = [
   (Story) => (
-    <StyledEngineProvider injectFirst>
-      <ThemeProvider theme={dark}>
-        <CssBaseline />
-        <Story />
-      </ThemeProvider>
-    </StyledEngineProvider>
+    <AppProviders>
+      <Story />
+    </AppProviders>
   ),
-  (Story) => {
-    return (
-      <HistoryRouter history={history}>
-        <Story />
-      </HistoryRouter>
-    )
-  },
-  (Story) => {
-    return (
-      <HelmetProvider>
-        <Story />
-      </HelmetProvider>
-    )
-  },
+  mswDecorator,
 ]
 
 export const parameters = {
@@ -44,5 +33,8 @@ export const parameters = {
       color: /(background|color)$/i,
       date: /Date$/,
     },
+  },
+  msw: {
+    handlers,
   },
 }

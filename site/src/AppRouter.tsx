@@ -11,7 +11,13 @@ import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
 import { FC, lazy, Suspense } from "react"
-import { Route, Routes, BrowserRouter as Router } from "react-router-dom"
+import {
+  Route,
+  Routes,
+  BrowserRouter,
+  MemoryRouter,
+  MemoryRouterProps,
+} from "react-router-dom"
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
@@ -180,10 +186,17 @@ const TemplateEmbedPage = lazy(
   () => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
 )
 
-export const AppRouter: FC = () => {
+export type AppRouterProps =
+  | ({ component: typeof MemoryRouter } & MemoryRouterProps)
+  | { component: typeof BrowserRouter }
+
+export const AppRouter: FC<AppRouterProps> = ({
+  component: Router,
+  ...routerProps
+}) => {
   return (
     <Suspense fallback={<FullScreenLoader />}>
-      <Router>
+      <Router {...routerProps}>
         <Routes>
           <Route path="login" element={<LoginPage />} />
           <Route path="setup" element={<SetupPage />} />
