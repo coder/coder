@@ -1,8 +1,9 @@
 package httpmw
 
 import (
-	"github.com/go-chi/cors"
 	"net/http"
+
+	"github.com/go-chi/cors"
 )
 
 func CorsMW(allowAll bool, origins ...string) func(next http.Handler) http.Handler {
