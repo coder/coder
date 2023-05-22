@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
@@ -190,22 +189,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 	// The primary coderd dashboard needs to make some GET requests to
 	// the workspace proxies to check latency.
-	origins := []string{
-		// Allow the dashboard to make requests to the proxy for latency
-		// checks.
-		opts.DashboardURL.String(),
-	}
-	if opts.DangerousAllowAllCors {
-		origins = append(origins, "*")
-	}
-	corsMW := cors.Handler(cors.Options{
-		AllowedOrigins: origins,
-		// Only allow GET requests for latency checks.
-		AllowedMethods: []string{http.MethodOptions, http.MethodGet},
-		AllowedHeaders: []string{"Accept", "Content-Type", "X-LATENCY-CHECK", "X-CSRF-TOKEN"},
-		// Do not send any cookies
-		AllowCredentials: false,
-	})
+	corsMW := httpmw.CorsMW(opts.DangerousAllowAllCors, opts.DashboardURL.String())
 
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)

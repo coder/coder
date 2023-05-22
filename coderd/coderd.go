@@ -393,22 +393,7 @@ func New(options *Options) *API {
 
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
-
-	// By default, the app will never set any cors headers. If the AllowAllCors is provided, then
-	// we should add the appropriate cors headers.
-	cors := func(next http.Handler) http.Handler {
-		return next
-	}
-	if options.DeploymentValues.Dangerous.AllowAllCors {
-		cors = func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				rw.Header().Set("Access-Control-Allow-Origin", "*")
-				rw.Header().Set("Access-Control-Allow-Headers", "*")
-				rw.Header().Set("Access-Control-Allow-Methods", "*")
-				next.ServeHTTP(rw, r)
-			})
-		}
-	}
+	cors := httpmw.CorsMW(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 
 	r.Use(
 		cors,
