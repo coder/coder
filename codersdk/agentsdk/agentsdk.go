@@ -10,6 +10,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -583,6 +584,109 @@ func (c *Client) PatchStartupLogs(ctx context.Context, req PatchStartupLogs) err
 		return codersdk.ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// QueueStartupLogs debounces log messages at an interval and bulk-writes them using the patch method.
+// No requests are made immediately when calling this function, all happened async.
+//
+// This function is used by API consumers to send startup logs to the server.
+func (c *Client) QueueStartupLogs(ctx context.Context, debounce time.Duration) (func(log StartupLog), io.Closer) {
+	if debounce == 0 {
+		debounce = 250 * time.Millisecond
+	}
+	logChan := make(chan StartupLog, 100)
+	closeChan := make(chan struct{})
+	closed := make(chan struct{})
+	closeMutex := sync.Mutex{}
+
+	var lastSendErr error
+	sendLogsWithRetry := func(logs []StartupLog) {
+		// We don't want to send logs indefinitely, as idle services could
+		// be spamming a coderd instance. Instead, we extend a lengthy timeout
+		// to allow for intermittent service disruption.
+		ctx, cancelFunc := context.WithTimeout(ctx, 15*time.Minute)
+		defer cancelFunc()
+		for r := retry.New(250*time.Millisecond, 5*time.Second); r.Wait(ctx); {
+			err := c.PatchStartupLogs(ctx, PatchStartupLogs{
+				Logs: logs,
+			})
+			if err == nil {
+				lastSendErr = nil
+				return
+			}
+			var sdkErr *codersdk.Error
+			if xerrors.As(err, &sdkErr) {
+				lastSendErr = sdkErr
+				if sdkErr.StatusCode() == http.StatusRequestEntityTooLarge {
+					c.SDK.Logger.Warn(ctx, "startup logs too large, dropping logs", slog.F("count", len(logs)))
+					break
+				}
+				if sdkErr.StatusCode() == http.StatusUnauthorized {
+					continue
+				}
+			}
+			c.SDK.Logger.Warn(ctx, "upload startup logs failed", slog.Error(err), slog.F("count", len(logs)))
+		}
+		if ctx.Err() != nil {
+			c.SDK.Logger.Warn(ctx, "startup logs failed to send in time", slog.Error(lastSendErr), slog.F("count", len(logs)))
+		}
+	}
+
+	go func() {
+		defer close(closed)
+		queuedLogs := make([]StartupLog, 0, 100)
+		for {
+			select {
+			case <-time.After(debounce):
+				if len(queuedLogs) == 0 {
+					break
+				}
+				sendLogsWithRetry(queuedLogs)
+				queuedLogs = nil
+			case log := <-logChan:
+				queuedLogs = append(queuedLogs, log)
+				if len(queuedLogs) < 100 {
+					break
+				}
+				sendLogsWithRetry(queuedLogs)
+				queuedLogs = nil
+			case <-closeChan:
+				close(logChan)
+				for log := range logChan {
+					queuedLogs = append(queuedLogs, log)
+				}
+				if len(queuedLogs) > 0 {
+					sendLogsWithRetry(queuedLogs)
+				}
+				return
+			case <-ctx.Done():
+				// Return immediately without sending, because we can't
+				// send requests with a closed context.
+				return
+			}
+		}
+	}()
+	return func(log StartupLog) {
+			closeMutex.Lock()
+			defer closeMutex.Unlock()
+			select {
+			case <-closed:
+				return
+			case logChan <- log:
+			case <-ctx.Done():
+			}
+		}, closeFunc(func() error {
+			closeMutex.Lock()
+			defer closeMutex.Unlock()
+			select {
+			case <-closed:
+				return nil
+			default:
+			}
+			close(closeChan)
+			<-closed
+			return lastSendErr
+		})
 }
 
 type GitAuthResponse struct {
