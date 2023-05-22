@@ -60,7 +60,8 @@ type Options struct {
 	SecureAuthCookie bool
 	DisablePathApps  bool
 
-	ProxySessionToken string
+	ProxySessionToken     string
+	DangerousAllowAllCors bool
 }
 
 func (o *Options) Validate() error {
@@ -189,12 +190,16 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 	// The primary coderd dashboard needs to make some GET requests to
 	// the workspace proxies to check latency.
+	origins := []string{
+		// Allow the dashboard to make requests to the proxy for latency
+		// checks.
+		opts.DashboardURL.String(),
+	}
+	if opts.DangerousAllowAllCors {
+		origins = append(origins, "*")
+	}
 	corsMW := cors.Handler(cors.Options{
-		AllowedOrigins: []string{
-			// Allow the dashboard to make requests to the proxy for latency
-			// checks.
-			opts.DashboardURL.String(),
-		},
+		AllowedOrigins: origins,
 		// Only allow GET requests for latency checks.
 		AllowedMethods: []string{http.MethodOptions, http.MethodGet},
 		AllowedHeaders: []string{"Accept", "Content-Type", "X-LATENCY-CHECK", "X-CSRF-TOKEN"},
@@ -266,7 +271,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// See coderd/coderd.go for why we need this.
 	rootRouter := chi.NewRouter()
 	// Make sure to add the cors middleware to the latency check route.
-	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck(s.DashboardURL, s.AppServer.AccessURL)).ServeHTTP)
+	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck(opts.DangerousAllowAllCors, s.DashboardURL, s.AppServer.AccessURL)).ServeHTTP)
 	rootRouter.Mount("/", r)
 	s.Handler = rootRouter
 

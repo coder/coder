@@ -232,19 +232,20 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			}
 
 			proxy, err := wsproxy.New(ctx, &wsproxy.Options{
-				Logger:             logger,
-				HTTPClient:         httpClient,
-				DashboardURL:       primaryAccessURL.Value(),
-				AccessURL:          cfg.AccessURL.Value(),
-				AppHostname:        appHostname,
-				AppHostnameRegex:   appHostnameRegex,
-				RealIPConfig:       realIPConfig,
-				Tracing:            tracer,
-				PrometheusRegistry: prometheusRegistry,
-				APIRateLimit:       int(cfg.RateLimit.API.Value()),
-				SecureAuthCookie:   cfg.SecureAuthCookie.Value(),
-				DisablePathApps:    cfg.DisablePathApps.Value(),
-				ProxySessionToken:  proxySessionToken.Value(),
+				Logger:                logger,
+				HTTPClient:            httpClient,
+				DashboardURL:          primaryAccessURL.Value(),
+				AccessURL:             cfg.AccessURL.Value(),
+				AppHostname:           appHostname,
+				AppHostnameRegex:      appHostnameRegex,
+				RealIPConfig:          realIPConfig,
+				Tracing:               tracer,
+				PrometheusRegistry:    prometheusRegistry,
+				APIRateLimit:          int(cfg.RateLimit.API.Value()),
+				SecureAuthCookie:      cfg.SecureAuthCookie.Value(),
+				DisablePathApps:       cfg.DisablePathApps.Value(),
+				ProxySessionToken:     proxySessionToken.Value(),
+				DangerousAllowAllCors: cfg.Dangerous.AllowAllCors.Value(),
 			})
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
