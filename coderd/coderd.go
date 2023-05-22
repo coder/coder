@@ -394,7 +394,24 @@ func New(options *Options) *API {
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 
+	// By default, the app will never set any cors headers. If the AllowAllCors is provided, then
+	// we should add the appropriate cors headers.
+	cors := func(next http.Handler) http.Handler {
+		return next
+	}
+	if options.DeploymentValues.Dangerous.AllowAllCors {
+		cors = func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				rw.Header().Set("Access-Control-Allow-Origin", "*")
+				rw.Header().Set("Access-Control-Allow-Headers", "*")
+				rw.Header().Set("Access-Control-Allow-Methods", "*")
+				next.ServeHTTP(rw, r)
+			})
+		}
+	}
+
 	r.Use(
+		cors,
 		httpmw.Recover(api.Logger),
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
@@ -817,7 +834,7 @@ func New(options *Options) *API {
 	// This is the only route we add before all the middleware.
 	// We want to time the latency of the request, so any middleware will
 	// interfere with that timing.
-	rootRouter.Get("/latency-check", LatencyCheck(options.DeploymentValues.Dangerous.AllowAllCors.Value(), api.AccessURL))
+	rootRouter.Get("/latency-check", cors(LatencyCheck(options.DeploymentValues.Dangerous.AllowAllCors.Value(), api.AccessURL)).ServeHTTP)
 	rootRouter.Mount("/", r)
 	api.RootHandler = rootRouter
 
