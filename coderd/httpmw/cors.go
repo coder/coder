@@ -7,7 +7,7 @@ import (
 )
 
 //nolint:revive
-func CorsMW(allowAll bool, origins ...string) func(next http.Handler) http.Handler {
+func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler {
 	if len(origins) == 0 {
 		// The default behavior is '*', so putting the empty string defaults to
 		// the secure behavior of blocking CORs requests.

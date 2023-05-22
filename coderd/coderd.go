@@ -393,7 +393,7 @@ func New(options *Options) *API {
 
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
-	cors := httpmw.CorsMW(options.DeploymentValues.Dangerous.AllowAllCors.Value())
+	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 
 	r.Use(
 		cors,
