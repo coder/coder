@@ -111,9 +111,6 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     setProxy(
       getPreferredProxy(
         proxiesResp?.regions ?? [],
-        // For some reason if I use 'userSavedProxy' here,
-        // the tests fail. It does not load "undefined" after a
-        // clear, but takes the previous value.
         loadUserSelectedProxy(),
         proxyLatencies,
       ),
