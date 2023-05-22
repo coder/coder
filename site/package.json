@@ -7,7 +7,7 @@
     "postinstall": "yarn typegen",
     "build": "NODE_ENV=production yarn vite build",
     "check:all": "yarn format:check && yarn lint && yarn test",
-    "chromatic": "chromatic",
+    "chromatic": "chromatic --zip --auto-accept-changes --ci --only-changed",
     "dev": "vite",
     "format:check": "prettier --cache --check '../**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "format:types": "prettier --write 'src/api/typesGenerated.ts'",

@@ -26,6 +26,8 @@ parserOptions:
   # REMARK(Grey): We might want to move this to repository root eventually to
   #               lint multiple projects (supply array to project property).
   tsconfigRootDir: "./"
+ignorePatterns:
+  - "mockServiceWorker.js"
 plugins:
   - "@typescript-eslint"
   - import
