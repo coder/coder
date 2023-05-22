@@ -56,6 +56,7 @@ type annotatedMetric struct {
 	username      string
 	workspaceName string
 	agentName     string
+	labels        []agentsdk.AgentMetricLabel
 
 	expiryDate time.Time
 }
@@ -122,7 +123,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 			UpdateLoop:
 				for _, m := range req.metrics {
 					for i, q := range ma.queue {
-						if q.username == req.username && q.workspaceName == req.workspaceName && q.agentName == req.agentName && q.Name == m.Name {
+						if q.username == req.username && q.workspaceName == req.workspaceName && q.agentName == req.agentName && q.Name == m.Name && q.labels == m.Labels {
 							ma.queue[i].AgentMetric.Value = m.Value
 							ma.queue[i].expiryDate = req.timestamp.Add(ma.metricsCleanupInterval)
 							continue UpdateLoop
