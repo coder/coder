@@ -9,6 +9,8 @@ import (
 // LatencyCheck is an endpoint for the web ui to measure latency with.
 // allowAll allows any Origin to get timing information. The allowAll should
 // only be set in dev modes.
+//
+//nolint:revive
 func LatencyCheck(allowAll bool, allowedOrigins ...*url.URL) http.HandlerFunc {
 	allowed := make([]string, 0, len(allowedOrigins))
 	for _, origin := range allowedOrigins {
