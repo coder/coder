@@ -393,8 +393,10 @@ func New(options *Options) *API {
 
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 
 	r.Use(
+		cors,
 		httpmw.Recover(api.Logger),
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
@@ -799,6 +801,10 @@ func New(options *Options) *API {
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspMW := httpmw.CSPHeaders(func() []string {
+		if api.DeploymentValues.Dangerous.AllowAllCors {
+			// In this mode, allow all external requests
+			return []string{"*"}
+		}
 		if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
 			return (*f)()
 		}
@@ -813,7 +819,7 @@ func New(options *Options) *API {
 	// This is the only route we add before all the middleware.
 	// We want to time the latency of the request, so any middleware will
 	// interfere with that timing.
-	rootRouter.Get("/latency-check", LatencyCheck(api.AccessURL))
+	rootRouter.Get("/latency-check", cors(LatencyCheck(options.DeploymentValues.Dangerous.AllowAllCors.Value(), api.AccessURL)).ServeHTTP)
 	rootRouter.Mount("/", r)
 	api.RootHandler = rootRouter
 

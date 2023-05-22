@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
@@ -61,6 +60,10 @@ type Options struct {
 	DisablePathApps  bool
 
 	ProxySessionToken string
+	// AllowAllCors will set all CORs headers to '*'.
+	// By default, CORs is set to accept external requests
+	// from the dashboardURL. This should only be used in development.
+	AllowAllCors bool
 }
 
 func (o *Options) Validate() error {
@@ -189,18 +192,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 	// The primary coderd dashboard needs to make some GET requests to
 	// the workspace proxies to check latency.
-	corsMW := cors.Handler(cors.Options{
-		AllowedOrigins: []string{
-			// Allow the dashboard to make requests to the proxy for latency
-			// checks.
-			opts.DashboardURL.String(),
-		},
-		// Only allow GET requests for latency checks.
-		AllowedMethods: []string{http.MethodOptions, http.MethodGet},
-		AllowedHeaders: []string{"Accept", "Content-Type", "X-LATENCY-CHECK", "X-CSRF-TOKEN"},
-		// Do not send any cookies
-		AllowCredentials: false,
-	})
+	corsMW := httpmw.Cors(opts.AllowAllCors, opts.DashboardURL.String())
 
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)
@@ -266,7 +258,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// See coderd/coderd.go for why we need this.
 	rootRouter := chi.NewRouter()
 	// Make sure to add the cors middleware to the latency check route.
-	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck(s.DashboardURL, s.AppServer.AccessURL)).ServeHTTP)
+	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck(opts.AllowAllCors, s.DashboardURL, s.AppServer.AccessURL)).ServeHTTP)
 	rootRouter.Mount("/", r)
 	s.Handler = rootRouter
 
