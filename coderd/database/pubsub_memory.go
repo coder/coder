@@ -7,20 +7,34 @@ import (
 	"github.com/google/uuid"
 )
 
+// genericListener is either a Listener or ListenerWithErr
+type genericListener struct {
+	l  Listener
+	le ListenerWithErr
+}
+
 // memoryPubsub is an in-memory Pubsub implementation.
 type memoryPubsub struct {
 	mut       sync.RWMutex
-	listeners map[string]map[uuid.UUID]Listener
+	listeners map[string]map[uuid.UUID]genericListener
 }
 
 func (m *memoryPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {
+	return m.subscribe(event, genericListener{l: listener})
+}
+
+func (m *memoryPubsub) SubscribeWithErr(event string, listener ListenerWithErr) (cancel func(), err error) {
+	return m.subscribe(event, genericListener{le: listener})
+}
+
+func (m *memoryPubsub) subscribe(event string, listener genericListener) (cancel func(), err error) {
 	m.mut.Lock()
 	defer m.mut.Unlock()
 
-	var listeners map[uuid.UUID]Listener
+	var listeners map[uuid.UUID]genericListener
 	var ok bool
 	if listeners, ok = m.listeners[event]; !ok {
-		listeners = map[uuid.UUID]Listener{}
+		listeners = map[uuid.UUID]genericListener{}
 		m.listeners[event] = listeners
 	}
 	var id uuid.UUID
@@ -52,7 +66,12 @@ func (m *memoryPubsub) Publish(event string, message []byte) error {
 		listener := listener
 		go func() {
 			defer wg.Done()
-			listener(context.Background(), message)
+			if listener.l != nil {
+				listener.l(context.Background(), message)
+			}
+			if listener.le != nil {
+				listener.le(context.Background(), message, nil)
+			}
 		}()
 	}
 	wg.Wait()
@@ -66,6 +85,6 @@ func (*memoryPubsub) Close() error {
 
 func NewPubsubInMemory() Pubsub {
 	return &memoryPubsub{
-		listeners: make(map[string]map[uuid.UUID]Listener),
+		listeners: make(map[string]map[uuid.UUID]genericListener),
 	}
 }
