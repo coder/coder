@@ -486,7 +486,6 @@ func (b *Builder) getLastBuild() (*database.WorkspaceBuild, error) {
 		return nil, *b.lastBuildErr
 	}
 	bld, err := b.store.GetLatestWorkspaceBuildByWorkspaceID(b.ctx, b.workspace.ID)
-
 	if err != nil {
 		err = xerrors.Errorf("get workspace %s last build: %w", b.workspace.ID, err)
 		b.lastBuildErr = &err
