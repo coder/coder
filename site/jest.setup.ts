@@ -8,6 +8,7 @@ import { Blob } from "buffer"
 import jestFetchMock from "jest-fetch-mock"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
 import { RegionsResponse } from "api/typesGenerated"
+import { useMemo } from "react"
 
 jestFetchMock.enableMocks()
 
@@ -16,20 +17,25 @@ jestFetchMock.enableMocks()
 // actual network requests. So just globally mock this hook.
 jest.mock("contexts/useProxyLatency", () => ({
   useProxyLatency: (proxies?: RegionsResponse) => {
-    if (!proxies) {
-      return {} as Record<string, ProxyLatencyReport>
-    }
-
-    return proxies.regions.reduce((acc, proxy) => {
-      acc[proxy.id] = {
-        accurate: true,
-        // Return a constant latency of 8ms.
-        // If you make this random it could break stories.
-        latencyMS: 8,
-        at: new Date(),
+    // Must use `useMemo` here to avoid infinite loop.
+    // Mocking the hook with a hook.
+    const latencies = useMemo(() => {
+      if (!proxies) {
+        return {} as Record<string, ProxyLatencyReport>
       }
-      return acc
-    }, {} as Record<string, ProxyLatencyReport>)
+      return proxies.regions.reduce((acc, proxy) => {
+        acc[proxy.id] = {
+          accurate: true,
+          // Return a constant latency of 8ms.
+          // If you make this random it could break stories.
+          latencyMS: 8,
+          at: new Date(),
+        }
+        return acc
+      }, {} as Record<string, ProxyLatencyReport>)
+    }, [proxies])
+
+    return latencies
   },
 }))
 

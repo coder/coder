@@ -65,6 +65,9 @@ const TemplateFC = (
         setProxy: () => {
           return
         },
+        clearProxy: () => {
+          return
+        },
       }}
     >
       <AgentRow {...args} />
