@@ -7252,6 +7252,9 @@ const docTemplate = `{
         "codersdk.DangerousConfig": {
             "type": "object",
             "properties": {
+                "allow_all_cors": {
+                    "type": "boolean"
+                },
                 "allow_path_app_sharing": {
                     "type": "boolean"
                 },

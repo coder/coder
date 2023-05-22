@@ -1800,6 +1800,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
+  "allow_all_cors": true,
   "allow_path_app_sharing": true,
   "allow_path_app_site_owner_access": true
 }
@@ -1809,6 +1810,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 | Name                               | Type    | Required | Restrictions | Description |
 | ---------------------------------- | ------- | -------- | ------------ | ----------- |
+| `allow_all_cors`                   | boolean | false    |              |             |
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
@@ -1857,6 +1859,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "sshconfigOptions": ["string"]
     },
     "dangerous": {
+      "allow_all_cors": true,
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
     },
@@ -2201,6 +2204,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "sshconfigOptions": ["string"]
   },
   "dangerous": {
+    "allow_all_cors": true,
     "allow_path_app_sharing": true,
     "allow_path_app_site_owner_access": true
   },
