@@ -73,3 +73,6 @@ terraform.tfstate.*
 
 # Testdata shouldn't be formatted.
 ../scripts/apitypings/testdata/**/*.ts
+
+# Auto generated file from MSW
+static/mockServiceWorker.js
