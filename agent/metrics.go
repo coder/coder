@@ -6,7 +6,10 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+	prompb "github.com/prometheus/client_model/go"
 	"tailscale.com/util/clientmetric"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/codersdk/agentsdk"
 )
@@ -55,8 +58,7 @@ func (a *agent) collectMetrics(ctx context.Context) []agentsdk.AgentMetric {
 		})
 	}
 
-	// FIXME Agent metrics
-	/*metricFamilies, err := a.prometheusRegistry.Gather()
+	metricFamilies, err := a.prometheusRegistry.Gather()
 	if err != nil {
 		a.logger.Error(ctx, "can't gather agent metrics", slog.Error(err))
 		return collected
@@ -64,24 +66,43 @@ func (a *agent) collectMetrics(ctx context.Context) []agentsdk.AgentMetric {
 
 	for _, metricFamily := range metricFamilies {
 		for _, metric := range metricFamily.GetMetric() {
+			labels := toAgentMetricLabels(metric.Label)
+
 			if metric.Counter != nil {
 				collected = append(collected, agentsdk.AgentMetric{
-					Name:  metricFamily.GetName(),
-					Type:  agentsdk.AgentMetricTypeCounter,
-					Value: metric.Counter.GetValue(),
+					Name:   metricFamily.GetName(),
+					Type:   agentsdk.AgentMetricTypeCounter,
+					Value:  metric.Counter.GetValue(),
+					Labels: labels,
 				})
 			} else if metric.Gauge != nil {
 				collected = append(collected, agentsdk.AgentMetric{
-					Name:  metricFamily.GetName(),
-					Type:  agentsdk.AgentMetricTypeGauge,
-					Value: metric.Gauge.GetValue(),
+					Name:   metricFamily.GetName(),
+					Type:   agentsdk.AgentMetricTypeGauge,
+					Value:  metric.Gauge.GetValue(),
+					Labels: labels,
 				})
 			} else {
 				a.logger.Error(ctx, "unsupported metric type", slog.F("type", metricFamily.Type.String()))
 			}
 		}
-	}*/
+	}
 	return collected
+}
+
+func toAgentMetricLabels(metricLabels []*prompb.LabelPair) []agentsdk.AgentMetricLabel {
+	if len(metricLabels) == 0 {
+		return nil
+	}
+
+	labels := make([]agentsdk.AgentMetricLabel, 0, len(metricLabels))
+	for _, metricLabel := range metricLabels {
+		labels = append(labels, agentsdk.AgentMetricLabel{
+			Name:  metricLabel.GetName(),
+			Value: metricLabel.GetValue(),
+		})
+	}
+	return labels
 }
 
 // isIgnoredMetric checks if the metric should be ignored, as Coder agent doesn't use related features.

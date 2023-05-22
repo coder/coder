@@ -59,11 +59,10 @@ func Test_sessionStart_orphan(t *testing.T) {
 	go func() {
 		defer close(done)
 
-		m := metricsForSession(s.metrics.sessions, "ssh")
 		// we don't really care what the error is here.  In the larger scenario,
 		// the client has disconnected, so we can't return any error information
 		// to them.
-		_ = s.startPTYSession(sess, m, cmd, ptyInfo, windowSize)
+		_ = s.startPTYSession(sess, "ssh", cmd, ptyInfo, windowSize)
 	}()
 
 	readDone := make(chan struct{})
