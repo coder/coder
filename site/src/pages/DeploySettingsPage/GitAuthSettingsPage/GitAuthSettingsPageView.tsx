@@ -6,7 +6,7 @@ import TableContainer from "@mui/material/TableContainer"
 import TableHead from "@mui/material/TableHead"
 import TableRow from "@mui/material/TableRow"
 import { DeploymentValues, GitAuthConfig } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
 import { Header } from "components/DeploySettingsLayout/Header"
 
@@ -40,11 +40,9 @@ export const GitAuthSettingsPageView = ({
       />
 
       <div className={styles.description}>
-        <AlertBanner
-          severity="info"
-          text="Integrating with multiple Git providers is an Enterprise feature."
-          actions={[<EnterpriseBadge key="enterprise" />]}
-        />
+        <Alert severity="info" actions={[<EnterpriseBadge key="enterprise" />]}>
+          Integrating with multiple Git providers is an Enterprise feature.
+        </Alert>
       </div>
 
       <TableContainer>

@@ -185,27 +185,3 @@ export const getDisplayWorkspaceTemplateName = (
     ? workspace.template_display_name
     : workspace.template_name
 }
-
-// This const dictates how far out we alert the user that a workspace
-// has an impending deletion (due to template.InactivityTTL being set)
-const IMPENDING_DELETION_DISPLAY_THRESHOLD = 14 // 14 days
-
-/**
- * Returns a boolean indicating if an impending deletion indicator should be
- * displayed in the UI. Impending deletions are configured by setting the
- * Template.InactivityTTL
- * @param {TypesGen.Workspace} workspace
- * @returns {boolean}
- */
-export const displayImpendingDeletion = (workspace: TypesGen.Workspace) => {
-  const today = new Date()
-  if (!workspace.deleting_at) {
-    return false
-  }
-  return (
-    new Date(workspace.deleting_at) <=
-    new Date(
-      today.setDate(today.getDate() + IMPENDING_DELETION_DISPLAY_THRESHOLD),
-    )
-  )
-}

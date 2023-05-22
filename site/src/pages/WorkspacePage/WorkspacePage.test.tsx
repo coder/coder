@@ -18,9 +18,11 @@ import {
   MockCanceledWorkspace,
   MockDeletingWorkspace,
   MockDeletedWorkspace,
+  MockWorkspaceWithDeletion,
   MockBuilds,
   MockTemplateVersion3,
   MockUser,
+  MockEntitlementsWithScheduling,
 } from "testHelpers/entities"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
@@ -371,6 +373,13 @@ describe("WorkspacePage", () => {
       MockDeletedWorkspace,
       t("workspaceStatus.deleted", { ns: "common" }),
     )
+  })
+
+  it("shows the Impending deletion status when the workspace is impending deletion", async () => {
+    jest
+      .spyOn(api, "getEntitlements")
+      .mockResolvedValue(MockEntitlementsWithScheduling)
+    await testStatus(MockWorkspaceWithDeletion, "Impending deletion")
   })
 
   it("shows the timeline build", async () => {

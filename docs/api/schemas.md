@@ -1564,7 +1564,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name              | Type   | Required | Restrictions | Description |
 | ----------------- | ------ | -------- | ------------ | ----------- |
 | `email`           | string | true     |              |             |
-| `organization_id` | string | true     |              |             |
+| `organization_id` | string | false    |              |             |
 | `password`        | string | true     |              |             |
 | `username`        | string | true     |              |             |
 

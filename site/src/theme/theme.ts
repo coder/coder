@@ -3,9 +3,9 @@ import { ThemeOptions, createTheme, Theme } from "@mui/material/styles"
 import { BODY_FONT_FAMILY, borderRadius } from "./constants"
 
 // MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
-const BUTTON_LG_HEIGHT = 46
-const BUTTON_MD_HEIGHT = 40
-const BUTTON_SM_HEIGHT = 36
+const BUTTON_LG_HEIGHT = 42
+const BUTTON_MD_HEIGHT = 36
+const BUTTON_SM_HEIGHT = 30
 
 export type PaletteIndex = keyof Theme["palette"]
 export type PaletteStatusIndex = Extract<
@@ -40,7 +40,7 @@ export let dark = createTheme({
     divider: colors.gray[13],
     warning: {
       light: colors.orange[7],
-      main: colors.orange[11],
+      main: colors.orange[9],
       dark: colors.orange[15],
     },
     success: {
@@ -48,13 +48,14 @@ export let dark = createTheme({
       dark: colors.green[15],
     },
     info: {
-      light: colors.blue[9],
-      main: colors.blue[11],
+      light: colors.blue[7],
+      main: colors.blue[9],
       dark: colors.blue[15],
       contrastText: colors.gray[4],
     },
     error: {
-      main: colors.red[5],
+      light: colors.red[6],
+      main: colors.red[8],
       dark: colors.red[15],
       contrastText: colors.gray[4],
     },
@@ -126,6 +127,7 @@ dark = createTheme(dark, {
           fontWeight: 500,
           height: BUTTON_MD_HEIGHT,
           padding: theme.spacing(1, 2),
+
           whiteSpace: "nowrap",
           ":focus-visible": {
             outline: `2px solid ${theme.palette.primary.main}`,
@@ -164,12 +166,12 @@ dark = createTheme(dark, {
         },
         iconSizeMedium: {
           "& > .MuiSvgIcon-root": {
-            fontSize: 16,
+            fontSize: 14,
           },
         },
         iconSizeSmall: {
           "& > .MuiSvgIcon-root": {
-            fontSize: 14,
+            fontSize: 13,
           },
         },
       },
@@ -393,6 +395,34 @@ dark = createTheme(dark, {
         tooltip: {
           lineHeight: "150%",
           borderRadius: 4,
+        },
+      },
+    },
+    MuiAlert: {
+      defaultProps: {
+        variant: "outlined",
+      },
+      styleOverrides: {
+        root: ({ theme }) => ({
+          background: theme.palette.background.paper,
+        }),
+        action: {
+          paddingTop: 2, // Idk why it is not aligned as expected
+        },
+        icon: {
+          fontSize: 16,
+          marginTop: "4px", // The size of text is 24 so (24 - 16)/2 = 4
+        },
+        message: ({ theme }) => ({
+          color: theme.palette.text.primary,
+        }),
+      },
+    },
+    MuiAlertTitle: {
+      styleOverrides: {
+        root: {
+          fontSize: "inherit",
+          marginBottom: 0,
         },
       },
     },
