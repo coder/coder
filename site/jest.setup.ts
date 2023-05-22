@@ -8,7 +8,7 @@ import { Blob } from "buffer"
 import jestFetchMock from "jest-fetch-mock"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
 import { RegionsResponse } from "api/typesGenerated"
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 
 jestFetchMock.enableMocks()
 
