@@ -36,7 +36,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230418202606-ed9307cf1b22
+replace tailscale.com => github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -49,8 +49,6 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230421140225-
 
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
-
-replace gvisor.dev/gvisor => github.com/mtojek/gvisor v0.0.0-20230512095222-5d9248648316
 
 require (
 	cdr.dev/slog v1.5.3
@@ -90,8 +88,7 @@ require (
 	github.com/gen2brain/beeep v0.0.0-20220402123239-6a3042f4b71a
 	github.com/gliderlabs/ssh v0.3.4
 	github.com/go-chi/chi v1.5.4
-	github.com/go-chi/chi/v5 v5.0.7
-	github.com/go-chi/cors v1.2.1
+	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-chi/httprate v0.7.1
 	github.com/go-chi/render v1.0.1
 	github.com/go-jose/go-jose/v3 v3.0.0
@@ -178,6 +175,8 @@ require (
 	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
 	tailscale.com v1.32.2
 )
+
+require github.com/go-chi/cors v1.2.1
 
 require (
 	cloud.google.com/go/compute v1.19.0 // indirect
