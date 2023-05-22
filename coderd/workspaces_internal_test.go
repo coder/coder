@@ -108,8 +108,8 @@ func TestSortWorkspaces(t *testing.T) {
 	workspaceRunningUserA := workspaceFactory(t, "running-userA", userAuuid, "userA", codersdk.WorkspaceStatusRunning, time.Now())
 	workspaceRunningUserB := workspaceFactory(t, "running-userB", uuid.New(), "userB", codersdk.WorkspaceStatusRunning, time.Now())
 	workspacePendingUserC := workspaceFactory(t, "pending-userC", uuid.New(), "userC", codersdk.WorkspaceStatusPending, time.Now())
-	workspaceRunningUserA2 := workspaceFactory(t, "running-userA2", userAuuid, "userA", codersdk.WorkspaceStatusRunning, time.Now())
-	workspaceRunningUserZ := workspaceFactory(t, "running-userZ", uuid.New(), "userZ", codersdk.WorkspaceStatusRunning, time.Now().Add(time.Minute))
+	workspaceRunningUserA2 := workspaceFactory(t, "running-userA2", userAuuid, "userA", codersdk.WorkspaceStatusRunning, time.Now().Add(time.Minute))
+	workspaceRunningUserZ := workspaceFactory(t, "running-userZ", uuid.New(), "userZ", codersdk.WorkspaceStatusRunning, time.Now())
 	workspaceRunningUserA3 := workspaceFactory(t, "running-userA3", userAuuid, "userA", codersdk.WorkspaceStatusRunning, time.Now().Add(time.Hour))
 
 	testCases := []struct {
