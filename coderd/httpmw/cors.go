@@ -7,6 +7,11 @@ import (
 )
 
 func CorsMW(allowAll bool, origins ...string) func(next http.Handler) http.Handler {
+	if len(origins) == 0 {
+		// The default behavior is '*', so putting the empty string defaults to
+		// the secure behavior of blocking CORs requests.
+		origins = []string{""}
+	}
 	if allowAll {
 		origins = []string{"*"}
 	}
