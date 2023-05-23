@@ -14,6 +14,7 @@ type Story = StoryObj<typeof UsersPage>
 export const Admin: Story = {
   parameters: {
     layout: "fullscreen",
+    router: false,
   },
   render: () => (
     <DashboardPage
