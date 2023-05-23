@@ -96,12 +96,12 @@ func Is404Error(err error) bool {
 // Convenience error functions don't take contexts since their responses are
 // static, it doesn't make much sense to trace them.
 
+var ResourceNotFoundResponse = codersdk.Response{Message: "Resource not found or you do not have access to this resource"}
+
 // ResourceNotFound is intentionally vague. All 404 responses should be identical
 // to prevent leaking existence of resources.
 func ResourceNotFound(rw http.ResponseWriter) {
-	Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
-		Message: "Resource not found or you do not have access to this resource",
-	})
+	Write(context.Background(), rw, http.StatusNotFound, ResourceNotFoundResponse)
 }
 
 func Forbidden(rw http.ResponseWriter) {

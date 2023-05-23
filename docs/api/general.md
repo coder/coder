@@ -161,6 +161,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "sshconfigOptions": ["string"]
     },
     "dangerous": {
+      "allow_all_cors": true,
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
     },
