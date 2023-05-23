@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,8 +31,8 @@ type Cache struct {
 	log       slog.Logger
 	intervals Intervals
 
-	deploymentDAUResponses   atomic.Pointer[codersdk.DAUsResponse]
-	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.DAUsResponse]
+	deploymentDAUResponses   atomic.Pointer[map[int]codersdk.DAUsResponse]
+	templateDAUResponses     atomic.Pointer[map[int]map[uuid.UUID]codersdk.DAUsResponse]
 	templateUniqueUsers      atomic.Pointer[map[uuid.UUID]int]
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
@@ -161,8 +162,8 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	}
 
 	var (
-		deploymentDAUs            = codersdk.DAUsResponse{}
-		templateDAUs              = make(map[uuid.UUID]codersdk.DAUsResponse, len(templates))
+		deploymentDAUs            = map[int]codersdk.DAUsResponse{}
+		templateDAUs              = make(map[int]map[uuid.UUID]codersdk.DAUsResponse, len(templates))
 		templateUniqueUsers       = make(map[uuid.UUID]int)
 		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
 	)
@@ -171,7 +172,7 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	deploymentDAUs = convertDAUResponse(rows)
+	deploymentDAUs[0] = convertDAUResponse(rows)
 	c.deploymentDAUResponses.Store(&deploymentDAUs)
 
 	for _, template := range templates {
@@ -182,7 +183,7 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		templateDAUs[template.ID] = convertDAUResponse(rows)
+		templateDAUs[0][template.ID] = convertDAUResponse(rows)
 		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
 
 		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx, database.GetTemplateAverageBuildTimeParams{
@@ -284,26 +285,76 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) DeploymentDAUs() (*codersdk.DAUsResponse, bool) {
+func (c *Cache) DeploymentDAUs(offset int) (int, *codersdk.DAUsResponse, bool) {
 	m := c.deploymentDAUResponses.Load()
-	return m, m != nil
+	if m == nil {
+		return 0, nil, false
+	}
+	closestOffset, resp, ok := closest(*m, offset)
+	if !ok {
+		return 0, nil, false
+	}
+	return closestOffset, &resp, ok
 }
 
 // TemplateDAUs returns an empty response if the template doesn't have users
 // or is loading for the first time.
-func (c *Cache) TemplateDAUs(id uuid.UUID) (*codersdk.DAUsResponse, bool) {
+// The cache will select the closest DAUs response to given timezone offset.
+func (c *Cache) TemplateDAUs(id uuid.UUID, offset int) (int, *codersdk.DAUsResponse, bool) {
 	m := c.templateDAUResponses.Load()
 	if m == nil {
 		// Data loading.
-		return nil, false
+		return 0, nil, false
 	}
 
-	resp, ok := (*m)[id]
+	closestOffset, resp, ok := closest(*m, offset)
 	if !ok {
 		// Probably no data.
-		return nil, false
+		return 0, nil, false
 	}
-	return &resp, true
+
+	tpl, ok := resp[id]
+	if !ok {
+		// Probably no data.
+		return 0, nil, false
+	}
+
+	return closestOffset, &tpl, true
+}
+
+// closest returns the value in the values map that has a key with the value most
+// close to the requested key. This is so if a user requests a timezone offset that
+// we do not have, we return the closest one we do have to the user.
+func closest[V any](values map[int]V, offset int) (int, V, bool) {
+	if len(values) == 0 {
+		var v V
+		return -1, v, false
+	}
+
+	v, ok := values[offset]
+	if ok {
+		// We have the exact offset, that was easy!
+		return offset, v, true
+	}
+
+	var closest int
+	var closestV V
+	diff := math.MaxInt
+	for k, v := range values {
+		if abs(k-offset) < diff {
+			// new closest
+			closest = k
+			closestV = v
+		}
+	}
+	return closest, closestV, true
+}
+
+func abs(a int) int {
+	if a < 0 {
+		return -1 * a
+	}
+	return a
 }
 
 // TemplateUniqueUsers returns the number of unique Template users

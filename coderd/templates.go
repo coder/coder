@@ -620,7 +620,7 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	resp, _ := api.metricsCache.TemplateDAUs(template.ID)
+	_, resp, _ := api.metricsCache.TemplateDAUs(template.ID, 0)
 	if resp == nil || resp.Entries == nil {
 		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DAUsResponse{
 			Entries: []codersdk.DAUEntry{},
