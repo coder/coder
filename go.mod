@@ -121,7 +121,7 @@ require (
 	github.com/mattn/go-isatty v0.0.18
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/moby/moby v20.10.23+incompatible
+	github.com/moby/moby v24.0.1+incompatible
 	github.com/muesli/reflow v0.3.0
 	github.com/open-policy-agent/opa v0.51.0
 	github.com/ory/dockertest/v3 v3.9.1
