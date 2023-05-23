@@ -6,7 +6,6 @@ on:
       - main
 
   pull_request:
-
   workflow_dispatch:
 
 permissions:
@@ -27,6 +26,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  CODER_GO_VERSION: "~1.20"
+
 jobs:
   lint:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
@@ -37,7 +39,7 @@ jobs:
       # Install Go!
       - uses: actions/setup-go@v4
         with:
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       # Check for any typos!
       - name: Check for typos
@@ -153,7 +155,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -256,7 +258,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -345,7 +347,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -437,7 +439,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -589,7 +591,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - uses: hashicorp/setup-terraform@v2
         with:

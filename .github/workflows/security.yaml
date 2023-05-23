@@ -18,6 +18,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-security
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  CODER_GO_VERSION: "1.20.4"
+
 jobs:
   codeql:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
@@ -32,18 +35,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: "~1.20"
-
-      - name: Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
-          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       # Workaround to prevent CodeQL from building the dashboard.
       - name: Remove Makefile
@@ -73,18 +65,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: "~1.20"
-
-      - name: Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
-          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Cache Node
         id: cache-node
