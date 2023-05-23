@@ -20,6 +20,7 @@ import {
   WorkspacesPageViewProps,
 } from "./WorkspacesPageView"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
+import { action } from "@storybook/addon-actions"
 
 const createWorkspace = (
   status: WorkspaceStatus,
@@ -69,11 +70,23 @@ const MockedAppearance = {
   save: () => null,
 }
 
+const defaultFilterProps = {
+  query: workspaceFilterQuery.me,
+  templates: undefined,
+  users: undefined,
+  onLoadTemplates: action("onLoadTemplates"),
+  onLoadUsers: action("onLoadUsers"),
+  onQueryChange: action("onQueryChange"),
+}
+
 export default {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
   args: {
     limit: DEFAULT_RECORDS_PER_PAGE,
+  },
+  parameters: {
+    filterProps: defaultFilterProps,
   },
 } as ComponentMeta<typeof WorkspacesPageView>
 
@@ -99,13 +112,15 @@ AllStates.args = {
 export const OwnerHasNoWorkspaces = Template.bind({})
 OwnerHasNoWorkspaces.args = {
   workspaces: [],
-  filterQuery: workspaceFilterQuery.me,
   count: 0,
 }
 
 export const NoSearchResults = Template.bind({})
 NoSearchResults.args = {
   workspaces: [],
-  filterQuery: "searchtearmwithnoresults",
+  filterProps: {
+    ...defaultFilterProps,
+    query: "searchwithnoresults",
+  },
   count: 0,
 }

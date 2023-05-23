@@ -1,8 +1,20 @@
 import Link from "@mui/material/Link"
-import { Workspace, WorkspaceStatuses } from "api/typesGenerated"
+import {
+  Template,
+  User,
+  Workspace,
+  WorkspaceStatuses,
+} from "api/typesGenerated"
 import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
-import { FC, forwardRef, useRef, useState } from "react"
+import {
+  ComponentProps,
+  FC,
+  ReactNode,
+  forwardRef,
+  useRef,
+  useState,
+} from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "components/Margins/Margins"
 import {
@@ -19,21 +31,21 @@ import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import Box from "@mui/material/Box"
 import TextField from "@mui/material/TextField"
-import { MockTemplate, MockUser, MockUser2 } from "testHelpers/entities"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown"
 import Button, { ButtonProps } from "@mui/material/Button"
-import Menu from "@mui/material/Menu"
+import Menu, { MenuProps } from "@mui/material/Menu"
 import MenuItem from "@mui/material/MenuItem"
 import SearchOutlined from "@mui/icons-material/SearchOutlined"
 import { Avatar, AvatarProps } from "components/Avatar/Avatar"
 import InputAdornment from "@mui/material/InputAdornment"
-import Divider from "@mui/material/Divider"
 import { Palette, PaletteColor } from "@mui/material/styles"
 import IconButton from "@mui/material/IconButton"
 import Tooltip from "@mui/material/Tooltip"
 import CloseOutlined from "@mui/icons-material/CloseOutlined"
 import { getDisplayWorkspaceStatus } from "utils/workspace"
+import { Loader } from "components/Loader/Loader"
+import MenuList from "@mui/material/MenuList"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -50,10 +62,9 @@ export interface WorkspacesPageViewProps {
   count?: number
   page: number
   limit: number
-  filterQuery: string
   onPageChange: (page: number) => void
-  onFilterQueryChange: (query: string) => void
   onUpdateWorkspace: (workspace: Workspace) => void
+  filterProps: ComponentProps<typeof Filter>
 }
 
 export const WorkspacesPageView: FC<
@@ -61,13 +72,12 @@ export const WorkspacesPageView: FC<
 > = ({
   workspaces,
   error,
-  filterQuery,
   page,
   limit,
   count,
-  onFilterQueryChange,
   onPageChange,
   onUpdateWorkspace,
+  filterProps,
 }) => {
   const { saveLocal, getLocal } = useLocalStorage()
 
@@ -130,15 +140,11 @@ export const WorkspacesPageView: FC<
           }
         />
 
-        <Filter
-          filterQuery={filterQuery}
-          onFilterQueryChange={onFilterQueryChange}
-        />
+        <Filter {...filterProps} />
       </Stack>
       <WorkspacesTable
         workspaces={workspaces}
-        isUsingFilter={false}
-        //isUsingFilter={filter !== workspaceFilterQuery.me}
+        isUsingFilter={filterProps.query !== ""}
         onUpdateWorkspace={onUpdateWorkspace}
         error={error}
       />
@@ -177,11 +183,22 @@ export type FilterValue = {
 }
 
 const Filter: FC<{
-  filterQuery: string
-  onFilterQueryChange: (filterQuery: string) => void
-}> = ({ filterQuery, onFilterQueryChange }) => {
-  const hasFilterQuery = filterQuery && filterQuery !== ""
-  const filter = parseFilterQuery(filterQuery)
+  query: string
+  onQueryChange: (query: string) => void
+  users?: User[]
+  onLoadUsers: (query: string) => void
+  templates?: Template[]
+  onLoadTemplates: (query: string) => void
+}> = ({
+  query,
+  onQueryChange,
+  users,
+  onLoadUsers,
+  templates,
+  onLoadTemplates,
+}) => {
+  const hasFilterQuery = query && query !== ""
+  const filterValues = parseFilterQuery(query)
 
   return (
     <Box display="flex" sx={{ gap: 1, mb: 2 }}>
@@ -191,8 +208,8 @@ const Filter: FC<{
         size="small"
         InputProps={{
           placeholder: "Search...",
-          value: filterQuery,
-          onChange: (e) => onFilterQueryChange(e.target.value),
+          value: query,
+          onChange: (e) => onQueryChange(e.target.value),
           sx: {
             borderRadius: "6px",
             "& input::placeholder": {
@@ -211,11 +228,8 @@ const Filter: FC<{
           ),
           endAdornment: hasFilterQuery && (
             <InputAdornment position="end">
-              <Tooltip title="Clear search">
-                <IconButton
-                  size="small"
-                  onClick={() => onFilterQueryChange("")}
-                >
+              <Tooltip title="Clear filter">
+                <IconButton size="small" onClick={() => onQueryChange("")}>
                   <CloseOutlined sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
@@ -224,26 +238,30 @@ const Filter: FC<{
         }}
       />
       <OwnerFilter
-        value={filter.owner}
+        users={users}
+        onLoad={onLoadUsers}
+        value={filterValues.owner}
         onChange={(newOwnerOption) =>
-          onFilterQueryChange(
-            stringifyFilter({ ...filter, owner: newOwnerOption }),
+          onQueryChange(
+            stringifyFilter({ ...filterValues, owner: newOwnerOption }),
           )
         }
       />
       <TemplateFilter
-        value={filter.template}
+        templates={templates}
+        onLoad={onLoadTemplates}
+        value={filterValues.template}
         onChange={(newTemplateOption) =>
-          onFilterQueryChange(
-            stringifyFilter({ ...filter, template: newTemplateOption }),
+          onQueryChange(
+            stringifyFilter({ ...filterValues, template: newTemplateOption }),
           )
         }
       />
       <StatusFilter
-        value={filter.status}
+        value={filterValues.status}
         onChange={(newStatusOption) =>
-          onFilterQueryChange(
-            stringifyFilter({ ...filter, status: newStatusOption }),
+          onQueryChange(
+            stringifyFilter({ ...filterValues, status: newStatusOption }),
           )
         }
       />
@@ -254,18 +272,24 @@ const Filter: FC<{
 const OwnerFilter: FC<{
   value: FilterValue["owner"]
   onChange: (value: FilterValue["owner"]) => void
-}> = ({ value, onChange }) => {
-  const userOptions = [MockUser, MockUser2].map(
-    (user) =>
-      ({
-        label: user.username,
-        value: user.username,
-        avatarUrl: user.avatar_url,
-      } as UserOption),
-  )
+  users?: User[]
+  onLoad: (query: string) => void
+}> = ({ value, onChange, users }) => {
+  const userOptions = users
+    ? users.map(
+        (user) =>
+          ({
+            label: user.username,
+            value: user.username,
+            avatarUrl: user.avatar_url,
+          } as UserOption),
+      )
+    : undefined
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const selectedOption = userOptions.find((option) => option.value === value)
+  const selectedOption = userOptions
+    ? userOptions.find((option) => option.value === value)
+    : undefined
 
   const handleClose = () => {
     setIsMenuOpen(false)
@@ -276,56 +300,25 @@ const OwnerFilter: FC<{
       <MenuButton ref={buttonRef} onClick={() => setIsMenuOpen(true)}>
         User
       </MenuButton>
-      <Menu
+      <SearchMenu
         id="user-filter-menu"
         anchorEl={buttonRef.current}
         open={isMenuOpen}
         onClose={handleClose}
-        sx={{ "& .MuiPaper-root": { width: 220 } }}
-      >
-        <Box
-          component="li"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            paddingLeft: 2,
-            height: 36,
-          }}
-        >
-          <SearchOutlined
-            sx={{
-              fontSize: 14,
-              color: (theme) => theme.palette.text.secondary,
-            }}
-          />
-          <Box
-            component="input"
-            type="text"
-            placeholder="Search..."
-            autoFocus
-            onKeyDown={(e) => {
-              e.stopPropagation()
-            }}
-            sx={{
-              height: "100%",
-              border: 0,
-              background: "none",
-              width: "100%",
-              marginLeft: 2,
-              outline: 0,
-              "&::placeholder": {
-                color: (theme) => theme.palette.text.secondary,
-              },
-            }}
-          />
-        </Box>
-        <Divider />
-        {userOptions.map((option) => (
+        onClear={() => {
+          onChange(null)
+          handleClose()
+        }}
+        options={userOptions}
+        renderOption={(option) => (
           <MenuItem
             key={option.label}
             selected={option.value === selectedOption?.value}
             onClick={() => {
-              onChange(option.value)
+              // if the option selected is already selected, unselect
+              onChange(
+                selectedOption?.value === option.value ? null : option.value,
+              )
               handleClose()
             }}
           >
@@ -338,18 +331,8 @@ const OwnerFilter: FC<{
               <span>{option.label}</span>
             </Box>
           </MenuItem>
-        ))}
-        <Divider />
-        <MenuItem
-          onClick={() => {
-            onChange(null)
-            handleClose()
-          }}
-          sx={{ fontSize: 14 }}
-        >
-          All users
-        </MenuItem>
-      </Menu>
+        )}
+      />
     </div>
   )
 }
@@ -357,20 +340,27 @@ const OwnerFilter: FC<{
 const TemplateFilter: FC<{
   value: FilterValue["template"]
   onChange: (value: FilterValue["template"]) => void
-}> = ({ value, onChange }) => {
-  const templateOptions = [MockTemplate].map(
-    (template) =>
-      ({
-        label: template.display_name ?? template.name,
-        value: template.name,
-        icon: template.icon,
-      } as TemplateOption),
-  )
+  templates?: Template[]
+  onLoad: (query: string) => void
+}> = ({ value, onChange, templates }) => {
+  const templateOptions = templates
+    ? templates.map(
+        (template) =>
+          ({
+            label:
+              template.display_name.length > 0
+                ? template.display_name
+                : template.name,
+            value: template.name,
+            icon: template.icon,
+          } as TemplateOption),
+      )
+    : undefined
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const selectedOption = templateOptions.find(
-    (option) => option.value === value,
-  )
+  const selectedOption = templateOptions
+    ? templateOptions.find((option) => option.value === value)
+    : undefined
 
   const handleClose = () => {
     setIsMenuOpen(false)
@@ -381,56 +371,25 @@ const TemplateFilter: FC<{
       <MenuButton ref={buttonRef} onClick={() => setIsMenuOpen(true)}>
         Template
       </MenuButton>
-      <Menu
+      <SearchMenu
         id="template-filter-menu"
         anchorEl={buttonRef.current}
         open={isMenuOpen}
         onClose={handleClose}
-        sx={{ "& .MuiPaper-root": { width: 220 } }}
-      >
-        <Box
-          component="li"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            paddingLeft: 2,
-            height: 36,
-          }}
-        >
-          <SearchOutlined
-            sx={{
-              fontSize: 14,
-              color: (theme) => theme.palette.text.secondary,
-            }}
-          />
-          <Box
-            component="input"
-            type="text"
-            placeholder="Search..."
-            autoFocus
-            onKeyDown={(e) => {
-              e.stopPropagation()
-            }}
-            sx={{
-              height: "100%",
-              border: 0,
-              background: "none",
-              width: "100%",
-              marginLeft: 2,
-              outline: 0,
-              "&::placeholder": {
-                color: (theme) => theme.palette.text.secondary,
-              },
-            }}
-          />
-        </Box>
-        <Divider />
-        {templateOptions.map((option) => (
+        onClear={() => {
+          onChange(null)
+          handleClose()
+        }}
+        options={templateOptions}
+        renderOption={(option) => (
           <MenuItem
             key={option.label}
             selected={option.value === selectedOption?.value}
             onClick={() => {
-              onChange(option.value)
+              // if the option selected is already selected, unselect
+              onChange(
+                selectedOption?.value === option.value ? null : option.value,
+              )
               handleClose()
             }}
           >
@@ -443,18 +402,8 @@ const TemplateFilter: FC<{
               <span>{option.label}</span>
             </Box>
           </MenuItem>
-        ))}
-        <Divider />
-        <MenuItem
-          onClick={() => {
-            onChange(null)
-            handleClose()
-          }}
-          sx={{ fontSize: 14 }}
-        >
-          All templates
-        </MenuItem>
-      </Menu>
+        )}
+      />
     </div>
   )
 }
@@ -507,9 +456,11 @@ const StatusFilter: FC<{
         {workspaceStatusOptions.map((option) => (
           <MenuItem
             key={option.label}
-            selected={option.label === selectedOption?.label}
+            selected={option.value === selectedOption?.value}
             onClick={() => {
-              onChange(option.value)
+              onChange(
+                option.value === selectedOption?.value ? null : option.value,
+              )
               handleClose()
             }}
           >
@@ -519,16 +470,6 @@ const StatusFilter: FC<{
             </Box>
           </MenuItem>
         ))}
-        <Divider />
-        <MenuItem
-          onClick={() => {
-            onChange(null)
-            handleClose()
-          }}
-          sx={{ fontSize: 14 }}
-        >
-          All statuses
-        </MenuItem>
       </Menu>
     </div>
   )
@@ -556,11 +497,131 @@ const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
       {...props}
       sx={{
         borderRadius: "6px",
+        lineHeight: 0,
         ...props.sx,
       }}
     />
   )
 })
+
+function SearchMenu<TOption extends { label: string; value: string }>({
+  options,
+  renderOption,
+  onClear,
+  ...menuProps
+}: Pick<MenuProps, "anchorEl" | "open" | "onClose" | "id"> & {
+  options?: TOption[]
+  renderOption: (option: TOption) => ReactNode
+  onClear: () => void
+}) {
+  const menuListRef = useRef<HTMLUListElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [searchInputValue, setSearchInputValue] = useState("")
+  const visibleOptions = options
+    ? options.filter(
+        (option) =>
+          option.label.toLowerCase().includes(searchInputValue.toLowerCase()) ||
+          option.value.toLowerCase().includes(searchInputValue.toLowerCase()),
+      )
+    : undefined
+
+  return (
+    <Menu
+      {...menuProps}
+      onClose={(event, reason) => {
+        menuProps.onClose && menuProps.onClose(event, reason)
+        // 250ms is the transition time to close menu
+        setTimeout(() => setSearchInputValue(""), 250)
+      }}
+      sx={{
+        "& .MuiPaper-root": {
+          width: 320,
+          paddingY: 0,
+        },
+      }}
+    >
+      <Box
+        component="li"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          paddingLeft: 2,
+          height: 40,
+          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+        }}
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === "ArrowDown" && menuListRef.current) {
+            const firstItem = menuListRef.current.firstChild as HTMLElement
+            firstItem.focus()
+          }
+        }}
+      >
+        <SearchOutlined
+          sx={{
+            fontSize: 14,
+            color: (theme) => theme.palette.text.secondary,
+          }}
+        />
+        <Box
+          tabIndex={-1}
+          component="input"
+          type="text"
+          placeholder="Search..."
+          autoFocus
+          value={searchInputValue}
+          ref={searchInputRef}
+          onChange={(e) => {
+            setSearchInputValue(e.target.value)
+          }}
+          sx={{
+            height: "100%",
+            border: 0,
+            background: "none",
+            width: "100%",
+            marginLeft: 2,
+            outline: 0,
+            "&::placeholder": {
+              color: (theme) => theme.palette.text.secondary,
+            },
+          }}
+        />
+      </Box>
+
+      <Box component="li" sx={{ maxHeight: 480, overflowY: "auto" }}>
+        <MenuList
+          ref={menuListRef}
+          onKeyDown={(e) => {
+            if (e.shiftKey && e.code === "Tab") {
+              e.preventDefault()
+              e.stopPropagation()
+              searchInputRef.current?.focus()
+            }
+          }}
+        >
+          {visibleOptions ? (
+            visibleOptions.length > 0 ? (
+              visibleOptions.map(renderOption)
+            ) : (
+              <Box
+                sx={{
+                  fontSize: 13,
+                  color: (theme) => theme.palette.text.secondary,
+                  textAlign: "center",
+                  py: 1,
+                }}
+              >
+                No results
+              </Box>
+            )
+          ) : (
+            <Loader size={14} />
+          )}
+        </MenuList>
+      </Box>
+    </Menu>
+  )
+}
 
 const parseFilterQuery = (filterQuery: string): FilterValue => {
   const pairs = filterQuery.split(" ")
