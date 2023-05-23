@@ -2,7 +2,7 @@ package executor
 
 import (
 	"context"
-	"encoding/json"
+	"database/sql"
 	"sync/atomic"
 	"time"
 
@@ -13,8 +13,8 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/schedule"
+	"github.com/coder/coder/coderd/wsbuilder"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -168,20 +168,35 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					)
 					return nil
 				}
+				builder := wsbuilder.New(ws, validTransition).
+					SetLastWorkspaceBuildInTx(&priorHistory).
+					SetLastWorkspaceBuildJobInTx(&priorJob)
 
-				log.Info(e.ctx, "scheduling workspace transition", slog.F("transition", validTransition))
-
-				stats.Transitions[ws.ID] = validTransition
-				if err := build(e.ctx, db, ws, validTransition, priorHistory, priorJob); err != nil {
+				switch validTransition {
+				case database.WorkspaceTransitionStart:
+					builder = builder.Reason(database.BuildReasonAutostart)
+				case database.WorkspaceTransitionStop:
+					builder = builder.Reason(database.BuildReasonAutostop)
+				default:
+					log.Error(e.ctx, "unsupported transition", slog.F("transition", validTransition))
+					return nil
+				}
+				if _, _, err := builder.Build(e.ctx, db, nil); err != nil {
 					log.Error(e.ctx, "unable to transition workspace",
 						slog.F("transition", validTransition),
 						slog.Error(err),
 					)
 					return nil
 				}
+				stats.Transitions[ws.ID] = validTransition
+
+				log.Info(e.ctx, "scheduling workspace transition", slog.F("transition", validTransition))
 
 				return nil
-			}, nil)
+
+				// Run with RepeatableRead isolation so that the build process sees the same data
+				// as our calculation that determines whether an autobuild is necessary.
+			}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 			if err != nil {
 				log.Error(e.ctx, "workspace scheduling failed", slog.Error(err))
 			}
@@ -247,93 +262,4 @@ func getNextTransition(
 	default:
 		return "", time.Time{}, xerrors.Errorf("last transition not valid for autostart or autostop")
 	}
-}
-
-// TODO(cian): this function duplicates most of api.postWorkspaceBuilds. Refactor.
-// See: https://github.com/coder/coder/issues/1401
-func build(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition, priorHistory database.WorkspaceBuild, priorJob database.ProvisionerJob) error {
-	template, err := store.GetTemplateByID(ctx, workspace.TemplateID)
-	if err != nil {
-		return xerrors.Errorf("get workspace template: %w", err)
-	}
-
-	priorBuildNumber := priorHistory.BuildNumber
-
-	// This must happen in a transaction to ensure history can be inserted, and
-	// the prior history can update it's "after" column to point at the new.
-	workspaceBuildID := uuid.New()
-	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: workspaceBuildID,
-	})
-	if err != nil {
-		return xerrors.Errorf("marshal provision job: %w", err)
-	}
-	provisionerJobID := uuid.New()
-	now := database.Now()
-
-	var buildReason database.BuildReason
-	switch trans {
-	case database.WorkspaceTransitionStart:
-		buildReason = database.BuildReasonAutostart
-	case database.WorkspaceTransitionStop:
-		buildReason = database.BuildReasonAutostop
-	default:
-		return xerrors.Errorf("Unsupported transition: %q", trans)
-	}
-
-	lastBuildParameters, err := store.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
-	if err != nil {
-		return xerrors.Errorf("fetch prior workspace build parameters: %w", err)
-	}
-
-	return store.InTx(func(db database.Store) error {
-		newProvisionerJob, err := store.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:             provisionerJobID,
-			CreatedAt:      now,
-			UpdatedAt:      now,
-			InitiatorID:    workspace.OwnerID,
-			OrganizationID: template.OrganizationID,
-			Provisioner:    template.Provisioner,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			StorageMethod:  priorJob.StorageMethod,
-			FileID:         priorJob.FileID,
-			Tags:           priorJob.Tags,
-			Input:          input,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-		workspaceBuild, err := store.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:                workspaceBuildID,
-			CreatedAt:         now,
-			UpdatedAt:         now,
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: priorHistory.TemplateVersionID,
-			BuildNumber:       priorBuildNumber + 1,
-			ProvisionerState:  priorHistory.ProvisionerState,
-			InitiatorID:       workspace.OwnerID,
-			Transition:        trans,
-			JobID:             newProvisionerJob.ID,
-			Reason:            buildReason,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace build: %w", err)
-		}
-
-		names := make([]string, 0, len(lastBuildParameters))
-		values := make([]string, 0, len(lastBuildParameters))
-		for _, param := range lastBuildParameters {
-			names = append(names, param.Name)
-			values = append(values, param.Value)
-		}
-		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
-			WorkspaceBuildID: workspaceBuild.ID,
-			Name:             names,
-			Value:            values,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace build parameters: %w", err)
-		}
-		return nil
-	}, nil)
 }

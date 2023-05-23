@@ -125,16 +125,18 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			_ = pprof.Handler
 			pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
 			defer pprofSrvClose()
-			// Do a best effort here. If this fails, it's not a big deal.
-			if port, err := urlPort(pprofAddress); err == nil {
+			if port, err := extractPort(pprofAddress); err == nil {
 				ignorePorts[port] = "pprof"
 			}
 
 			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
 			defer prometheusSrvClose()
-			// Do a best effort here. If this fails, it's not a big deal.
-			if port, err := urlPort(prometheusAddress); err == nil {
+			if port, err := extractPort(prometheusAddress); err == nil {
 				ignorePorts[port] = "prometheus"
+			}
+
+			if port, err := extractPort(debugAddress); err == nil {
+				ignorePorts[port] = "debug"
 			}
 
 			// exchangeToken returns a session token.
@@ -225,10 +227,6 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 
 			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
 			defer debugSrvClose()
-			// Do a best effort here. If this fails, it's not a big deal.
-			if port, err := urlPort(debugAddress); err == nil {
-				ignorePorts[port] = "debug"
-			}
 
 			<-ctx.Done()
 			return agnt.Close()

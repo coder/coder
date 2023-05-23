@@ -141,7 +141,6 @@ export interface BuildInfoResponse {
 
 // From codersdk/parameters.go
 export interface ComputedParameter extends Parameter {
-  readonly source_value: string
   readonly schema_id: string
   readonly default_source_value: boolean
 }
@@ -313,6 +312,7 @@ export interface DERPServerConfig {
 export interface DangerousConfig {
   readonly allow_path_app_sharing: boolean
   readonly allow_path_app_site_owner_access: boolean
+  readonly allow_all_cors: boolean
 }
 
 // From codersdk/deployment.go
@@ -589,6 +589,7 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
   readonly created_at: string
   readonly updated_at: string
+  readonly source_value: string
 }
 
 // From codersdk/parameters.go

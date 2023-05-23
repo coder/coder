@@ -746,9 +746,11 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
 
@@ -819,9 +821,11 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
 
@@ -2038,14 +2042,12 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 	require.Equal(t, secondParameterDescription, templateRichParameters[1].Description)
 	require.Equal(t, secondParameterRequired, templateRichParameters[1].Required)
 
-	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
-		// First parameter is optional, so coder will pick the default value.
-		{Name: secondParameterName, Value: secondParameterValue},
-	}
-
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.RichParameterValues = expectedBuildParameters
+		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			// First parameter is optional, so coder will pick the default value.
+			{Name: secondParameterName, Value: secondParameterValue},
+		}
 	})
 
 	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -2054,5 +2056,10 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
 	require.NoError(t, err)
 
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		// Coderd inserts the default for the missing parameter
+		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		{Name: secondParameterName, Value: secondParameterValue},
+	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }

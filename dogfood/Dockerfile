@@ -72,7 +72,8 @@ RUN mkdir --parents "$GOPATH" && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.30.6 && \
-	mv /tmp/bin/yq /tmp/bin/yq4
+	mv /tmp/bin/yq /tmp/bin/yq4 && \
+	go install github.com/golang/mock/mockgen@v1.6.0
 
 FROM alpine:3.16 as proto
 WORKDIR /tmp
@@ -226,7 +227,7 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 
 # cloud_sql_proxy, for connecting to cloudsql instances
 # the upstream go.mod prevents this from being installed with go install
-RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_proxy "https://storage.googleapis.com/cloudsql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud_sql_proxy.linux.amd64" && \
+RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_proxy "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud-sql-proxy.linux.amd64" && \
 	chmod a=rx /usr/local/bin/cloud_sql_proxy && \
 	# dive for scanning image layer utilization metrics in CI
 	curl --silent --show-error --location "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.tar.gz" | \
@@ -246,8 +247,7 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-amd64/helm && \
 	# kube-linter for linting Kubernetes objects, including those
 	# that Helm generates from our charts
-	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- kube-linter && \
+	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux" --output /usr/local/bin/kube-linter && \
 	# kubens and kubectx for managing Kubernetes namespaces and contexts
 	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \
