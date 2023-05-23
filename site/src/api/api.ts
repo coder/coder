@@ -831,11 +831,10 @@ export const getTemplateDAUs = async (
   return response.data
 }
 
-export const getDeploymentDAUs =
-  async (): Promise<TypesGen.DAUsResponse> => {
-    const response = await axios.get(`/api/v2/insights/daus`)
-    return response.data
-  }
+export const getDeploymentDAUs = async (): Promise<TypesGen.DAUsResponse> => {
+  const response = await axios.get(`/api/v2/insights/daus`)
+  return response.data
+}
 
 export const getTemplateACL = async (
   templateId: string,
