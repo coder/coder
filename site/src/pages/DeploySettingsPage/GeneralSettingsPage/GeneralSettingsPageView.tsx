@@ -1,5 +1,5 @@
 import { DeploymentOption } from "api/types"
-import { DeploymentDAUsResponse } from "api/typesGenerated"
+import { DAUsResponse } from "api/typesGenerated"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { DAUChart } from "components/DAUChart/DAUChart"
 import { Header } from "components/DeploySettingsLayout/Header"
@@ -9,7 +9,7 @@ import { useDeploymentOptions } from "utils/deployOptions"
 
 export type GeneralSettingsPageViewProps = {
   deploymentOptions: DeploymentOption[]
-  deploymentDAUs?: DeploymentDAUsResponse
+  deploymentDAUs?: DAUsResponse
   getDeploymentDAUsError: unknown
 }
 export const GeneralSettingsPageView = ({
