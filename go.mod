@@ -174,6 +174,7 @@ require (
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
 	tailscale.com v1.32.2
+	github.com/golang/mock v1.6.0
 )
 
 require github.com/go-chi/cors v1.2.1

@@ -184,6 +184,8 @@ jobs:
         run: go install golang.org/x/tools/cmd/goimports@latest
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
+      - name: Install mockgen
+        run: go install github.com/golang/mock/mockgen@v1.6.0
 
       - name: Install Protoc
         run: |

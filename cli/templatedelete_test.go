@@ -51,15 +51,13 @@ func TestTemplateDelete(t *testing.T) {
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		templates := []codersdk.Template{
-			coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID),
-			coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID),
-			coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID),
-		}
+		templates := []codersdk.Template{}
 		templateNames := []string{}
-		for _, template := range templates {
+		for i := 0; i < 3; i++ {
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			templates = append(templates, template)
 			templateNames = append(templateNames, template.Name)
 		}
 
@@ -78,15 +76,13 @@ func TestTemplateDelete(t *testing.T) {
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		templates := []codersdk.Template{
-			coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID),
-			coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID),
-			coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID),
-		}
+		templates := []codersdk.Template{}
 		templateNames := []string{}
-		for _, template := range templates {
+		for i := 0; i < 3; i++ {
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			templates = append(templates, template)
 			templateNames = append(templateNames, template.Name)
 		}
 
