@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbmock"
 	"github.com/coder/coder/coderd/database/dbtype"
-	"github.com/coder/coder/coderd/database/mock"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/wsbuilder"
 	"github.com/coder/coder/codersdk"
@@ -557,13 +557,13 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 	})
 }
 
-type txExpect func(mTx *mock.MockStore)
+type txExpect func(mTx *dbmock.MockStore)
 
-func expectDB(t *testing.T, opts ...txExpect) *mock.MockStore {
+func expectDB(t *testing.T, opts ...txExpect) *dbmock.MockStore {
 	t.Helper()
 	ctrl := gomock.NewController(t)
-	mDB := mock.NewMockStore(ctrl)
-	mTx := mock.NewMockStore(ctrl)
+	mDB := dbmock.NewMockStore(ctrl)
+	mTx := dbmock.NewMockStore(ctrl)
 
 	// we expect to be run in a transaction; we use mTx to record the
 	// "in transaction" calls.
@@ -582,7 +582,7 @@ func expectDB(t *testing.T, opts ...txExpect) *mock.MockStore {
 	return mDB
 }
 
-func withTemplate(mTx *mock.MockStore) {
+func withTemplate(mTx *dbmock.MockStore) {
 	mTx.EXPECT().GetTemplateByID(gomock.Any(), templateID).
 		Times(1).
 		Return(database.Template{
@@ -593,8 +593,8 @@ func withTemplate(mTx *mock.MockStore) {
 		}, nil)
 }
 
-func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *mock.MockStore) {
-	return func(mTx *mock.MockStore) {
+func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().GetTemplateVersionByID(gomock.Any(), activeVersionID).
 			Times(1).
 			Return(database.TemplateVersion{
@@ -633,8 +633,8 @@ func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *moc
 	}
 }
 
-func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *mock.MockStore) {
-	return func(mTx *mock.MockStore) {
+func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().GetTemplateVersionByID(gomock.Any(), inactiveVersionID).
 			Times(1).
 			Return(database.TemplateVersion{
@@ -673,7 +673,7 @@ func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *m
 	}
 }
 
-func withLastBuildFound(mTx *mock.MockStore) {
+func withLastBuildFound(mTx *dbmock.MockStore) {
 	mTx.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Times(1).
 		Return(database.WorkspaceBuild{
@@ -704,14 +704,14 @@ func withLastBuildFound(mTx *mock.MockStore) {
 		}, nil)
 }
 
-func withLastBuildNotFound(mTx *mock.MockStore) {
+func withLastBuildNotFound(mTx *dbmock.MockStore) {
 	mTx.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Times(1).
 		Return(database.WorkspaceBuild{}, sql.ErrNoRows)
 }
 
-func withLegacyParameters(params []database.ParameterValue) func(mTx *mock.MockStore) {
-	return func(mTx *mock.MockStore) {
+func withLegacyParameters(params []database.ParameterValue) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
 		c := mTx.EXPECT().ParameterValues(
 			gomock.Any(),
 			database.ParameterValuesParams{
@@ -727,8 +727,8 @@ func withLegacyParameters(params []database.ParameterValue) func(mTx *mock.MockS
 	}
 }
 
-func withRichParameters(params []database.WorkspaceBuildParameter) func(mTx *mock.MockStore) {
-	return func(mTx *mock.MockStore) {
+func withRichParameters(params []database.WorkspaceBuildParameter) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
 		c := mTx.EXPECT().GetWorkspaceBuildParameters(gomock.Any(), lastBuildID).
 			Times(1)
 		if len(params) > 0 {
@@ -747,8 +747,8 @@ func withRichParameters(params []database.WorkspaceBuildParameter) func(mTx *moc
 // against it.
 func expectProvisionerJob(
 	assertions func(job database.InsertProvisionerJobParams),
-) func(mTx *mock.MockStore) {
-	return func(mTx *mock.MockStore) {
+) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().InsertProvisionerJob(gomock.Any(), gomock.Any()).
 			Times(1).
 			DoAndReturn(
@@ -766,8 +766,8 @@ func expectProvisionerJob(
 // against it.
 func expectBuild(
 	assertions func(job database.InsertWorkspaceBuildParams),
-) func(mTx *mock.MockStore) {
-	return func(mTx *mock.MockStore) {
+) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().InsertWorkspaceBuild(gomock.Any(), gomock.Any()).
 			Times(1).
 			DoAndReturn(
