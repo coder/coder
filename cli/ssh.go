@@ -362,6 +362,11 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
+		// Fetch up-to-date build information after completion.
+		workspace.LatestBuild, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
 	}
 	if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
