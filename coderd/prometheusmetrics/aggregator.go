@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -56,7 +57,6 @@ type annotatedMetric struct {
 	username      string
 	workspaceName string
 	agentName     string
-	labels        []agentsdk.AgentMetricLabel
 
 	expiryDate time.Time
 }
@@ -123,7 +123,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 			UpdateLoop:
 				for _, m := range req.metrics {
 					for i, q := range ma.queue {
-						if q.username == req.username && q.workspaceName == req.workspaceName && q.agentName == req.agentName && q.Name == m.Name && q.labels == m.Labels {
+						if q.username == req.username && q.workspaceName == req.workspaceName && q.agentName == req.agentName && q.Name == m.Name && slices.Equal(q.Labels, m.Labels) {
 							ma.queue[i].AgentMetric.Value = m.Value
 							ma.queue[i].expiryDate = req.timestamp.Add(ma.metricsCleanupInterval)
 							continue UpdateLoop
@@ -147,13 +147,40 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				output := make([]prometheus.Metric, 0, len(ma.queue))
 				for _, m := range ma.queue {
-					desc := prometheus.NewDesc(m.Name, metricHelpForAgent, agentMetricsLabels, nil)
+					labels := make([]string, len(agentMetricsLabels)+len(m.Labels))
+					var i int
+					for _, l := range agentMetricsLabels {
+						labels[i] = l
+						i++
+					}
+
+					for _, l := range m.Labels {
+						labels[i] = l.Name
+						i++
+					}
+
+					desc := prometheus.NewDesc(m.Name, metricHelpForAgent, labels, nil)
 					valueType, err := asPrometheusValueType(m.Type)
 					if err != nil {
 						ma.log.Error(ctx, "can't convert Prometheus value type", slog.F("name", m.Name), slog.F("type", m.Type), slog.F("value", m.Value), slog.Error(err))
 						continue
 					}
-					constMetric := prometheus.MustNewConstMetric(desc, valueType, m.Value, m.username, m.workspaceName, m.agentName)
+
+					labelValues := make([]string, len(agentMetricsLabels)+len(m.Labels))
+					labelValues[0] = m.username
+					labelValues[1] = m.workspaceName
+					labelValues[2] = m.agentName
+
+					if len(m.Labels) > 0 {
+						i = 3
+
+						for _, l := range m.Labels {
+							labelValues[i] = l.Value
+							i++
+						}
+					}
+
+					constMetric := prometheus.MustNewConstMetric(desc, valueType, m.Value, labelValues...)
 					output = append(output, constMetric)
 				}
 				outputCh <- output

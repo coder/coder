@@ -218,16 +218,6 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	_ = session.Exit(0)
 }
 
-func magicType(session ssh.Session) string {
-	for _, kv := range session.Environ() {
-		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
-			continue
-		}
-		return strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
-	}
-	return ""
-}
-
 func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr error) {
 	ctx := session.Context()
 	env := append(session.Environ(), extraEnv...)
