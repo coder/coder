@@ -349,7 +349,7 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 		err            error
 	)
 
-	workspace, err = namedWorkspace(inv.Context(), client, workspaceParts[0])
+	workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
