@@ -375,10 +375,14 @@ func closest[V any](values map[int]V, offset int) (int, V, bool) {
 	var closestV V
 	diff := math.MaxInt
 	for k, v := range values {
-		if abs(k-offset) < diff {
+		newDiff := abs(k - offset)
+		// Take the closest value that is also the smallest value. We do this
+		// to make the output deterministic
+		if newDiff < diff || (newDiff == diff && k < closest) {
 			// new closest
 			closest = k
 			closestV = v
+			diff = newDiff
 		}
 	}
 	return closest, closestV, true
