@@ -1690,6 +1690,27 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `amount` | integer | false    |              |             |
 | `date`   | string  | false    |              |             |
 
+## codersdk.DAUsResponse
+
+```json
+{
+  "entries": [
+    {
+      "amount": 0,
+      "date": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "tz_hour_offset": 0
+}
+```
+
+### Properties
+
+| Name             | Type                                            | Required | Restrictions | Description |
+| ---------------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `entries`        | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
+| `tz_hour_offset` | integer                                         | false    |              |             |
+
 ## codersdk.DERP
 
 ```json
@@ -2101,25 +2122,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | --------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
 | `config`  | [codersdk.DeploymentValues](#codersdkdeploymentvalues) | false    |              |             |
 | `options` | array of [clibase.Option](#clibaseoption)              | false    |              |             |
-
-## codersdk.DeploymentDAUsResponse
-
-```json
-{
-  "entries": [
-    {
-      "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                            | Required | Restrictions | Description |
-| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
 
 ## codersdk.DeploymentStats
 
@@ -3978,25 +3980,6 @@ Parameter represents a set value for the scope.
 | Name             | Type                                                 | Required | Restrictions | Description |
 | ---------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
-
-## codersdk.TemplateDAUsResponse
-
-```json
-{
-  "entries": [
-    {
-      "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                            | Required | Restrictions | Description |
-| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
 
 ## codersdk.TemplateExample
 

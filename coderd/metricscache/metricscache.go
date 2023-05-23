@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"golang.org/x/xerrors"
 	"math"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/xerrors"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
