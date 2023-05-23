@@ -81,6 +81,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.resetPassword(),
 		r.state(),
 		r.templates(),
+		r.upgrade(),
 		r.users(),
 		r.tokens(),
 		r.version(defaultVersionInfo),
