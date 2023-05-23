@@ -183,6 +183,9 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		if templateDAUs[0] == nil {
+			templateDAUs[0] = make(map[uuid.UUID]codersdk.DAUsResponse)
+		}
 		templateDAUs[0][template.ID] = convertDAUResponse(rows)
 		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
 

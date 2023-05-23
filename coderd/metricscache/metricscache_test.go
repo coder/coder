@@ -182,7 +182,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 			}
 
 			require.Eventuallyf(t, func() bool {
-				_, ok := cache.TemplateDAUs(template.ID)
+				_, _, ok := cache.TemplateDAUs(template.ID, 0)
 				return ok
 			}, testutil.WaitShort, testutil.IntervalMedium,
 				"TemplateDAUs never populated",
@@ -191,8 +191,9 @@ func TestCache_TemplateUsers(t *testing.T) {
 			gotUniqueUsers, ok := cache.TemplateUniqueUsers(template.ID)
 			require.True(t, ok)
 
-			gotEntries, ok := cache.TemplateDAUs(template.ID)
+			offset, gotEntries, ok := cache.TemplateDAUs(template.ID, 0)
 			require.True(t, ok)
+			require.Equal(t, offset, 0)
 			require.Equal(t, tt.want.entries, gotEntries.Entries)
 			require.Equal(t, tt.want.uniqueUsers, gotUniqueUsers)
 		})
