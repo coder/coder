@@ -102,6 +102,8 @@ jobs:
           curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
+      - name: Install mockgen
+        run: go install github.com/golang/mock/mockgen@v1.6.0
       - name: Install protoc-gen-go
         run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
       - name: Install protoc-gen-go-drpc
