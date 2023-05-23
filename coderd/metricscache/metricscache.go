@@ -10,11 +10,8 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
-
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-
-	"github.com/google/uuid"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"

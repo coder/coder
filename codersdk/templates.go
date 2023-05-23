@@ -236,6 +236,8 @@ func (c *Client) TemplateDAUsLocalTZ(ctx context.Context, templateID uuid.UUID) 
 	return c.TemplateDAUs(ctx, templateID, TimezoneOffsetHour(time.Local))
 }
 
+// TemplateDAUs requires a tzOffset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local) for the
+// local timezone.
 func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID, tzOffset int) (*DAUsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/daus", templateID), nil, DAURequest{
 		TZHourOffset: tzOffset,

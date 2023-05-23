@@ -1756,6 +1756,8 @@ func (c *Client) DeploymentDAUsLocalTZ(ctx context.Context) (*DAUsResponse, erro
 	return c.DeploymentDAUs(ctx, TimezoneOffsetHour(time.Local))
 }
 
+// DeploymentDAUs requires a tzOffset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local) for the
+// local timezone.
 func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil, DAURequest{
 		TZHourOffset: tzOffset,
