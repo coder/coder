@@ -82,14 +82,16 @@ reason.
 
 We recommend you plan to run enough coderd replicas to comfortably meet your weekly high-water-mark load, and monitor
 coderd peak CPU & memory utilization over the long term, reevaluating periodically. When scaling down (or performing
-upgrades), schedule these on off hours to minimize user interruptions.
+upgrades), schedule these outside normal working hours to minimize user interruptions.
 
 ### A note for Kubernetes users
 
 When running on Kubernetes on cloud infrastructure (i.e. not bare metal), many operators choose to employ a _cluster_
 autoscaler that adds and removes Kubernetes _nodes_ according to load. Coder can coexist with such cluster autoscalers,
 but we recommend you take steps to prevent the autoscaler from evicting coderd pods, as an eviction will cause the same
-interruptions as described above.
+interruptions as described above. For example, if you are using the [Kubernetes cluster
+autoscaler](https://kubernetes.io/docs/reference/labels-annotations-taints/#cluster-autoscaler-kubernetes-io-safe-to-evict),
+you may wish to set `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` as an annotation on the coderd deployment.
 
 ## Troubleshooting
 
