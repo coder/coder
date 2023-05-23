@@ -1016,7 +1016,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 		))
 	}
 
-	sortWorkspaces(apiWorkspaces)
+	// sortWorkspaces(apiWorkspaces)
 
 	return apiWorkspaces, nil
 }
