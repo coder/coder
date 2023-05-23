@@ -1720,11 +1720,16 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 	return exp, json.NewDecoder(res.Body).Decode(&exp)
 }
 
-type DeploymentDAUsResponse struct {
+type DAUsResponse struct {
 	Entries []DAUEntry `json:"entries"`
 }
 
-func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, error) {
+type DAUEntry struct {
+	Date   time.Time `json:"date" format:"date-time"`
+	Amount int       `json:"amount"`
+}
+
+func (c *Client) DeploymentDAUs(ctx context.Context) (*DAUsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
@@ -1735,7 +1740,7 @@ func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, e
 		return nil, ReadBodyAsError(res)
 	}
 
-	var resp DeploymentDAUsResponse
+	var resp DAUsResponse
 	return &resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

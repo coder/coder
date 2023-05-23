@@ -74,7 +74,7 @@ func TestDeploymentInsights(t *testing.T) {
 	require.NoError(t, err)
 	_ = sshConn.Close()
 
-	wantDAUs := &codersdk.DeploymentDAUsResponse{
+	wantDAUs := &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
 				Date:   time.Now().UTC().Truncate(time.Hour * 24),

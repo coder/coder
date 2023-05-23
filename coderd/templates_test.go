@@ -981,7 +981,7 @@ func TestTemplateMetrics(t *testing.T) {
 	daus, err := client.TemplateDAUs(context.Background(), template.ID)
 	require.NoError(t, err)
 
-	require.Equal(t, &codersdk.TemplateDAUsResponse{
+	require.Equal(t, &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{},
 	}, daus, "no DAUs when stats are empty")
 
@@ -1001,7 +1001,7 @@ func TestTemplateMetrics(t *testing.T) {
 	require.NoError(t, err)
 	_ = sshConn.Close()
 
-	wantDAUs := &codersdk.TemplateDAUsResponse{
+	wantDAUs := &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
 				Date:   time.Now().UTC().Truncate(time.Hour * 24),

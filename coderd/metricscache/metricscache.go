@@ -3,6 +3,7 @@ package metricscache
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,8 +30,8 @@ type Cache struct {
 	log       slog.Logger
 	intervals Intervals
 
-	deploymentDAUResponses   atomic.Pointer[codersdk.DeploymentDAUsResponse]
-	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
+	deploymentDAUResponses   atomic.Pointer[codersdk.DAUsResponse]
+	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.DAUsResponse]
 	templateUniqueUsers      atomic.Pointer[map[uuid.UUID]int]
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
@@ -107,37 +108,23 @@ func fillEmptyDays(sortedDates []time.Time) []time.Time {
 	return newDates
 }
 
-func convertDAUResponse(rows []database.GetTemplateDAUsRow) codersdk.TemplateDAUsResponse {
-	respMap := make(map[time.Time][]uuid.UUID)
-	for _, row := range rows {
-		uuids := respMap[row.Date]
-		if uuids == nil {
-			uuids = make([]uuid.UUID, 0, 8)
-		}
-		uuids = append(uuids, row.UserID)
-		respMap[row.Date] = uuids
-	}
-
-	dates := maps.Keys(respMap)
-	slices.SortFunc(dates, func(a, b time.Time) bool {
-		return a.Before(b)
-	})
-
-	var resp codersdk.TemplateDAUsResponse
-	for _, date := range fillEmptyDays(dates) {
-		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
-			Date:   date,
-			Amount: len(respMap[date]),
-		})
-	}
-
-	return resp
+type dauRow interface {
+	database.GetTemplateDAUsRow |
+		database.GetDeploymentDAUsRow
 }
 
-func convertDeploymentDAUResponse(rows []database.GetDeploymentDAUsRow) codersdk.DeploymentDAUsResponse {
+func convertDAUResponse[T dauRow](rows []T) codersdk.DAUsResponse {
 	respMap := make(map[time.Time][]uuid.UUID)
 	for _, row := range rows {
-		respMap[row.Date] = append(respMap[row.Date], row.UserID)
+		switch row := any(row).(type) {
+		case database.GetDeploymentDAUsRow:
+			respMap[row.Date] = append(respMap[row.Date], row.UserID)
+		case database.GetTemplateDAUsRow:
+			respMap[row.Date] = append(respMap[row.Date], row.UserID)
+		default:
+			// This should never happen.
+			panic(fmt.Sprintf("%T not acceptable, developer error", row))
+		}
 	}
 
 	dates := maps.Keys(respMap)
@@ -145,7 +132,7 @@ func convertDeploymentDAUResponse(rows []database.GetDeploymentDAUsRow) codersdk
 		return a.Before(b)
 	})
 
-	var resp codersdk.DeploymentDAUsResponse
+	var resp codersdk.DAUsResponse
 	for _, date := range fillEmptyDays(dates) {
 		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
 			Date:   date,
@@ -174,8 +161,8 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	}
 
 	var (
-		deploymentDAUs            = codersdk.DeploymentDAUsResponse{}
-		templateDAUs              = make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
+		deploymentDAUs            = codersdk.DAUsResponse{}
+		templateDAUs              = make(map[uuid.UUID]codersdk.DAUsResponse, len(templates))
 		templateUniqueUsers       = make(map[uuid.UUID]int)
 		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
 	)
@@ -184,7 +171,7 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	deploymentDAUs = convertDeploymentDAUResponse(rows)
+	deploymentDAUs = convertDAUResponse(rows)
 	c.deploymentDAUResponses.Store(&deploymentDAUs)
 
 	for _, template := range templates {
@@ -297,14 +284,14 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) DeploymentDAUs() (*codersdk.DeploymentDAUsResponse, bool) {
+func (c *Cache) DeploymentDAUs() (*codersdk.DAUsResponse, bool) {
 	m := c.deploymentDAUResponses.Load()
 	return m, m != nil
 }
 
 // TemplateDAUs returns an empty response if the template doesn't have users
 // or is loading for the first time.
-func (c *Cache) TemplateDAUs(id uuid.UUID) (*codersdk.TemplateDAUsResponse, bool) {
+func (c *Cache) TemplateDAUs(id uuid.UUID) (*codersdk.DAUsResponse, bool) {
 	m := c.templateDAUResponses.Load()
 	if m == nil {
 		// Data loading.

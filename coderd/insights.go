@@ -13,7 +13,7 @@ import (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Success 200 {object} codersdk.DeploymentDAUsResponse
+// @Success 200 {object} codersdk.DAUsResponse
 // @Router /insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -24,7 +24,7 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 
 	resp, _ := api.metricsCache.DeploymentDAUs()
 	if resp == nil || resp.Entries == nil {
-		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DeploymentDAUsResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DAUsResponse{
 			Entries: []codersdk.DAUEntry{},
 		})
 		return
