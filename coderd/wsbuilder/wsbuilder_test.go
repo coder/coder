@@ -785,8 +785,8 @@ func expectBuild(
 // against it.
 func expectBuildParameters(
 	assertions func(database.InsertWorkspaceBuildParametersParams),
-) func(mTx *mock.MockStore) {
-	return func(mTx *mock.MockStore) {
+) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().InsertWorkspaceBuildParameters(gomock.Any(), gomock.Any()).
 			Times(1).
 			DoAndReturn(
@@ -818,8 +818,8 @@ func (m insertParameterMatcher) String() string {
 	return fmt.Sprintf("ParameterValue %s=%s", m.name, m.value)
 }
 
-func expectReplacedParam(oldID uuid.UUID, name, newValue string) func(store *mock.MockStore) {
-	return func(mTx *mock.MockStore) {
+func expectReplacedParam(oldID uuid.UUID, name, newValue string) func(store *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
 		del := mTx.EXPECT().DeleteParameterValueByID(gomock.Any(), oldID).
 			Times(1).
 			Return(nil)
@@ -830,8 +830,8 @@ func expectReplacedParam(oldID uuid.UUID, name, newValue string) func(store *moc
 	}
 }
 
-func expectInsertedParam(name, newValue string) func(store *mock.MockStore) {
-	return func(mTx *mock.MockStore) {
+func expectInsertedParam(name, newValue string) func(store *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().InsertParameterValue(gomock.Any(), insertParameterMatcher{name, newValue}).
 			Times(1).
 			Return(database.ParameterValue{}, nil)
