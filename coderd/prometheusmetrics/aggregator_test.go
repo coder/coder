@@ -44,13 +44,35 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 
 	given2 := []agentsdk.AgentMetric{
 		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 5},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 2, Labels: []agentsdk.AgentMetricLabel{
+			// Metrics are sorted alphabetically, and we have to prepend "z", so common labels (agent name, username, workspace name) go first.
+			{
+				Name:  "zfoobar",
+				Value: "Foobaz",
+			},
+			{
+				Name:  "zhello",
+				Value: "world",
+			},
+		}},
 		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6},
 	}
 
 	expected := []agentsdk.AgentMetric{
 		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1},
 		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
-		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 3},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 5},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 2, Labels: []agentsdk.AgentMetricLabel{
+			{
+				Name:  "zfoobar",
+				Value: "Foobaz",
+			},
+			{
+				Name:  "zhello",
+				Value: "world",
+			},
+		}},
 		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6},
 	}
 
@@ -92,7 +114,7 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		err := actual[i].Write(&d)
 		require.NoError(t, err)
 
-		require.Equal(t, "agent_name", *d.Label[0].Name)
+		require.Equal(t, "agent_name", *d.Label[0].Name, d.String())
 		require.Equal(t, testAgentName, *d.Label[0].Value)
 		require.Equal(t, "username", *d.Label[1].Name)
 		require.Equal(t, testUsername, *d.Label[1].Value)
