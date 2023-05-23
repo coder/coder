@@ -205,19 +205,19 @@ func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.
 }
 
 // Only used by metrics cache.
-func (q *querier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
+func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.GetTemplateDAUs(ctx, templateID)
+	return q.db.GetTemplateDAUs(ctx, arg)
 }
 
 // Only used by metrics cache.
-func (q *querier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
+func (q *querier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]database.GetDeploymentDAUsRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.GetDeploymentDAUs(ctx)
+	return q.db.GetDeploymentDAUs(ctx, tzOffset)
 }
 
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.

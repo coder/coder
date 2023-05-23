@@ -180,7 +180,7 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
 	)
 
-	rows, err := c.database.GetDeploymentDAUs(ctx)
+	rows, err := c.database.GetDeploymentDAUs(ctx, 0)
 	if err != nil {
 		return err
 	}
@@ -188,7 +188,10 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	c.deploymentDAUResponses.Store(&deploymentDAUs)
 
 	for _, template := range templates {
-		rows, err := c.database.GetTemplateDAUs(ctx, template.ID)
+		rows, err := c.database.GetTemplateDAUs(ctx, database.GetTemplateDAUsParams{
+			TemplateID: template.ID,
+			TzOffset:   0,
+		})
 		if err != nil {
 			return err
 		}

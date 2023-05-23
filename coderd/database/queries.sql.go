@@ -6335,7 +6335,7 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 
 const getDeploymentDAUs = `-- name: GetDeploymentDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast($1::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats
@@ -6352,8 +6352,8 @@ type GetDeploymentDAUsRow struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context) ([]GetDeploymentDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs)
+func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]GetDeploymentDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs, tzOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -6428,7 +6428,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, creat
 
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast($2::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats
@@ -6441,13 +6441,18 @@ ORDER BY
 	date ASC
 `
 
+type GetTemplateDAUsParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	TzOffset   int32     `db:"tz_offset" json:"tz_offset"`
+}
+
 type GetTemplateDAUsRow struct {
 	Date   time.Time `db:"date" json:"date"`
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, templateID)
+func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, arg.TemplateID, arg.TzOffset)
 	if err != nil {
 		return nil, err
 	}
