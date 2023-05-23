@@ -380,7 +380,7 @@ func parseSrcDestPorts(in string) ([]parsedSrcDestPort, error) {
 	for i := range local {
 		out = append(out, parsedSrcDestPort{
 			local:  netip.AddrPortFrom(localAddr, local[i]),
-			remote: netip.AddrPortFrom(netip.IPv4Unspecified(), remote[i]),
+			remote: netip.AddrPortFrom(remoteAddr, remote[i]),
 		})
 	}
 	return out, nil
