@@ -673,8 +673,6 @@ jobs:
           # https://www.chromatic.com/docs/github-actions#forked-repositories
           projectToken: 695c25b6cb65
           workingDir: "./site"
-          autoAcceptChanges: true
-          onlyChanged: true
           zip: true
 
       # This is a separate step for mainline only that auto accepts and changes
