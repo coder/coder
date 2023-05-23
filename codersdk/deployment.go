@@ -1721,7 +1721,8 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 }
 
 type DAUsResponse struct {
-	Entries []DAUEntry `json:"entries"`
+	Entries      []DAUEntry `json:"entries"`
+	TZHourOffset int        `json:"tz_hour_offset"`
 }
 
 type DAUEntry struct {
@@ -1729,8 +1730,36 @@ type DAUEntry struct {
 	Amount int       `json:"amount"`
 }
 
-func (c *Client) DeploymentDAUs(ctx context.Context) (*DAUsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil)
+type DAURequest struct {
+	TZHourOffset int
+}
+
+func (d DAURequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("tz_offset", strconv.Itoa(d.TZHourOffset))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+func TimezoneOffsetHour(loc *time.Location) int {
+	if loc == nil {
+		// Default to local
+		loc = time.Local
+	}
+	_, offsetSec := time.Now().In(loc).Zone()
+	// Convert to hours
+	return offsetSec / 60 / 60
+}
+
+func (c *Client) DeploymentDAUsLocalTZ(ctx context.Context) (*DAUsResponse, error) {
+	return c.DeploymentDAUs(ctx, TimezoneOffsetHour(time.Local))
+}
+
+func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil, DAURequest{
+		TZHourOffset: tzOffset,
+	}.asRequestOption())
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}

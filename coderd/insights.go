@@ -22,7 +22,18 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, resp, _ := api.metricsCache.DeploymentDAUs(0)
+	vals := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	tzOffset := p.Int(vals, 0, "tz_offset")
+	p.ErrorExcessParams(vals)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: p.Errors,
+		})
+	}
+
+	_, resp, _ := api.metricsCache.DeploymentDAUs(tzOffset)
 	if resp == nil || resp.Entries == nil {
 		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DAUsResponse{
 			Entries: []codersdk.DAUEntry{},

@@ -232,8 +232,14 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
 }
 
-func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*DAUsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/daus", templateID), nil)
+func (c *Client) TemplateDAUsLocalTZ(ctx context.Context, templateID uuid.UUID) (*DAUsResponse, error) {
+	return c.TemplateDAUs(ctx, templateID, TimezoneOffsetHour(time.Local))
+}
+
+func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID, tzOffset int) (*DAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/daus", templateID), nil, DAURequest{
+		TZHourOffset: tzOffset,
+	}.asRequestOption())
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}

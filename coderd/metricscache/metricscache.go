@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"golang.org/x/xerrors"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -19,6 +20,15 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
+)
+
+var (
+	// timezoneOffsets are the timezones that are cached and supported.
+	// Any non-listed timezone offsets will need to use the closest supported one.
+	timezoneOffsets = []int{
+		0, // UTC - is listed first intentionally.
+		-12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1,
+		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 )
 
 // Cache holds the template metrics.
@@ -114,7 +124,7 @@ type dauRow interface {
 		database.GetDeploymentDAUsRow
 }
 
-func convertDAUResponse[T dauRow](rows []T) codersdk.DAUsResponse {
+func convertDAUResponse[T dauRow](rows []T, tzOffset int) codersdk.DAUsResponse {
 	respMap := make(map[time.Time][]uuid.UUID)
 	for _, row := range rows {
 		switch row := any(row).(type) {
@@ -140,6 +150,7 @@ func convertDAUResponse[T dauRow](rows []T) codersdk.DAUsResponse {
 			Amount: len(respMap[date]),
 		})
 	}
+	resp.TZHourOffset = tzOffset
 
 	return resp
 }
@@ -152,6 +163,23 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 	return len(seen)
 }
 
+func (c *Cache) refreshDeploymentDAUs(ctx context.Context) error {
+	//nolint:gocritic // This is a system service.
+	ctx = dbauthz.AsSystemRestricted(ctx)
+
+	deploymentDAUs := make(map[int]codersdk.DAUsResponse)
+	for _, tzOffset := range timezoneOffsets {
+		rows, err := c.database.GetDeploymentDAUs(ctx, int32(tzOffset))
+		if err != nil {
+			return err
+		}
+		deploymentDAUs[tzOffset] = convertDAUResponse(rows, tzOffset)
+	}
+
+	c.deploymentDAUResponses.Store(&deploymentDAUs)
+	return nil
+}
+
 func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	//nolint:gocritic // This is a system service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
@@ -162,32 +190,35 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	}
 
 	var (
-		deploymentDAUs            = map[int]codersdk.DAUsResponse{}
 		templateDAUs              = make(map[int]map[uuid.UUID]codersdk.DAUsResponse, len(templates))
 		templateUniqueUsers       = make(map[uuid.UUID]int)
 		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
 	)
 
-	rows, err := c.database.GetDeploymentDAUs(ctx, 0)
+	err = c.refreshDeploymentDAUs(ctx)
 	if err != nil {
-		return err
+		return xerrors.Errorf("deployment daus: %w", err)
 	}
-	deploymentDAUs[0] = convertDAUResponse(rows)
-	c.deploymentDAUResponses.Store(&deploymentDAUs)
 
 	for _, template := range templates {
-		rows, err := c.database.GetTemplateDAUs(ctx, database.GetTemplateDAUsParams{
-			TemplateID: template.ID,
-			TzOffset:   0,
-		})
-		if err != nil {
-			return err
+		for _, tzOffset := range timezoneOffsets {
+			rows, err := c.database.GetTemplateDAUs(ctx, database.GetTemplateDAUsParams{
+				TemplateID: template.ID,
+				TzOffset:   int32(tzOffset),
+			})
+			if err != nil {
+				return err
+			}
+			if templateDAUs[tzOffset] == nil {
+				templateDAUs[tzOffset] = make(map[uuid.UUID]codersdk.DAUsResponse)
+			}
+			templateDAUs[tzOffset][template.ID] = convertDAUResponse(rows, tzOffset)
+			if _, set := templateUniqueUsers[template.ID]; !set {
+				// If the uniqueUsers has not been counted yet, set the unique count with the rows we have.
+				// We only need to calculate this once.
+				templateUniqueUsers[template.ID] = countUniqueUsers(rows)
+			}
 		}
-		if templateDAUs[0] == nil {
-			templateDAUs[0] = make(map[uuid.UUID]codersdk.DAUsResponse)
-		}
-		templateDAUs[0][template.ID] = convertDAUResponse(rows)
-		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
 
 		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx, database.GetTemplateAverageBuildTimeParams{
 			TemplateID: uuid.NullUUID{
