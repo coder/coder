@@ -9,7 +9,8 @@ import { OAuthSignInForm } from "./OAuthSignInForm"
 import { BuiltInAuthFormValues } from "./SignInForm.types"
 import Button from "@mui/material/Button"
 import EmailIcon from "@mui/icons-material/EmailOutlined"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
   emailLabel: "Email",
@@ -100,7 +101,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       </h1>
       <Maybe condition={error !== undefined}>
         <div className={styles.error}>
-          <AlertBanner severity="error" error={error} />
+          <ErrorAlert error={error} />
         </div>
       </Maybe>
       <Maybe condition={passwordEnabled && showPasswordAuth}>
@@ -126,10 +127,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       </Maybe>
 
       <Maybe condition={!passwordEnabled && !oAuthEnabled}>
-        <AlertBanner
-          severity="error"
-          text="No authentication methods configured!"
-        />
+        <Alert severity="error">No authentication methods configured!</Alert>
       </Maybe>
 
       <Maybe condition={passwordEnabled && !showPasswordAuth}>

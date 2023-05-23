@@ -13,7 +13,7 @@ import {
   VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
@@ -206,7 +206,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
             <Button
               title="Build template (Ctrl + Enter)"
-              size="small"
               disabled={disablePreview}
               onClick={() => {
                 triggerPreview()
@@ -224,7 +223,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   ? "Something"
                   : ""
               }
-              size="small"
               disabled={dirty || disableUpdate}
               onClick={onPublish}
             >
@@ -240,7 +238,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               <div className={styles.sidebarActions}>
                 <Tooltip title="Create File" placement="top">
                   <IconButton
-                    size="small"
                     aria-label="Create File"
                     onClick={(event) => {
                       setCreateFileOpen(true)
@@ -377,10 +374,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 }`}
               >
                 {templateVersion.job.error && (
-                  <AlertBanner
-                    severity="error"
-                    text={templateVersion.job.error}
-                  />
+                  <Alert severity="error">{templateVersion.job.error}</Alert>
                 )}
 
                 {buildLogs && buildLogs.length > 0 && (

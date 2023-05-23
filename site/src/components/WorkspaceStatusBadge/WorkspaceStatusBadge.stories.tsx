@@ -10,19 +10,40 @@ import {
   MockStoppedWorkspace,
   MockStoppingWorkspace,
   MockWorkspace,
+  MockBuildInfo,
+  MockEntitlementsWithScheduling,
+  MockExperiments,
+  MockAppearance,
 } from "testHelpers/entities"
 import {
   WorkspaceStatusBadge,
   WorkspaceStatusBadgeProps,
 } from "./WorkspaceStatusBadge"
+import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
 
 export default {
   title: "components/WorkspaceStatusBadge",
   component: WorkspaceStatusBadge,
 }
 
+const MockedAppearance = {
+  config: MockAppearance,
+  preview: false,
+  setPreview: () => null,
+  save: () => null,
+}
+
 const Template: Story<WorkspaceStatusBadgeProps> = (args) => (
-  <WorkspaceStatusBadge {...args} />
+  <DashboardProviderContext.Provider
+    value={{
+      buildInfo: MockBuildInfo,
+      entitlements: MockEntitlementsWithScheduling,
+      experiments: MockExperiments,
+      appearance: MockedAppearance,
+    }}
+  >
+    <WorkspaceStatusBadge {...args} />
+  </DashboardProviderContext.Provider>
 )
 
 export const Running = Template.bind({})

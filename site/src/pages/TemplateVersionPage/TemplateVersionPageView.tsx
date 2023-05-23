@@ -1,7 +1,6 @@
 import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
 import EditIcon from "@mui/icons-material/Edit"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
 import {
@@ -18,6 +17,7 @@ import { useTranslation } from "react-i18next"
 import { Link as RouterLink } from "react-router-dom"
 import { createDayString } from "utils/createDayString"
 import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface TemplateVersionPageViewProps {
   /**
@@ -57,7 +57,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
       {!currentFiles && !error && <Loader />}
 
       <Stack spacing={4}>
-        {Boolean(error) && <AlertBanner severity="error" error={error} />}
+        {Boolean(error) && <ErrorAlert error={error} />}
         {currentVersion && currentFiles && (
           <>
             <Stats>

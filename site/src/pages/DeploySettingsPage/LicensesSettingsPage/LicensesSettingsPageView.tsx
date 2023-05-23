@@ -10,6 +10,7 @@ import { FC } from "react"
 import Confetti from "react-confetti"
 import { Link } from "react-router-dom"
 import useWindowSize from "react-use/lib/useWindowSize"
+import MuiLink from "@mui/material/Link"
 
 type Props = {
   showConfetti: boolean
@@ -59,7 +60,7 @@ const LicensesSettingsPageView: FC<Props> = ({
           to="/settings/deployment/licenses/add"
           startIcon={<AddIcon />}
         >
-          Add a License
+          Add a license
         </Button>
       </Stack>
 
@@ -89,9 +90,12 @@ const LicensesSettingsPageView: FC<Props> = ({
               </span>
               <span className={styles.description}>
                 You{"'"}re missing out on high availability, RBAC, quotas, and
-                much more. Contact <a href="mailto:sales@coder.com">sales</a> or{" "}
-                <a href="https://coder.com/trial">request a trial license</a> to
-                get started.
+                much more. Contact{" "}
+                <MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
+                <MuiLink href="https://coder.com/trial">
+                  request a trial license
+                </MuiLink>{" "}
+                to get started.
               </span>
             </Stack>
           </Stack>

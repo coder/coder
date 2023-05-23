@@ -12,10 +12,10 @@ import { FC } from "react"
 import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService"
 import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined"
 import PlusIcon from "@mui/icons-material/AddOutlined"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 import { Stack } from "components/Stack/Stack"
 import { Link } from "react-router-dom"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface StarterTemplatePageViewProps {
   context: StarterTemplateContext
@@ -31,7 +31,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
   if (context.error) {
     return (
       <Margins>
-        <AlertBanner error={context.error} severity="error" />
+        <ErrorAlert error={context.error} />
       </Margins>
     )
   }

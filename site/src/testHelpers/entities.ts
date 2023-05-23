@@ -827,7 +827,7 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
 }
 
 export const MockWorkspaceWithDeletion = {
-  ...MockWorkspace,
+  ...MockStoppedWorkspace,
   deleting_at: new Date().toISOString(),
 }
 
