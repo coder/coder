@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/xerrors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
