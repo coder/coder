@@ -15,10 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"cdr.dev/slog/sloggers/sloghuman"
-
 	"cdr.dev/slog"
-
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/gen2brain/beeep"
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
@@ -347,7 +345,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 	return cmd
 }
 
-// watchAndClose Enures closer is called if the context is canceled or
+// watchAndClose ensures closer is called if the context is canceled or
 // the workspace reaches the stopped state.
 //
 // Watching the stopped state is a work-around for cases
