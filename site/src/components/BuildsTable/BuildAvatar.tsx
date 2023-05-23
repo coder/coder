@@ -5,7 +5,7 @@ import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined"
 import PauseOutlined from "@mui/icons-material/PauseOutlined"
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
 import { WorkspaceBuild, WorkspaceTransition } from "api/typesGenerated"
-import { getDisplayJobStatus } from "utils/workspace"
+import { getDisplayWorkspaceBuildStatus } from "utils/workspace"
 import { Avatar, AvatarProps } from "components/Avatar/Avatar"
 import { PaletteIndex } from "theme/theme"
 import { Theme } from "@mui/material/styles"
@@ -39,7 +39,7 @@ const iconByTransition: Record<WorkspaceTransition, JSX.Element> = {
 
 export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
   const theme = useTheme<Theme>()
-  const displayBuildStatus = getDisplayJobStatus(theme, build.job.status)
+  const displayBuildStatus = getDisplayWorkspaceBuildStatus(theme, build)
 
   return (
     <StyledBadge

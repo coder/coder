@@ -5,64 +5,70 @@ import minMax from "dayjs/plugin/minMax"
 import utc from "dayjs/plugin/utc"
 import semver from "semver"
 import * as TypesGen from "../api/typesGenerated"
+import i18next from "i18next"
+import CircularProgress from "@mui/material/CircularProgress"
+import ErrorIcon from "@mui/icons-material/ErrorOutline"
+import StopIcon from "@mui/icons-material/StopOutlined"
+import PlayIcon from "@mui/icons-material/PlayArrowOutlined"
+import QueuedIcon from "@mui/icons-material/HourglassEmpty"
 
 dayjs.extend(duration)
 dayjs.extend(utc)
 dayjs.extend(minMax)
 
+const DisplayWorkspaceBuildStatusLanguage = {
+  succeeded: "Succeeded",
+  pending: "Pending",
+  running: "Running",
+  canceling: "Canceling",
+  canceled: "Canceled",
+  failed: "Failed",
+}
+
 const DisplayAgentVersionLanguage = {
   unknown: "Unknown",
 }
 
-export const jobStatuses: Record<TypesGen.ProvisionerJobStatus, string> = {
-  succeeded: "Succeeded",
-  running: "Running",
-  failed: "Failed",
-  canceling: "Canceling",
-  canceled: "Canceled",
-  pending: "Pending",
-}
-
-export const getDisplayJobStatus = (
+export const getDisplayWorkspaceBuildStatus = (
   theme: Theme,
-  status: TypesGen.ProvisionerJobStatus,
+  build: TypesGen.WorkspaceBuild,
 ) => {
-  switch (status) {
+  switch (build.job.status) {
     case "succeeded":
       return {
         type: "success",
         color: theme.palette.success.main,
-        status: jobStatuses.succeeded,
+        status: DisplayWorkspaceBuildStatusLanguage.succeeded,
       } as const
     case "pending":
       return {
         type: "secondary",
         color: theme.palette.text.secondary,
-        status: jobStatuses.pending,
+        status: DisplayWorkspaceBuildStatusLanguage.pending,
       } as const
     case "running":
       return {
         type: "info",
         color: theme.palette.primary.main,
-        status: jobStatuses.running,
+        status: DisplayWorkspaceBuildStatusLanguage.running,
       } as const
     case "failed":
       return {
         type: "error",
         color: theme.palette.text.secondary,
-        status: jobStatuses.failed,
+        status: DisplayWorkspaceBuildStatusLanguage.failed,
       } as const
     case "canceling":
       return {
         type: "warning",
         color: theme.palette.warning.light,
-        status: jobStatuses.canceling,
+        status: DisplayWorkspaceBuildStatusLanguage.canceling,
       } as const
     case "canceled":
       return {
         type: "secondary",
         color: theme.palette.text.secondary,
-        status: jobStatuses.canceled,
+        status: DisplayWorkspaceBuildStatusLanguage.canceled,
       } as const
   }
 }
@@ -184,4 +190,82 @@ export const getDisplayWorkspaceTemplateName = (
   return workspace.template_display_name.length > 0
     ? workspace.template_display_name
     : workspace.template_name
+}
+
+export const getDisplayWorkspaceStatus = (
+  workspaceStatus: TypesGen.WorkspaceStatus,
+) => {
+  const { t } = i18next
+
+  switch (workspaceStatus) {
+    case undefined:
+      return {
+        text: t("workspaceStatus.loading", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "running":
+      return {
+        type: "success",
+        text: t("workspaceStatus.running", { ns: "common" }),
+        icon: <PlayIcon />,
+      } as const
+    case "starting":
+      return {
+        type: "success",
+        text: t("workspaceStatus.starting", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "stopping":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.stopping", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "stopped":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.stopped", { ns: "common" }),
+        icon: <StopIcon />,
+      } as const
+    case "deleting":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.deleting", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "deleted":
+      return {
+        type: "error",
+        text: t("workspaceStatus.deleted", { ns: "common" }),
+        icon: <ErrorIcon />,
+      } as const
+    case "canceling":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.canceling", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "canceled":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.canceled", { ns: "common" }),
+        icon: <ErrorIcon />,
+      } as const
+    case "failed":
+      return {
+        type: "error",
+        text: t("workspaceStatus.failed", { ns: "common" }),
+        icon: <ErrorIcon />,
+      } as const
+    case "pending":
+      return {
+        type: "info",
+        text: t("workspaceStatus.pending", { ns: "common" }),
+        icon: <QueuedIcon />,
+      } as const
+  }
+}
+
+const LoadingIcon = () => {
+  return <CircularProgress size={10} style={{ color: "#FFF" }} />
 }

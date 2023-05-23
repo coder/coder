@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link"
-import { ProvisionerJobStatus, Workspace } from "api/typesGenerated"
+import { Workspace, WorkspaceStatuses } from "api/typesGenerated"
 import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
 import { FC, forwardRef, useRef, useState } from "react"
@@ -22,8 +22,6 @@ import TextField from "@mui/material/TextField"
 import { MockTemplate, MockUser, MockUser2 } from "testHelpers/entities"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown"
-import { getDisplayJobStatus, jobStatuses } from "utils/workspace"
-import { useTheme } from "@mui/styles"
 import Button, { ButtonProps } from "@mui/material/Button"
 import Menu from "@mui/material/Menu"
 import MenuItem from "@mui/material/MenuItem"
@@ -35,6 +33,7 @@ import { Palette, PaletteColor } from "@mui/material/styles"
 import IconButton from "@mui/material/IconButton"
 import Tooltip from "@mui/material/Tooltip"
 import CloseOutlined from "@mui/icons-material/CloseOutlined"
+import { getDisplayWorkspaceStatus } from "utils/workspace"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -274,21 +273,8 @@ const OwnerFilter: FC<{
 
   return (
     <div>
-      <MenuButton
-        ref={buttonRef}
-        startIcon={
-          selectedOption ? (
-            <UserAvatar
-              username={selectedOption.label}
-              avatarURL={selectedOption.avatarUrl}
-              sx={{ width: 16, height: 16, fontSize: "8px !important" }}
-            />
-          ) : undefined
-        }
-        onClick={() => setIsMenuOpen(true)}
-        sx={{ width: 220 }}
-      >
-        {selectedOption ? selectedOption.label : "All users"}
+      <MenuButton ref={buttonRef} onClick={() => setIsMenuOpen(true)}>
+        User
       </MenuButton>
       <Menu
         id="user-filter-menu"
@@ -392,21 +378,8 @@ const TemplateFilter: FC<{
 
   return (
     <div>
-      <MenuButton
-        ref={buttonRef}
-        startIcon={
-          selectedOption ? (
-            <TemplateAvatar
-              sx={{ width: 14, height: 14, fontSize: 8 }}
-              templateName={selectedOption.label}
-              icon={selectedOption.icon}
-            />
-          ) : undefined
-        }
-        onClick={() => setIsMenuOpen(true)}
-        sx={{ width: 220 }}
-      >
-        {selectedOption ? selectedOption.label : "All templates"}
+      <MenuButton ref={buttonRef} onClick={() => setIsMenuOpen(true)}>
+        Template
       </MenuButton>
       <Menu
         id="template-filter-menu"
@@ -500,19 +473,18 @@ const StatusFilter: FC<{
   value: FilterValue["status"]
   onChange: (value: FilterValue["status"]) => void
 }> = ({ value, onChange }) => {
-  const theme = useTheme()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const workspaceStatusOptions: WorkspaceStatusOption[] = Object.keys(
-    jobStatuses,
-  ).map((status) => {
-    const display = getDisplayJobStatus(theme, status as ProvisionerJobStatus)
-    return {
-      label: display.status,
-      value: status,
-      color: display.type,
-    }
-  })
+  const workspaceStatusOptions: WorkspaceStatusOption[] = WorkspaceStatuses.map(
+    (status) => {
+      const display = getDisplayWorkspaceStatus(status)
+      return {
+        label: display.text,
+        value: status,
+        color: display.type ?? "warning",
+      }
+    },
+  )
   const selectedOption = workspaceStatusOptions.find(
     (option) => option.value === value,
   )
@@ -523,24 +495,14 @@ const StatusFilter: FC<{
 
   return (
     <div>
-      <MenuButton
-        ref={buttonRef}
-        startIcon={
-          selectedOption ? (
-            <StatusIndicator option={selectedOption} />
-          ) : undefined
-        }
-        onClick={() => setIsMenuOpen(true)}
-        sx={{ width: 140 }}
-      >
-        {selectedOption ? selectedOption.label : "All statuses"}
+      <MenuButton ref={buttonRef} onClick={() => setIsMenuOpen(true)}>
+        Status
       </MenuButton>
       <Menu
         id="status-filter-menu"
         anchorEl={buttonRef.current}
         open={isMenuOpen}
         onClose={handleClose}
-        sx={{ "& .MuiPaper-root": { width: 140 } }}
       >
         {workspaceStatusOptions.map((option) => (
           <MenuItem
@@ -594,8 +556,6 @@ const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
       {...props}
       sx={{
         borderRadius: "6px",
-        lineHeight: 0,
-        "& .MuiButton-endIcon": { marginLeft: "auto" },
         ...props.sx,
       }}
     />
