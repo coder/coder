@@ -31,6 +31,7 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 			Message:     "Query parameters have invalid values.",
 			Validations: p.Errors,
 		})
+		return
 	}
 
 	_, resp, _ := api.metricsCache.DeploymentDAUs(tzOffset)

@@ -629,6 +629,7 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 			Message:     "Query parameters have invalid values.",
 			Validations: p.Errors,
 		})
+		return
 	}
 
 	_, resp, _ := api.metricsCache.TemplateDAUs(template.ID, tzOffset)

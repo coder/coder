@@ -1744,8 +1744,8 @@ func (d DAURequest) asRequestOption() RequestOption {
 
 func TimezoneOffsetHour(loc *time.Location) int {
 	if loc == nil {
-		// Default to local
-		loc = time.Local
+		// Default to UTC time to be consistent across all callers.
+		loc = time.UTC
 	}
 	_, offsetSec := time.Now().In(loc).Zone()
 	// Convert to hours
