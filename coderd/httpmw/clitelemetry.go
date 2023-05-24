@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/exp/maps"
 	"tailscale.com/tstime/rate"
 
 	"cdr.dev/slog"
@@ -20,7 +21,16 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 
 		// We send telemetry at most once per minute.
 		limiter = rate.NewLimiter(rate.Every(time.Minute), 1)
-		queue   []telemetry.CLIInvocation
+
+		// We map by timestamp to deduplicate invocations, since one invocation
+		// will send multiple requests, each with a duplicate header. It's still
+		// possible for duplicates to reach the telemetry service since requests
+		// can get processed by different coderds, but our analysis tools
+		// will deduplicate by timestamp as well.
+		//
+		// This approach just helps us reduce storage and ingest fees, and doesn't
+		// change the correctness.
+		queue = make(map[string]telemetry.CLIInvocation)
 	)
 
 	log = log.Named("cli-telemetry")
@@ -62,18 +72,18 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 				mu.Lock()
 				defer mu.Unlock()
 
-				queue = append(queue, inv)
+				queue[inv.InvokedAt.String()] = inv
 				if !limiter.Allow() && len(queue) < 1024 {
 					return
 				}
 				rep.Report(&telemetry.Snapshot{
-					CLIInvocations: queue,
+					CLIInvocations: maps.Values(queue),
 				})
 				log.Debug(
 					r.Context(),
 					"report sent", slog.F("count", len(queue)),
 				)
-				queue = queue[:0]
+				maps.Clear(queue)
 			}()
 		})
 	}
