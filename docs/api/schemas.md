@@ -327,16 +327,18 @@
 ```json
 {
   "expanded_directory": "string",
+  "subsystem": "envbox",
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name                 | Type   | Required | Restrictions | Description |
-| -------------------- | ------ | -------- | ------------ | ----------- |
-| `expanded_directory` | string | false    |              |             |
-| `version`            | string | false    |              |             |
+| Name                 | Type                                               | Required | Restrictions | Description |
+| -------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `expanded_directory` | string                                             | false    |              |             |
+| `subsystem`          | [codersdk.AgentSubsystem](#codersdkagentsubsystem) | false    |              |             |
+| `version`            | string                                             | false    |              |             |
 
 ## agentsdk.StartupLog
 
@@ -782,6 +784,20 @@
 | Name      | Type   | Required | Restrictions | Description |
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
+
+## codersdk.AgentSubsystem
+
+```json
+"envbox"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value    |
+| -------- |
+| `envbox` |
 
 ## codersdk.AppHostResponse
 
@@ -1548,7 +1564,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name              | Type   | Required | Restrictions | Description |
 | ----------------- | ------ | -------- | ------------ | ----------- |
 | `email`           | string | true     |              |             |
-| `organization_id` | string | true     |              |             |
+| `organization_id` | string | false    |              |             |
 | `password`        | string | true     |              |             |
 | `username`        | string | true     |              |             |
 
@@ -1784,6 +1800,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
+  "allow_all_cors": true,
   "allow_path_app_sharing": true,
   "allow_path_app_site_owner_access": true
 }
@@ -1793,6 +1810,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 | Name                               | Type    | Required | Restrictions | Description |
 | ---------------------------------- | ------- | -------- | ------------ | ----------- |
+| `allow_all_cors`                   | boolean | false    |              |             |
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
@@ -1841,6 +1859,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "sshconfigOptions": ["string"]
     },
     "dangerous": {
+      "allow_all_cors": true,
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
     },
@@ -2185,6 +2204,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "sshconfigOptions": ["string"]
   },
   "dangerous": {
+    "allow_all_cors": true,
     "allow_path_app_sharing": true,
     "allow_path_app_site_owner_access": true
   },
@@ -3063,6 +3083,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "scope": "template",
   "scope_id": "5d3fe357-12dd-4f62-b004-6d1fb3b8454f",
   "source_scheme": "none",
+  "source_value": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
@@ -3080,6 +3101,7 @@ Parameter represents a set value for the scope.
 | `scope`              | [codersdk.ParameterScope](#codersdkparameterscope)                         | false    |              |             |
 | `scope_id`           | string                                                                     | false    |              |             |
 | `source_scheme`      | [codersdk.ParameterSourceScheme](#codersdkparametersourcescheme)           | false    |              |             |
+| `source_value`       | string                                                                     | false    |              |             |
 | `updated_at`         | string                                                                     | false    |              |             |
 
 #### Enumerated Values
@@ -4698,6 +4720,7 @@ Parameter represents a set value for the scope.
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
+            "subsystem": "envbox",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
@@ -4828,6 +4851,7 @@ Parameter represents a set value for the scope.
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
+  "subsystem": "envbox",
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
@@ -4865,6 +4889,7 @@ Parameter represents a set value for the scope.
 | `startup_script`                  | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `startup_script_timeout_seconds`  | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
 | `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
+| `subsystem`                       | [codersdk.AgentSubsystem](#codersdkagentsubsystem)                   | false    |              |                                                                                                                                                                                                            |
 | `troubleshooting_url`             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `updated_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `version`                         | string                                                               | false    |              |                                                                                                                                                                                                            |
@@ -5219,6 +5244,7 @@ Parameter represents a set value for the scope.
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
+          "subsystem": "envbox",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
           "version": "string"
@@ -5500,6 +5526,7 @@ Parameter represents a set value for the scope.
       "startup_script": "string",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
+      "subsystem": "envbox",
       "troubleshooting_url": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "version": "string"
@@ -5698,6 +5725,7 @@ Parameter represents a set value for the scope.
                 "startup_script": "string",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
+                "subsystem": "envbox",
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",
                 "version": "string"

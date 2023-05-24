@@ -64,6 +64,35 @@ The test does the following:
 
 Concurrency is configurable. `concurrency 0` means the scaletest test will attempt to create & connect to all workspaces immediately.
 
+## Autoscaling
+
+We generally do not recommend using an autoscaler that modifies the number of coderd replicas. In particular, scale
+down events can cause interruptions for a large number of users.
+
+Coderd is different from a simple request-response HTTP service in that it services long-lived connections whenever it
+proxies HTTP applications like IDEs or terminals that rely on websockets, or when it relays tunneled connections to
+workspaces. Loss of a coderd replica will drop these long-lived connections and interrupt users. For example, if you
+have 4 coderd replicas behind a load balancer, and an autoscaler decides to reduce it to 3, roughly 25% of the
+connections will drop. An even larger proportion of users could be affected if they use applications that use more
+than one websocket.
+
+The severity of the interruption varies by application. Coder's web terminal, for example, will reconnect to the same
+session and continue. So, this should not be interpreted as saying coderd replicas should never be taken down for any
+reason.
+
+We recommend you plan to run enough coderd replicas to comfortably meet your weekly high-water-mark load, and monitor
+coderd peak CPU & memory utilization over the long term, reevaluating periodically. When scaling down (or performing
+upgrades), schedule these outside normal working hours to minimize user interruptions.
+
+### A note for Kubernetes users
+
+When running on Kubernetes on cloud infrastructure (i.e. not bare metal), many operators choose to employ a _cluster_
+autoscaler that adds and removes Kubernetes _nodes_ according to load. Coder can coexist with such cluster autoscalers,
+but we recommend you take steps to prevent the autoscaler from evicting coderd pods, as an eviction will cause the same
+interruptions as described above. For example, if you are using the [Kubernetes cluster
+autoscaler](https://kubernetes.io/docs/reference/labels-annotations-taints/#cluster-autoscaler-kubernetes-io-safe-to-evict),
+you may wish to set `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` as an annotation on the coderd deployment.
+
 ## Troubleshooting
 
 If a load test fails or if you are experiencing performance issues during day-to-day use, you can leverage Coder's [prometheus metrics](./prometheus.md) to identify bottlenecks during scale tests. Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.

@@ -349,7 +349,7 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 		err            error
 	)
 
-	workspace, err = namedWorkspace(inv.Context(), client, workspaceParts[0])
+	workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
@@ -359,6 +359,11 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
 		err := cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+		// Fetch up-to-date build information after completion.
+		workspace.LatestBuild, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}

@@ -1,5 +1,5 @@
 import { makeStyles } from "@mui/styles"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { Maybe } from "components/Conditionals/Maybe"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
@@ -57,7 +57,7 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
       </PageHeader>
 
       <Maybe condition={Boolean(context.error)}>
-        <AlertBanner error={context.error} severity="error" />
+        <ErrorAlert error={context.error} />
       </Maybe>
 
       <Maybe condition={Boolean(!starterTemplatesByTag)}>

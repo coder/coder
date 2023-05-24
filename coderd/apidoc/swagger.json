@@ -5258,6 +5258,9 @@
         "expanded_directory": {
           "type": "string"
         },
+        "subsystem": {
+          "$ref": "#/definitions/codersdk.AgentSubsystem"
+        },
         "version": {
           "type": "string"
         }
@@ -5675,6 +5678,11 @@
           "type": "string"
         }
       }
+    },
+    "codersdk.AgentSubsystem": {
+      "type": "string",
+      "enum": ["envbox"],
+      "x-enum-varnames": ["AgentSubsystemEnvbox"]
     },
     "codersdk.AppHostResponse": {
       "type": "object",
@@ -6254,7 +6262,7 @@
     },
     "codersdk.CreateUserRequest": {
       "type": "object",
-      "required": ["email", "organization_id", "password", "username"],
+      "required": ["email", "password", "username"],
       "properties": {
         "email": {
           "type": "string",
@@ -6446,6 +6454,9 @@
     "codersdk.DangerousConfig": {
       "type": "object",
       "properties": {
+        "allow_all_cors": {
+          "type": "boolean"
+        },
         "allow_path_app_sharing": {
           "type": "boolean"
         },
@@ -7194,6 +7205,9 @@
               "$ref": "#/definitions/codersdk.ParameterSourceScheme"
             }
           ]
+        },
+        "source_value": {
+          "type": "string"
         },
         "updated_at": {
           "type": "string",
@@ -8664,6 +8678,9 @@
         },
         "status": {
           "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
+        },
+        "subsystem": {
+          "$ref": "#/definitions/codersdk.AgentSubsystem"
         },
         "troubleshooting_url": {
           "type": "string"

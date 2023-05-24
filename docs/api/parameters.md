@@ -42,6 +42,7 @@ curl -X GET http://coder-server:8080/api/v2/parameters/{scope}/{id} \
     "scope": "template",
     "scope_id": "5d3fe357-12dd-4f62-b004-6d1fb3b8454f",
     "source_scheme": "none",
+    "source_value": "string",
     "updated_at": "2019-08-24T14:15:22Z"
   }
 ]
@@ -67,6 +68,7 @@ Status Code **200**
 | `» scope`              | [codersdk.ParameterScope](schemas.md#codersdkparameterscope)                         | false    |              |                                                   |
 | `» scope_id`           | string(uuid)                                                                         | false    |              |                                                   |
 | `» source_scheme`      | [codersdk.ParameterSourceScheme](schemas.md#codersdkparametersourcescheme)           | false    |              |                                                   |
+| `» source_value`       | string                                                                               | false    |              |                                                   |
 | `» updated_at`         | string(date-time)                                                                    | false    |              |                                                   |
 
 #### Enumerated Values
@@ -139,6 +141,7 @@ curl -X POST http://coder-server:8080/api/v2/parameters/{scope}/{id} \
   "scope": "template",
   "scope_id": "5d3fe357-12dd-4f62-b004-6d1fb3b8454f",
   "source_scheme": "none",
+  "source_value": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```

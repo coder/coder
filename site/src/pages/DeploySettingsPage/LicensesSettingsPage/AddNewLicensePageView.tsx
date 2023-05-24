@@ -1,7 +1,6 @@
 import Button from "@mui/material/Button"
 import TextField from "@mui/material/TextField"
 import { makeStyles } from "@mui/styles"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
 import { Header } from "components/DeploySettingsLayout/Header"
 import { FileUpload } from "components/FileUpload/FileUpload"
@@ -11,6 +10,7 @@ import { Stack } from "components/Stack/Stack"
 import { DividerWithText } from "pages/DeploySettingsPage/LicensesSettingsPage/DividerWithText"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 type AddNewLicenseProps = {
   onSaveLicenseKey: (license: string) => void
@@ -54,7 +54,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         justifyContent="space-between"
       >
         <Header
-          title="Add a License"
+          title="Add a license"
           description="Get access to high availability, RBAC, quotas, and more."
         />
         <Button
@@ -66,9 +66,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         </Button>
       </Stack>
 
-      {savingLicenseError && (
-        <AlertBanner severity="error" error={savingLicenseError}></AlertBanner>
-      )}
+      {savingLicenseError && <ErrorAlert error={savingLicenseError} />}
 
       <FileUpload
         isUploading={isUploading}

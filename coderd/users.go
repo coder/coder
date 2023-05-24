@@ -128,7 +128,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			// Create an org for the first user.
 			OrganizationID: uuid.Nil,
 		},
-		LoginType: database.LoginTypePassword,
+		CreateOrganization: true,
+		LoginType:          database.LoginTypePassword,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -313,19 +314,41 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = api.Database.GetOrganizationByID(ctx, req.OrganizationID)
-	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("Organization does not exist with the provided id %q.", req.OrganizationID),
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching organization.",
-			Detail:  err.Error(),
-		})
-		return
+	if req.OrganizationID != uuid.Nil {
+		// If an organization was provided, make sure it exists.
+		_, err := api.Database.GetOrganizationByID(ctx, req.OrganizationID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+					Message: fmt.Sprintf("Organization does not exist with the provided id %q.", req.OrganizationID),
+				})
+				return
+			}
+
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching organization.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		// If no organization is provided, add the user to the first
+		// organization.
+		organizations, err := api.Database.GetOrganizations(ctx)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching orgs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		if len(organizations) > 0 {
+			// Add the user to the first organization. Once multi-organization
+			// support is added, we should enable a configuration map of user
+			// email to organization.
+			req.OrganizationID = organizations[0].ID
+		}
 	}
 
 	err = userpassword.Validate(req.Password)
@@ -955,7 +978,8 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 type CreateUserRequest struct {
 	codersdk.CreateUserRequest
-	LoginType database.LoginType
+	CreateOrganization bool
+	LoginType          database.LoginType
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, uuid.UUID, error) {
@@ -964,6 +988,10 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		orgRoles := make([]string, 0)
 		// If no organization is provided, create a new one for the user.
 		if req.OrganizationID == uuid.Nil {
+			if !req.CreateOrganization {
+				return xerrors.Errorf("organization ID must be provided")
+			}
+
 			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
 				ID:        uuid.New(),
 				Name:      req.Username,

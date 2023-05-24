@@ -2,9 +2,7 @@ package coderd
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,9 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
-	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/apikey"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -22,7 +20,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
 )
 
 // Creates a new token API key that effectively doesn't expire.
@@ -83,13 +80,14 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, key, err := api.createAPIKey(ctx, createAPIKeyParams{
-		UserID:          user.ID,
-		LoginType:       database.LoginTypeToken,
-		ExpiresAt:       database.Now().Add(lifeTime),
-		Scope:           scope,
-		LifetimeSeconds: int64(lifeTime.Seconds()),
-		TokenName:       tokenName,
+	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
+		UserID:           user.ID,
+		LoginType:        database.LoginTypeToken,
+		DeploymentValues: api.DeploymentValues,
+		ExpiresAt:        database.Now().Add(lifeTime),
+		Scope:            scope,
+		LifetimeSeconds:  int64(lifeTime.Seconds()),
+		TokenName:        tokenName,
 	})
 	if err != nil {
 		if database.IsUniqueViolation(err, database.UniqueIndexApiKeyName) {
@@ -127,10 +125,11 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	lifeTime := time.Hour * 24 * 7
-	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
-		UserID:     user.ID,
-		LoginType:  database.LoginTypePassword,
-		RemoteAddr: r.RemoteAddr,
+	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
+		UserID:           user.ID,
+		DeploymentValues: api.DeploymentValues,
+		LoginType:        database.LoginTypePassword,
+		RemoteAddr:       r.RemoteAddr,
 		// All api generated keys will last 1 week. Browser login tokens have
 		// a shorter life.
 		ExpiresAt:       database.Now().Add(lifeTime),
@@ -359,33 +358,6 @@ func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 	)
 }
 
-// Generates a new ID and secret for an API key.
-func GenerateAPIKeyIDSecret() (id string, secret string, err error) {
-	// Length of an API Key ID.
-	id, err = cryptorand.String(10)
-	if err != nil {
-		return "", "", err
-	}
-	// Length of an API Key secret.
-	secret, err = cryptorand.String(22)
-	if err != nil {
-		return "", "", err
-	}
-	return id, secret, nil
-}
-
-type createAPIKeyParams struct {
-	UserID     uuid.UUID
-	RemoteAddr string
-	LoginType  database.LoginType
-
-	// Optional.
-	ExpiresAt       time.Time
-	LifetimeSeconds int64
-	Scope           database.APIKeyScope
-	TokenName       string
-}
-
 func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 	if lifetime <= 0 {
 		return xerrors.New("lifetime must be positive number greater than 0")
@@ -401,73 +373,21 @@ func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 	return nil
 }
 
-func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*http.Cookie, *database.APIKey, error) {
-	keyID, keySecret, err := GenerateAPIKeyIDSecret()
+func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {
+	key, sessionToken, err := apikey.Generate(params)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("generate API key: %w", err)
 	}
-	hashed := sha256.Sum256([]byte(keySecret))
 
-	// Default expires at to now+lifetime, or use the configured value if not
-	// set.
-	if params.ExpiresAt.IsZero() {
-		if params.LifetimeSeconds != 0 {
-			params.ExpiresAt = database.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
-		} else {
-			params.ExpiresAt = database.Now().Add(api.DeploymentValues.SessionDuration.Value())
-			params.LifetimeSeconds = int64(api.DeploymentValues.SessionDuration.Value().Seconds())
-		}
-	}
-	if params.LifetimeSeconds == 0 {
-		params.LifetimeSeconds = int64(time.Until(params.ExpiresAt).Seconds())
-	}
-
-	ip := net.ParseIP(params.RemoteAddr)
-	if ip == nil {
-		ip = net.IPv4(0, 0, 0, 0)
-	}
-	bitlen := len(ip) * 8
-
-	scope := database.APIKeyScopeAll
-	if params.Scope != "" {
-		scope = params.Scope
-	}
-	switch scope {
-	case database.APIKeyScopeAll, database.APIKeyScopeApplicationConnect:
-	default:
-		return nil, nil, xerrors.Errorf("invalid API key scope: %q", scope)
-	}
-
-	key, err := api.Database.InsertAPIKey(ctx, database.InsertAPIKeyParams{
-		ID:              keyID,
-		UserID:          params.UserID,
-		LifetimeSeconds: params.LifetimeSeconds,
-		IPAddress: pqtype.Inet{
-			IPNet: net.IPNet{
-				IP:   ip,
-				Mask: net.CIDRMask(bitlen, bitlen),
-			},
-			Valid: true,
-		},
-		// Make sure in UTC time for common time zone
-		ExpiresAt:    params.ExpiresAt.UTC(),
-		CreatedAt:    database.Now(),
-		UpdatedAt:    database.Now(),
-		HashedSecret: hashed[:],
-		LoginType:    params.LoginType,
-		Scope:        scope,
-		TokenName:    params.TokenName,
-	})
+	newkey, err := api.Database.InsertAPIKey(ctx, key)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("insert API key: %w", err)
 	}
 
 	api.Telemetry.Report(&telemetry.Snapshot{
-		APIKeys: []telemetry.APIKey{telemetry.ConvertAPIKey(key)},
+		APIKeys: []telemetry.APIKey{telemetry.ConvertAPIKey(newkey)},
 	})
 
-	// This format is consumed by the APIKey middleware.
-	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
 	return &http.Cookie{
 		Name:     codersdk.SessionTokenCookie,
 		Value:    sessionToken,
@@ -475,5 +395,5 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   api.SecureAuthCookie,
-	}, &key, nil
+	}, &newkey, nil
 }

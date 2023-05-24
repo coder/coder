@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/apikey"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
@@ -129,10 +130,11 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // Creating the API key as the user instead of as system.
-	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, userSubj), createAPIKeyParams{
-		UserID:     user.ID,
-		LoginType:  database.LoginTypePassword,
-		RemoteAddr: r.RemoteAddr,
+	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, userSubj), apikey.CreateParams{
+		UserID:           user.ID,
+		LoginType:        database.LoginTypePassword,
+		RemoteAddr:       r.RemoteAddr,
+		DeploymentValues: api.DeploymentValues,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -919,7 +921,11 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 					Username:       params.Username,
 					OrganizationID: organizationID,
 				},
-				LoginType: params.LoginType,
+				// All of the userauth tests depend on this being able to create
+				// the first organization. It shouldn't be possible in normal
+				// operation.
+				CreateOrganization: len(organizations) == 0,
+				LoginType:          params.LoginType,
 			})
 			if err != nil {
 				return xerrors.Errorf("create user: %w", err)
@@ -1011,10 +1017,11 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 	}
 
 	//nolint:gocritic
-	cookie, key, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), createAPIKeyParams{
-		UserID:     user.ID,
-		LoginType:  params.LoginType,
-		RemoteAddr: r.RemoteAddr,
+	cookie, key, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
+		UserID:           user.ID,
+		LoginType:        params.LoginType,
+		DeploymentValues: api.DeploymentValues,
+		RemoteAddr:       r.RemoteAddr,
 	})
 	if err != nil {
 		return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)

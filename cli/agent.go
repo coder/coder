@@ -22,23 +22,29 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"cdr.dev/slog/sloggers/slogjson"
+	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
 func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	var (
-		auth              string
-		logDir            string
-		pprofAddress      string
-		noReap            bool
-		sshMaxTimeout     time.Duration
-		tailnetListenPort int64
-		prometheusAddress string
-		debugAddress      string
+		auth                string
+		logDir              string
+		pprofAddress        string
+		noReap              bool
+		sshMaxTimeout       time.Duration
+		tailnetListenPort   int64
+		prometheusAddress   string
+		debugAddress        string
+		slogHumanPath       string
+		slogJSONPath        string
+		slogStackdriverPath string
 	)
 	cmd := &clibase.Cmd{
 		Use:   "agent",
@@ -61,7 +67,46 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					MaxSize:  5, // MB
 				}
 				defer logWriter.Close()
-				logger := slog.Make(sloghuman.Sink(inv.Stderr), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+
+				sinks := []slog.Sink{sloghuman.Sink(logWriter)}
+				closers := []func() error{}
+				addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
+					switch loc {
+					case "":
+
+					case "/dev/stdout":
+						sinks = append(sinks, sinkFn(inv.Stdout))
+
+					case "/dev/stderr":
+						sinks = append(sinks, sinkFn(inv.Stderr))
+
+					default:
+						fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+						if err != nil {
+							return xerrors.Errorf("open log file %q: %w", loc, err)
+						}
+						closers = append(closers, fi.Close)
+						sinks = append(sinks, sinkFn(fi))
+					}
+					return nil
+				}
+
+				if err := addSinkIfProvided(sloghuman.Sink, slogHumanPath); err != nil {
+					return xerrors.Errorf("add human sink: %w", err)
+				}
+				if err := addSinkIfProvided(slogjson.Sink, slogJSONPath); err != nil {
+					return xerrors.Errorf("add json sink: %w", err)
+				}
+				if err := addSinkIfProvided(slogstackdriver.Sink, slogStackdriverPath); err != nil {
+					return xerrors.Errorf("add stackdriver sink: %w", err)
+				}
+
+				logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
+				defer func() {
+					for _, closer := range closers {
+						_ = closer()
+					}
+				}()
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
@@ -124,16 +169,18 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			_ = pprof.Handler
 			pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
 			defer pprofSrvClose()
-			// Do a best effort here. If this fails, it's not a big deal.
-			if port, err := urlPort(pprofAddress); err == nil {
+			if port, err := extractPort(pprofAddress); err == nil {
 				ignorePorts[port] = "pprof"
 			}
 
 			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
 			defer prometheusSrvClose()
-			// Do a best effort here. If this fails, it's not a big deal.
-			if port, err := urlPort(prometheusAddress); err == nil {
+			if port, err := extractPort(prometheusAddress); err == nil {
 				ignorePorts[port] = "prometheus"
+			}
+
+			if port, err := extractPort(debugAddress); err == nil {
+				ignorePorts[port] = "debug"
 			}
 
 			// exchangeToken returns a session token.
@@ -197,6 +244,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
+			subsystem := inv.Environ.Get(agent.EnvAgentSubsystem)
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -218,14 +266,11 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
+				Subsystem:     codersdk.AgentSubsystem(subsystem),
 			})
 
 			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
 			defer debugSrvClose()
-			// Do a best effort here. If this fails, it's not a big deal.
-			if port, err := urlPort(debugAddress); err == nil {
-				ignorePorts[port] = "debug"
-			}
 
 			<-ctx.Done()
 			return agnt.Close()
@@ -288,6 +333,30 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Env:         "CODER_AGENT_DEBUG_ADDRESS",
 			Value:       clibase.StringOf(&debugAddress),
 			Description: "The bind address to serve a debug HTTP server.",
+		},
+		{
+			Name:        "Human Log Location",
+			Description: "Output human-readable logs to a given file.",
+			Flag:        "log-human",
+			Env:         "CODER_AGENT_LOGGING_HUMAN",
+			Default:     "/dev/stderr",
+			Value:       clibase.StringOf(&slogHumanPath),
+		},
+		{
+			Name:        "JSON Log Location",
+			Description: "Output JSON logs to a given file.",
+			Flag:        "log-json",
+			Env:         "CODER_AGENT_LOGGING_JSON",
+			Default:     "",
+			Value:       clibase.StringOf(&slogJSONPath),
+		},
+		{
+			Name:        "Stackdriver Log Location",
+			Description: "Output Stackdriver compatible logs to a given file.",
+			Flag:        "log-stackdriver",
+			Env:         "CODER_AGENT_LOGGING_STACKDRIVER",
+			Default:     "",
+			Value:       clibase.StringOf(&slogStackdriverPath),
 		},
 	}
 

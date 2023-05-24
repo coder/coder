@@ -501,6 +501,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   startup_logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
+  subsystem: "envbox",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -826,7 +827,7 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
 }
 
 export const MockWorkspaceWithDeletion = {
-  ...MockWorkspace,
+  ...MockStoppedWorkspace,
   deleting_at: new Date().toISOString(),
 }
 
@@ -1396,7 +1397,10 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   }),
 }
 
-export const MockExperiments: TypesGen.Experiment[] = ["workspace_actions"]
+export const MockExperiments: TypesGen.Experiment[] = [
+  "workspace_actions",
+  "moons",
+]
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
