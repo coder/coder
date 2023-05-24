@@ -1,4 +1,4 @@
-import RefreshIcon from "@material-ui/icons/Refresh"
+import RefreshIcon from "@mui/icons-material/Refresh"
 import { FC } from "react"
 import {
   HelpTooltip,
@@ -7,8 +7,8 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "./HelpTooltip"
-import InfoIcon from "@material-ui/icons/InfoOutlined"
-import { makeStyles } from "@material-ui/core/styles"
+import InfoIcon from "@mui/icons-material/InfoOutlined"
+import { makeStyles } from "@mui/styles"
 import { colors } from "theme/colors"
 
 export const Language = {

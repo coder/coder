@@ -1,7 +1,7 @@
 import { FC, PropsWithChildren } from "react"
 import { Section } from "components/SettingsLayout/Section"
 import { WorkspaceProxyView } from "./WorkspaceProxyView"
-import makeStyles from "@material-ui/core/styles/makeStyles"
+import makeStyles from "@mui/styles/makeStyles"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { useProxy } from "contexts/ProxyContext"
 
@@ -14,6 +14,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
     "This selection only affects browser connections to your workspace."
 
   const {
+    proxyLatencies,
     proxies,
     error: proxiesError,
     isFetched: proxiesFetched,
@@ -30,11 +31,12 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
       layout="fluid"
     >
       <WorkspaceProxyView
+        proxyLatencies={proxyLatencies}
         proxies={proxies}
         isLoading={proxiesLoading}
         hasLoaded={proxiesFetched}
         getWorkspaceProxiesError={proxiesError}
-        preferredProxy={proxy.selectedProxy}
+        preferredProxy={proxy.proxy}
         onSelect={(proxy) => {
           if (!proxy.healthy) {
             displayError("Please select a healthy workspace proxy.")

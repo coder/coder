@@ -1,16 +1,16 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
-import Table from "@material-ui/core/Table"
-import TableBody from "@material-ui/core/TableBody"
-import TableCell from "@material-ui/core/TableCell"
-import TableContainer from "@material-ui/core/TableContainer"
-import TableHead from "@material-ui/core/TableHead"
-import TableRow from "@material-ui/core/TableRow"
-import ArrowRightAltOutlined from "@material-ui/icons/ArrowRightAltOutlined"
-import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
-import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
-import AvatarGroup from "@material-ui/lab/AvatarGroup"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import { makeStyles } from "@mui/styles"
+import Table from "@mui/material/Table"
+import TableBody from "@mui/material/TableBody"
+import TableCell from "@mui/material/TableCell"
+import TableContainer from "@mui/material/TableContainer"
+import TableHead from "@mui/material/TableHead"
+import TableRow from "@mui/material/TableRow"
+import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
+import AddOutlined from "@mui/icons-material/AddOutlined"
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
+import AvatarGroup from "@mui/material/AvatarGroup"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
@@ -48,18 +48,17 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
             description="Organize the users into groups and manage their permissions. To use this feature, you have to upgrade your account."
             cta={
               <Stack direction="row" alignItems="center">
-                <Link
-                  underline="none"
+                <Button
                   href="https://coder.com/docs/coder-oss/latest/enterprise"
                   target="_blank"
                   rel="noreferrer"
+                  startIcon={<ArrowRightAltOutlined />}
+                  variant="contained"
                 >
-                  <Button size="small" startIcon={<ArrowRightAltOutlined />}>
-                    See how to upgrade
-                  </Button>
-                </Link>
+                  See how to upgrade
+                </Button>
+
                 <Link
-                  underline="none"
                   href="https://coder.com/docs/coder-oss/latest/admin/groups"
                   target="_blank"
                   rel="noreferrer"
@@ -83,7 +82,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
               <TableBody>
                 <ChooseOne>
                   <Cond condition={isLoading}>
-                    <TableLoaderSkeleton columns={2} useAvatarData />
+                    <TableLoaderSkeleton columns={3} useAvatarData />
                   </Cond>
 
                   <Cond condition={isEmpty}>
@@ -98,15 +97,14 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                           }
                           cta={
                             canCreateGroup && (
-                              <Link
-                                underline="none"
+                              <Button
                                 component={RouterLink}
                                 to="/groups/create"
+                                startIcon={<AddOutlined />}
+                                variant="contained"
                               >
-                                <Button startIcon={<AddCircleOutline />}>
-                                  Create group
-                                </Button>
-                              </Link>
+                                Create group
+                              </Button>
                             )
                           }
                         />
@@ -149,7 +147,11 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 
                           <TableCell>
                             {group.members.length === 0 && "-"}
-                            <AvatarGroup>
+                            <AvatarGroup
+                              max={10}
+                              total={group.members.length}
+                              sx={{ justifyContent: "flex-end" }}
+                            >
                               {group.members.map((member) => (
                                 <UserAvatar
                                   key={member.username}

@@ -75,7 +75,7 @@ To control cost, specify a maximum time to live flag for a template in hours or
 minutes.
 
 ```sh
-coder templates create my-template --ttl 4h
+coder templates create my-template --default-ttl 4h
 ```
 
 ## Customize templates

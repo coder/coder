@@ -46,6 +46,12 @@ func Test_extractPort(t *testing.T) {
 			urlString: "6060",
 			wantErr:   true,
 		},
+		{
+			name:      "127.0.0.1",
+			urlString: "127.0.0.1:2113",
+			want:      2113,
+			wantErr:   false,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt

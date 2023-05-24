@@ -5,7 +5,7 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 
 export interface FullPageFormProps {
   title: string
@@ -33,6 +33,6 @@ export const FullPageForm: FC<React.PropsWithChildren<FullPageFormProps>> = ({
 
 const useStyles = makeStyles((theme) => ({
   pageHeader: {
-    paddingBottom: theme.spacing(2),
+    paddingBottom: theme.spacing(3),
   },
 }))

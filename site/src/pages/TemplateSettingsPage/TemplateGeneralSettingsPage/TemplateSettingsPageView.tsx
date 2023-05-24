@@ -3,7 +3,7 @@ import { ComponentProps, FC } from "react"
 import { TemplateSettingsForm } from "./TemplateSettingsForm"
 import { useTranslation } from "react-i18next"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 
 export interface TemplateSettingsPageViewProps {
   template: Template

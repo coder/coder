@@ -141,7 +141,6 @@ export interface BuildInfoResponse {
 
 // From codersdk/parameters.go
 export interface ComputedParameter extends Parameter {
-  readonly source_value: string
   readonly schema_id: string
   readonly default_source_value: boolean
 }
@@ -313,6 +312,7 @@ export interface DERPServerConfig {
 export interface DangerousConfig {
   readonly allow_path_app_sharing: boolean
   readonly allow_path_app_site_owner_access: boolean
+  readonly allow_all_cors: boolean
 }
 
 // From codersdk/deployment.go
@@ -589,6 +589,7 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
   readonly created_at: string
   readonly updated_at: string
+  readonly source_value: string
 }
 
 // From codersdk/parameters.go
@@ -899,6 +900,7 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User
+  readonly warnings?: TemplateVersionWarning[]
 }
 
 // From codersdk/templateversions.go
@@ -1113,6 +1115,7 @@ export interface Workspace {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly last_used_at: string
+  readonly deleting_at?: string
 }
 
 // From codersdk/workspaceagents.go
@@ -1145,6 +1148,7 @@ export interface WorkspaceAgent {
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
+  readonly subsystem: AgentSubsystem
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1339,6 +1343,10 @@ export interface WorkspacesResponse {
 export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
+// From codersdk/workspaceagents.go
+export type AgentSubsystem = "envbox"
+export const AgentSubsystems: AgentSubsystem[] = ["envbox"]
+
 // From codersdk/audit.go
 export type AuditAction =
   | "create"
@@ -1495,12 +1503,12 @@ export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
 
 // From codersdk/workspaceproxy.go
 export type ProxyHealthStatus =
-  | "reachable"
+  | "ok"
   | "unhealthy"
   | "unreachable"
   | "unregistered"
 export const ProxyHealthStatuses: ProxyHealthStatus[] = [
-  "reachable",
+  "ok",
   "unhealthy",
   "unreachable",
   "unregistered",
@@ -1589,6 +1597,12 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"
 export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
+
+// From codersdk/templateversions.go
+export type TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+export const TemplateVersionWarnings: TemplateVersionWarning[] = [
+  "DEPRECATED_PARAMETERS",
+]
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

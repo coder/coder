@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -12,7 +12,7 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { AlertBanner } from "../AlertBanner/AlertBanner"
+import { Alert } from "../Alert/Alert"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
 import { Resources } from "../Resources/Resources"
@@ -26,6 +26,8 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader"
+import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -52,6 +54,7 @@ export interface WorkspaceProps {
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
+  templateWarnings?: TypesGen.TemplateVersionWarning[]
   canUpdateWorkspace: boolean
   canUpdateTemplate: boolean
   canChangeVersions: boolean
@@ -96,6 +99,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   quota_budget,
   failedBuildLogs,
   handleBuildRetry,
+  templateWarnings,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -103,8 +107,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const { t } = useTranslation("workspacePage")
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <AlertBanner
-      severity="error"
+    <ErrorAlert
       error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
       dismissible
     />
@@ -113,8 +116,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const cancellationError = Boolean(
     workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
   ) && (
-    <AlertBanner
-      severity="error"
+    <ErrorAlert
       error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
       dismissible
     />
@@ -186,9 +188,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             handleClick={() => navigate(`/templates`)}
           />
 
+          <TemplateVersionWarnings warnings={templateWarnings} />
+
           {failedBuildLogs && (
             <Stack>
-              <AlertBanner severity="error">
+              <Alert severity="error">
                 <Stack
                   className={styles.fullWidth}
                   direction="row"
@@ -208,14 +212,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                         onClick={handleBuildRetry}
                         startIcon={<RefreshOutlined />}
                         size="small"
-                        variant="outlined"
                       >
                         {t("actionButton.retryDebugMode")}
                       </Button>
                     </div>
                   )}
                 </Stack>
-              </AlertBanner>
+              </Alert>
               <WorkspaceBuildLogs logs={failedBuildLogs} />
             </Stack>
           )}
@@ -247,8 +250,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           )}
 
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <AlertBanner
-              severity="error"
+            <ErrorAlert
               error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
             />
           ) : (
@@ -273,7 +275,7 @@ export const useStyles = makeStyles((theme) => {
     },
 
     actions: {
-      [theme.breakpoints.down("sm")]: {
+      [theme.breakpoints.down("md")]: {
         flexDirection: "column",
       },
     },

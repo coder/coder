@@ -1,14 +1,13 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
-import Table from "@material-ui/core/Table"
-import TableBody from "@material-ui/core/TableBody"
-import TableCell from "@material-ui/core/TableCell"
-import TableContainer from "@material-ui/core/TableContainer"
-import TableHead from "@material-ui/core/TableHead"
-import TableRow from "@material-ui/core/TableRow"
-import AddIcon from "@material-ui/icons/AddOutlined"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import { makeStyles } from "@mui/styles"
+import Table from "@mui/material/Table"
+import TableBody from "@mui/material/TableBody"
+import TableCell from "@mui/material/TableCell"
+import TableContainer from "@mui/material/TableContainer"
+import TableHead from "@mui/material/TableHead"
+import TableRow from "@mui/material/TableRow"
+import AddIcon from "@mui/icons-material/AddOutlined"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
@@ -40,8 +39,9 @@ import { useClickableTableRow } from "hooks/useClickableTableRow"
 import { Template } from "api/typesGenerated"
 import { combineClasses } from "utils/combineClasses"
 import { colors } from "theme/colors"
-import ArrowForwardOutlined from "@material-ui/icons/ArrowForwardOutlined"
+import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined"
 import { Avatar } from "components/Avatar/Avatar"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -118,7 +118,6 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
 
       <TableCell className={styles.actionCell}>
         <Button
-          variant="outlined"
           size="small"
           className={styles.actionButton}
           startIcon={<ArrowForwardOutlined />}
@@ -151,14 +150,15 @@ export const TemplatesPageView: FC<
       <PageHeader
         actions={
           <Maybe condition={permissions.createTemplates}>
-            <Button
-              variant="outlined"
-              component={RouterLink}
-              to="/starter-templates"
-            >
+            <Button component={RouterLink} to="/starter-templates">
               Starter templates
             </Button>
-            <Button startIcon={<AddIcon />} component={RouterLink} to="new">
+            <Button
+              startIcon={<AddIcon />}
+              component={RouterLink}
+              to="new"
+              variant="contained"
+            >
               Add template
             </Button>
           </Maybe>
@@ -193,7 +193,7 @@ export const TemplatesPageView: FC<
 
       <ChooseOne>
         <Cond condition={Boolean(error)}>
-          <AlertBanner severity="error" error={error} />
+          <ErrorAlert error={error} />
         </Cond>
 
         <Cond>
@@ -210,7 +210,7 @@ export const TemplatesPageView: FC<
               </TableHead>
               <TableBody>
                 <Maybe condition={isLoading}>
-                  <TableLoaderSkeleton columns={4} useAvatarData />
+                  <TableLoaderSkeleton columns={5} useAvatarData />
                 </Maybe>
 
                 <ChooseOne>

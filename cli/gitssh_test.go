@@ -58,9 +58,9 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 
 	// start workspace agent
 	inv, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
-	agentClient := client
+	agentClient := codersdk.New(client.URL)
+	agentClient.SetSessionToken(agentToken)
 	clitest.SetupConfig(t, agentClient, root)
-
 	clitest.Start(t, inv)
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)

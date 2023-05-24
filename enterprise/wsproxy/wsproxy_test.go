@@ -16,7 +16,7 @@ import (
 func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 	t.Parallel()
 
-	apptest.Run(t, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
+	apptest.Run(t, false, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
 		deploymentValues := coderdtest.DeploymentValues(t)
 		deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
 		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
@@ -61,11 +61,10 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 		})
 
 		return &apptest.Deployment{
-			Options:          opts,
-			SDKClient:        client,
-			FirstUser:        user,
-			PathAppBaseURL:   proxyAPI.Options.AccessURL,
-			AppHostIsPrimary: false,
+			Options:        opts,
+			SDKClient:      client,
+			FirstUser:      user,
+			PathAppBaseURL: proxyAPI.Options.AccessURL,
 		}
 	})
 }

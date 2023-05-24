@@ -1,7 +1,6 @@
-import ListItem from "@material-ui/core/ListItem"
-import { makeStyles } from "@material-ui/core/styles"
-import SvgIcon from "@material-ui/core/SvgIcon"
-import CheckIcon from "@material-ui/icons/Check"
+import ListItem from "@mui/material/ListItem"
+import { makeStyles } from "@mui/styles"
+import CheckIcon from "@mui/icons-material/Check"
 import { FC } from "react"
 import { NavLink } from "react-router-dom"
 import { ellipsizeText } from "../../utils/ellipsizeText"
@@ -14,8 +13,6 @@ interface BorderedMenuRowProps {
   active?: boolean
   /** Optional description that appears beneath the title */
   description?: string
-  /** An SvgIcon that will be rendered to the left of the title */
-  Icon: typeof SvgIcon
   /** URL path */
   path: string
   /** Required title of this row */
@@ -28,7 +25,7 @@ interface BorderedMenuRowProps {
 
 export const BorderedMenuRow: FC<
   React.PropsWithChildren<BorderedMenuRowProps>
-> = ({ active, description, Icon, path, title, variant, onClick }) => {
+> = ({ active, description, path, title, variant, onClick }) => {
   const styles = useStyles()
 
   return (
@@ -41,7 +38,6 @@ export const BorderedMenuRow: FC<
       >
         <div className={styles.content} data-variant={variant}>
           <div className={styles.contentTop}>
-            <Icon className={styles.icon} />
             <Typography className={styles.title}>{title}</Typography>
             {active && <CheckIcon className={styles.checkMark} />}
           </div>
@@ -66,7 +62,7 @@ const iconSize = 20
 const useStyles = makeStyles((theme) => ({
   root: {
     cursor: "pointer",
-    padding: `0 ${theme.spacing(1)}px`,
+    padding: `0 ${theme.spacing(1)}`,
 
     "&:hover": {
       backgroundColor: "unset",
@@ -86,7 +82,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   rootGutters: {
-    padding: `0 ${theme.spacing(1.5)}px`,
+    padding: `0 ${theme.spacing(1.5)}`,
   },
   content: {
     borderRadius: theme.shape.borderRadius,

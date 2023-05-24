@@ -5093,6 +5093,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/goingaway": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Workspace proxy going away",
+                "operationId": "workspace-proxy-going-away",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceproxies/me/issue-signed-app-token": {
             "post": {
                 "security": [
@@ -5938,6 +5966,9 @@ const docTemplate = `{
                 "expanded_directory": {
                     "type": "string"
                 },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
+                },
                 "version": {
                     "type": "string"
                 }
@@ -6377,6 +6408,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AgentSubsystem": {
+            "type": "string",
+            "enum": [
+                "envbox"
+            ],
+            "x-enum-varnames": [
+                "AgentSubsystemEnvbox"
+            ]
         },
         "codersdk.AppHostResponse": {
             "type": "object",
@@ -7004,7 +7044,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "organization_id",
                 "password",
                 "username"
             ],
@@ -7213,6 +7252,9 @@ const docTemplate = `{
         "codersdk.DangerousConfig": {
             "type": "object",
             "properties": {
+                "allow_all_cors": {
+                    "type": "boolean"
+                },
                 "allow_path_app_sharing": {
                     "type": "boolean"
                 },
@@ -8021,6 +8063,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "source_value": {
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -8419,13 +8464,13 @@ const docTemplate = `{
         "codersdk.ProxyHealthStatus": {
             "type": "string",
             "enum": [
-                "reachable",
+                "ok",
                 "unreachable",
                 "unhealthy",
                 "unregistered"
             ],
             "x-enum-varnames": [
-                "ProxyReachable",
+                "ProxyHealthy",
                 "ProxyUnreachable",
                 "ProxyUnhealthy",
                 "ProxyUnregistered"
@@ -9012,6 +9057,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "DEPRECATED_PARAMETERS"
+                        ],
+                        "$ref": "#/definitions/codersdk.TemplateVersionWarning"
+                    }
                 }
             }
         },
@@ -9149,6 +9203,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.TemplateVersionWarning": {
+            "type": "string",
+            "enum": [
+                "DEPRECATED_PARAMETERS"
+            ],
+            "x-enum-varnames": [
+                "TemplateVersionWarningDeprecatedParameters"
+            ]
         },
         "codersdk.TokenConfig": {
             "type": "object",
@@ -9427,6 +9490,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "deleting_at": {
+                    "description": "DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.\nWorkspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -9575,6 +9643,9 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
+                },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "troubleshooting_url": {
                     "type": "string"

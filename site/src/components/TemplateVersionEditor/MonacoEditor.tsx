@@ -1,4 +1,4 @@
-import { useTheme } from "@material-ui/core/styles"
+import { useTheme } from "@mui/styles"
 import Editor, { loader } from "@monaco-editor/react"
 import * as monaco from "monaco-editor"
 import { FC, useLayoutEffect, useMemo, useState } from "react"

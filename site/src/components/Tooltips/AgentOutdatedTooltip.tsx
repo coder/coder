@@ -1,6 +1,6 @@
 import { ComponentProps, FC } from "react"
-import { makeStyles } from "@material-ui/core/styles"
-import RefreshIcon from "@material-ui/icons/RefreshOutlined"
+import { makeStyles } from "@mui/styles"
+import RefreshIcon from "@mui/icons-material/RefreshOutlined"
 import {
   HelpTooltipText,
   HelpPopover,

@@ -16,6 +16,7 @@ import {
   MockWorkspaceAgentStartTimeout,
   MockWorkspaceAgentTimeout,
   MockWorkspaceApp,
+  MockProxyLatencies,
 } from "testHelpers/entities"
 import { AgentRow, AgentRowProps } from "./AgentRow"
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
@@ -56,11 +57,15 @@ const TemplateFC = (
   return (
     <ProxyContext.Provider
       value={{
+        proxyLatencies: MockProxyLatencies,
         proxy: getPreferredProxy(proxies, selectedProxy),
         proxies: proxies,
         isLoading: false,
         isFetched: true,
         setProxy: () => {
+          return
+        },
+        clearProxy: () => {
           return
         },
       }}

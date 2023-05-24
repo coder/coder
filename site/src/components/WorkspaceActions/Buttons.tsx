@@ -1,90 +1,85 @@
-import Button from "@material-ui/core/Button"
-import BlockIcon from "@material-ui/icons/Block"
-import CloudQueueIcon from "@material-ui/icons/CloudQueue"
-import CropSquareIcon from "@material-ui/icons/CropSquare"
-import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
-import ReplayIcon from "@material-ui/icons/Replay"
+import Button from "@mui/material/Button"
+import BlockIcon from "@mui/icons-material/Block"
+import CloudQueueIcon from "@mui/icons-material/CloudQueue"
+import CropSquareIcon from "@mui/icons-material/CropSquare"
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline"
+import ReplayIcon from "@mui/icons-material/Replay"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
-import { FC, PropsWithChildren } from "react"
-import { useTranslation } from "react-i18next"
+import { FC } from "react"
+import BlockOutlined from "@mui/icons-material/BlockOutlined"
 
 interface WorkspaceAction {
+  loading?: boolean
   handleAction: () => void
 }
 
-export const UpdateButton: FC<PropsWithChildren<WorkspaceAction>> = ({
+export const UpdateButton: FC<WorkspaceAction> = ({
   handleAction,
+  loading,
 }) => {
-  const { t } = useTranslation("workspacePage")
-
   return (
-    <Button
-      size="small"
+    <LoadingButton
+      loading={loading}
+      loadingIndicator="Updating..."
+      loadingPosition="start"
       data-testid="workspace-update-button"
-      variant="outlined"
       startIcon={<CloudQueueIcon />}
       onClick={handleAction}
     >
-      {t("actionButton.update")}
-    </Button>
+      Update
+    </LoadingButton>
   )
 }
 
-export const StartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
-  handleAction,
-}) => {
-  const { t } = useTranslation("workspacePage")
-
+export const StartButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
   return (
-    <Button
-      variant="outlined"
+    <LoadingButton
+      loading={loading}
+      loadingIndicator="Starting..."
+      loadingPosition="start"
       startIcon={<PlayCircleOutlineIcon />}
       onClick={handleAction}
     >
-      {t("actionButton.start")}
-    </Button>
+      Start
+    </LoadingButton>
   )
 }
 
-export const StopButton: FC<PropsWithChildren<WorkspaceAction>> = ({
-  handleAction,
-}) => {
-  const { t } = useTranslation("workspacePage")
-
+export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
   return (
-    <Button
-      size="small"
-      variant="outlined"
+    <LoadingButton
+      loading={loading}
+      loadingIndicator="Stopping..."
+      loadingPosition="start"
       startIcon={<CropSquareIcon />}
       onClick={handleAction}
     >
-      {t("actionButton.stop")}
-    </Button>
+      Stop
+    </LoadingButton>
   )
 }
 
-export const RestartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
+export const RestartButton: FC<WorkspaceAction> = ({
   handleAction,
+  loading,
 }) => {
-  const { t } = useTranslation("workspacePage")
-
   return (
-    <Button
-      size="small"
-      variant="outlined"
+    <LoadingButton
+      loading={loading}
+      loadingIndicator="Restarting..."
+      loadingPosition="start"
       startIcon={<ReplayIcon />}
       onClick={handleAction}
+      data-testid="workspace-restart-button"
     >
-      {t("actionButton.restart")}
-    </Button>
+      Restart
+    </LoadingButton>
   )
 }
 
-export const CancelButton: FC<PropsWithChildren<WorkspaceAction>> = ({
-  handleAction,
-}) => {
+export const CancelButton: FC<WorkspaceAction> = ({ handleAction }) => {
   return (
-    <Button variant="outlined" startIcon={<BlockIcon />} onClick={handleAction}>
+    <Button startIcon={<BlockIcon />} onClick={handleAction}>
       Cancel
     </Button>
   )
@@ -94,11 +89,9 @@ interface DisabledProps {
   label: string
 }
 
-export const DisabledButton: FC<PropsWithChildren<DisabledProps>> = ({
-  label,
-}) => {
+export const DisabledButton: FC<DisabledProps> = ({ label }) => {
   return (
-    <Button variant="outlined" size="small" disabled>
+    <Button startIcon={<BlockOutlined />} disabled>
       {label}
     </Button>
   )
@@ -108,15 +101,14 @@ interface LoadingProps {
   label: string
 }
 
-export const ActionLoadingButton: FC<PropsWithChildren<LoadingProps>> = ({
-  label,
-}) => {
+export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
   return (
     <LoadingButton
       loading
-      size="small"
-      variant="outlined"
-      loadingLabel={label}
+      loadingPosition="start"
+      loadingIndicator={label}
+      // This icon can be anything
+      startIcon={<ReplayIcon />}
     />
   )
 }

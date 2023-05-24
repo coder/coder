@@ -1020,7 +1020,7 @@ func TestAgentMetadata_Timing(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// Shell scripting in Windows is a pain, and we have already tested
 		// that the OS logic works in the simpler tests.
-		t.Skip()
+		t.SkipNow()
 	}
 	testutil.SkipIfNotTiming(t)
 	t.Parallel()

@@ -6,9 +6,10 @@ on:
       - main
     paths:
       - "dogfood/**"
-  pull_request:
-    paths:
-      - "dogfood/**"
+  # Uncomment these lines when testing with CI.
+  # pull_request:
+  #   paths:
+  #     - "dogfood/**"
   workflow_dispatch:
 
 jobs:

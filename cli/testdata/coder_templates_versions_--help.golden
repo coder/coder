@@ -6,7 +6,7 @@ Aliases: version
 
 - List versions of a specific template:                                       
 
-      [;m$ coder templates versions list my-template[0m
+     [40m [0m[91;40m$ coder templates versions list my-template[0m[40m [0m
 
 [1mSubcommands[0m
     list    List all the versions of the specified template

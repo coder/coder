@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/tracing"
@@ -59,6 +60,10 @@ type Options struct {
 	DisablePathApps  bool
 
 	ProxySessionToken string
+	// AllowAllCors will set all CORs headers to '*'.
+	// By default, CORs is set to accept external requests
+	// from the dashboardURL. This should only be used in development.
+	AllowAllCors bool
 }
 
 func (o *Options) Validate() error {
@@ -185,6 +190,10 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		SecureAuthCookie: opts.SecureAuthCookie,
 	}
 
+	// The primary coderd dashboard needs to make some GET requests to
+	// the workspace proxies to check latency.
+	corsMW := httpmw.Cors(opts.AllowAllCors, opts.DashboardURL.String())
+
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)
 	// Persistent middlewares to all routes
@@ -197,6 +206,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		httpmw.Logger(s.Logger),
 		httpmw.Prometheus(s.PrometheusRegistry),
+		corsMW,
 
 		// HandleSubdomain is a middleware that handles all requests to the
 		// subdomain-based workspace apps.
@@ -245,11 +255,24 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		})
 	})
 
+	// See coderd/coderd.go for why we need this.
+	rootRouter := chi.NewRouter()
+	// Make sure to add the cors middleware to the latency check route.
+	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck(opts.AllowAllCors, s.DashboardURL, s.AppServer.AccessURL)).ServeHTTP)
+	rootRouter.Mount("/", r)
+	s.Handler = rootRouter
+
 	return s, nil
 }
 
 func (s *Server) Close() error {
 	s.cancel()
+
+	// A timeout to prevent the SDK from blocking the server shutdown.
+	tmp, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = s.SDKClient.WorkspaceProxyGoingAway(tmp)
+
 	return s.AppServer.Close()
 }
 
@@ -278,6 +301,16 @@ func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 func (s *Server) healthReport(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var report codersdk.ProxyHealthReport
+
+	// This is to catch edge cases where the server is shutting down, but might
+	// still serve a web request that returns "healthy". This is mainly just for
+	// unit tests, as shutting down the test webserver is tied to the lifecycle
+	// of the test. In practice, the webserver is tied to the lifecycle of the
+	// app, so the webserver AND the proxy will be shut down at the same time.
+	if s.ctx.Err() != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, "workspace proxy in middle of shutting down")
+		return
+	}
 
 	// Hit the build info to do basic version checking.
 	primaryBuild, err := s.SDKClient.SDKClient.BuildInfo(ctx)

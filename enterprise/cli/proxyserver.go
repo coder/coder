@@ -245,10 +245,12 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				SecureAuthCookie:   cfg.SecureAuthCookie.Value(),
 				DisablePathApps:    cfg.DisablePathApps.Value(),
 				ProxySessionToken:  proxySessionToken.Value(),
+				AllowAllCors:       cfg.Dangerous.AllowAllCors.Value(),
 			})
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
 			}
+			closers.Add(func() { _ = proxy.Close() })
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()

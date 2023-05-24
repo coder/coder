@@ -1,21 +1,24 @@
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import { Workspace } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
-import { Margins } from "../../components/Margins/Margins"
+import { Margins } from "components/Margins/Margins"
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
-} from "../../components/PageHeader/PageHeader"
-import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
-import { Stack } from "../../components/Stack/Stack"
-import { WorkspaceHelpTooltip } from "../../components/Tooltips"
-import { WorkspacesTable } from "../../components/WorkspacesTable/WorkspacesTable"
-import { workspaceFilterQuery } from "../../utils/filters"
+} from "components/PageHeader/PageHeader"
+import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
+import { Stack } from "components/Stack/Stack"
+import { WorkspaceHelpTooltip } from "components/Tooltips"
+import { WorkspacesTable } from "components/WorkspacesTable/WorkspacesTable"
+import { workspaceFilterQuery } from "utils/filters"
+import { useLocalStorage } from "hooks"
+import difference from "lodash/difference"
+import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -25,6 +28,19 @@ export const Language = {
   createANewWorkspace: `Create a new workspace from a `,
   template: "Template",
 }
+
+const presetFilters = [
+  { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
+  { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
+  {
+    query: workspaceFilterQuery.running,
+    name: Language.runningWorkspacesButton,
+  },
+  {
+    query: workspaceFilterQuery.failed,
+    name: "Failed workspaces",
+  },
+]
 
 export interface WorkspacesPageViewProps {
   error: unknown
@@ -51,14 +67,32 @@ export const WorkspacesPageView: FC<
   onPageChange,
   onUpdateWorkspace,
 }) => {
-  const presetFilters = [
-    { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
-    { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
-    {
-      query: workspaceFilterQuery.running,
-      name: Language.runningWorkspacesButton,
-    },
-  ]
+  const { saveLocal, getLocal } = useLocalStorage()
+
+  const workspaceIdsWithImpendingDeletions = workspaces
+    ?.filter((workspace) => workspace.deleting_at)
+    .map((workspace) => workspace.id)
+
+  /**
+   * Returns a boolean indicating if there are workspaces that have been
+   * recently marked for deletion but are not in local storage.
+   * If there are, we want to alert the user so they can potentially take action
+   * before deletion takes place.
+   * @returns {boolean}
+   */
+  const isNewWorkspacesImpendingDeletion = (): boolean => {
+    const dismissedList = getLocal("dismissedWorkspaceList")
+    if (!dismissedList) {
+      return true
+    }
+
+    const diff = difference(
+      workspaceIdsWithImpendingDeletions,
+      JSON.parse(dismissedList),
+    )
+
+    return diff && diff.length > 0
+  }
 
   return (
     <Margins>
@@ -81,15 +115,18 @@ export const WorkspacesPageView: FC<
 
       <Stack>
         <Maybe condition={Boolean(error)}>
-          <AlertBanner
-            error={error}
-            severity={
-              workspaces !== undefined && workspaces.length > 0
-                ? "warning"
-                : "error"
-            }
-          />
+          <ErrorAlert error={error} />
         </Maybe>
+        <ImpendingDeletionBanner
+          workspace={workspaces?.find((workspace) => workspace.deleting_at)}
+          displayImpendingDeletionBanner={isNewWorkspacesImpendingDeletion()}
+          onDismiss={() =>
+            saveLocal(
+              "dismissedWorkspaceList",
+              JSON.stringify(workspaceIdsWithImpendingDeletions),
+            )
+          }
+        />
 
         <SearchBarWithFilter
           filter={filter}

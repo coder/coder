@@ -1,6 +1,4 @@
-# Parameters (alpha)
-
-> Parameters are an [alpha feature](../contributing/feature-stages.md#alpha-features). See the [Rich Parameters Milestone](https://github.com/coder/coder/milestone/11) for more details.
+# Parameters
 
 Templates can contain _parameters_, which allow prompting the user for additional information when creating workspaces in both the UI and CLI.
 
@@ -190,7 +188,7 @@ data "coder_parameter" "project_id" {
 
 ## Legacy
 
-Prior to Coder v0.16.0 (Jan 2023), parameters were defined via Terraform `variable` blocks. These "legacy parameters" can still be used in templates, but will be removed in April 2023.
+Prior to Coder v0.16.0 (Jan 2023), parameters were defined via Terraform `variable` blocks. These "legacy parameters" can still be used in templates, but will be removed in May 2023.
 
 ```hcl
 variable "use_kubeconfig" {

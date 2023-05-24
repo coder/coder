@@ -1,7 +1,7 @@
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import Radio from "@material-ui/core/Radio"
-import RadioGroup from "@material-ui/core/RadioGroup"
-import TextField from "@material-ui/core/TextField"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import Radio from "@mui/material/Radio"
+import RadioGroup from "@mui/material/RadioGroup"
+import TextField from "@mui/material/TextField"
 import { TemplateVersionVariable } from "api/typesGenerated"
 import { FC, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -37,13 +37,13 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
         <FormControlLabel
           disabled={disabled}
           value="true"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="True"
         />
         <FormControlLabel
           disabled={disabled}
           value="false"
-          control={<Radio color="primary" size="small" disableRipple />}
+          control={<Radio size="small" />}
           label="False"
         />
       </RadioGroup>
@@ -74,7 +74,6 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
         setVariableValue(event.target.value)
         onChange(event.target.value)
       }}
-      variant="outlined"
     />
   )
 }

@@ -1,4 +1,4 @@
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import { OutdatedHelpTooltip } from "components/Tooltips"
 import { FC, useRef, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
@@ -12,14 +12,15 @@ import { Workspace } from "../../api/typesGenerated"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import upperFirst from "lodash/upperFirst"
 import { autostartDisplay, autostopDisplay } from "utils/schedule"
-import IconButton from "@material-ui/core/IconButton"
-import RemoveIcon from "@material-ui/icons/RemoveOutlined"
-import { makeStyles } from "@material-ui/core/styles"
-import AddIcon from "@material-ui/icons/AddOutlined"
-import Popover from "@material-ui/core/Popover"
-import TextField from "@material-ui/core/TextField"
-import Button from "@material-ui/core/Button"
+import IconButton from "@mui/material/IconButton"
+import RemoveIcon from "@mui/icons-material/RemoveOutlined"
+import { makeStyles } from "@mui/styles"
+import AddIcon from "@mui/icons-material/AddOutlined"
+import Popover from "@mui/material/Popover"
+import TextField from "@mui/material/TextField"
+import Button from "@mui/material/Button"
 import { WorkspaceStatusText } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
+import { ImpendingDeletionStat } from "components/WorkspaceDeletion"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -72,8 +73,9 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         <StatsItem
           className={styles.statsItem}
           label="Status"
-          value={<WorkspaceStatusText build={workspace.latest_build} />}
+          value={<WorkspaceStatusText workspace={workspace} />}
         />
+        <ImpendingDeletionStat workspace={workspace} />
         <StatsItem
           className={styles.statsItem}
           label={Language.templateLabel}
@@ -217,7 +219,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           />
 
           <Button
-            variant="outlined"
             size="small"
             className={styles.timePopoverButton}
             type="submit"
@@ -275,7 +276,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           />
 
           <Button
-            variant="outlined"
             size="small"
             className={styles.timePopoverButton}
             type="submit"
@@ -314,7 +314,7 @@ const useStyles = makeStyles((theme) => ({
     rowGap: theme.spacing(3),
     flex: 1,
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",
@@ -327,7 +327,7 @@ const useStyles = makeStyles((theme) => ({
     gap: 0,
     padding: 0,
 
-    "& > span:first-child": {
+    "& > span:first-of-type": {
       fontSize: 12,
       fontWeight: 500,
     },
@@ -348,6 +348,8 @@ const useStyles = makeStyles((theme) => ({
   scheduleButton: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: 4,
+    width: 20,
+    height: 20,
 
     "& svg.MuiSvgIcon-root": {
       width: theme.spacing(1.5),

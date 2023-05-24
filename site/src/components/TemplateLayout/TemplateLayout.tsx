@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { createContext, FC, Suspense, useContext } from "react"
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
@@ -7,7 +7,6 @@ import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
 import { Loader } from "components/Loader/Loader"
 import { TemplatePageHeader } from "./TemplatePageHeader"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import {
   checkAuthorization,
   getTemplateByName,
@@ -15,6 +14,7 @@ import {
 } from "api/api"
 import { useQuery } from "@tanstack/react-query"
 import { AuthorizationRequest } from "api/typesGenerated"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 const templatePermissions = (
   templateId: string,
@@ -75,7 +75,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   if (error) {
     return (
       <div className={styles.error}>
-        <AlertBanner severity="error" error={error} />
+        <ErrorAlert error={error} />
       </div>
     )
   }
@@ -145,6 +145,17 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
               }
             >
               Versions
+            </NavLink>
+            <NavLink
+              to={`/templates/${templateName}/embed`}
+              className={({ isActive }) =>
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
+              }
+            >
+              Embed
             </NavLink>
           </Stack>
         </Margins>

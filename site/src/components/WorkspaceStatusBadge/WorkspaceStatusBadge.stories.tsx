@@ -10,67 +10,88 @@ import {
   MockStoppedWorkspace,
   MockStoppingWorkspace,
   MockWorkspace,
+  MockBuildInfo,
+  MockEntitlementsWithScheduling,
+  MockExperiments,
+  MockAppearance,
 } from "testHelpers/entities"
 import {
   WorkspaceStatusBadge,
   WorkspaceStatusBadgeProps,
 } from "./WorkspaceStatusBadge"
+import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
 
 export default {
   title: "components/WorkspaceStatusBadge",
   component: WorkspaceStatusBadge,
 }
 
+const MockedAppearance = {
+  config: MockAppearance,
+  preview: false,
+  setPreview: () => null,
+  save: () => null,
+}
+
 const Template: Story<WorkspaceStatusBadgeProps> = (args) => (
-  <WorkspaceStatusBadge {...args} />
+  <DashboardProviderContext.Provider
+    value={{
+      buildInfo: MockBuildInfo,
+      entitlements: MockEntitlementsWithScheduling,
+      experiments: MockExperiments,
+      appearance: MockedAppearance,
+    }}
+  >
+    <WorkspaceStatusBadge {...args} />
+  </DashboardProviderContext.Provider>
 )
 
 export const Running = Template.bind({})
 Running.args = {
-  build: MockWorkspace.latest_build,
+  workspace: MockWorkspace,
 }
 
 export const Starting = Template.bind({})
 Starting.args = {
-  build: MockStartingWorkspace.latest_build,
+  workspace: MockStartingWorkspace,
 }
 
 export const Stopped = Template.bind({})
 Stopped.args = {
-  build: MockStoppedWorkspace.latest_build,
+  workspace: MockStoppedWorkspace,
 }
 
 export const Stopping = Template.bind({})
 Stopping.args = {
-  build: MockStoppingWorkspace.latest_build,
+  workspace: MockStoppingWorkspace,
 }
 
 export const Deleting = Template.bind({})
 Deleting.args = {
-  build: MockDeletingWorkspace.latest_build,
+  workspace: MockDeletingWorkspace,
 }
 
 export const Deleted = Template.bind({})
 Deleted.args = {
-  build: MockDeletedWorkspace.latest_build,
+  workspace: MockDeletedWorkspace,
 }
 
 export const Canceling = Template.bind({})
 Canceling.args = {
-  build: MockCancelingWorkspace.latest_build,
+  workspace: MockCancelingWorkspace,
 }
 
 export const Canceled = Template.bind({})
 Canceled.args = {
-  build: MockCanceledWorkspace.latest_build,
+  workspace: MockCanceledWorkspace,
 }
 
 export const Failed = Template.bind({})
 Failed.args = {
-  build: MockFailedWorkspace.latest_build,
+  workspace: MockFailedWorkspace,
 }
 
 export const Pending = Template.bind({})
 Pending.args = {
-  build: MockPendingWorkspace.latest_build,
+  workspace: MockPendingWorkspace,
 }

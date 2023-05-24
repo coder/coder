@@ -18,7 +18,11 @@ import {
   MockCanceledWorkspace,
   MockDeletingWorkspace,
   MockDeletedWorkspace,
+  MockWorkspaceWithDeletion,
   MockBuilds,
+  MockTemplateVersion3,
+  MockUser,
+  MockEntitlementsWithScheduling,
 } from "testHelpers/entities"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
@@ -160,10 +164,41 @@ describe("WorkspacePage", () => {
       .spyOn(api, "stopWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
 
-    await testButton("Restart", stopWorkspaceMock)
+    // Render
+    await renderWorkspacePage()
 
-    const button = await screen.findByText("Restarting")
-    expect(button).toBeInTheDocument()
+    // Actions
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId("workspace-restart-button"))
+    const confirmButton = await screen.findByTestId("confirm-button")
+    await user.click(confirmButton)
+
+    // Assertions
+    await waitFor(() => {
+      expect(stopWorkspaceMock).toBeCalled()
+    })
+  })
+
+  it("requests a stop without confirmation when the user presses Restart", async () => {
+    const stopWorkspaceMock = jest
+      .spyOn(api, "stopWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
+    window.localStorage.setItem(
+      `${MockUser.id}_ignoredWarnings`,
+      JSON.stringify({ restart: new Date().toISOString() }),
+    )
+
+    // Render
+    await renderWorkspacePage()
+
+    // Actions
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId("workspace-restart-button"))
+
+    // Assertions
+    await waitFor(() => {
+      expect(stopWorkspaceMock).toBeCalled()
+    })
   })
 
   it("requests cancellation when the user presses Cancel", async () => {
@@ -340,6 +375,13 @@ describe("WorkspacePage", () => {
     )
   })
 
+  it("shows the Impending deletion status when the workspace is impending deletion", async () => {
+    jest
+      .spyOn(api, "getEntitlements")
+      .mockResolvedValue(MockEntitlementsWithScheduling)
+    await testStatus(MockWorkspaceWithDeletion, "Impending deletion")
+  })
+
   it("shows the timeline build", async () => {
     await renderWorkspacePage()
     const table = await screen.findByTestId("builds-table")
@@ -350,5 +392,19 @@ describe("WorkspacePage", () => {
       // Added +1 because of the date row
       expect(rows).toHaveLength(MockBuilds.length + 1)
     })
+  })
+
+  it("shows the template warnings", async () => {
+    server.use(
+      rest.get(
+        "/api/v2/templateversions/:templateVersionId",
+        async (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json(MockTemplateVersion3))
+        },
+      ),
+    )
+
+    await renderWorkspacePage()
+    await screen.findByTestId("warning-deprecated-parameters")
   })
 })

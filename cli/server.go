@@ -243,13 +243,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			notifyCtx, notifyStop := signal.NotifyContext(ctx, InterruptSignals...)
 			defer notifyStop()
 
-			// Ensure we have a unique cache directory for this process.
-			cacheDir := filepath.Join(cfg.CacheDir.String(), uuid.NewString())
+			cacheDir := cfg.CacheDir.String()
 			err = os.MkdirAll(cacheDir, 0o700)
 			if err != nil {
 				return xerrors.Errorf("create cache directory: %w", err)
 			}
-			defer os.RemoveAll(cacheDir)
 
 			// Clean up idle connections at the end, e.g.
 			// embedded-postgres can leave an idle connection
@@ -1185,6 +1183,12 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
+	tfDir := filepath.Join(cacheDir, "terraform")
+	err = os.MkdirAll(tfDir, 0o700)
+	if err != nil {
+		return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
+	}
+
 	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
 	wg.Add(1)
@@ -1203,7 +1207,7 @@ func newProvisionerDaemon(
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
 			},
-			CachePath: cacheDir,
+			CachePath: tfDir,
 			Logger:    logger,
 			Tracer:    tracer,
 		})
@@ -1215,9 +1219,10 @@ func newProvisionerDaemon(
 		}
 	}()
 
-	tempDir, err := os.MkdirTemp("", "provisionerd")
+	workDir := filepath.Join(cacheDir, "work")
+	err = os.MkdirAll(workDir, 0o700)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("mkdir work dir: %w", err)
 	}
 
 	provisioners := provisionerd.Provisioners{
@@ -1261,7 +1266,7 @@ func newProvisionerDaemon(
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Provisioners:        provisioners,
-		WorkDirectory:       tempDir,
+		WorkDirectory:       workDir,
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil

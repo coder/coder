@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -392,8 +393,10 @@ func New(options *Options) *API {
 
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 
 	r.Use(
+		cors,
 		httpmw.Recover(api.Logger),
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
@@ -798,6 +801,10 @@ func New(options *Options) *API {
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspMW := httpmw.CSPHeaders(func() []string {
+		if api.DeploymentValues.Dangerous.AllowAllCors {
+			// In this mode, allow all external requests
+			return []string{"*"}
+		}
 		if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
 			return (*f)()
 		}
@@ -805,6 +812,17 @@ func New(options *Options) *API {
 		return []string{}
 	})
 	r.NotFound(cspMW(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP))).ServeHTTP)
+
+	// This must be before all middleware to improve the response time.
+	// So make a new router, and mount the old one as the root.
+	rootRouter := chi.NewRouter()
+	// This is the only route we add before all the middleware.
+	// We want to time the latency of the request, so any middleware will
+	// interfere with that timing.
+	rootRouter.Get("/latency-check", cors(LatencyCheck(options.DeploymentValues.Dangerous.AllowAllCors.Value(), api.AccessURL)).ServeHTTP)
+	rootRouter.Mount("/", r)
+	api.RootHandler = rootRouter
+
 	return api
 }
 
@@ -878,7 +896,12 @@ func (api *API) Close() error {
 }
 
 func compressHandler(h http.Handler) http.Handler {
-	cmp := middleware.NewCompressor(5,
+	level := 5
+	if flag.Lookup("test.v") != nil {
+		level = 1
+	}
+
+	cmp := middleware.NewCompressor(level,
 		"text/*",
 		"application/*",
 		"image/*",
@@ -947,6 +970,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		TemplateScheduleStore: api.TemplateScheduleStore,
 		AcquireJobDebounce:    debounce,
 		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		DeploymentValues:      api.DeploymentValues,
 	})
 	if err != nil {
 		return nil, err

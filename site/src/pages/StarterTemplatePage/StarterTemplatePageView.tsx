@@ -1,5 +1,5 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
 import { MemoizedMarkdown } from "components/Markdown/Markdown"
@@ -10,12 +10,12 @@ import {
 } from "components/PageHeader/PageHeader"
 import { FC } from "react"
 import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService"
-import ViewCodeIcon from "@material-ui/icons/OpenInNewOutlined"
-import PlusIcon from "@material-ui/icons/AddOutlined"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined"
+import PlusIcon from "@mui/icons-material/AddOutlined"
 import { useTranslation } from "react-i18next"
 import { Stack } from "components/Stack/Stack"
 import { Link } from "react-router-dom"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface StarterTemplatePageViewProps {
   context: StarterTemplateContext
@@ -31,7 +31,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
   if (context.error) {
     return (
       <Margins>
-        <AlertBanner error={context.error} severity="error" />
+        <ErrorAlert error={context.error} />
       </Margins>
     )
   }
@@ -46,7 +46,6 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
         actions={
           <>
             <Button
-              variant="outlined"
               component="a"
               target="_blank"
               href={starterTemplate.url}
@@ -56,6 +55,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
               {t("actions.viewSourceCode")}
             </Button>
             <Button
+              variant="contained"
               component={Link}
               to={`/templates/new?exampleId=${starterTemplate.id}`}
               startIcon={<PlusIcon />}

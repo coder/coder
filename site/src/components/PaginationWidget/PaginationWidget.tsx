@@ -1,8 +1,8 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
-import useMediaQuery from "@material-ui/core/useMediaQuery"
-import KeyboardArrowLeft from "@material-ui/icons/KeyboardArrowLeft"
-import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
+import Button from "@mui/material/Button"
+import { makeStyles, useTheme } from "@mui/styles"
+import useMediaQuery from "@mui/material/useMediaQuery"
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft"
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
 import { useActor } from "@xstate/react"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
@@ -27,7 +27,7 @@ export const PaginationWidget = ({
   paginationRef,
 }: PaginationWidgetProps): JSX.Element | null => {
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"))
   const styles = useStyles()
   const [paginationState, send] = useActor(paginationRef)
 
@@ -44,7 +44,6 @@ export const PaginationWidget = ({
     <Maybe condition={showWidget}>
       <div style={containerStyle} className={styles.defaultContainerStyles}>
         <Button
-          variant="outlined"
           className={styles.prevLabelStyles}
           aria-label="Previous page"
           disabled={firstPageActive}
@@ -83,7 +82,6 @@ export const PaginationWidget = ({
           </Cond>
         </ChooseOne>
         <Button
-          variant="outlined"
           aria-label="Next page"
           disabled={lastPageActive}
           onClick={() => send({ type: "NEXT_PAGE" })}
@@ -106,6 +104,6 @@ const useStyles = makeStyles((theme) => ({
   },
 
   prevLabelStyles: {
-    marginRight: `${theme.spacing(0.5)}px`,
+    marginRight: theme.spacing(0.5),
   },
 }))

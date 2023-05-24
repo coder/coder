@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import * as TypesGen from "api/typesGenerated"

@@ -1,4 +1,4 @@
-# External provisioners
+# Provisioners
 
 By default, the Coder server runs [built-in provisioner daemons](../cli/server.md#provisioner-daemons), which execute `terraform` during workspace and template builds. However, there are sometimes benefits to running external provisioner daemons:
 

@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import {
   FormFooterProps as BaseFormFooterProps,
   FormFooter as BaseFormFooter,
@@ -99,7 +99,11 @@ export const FormSection: FC<
 export const FormFields: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   return (
-    <Stack direction="column" className={styles.formSectionFields}>
+    <Stack
+      direction="column"
+      spacing={2.5}
+      className={styles.formSectionFields}
+    >
       {children}
     </Stack>
   )
@@ -122,7 +126,7 @@ const useStyles = makeStyles((theme) => ({
     gap: ({ direction }: FormContextValue = {}) =>
       direction === "horizontal" ? theme.spacing(10) : theme.spacing(5),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       gap: theme.spacing(8),
     },
   },
@@ -135,7 +139,7 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: ({ direction }: FormContextValue = {}) =>
       direction === "horizontal" ? "row" : "column",
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       flexDirection: "column",
       gap: theme.spacing(2),
     },
@@ -150,7 +154,7 @@ const useStyles = makeStyles((theme) => ({
       direction === "horizontal" ? "sticky" : undefined,
     top: theme.spacing(3),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       width: "100%",
       position: "initial",
     },
@@ -180,7 +184,7 @@ const useFormFooterStyles = makeStyles((theme) => ({
   button: {
     minWidth: theme.spacing(23),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       width: "100%",
     },
   },
@@ -191,7 +195,7 @@ const useFormFooterStyles = makeStyles((theme) => ({
     flexDirection: "row-reverse",
     gap: theme.spacing(2),
 
-    [theme.breakpoints.down("sm")]: {
+    [theme.breakpoints.down("md")]: {
       flexDirection: "column",
       gap: theme.spacing(1),
     },

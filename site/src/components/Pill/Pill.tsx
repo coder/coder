@@ -1,6 +1,7 @@
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { PaletteColor, Theme } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles"
 import { FC } from "react"
-import { PaletteIndex } from "theme/palettes"
+import { PaletteIndex } from "theme/theme"
 import { combineClasses } from "utils/combineClasses"
 
 export interface PillProps {
@@ -46,12 +47,14 @@ const useStyles = makeStyles<Theme, PillProps>((theme) => ({
 
   pillColor: {
     backgroundColor: ({ type }) =>
-      type ? theme.palette[type].dark : theme.palette.text.secondary,
+      type
+        ? (theme.palette[type] as PaletteColor).dark
+        : theme.palette.text.secondary,
     borderColor: ({ type, lightBorder }) =>
       type
         ? lightBorder
-          ? theme.palette[type].light
-          : theme.palette[type].main
+          ? (theme.palette[type] as PaletteColor).light
+          : (theme.palette[type] as PaletteColor).main
         : theme.palette.text.secondary,
   },
 

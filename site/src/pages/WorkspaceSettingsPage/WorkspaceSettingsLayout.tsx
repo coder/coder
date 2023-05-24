@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { Sidebar } from "./Sidebar"
 import { Stack } from "components/Stack/Stack"
 import { createContext, FC, Suspense, useContext } from "react"
