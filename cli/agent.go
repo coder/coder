@@ -43,7 +43,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 		prometheusAddress   string
 		debugAddress        string
 		slogHumanPath       string
-		slogJsonPath        string
+		slogJSONPath        string
 		slogStackdriverPath string
 	)
 	cmd := &clibase.Cmd{
@@ -76,11 +76,9 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 
 					case "/dev/stdout":
 						sinks = append(sinks, sinkFn(inv.Stdout))
-						break
 
 					case "/dev/stderr":
 						sinks = append(sinks, sinkFn(inv.Stderr))
-						break
 
 					default:
 						fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
@@ -96,7 +94,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				if err := addSinkIfProvided(sloghuman.Sink, slogHumanPath); err != nil {
 					return xerrors.Errorf("add human sink: %w", err)
 				}
-				if err := addSinkIfProvided(slogjson.Sink, slogJsonPath); err != nil {
+				if err := addSinkIfProvided(slogjson.Sink, slogJSONPath); err != nil {
 					return xerrors.Errorf("add json sink: %w", err)
 				}
 				if err := addSinkIfProvided(slogstackdriver.Sink, slogStackdriverPath); err != nil {
@@ -350,7 +348,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Flag:        "log-json",
 			Env:         "CODER_AGENT_LOGGING_JSON",
 			Default:     "",
-			Value:       clibase.StringOf(&slogJsonPath),
+			Value:       clibase.StringOf(&slogJSONPath),
 		},
 		{
 			Name:        "Stackdriver Log Location",
