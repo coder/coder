@@ -1404,37 +1404,6 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig ht
 	return link.OAuthAccessToken, nil
 }
 
-func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {
-	switch typeSystem {
-	case sdkproto.ParameterSchema_None:
-		return database.ParameterTypeSystemNone, nil
-	case sdkproto.ParameterSchema_HCL:
-		return database.ParameterTypeSystemHCL, nil
-	default:
-		return database.ParameterTypeSystem(""), xerrors.Errorf("unknown type system: %d", typeSystem)
-	}
-}
-
-func convertParameterSourceScheme(sourceScheme sdkproto.ParameterSource_Scheme) (database.ParameterSourceScheme, error) {
-	switch sourceScheme {
-	case sdkproto.ParameterSource_DATA:
-		return database.ParameterSourceSchemeData, nil
-	default:
-		return database.ParameterSourceScheme(""), xerrors.Errorf("unknown parameter source scheme: %d", sourceScheme)
-	}
-}
-
-func convertParameterDestinationScheme(destinationScheme sdkproto.ParameterDestination_Scheme) (database.ParameterDestinationScheme, error) {
-	switch destinationScheme {
-	case sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE:
-		return database.ParameterDestinationSchemeEnvironmentVariable, nil
-	case sdkproto.ParameterDestination_PROVISIONER_VARIABLE:
-		return database.ParameterDestinationSchemeProvisionerVariable, nil
-	default:
-		return database.ParameterDestinationScheme(""), xerrors.Errorf("unknown parameter destination scheme: %d", destinationScheme)
-	}
-}
-
 func convertLogLevel(logLevel sdkproto.LogLevel) (database.LogLevel, error) {
 	switch logLevel {
 	case sdkproto.LogLevel_TRACE:

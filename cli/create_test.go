@@ -574,39 +574,3 @@ func TestCreateWithGitAuth(t *testing.T) {
 	pty.ExpectMatch("Confirm create?")
 	pty.WriteLine("yes")
 }
-
-func createTestParseResponseWithDefault(defaultValue string) []*proto.Parse_Response {
-	return []*proto.Parse_Response{{
-		Type: &proto.Parse_Response_Complete{
-			Complete: &proto.Parse_Complete{
-				ParameterSchemas: []*proto.ParameterSchema{
-					{
-						AllowOverrideSource: true,
-						Name:                "region",
-						Description:         "description 1",
-						DefaultSource: &proto.ParameterSource{
-							Scheme: proto.ParameterSource_DATA,
-							Value:  defaultValue,
-						},
-						DefaultDestination: &proto.ParameterDestination{
-							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						},
-					},
-					{
-						AllowOverrideSource: true,
-						Name:                "username",
-						Description:         "description 2",
-						DefaultSource: &proto.ParameterSource{
-							Scheme: proto.ParameterSource_DATA,
-							// No default value
-							Value: "",
-						},
-						DefaultDestination: &proto.ParameterDestination{
-							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						},
-					},
-				},
-			},
-		},
-	}}
-}

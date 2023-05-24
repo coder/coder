@@ -55,7 +55,6 @@ type Builder struct {
 	lastBuild                 *database.WorkspaceBuild
 	lastBuildErr              *error
 	lastBuildParameters       *[]database.WorkspaceBuildParameter
-	lastParameterValues       *[]database.ParameterValue
 	lastBuildJob              *database.ProvisionerJob
 }
 

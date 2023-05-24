@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -407,17 +406,6 @@ func TestTemplatePush(t *testing.T) {
 			require.Equal(t, "foobar", templateVariables[1].Value)
 		})
 	})
-}
-
-func latestTemplateVersion(t *testing.T, client *codersdk.Client, templateID uuid.UUID) codersdk.TemplateVersion {
-	t.Helper()
-
-	ctx := context.Background()
-	newTemplate, err := client.Template(ctx, templateID)
-	require.NoError(t, err)
-	tv, err := client.TemplateVersion(ctx, newTemplate.ActiveVersionID)
-	require.NoError(t, err)
-	return tv
 }
 
 func createEchoResponsesWithTemplateVariables(templateVariables []*proto.TemplateVariable) *echo.Responses {

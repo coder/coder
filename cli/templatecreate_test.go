@@ -302,23 +302,6 @@ func TestTemplateCreate(t *testing.T) {
 	})
 }
 
-func createTestParseResponse() []*proto.Parse_Response {
-	return []*proto.Parse_Response{{
-		Type: &proto.Parse_Response_Complete{
-			Complete: &proto.Parse_Complete{
-				ParameterSchemas: []*proto.ParameterSchema{{
-					AllowOverrideSource: true,
-					Name:                "region",
-					Description:         "description",
-					DefaultDestination: &proto.ParameterDestination{
-						Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-					},
-				}},
-			},
-		},
-	}}
-}
-
 // Need this for Windows because of a known issue with Go:
 // https://github.com/golang/go/issues/52986
 func removeTmpDirUntilSuccessAfterTest(t *testing.T, tempDir string) {
