@@ -31,7 +31,7 @@ const WorkspacesPage: FC = () => {
     (option) => filter.update({ ...filter.values, template: option?.value }),
   )
   const statusAutocomplete = useStatusAutocomplete(
-    filter.values.owner,
+    filter.values.status,
     (option) => filter.update({ ...filter.values, status: option?.value }),
   )
 

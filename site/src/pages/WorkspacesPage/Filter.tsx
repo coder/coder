@@ -123,7 +123,7 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
   onChange,
 }: UseAutocompleteOptions<TOption>) => {
   const [query, setQuery] = useState("")
-  const [selectedOption, setSelectedOption] = useState<BaseOption>()
+  const [selectedOption, setSelectedOption] = useState<TOption>()
   const initialOptionQuery = useQuery({
     queryKey: [id, "autocomplete", "initial"],
     queryFn: () => getInitialOption(),
@@ -136,7 +136,7 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
   const selectOption = (option: TOption) => {
     let newSelectedOptionValue: TOption | undefined = option
 
-    if (option.label === selectedOption?.value) {
+    if (option.value === selectedOption?.value) {
       newSelectedOptionValue = undefined
     }
 
@@ -294,9 +294,9 @@ export const Filter = ({
     return (
       <Box display="flex" sx={{ gap: 1, mb: 2 }}>
         <FilterSkeleton width="100%" />
-        <FilterSkeleton width={120} />
-        <FilterSkeleton width={120} />
-        <FilterSkeleton width={120} />
+        <FilterSkeleton width="200px" />
+        <FilterSkeleton width="200px" />
+        <FilterSkeleton width="200px" />
       </Box>
     )
   }
@@ -355,8 +355,16 @@ const OwnerFilter = ({ autocomplete }: { autocomplete: UsersAutocomplete }) => {
 
   return (
     <div>
-      <MenuButton ref={buttonRef} onClick={() => setIsMenuOpen(true)}>
-        User
+      <MenuButton
+        ref={buttonRef}
+        onClick={() => setIsMenuOpen(true)}
+        sx={{ width: 200 }}
+      >
+        {autocomplete.selectedOption ? (
+          <UserOptionItem option={autocomplete.selectedOption} />
+        ) : (
+          "All users"
+        )}
       </MenuButton>
       <SearchMenu
         id="user-filter-menu"
@@ -373,18 +381,24 @@ const OwnerFilter = ({ autocomplete }: { autocomplete: UsersAutocomplete }) => {
               handleClose()
             }}
           >
-            <Box display="flex" alignItems="center" gap={2} fontSize={14}>
-              <UserAvatar
-                username={option.label}
-                avatarURL={option.avatarUrl}
-                sx={{ width: 16, height: 16, fontSize: 8 }}
-              />
-              <span>{option.label}</span>
-            </Box>
+            <UserOptionItem option={option} />
           </MenuItem>
         )}
       />
     </div>
+  )
+}
+
+const UserOptionItem = ({ option }: { option: OwnerOption }) => {
+  return (
+    <Box display="flex" alignItems="center" gap={2} fontSize={14}>
+      <UserAvatar
+        username={option.label}
+        avatarURL={option.avatarUrl}
+        sx={{ width: 16, height: 16, fontSize: 8 }}
+      />
+      <span>{option.label}</span>
+    </Box>
   )
 }
 
@@ -402,8 +416,16 @@ const TemplatesFilter = ({
 
   return (
     <div>
-      <MenuButton ref={buttonRef} onClick={() => setIsMenuOpen(true)}>
-        Template
+      <MenuButton
+        ref={buttonRef}
+        onClick={() => setIsMenuOpen(true)}
+        sx={{ width: 200 }}
+      >
+        {autocomplete.selectedOption ? (
+          <TemplateOptionItem option={autocomplete.selectedOption} />
+        ) : (
+          "All templates"
+        )}
       </MenuButton>
       <SearchMenu
         id="template-filter-menu"
@@ -420,18 +442,24 @@ const TemplatesFilter = ({
               handleClose()
             }}
           >
-            <Box display="flex" alignItems="center" gap={2} fontSize={14}>
-              <TemplateAvatar
-                templateName={option.label}
-                icon={option.icon}
-                sx={{ width: 14, height: 14, fontSize: 8 }}
-              />
-              <span>{option.label}</span>
-            </Box>
+            <TemplateOptionItem option={option} />
           </MenuItem>
         )}
       />
     </div>
+  )
+}
+
+const TemplateOptionItem = ({ option }: { option: TemplateOption }) => {
+  return (
+    <Box display="flex" alignItems="center" gap={2} fontSize={14}>
+      <TemplateAvatar
+        templateName={option.label}
+        icon={option.icon}
+        sx={{ width: 14, height: 14, fontSize: 8 }}
+      />
+      <span>{option.label}</span>
+    </Box>
   )
 }
 
@@ -459,14 +487,23 @@ const StatusFilter = ({
 
   return (
     <div>
-      <MenuButton ref={buttonRef} onClick={() => setIsMenuOpen(true)}>
-        Status
+      <MenuButton
+        ref={buttonRef}
+        onClick={() => setIsMenuOpen(true)}
+        sx={{ width: 200 }}
+      >
+        {autocomplete.selectedOption ? (
+          <StatusOptionItem option={autocomplete.selectedOption} />
+        ) : (
+          "All statuses"
+        )}
       </MenuButton>
       <Menu
         id="status-filter-menu"
         anchorEl={buttonRef.current}
         open={isMenuOpen}
         onClose={handleClose}
+        sx={{ "& .MuiPaper-root": { minWidth: 200 } }}
       >
         {autocomplete.searchOptions?.map((option) => (
           <MenuItem
@@ -477,14 +514,20 @@ const StatusFilter = ({
               handleClose()
             }}
           >
-            <Box display="flex" alignItems="center" gap={2} fontSize={14}>
-              <StatusIndicator option={option} />
-              <span>{option.label}</span>
-            </Box>
+            <StatusOptionItem option={option} />
           </MenuItem>
         ))}
       </Menu>
     </div>
+  )
+}
+
+const StatusOptionItem = ({ option }: { option: StatusOption }) => {
+  return (
+    <Box display="flex" alignItems="center" gap={2} fontSize={14}>
+      <StatusIndicator option={option} />
+      <span>{option.label}</span>
+    </Box>
   )
 }
 
@@ -511,6 +554,7 @@ const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
       sx={{
         borderRadius: "6px",
         lineHeight: 0,
+        justifyContent: "space-between",
         ...props.sx,
       }}
     />
