@@ -2066,7 +2066,8 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	require.Len(t, actual, len(expected))
-	verifyCollectedMetrics(t, expected, actual)
+	collected := verifyCollectedMetrics(t, expected, actual)
+	require.True(t, collected, "expected metrics were not collected")
 
 	_ = stdin.Close()
 	err = session.Wait()
@@ -2074,17 +2075,19 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 }
 
 func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actual []*promgo.MetricFamily) bool {
+	t.Helper()
+
 	for i, e := range expected {
-		require.Equal(t, e.Name, actual[i].GetName())
-		require.Equal(t, string(e.Type), strings.ToLower(actual[i].GetType().String()))
+		assert.Equal(t, e.Name, actual[i].GetName())
+		assert.Equal(t, string(e.Type), strings.ToLower(actual[i].GetType().String()))
 
 		for _, m := range actual[i].GetMetric() {
-			require.Equal(t, e.Value, m.Counter.GetValue())
+			assert.Equal(t, e.Value, m.Counter.GetValue())
 
 			if len(m.GetLabel()) > 0 {
 				for j, lbl := range m.GetLabel() {
-					require.Equal(t, e.Labels[j].Name, lbl.GetName())
-					require.Equal(t, e.Labels[j].Value, lbl.GetValue())
+					assert.Equal(t, e.Labels[j].Name, lbl.GetName())
+					assert.Equal(t, e.Labels[j].Value, lbl.GetValue())
 				}
 			}
 			m.GetLabel()

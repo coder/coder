@@ -115,11 +115,11 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		require.NoError(t, err)
 
 		require.Equal(t, "agent_name", *d.Label[0].Name, d.String())
-		require.Equal(t, testAgentName, *d.Label[0].Value)
-		require.Equal(t, "username", *d.Label[1].Name)
-		require.Equal(t, testUsername, *d.Label[1].Value)
-		require.Equal(t, "workspace_name", *d.Label[2].Name)
-		require.Equal(t, testWorkspaceName, *d.Label[2].Value)
+		require.Equal(t, testAgentName, *d.Label[0].Value, d.String())
+		require.Equal(t, "username", *d.Label[1].Name, d.String())
+		require.Equal(t, testUsername, *d.Label[1].Value, d.String())
+		require.Equal(t, "workspace_name", *d.Label[2].Name, d.String())
+		require.Equal(t, testWorkspaceName, *d.Label[2].Value, d.String())
 
 		if e.Type == agentsdk.AgentMetricTypeCounter {
 			require.Equal(t, e.Value, *d.Counter.Value)
