@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -286,6 +287,8 @@ func TestTransmitHang(t *testing.T) {
 	w, err := send.DialContextTCP(ctx, netip.AddrPortFrom(recvIP, 35565))
 	require.NoError(t, err)
 
+	now := time.Now()
+
 	payload := []byte(strings.Repeat("hello world\n", 65536/12))
 	size := 0
 	for i := 0; i < 1024*2; i++ {
@@ -299,4 +302,8 @@ func TestTransmitHang(t *testing.T) {
 	require.NoError(t, err)
 
 	<-copyDone
+
+	if time.Since(now) > 10*time.Second {
+		t.Fatal("took too long to transmit")
+	}
 }
