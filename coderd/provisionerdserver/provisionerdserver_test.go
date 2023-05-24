@@ -241,7 +241,6 @@ func TestAcquireJob(t *testing.T) {
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId: build.ID.String(),
 				WorkspaceName:    workspace.Name,
-				ParameterValues:  []*sdkproto.ParameterValue{},
 				VariableValues: []*sdkproto.VariableValue{
 					{
 						Name:      "first",
