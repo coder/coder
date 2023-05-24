@@ -103,7 +103,8 @@ func TestCache_TemplateUsers(t *testing.T) {
 					Date:   date(2022, 8, 29),
 					Amount: 1,
 				},
-			}, 1}},
+			}, 1},
+		},
 		{
 			name: "holes",
 			args: args{
@@ -144,7 +145,8 @@ func TestCache_TemplateUsers(t *testing.T) {
 					Date:   date(2022, 1, 7),
 					Amount: 2,
 				},
-			}, 2}},
+			}, 2},
+		},
 		{
 			name:     "tzOffset",
 			tzOffset: -1,
