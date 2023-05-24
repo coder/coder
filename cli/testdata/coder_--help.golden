@@ -40,6 +40,8 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
     tokens            Manage personal access tokens
     update            Will update and start a given workspace if it is out of
                       date
+    upgrade           Upgrade the Coder CLI to match the version of a
+                      deployment.
     users             Manage users
     version           Show coder version
 

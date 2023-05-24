@@ -54,6 +54,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>templates</code>](./cli/templates.md)           | Manage templates                                                       |
 | [<code>tokens</code>](./cli/tokens.md)                 | Manage personal access tokens                                          |
 | [<code>update</code>](./cli/update.md)                 | Will update and start a given workspace if it is out of date           |
+| [<code>upgrade</code>](./cli/upgrade.md)               | Upgrade the Coder CLI to match the version of a deployment.            |
 | [<code>users</code>](./cli/users.md)                   | Manage users                                                           |
 | [<code>version</code>](./cli/version.md)               | Show coder version                                                     |
 

@@ -17,9 +17,7 @@ import (
 )
 
 func (r *RootCmd) upgrade() *clibase.Cmd {
-	var (
-		scriptURL string
-	)
+	var scriptURL string
 	cmd := &clibase.Cmd{
 		Use:   "upgrade",
 		Short: "Upgrade the Coder CLI to match the version of a deployment.",

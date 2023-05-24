@@ -1,0 +1,6 @@
+Usage: coder upgrade [flags]
+
+Upgrade the Coder CLI to match the version of a deployment.
+
+---
+Run `coder --help` for a list of global options.

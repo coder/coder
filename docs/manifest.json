@@ -808,6 +808,11 @@
           "path": "cli/update.md"
         },
         {
+          "title": "upgrade",
+          "description": "Upgrade the Coder CLI to match the version of a deployment.",
+          "path": "cli/upgrade.md"
+        },
+        {
           "title": "users",
           "description": "Manage users",
           "path": "cli/users.md"
