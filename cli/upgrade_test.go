@@ -78,17 +78,11 @@ func TestUpgrade(t *testing.T) {
 		pty := ptytest.New(t).Attach(inv)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		done := make(chan any)
-		go func() {
-			errC := inv.WithContext(ctx).Run()
-			assert.NoError(t, errC)
-			close(done)
-		}()
+		errC := inv.WithContext(ctx).Run()
+		assert.NoError(t, errC)
 		pty.ExpectMatch(fmt.Sprintf("Detected server version %q, downloading version %q from %s", serverVersion, expectedVersion, installURL))
 		pty.ExpectMatch("testing 123")
 		pty.ExpectMatch(expectedVersion)
-		<-done
 	})
 
 	t.Run("NoServerURL", func(t *testing.T) {
@@ -98,14 +92,8 @@ func TestUpgrade(t *testing.T) {
 		pty := ptytest.New(t).Attach(inv)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		done := make(chan any)
-		go func() {
-			errC := inv.WithContext(ctx).Run()
-			assert.Error(t, errC)
-			close(done)
-		}()
-
+		errC := inv.WithContext(ctx).Run()
+		assert.Error(t, errC)
 		pty.ExpectMatch("No deployment URL provided. You must either login using")
-		<-done
 	})
 }

@@ -678,7 +678,7 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) 
 	if runtime.GOOS == "windows" {
 		fmtWarningText += `download the server version from: https://github.com/coder/coder/releases/v%s`
 	} else {
-		fmtWarningText += `download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'`
+		fmtWarningText += `download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s' or run 'coder upgrade'`
 	}
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
