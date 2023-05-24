@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -24,21 +23,19 @@ import (
 
 var (
 	// use fixed IDs so logs are easier to read
-	templateID         = uuid.MustParse("12341234-0000-0000-0001-000000000000")
-	activeVersionID    = uuid.MustParse("12341234-0000-0000-0002-000000000000")
-	inactiveVersionID  = uuid.MustParse("12341234-0000-0000-0003-000000000000")
-	activeJobID        = uuid.MustParse("12341234-0000-0000-0004-000000000000")
-	inactiveJobID      = uuid.MustParse("12341234-0000-0000-0005-000000000000")
-	orgID              = uuid.MustParse("12341234-0000-0000-0006-000000000000")
-	workspaceID        = uuid.MustParse("12341234-0000-0000-0007-000000000000")
-	userID             = uuid.MustParse("12341234-0000-0000-0008-000000000000")
-	activeFileID       = uuid.MustParse("12341234-0000-0000-0009-000000000000")
-	inactiveFileID     = uuid.MustParse("12341234-0000-0000-000a-000000000000")
-	lastBuildID        = uuid.MustParse("12341234-0000-0000-000b-000000000000")
-	lastBuildJobID     = uuid.MustParse("12341234-0000-0000-000c-000000000000")
-	otherUserID        = uuid.MustParse("12341234-0000-0000-000d-000000000000")
-	notReplacedParamID = uuid.MustParse("12341234-0000-0000-000e-000000000000")
-	replacedParamID    = uuid.MustParse("12341234-0000-0000-000f-000000000000")
+	templateID        = uuid.MustParse("12341234-0000-0000-0001-000000000000")
+	activeVersionID   = uuid.MustParse("12341234-0000-0000-0002-000000000000")
+	inactiveVersionID = uuid.MustParse("12341234-0000-0000-0003-000000000000")
+	activeJobID       = uuid.MustParse("12341234-0000-0000-0004-000000000000")
+	inactiveJobID     = uuid.MustParse("12341234-0000-0000-0005-000000000000")
+	orgID             = uuid.MustParse("12341234-0000-0000-0006-000000000000")
+	workspaceID       = uuid.MustParse("12341234-0000-0000-0007-000000000000")
+	userID            = uuid.MustParse("12341234-0000-0000-0008-000000000000")
+	activeFileID      = uuid.MustParse("12341234-0000-0000-0009-000000000000")
+	inactiveFileID    = uuid.MustParse("12341234-0000-0000-000a-000000000000")
+	lastBuildID       = uuid.MustParse("12341234-0000-0000-000b-000000000000")
+	lastBuildJobID    = uuid.MustParse("12341234-0000-0000-000c-000000000000")
+	otherUserID       = uuid.MustParse("12341234-0000-0000-000d-000000000000")
 )
 
 func TestBuilder_NoOptions(t *testing.T) {
@@ -730,45 +727,5 @@ func expectBuildParameters(
 					return nil
 				},
 			)
-	}
-}
-
-type insertParameterMatcher struct {
-	name  string
-	value string
-}
-
-func (m insertParameterMatcher) Matches(x interface{}) bool {
-	p, ok := x.(database.InsertParameterValueParams)
-	if !ok {
-		return false
-	}
-	if p.Name != m.name {
-		return false
-	}
-	return p.SourceValue == m.value
-}
-
-func (m insertParameterMatcher) String() string {
-	return fmt.Sprintf("ParameterValue %s=%s", m.name, m.value)
-}
-
-func expectReplacedParam(oldID uuid.UUID, name, newValue string) func(store *dbmock.MockStore) {
-	return func(mTx *dbmock.MockStore) {
-		del := mTx.EXPECT().DeleteParameterValueByID(gomock.Any(), oldID).
-			Times(1).
-			Return(nil)
-		mTx.EXPECT().InsertParameterValue(gomock.Any(), insertParameterMatcher{name, newValue}).
-			Times(1).
-			After(del).
-			Return(database.ParameterValue{}, nil)
-	}
-}
-
-func expectInsertedParam(name, newValue string) func(store *dbmock.MockStore) {
-	return func(mTx *dbmock.MockStore) {
-		mTx.EXPECT().InsertParameterValue(gomock.Any(), insertParameterMatcher{name, newValue}).
-			Times(1).
-			Return(database.ParameterValue{}, nil)
 	}
 }
