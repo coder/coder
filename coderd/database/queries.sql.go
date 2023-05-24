@@ -8172,7 +8172,11 @@ const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
 FROM
-	workspaces
+    workspaces
+JOIN
+    users
+ON
+    workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
@@ -8333,12 +8337,12 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	(latest_build.completed_at IS NOT NULL AND
+    (latest_build.completed_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.error IS NULL AND
-					latest_build.transition = 'start'::workspace_transition) ASC,
-	owner_id ASC,
-	name,
+					latest_build.transition = 'start'::workspace_transition) DESC,
+	LOWER(users.username) ASC,
+	LOWER(name) ASC,
 	last_used_at DESC
 LIMIT
 	CASE
