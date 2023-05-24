@@ -2,13 +2,11 @@ import Checkbox from "@mui/material/Checkbox"
 import { makeStyles } from "@mui/styles"
 import TextField from "@mui/material/TextField"
 import {
-  ParameterSchema,
   ProvisionerJobLog,
   Template,
   TemplateExample,
   TemplateVersionVariable,
 } from "api/typesGenerated"
-import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import {
   TemplateUpload,
@@ -112,7 +110,6 @@ const defaultInitialValues: CreateTemplateData = {
 type GetInitialValuesParams = {
   fromExample?: TemplateExample
   fromCopy?: Template
-  parameters?: ParameterSchema[]
   variables?: TemplateVersionVariable[]
   allowAdvancedScheduling: boolean
 }
@@ -122,7 +119,6 @@ const getInitialValues = ({
   fromCopy,
   allowAdvancedScheduling,
   variables,
-  parameters,
 }: GetInitialValuesParams) => {
   let initialValues = defaultInitialValues
 
@@ -166,16 +162,6 @@ const getInitialValues = ({
     })
   }
 
-  if (parameters) {
-    parameters.forEach((parameter) => {
-      if (!initialValues.parameter_values_by_name) {
-        initialValues.parameter_values_by_name = {}
-      }
-      initialValues.parameter_values_by_name[parameter.name] =
-        parameter.default_source_value
-    })
-  }
-
   return initialValues
 }
 
@@ -185,7 +171,6 @@ export interface CreateTemplateFormProps {
   isSubmitting: boolean
   upload: TemplateUploadProps
   starterTemplate?: TemplateExample
-  parameters?: ParameterSchema[]
   variables?: TemplateVersionVariable[]
   error?: unknown
   jobError?: string
@@ -199,7 +184,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   onSubmit,
   starterTemplate,
   copiedTemplate,
-  parameters,
   variables,
   isSubmitting,
   upload,
@@ -215,7 +199,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
       fromExample: starterTemplate,
       fromCopy: copiedTemplate,
       variables,
-      parameters,
     }),
     validationSchema,
     onSubmit,
@@ -438,30 +421,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           </label>
         </FormFields>
       </FormSection>
-
-      {/* Parameters */}
-      {parameters && parameters.length > 0 && (
-        <FormSection
-          title={t("form.parameters.title")}
-          description={t("form.parameters.description")}
-        >
-          <FormFields>
-            {parameters.map((schema) => (
-              <ParameterInput
-                schema={schema}
-                disabled={isSubmitting}
-                key={schema.id}
-                onChange={async (value) => {
-                  await form.setFieldValue(
-                    `parameter_values_by_name.${schema.name}`,
-                    value,
-                  )
-                }}
-              />
-            ))}
-          </FormFields>
-        </FormSection>
-      )}
 
       {/* Variables */}
       {variables && variables.length > 0 && (
