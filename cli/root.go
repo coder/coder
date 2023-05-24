@@ -27,6 +27,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gobwas/httphead"
 	"github.com/mattn/go-isatty"
 
 	"github.com/coder/coder/buildinfo"
@@ -494,13 +495,14 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 			}
 			err = r.setClient(
 				client, r.clientURL,
-				append(r.header, codersdk.CLITelemetryHeader+"="+
-					base64.StdEncoding.EncodeToString(byt),
-				),
 			)
 			if err != nil {
 				return err
 			}
+
+			client.ExtraHeaders.Set(codersdk.CLITelemetryHeader,
+				base64.StdEncoding.EncodeToString(byt),
+			)
 
 			client.SetSessionToken(r.token)
 
@@ -544,28 +546,29 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 	}
 }
 
-func (*RootCmd) setClient(client *codersdk.Client, serverURL *url.URL, headers []string) error {
+func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
 		header:    http.Header{},
 	}
-	for _, header := range headers {
-		parts := strings.SplitN(header, "=", 2)
-		if len(parts) < 2 {
-			return xerrors.Errorf("split header %q had less than two parts", header)
-		}
-		transport.header.Add(parts[0], parts[1])
-	}
 	client.URL = serverURL
 	client.HTTPClient = &http.Client{
 		Transport: transport,
+	}
+	client.ExtraHeaders = make(http.Header)
+	for _, hd := range r.header {
+		k, v, ok := httphead.ParseHeaderLine([]byte(hd))
+		if !ok {
+			return xerrors.Errorf("invalid header: %s", hd)
+		}
+		client.ExtraHeaders.Add(string(k), string(v))
 	}
 	return nil
 }
 
 func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
 	var client codersdk.Client
-	err := r.setClient(&client, serverURL, r.header)
+	err := r.setClient(&client, serverURL)
 	return &client, err
 }
 

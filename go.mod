@@ -352,3 +352,5 @@ require (
 	howett.net/plist v1.0.0 // indirect
 	inet.af/peercred v0.0.0-20210906144145-0893ea02156a // indirect
 )
+
+require github.com/gobwas/httphead v0.1.0
