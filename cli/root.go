@@ -486,13 +486,6 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 					return err
 				}
 			}
-
-			telemInv := telemetryInvocation(i)
-			byt, err := json.Marshal(telemInv)
-			if err != nil {
-				// Should be impossible
-				panic(err)
-			}
 			err = r.setClient(
 				client, r.clientURL,
 			)
@@ -500,9 +493,21 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				return err
 			}
 
-			client.ExtraHeaders.Set(codersdk.CLITelemetryHeader,
-				base64.StdEncoding.EncodeToString(byt),
-			)
+			// Add telemetry headers:
+			telemInv := telemetryInvocation(i)
+			byt, err := json.Marshal(telemInv)
+			if err != nil {
+				// Should be impossible
+				panic(err)
+			}
+			if s := base64.StdEncoding.EncodeToString(byt); len(s) < 4096 {
+				// Per https://stackoverflow.com/questions/686217/maximum-on-http-header-values,
+				// we don't want to send headers that are too long.
+				client.ExtraHeaders.Set(
+					codersdk.CLITelemetryHeader,
+					s,
+				)
+			}
 
 			client.SetSessionToken(r.token)
 
