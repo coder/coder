@@ -20,7 +20,6 @@ import MenuList from "@mui/material/MenuList"
 import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { getUsers, getTemplates } from "api/api"
-import { useOrganizationId } from "hooks/useOrganizationId"
 
 /** Filter */
 
@@ -94,6 +93,18 @@ type BaseOption = {
   value: string
 }
 
+type OwnerOption = BaseOption & {
+  avatarUrl?: string
+}
+
+type StatusOption = BaseOption & {
+  color: string
+}
+
+type TemplateOption = BaseOption & {
+  icon?: string
+}
+
 type UseAutocompleteOptions<TOption extends BaseOption> = {
   id: string
   initialQuery?: string
@@ -146,21 +157,118 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
   }
 }
 
+export const useUsersAutocomplete = (
+  initialOptionValue: string | undefined,
+  onChange: (option: OwnerOption | undefined) => void,
+) =>
+  useAutocomplete({
+    id: "owner",
+    getInitialOption: async () => {
+      const usersRes = await getUsers({ q: initialOptionValue, limit: 1 })
+      const firstUser = usersRes.users.at(0)
+      if (firstUser && firstUser.username === initialOptionValue) {
+        return {
+          label: firstUser.username,
+          value: firstUser.username,
+          avatarUrl: firstUser.avatar_url,
+        }
+      }
+      return null
+    },
+    getOptions: async (query) => {
+      const usersRes = await getUsers({ q: query, limit: 25 })
+      return usersRes.users.map((user) => ({
+        label: user.username,
+        value: user.username,
+        avatarUrl: user.avatar_url,
+      }))
+    },
+    onChange,
+  })
+
+type UsersAutocomplete = ReturnType<typeof useUsersAutocomplete>
+
+export const useTemplatesAutocomplete = (
+  orgId: string,
+  initialOptionValue: string | undefined,
+  onChange: (option: TemplateOption | undefined) => void,
+) => {
+  return useAutocomplete({
+    id: "template",
+    getInitialOption: async () => {
+      const templates = await getTemplates(orgId)
+      const template = templates.find(
+        (template) => template.name === initialOptionValue,
+      )
+      if (template) {
+        return {
+          label:
+            template.display_name !== ""
+              ? template.display_name
+              : template.name,
+          value: template.name,
+          icon: template.icon,
+        }
+      }
+      return null
+    },
+    getOptions: async (query) => {
+      const templates = await getTemplates(orgId)
+      const filteredTemplates = templates.filter(
+        (template) =>
+          template.name.toLowerCase().includes(query.toLowerCase()) ||
+          template.display_name.toLowerCase().includes(query.toLowerCase()),
+      )
+      return filteredTemplates.map((template) => ({
+        label:
+          template.display_name !== "" ? template.display_name : template.name,
+        value: template.name,
+        icon: template.icon,
+      }))
+    },
+    onChange,
+  })
+}
+
+type TemplatesAutocomplete = ReturnType<typeof useTemplatesAutocomplete>
+
+export const useStatusAutocomplete = (
+  initialOptionValue: string | undefined,
+  onChange: (option: StatusOption | undefined) => void,
+) => {
+  const statusOptions = WorkspaceStatuses.map((status) => {
+    const display = getDisplayWorkspaceStatus(status)
+    return {
+      label: display.text,
+      value: status,
+      color: display.type ?? "warning",
+    } as StatusOption
+  })
+  return useAutocomplete({
+    id: "status",
+    getInitialOption: async () =>
+      statusOptions.find((option) => option.value === initialOptionValue) ??
+      null,
+    getOptions: async () => statusOptions,
+    onChange,
+  })
+}
+
+type StatusAutocomplete = ReturnType<typeof useStatusAutocomplete>
+
 /** Components */
 
-type OwnerOption = BaseOption & {
-  avatarUrl?: string
-}
-
-type StatusOption = BaseOption & {
-  color: string
-}
-
-type TemplateOption = BaseOption & {
-  icon?: string
-}
-
-export const Filter = ({ filter }: { filter: UseFilterResult }) => {
+export const Filter = ({
+  filter,
+  autocomplete,
+}: {
+  filter: UseFilterResult
+  autocomplete: {
+    users: UsersAutocomplete
+    templates: TemplatesAutocomplete
+    status: StatusAutocomplete
+  }
+}) => {
   const hasFilterQuery = filter.query !== ""
 
   return (
@@ -200,56 +308,14 @@ export const Filter = ({ filter }: { filter: UseFilterResult }) => {
           ),
         }}
       />
-      <OwnerFilter
-        initialOptionValue={filter.values.owner}
-        onChange={(option) =>
-          filter.update({ ...filter.values, owner: option?.value })
-        }
-      />
-      <TemplateFilter
-        initialOptionValue={filter.values.template}
-        onChange={(option) =>
-          filter.update({ ...filter.values, template: option?.value })
-        }
-      />
-      <StatusFilter
-        initialOptionValue={filter.values.status}
-        onChange={(option) =>
-          filter.update({ ...filter.values, status: option?.value })
-        }
-      />
+      <OwnerFilter autocomplete={autocomplete.users} />
+      <TemplatesFilter autocomplete={autocomplete.templates} />
+      <StatusFilter autocomplete={autocomplete.status} />
     </Box>
   )
 }
 
-const OwnerFilter: FC<{
-  initialOptionValue?: string
-  onChange: (option: OwnerOption | undefined) => void
-}> = ({ initialOptionValue, onChange }) => {
-  const usersAutocomplete = useAutocomplete({
-    id: "owner",
-    getInitialOption: async () => {
-      const usersRes = await getUsers({ q: initialOptionValue, limit: 1 })
-      const firstUser = usersRes.users.at(0)
-      if (firstUser && firstUser.username === initialOptionValue) {
-        return {
-          label: firstUser.username,
-          value: firstUser.username,
-          avatarUrl: firstUser.avatar_url,
-        }
-      }
-      return null
-    },
-    getOptions: async (query) => {
-      const usersRes = await getUsers({ q: query, limit: 25 })
-      return usersRes.users.map((user) => ({
-        label: user.username,
-        value: user.username,
-        avatarUrl: user.avatar_url,
-      }))
-    },
-    onChange,
-  })
+const OwnerFilter = ({ autocomplete }: { autocomplete: UsersAutocomplete }) => {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -267,13 +333,13 @@ const OwnerFilter: FC<{
         anchorEl={buttonRef.current}
         open={isMenuOpen}
         onClose={handleClose}
-        options={usersAutocomplete.searchOptions}
+        options={autocomplete.searchOptions}
         renderOption={(option) => (
           <MenuItem
             key={option.label}
-            selected={option.value === usersAutocomplete.selectedOption?.value}
+            selected={option.value === autocomplete.selectedOption?.value}
             onClick={() => {
-              usersAutocomplete.selectOption(option)
+              autocomplete.selectOption(option)
               handleClose()
             }}
           >
@@ -292,46 +358,11 @@ const OwnerFilter: FC<{
   )
 }
 
-const TemplateFilter: FC<{
-  initialOptionValue?: string
-  onChange: (value: TemplateOption | undefined) => void
-}> = ({ initialOptionValue, onChange }) => {
-  const orgId = useOrganizationId()
-  const templatesAutocomplete = useAutocomplete({
-    id: "template",
-    getInitialOption: async () => {
-      const templates = await getTemplates(orgId)
-      const template = templates.find(
-        (template) => template.name === initialOptionValue,
-      )
-      if (template) {
-        return {
-          label:
-            template.display_name !== ""
-              ? template.display_name
-              : template.name,
-          value: template.name,
-          icon: template.icon,
-        }
-      }
-      return null
-    },
-    getOptions: async (query) => {
-      const templates = await getTemplates(orgId)
-      const filteredTemplates = templates.filter(
-        (template) =>
-          template.name.toLowerCase().includes(query.toLowerCase()) ||
-          template.display_name.toLowerCase().includes(query.toLowerCase()),
-      )
-      return filteredTemplates.map((template) => ({
-        label:
-          template.display_name !== "" ? template.display_name : template.name,
-        value: template.name,
-        icon: template.icon,
-      }))
-    },
-    onChange,
-  })
+const TemplatesFilter = ({
+  autocomplete,
+}: {
+  autocomplete: TemplatesAutocomplete
+}) => {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -349,15 +380,13 @@ const TemplateFilter: FC<{
         anchorEl={buttonRef.current}
         open={isMenuOpen}
         onClose={handleClose}
-        options={templatesAutocomplete.searchOptions}
+        options={autocomplete.searchOptions}
         renderOption={(option) => (
           <MenuItem
             key={option.label}
-            selected={
-              option.value === templatesAutocomplete.selectedOption?.value
-            }
+            selected={option.value === autocomplete.selectedOption?.value}
             onClick={() => {
-              templatesAutocomplete.selectOption(option)
+              autocomplete.selectOption(option)
               handleClose()
             }}
           >
@@ -386,26 +415,11 @@ const TemplateAvatar: FC<
   )
 }
 
-const StatusFilter: FC<{
-  initialOptionValue?: string
-  onChange: (value: StatusOption | undefined) => void
-}> = ({ initialOptionValue, onChange }) => {
-  const statusOptions = WorkspaceStatuses.map((status) => {
-    const display = getDisplayWorkspaceStatus(status)
-    return {
-      label: display.text,
-      value: status,
-      color: display.type ?? "warning",
-    } as StatusOption
-  })
-  const statusAutocomplete = useAutocomplete({
-    id: "status",
-    getInitialOption: async () =>
-      statusOptions.find((option) => option.value === initialOptionValue) ??
-      null,
-    getOptions: async () => statusOptions,
-    onChange,
-  })
+const StatusFilter = ({
+  autocomplete,
+}: {
+  autocomplete: StatusAutocomplete
+}) => {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -424,12 +438,12 @@ const StatusFilter: FC<{
         open={isMenuOpen}
         onClose={handleClose}
       >
-        {statusAutocomplete.searchOptions?.map((option) => (
+        {autocomplete.searchOptions?.map((option) => (
           <MenuItem
             key={option.label}
-            selected={option.value === statusAutocomplete.selectedOption?.value}
+            selected={option.value === autocomplete.selectedOption?.value}
             onClick={() => {
-              statusAutocomplete.selectOption(option)
+              autocomplete.selectOption(option)
               handleClose()
             }}
           >

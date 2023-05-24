@@ -21,6 +21,7 @@ import {
 } from "./WorkspacesPageView"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
 import { action } from "@storybook/addon-actions"
+import { ComponentProps } from "react"
 
 const createWorkspace = (
   status: WorkspaceStatus,
@@ -70,15 +71,33 @@ const MockedAppearance = {
   save: () => null,
 }
 
-const defaultFilterProps = {
-  query: `owner:${MockUser.username}`,
-  update: () => action("update"),
-  values: {
-    owner: MockUser.username,
-    template: undefined,
-    status: undefined,
-  },
+const mockAutocomplete = {
+  initialOption: undefined,
+  isInitializing: false,
+  isSearching: false,
+  query: "",
+  searchOptions: [],
+  selectedOption: undefined,
+  selectOption: action("selectOption"),
+  setQuery: action("updateQuery"),
 }
+
+const defaultFilterProps = {
+  filter: {
+    query: `owner:${MockUser.username}`,
+    update: () => action("update"),
+    values: {
+      owner: MockUser.username,
+      template: undefined,
+      status: undefined,
+    },
+  },
+  autocomplete: {
+    users: mockAutocomplete,
+    templates: mockAutocomplete,
+    status: mockAutocomplete,
+  },
+} as ComponentProps<typeof WorkspacesPageView>["filterProps"]
 
 export default {
   title: "pages/WorkspacesPageView",
@@ -120,8 +139,9 @@ export const NoSearchResults = Template.bind({})
 NoSearchResults.args = {
   workspaces: [],
   filterProps: {
+    ...defaultFilterProps,
     filter: {
-      ...defaultFilterProps,
+      ...defaultFilterProps.filter,
       query: "searchwithnoresults",
     },
   },
