@@ -429,9 +429,9 @@ type RootCmd struct {
 	noFeatureWarning bool
 }
 
-func telemetryInvocation(i *clibase.Invocation) telemetry.CLIInvocation {
+func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
 	var topts []telemetry.CLIOption
-	for _, opt := range i.Command.FullOptions() {
+	for _, opt := range inv.Command.FullOptions() {
 		if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
 			continue
 		}
@@ -440,11 +440,29 @@ func telemetryInvocation(i *clibase.Invocation) telemetry.CLIInvocation {
 			ValueSource: string(opt.ValueSource),
 		})
 	}
-	return telemetry.CLIInvocation{
-		Command:   i.Command.FullName(),
+	ti := telemetry.CLIInvocation{
+		Command:   inv.Command.FullName(),
 		Options:   topts,
 		InvokedAt: time.Now(),
 	}
+
+	byt, err := json.Marshal(ti)
+	if err != nil {
+		// Should be impossible
+		panic(err)
+	}
+
+	// Per https://stackoverflow.com/questions/686217/maximum-on-http-header-values,
+	// we don't want to send headers that are too long.
+	s := base64.StdEncoding.EncodeToString(byt)
+	if len(s) > 4096 {
+		return
+	}
+
+	client.ExtraHeaders.Set(
+		codersdk.CLITelemetryHeader,
+		s,
+	)
 }
 
 // InitClient sets client to a new client.
@@ -457,7 +475,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 		panic("root is nil")
 	}
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(i *clibase.Invocation) error {
+		return func(inv *clibase.Invocation) error {
 			conf := r.createConfig()
 			var err error
 			if r.clientURL == nil || r.clientURL.String() == "" {
@@ -493,21 +511,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				return err
 			}
 
-			// Add telemetry headers:
-			telemInv := telemetryInvocation(i)
-			byt, err := json.Marshal(telemInv)
-			if err != nil {
-				// Should be impossible
-				panic(err)
-			}
-			if s := base64.StdEncoding.EncodeToString(byt); len(s) < 4096 {
-				// Per https://stackoverflow.com/questions/686217/maximum-on-http-header-values,
-				// we don't want to send headers that are too long.
-				client.ExtraHeaders.Set(
-					codersdk.CLITelemetryHeader,
-					s,
-				)
-			}
+			addTelemetryHeader(client, inv)
 
 			client.SetSessionToken(r.token)
 
@@ -522,31 +526,31 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				warningErr = make(chan error)
 			)
 			go func() {
-				versionErr <- r.checkVersions(i, client)
+				versionErr <- r.checkVersions(inv, client)
 				close(versionErr)
 			}()
 
 			go func() {
-				warningErr <- r.checkWarnings(i, client)
+				warningErr <- r.checkWarnings(inv, client)
 				close(warningErr)
 			}()
 
 			if err = <-versionErr; err != nil {
 				// Just log the error here. We never want to fail a command
 				// due to a pre-run.
-				_, _ = fmt.Fprintf(i.Stderr,
+				_, _ = fmt.Fprintf(inv.Stderr,
 					cliui.Styles.Warn.Render("check versions error: %s"), err)
-				_, _ = fmt.Fprintln(i.Stderr)
+				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
 			if err = <-warningErr; err != nil {
 				// Same as above
-				_, _ = fmt.Fprintf(i.Stderr,
+				_, _ = fmt.Fprintf(inv.Stderr,
 					cliui.Styles.Warn.Render("check entitlement warnings error: %s"), err)
-				_, _ = fmt.Fprintln(i.Stderr)
+				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
-			return next(i)
+			return next(inv)
 		}
 	}
 }
