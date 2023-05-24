@@ -333,11 +333,10 @@ export const createTemplateMachine =
             organizationId,
             templateNameToCopy,
           )
-          const [version, variables] =
-            await Promise.all([
-              getTemplateVersion(template.active_version_id),
-              getTemplateVersionVariables(template.active_version_id),
-            ])
+          const [version, variables] = await Promise.all([
+            getTemplateVersion(template.active_version_id),
+            getTemplateVersionVariables(template.active_version_id),
+          ])
 
           return {
             template,
@@ -439,9 +438,7 @@ export const createTemplateMachine =
             promiseVariables = getTemplateVersionVariables(version.id)
           }
 
-          const [variables] = await Promise.all([
-            promiseVariables,
-          ])
+          const [variables] = await Promise.all([promiseVariables])
 
           return {
             variables,
