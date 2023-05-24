@@ -28,7 +28,7 @@ func (r *RootCmd) upgrade() *clibase.Cmd {
 				Flag:        "install-script-url",
 				Description: "Download URL of install script (useful for testing).",
 				Value:       clibase.StringOf(&scriptURL),
-				Default:     "https://dev.coder.com/install.sh",
+				Default:     "https://coder.com/install.sh",
 				Hidden:      true,
 			},
 		},
