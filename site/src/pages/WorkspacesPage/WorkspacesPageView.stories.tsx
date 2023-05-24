@@ -13,8 +13,8 @@ import {
   MockBuildInfo,
   MockEntitlementsWithScheduling,
   MockExperiments,
+  MockUser,
 } from "testHelpers/entities"
-import { workspaceFilterQuery } from "utils/filters"
 import {
   WorkspacesPageView,
   WorkspacesPageViewProps,
@@ -71,12 +71,13 @@ const MockedAppearance = {
 }
 
 const defaultFilterProps = {
-  query: workspaceFilterQuery.me,
-  templates: undefined,
-  users: undefined,
-  onLoadTemplates: action("onLoadTemplates"),
-  onLoadUsers: action("onLoadUsers"),
-  onQueryChange: action("onQueryChange"),
+  query: `owner:${MockUser.username}`,
+  update: () => action("update"),
+  values: {
+    owner: MockUser.username,
+    template: undefined,
+    status: undefined,
+  },
 }
 
 export default {
@@ -119,8 +120,10 @@ export const NoSearchResults = Template.bind({})
 NoSearchResults.args = {
   workspaces: [],
   filterProps: {
-    ...defaultFilterProps,
-    query: "searchwithnoresults",
+    filter: {
+      ...defaultFilterProps,
+      query: "searchwithnoresults",
+    },
   },
   count: 0,
 }
