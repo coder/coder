@@ -9,6 +9,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
 import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView"
+import { useLocalStorage } from "hooks"
 
 const TemplateSchedulePage: FC = () => {
   const { template: templateName } = useParams() as { template: string }
@@ -20,6 +21,7 @@ const TemplateSchedulePage: FC = () => {
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
   const allowWorkspaceActions = experiments.includes("workspace_actions")
+  const { clearLocal } = useLocalStorage()
 
   const {
     mutate: updateTemplate,
@@ -30,6 +32,8 @@ const TemplateSchedulePage: FC = () => {
     {
       onSuccess: () => {
         displaySuccess("Template updated successfully")
+        // clear browser-stored list of workspaces impending deletion
+        clearLocal("dismissedWorkspaceList")
       },
     },
   )

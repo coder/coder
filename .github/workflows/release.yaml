@@ -6,6 +6,13 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
+      # For some reason, setup-go won't actually pick up a new patch version if
+      # it has an old one cached. We need to manually specify the versions so we
+      # can get the latest release. Never use "~1.xx" here!
+      go_version:
+        description: "Go version to use for building."
+        required: false
+        default: "1.20.4"
       dry_run:
         description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
         type: boolean
@@ -92,7 +99,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: "~1.20"
+          go-version: ${{ inputs.go_version }}
 
       - name: Cache Node
         id: cache-node

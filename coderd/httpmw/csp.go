@@ -103,6 +103,11 @@ func CSPHeaders(websocketHosts func() []string) func(next http.Handler) http.Han
 			extraConnect := websocketHosts()
 			if len(extraConnect) > 0 {
 				for _, extraHost := range extraConnect {
+					if extraHost == "*" {
+						// '*' means all
+						cspSrcs.Append(cspDirectiveConnectSrc, "*")
+						continue
+					}
 					cspSrcs.Append(cspDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", extraHost))
 					// We also require this to make http/https requests to the workspace proxy for latency checking.
 					cspSrcs.Append(cspDirectiveConnectSrc, fmt.Sprintf("https://%[1]s http://%[1]s", extraHost))
