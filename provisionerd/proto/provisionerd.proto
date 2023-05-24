@@ -14,11 +14,10 @@ message AcquiredJob {
     message WorkspaceBuild {
         string workspace_build_id = 1;
         string workspace_name = 2;
-        repeated provisioner.ParameterValue parameter_values = 3;
-        repeated provisioner.RichParameterValue rich_parameter_values = 4;
-        repeated provisioner.VariableValue variable_values = 5;
-        repeated provisioner.GitAuthProvider git_auth_providers = 6;
-        provisioner.Provision.Metadata metadata = 7;
+        repeated provisioner.RichParameterValue rich_parameter_values = 3;
+        repeated provisioner.VariableValue variable_values = 4;
+        repeated provisioner.GitAuthProvider git_auth_providers = 5;
+        provisioner.Provision.Metadata metadata = 6;
         bytes state = 8;
         string log_level = 9;
     }
@@ -27,10 +26,9 @@ message AcquiredJob {
         repeated provisioner.VariableValue user_variable_values = 2;
     }
     message TemplateDryRun {
-        repeated provisioner.ParameterValue parameter_values = 1;
-        repeated provisioner.RichParameterValue rich_parameter_values = 2;
-        repeated provisioner.VariableValue variable_values = 3;
-        provisioner.Provision.Metadata metadata = 4;
+        repeated provisioner.RichParameterValue rich_parameter_values = 1;
+        repeated provisioner.VariableValue variable_values = 2;
+        provisioner.Provision.Metadata metadata = 3;
     }
 
     string job_id = 1;
@@ -108,18 +106,14 @@ message Log {
 message UpdateJobRequest {
     string job_id = 1;
     repeated Log logs = 2;
-    repeated provisioner.ParameterSchema parameter_schemas = 3;
-    repeated provisioner.TemplateVariable template_variables = 4;
-	repeated provisioner.VariableValue user_variable_values = 5;
-    bytes readme = 6;
+    repeated provisioner.TemplateVariable template_variables = 3;
+	repeated provisioner.VariableValue user_variable_values = 4;
+    bytes readme = 5;
 }
 
 message UpdateJobResponse {
     bool canceled = 1;
-    // If parameter schemas are sent, the job will respond
-    // with resolved parameter values.
-    repeated provisioner.ParameterValue parameter_values = 2;
-	repeated provisioner.VariableValue variable_values = 3;
+	repeated provisioner.VariableValue variable_values = 2;
 }
 
 message CommitQuotaRequest {

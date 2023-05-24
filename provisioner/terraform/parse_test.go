@@ -35,17 +35,7 @@ func TestParse(t *testing.T) {
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                "A",
-							RedisplayValue:      true,
-							AllowOverrideSource: true,
-							Description:         "Testing!",
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
+					Complete: &proto.Parse_Complete{},
 				},
 			},
 		},
@@ -58,20 +48,7 @@ func TestParse(t *testing.T) {
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                "A",
-							RedisplayValue:      true,
-							AllowOverrideSource: true,
-							DefaultSource: &proto.ParameterSource{
-								Scheme: proto.ParameterSource_DATA,
-								Value:  "wow",
-							},
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
+					Complete: &proto.Parse_Complete{},
 				},
 			},
 		},
@@ -86,18 +63,7 @@ func TestParse(t *testing.T) {
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                 "A",
-							RedisplayValue:       true,
-							ValidationCondition:  `var.A == "value"`,
-							ValidationTypeSystem: proto.ParameterSchema_HCL,
-							AllowOverrideSource:  true,
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
+					Complete: &proto.Parse_Complete{},
 				},
 			},
 		},
@@ -118,46 +84,7 @@ func TestParse(t *testing.T) {
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{
-							{
-								Name:                "foo",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-							{
-								Name:                "bar",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-							{
-								Name:                "baz",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-							{
-								Name:                "quux",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-						},
-					},
+					Complete: &proto.Parse_Complete{},
 				},
 			},
 		},
