@@ -148,15 +148,15 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				output := make([]prometheus.Metric, 0, len(ma.queue))
 				for _, m := range ma.queue {
 					labels := make([]string, len(agentMetricsLabels)+len(m.Labels))
-					var i int
+					var labelIndex int
 					for _, l := range agentMetricsLabels {
-						labels[i] = l
-						i++
+						labels[labelIndex] = l
+						labelIndex++
 					}
 
 					for _, l := range m.Labels {
-						labels[i] = l.Name
-						i++
+						labels[labelIndex] = l.Name
+						labelIndex++
 					}
 
 					desc := prometheus.NewDesc(m.Name, metricHelpForAgent, labels, nil)
@@ -172,11 +172,11 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 					labelValues[2] = m.agentName
 
 					if len(m.Labels) > 0 {
-						i = 3
+						labelIndex = 3
 
 						for _, l := range m.Labels {
-							labelValues[i] = l.Value
-							i++
+							labelValues[labelIndex] = l.Value
+							labelIndex++
 						}
 					}
 
