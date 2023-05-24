@@ -80,6 +80,7 @@ const mockAutocomplete = {
   selectedOption: undefined,
   selectOption: action("selectOption"),
   setQuery: action("updateQuery"),
+  clearSelection: action("clearSelection"),
 }
 
 const defaultFilterProps = {

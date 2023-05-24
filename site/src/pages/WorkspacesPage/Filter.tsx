@@ -1,5 +1,5 @@
 import { WorkspaceStatuses } from "api/typesGenerated"
-import { FC, ReactNode, forwardRef, useRef, useState } from "react"
+import { FC, ReactNode, forwardRef, useMemo, useRef, useState } from "react"
 import Box from "@mui/material/Box"
 import TextField from "@mui/material/TextField"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
@@ -127,12 +127,48 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
   const initialOptionQuery = useQuery({
     queryKey: [id, "autocomplete", "initial"],
     queryFn: () => getInitialOption(),
-    onSuccess: setSelectedOption,
+    onSuccess: (option) => setSelectedOption(option ?? undefined),
   })
   const searchOptionsQuery = useQuery({
     queryKey: [id, "autoComplete", "search"],
     queryFn: () => getOptions(query),
   })
+  const searchOptions = useMemo(() => {
+    const isDataLoaded =
+      searchOptionsQuery.isFetched && initialOptionQuery.isFetched
+
+    if (!isDataLoaded) {
+      return undefined
+    }
+
+    let options = searchOptionsQuery.data as TOption[]
+
+    if (!selectedOption) {
+      return options
+    }
+
+    // We will add the initial option on the top of the options
+    // 1 - remove the initial option from the search options if it exists
+    // 2 - add the initial option on the top
+    options = options.filter((option) => option.value !== selectedOption.value)
+    options.unshift(selectedOption)
+
+    // Filter data based o search query
+    options = options.filter(
+      (option) =>
+        option.label.toLowerCase().includes(query.toLowerCase()) ||
+        option.value.toLowerCase().includes(query.toLowerCase()),
+    )
+
+    return options
+  }, [
+    initialOptionQuery.isFetched,
+    query,
+    searchOptionsQuery.data,
+    searchOptionsQuery.isFetched,
+    selectedOption,
+  ])
+
   const selectOption = (option: TOption) => {
     let newSelectedOptionValue: TOption | undefined = option
 
@@ -145,16 +181,20 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
     }
     setSelectedOption(newSelectedOptionValue)
   }
+  const clearSelection = () => {
+    setSelectedOption(undefined)
+  }
 
   return {
     query,
     setQuery,
     selectedOption,
     selectOption,
+    clearSelection,
     isInitializing: initialOptionQuery.isInitialLoading,
     initialOption: initialOptionQuery.data,
     isSearching: searchOptionsQuery.isFetching,
-    searchOptions: searchOptionsQuery.data,
+    searchOptions,
   }
 }
 
@@ -330,7 +370,15 @@ export const Filter = ({
           endAdornment: hasFilterQuery && (
             <InputAdornment position="end">
               <Tooltip title="Clear filter">
-                <IconButton size="small" onClick={() => filter.update("")}>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    filter.update("")
+                    autocomplete.users.clearSelection()
+                    autocomplete.templates.clearSelection()
+                    autocomplete.status.clearSelection()
+                  }}
+                >
                   <CloseOutlined sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
@@ -372,6 +420,8 @@ const OwnerFilter = ({ autocomplete }: { autocomplete: UsersAutocomplete }) => {
         open={isMenuOpen}
         onClose={handleClose}
         options={autocomplete.searchOptions}
+        query={autocomplete.query}
+        onQueryChange={autocomplete.setQuery}
         renderOption={(option) => (
           <MenuItem
             key={option.label}
@@ -391,13 +441,21 @@ const OwnerFilter = ({ autocomplete }: { autocomplete: UsersAutocomplete }) => {
 
 const UserOptionItem = ({ option }: { option: OwnerOption }) => {
   return (
-    <Box display="flex" alignItems="center" gap={2} fontSize={14}>
+    <Box
+      display="flex"
+      alignItems="center"
+      gap={2}
+      fontSize={14}
+      overflow="hidden"
+    >
       <UserAvatar
         username={option.label}
         avatarURL={option.avatarUrl}
         sx={{ width: 16, height: 16, fontSize: 8 }}
       />
-      <span>{option.label}</span>
+      <Box component="span" overflow="hidden" textOverflow="ellipsis">
+        {option.label}
+      </Box>
     </Box>
   )
 }
@@ -433,6 +491,8 @@ const TemplatesFilter = ({
         open={isMenuOpen}
         onClose={handleClose}
         options={autocomplete.searchOptions}
+        query={autocomplete.query}
+        onQueryChange={autocomplete.setQuery}
         renderOption={(option) => (
           <MenuItem
             key={option.label}
@@ -452,13 +512,21 @@ const TemplatesFilter = ({
 
 const TemplateOptionItem = ({ option }: { option: TemplateOption }) => {
   return (
-    <Box display="flex" alignItems="center" gap={2} fontSize={14}>
+    <Box
+      display="flex"
+      alignItems="center"
+      gap={2}
+      fontSize={14}
+      overflow="hidden"
+    >
       <TemplateAvatar
         templateName={option.label}
         icon={option.icon}
         sx={{ width: 14, height: 14, fontSize: 8 }}
       />
-      <span>{option.label}</span>
+      <Box component="span" overflow="hidden" textOverflow="ellipsis">
+        {option.label}
+      </Box>
     </Box>
   )
 }
@@ -504,6 +572,13 @@ const StatusFilter = ({
         open={isMenuOpen}
         onClose={handleClose}
         sx={{ "& .MuiPaper-root": { minWidth: 200 } }}
+        // Disabled this so when we clear the filter and do some sorting in the
+        // search items it does not look strange. Github removes exit transitions
+        // on their filters as well.
+        transitionDuration={{
+          enter: 250,
+          exit: 0,
+        }}
       >
         {autocomplete.searchOptions?.map((option) => (
           <MenuItem
@@ -553,8 +628,8 @@ const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
       {...props}
       sx={{
         borderRadius: "6px",
-        lineHeight: 0,
         justifyContent: "space-between",
+        lineHeight: 1,
         ...props.sx,
       }}
     />
@@ -564,35 +639,37 @@ const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
 function SearchMenu<TOption extends { label: string; value: string }>({
   options,
   renderOption,
+  query,
+  onQueryChange,
   ...menuProps
 }: Pick<MenuProps, "anchorEl" | "open" | "onClose" | "id"> & {
   options?: TOption[]
   renderOption: (option: TOption) => ReactNode
+  query: string
+  onQueryChange: (query: string) => void
 }) {
   const menuListRef = useRef<HTMLUListElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const [searchInputValue, setSearchInputValue] = useState("")
-  const visibleOptions = options
-    ? options.filter(
-        (option) =>
-          option.label.toLowerCase().includes(searchInputValue.toLowerCase()) ||
-          option.value.toLowerCase().includes(searchInputValue.toLowerCase()),
-      )
-    : undefined
 
   return (
     <Menu
       {...menuProps}
       onClose={(event, reason) => {
         menuProps.onClose && menuProps.onClose(event, reason)
-        // 250ms is the transition time to close menu
-        setTimeout(() => setSearchInputValue(""), 250)
+        onQueryChange("")
       }}
       sx={{
         "& .MuiPaper-root": {
           width: 320,
           paddingY: 0,
         },
+      }}
+      // Disabled this so when we clear the filter and do some sorting in the
+      // search items it does not look strange. Github removes exit transitions
+      // on their filters as well.
+      transitionDuration={{
+        enter: 250,
+        exit: 0,
       }}
     >
       <Box
@@ -624,10 +701,10 @@ function SearchMenu<TOption extends { label: string; value: string }>({
           type="text"
           placeholder="Search..."
           autoFocus
-          value={searchInputValue}
+          value={query}
           ref={searchInputRef}
           onChange={(e) => {
-            setSearchInputValue(e.target.value)
+            onQueryChange(e.target.value)
           }}
           sx={{
             height: "100%",
@@ -654,9 +731,9 @@ function SearchMenu<TOption extends { label: string; value: string }>({
             }
           }}
         >
-          {visibleOptions ? (
-            visibleOptions.length > 0 ? (
-              visibleOptions.map(renderOption)
+          {options ? (
+            options.length > 0 ? (
+              options.map(renderOption)
             ) : (
               <Box
                 sx={{

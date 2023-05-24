@@ -400,6 +400,7 @@ dark = createTheme(dark, {
         tooltip: {
           lineHeight: "150%",
           borderRadius: 4,
+          background: dark.palette.divider,
         },
       },
     },
