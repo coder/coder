@@ -532,7 +532,7 @@ func (x *Log) GetLevel() proto.LogLevel {
 	if x != nil {
 		return x.Level
 	}
-	return proto.LogLevel(0)
+	return proto.LogLevel_TRACE
 }
 
 func (x *Log) GetCreatedAt() int64 {
