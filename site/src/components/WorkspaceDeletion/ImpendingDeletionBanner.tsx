@@ -2,7 +2,7 @@ import { Workspace } from "api/typesGenerated"
 import { displayImpendingDeletion } from "./utils"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { Alert } from "components/Alert/Alert"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, differenceInDays } from "date-fns"
 
 export enum Count {
   Singular,
@@ -39,8 +39,18 @@ export const ImpendingDeletionBanner = ({
     return null
   }
 
+  // if deleting_at is 7 days away or less, display an 'error' banner to convey urgency to user
+  const daysUntilDelete = differenceInDays(
+    Date.parse(workspace.last_used_at),
+    new Date(),
+  )
+
   return (
-    <Alert severity="info" onDismiss={onDismiss} dismissible>
+    <Alert
+      severity={daysUntilDelete <= 7 ? "error" : "info"}
+      onDismiss={onDismiss}
+      dismissible
+    >
       {count === Count.Singular
         ? `This workspace has been unused for ${formatDistanceToNow(
             Date.parse(workspace.last_used_at),
