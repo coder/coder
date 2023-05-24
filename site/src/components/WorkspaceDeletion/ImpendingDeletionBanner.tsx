@@ -47,7 +47,7 @@ export const ImpendingDeletionBanner = ({
 
   return (
     <Alert
-      severity={daysUntilDelete <= 7 ? "error" : "info"}
+      severity={daysUntilDelete <= 7 ? "warning" : "info"}
       onDismiss={onDismiss}
       dismissible
     >
