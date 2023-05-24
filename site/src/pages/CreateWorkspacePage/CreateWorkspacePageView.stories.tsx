@@ -1,8 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import {
   mockApiError,
-  mockParameterSchema,
-  MockParameterSchemas,
   MockTemplate,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
@@ -27,7 +25,6 @@ export const NoParameters = Template.bind({})
 NoParameters.args = {
   templates: [MockTemplate],
   selectedTemplate: MockTemplate,
-  templateSchema: [],
   createWorkspaceErrors: {},
 }
 
@@ -35,7 +32,6 @@ export const Parameters = Template.bind({})
 Parameters.args = {
   templates: [MockTemplate],
   selectedTemplate: MockTemplate,
-  templateSchema: MockParameterSchemas,
   createWorkspaceErrors: {},
 }
 
@@ -43,41 +39,6 @@ export const RedisplayParameters = Template.bind({})
 RedisplayParameters.args = {
   templates: [MockTemplate],
   selectedTemplate: MockTemplate,
-  templateSchema: [
-    mockParameterSchema({
-      name: "region",
-      default_source_value: "🏈 US Central",
-      description: "Where would you like your workspace to live?",
-      redisplay_value: false,
-      validation_contains: [
-        "🏈 US Central",
-        "⚽ Brazil East",
-        "💶 EU West",
-        "🦘 Australia South",
-      ],
-    }),
-    mockParameterSchema({
-      name: "instance_size",
-      default_source_value: "Big",
-      description: "How large should you instance be?",
-      validation_contains: ["Small", "Medium", "Big"],
-      redisplay_value: false,
-    }),
-    mockParameterSchema({
-      name: "instance_size",
-      default_source_value: "Big",
-      description: "How large should your instance be?",
-      validation_contains: ["Small", "Medium", "Big"],
-      redisplay_value: true,
-    }),
-    mockParameterSchema({
-      name: "disable_docker",
-      description: "Disable Docker?",
-      validation_value_type: "bool",
-      default_source_value: "false",
-      redisplay_value: true,
-    }),
-  ],
   createWorkspaceErrors: {},
 }
 
@@ -87,18 +48,6 @@ GetTemplatesError.args = {
   createWorkspaceErrors: {
     [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: mockApiError({
       message: "Failed to fetch templates.",
-      detail: "You do not have permission to access this resource.",
-    }),
-  },
-  hasTemplateErrors: true,
-}
-
-export const GetTemplateSchemaError = Template.bind({})
-GetTemplateSchemaError.args = {
-  ...Parameters.args,
-  createWorkspaceErrors: {
-    [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]: mockApiError({
-      message: 'Failed to fetch template schema for "docker-amd64".',
       detail: "You do not have permission to access this resource.",
     }),
   },
