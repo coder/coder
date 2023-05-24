@@ -90,7 +90,7 @@ Output format specs in the format "<format>[:<path>]". Not specifying a path wil
 | Environment | <code>$CODER_SCALETEST_PROMETHEUS_ADDRESS</code> |
 | Default     | <code>0.0.0.0:21112</code>                       |
 
-Address on which to expose scaletest prometheus metrics.
+Address on which to expose scaletest Prometheus metrics.
 
 ### --tick-interval
 

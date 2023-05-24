@@ -195,7 +195,7 @@ type countReadWriter struct {
 func (w *countReadWriter) Read(p []byte) (int, error) {
 	start := time.Now()
 	n, err := w.ReadWriter.Read(p)
-	w.metrics.ReadLatencyMS.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
+	w.metrics.ReadLatencySeconds.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
 	if n > 0 {
 		w.bytesRead.Add(int64(n))
 		w.metrics.BytesRead.WithLabelValues(w.labels...).Add(float64(n))
@@ -206,7 +206,7 @@ func (w *countReadWriter) Read(p []byte) (int, error) {
 func (w *countReadWriter) Write(p []byte) (int, error) {
 	start := time.Now()
 	n, err := w.ReadWriter.Write(p)
-	w.metrics.WriteLatencyMS.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
+	w.metrics.WriteLatencySeconds.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
 	if n > 0 {
 		w.bytesWritten.Add(int64(n))
 		w.metrics.BytesWritten.WithLabelValues(w.labels...).Add(float64(n))

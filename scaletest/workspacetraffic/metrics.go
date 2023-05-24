@@ -3,12 +3,12 @@ package workspacetraffic
 import "github.com/prometheus/client_golang/prometheus"
 
 type Metrics struct {
-	BytesRead      prometheus.CounterVec
-	BytesWritten   prometheus.CounterVec
-	Errors         prometheus.CounterVec
-	ReadLatencyMS  prometheus.HistogramVec
-	WriteLatencyMS prometheus.HistogramVec
-	LabelNames     []string
+	BytesRead           prometheus.CounterVec
+	BytesWritten        prometheus.CounterVec
+	Errors              prometheus.CounterVec
+	ReadLatencySeconds  prometheus.HistogramVec
+	WriteLatencySeconds prometheus.HistogramVec
+	LabelNames          []string
 }
 
 func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
@@ -28,12 +28,12 @@ func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 			Subsystem: "scaletest",
 			Name:      "errors",
 		}, labelNames),
-		ReadLatencyMS: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		ReadLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "read_latency_seconds",
 		}, labelNames),
-		WriteLatencyMS: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		WriteLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "write_latency_seconds",
@@ -43,7 +43,7 @@ func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 	reg.MustRegister(m.BytesRead)
 	reg.MustRegister(m.BytesWritten)
 	reg.MustRegister(m.Errors)
-	reg.MustRegister(m.ReadLatencyMS)
-	reg.MustRegister(m.WriteLatencyMS)
+	reg.MustRegister(m.ReadLatencySeconds)
+	reg.MustRegister(m.WriteLatencySeconds)
 	return m
 }

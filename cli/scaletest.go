@@ -1056,7 +1056,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Flag:        "scaletest-prometheus-address",
 			Env:         "CODER_SCALETEST_PROMETHEUS_ADDRESS",
 			Default:     "0.0.0.0:21112",
-			Description: "Address on which to expose scaletest prometheus metrics.",
+			Description: "Address on which to expose scaletest Prometheus metrics.",
 			Value:       clibase.StringOf(&scaletestPrometheusAddress),
 		},
 	}
