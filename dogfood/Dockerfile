@@ -8,7 +8,7 @@ FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.20
+ARG GO_VERSION=1.20.4
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -72,7 +72,8 @@ RUN mkdir --parents "$GOPATH" && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.30.6 && \
-	mv /tmp/bin/yq /tmp/bin/yq4
+	mv /tmp/bin/yq /tmp/bin/yq4 && \
+	go install github.com/golang/mock/mockgen@v1.6.0
 
 FROM alpine:3.16 as proto
 WORKDIR /tmp

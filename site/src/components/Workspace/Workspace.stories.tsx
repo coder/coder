@@ -47,6 +47,9 @@ const Template: Story<WorkspaceProps> = (args) => (
         proxies: [],
         isLoading: false,
         isFetched: true,
+        clearProxy: () => {
+          return
+        },
         setProxy: () => {
           return
         },

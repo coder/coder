@@ -203,6 +203,15 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 	templateVersionAudit.Old = templateVersion
+	if templateVersion.TemplateID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template version %s is already part of a template", createTemplate.VersionID),
+			Validations: []codersdk.ValidationError{
+				{Field: "template_version_id", Detail: "Template version is already part of a template"},
+			},
+		})
+		return
+	}
 
 	importJob, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {

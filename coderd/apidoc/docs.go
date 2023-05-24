@@ -7273,6 +7273,9 @@ const docTemplate = `{
         "codersdk.DangerousConfig": {
             "type": "object",
             "properties": {
+                "allow_all_cors": {
+                    "type": "boolean"
+                },
                 "allow_path_app_sharing": {
                     "type": "boolean"
                 },
@@ -8080,6 +8083,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ParameterSourceScheme"
                         }
                     ]
+                },
+                "source_value": {
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string",

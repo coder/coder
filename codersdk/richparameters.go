@@ -116,3 +116,64 @@ func validationEnabled(param TemplateVersionParameter) bool {
 		param.Type == "bool" || // boolean type doesn't have any custom validation rules, but the value must be checked (true/false).
 		param.Type == "list(string)" // list(string) type doesn't have special validation, but we need to check if this is a correct list.
 }
+
+// ParameterResolver should be populated with legacy workload and rich parameter values from the previous build.  It then
+// supports queries against a current TemplateVersionParameter to determine whether a new value is required, or a value
+// correctly validates.
+// @typescript-ignore ParameterResolver
+type ParameterResolver struct {
+	Legacy []Parameter
+	Rich   []WorkspaceBuildParameter
+}
+
+// ValidateResolve checks the provided value, v, against the parameter, p, and the previous build.  If v is nil, it also
+// resolves the correct value.  It returns the value of the parameter, if valid, and an error if invalid.
+func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) (value string, err error) {
+	prevV := r.findLastValue(p)
+	if !p.Mutable && v != nil && prevV != nil {
+		return "", xerrors.Errorf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", p.Name)
+	}
+	if p.Required && v == nil && prevV == nil {
+		return "", xerrors.Errorf("Parameter %q is required but not provided", p.Name)
+	}
+	// First, the provided value
+	resolvedValue := v
+	// Second, previous value
+	if resolvedValue == nil {
+		resolvedValue = prevV
+	}
+	// Last, default value
+	if resolvedValue == nil {
+		resolvedValue = &WorkspaceBuildParameter{
+			Name:  p.Name,
+			Value: p.DefaultValue,
+		}
+	}
+	err = ValidateWorkspaceBuildParameter(p, resolvedValue, prevV)
+	if err != nil {
+		return "", err
+	}
+	return resolvedValue.Value, nil
+}
+
+// findLastValue finds the value from the previous build and returns it, or nil if the parameter had no value in the
+// last build.
+func (r *ParameterResolver) findLastValue(p TemplateVersionParameter) *WorkspaceBuildParameter {
+	for _, rp := range r.Rich {
+		if rp.Name == p.Name {
+			return &rp
+		}
+	}
+	// For migration purposes, we also support using a legacy variable
+	if p.LegacyVariableName != "" {
+		for _, lp := range r.Legacy {
+			if lp.Name == p.LegacyVariableName {
+				return &WorkspaceBuildParameter{
+					Name:  p.Name,
+					Value: lp.SourceValue,
+				}
+			}
+		}
+	}
+	return nil
+}

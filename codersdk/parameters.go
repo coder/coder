@@ -43,7 +43,6 @@ const (
 
 type ComputedParameter struct {
 	Parameter
-	SourceValue        string    `json:"source_value"`
 	SchemaID           uuid.UUID `json:"schema_id" format:"uuid"`
 	DefaultSourceValue bool      `json:"default_source_value"`
 }
@@ -60,6 +59,7 @@ type Parameter struct {
 	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" table:"destination scheme" validate:"ne=none" enums:"none,environment_variable,provisioner_variable"`
 	CreatedAt         time.Time                  `json:"created_at" table:"created at" format:"date-time"`
 	UpdatedAt         time.Time                  `json:"updated_at" table:"updated at" format:"date-time"`
+	SourceValue       string                     `json:"source_value"`
 }
 
 type ParameterSchema struct {
