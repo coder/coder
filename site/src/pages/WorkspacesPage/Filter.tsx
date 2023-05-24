@@ -20,6 +20,7 @@ import MenuList from "@mui/material/MenuList"
 import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { getUsers, getTemplates } from "api/api"
+import Skeleton, { SkeletonProps } from "@mui/material/Skeleton"
 
 /** Filter */
 
@@ -258,6 +259,20 @@ type StatusAutocomplete = ReturnType<typeof useStatusAutocomplete>
 
 /** Components */
 
+const FilterSkeleton = (props: SkeletonProps) => {
+  return (
+    <Skeleton
+      variant="rectangular"
+      height={36}
+      {...props}
+      sx={{
+        bgcolor: (theme) => theme.palette.background.paperLight,
+        borderRadius: "6px",
+      }}
+    />
+  )
+}
+
 export const Filter = ({
   filter,
   autocomplete,
@@ -270,6 +285,21 @@ export const Filter = ({
   }
 }) => {
   const hasFilterQuery = filter.query !== ""
+  const isIinitializingFilters =
+    autocomplete.status.isInitializing ||
+    autocomplete.templates.isInitializing ||
+    autocomplete.users.isInitializing
+
+  if (isIinitializingFilters) {
+    return (
+      <Box display="flex" sx={{ gap: 1, mb: 2 }}>
+        <FilterSkeleton width="100%" />
+        <FilterSkeleton width={120} />
+        <FilterSkeleton width={120} />
+        <FilterSkeleton width={120} />
+      </Box>
+    )
+  }
 
   return (
     <Box display="flex" sx={{ gap: 1, mb: 2 }}>
