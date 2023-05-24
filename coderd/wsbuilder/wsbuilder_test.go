@@ -56,7 +56,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withLegacyParameters(nil), withRichParameters(nil),
+		withRichParameters(nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -104,7 +104,7 @@ func TestBuilder_Initiator(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withLegacyParameters(nil), withRichParameters(nil),
+		withRichParameters(nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -136,7 +136,7 @@ func TestBuilder_Reason(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withLegacyParameters(nil), withRichParameters(nil),
+		withRichParameters(nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -167,7 +167,6 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		withTemplate,
 		withActiveVersion(nil),
 		withLastBuildNotFound,
-		withLegacyParameters(nil),
 		// previous rich parameters are not queried because there is no previous build.
 
 		// Outputs
@@ -186,47 +185,6 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion()
-	_, _, err := uut.Build(ctx, mDB, nil)
-	req.NoError(err)
-}
-
-func TestBuilder_LegacyParams(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	oldParams := []database.ParameterValue{
-		{Name: "not-replaced", SourceValue: "nr", ID: notReplacedParamID},
-		{Name: "replaced", SourceValue: "r", ID: replacedParamID},
-	}
-	newParams := []codersdk.CreateParameterRequest{
-		{Name: "replaced", SourceValue: "s"},
-		{Name: "new", SourceValue: "n"},
-	}
-
-	mDB := expectDB(t,
-		// Inputs
-		withTemplate,
-		withActiveVersion(nil),
-		withLastBuildFound,
-		withLegacyParameters(oldParams),
-		withRichParameters(nil),
-
-		// Outputs
-		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
-		}),
-		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
-		}),
-		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
-		}),
-		expectReplacedParam(replacedParamID, "replaced", "s"),
-		expectInsertedParam("new", "n"),
-	)
-
-	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion().LegacyParameterValues(newParams)
 	_, _, err := uut.Build(ctx, mDB, nil)
 	req.NoError(err)
 }
@@ -285,7 +243,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
 
 			// Outputs
@@ -326,7 +283,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
 
 			// Outputs
@@ -366,7 +322,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
 
 			// Outputs
@@ -418,7 +373,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
 
 			// Outputs
@@ -476,7 +430,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
 
 			// Outputs
@@ -532,7 +485,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
 
 			// Outputs
@@ -708,23 +660,6 @@ func withLastBuildNotFound(mTx *dbmock.MockStore) {
 	mTx.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Times(1).
 		Return(database.WorkspaceBuild{}, sql.ErrNoRows)
-}
-
-func withLegacyParameters(params []database.ParameterValue) func(mTx *dbmock.MockStore) {
-	return func(mTx *dbmock.MockStore) {
-		c := mTx.EXPECT().ParameterValues(
-			gomock.Any(),
-			database.ParameterValuesParams{
-				Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
-				ScopeIds: []uuid.UUID{workspaceID},
-			}).
-			Times(1)
-		if len(params) > 0 {
-			c.Return(params, nil)
-		} else {
-			c.Return(nil, sql.ErrNoRows)
-		}
-	}
 }
 
 func withRichParameters(params []database.WorkspaceBuildParameter) func(mTx *dbmock.MockStore) {

@@ -338,7 +338,6 @@ func TestAcquireJob(t *testing.T) {
 			Input: must(json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
 				TemplateVersionID: version.ID,
 				WorkspaceName:     "testing",
-				ParameterValues:   []database.ParameterValue{},
 			})),
 		})
 
@@ -350,7 +349,6 @@ func TestAcquireJob(t *testing.T) {
 
 		want, err := json.Marshal(&proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				ParameterValues: []*sdkproto.ParameterValue{},
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:      srv.AccessURL.String(),
 					WorkspaceName: "testing",

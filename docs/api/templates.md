@@ -135,15 +135,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
@@ -506,15 +497,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "example_id": "string",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "name": "string",
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
   "provisioner": "terraform",
   "storage_method": "file",
   "tags": {
@@ -1363,15 +1345,6 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 ```json
 {
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
   "rich_parameter_values": [
     {
       "name": "string",
@@ -1948,87 +1921,6 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get parameters by template version
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/parameters \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /templateversions/{templateversion}/parameters`
-
-### Parameters
-
-| Name              | In   | Type         | Required | Description         |
-| ----------------- | ---- | ------------ | -------- | ------------------- |
-| `templateversion` | path | string(uuid) | true     | Template version ID |
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-  {
-    "created_at": "string",
-    "default_source_value": true,
-    "destination_scheme": "none",
-    "id": "string",
-    "name": "string",
-    "schema_id": "string",
-    "scope": "template",
-    "scope_id": "string",
-    "source_scheme": "none",
-    "source_value": "string",
-    "updated_at": "string"
-  }
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [parameter.ComputedValue](schemas.md#parametercomputedvalue) |
-
-<h3 id="get-parameters-by-template-version-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name                     | Type                                                                                 | Required | Restrictions | Description |
-| ------------------------ | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`           | array                                                                                | false    |              |             |
-| `» created_at`           | string                                                                               | false    |              |             |
-| `» default_source_value` | boolean                                                                              | false    |              |             |
-| `» destination_scheme`   | [database.ParameterDestinationScheme](schemas.md#databaseparameterdestinationscheme) | false    |              |             |
-| `» id`                   | string                                                                               | false    |              |             |
-| `» name`                 | string                                                                               | false    |              |             |
-| `» schema_id`            | string                                                                               | false    |              |             |
-| `» scope`                | [database.ParameterScope](schemas.md#databaseparameterscope)                         | false    |              |             |
-| `» scope_id`             | string                                                                               | false    |              |             |
-| `» source_scheme`        | [database.ParameterSourceScheme](schemas.md#databaseparametersourcescheme)           | false    |              |             |
-| `» source_value`         | string                                                                               | false    |              |             |
-| `» updated_at`           | string                                                                               | false    |              |             |
-
-#### Enumerated Values
-
-| Property             | Value                  |
-| -------------------- | ---------------------- |
-| `destination_scheme` | `none`                 |
-| `destination_scheme` | `environment_variable` |
-| `destination_scheme` | `provisioner_variable` |
-| `scope`              | `template`             |
-| `scope`              | `import_job`           |
-| `scope`              | `workspace`            |
-| `source_scheme`      | `none`                 |
-| `source_scheme`      | `data`                 |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get resources by template version
 
 ### Code samples
@@ -2341,96 +2233,6 @@ Status Code **200**
 | `type`                 | `list(string)` |
 | `validation_monotonic` | `increasing`   |
 | `validation_monotonic` | `decreasing`   |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Get schema by template version
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/schema \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /templateversions/{templateversion}/schema`
-
-### Parameters
-
-| Name              | In   | Type         | Required | Description         |
-| ----------------- | ---- | ------------ | -------- | ------------------- |
-| `templateversion` | path | string(uuid) | true     | Template version ID |
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-  {
-    "allow_override_destination": true,
-    "allow_override_source": true,
-    "created_at": "2019-08-24T14:15:22Z",
-    "default_destination_scheme": "none",
-    "default_refresh": "string",
-    "default_source_scheme": "none",
-    "default_source_value": "string",
-    "description": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-    "name": "string",
-    "redisplay_value": true,
-    "validation_condition": "string",
-    "validation_contains": ["string"],
-    "validation_error": "string",
-    "validation_type_system": "string",
-    "validation_value_type": "string"
-  }
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                  |
-| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ParameterSchema](schemas.md#codersdkparameterschema) |
-
-<h3 id="get-schema-by-template-version-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name                           | Type                                                                                 | Required | Restrictions | Description                                                                                                             |
-| ------------------------------ | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                 | array                                                                                | false    |              |                                                                                                                         |
-| `» allow_override_destination` | boolean                                                                              | false    |              |                                                                                                                         |
-| `» allow_override_source`      | boolean                                                                              | false    |              |                                                                                                                         |
-| `» created_at`                 | string(date-time)                                                                    | false    |              |                                                                                                                         |
-| `» default_destination_scheme` | [codersdk.ParameterDestinationScheme](schemas.md#codersdkparameterdestinationscheme) | false    |              |                                                                                                                         |
-| `» default_refresh`            | string                                                                               | false    |              |                                                                                                                         |
-| `» default_source_scheme`      | [codersdk.ParameterSourceScheme](schemas.md#codersdkparametersourcescheme)           | false    |              |                                                                                                                         |
-| `» default_source_value`       | string                                                                               | false    |              |                                                                                                                         |
-| `» description`                | string                                                                               | false    |              |                                                                                                                         |
-| `» id`                         | string(uuid)                                                                         | false    |              |                                                                                                                         |
-| `» job_id`                     | string(uuid)                                                                         | false    |              |                                                                                                                         |
-| `» name`                       | string                                                                               | false    |              |                                                                                                                         |
-| `» redisplay_value`            | boolean                                                                              | false    |              |                                                                                                                         |
-| `» validation_condition`       | string                                                                               | false    |              |                                                                                                                         |
-| `» validation_contains`        | array                                                                                | false    |              | This is a special array of items provided if the validation condition explicitly states the value must be one of a set. |
-| `» validation_error`           | string                                                                               | false    |              |                                                                                                                         |
-| `» validation_type_system`     | string                                                                               | false    |              |                                                                                                                         |
-| `» validation_value_type`      | string                                                                               | false    |              |                                                                                                                         |
-
-#### Enumerated Values
-
-| Property                     | Value                  |
-| ---------------------------- | ---------------------- |
-| `default_destination_scheme` | `none`                 |
-| `default_destination_scheme` | `environment_variable` |
-| `default_destination_scheme` | `provisioner_variable` |
-| `default_source_scheme`      | `none`                 |
-| `default_source_scheme`      | `data`                 |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

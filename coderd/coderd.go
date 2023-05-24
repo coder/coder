@@ -539,14 +539,6 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Post("/", api.postParameter)
-			r.Get("/", api.parameters)
-			r.Route("/{name}", func(r chi.Router) {
-				r.Delete("/", api.deleteParameter)
-			})
-		})
 		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -570,8 +562,6 @@ func New(options *Options) *API {
 			r.Get("/", api.templateVersion)
 			r.Patch("/", api.patchTemplateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
-			r.Get("/schema", api.templateVersionSchema)
-			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/gitauth", api.templateVersionGitAuth)
 			r.Get("/variables", api.templateVersionVariables)

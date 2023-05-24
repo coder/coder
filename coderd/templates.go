@@ -334,23 +334,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 		templateVersionAudit.New = newTemplateVersion
 
-		for _, parameterValue := range createTemplate.ParameterValues {
-			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
-				ID:                uuid.New(),
-				Name:              parameterValue.Name,
-				CreatedAt:         database.Now(),
-				UpdatedAt:         database.Now(),
-				Scope:             database.ParameterScopeTemplate,
-				ScopeID:           template.ID,
-				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
-				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
-			})
-			if err != nil {
-				return xerrors.Errorf("insert parameter value: %w", err)
-			}
-		}
-
 		createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, tx, []database.Template{dbTemplate})
 		if err != nil {
 			return xerrors.Errorf("get creator name: %w", err)
