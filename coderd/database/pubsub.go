@@ -48,9 +48,9 @@ type msgOrErr struct {
 type msgQueue struct {
 	ctx    context.Context
 	cond   *sync.Cond
-	q      [messageBufferSize]msgOrErr
+	q      [PubsubBufferSize]msgOrErr
 	front  int
-	back   int
+	size   int
 	closed bool
 	l      Listener
 	le     ListenerWithErr
@@ -74,7 +74,7 @@ func (q *msgQueue) run() {
 	for {
 		// wait until there is something on the queue or we are closed
 		q.cond.L.Lock()
-		for q.front == q.back && !q.closed {
+		for q.size == 0 && !q.closed {
 			q.cond.Wait()
 		}
 		if q.closed {
@@ -82,7 +82,8 @@ func (q *msgQueue) run() {
 			return
 		}
 		item := q.q[q.front]
-		q.front = (q.front + 1) % messageBufferSize
+		q.front = (q.front + 1) % PubsubBufferSize
+		q.size--
 		q.cond.L.Unlock()
 
 		// process item without holding lock
@@ -110,22 +111,23 @@ func (q *msgQueue) enqueue(msg []byte) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 
-	next := (q.back + 1) % messageBufferSize
-	if next == q.front {
+	if q.size == PubsubBufferSize {
 		// queue is full, so we're going to drop the msg we got called with.
 		// We also need to record that messages are being dropped, which we
 		// do at the last message in the queue.  This potentially makes us
 		// lose 2 messages instead of one, but it's more important at this
 		// point to warn the subscriber that they're losing messages so they
 		// can do something about it.
-		q.q[q.back].msg = nil
-		q.q[q.back].err = ErrDroppedMessages
+		back := (q.front + PubsubBufferSize - 1) % PubsubBufferSize
+		q.q[back].msg = nil
+		q.q[back].err = ErrDroppedMessages
 		return
 	}
 	// queue is not full, insert the message
-	q.back = next
+	next := (q.front + q.size) % PubsubBufferSize
 	q.q[next].msg = msg
 	q.q[next].err = nil
+	q.size++
 	q.cond.Broadcast()
 }
 
@@ -141,19 +143,20 @@ func (q *msgQueue) dropped() {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 
-	next := (q.back + 1) % messageBufferSize
-	if next == q.front {
+	if q.size == PubsubBufferSize {
 		// queue is full, but we need to record that messages are being dropped,
 		// which we do at the last message in the queue. This potentially drops
 		// another message, but it's more important for the subscriber to know.
-		q.q[q.back].msg = nil
-		q.q[q.back].err = ErrDroppedMessages
+		back := (q.front + PubsubBufferSize - 1) % PubsubBufferSize
+		q.q[back].msg = nil
+		q.q[back].err = ErrDroppedMessages
 		return
 	}
 	// queue is not full, insert the error
-	q.back = next
+	next := (q.front + q.size) % PubsubBufferSize
 	q.q[next].msg = nil
 	q.q[next].err = ErrDroppedMessages
+	q.size++
 	q.cond.Broadcast()
 }
 
@@ -166,20 +169,20 @@ type pgPubsub struct {
 	queues     map[string]map[uuid.UUID]*msgQueue
 }
 
-// messageBufferSize is the maximum number of unhandled messages we will buffer
+// PubsubBufferSize is the maximum number of unhandled messages we will buffer
 // for a subscriber before dropping messages.
-const messageBufferSize = 2048
+const PubsubBufferSize = 2048
 
 // Subscribe calls the listener when an event matching the name is received.
 func (p *pgPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {
-	return p.subscribe(event, newMsgQueue(p.ctx, listener, nil))
+	return p.subscribeQueue(event, newMsgQueue(p.ctx, listener, nil))
 }
 
 func (p *pgPubsub) SubscribeWithErr(event string, listener ListenerWithErr) (cancel func(), err error) {
-	return p.subscribe(event, newMsgQueue(p.ctx, nil, listener))
+	return p.subscribeQueue(event, newMsgQueue(p.ctx, nil, listener))
 }
 
-func (p *pgPubsub) subscribe(event string, newQ *msgQueue) (cancel func(), err error) {
+func (p *pgPubsub) subscribeQueue(event string, newQ *msgQueue) (cancel func(), err error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 
@@ -249,6 +252,7 @@ func (p *pgPubsub) listen(ctx context.Context) {
 		// A nil notification can be dispatched on reconnect.
 		if notif == nil {
 			p.recordReconnect()
+			continue
 		}
 		p.listenReceive(notif)
 	}

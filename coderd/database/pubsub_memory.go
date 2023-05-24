@@ -13,6 +13,15 @@ type genericListener struct {
 	le ListenerWithErr
 }
 
+func (g genericListener) send(ctx context.Context, message []byte) {
+	if g.l != nil {
+		g.l(ctx, message)
+	}
+	if g.le != nil {
+		g.le(ctx, message, nil)
+	}
+}
+
 // memoryPubsub is an in-memory Pubsub implementation.
 type memoryPubsub struct {
 	mut       sync.RWMutex
@@ -20,14 +29,14 @@ type memoryPubsub struct {
 }
 
 func (m *memoryPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {
-	return m.subscribe(event, genericListener{l: listener})
+	return m.subscribeGeneric(event, genericListener{l: listener})
 }
 
 func (m *memoryPubsub) SubscribeWithErr(event string, listener ListenerWithErr) (cancel func(), err error) {
-	return m.subscribe(event, genericListener{le: listener})
+	return m.subscribeGeneric(event, genericListener{le: listener})
 }
 
-func (m *memoryPubsub) subscribe(event string, listener genericListener) (cancel func(), err error) {
+func (m *memoryPubsub) subscribeGeneric(event string, listener genericListener) (cancel func(), err error) {
 	m.mut.Lock()
 	defer m.mut.Unlock()
 
@@ -66,12 +75,7 @@ func (m *memoryPubsub) Publish(event string, message []byte) error {
 		listener := listener
 		go func() {
 			defer wg.Done()
-			if listener.l != nil {
-				listener.l(context.Background(), message)
-			}
-			if listener.le != nil {
-				listener.le(context.Background(), message, nil)
-			}
+			listener.send(context.Background(), message)
 		}()
 	}
 	wg.Wait()
