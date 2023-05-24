@@ -34,6 +34,10 @@ coder port-forward [flags] <workspace>
   - Port forward multiple ports (TCP or UDP) in condensed syntax:
 
       $ coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012
+
+  - Port forward specifying the local address to bind to:
+
+      $ coder port-forward <workspace> --tcp 1.2.3.4:8080:8080
 ```
 
 ## Options
