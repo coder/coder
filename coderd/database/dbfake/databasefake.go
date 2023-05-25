@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -1340,22 +1341,25 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 	for _, w := range workspaces {
 		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, w.ID)
-		if err != nil {
+		if err == nil {
+			preloadedWorkspaceBuilds[w.ID] = build
+		} else if !errors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get latest build: %w", err)
 		}
-		preloadedWorkspaceBuilds[w.ID] = build
 
 		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
-		if err != nil {
+		if err == nil {
+			preloadedProvisionerJobs[w.ID] = job
+		} else if !errors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get provisioner job: %w", err)
 		}
-		preloadedProvisionerJobs[w.ID] = job
 
 		user, err := q.getUserByIDNoLock(w.OwnerID)
-		if err != nil {
+		if err == nil {
+			preloadedUsers[w.ID] = user
+		} else if !errors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get user: %w", err)
 		}
-		preloadedUsers[w.ID] = user
 	}
 
 	sort.Slice(workspaces, func(i, j int) bool {

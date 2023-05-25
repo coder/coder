@@ -207,13 +207,13 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 
-	// Workspace 1 should be running
+	// c-workspace should be running
 	workspace1 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
 		ctr.Name = "c-workspace"
 	})
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace1.LatestBuild.ID)
 
-	// Workspace 2 should be stopped
+	// b-workspace should be stopped
 	workspace2 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
 		ctr.Name = "b-workspace"
 	})
@@ -222,7 +222,7 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, build2.ID)
 
-	// Workspace 3 should be running
+	// a-workspace should be running
 	workspace3 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
 		ctr.Name = "a-workspace"
 	})
@@ -230,19 +230,26 @@ func TestWorkspacesSortOrder(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-
 	workspacesResponse, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(first) fetch workspaces")
 	workspaces := workspacesResponse.Workspaces
+
+	expected := []string{
+		workspace3.Name,
+		workspace1.Name,
+		workspace2.Name,
+	}
+
+	var actual []string
+	for _, w := range workspaces {
+		actual = append(actual, w.Name)
+	}
 
 	// the correct sorting order is:
 	// 1. Running workspaces
 	// 2. Sort by usernames
 	// 3. Sort by workspace names
-	require.Equal(t, 3, workspacesResponse.Count)
-	require.Equal(t, workspace3.Name, workspaces[0].Name)
-	require.Equal(t, workspace1.Name, workspaces[1].Name)
-	require.Equal(t, workspace2.Name, workspaces[2].Name)
+	require.Equal(t, expected, actual)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
