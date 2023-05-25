@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -154,6 +155,10 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 				licenses = make([]codersdk.License, 0)
 			}
 
+			for _, license := range licenses {
+				convertLicenseExpireTime(license)
+			}
+
 			enc := json.NewEncoder(inv.Stdout)
 			enc.SetIndent("", "  ")
 			return enc.Encode(licenses)
@@ -186,4 +191,21 @@ func (r *RootCmd) licenseDelete() *clibase.Cmd {
 		},
 	}
 	return cmd
+}
+
+func convertLicenseExpireTime(license codersdk.License) codersdk.License {
+	if license.Claims["license_expires"] != nil {
+		value, ok := license.Claims["license_expires"].(json.Number)
+		if !ok {
+			return license
+		}
+		int64Value, err := value.Int64()
+		if err != nil {
+			return license
+		}
+		t := time.Unix(int64Value, 0)
+		rfc3339Format := t.Format(time.RFC3339)
+		license.Claims["license_expires"] = rfc3339Format
+	}
+	return license
 }

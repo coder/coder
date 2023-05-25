@@ -158,6 +158,8 @@ func TestLicensesListFake(t *testing.T) {
 		assert.Equal(t, "claim1", licenses[0].Claims["h1"])
 		assert.Equal(t, int32(5), licenses[1].ID)
 		assert.Equal(t, "claim2", licenses[1].Claims["h2"])
+		assert.Equal(t, "2024-04-06T16:53:35Z", licenses[0].Claims["license_expires"])
+		assert.Equal(t, "anyvalue", licenses[1].Claims["license_expires"]) // keep value if not a time
 	})
 }
 
@@ -294,7 +296,8 @@ func (s *fakeLicenseAPI) licenses(rw http.ResponseWriter, _ *http.Request) {
 			ID:         1,
 			UploadedAt: time.Now(),
 			Claims: map[string]interface{}{
-				"h1": "claim1",
+				"license_expires": 1712422415,
+				"h1":              "claim1",
 				"features": map[string]int64{
 					"f1": 1,
 					"f2": 2,
@@ -305,7 +308,8 @@ func (s *fakeLicenseAPI) licenses(rw http.ResponseWriter, _ *http.Request) {
 			ID:         5,
 			UploadedAt: time.Now(),
 			Claims: map[string]interface{}{
-				"h2": "claim2",
+				"license_expires": "anyvalue",
+				"h2":              "claim2",
 				"features": map[string]int64{
 					"f3": 3,
 					"f4": 4,
