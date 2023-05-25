@@ -7,7 +7,7 @@ import (
 )
 
 // @Summary Removed: Get parameters by template version
-// @ID get-parameters-by-template-version
+// @ID removed-get-parameters-by-template-version
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
@@ -19,7 +19,7 @@ func templateVersionParametersDeprecated(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Removed: Get schema by template version
-// @ID get-schema-by-template-version
+// @ID removed-get-schema-by-template-version
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates

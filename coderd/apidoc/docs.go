@@ -2582,7 +2582,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Removed: Get parameters by template version",
-                "operationId": "get-parameters-by-template-version",
+                "operationId": "removed-get-parameters-by-template-version",
                 "parameters": [
                     {
                         "type": "string",
@@ -2690,7 +2690,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Removed: Get schema by template version",
-                "operationId": "get-schema-by-template-version",
+                "operationId": "removed-get-schema-by-template-version",
                 "parameters": [
                     {
                         "type": "string",
