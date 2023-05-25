@@ -57,7 +57,7 @@ jobs:
       - name: Lint Go
         uses: golangci/golangci-lint-action@v3.3.1
         with:
-          version: v1.51.0
+          version: v1.52.2
 
       - name: Lint shell scripts
         uses: ludeeus/action-shellcheck@2.0.0
