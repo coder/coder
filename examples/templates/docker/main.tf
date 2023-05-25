@@ -8,17 +8,36 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "~> 3.0.1"
     }
+    external = {
+      source  = "hashicorp/external"
+      version = "~> 2.3.1"
+    }
   }
 }
 
 locals {
   username = data.coder_workspace.me.owner
+  host_os  = data.coder_provisioner.me.os
+  unix_command = <<EOF
+  docker context inspect $(docker context show) | grep Host | awk '{print $2}' | tr -d '"' | tr -d ',' | tr -d '\n' | jq -R | jq '{DOCKER_HOST: .}'
+  EOF
+  windows_command = <<EOF
+  docker context inspect $(docker context show) | findstr Host | Foreach {($_ -split '\s+',4)[2]} | ForEach-Object {$_.TrimStart('"')} | ForEach-Object {$_.TrimEnd('",')} | ConvertTo-Json -Compress | ConvertFrom-Json | ConvertTo-Json -Compress | jq '{DOCKER_HOST: .}'
+  EOF
+}
+
+data "external" "docker_host" {
+  program = local.host_os == "windows" ? ["powershell.exe", "-Command", local.windows_command] : ["bash", "-c", local.unix_command]
+  query = {
+    DOCKER_HOST = "DOCKER_HOST"
+  }
 }
 
 data "coder_provisioner" "me" {
 }
 
 provider "docker" {
+  host = data.external.docker_host.result.DOCKER_HOST
 }
 
 data "coder_workspace" "me" {

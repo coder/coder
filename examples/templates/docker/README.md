@@ -7,6 +7,20 @@ icon: /icon/docker.png
 
 # docker
 
+## Prerequisites
+
+1. install jq on the coder host
+2. If you want to use a remote docker host, add and set it using the `docker context` command
+
+```shell
+docker context create coder --docker "host=ssh://user@host"
+docker context use coder
+```
+
+> Note: Your coder host must be able to connect to the remote docker host with a valid SSH key pair.
+
+## Getting started
+
 To get started, run `coder templates init`. When prompted, select this template.
 Follow the on-screen instructions to proceed.
 
