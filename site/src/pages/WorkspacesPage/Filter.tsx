@@ -21,6 +21,7 @@ import { useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { getUsers, getTemplates } from "api/api"
 import Skeleton, { SkeletonProps } from "@mui/material/Skeleton"
+import CheckOutlined from "@mui/icons-material/CheckOutlined"
 
 /** Filter */
 
@@ -431,7 +432,10 @@ const OwnerFilter = ({ autocomplete }: { autocomplete: UsersAutocomplete }) => {
               handleClose()
             }}
           >
-            <UserOptionItem option={option} />
+            <UserOptionItem
+              option={option}
+              isSelected={option.value === autocomplete.selectedOption?.value}
+            />
           </MenuItem>
         )}
       />
@@ -439,24 +443,25 @@ const OwnerFilter = ({ autocomplete }: { autocomplete: UsersAutocomplete }) => {
   )
 }
 
-const UserOptionItem = ({ option }: { option: OwnerOption }) => {
+const UserOptionItem = ({
+  option,
+  isSelected,
+}: {
+  option: OwnerOption
+  isSelected?: boolean
+}) => {
   return (
-    <Box
-      display="flex"
-      alignItems="center"
-      gap={2}
-      fontSize={14}
-      overflow="hidden"
-    >
-      <UserAvatar
-        username={option.label}
-        avatarURL={option.avatarUrl}
-        sx={{ width: 16, height: 16, fontSize: 8 }}
-      />
-      <Box component="span" overflow="hidden" textOverflow="ellipsis">
-        {option.label}
-      </Box>
-    </Box>
+    <OptionItem
+      option={option}
+      isSelected={isSelected}
+      left={
+        <UserAvatar
+          username={option.label}
+          avatarURL={option.avatarUrl}
+          sx={{ width: 16, height: 16, fontSize: 8 }}
+        />
+      }
+    />
   )
 }
 
@@ -502,7 +507,10 @@ const TemplatesFilter = ({
               handleClose()
             }}
           >
-            <TemplateOptionItem option={option} />
+            <TemplateOptionItem
+              option={option}
+              isSelected={option.value === autocomplete.selectedOption?.value}
+            />
           </MenuItem>
         )}
       />
@@ -510,24 +518,25 @@ const TemplatesFilter = ({
   )
 }
 
-const TemplateOptionItem = ({ option }: { option: TemplateOption }) => {
+const TemplateOptionItem = ({
+  option,
+  isSelected,
+}: {
+  option: TemplateOption
+  isSelected?: boolean
+}) => {
   return (
-    <Box
-      display="flex"
-      alignItems="center"
-      gap={2}
-      fontSize={14}
-      overflow="hidden"
-    >
-      <TemplateAvatar
-        templateName={option.label}
-        icon={option.icon}
-        sx={{ width: 14, height: 14, fontSize: 8 }}
-      />
-      <Box component="span" overflow="hidden" textOverflow="ellipsis">
-        {option.label}
-      </Box>
-    </Box>
+    <OptionItem
+      option={option}
+      isSelected={isSelected}
+      left={
+        <TemplateAvatar
+          templateName={option.label}
+          icon={option.icon}
+          sx={{ width: 14, height: 14, fontSize: 8 }}
+        />
+      }
+    />
   )
 }
 
@@ -589,7 +598,10 @@ const StatusFilter = ({
               handleClose()
             }}
           >
-            <StatusOptionItem option={option} />
+            <StatusOptionItem
+              option={option}
+              isSelected={option.value === autocomplete.selectedOption?.value}
+            />
           </MenuItem>
         ))}
       </Menu>
@@ -597,12 +609,19 @@ const StatusFilter = ({
   )
 }
 
-const StatusOptionItem = ({ option }: { option: StatusOption }) => {
+const StatusOptionItem = ({
+  option,
+  isSelected,
+}: {
+  option: StatusOption
+  isSelected?: boolean
+}) => {
   return (
-    <Box display="flex" alignItems="center" gap={2} fontSize={14}>
-      <StatusIndicator option={option} />
-      <span>{option.label}</span>
-    </Box>
+    <OptionItem
+      option={option}
+      left={<StatusIndicator option={option} />}
+      isSelected={isSelected}
+    />
   )
 }
 
@@ -617,6 +636,33 @@ const StatusIndicator: FC<{ option: StatusOption }> = ({ option }) => {
           (theme.palette[option.color as keyof Palette] as PaletteColor).light,
       }}
     />
+  )
+}
+
+type OptionItemProps = {
+  option: BaseOption
+  left?: ReactNode
+  isSelected?: boolean
+}
+
+const OptionItem = ({ option, left, isSelected }: OptionItemProps) => {
+  return (
+    <Box
+      display="flex"
+      alignItems="center"
+      gap={2}
+      fontSize={14}
+      overflow="hidden"
+      width="100%"
+    >
+      {left}
+      <Box component="span" overflow="hidden" textOverflow="ellipsis">
+        {option.label}
+      </Box>
+      {isSelected && (
+        <CheckOutlined sx={{ width: 16, height: 16, marginLeft: "auto" }} />
+      )}
+    </Box>
   )
 }
 
