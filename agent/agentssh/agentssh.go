@@ -244,17 +244,27 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 	}
 
 	magicTypeLabel := magicTypeMetricLabel(magicType)
+	sshPty, windowSize, isPty := session.Pty()
 
 	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env)
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "create_command").Add(1)
+		ptyLabel := "no"
+		if isPty {
+			ptyLabel = "yes"
+		}
+		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "create_command").Add(1)
 		return err
 	}
 
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
 		if err != nil {
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "listener").Add(1)
+			ptyLabel := "no"
+			if isPty {
+				ptyLabel = "yes"
+			}
+
+			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "listener").Add(1)
 			return xerrors.Errorf("new agent listener: %w", err)
 		}
 		defer l.Close()
@@ -262,7 +272,6 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SSH_AUTH_SOCK", l.Addr().String()))
 	}
 
-	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
 		return s.startPTYSession(session, magicTypeLabel, cmd, sshPty, windowSize)
 	}

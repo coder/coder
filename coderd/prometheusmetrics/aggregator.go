@@ -63,6 +63,10 @@ type annotatedMetric struct {
 
 var _ prometheus.Collector = new(MetricsAggregator)
 
+func (am *annotatedMetric) is(req updateRequest, m agentsdk.AgentMetric) bool {
+	return am.username == req.username && am.workspaceName == req.workspaceName && am.agentName == req.agentName && am.Name == m.Name && slices.Equal(am.Labels, m.Labels)
+}
+
 func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, duration time.Duration) (*MetricsAggregator, error) {
 	metricsCleanupInterval := defaultMetricsCleanupInterval
 	if duration > 0 {
@@ -123,7 +127,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 			UpdateLoop:
 				for _, m := range req.metrics {
 					for i, q := range ma.queue {
-						if q.username == req.username && q.workspaceName == req.workspaceName && q.agentName == req.agentName && q.Name == m.Name && slices.Equal(q.Labels, m.Labels) {
+						if q.is(req, m) {
 							ma.queue[i].AgentMetric.Value = m.Value
 							ma.queue[i].expiryDate = req.timestamp.Add(ma.metricsCleanupInterval)
 							continue UpdateLoop
