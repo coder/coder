@@ -11,11 +11,21 @@ import {
   useTemplatesAutocomplete,
   useStatusAutocomplete,
 } from "./filter/autocompletes"
+import { useSearchParams } from "react-router-dom"
 
 const WorkspacesPage: FC = () => {
   const orgId = useOrganizationId()
-  const pagination = usePagination()
-  const filter = useFilter()
+  // If we use a useSearchParams for each hook, the values will not be in sync.
+  // So we have to use a single one, centralizing the values, and pass it to
+  // each hook.
+  const searchParamsResult = useSearchParams()
+  const pagination = usePagination({ searchParamsResult })
+  const filter = useFilter({
+    searchParamsResult,
+    onUpdate: () => {
+      pagination.goToPage(1)
+    },
+  })
   const { data, error, queryKey } = useWorkspacesData({
     ...pagination,
     query: filter.query,

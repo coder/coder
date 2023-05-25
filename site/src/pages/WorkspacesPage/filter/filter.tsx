@@ -41,8 +41,14 @@ export type FilterValues = {
   template?: string // Template["name"]
 }
 
-export const useFilter = () => {
-  const [searchParams, setSearchParams] = useSearchParams()
+export const useFilter = ({
+  onUpdate,
+  searchParamsResult,
+}: {
+  searchParamsResult: ReturnType<typeof useSearchParams>
+  onUpdate?: () => void
+}) => {
+  const [searchParams, setSearchParams] = searchParamsResult
   const query = searchParams.get("filter") ?? ""
   const values = parseFilterQuery(query)
 
@@ -53,6 +59,9 @@ export const useFilter = () => {
       searchParams.set("filter", stringifyFilter(values))
     }
     setSearchParams(searchParams)
+    if (onUpdate) {
+      onUpdate()
+    }
   }
 
   return {
@@ -497,7 +506,7 @@ const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
       sx={{
         borderRadius: "6px",
         justifyContent: "space-between",
-        lineHeight: 1,
+        lineHeight: "120%",
         ...props.sx,
       }}
     />
