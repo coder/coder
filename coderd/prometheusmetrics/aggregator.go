@@ -67,6 +67,26 @@ func (am *annotatedMetric) is(req updateRequest, m agentsdk.AgentMetric) bool {
 	return am.username == req.username && am.workspaceName == req.workspaceName && am.agentName == req.agentName && am.Name == m.Name && slices.Equal(am.Labels, m.Labels)
 }
 
+func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
+	labels := make([]string, 0, len(agentMetricsLabels)+len(am.Labels))
+	labelValues := make([]string, 0, len(agentMetricsLabels)+len(am.Labels))
+
+	labels = append(labels, agentMetricsLabels...)
+	labelValues = append(labelValues, am.username, am.workspaceName, am.agentName)
+
+	for _, l := range am.Labels {
+		labels = append(labels, l.Name)
+		labelValues = append(labelValues, l.Value)
+	}
+
+	desc := prometheus.NewDesc(am.Name, metricHelpForAgent, labels, nil)
+	valueType, err := asPrometheusValueType(am.Type)
+	if err != nil {
+		return nil, err
+	}
+	return prometheus.MustNewConstMetric(desc, valueType, am.Value, labelValues...), nil
+}
+
 func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, duration time.Duration) (*MetricsAggregator, error) {
 	metricsCleanupInterval := defaultMetricsCleanupInterval
 	if duration > 0 {
@@ -151,41 +171,12 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				output := make([]prometheus.Metric, 0, len(ma.queue))
 				for _, m := range ma.queue {
-					labels := make([]string, len(agentMetricsLabels)+len(m.Labels))
-					var labelIndex int
-					for _, l := range agentMetricsLabels {
-						labels[labelIndex] = l
-						labelIndex++
-					}
-
-					for _, l := range m.Labels {
-						labels[labelIndex] = l.Name
-						labelIndex++
-					}
-
-					desc := prometheus.NewDesc(m.Name, metricHelpForAgent, labels, nil)
-					valueType, err := asPrometheusValueType(m.Type)
+					promMetric, err := m.asPrometheus()
 					if err != nil {
 						ma.log.Error(ctx, "can't convert Prometheus value type", slog.F("name", m.Name), slog.F("type", m.Type), slog.F("value", m.Value), slog.Error(err))
 						continue
 					}
-
-					labelValues := make([]string, len(agentMetricsLabels)+len(m.Labels))
-					labelValues[0] = m.username
-					labelValues[1] = m.workspaceName
-					labelValues[2] = m.agentName
-
-					if len(m.Labels) > 0 {
-						labelIndex = 3
-
-						for _, l := range m.Labels {
-							labelValues[labelIndex] = l.Value
-							labelIndex++
-						}
-					}
-
-					constMetric := prometheus.MustNewConstMetric(desc, valueType, m.Value, labelValues...)
-					output = append(output, constMetric)
+					output = append(output, promMetric)
 				}
 				outputCh <- output
 				close(outputCh)
