@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import {
   BaseOption,
   OwnerOption,
@@ -29,14 +29,26 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
   onChange,
   enabled,
 }: UseAutocompleteOptions<TOption>) => {
+  const selectedOptionsCacheRef = useRef<Record<string, TOption>>({})
   const [query, setQuery] = useState("")
-  const [selectedOption, setSelectedOption] = useState<TOption>()
   const selectedOptionQuery = useQuery({
     queryKey: [id, "autocomplete", "selected", value],
-    queryFn: () => getSelectedOption(),
-    onSuccess: (option) => setSelectedOption(option ?? undefined),
+    queryFn: () => {
+      if (!value) {
+        return null
+      }
+
+      const cachedOption = selectedOptionsCacheRef.current[value]
+      if (cachedOption) {
+        return cachedOption
+      }
+
+      return getSelectedOption()
+    },
     enabled,
+    keepPreviousData: true,
   })
+  const selectedOption = selectedOptionQuery.data
   const searchOptionsQuery = useQuery({
     queryKey: [id, "autocomplete", "search"],
     queryFn: () => getOptions(query),
@@ -75,18 +87,13 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
 
   const selectOption = (option: TOption) => {
     let newSelectedOptionValue: TOption | undefined = option
+    selectedOptionsCacheRef.current[option.value] = option
 
     if (option.value === selectedOption?.value) {
       newSelectedOptionValue = undefined
     }
 
-    if (onChange) {
-      onChange(newSelectedOptionValue)
-    }
-    setSelectedOption(newSelectedOptionValue)
-  }
-  const clearSelection = () => {
-    setSelectedOption(undefined)
+    onChange(newSelectedOptionValue)
   }
 
   return {
@@ -94,7 +101,6 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
     setQuery,
     selectedOption,
     selectOption,
-    clearSelection,
     searchOptions,
     isInitializing: selectedOptionQuery.isInitialLoading,
     initialOption: selectedOptionQuery.data,

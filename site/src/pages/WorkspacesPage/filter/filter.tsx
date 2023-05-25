@@ -205,12 +205,6 @@ export const Filter = ({
                     size="small"
                     onClick={() => {
                       filter.update("")
-                      autocomplete.templates.clearSelection()
-                      autocomplete.status.clearSelection()
-
-                      if (autocomplete.users) {
-                        autocomplete.users.clearSelection()
-                      }
                     }}
                   >
                     <CloseOutlined sx={{ fontSize: 14 }} />
