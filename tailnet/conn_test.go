@@ -12,7 +12,6 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -232,28 +231,17 @@ func runTestTransmitHangMain(t *testing.T) {
 		envknob.Setenv(env, "true")
 	}
 
-	var failed atomic.Bool
-	for !failed.Load() {
+	for ok := true; ok; {
 		for _, maxProcs := range []int{2, 3, curMaxProcs} {
-			if failed.Load() {
-				return
-			}
-			t.Run(fmt.Sprintf("GOMAXPROCS=%d", maxProcs), func(t *testing.T) {
+			ok = t.Run(fmt.Sprintf("GOMAXPROCS=%d", maxProcs), func(t *testing.T) {
 				t.Logf("GOMAXPROCS=%d", maxProcs)
 				runtime.GOMAXPROCS(maxProcs)
 
-				for i := 0; i < 5; i++ {
-					t.Run(fmt.Sprintf("n=%d", i), func(t *testing.T) {
-						t.Parallel()
-						t.Cleanup(func() {
-							if t.Failed() {
-								failed.Store(true)
-							}
-						})
-						runTestTransmitHang(t, 20*time.Second)
-					})
-				}
+				runTestTransmitHang(t, 20*time.Second)
 			})
+			if !ok {
+				break
+			}
 		}
 	}
 }
