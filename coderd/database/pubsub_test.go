@@ -140,8 +140,9 @@ func TestPubsub_Disconnect(t *testing.T) {
 	defer pubsub.Close()
 	event := "test"
 
-	errors := make(chan error)
-	messages := make(chan string)
+	// buffer responses so that when the test completes, goroutines don't get blocked & leak
+	errors := make(chan error, database.PubsubBufferSize)
+	messages := make(chan string, database.PubsubBufferSize)
 	readOne := func() (m string, e error) {
 		t.Helper()
 		select {
