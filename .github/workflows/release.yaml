@@ -6,9 +6,6 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      # For some reason, setup-go won't actually pick up a new patch version if
-      # it has an old one cached. We need to manually specify the versions so we
-      # can get the latest release. Never use "~1.xx" here!
       go_version:
         description: "Go version to use for building."
         required: false
@@ -35,6 +32,10 @@ env:
   # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
   CODER_RELEASE: ${{ !inputs.dry_run }}
   CODER_DRY_RUN: ${{ inputs.dry_run }}
+  # For some reason, setup-go won't actually pick up a new patch version if
+  # it has an old one cached. We need to manually specify the versions so we
+  # can get the latest release. Never use "~1.xx" here!
+  CODER_GO_VERSION: "1.20.4"
 
 jobs:
   release:
@@ -99,7 +100,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: ${{ inputs.go_version }}
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Cache Node
         id: cache-node

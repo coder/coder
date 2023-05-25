@@ -465,6 +465,7 @@ func New(options *Options) *API {
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
+			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
 		r.Get("/", apiRoot)
 		// All CSP errors will be logged

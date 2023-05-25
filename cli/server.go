@@ -1183,7 +1183,7 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
-	tfDir := filepath.Join(cacheDir, "terraform")
+	tfDir := filepath.Join(cacheDir, "tf")
 	err = os.MkdirAll(tfDir, 0o700)
 	if err != nil {
 		return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
