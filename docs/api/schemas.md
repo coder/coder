@@ -20,6 +20,12 @@
 
 ```json
 {
+  "labels": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "name": "string",
   "type": "counter",
   "value": 0
@@ -28,11 +34,12 @@
 
 ### Properties
 
-| Name    | Type                                                 | Required | Restrictions | Description |
-| ------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
-| `name`  | string                                               | true     |              |             |
-| `type`  | [agentsdk.AgentMetricType](#agentsdkagentmetrictype) | true     |              |             |
-| `value` | number                                               | true     |              |             |
+| Name     | Type                                                            | Required | Restrictions | Description |
+| -------- | --------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `labels` | array of [agentsdk.AgentMetricLabel](#agentsdkagentmetriclabel) | false    |              |             |
+| `name`   | string                                                          | true     |              |             |
+| `type`   | [agentsdk.AgentMetricType](#agentsdkagentmetrictype)            | true     |              |             |
+| `value`  | number                                                          | true     |              |             |
 
 #### Enumerated Values
 
@@ -40,6 +47,22 @@
 | -------- | --------- |
 | `type`   | `counter` |
 | `type`   | `gauge`   |
+
+## agentsdk.AgentMetricLabel
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `name`  | string | true     |              |             |
+| `value` | string | true     |              |             |
 
 ## agentsdk.AgentMetricType
 
@@ -370,6 +393,12 @@
   },
   "metrics": [
     {
+      "labels": [
+        {
+          "name": "string",
+          "value": "string"
+        }
+      ],
       "name": "string",
       "type": "counter",
       "value": 0

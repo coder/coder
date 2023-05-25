@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -61,6 +62,30 @@ type annotatedMetric struct {
 }
 
 var _ prometheus.Collector = new(MetricsAggregator)
+
+func (am *annotatedMetric) is(req updateRequest, m agentsdk.AgentMetric) bool {
+	return am.username == req.username && am.workspaceName == req.workspaceName && am.agentName == req.agentName && am.Name == m.Name && slices.Equal(am.Labels, m.Labels)
+}
+
+func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
+	labels := make([]string, 0, len(agentMetricsLabels)+len(am.Labels))
+	labelValues := make([]string, 0, len(agentMetricsLabels)+len(am.Labels))
+
+	labels = append(labels, agentMetricsLabels...)
+	labelValues = append(labelValues, am.username, am.workspaceName, am.agentName)
+
+	for _, l := range am.Labels {
+		labels = append(labels, l.Name)
+		labelValues = append(labelValues, l.Value)
+	}
+
+	desc := prometheus.NewDesc(am.Name, metricHelpForAgent, labels, nil)
+	valueType, err := asPrometheusValueType(am.Type)
+	if err != nil {
+		return nil, err
+	}
+	return prometheus.MustNewConstMetric(desc, valueType, am.Value, labelValues...), nil
+}
 
 func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, duration time.Duration) (*MetricsAggregator, error) {
 	metricsCleanupInterval := defaultMetricsCleanupInterval
@@ -122,7 +147,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 			UpdateLoop:
 				for _, m := range req.metrics {
 					for i, q := range ma.queue {
-						if q.username == req.username && q.workspaceName == req.workspaceName && q.agentName == req.agentName && q.Name == m.Name {
+						if q.is(req, m) {
 							ma.queue[i].AgentMetric.Value = m.Value
 							ma.queue[i].expiryDate = req.timestamp.Add(ma.metricsCleanupInterval)
 							continue UpdateLoop
@@ -146,14 +171,12 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				output := make([]prometheus.Metric, 0, len(ma.queue))
 				for _, m := range ma.queue {
-					desc := prometheus.NewDesc(m.Name, metricHelpForAgent, agentMetricsLabels, nil)
-					valueType, err := asPrometheusValueType(m.Type)
+					promMetric, err := m.asPrometheus()
 					if err != nil {
 						ma.log.Error(ctx, "can't convert Prometheus value type", slog.F("name", m.Name), slog.F("type", m.Type), slog.F("value", m.Value), slog.Error(err))
 						continue
 					}
-					constMetric := prometheus.MustNewConstMetric(desc, valueType, m.Value, m.username, m.workspaceName, m.agentName)
-					output = append(output, constMetric)
+					output = append(output, promMetric)
 				}
 				outputCh <- output
 				close(outputCh)
