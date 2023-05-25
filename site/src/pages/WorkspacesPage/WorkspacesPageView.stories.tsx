@@ -1,3 +1,5 @@
+/* eslint-disable eslint-comments/disable-enable-pair -- ignore */
+/* eslint-disable @typescript-eslint/no-explicit-any -- We don't care about any here */
 import { ComponentMeta, Story } from "@storybook/react"
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils"
 import dayjs from "dayjs"
@@ -86,6 +88,7 @@ const defaultFilterProps = {
   filter: {
     query: `owner:${MockUser.username}`,
     update: () => action("update"),
+    debounceUpdate: action("debounce") as any,
     values: {
       owner: MockUser.username,
       template: undefined,

@@ -34,6 +34,7 @@ import {
   StatusOption,
   BaseOption,
 } from "./options"
+import debounce from "just-debounce-it"
 
 export type FilterValues = {
   owner?: string // User["username"]
@@ -64,9 +65,15 @@ export const useFilter = ({
     }
   }
 
+  const debounceUpdate = debounce(
+    (values: string | FilterValues) => update(values),
+    500,
+  )
+
   return {
     query,
     update,
+    debounceUpdate,
     values,
   }
 }
@@ -160,61 +167,54 @@ export const Filter = ({
 
   return (
     <Box display="flex" sx={{ gap: 1, mb: 2 }}>
-      <Box
-        component="form"
-        sx={{ width: "100%" }}
-        onSubmit={(e) => {
-          e.preventDefault()
-          const formData = new FormData(e.currentTarget)
-          const query = formData.get("query") as string
-          filter.update(query)
-        }}
-      >
-        <TextField
-          fullWidth
-          error={shouldDisplayError}
-          helperText={
-            shouldDisplayError ? getValidationErrorMessage(error) : undefined
-          }
-          size="small"
-          InputProps={{
-            name: "query",
-            placeholder: "Search...",
-            value: searchQuery,
-            onChange: (e) => setSearchQuery(e.target.value),
-            sx: {
-              borderRadius: "6px",
-              "& input::placeholder": {
-                color: (theme) => theme.palette.text.secondary,
-              },
+      <TextField
+        fullWidth
+        error={shouldDisplayError}
+        helperText={
+          shouldDisplayError ? getValidationErrorMessage(error) : undefined
+        }
+        size="small"
+        InputProps={{
+          name: "query",
+          placeholder: "Search...",
+          value: searchQuery,
+          onChange: (e) => {
+            setSearchQuery(e.target.value)
+            filter.debounceUpdate(e.target.value)
+          },
+          sx: {
+            borderRadius: "6px",
+            "& input::placeholder": {
+              color: (theme) => theme.palette.text.secondary,
             },
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchOutlined
-                  sx={{
-                    fontSize: 14,
-                    color: (theme) => theme.palette.text.secondary,
+          },
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined
+                sx={{
+                  fontSize: 14,
+                  color: (theme) => theme.palette.text.secondary,
+                }}
+              />
+            </InputAdornment>
+          ),
+          endAdornment: hasFilterQuery && (
+            <InputAdornment position="end">
+              <Tooltip title="Clear filter">
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    filter.update("")
                   }}
-                />
-              </InputAdornment>
-            ),
-            endAdornment: hasFilterQuery && (
-              <InputAdornment position="end">
-                <Tooltip title="Clear filter">
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      filter.update("")
-                    }}
-                  >
-                    <CloseOutlined sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Tooltip>
-              </InputAdornment>
-            ),
-          }}
-        />
-      </Box>
+                >
+                  <CloseOutlined sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            </InputAdornment>
+          ),
+        }}
+      />
+
       {autocomplete.users && <OwnerFilter autocomplete={autocomplete.users} />}
       <TemplatesFilter autocomplete={autocomplete.templates} />
       <StatusFilter autocomplete={autocomplete.status} />
