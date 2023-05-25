@@ -194,9 +194,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               />
             </Cond>
             <Cond>
+              {/* <ImpendingDeletionBanner/> determines its own visibility */}
               <ImpendingDeletionBanner
                 workspace={workspace}
-                displayImpendingDeletionBanner={
+                shouldRedisplayBanner={
                   getLocal("dismissedWorkspace") !== workspace.id
                 }
                 onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}

@@ -12,12 +12,12 @@ export enum Count {
 export const ImpendingDeletionBanner = ({
   workspace,
   onDismiss,
-  displayImpendingDeletionBanner,
+  shouldRedisplayBanner,
   count = Count.Singular,
 }: {
   workspace?: Workspace
   onDismiss: () => void
-  displayImpendingDeletionBanner: boolean
+  shouldRedisplayBanner: boolean
   count?: Count
 }): JSX.Element | null => {
   const { entitlements, experiments } = useDashboard()
@@ -34,7 +34,8 @@ export const ImpendingDeletionBanner = ({
       allowAdvancedScheduling,
       allowWorkspaceActions,
     ) ||
-    !displayImpendingDeletionBanner
+    // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
+    !shouldRedisplayBanner
   ) {
     return null
   }

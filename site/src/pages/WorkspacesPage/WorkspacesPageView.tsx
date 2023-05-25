@@ -117,9 +117,10 @@ export const WorkspacesPageView: FC<
         <Maybe condition={Boolean(error)}>
           <ErrorAlert error={error} />
         </Maybe>
+        {/* <ImpendingDeletionBanner/> determines its own visibility */}
         <ImpendingDeletionBanner
           workspace={workspaces?.find((workspace) => workspace.deleting_at)}
-          displayImpendingDeletionBanner={isNewWorkspacesImpendingDeletion()}
+          shouldRedisplayBanner={isNewWorkspacesImpendingDeletion()}
           onDismiss={() =>
             saveLocal(
               "dismissedWorkspaceList",
