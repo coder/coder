@@ -1,6 +1,7 @@
 package tailnet_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -363,6 +364,7 @@ func runTestTransmitHang(t *testing.T, timeout time.Duration) {
 	size := 0
 	retries := 0
 	writeTimeout := 2 * time.Second
+	goroutineGoodDumpWritten := false
 	for i := 0; i < 1024*2; i++ {
 		logger.Debug(ctx, "write payload", slog.F("num", i), slog.F("transmitted_kb", size/1024))
 	Retry:
@@ -373,13 +375,27 @@ func runTestTransmitHang(t *testing.T, timeout time.Duration) {
 		})
 		if err != nil {
 			if time.Duration(retries)*writeTimeout < timeout {
-				_ = pprof.Lookup("goroutine").WriteTo(testLog, 1)
+				var b bytes.Buffer
+				_ = pprof.Lookup("goroutine").WriteTo(&b, 1)
 				logger.Error(ctx, "write failed", slog.Error(err))
+				_, _ = testLog.Write(b.Bytes())
+				f, err := os.Create(filepath.Join(captureDir, fmt.Sprintf("goroutine-bad-%d.txt", i)))
+				if err == nil {
+					_, _ = f.Write(b.Bytes())
+					_ = f.Close()
+				}
 				retries++
 				logger.Info(ctx, "retrying", slog.F("try", retries))
 				goto Retry
 			} else {
 				require.NoError(t, err)
+			}
+		} else if !goroutineGoodDumpWritten {
+			f, err := os.Create(filepath.Join(captureDir, fmt.Sprintf("goroutine-good-%d.txt", i)))
+			if err == nil {
+				_ = pprof.Lookup("goroutine").WriteTo(f, 1)
+				_ = f.Close()
+				goroutineGoodDumpWritten = true
 			}
 		}
 		size += n
