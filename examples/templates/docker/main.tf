@@ -16,9 +16,9 @@ terraform {
 }
 
 locals {
-  username = data.coder_workspace.me.owner
-  host_os  = data.coder_provisioner.me.os
-  unix_command = <<EOF
+  username        = data.coder_workspace.me.owner
+  host_os         = data.coder_provisioner.me.os
+  unix_command    = <<EOF
   docker context inspect $(docker context show) | grep Host | awk '{print $2}' | tr -d '"' | tr -d ',' | tr -d '\n' | jq -R | jq '{DOCKER_HOST: .}'
   EOF
   windows_command = <<EOF
