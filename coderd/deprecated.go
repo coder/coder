@@ -9,7 +9,6 @@ import (
 // @Summary Removed: Get parameters by template version
 // @ID removed-get-parameters-by-template-version
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200
@@ -21,7 +20,6 @@ func templateVersionParametersDeprecated(rw http.ResponseWriter, r *http.Request
 // @Summary Removed: Get schema by template version
 // @ID removed-get-schema-by-template-version
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200

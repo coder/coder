@@ -2575,9 +2575,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Templates"
                 ],
@@ -2682,9 +2679,6 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "produces": [
-                    "application/json"
                 ],
                 "tags": [
                     "Templates"

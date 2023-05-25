@@ -2267,7 +2267,6 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
         "tags": ["Templates"],
         "summary": "Removed: Get parameters by template version",
         "operationId": "removed-get-parameters-by-template-version",
@@ -2363,7 +2362,6 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
         "tags": ["Templates"],
         "summary": "Removed: Get schema by template version",
         "operationId": "removed-get-schema-by-template-version",
