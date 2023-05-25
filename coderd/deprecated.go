@@ -14,7 +14,7 @@ import (
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200
 // @Router /templateversions/{templateversion}/parameters [get]
-func (api *API) templateVersionParametersDeprecated(rw http.ResponseWriter, r *http.Request) {
+func templateVersionParametersDeprecated(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, []struct{}{})
 }
 
@@ -26,6 +26,6 @@ func (api *API) templateVersionParametersDeprecated(rw http.ResponseWriter, r *h
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200
 // @Router /templateversions/{templateversion}/schema [get]
-func (api *API) templateVersionSchemaDeprecated(rw http.ResponseWriter, r *http.Request) {
+func templateVersionSchemaDeprecated(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, []struct{}{})
 }
