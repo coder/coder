@@ -19,7 +19,7 @@ export const WorkspaceDeletedBanner: FC<
   )
 
   return (
-    <Alert severity="warning" actions={[NewWorkspaceButton]}>
+    <Alert severity="warning" actions={NewWorkspaceButton}>
       {t("warningsAndErrors.workspaceDeletedWarning")}
     </Alert>
   )
