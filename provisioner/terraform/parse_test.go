@@ -31,11 +31,21 @@ func TestParse(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				description = "Testing!"
-			}`,
+			}
+
+			provider "coder" { feature_use_managed_variables = "true" }`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{},
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:        "A",
+								Description: "Testing!",
+								Required:    true,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -44,11 +54,20 @@ func TestParse(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				default = "wow"
-			}`,
+			}
+
+			provider "coder" { feature_use_managed_variables = "true" }`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{},
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:         "A",
+								DefaultValue: "wow",
+							},
+						},
+					},
 				},
 			},
 		},
@@ -59,11 +78,20 @@ func TestParse(t *testing.T) {
 				validation {
 					condition = var.A == "value"
 				}
-			}`,
+			}
+
+			provider "coder" { feature_use_managed_variables = "true" }`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{},
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:     "A",
+								Required: true,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -78,13 +106,34 @@ func TestParse(t *testing.T) {
 			Name: "multiple-variables",
 			Files: map[string]string{
 				"main1.tf": `variable "foo" { }
-				variable "bar" { }`,
+				variable "bar" { }
+
+				provider "coder" { feature_use_managed_variables = "true" }`,
 				"main2.tf": `variable "baz" { }
 				variable "quux" { }`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{},
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:     "foo",
+								Required: true,
+							},
+							{
+								Name:     "bar",
+								Required: true,
+							},
+							{
+								Name:     "baz",
+								Required: true,
+							},
+							{
+								Name:     "quux",
+								Required: true,
+							},
+						},
+					},
 				},
 			},
 		},

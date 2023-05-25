@@ -75,6 +75,8 @@ func (s *server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisione
 			}
 			templateVariables = append(templateVariables, mv)
 		}
+	} else if len(variables) > 0 {
+		return xerrors.Errorf("legacy parameters are not supported anymore, use %q flag to enable managed Terraform variables", featureUseManagedVariables)
 	}
 	return stream.Send(&proto.Parse_Response{
 		Type: &proto.Parse_Response_Complete{
