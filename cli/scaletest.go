@@ -904,11 +904,12 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		tickInterval               time.Duration
 		bytesPerTick               int64
 		scaletestPrometheusAddress string
-		client                     = &codersdk.Client{}
-		tracingFlags               = &scaletestTracingFlags{}
-		strategy                   = &scaletestStrategyFlags{}
-		cleanupStrategy            = &scaletestStrategyFlags{cleanup: true}
-		output                     = &scaletestOutputFlags{}
+
+		client          = &codersdk.Client{}
+		tracingFlags    = &scaletestTracingFlags{}
+		strategy        = &scaletestStrategyFlags{}
+		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
+		output          = &scaletestOutputFlags{}
 	)
 
 	cmd := &clibase.Cmd{
