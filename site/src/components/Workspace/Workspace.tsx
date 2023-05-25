@@ -1,6 +1,5 @@
 import Button from "@mui/material/Button"
 import { makeStyles } from "@mui/styles"
-import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -12,7 +11,7 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { Alert } from "../Alert/Alert"
+import { Alert, AlertDetail } from "../Alert/Alert"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
 import { Resources } from "../Resources/Resources"
@@ -31,6 +30,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
 import { useLocalStorage } from "hooks"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
+import AlertTitle from "@mui/material/AlertTitle"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -209,32 +209,23 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
           {failedBuildLogs && (
             <Stack>
-              <Alert severity="error">
-                <Stack
-                  className={styles.fullWidth}
-                  direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                >
-                  <Stack spacing={0}>
-                    <span>Workspace build failed</span>
-                    <span className={styles.errorDetails}>
-                      {workspace.latest_build.job.error}
-                    </span>
-                  </Stack>
-
-                  {canUpdateTemplate && (
-                    <div>
-                      <Button
-                        onClick={handleBuildRetry}
-                        startIcon={<RefreshOutlined />}
-                        size="small"
-                      >
-                        {t("actionButton.retryDebugMode")}
-                      </Button>
-                    </div>
-                  )}
-                </Stack>
+              <Alert
+                severity="error"
+                actions={
+                  canUpdateTemplate && (
+                    <Button
+                      key={0}
+                      onClick={handleBuildRetry}
+                      variant="text"
+                      size="small"
+                    >
+                      {t("actionButton.retryDebugMode")}
+                    </Button>
+                  )
+                }
+              >
+                <AlertTitle>Workspace build failed</AlertTitle>
+                <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
               </Alert>
               <WorkspaceBuildLogs logs={failedBuildLogs} />
             </Stack>
