@@ -64,12 +64,13 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
 
     let options = searchOptionsQuery.data as TOption[]
 
-    if (!selectedOption) {
-      return options
+    if (selectedOption) {
+      options = options.filter(
+        (option) => option.value !== selectedOption.value,
+      )
+      options = [selectedOption, ...options]
     }
 
-    options = options.filter((option) => option.value !== selectedOption.value)
-    options.unshift(selectedOption)
     options = options.filter(
       (option) =>
         option.label.toLowerCase().includes(query.toLowerCase()) ||
@@ -88,6 +89,7 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
   const selectOption = (option: TOption) => {
     let newSelectedOptionValue: TOption | undefined = option
     selectedOptionsCacheRef.current[option.value] = option
+    setQuery("")
 
     if (option.value === selectedOption?.value) {
       newSelectedOptionValue = undefined
