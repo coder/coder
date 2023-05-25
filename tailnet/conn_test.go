@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -17,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"tailscale.com/envknob"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -286,7 +290,12 @@ func runTestTransmitHang(t *testing.T, timeout time.Duration) {
 
 	logger.Info(context.Background(), "starting test", slog.F("GOMAXPROCS", runtime.GOMAXPROCS(0)), slog.F("timeout", timeout))
 
-	derpMap := tailnettest.RunDERPAndSTUN(t)
+	ctx := context.Background()
+
+	var derpMap *tailcfg.DERPMap
+	pprof.Do(ctx, pprof.Labels("id", "tailnettest.derp-and-stun"), func(_ context.Context) {
+		derpMap = tailnettest.RunDERPAndSTUN(t)
+	})
 	updateNodes := func(c *tailnet.Conn) func(*tailnet.Node) {
 		return func(node *tailnet.Node) {
 			err := c.UpdateNodes([]*tailnet.Node{node}, false)
@@ -295,20 +304,26 @@ func runTestTransmitHang(t *testing.T, timeout time.Duration) {
 	}
 
 	recvIP := tailnet.IP()
-	recv, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(recvIP, 128)},
-		Logger:    logger.Named("recv"),
-		DERPMap:   derpMap,
+	var recv *tailnet.Conn
+	pprof.Do(ctx, pprof.Labels("id", "tailnet.recv"), func(_ context.Context) {
+		recv, err = tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(recvIP, 128)},
+			Logger:    logger.Named("recv"),
+			DERPMap:   derpMap,
+		})
 	})
 	require.NoError(t, err)
 	defer recv.Close()
 	recvCaptureStop := recv.Capture(recvCapture)
 	defer recvCaptureStop()
 
-	send, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		Logger:    logger.Named("send"),
-		DERPMap:   derpMap,
+	var send *tailnet.Conn
+	pprof.Do(ctx, pprof.Labels("id", "tailnet.send"), func(_ context.Context) {
+		send, err = tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Logger:    logger.Named("send"),
+			DERPMap:   derpMap,
+		})
 	})
 	require.NoError(t, err)
 	defer send.Close()
@@ -318,7 +333,7 @@ func runTestTransmitHang(t *testing.T, timeout time.Duration) {
 	recv.SetNodeCallback(updateNodes(send))
 	send.SetNodeCallback(updateNodes(recv))
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(ctx, testutil.WaitLong)
 	defer cancel()
 
 	logger.Info(ctx, "waiting for receiver to be reachable (by sender)")
@@ -326,7 +341,7 @@ func runTestTransmitHang(t *testing.T, timeout time.Duration) {
 	logger.Info(ctx, "wait complete")
 
 	copyDone := make(chan struct{})
-	go func() {
+	go pprof.Do(ctx, pprof.Labels("id", "tailnet.recv.listener"), func(_ context.Context) {
 		defer close(copyDone)
 
 		ln, err := recv.Listen("tcp", ":35565")
@@ -343,10 +358,13 @@ func runTestTransmitHang(t *testing.T, timeout time.Duration) {
 
 		_, err = io.Copy(io.Discard, r)
 		assert.NoError(t, err)
-	}()
+	})
 
 	logger.Info(ctx, "dialing receiver")
-	w, err := send.DialContextTCP(ctx, netip.AddrPortFrom(recvIP, 35565))
+	var w net.Conn
+	pprof.Do(ctx, pprof.Labels("id", "tailnet.send.dial-recv"), func(ctx context.Context) {
+		w, err = send.DialContextTCP(ctx, netip.AddrPortFrom(recvIP, 35565))
+	})
 	require.NoError(t, err)
 	defer w.Close()
 	logger.Info(ctx, "dial complete")
@@ -360,13 +378,17 @@ func runTestTransmitHang(t *testing.T, timeout time.Duration) {
 	for i := 0; i < 1024*2; i++ {
 		logger.Debug(ctx, "write payload", slog.F("num", i), slog.F("transmitted_kb", size/1024))
 	Retry:
-		w.SetWriteDeadline(time.Now().Add(writeTimeout))
-		n, err := w.Write(payload)
+		n := 0
+		pprof.Do(ctx, pprof.Labels("id", "tailnet.send.write", "iter", strconv.Itoa(i)), func(_ context.Context) {
+			_ = w.SetWriteDeadline(time.Now().Add(writeTimeout))
+			n, err = w.Write(payload)
+		})
 		if err != nil {
 			if time.Duration(retries)*writeTimeout < timeout {
-				t.Errorf("write failed: %v", err)
-				t.Logf("retrying (%v)", retries)
+				_ = pprof.Lookup("goroutine").WriteTo(testLog, 1)
+				logger.Error(ctx, "write failed", slog.Error(err))
 				retries++
+				logger.Info(ctx, "retrying", slog.F("try", retries))
 				goto Retry
 			} else {
 				require.NoError(t, err)
