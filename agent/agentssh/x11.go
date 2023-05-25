@@ -27,18 +27,21 @@ func (s *Server) x11Callback(ctx ssh.Context, x11 ssh.X11) bool {
 	hostname, err := os.Hostname()
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get hostname", slog.Error(err))
+		s.metrics.x11HandlerErrors.WithLabelValues("hostname").Add(1)
 		return false
 	}
 
 	err = s.fs.MkdirAll(s.x11SocketDir, 0o700)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to make the x11 socket dir", slog.F("dir", s.x11SocketDir), slog.Error(err))
+		s.metrics.x11HandlerErrors.WithLabelValues("socker_dir").Add(1)
 		return false
 	}
 
 	err = addXauthEntry(ctx, s.fs, hostname, strconv.Itoa(int(x11.ScreenNumber)), x11.AuthProtocol, x11.AuthCookie)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to add Xauthority entry", slog.Error(err))
+		s.metrics.x11HandlerErrors.WithLabelValues("xauthority").Add(1)
 		return false
 	}
 	return true

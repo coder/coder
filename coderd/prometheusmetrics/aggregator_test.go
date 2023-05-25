@@ -44,14 +44,31 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 
 	given2 := []agentsdk.AgentMetric{
 		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 5},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 2, Labels: []agentsdk.AgentMetricLabel{
+			{Name: "foobar", Value: "Foobaz"},
+			{Name: "hello", Value: "world"},
+		}},
 		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6},
 	}
 
+	commonLabels := []agentsdk.AgentMetricLabel{
+		{Name: "agent_name", Value: testAgentName},
+		{Name: "username", Value: testUsername},
+		{Name: "workspace_name", Value: testWorkspaceName},
+	}
 	expected := []agentsdk.AgentMetric{
-		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1},
-		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 4},
-		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 3},
-		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6},
+		{Name: "a_counter_one", Type: agentsdk.AgentMetricTypeCounter, Value: 1, Labels: commonLabels},
+		{Name: "b_counter_two", Type: agentsdk.AgentMetricTypeCounter, Value: 4, Labels: commonLabels},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 5, Labels: commonLabels},
+		{Name: "c_gauge_three", Type: agentsdk.AgentMetricTypeGauge, Value: 2, Labels: []agentsdk.AgentMetricLabel{
+			{Name: "agent_name", Value: testAgentName},
+			{Name: "foobar", Value: "Foobaz"},
+			{Name: "hello", Value: "world"},
+			{Name: "username", Value: testUsername},
+			{Name: "workspace_name", Value: testWorkspaceName},
+		}},
+		{Name: "d_gauge_four", Type: agentsdk.AgentMetricTypeGauge, Value: 6, Labels: commonLabels},
 	}
 
 	// when
@@ -83,7 +100,6 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		return false
 	}
 
-	// Metrics are expected to arrive in order
 	for i, e := range expected {
 		desc := actual[i].Desc()
 		assert.Contains(t, desc.String(), e.Name)
@@ -92,22 +108,29 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		err := actual[i].Write(&d)
 		require.NoError(t, err)
 
-		require.Equal(t, "agent_name", *d.Label[0].Name)
-		require.Equal(t, testAgentName, *d.Label[0].Value)
-		require.Equal(t, "username", *d.Label[1].Name)
-		require.Equal(t, testUsername, *d.Label[1].Value)
-		require.Equal(t, "workspace_name", *d.Label[2].Name)
-		require.Equal(t, testWorkspaceName, *d.Label[2].Value)
-
 		if e.Type == agentsdk.AgentMetricTypeCounter {
-			require.Equal(t, e.Value, *d.Counter.Value)
+			require.Equal(t, e.Value, d.Counter.GetValue())
 		} else if e.Type == agentsdk.AgentMetricTypeGauge {
-			require.Equal(t, e.Value, *d.Gauge.Value)
+			require.Equal(t, e.Value, d.Gauge.GetValue())
 		} else {
 			require.Failf(t, "unsupported type: %s", string(e.Type))
 		}
+
+		dtoLabels := asMetricAgentLabels(d.GetLabel())
+		require.Equal(t, e.Labels, dtoLabels, d.String())
 	}
 	return true
+}
+
+func asMetricAgentLabels(dtoLabels []*dto.LabelPair) []agentsdk.AgentMetricLabel {
+	metricLabels := make([]agentsdk.AgentMetricLabel, 0, len(dtoLabels))
+	for _, dtoLabel := range dtoLabels {
+		metricLabels = append(metricLabels, agentsdk.AgentMetricLabel{
+			Name:  dtoLabel.GetName(),
+			Value: dtoLabel.GetValue(),
+		})
+	}
+	return metricLabels
 }
 
 func TestUpdateMetrics_MetricsExpire(t *testing.T) {
