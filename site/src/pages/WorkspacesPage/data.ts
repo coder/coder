@@ -26,8 +26,7 @@ export const useWorkspacesData = ({
   limit,
   query,
 }: UseWorkspacesDataParams) => {
-  const debouncedQuery = useState(query)
-  const queryKey = ["workspaces", debouncedQuery, page]
+  const queryKey = ["workspaces", query, page]
   const [shouldRefetch, setShouldRefetch] = useState(true)
   const result = useQuery({
     queryKey,
