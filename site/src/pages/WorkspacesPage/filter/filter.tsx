@@ -114,6 +114,7 @@ const FilterSkeleton = (props: SkeletonProps) => {
       sx={{
         bgcolor: (theme) => theme.palette.background.paperLight,
         borderRadius: "6px",
+        ...props.sx,
       }}
     />
   )
@@ -148,9 +149,11 @@ export const Filter = ({
     return (
       <Box display="flex" sx={{ gap: 1, mb: 2 }}>
         <FilterSkeleton width="100%" />
-        {autocomplete.users && <FilterSkeleton width="200px" />}
-        <FilterSkeleton width="200px" />
-        <FilterSkeleton width="200px" />
+        {autocomplete.users && (
+          <FilterSkeleton width="200px" sx={{ flexShrink: 0 }} />
+        )}
+        <FilterSkeleton width="200px" sx={{ flexShrink: 0 }} />
+        <FilterSkeleton width="200px" sx={{ flexShrink: 0 }} />
       </Box>
     )
   }

@@ -12,10 +12,10 @@ import { getDisplayWorkspaceStatus } from "utils/workspace"
 
 type UseAutocompleteOptions<TOption extends BaseOption> = {
   id: string
-  initialQuery?: string
+  value: string | undefined
   // Using null because of react-query
   // https://tanstack.com/query/v4/docs/react/guides/migrating-to-react-query-4#undefined-is-an-illegal-cache-value-for-successful-queries
-  getInitialOption: () => Promise<TOption | null>
+  getSelectedOption: () => Promise<TOption | null>
   getOptions: (query: string) => Promise<TOption[]>
   onChange: (option: TOption | undefined) => void
   enabled?: boolean
@@ -23,27 +23,28 @@ type UseAutocompleteOptions<TOption extends BaseOption> = {
 
 const useAutocomplete = <TOption extends BaseOption = BaseOption>({
   id,
-  getInitialOption,
+  value,
+  getSelectedOption,
   getOptions,
   onChange,
   enabled,
 }: UseAutocompleteOptions<TOption>) => {
   const [query, setQuery] = useState("")
   const [selectedOption, setSelectedOption] = useState<TOption>()
-  const initialOptionQuery = useQuery({
-    queryKey: [id, "autocomplete", "initial"],
-    queryFn: () => getInitialOption(),
+  const selectedOptionQuery = useQuery({
+    queryKey: [id, "autocomplete", "selected", value],
+    queryFn: () => getSelectedOption(),
     onSuccess: (option) => setSelectedOption(option ?? undefined),
     enabled,
   })
   const searchOptionsQuery = useQuery({
-    queryKey: [id, "autoComplete", "search"],
+    queryKey: [id, "autocomplete", "search"],
     queryFn: () => getOptions(query),
     enabled,
   })
   const searchOptions = useMemo(() => {
     const isDataLoaded =
-      searchOptionsQuery.isFetched && initialOptionQuery.isFetched
+      searchOptionsQuery.isFetched && selectedOptionQuery.isFetched
 
     if (!isDataLoaded) {
       return undefined
@@ -55,13 +56,8 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
       return options
     }
 
-    // We will add the initial option on the top of the options
-    // 1 - remove the initial option from the search options if it exists
-    // 2 - add the initial option on the top
     options = options.filter((option) => option.value !== selectedOption.value)
     options.unshift(selectedOption)
-
-    // Filter data based o search query
     options = options.filter(
       (option) =>
         option.label.toLowerCase().includes(query.toLowerCase()) ||
@@ -70,7 +66,7 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
 
     return options
   }, [
-    initialOptionQuery.isFetched,
+    selectedOptionQuery.isFetched,
     query,
     searchOptionsQuery.data,
     searchOptionsQuery.isFetched,
@@ -99,24 +95,27 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
     selectedOption,
     selectOption,
     clearSelection,
-    isInitializing: initialOptionQuery.isInitialLoading,
-    initialOption: initialOptionQuery.data,
-    isSearching: searchOptionsQuery.isFetching,
     searchOptions,
+    isInitializing: selectedOptionQuery.isInitialLoading,
+    initialOption: selectedOptionQuery.data,
+    isSearching: searchOptionsQuery.isFetching,
   }
 }
 
 export const useUsersAutocomplete = (
-  initialOptionValue: string | undefined,
+  value: string | undefined,
   onChange: (option: OwnerOption | undefined) => void,
   enabled?: boolean,
 ) =>
   useAutocomplete({
+    onChange,
+    enabled,
+    value,
     id: "owner",
-    getInitialOption: async () => {
-      const usersRes = await getUsers({ q: initialOptionValue, limit: 1 })
+    getSelectedOption: async () => {
+      const usersRes = await getUsers({ q: value, limit: 1 })
       const firstUser = usersRes.users.at(0)
-      if (firstUser && firstUser.username === initialOptionValue) {
+      if (firstUser && firstUser.username === value) {
         return {
           label: firstUser.username,
           value: firstUser.username,
@@ -133,24 +132,22 @@ export const useUsersAutocomplete = (
         avatarUrl: user.avatar_url,
       }))
     },
-    onChange,
-    enabled,
   })
 
 export type UsersAutocomplete = ReturnType<typeof useUsersAutocomplete>
 
 export const useTemplatesAutocomplete = (
   orgId: string,
-  initialOptionValue: string | undefined,
+  value: string | undefined,
   onChange: (option: TemplateOption | undefined) => void,
 ) => {
   return useAutocomplete({
+    onChange,
+    value,
     id: "template",
-    getInitialOption: async () => {
+    getSelectedOption: async () => {
       const templates = await getTemplates(orgId)
-      const template = templates.find(
-        (template) => template.name === initialOptionValue,
-      )
+      const template = templates.find((template) => template.name === value)
       if (template) {
         return {
           label:
@@ -177,14 +174,13 @@ export const useTemplatesAutocomplete = (
         icon: template.icon,
       }))
     },
-    onChange,
   })
 }
 
 export type TemplatesAutocomplete = ReturnType<typeof useTemplatesAutocomplete>
 
 export const useStatusAutocomplete = (
-  initialOptionValue: string | undefined,
+  value: string | undefined,
   onChange: (option: StatusOption | undefined) => void,
 ) => {
   const statusOptions = WorkspaceStatuses.map((status) => {
@@ -196,12 +192,12 @@ export const useStatusAutocomplete = (
     } as StatusOption
   })
   return useAutocomplete({
-    id: "status",
-    getInitialOption: async () =>
-      statusOptions.find((option) => option.value === initialOptionValue) ??
-      null,
-    getOptions: async () => statusOptions,
     onChange,
+    value,
+    id: "status",
+    getSelectedOption: async () =>
+      statusOptions.find((option) => option.value === value) ?? null,
+    getOptions: async () => statusOptions,
   })
 }
 
