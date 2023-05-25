@@ -1,5 +1,4 @@
-import { WorkspaceStatuses } from "api/typesGenerated"
-import { FC, ReactNode, forwardRef, useMemo, useRef, useState } from "react"
+import { FC, ReactNode, forwardRef, useEffect, useRef, useState } from "react"
 import Box from "@mui/material/Box"
 import TextField from "@mui/material/TextField"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
@@ -14,12 +13,9 @@ import { Palette, PaletteColor } from "@mui/material/styles"
 import IconButton from "@mui/material/IconButton"
 import Tooltip from "@mui/material/Tooltip"
 import CloseOutlined from "@mui/icons-material/CloseOutlined"
-import { getDisplayWorkspaceStatus } from "utils/workspace"
 import { Loader } from "components/Loader/Loader"
 import MenuList from "@mui/material/MenuList"
 import { useSearchParams } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
-import { getUsers, getTemplates } from "api/api"
 import Skeleton, { SkeletonProps } from "@mui/material/Skeleton"
 import CheckOutlined from "@mui/icons-material/CheckOutlined"
 import {
@@ -27,8 +23,17 @@ import {
   hasError,
   isApiValidationError,
 } from "api/errors"
-
-/** Filter */
+import {
+  UsersAutocomplete,
+  TemplatesAutocomplete,
+  StatusAutocomplete,
+} from "./autocompletes"
+import {
+  OwnerOption,
+  TemplateOption,
+  StatusOption,
+  BaseOption,
+} from "./options"
 
 export type FilterValues = {
   owner?: string // User["username"]
@@ -56,8 +61,6 @@ export const useFilter = () => {
     values,
   }
 }
-
-type UseFilterResult = ReturnType<typeof useFilter>
 
 const parseFilterQuery = (filterQuery: string): FilterValues => {
   if (filterQuery === "") {
@@ -93,224 +96,6 @@ const stringifyFilter = (filterValue: FilterValues): string => {
   return result.trim()
 }
 
-/** Autocomplete */
-
-type BaseOption = {
-  label: string
-  value: string
-}
-
-type OwnerOption = BaseOption & {
-  avatarUrl?: string
-}
-
-type StatusOption = BaseOption & {
-  color: string
-}
-
-type TemplateOption = BaseOption & {
-  icon?: string
-}
-
-type UseAutocompleteOptions<TOption extends BaseOption> = {
-  id: string
-  initialQuery?: string
-  // Using null because of react-query
-  // https://tanstack.com/query/v4/docs/react/guides/migrating-to-react-query-4#undefined-is-an-illegal-cache-value-for-successful-queries
-  getInitialOption: () => Promise<TOption | null>
-  getOptions: (query: string) => Promise<TOption[]>
-  onChange: (option: TOption | undefined) => void
-  enabled?: boolean
-}
-
-const useAutocomplete = <TOption extends BaseOption = BaseOption>({
-  id,
-  getInitialOption,
-  getOptions,
-  onChange,
-  enabled,
-}: UseAutocompleteOptions<TOption>) => {
-  const [query, setQuery] = useState("")
-  const [selectedOption, setSelectedOption] = useState<TOption>()
-  const initialOptionQuery = useQuery({
-    queryKey: [id, "autocomplete", "initial"],
-    queryFn: () => getInitialOption(),
-    onSuccess: (option) => setSelectedOption(option ?? undefined),
-    enabled,
-  })
-  const searchOptionsQuery = useQuery({
-    queryKey: [id, "autoComplete", "search"],
-    queryFn: () => getOptions(query),
-    enabled,
-  })
-  const searchOptions = useMemo(() => {
-    const isDataLoaded =
-      searchOptionsQuery.isFetched && initialOptionQuery.isFetched
-
-    if (!isDataLoaded) {
-      return undefined
-    }
-
-    let options = searchOptionsQuery.data as TOption[]
-
-    if (!selectedOption) {
-      return options
-    }
-
-    // We will add the initial option on the top of the options
-    // 1 - remove the initial option from the search options if it exists
-    // 2 - add the initial option on the top
-    options = options.filter((option) => option.value !== selectedOption.value)
-    options.unshift(selectedOption)
-
-    // Filter data based o search query
-    options = options.filter(
-      (option) =>
-        option.label.toLowerCase().includes(query.toLowerCase()) ||
-        option.value.toLowerCase().includes(query.toLowerCase()),
-    )
-
-    return options
-  }, [
-    initialOptionQuery.isFetched,
-    query,
-    searchOptionsQuery.data,
-    searchOptionsQuery.isFetched,
-    selectedOption,
-  ])
-
-  const selectOption = (option: TOption) => {
-    let newSelectedOptionValue: TOption | undefined = option
-
-    if (option.value === selectedOption?.value) {
-      newSelectedOptionValue = undefined
-    }
-
-    if (onChange) {
-      onChange(newSelectedOptionValue)
-    }
-    setSelectedOption(newSelectedOptionValue)
-  }
-  const clearSelection = () => {
-    setSelectedOption(undefined)
-  }
-
-  return {
-    query,
-    setQuery,
-    selectedOption,
-    selectOption,
-    clearSelection,
-    isInitializing: initialOptionQuery.isInitialLoading,
-    initialOption: initialOptionQuery.data,
-    isSearching: searchOptionsQuery.isFetching,
-    searchOptions,
-  }
-}
-
-export const useUsersAutocomplete = (
-  initialOptionValue: string | undefined,
-  onChange: (option: OwnerOption | undefined) => void,
-  enabled?: boolean,
-) =>
-  useAutocomplete({
-    id: "owner",
-    getInitialOption: async () => {
-      const usersRes = await getUsers({ q: initialOptionValue, limit: 1 })
-      const firstUser = usersRes.users.at(0)
-      if (firstUser && firstUser.username === initialOptionValue) {
-        return {
-          label: firstUser.username,
-          value: firstUser.username,
-          avatarUrl: firstUser.avatar_url,
-        }
-      }
-      return null
-    },
-    getOptions: async (query) => {
-      const usersRes = await getUsers({ q: query, limit: 25 })
-      return usersRes.users.map((user) => ({
-        label: user.username,
-        value: user.username,
-        avatarUrl: user.avatar_url,
-      }))
-    },
-    onChange,
-    enabled,
-  })
-
-type UsersAutocomplete = ReturnType<typeof useUsersAutocomplete>
-
-export const useTemplatesAutocomplete = (
-  orgId: string,
-  initialOptionValue: string | undefined,
-  onChange: (option: TemplateOption | undefined) => void,
-) => {
-  return useAutocomplete({
-    id: "template",
-    getInitialOption: async () => {
-      const templates = await getTemplates(orgId)
-      const template = templates.find(
-        (template) => template.name === initialOptionValue,
-      )
-      if (template) {
-        return {
-          label:
-            template.display_name !== ""
-              ? template.display_name
-              : template.name,
-          value: template.name,
-          icon: template.icon,
-        }
-      }
-      return null
-    },
-    getOptions: async (query) => {
-      const templates = await getTemplates(orgId)
-      const filteredTemplates = templates.filter(
-        (template) =>
-          template.name.toLowerCase().includes(query.toLowerCase()) ||
-          template.display_name.toLowerCase().includes(query.toLowerCase()),
-      )
-      return filteredTemplates.map((template) => ({
-        label:
-          template.display_name !== "" ? template.display_name : template.name,
-        value: template.name,
-        icon: template.icon,
-      }))
-    },
-    onChange,
-  })
-}
-
-type TemplatesAutocomplete = ReturnType<typeof useTemplatesAutocomplete>
-
-export const useStatusAutocomplete = (
-  initialOptionValue: string | undefined,
-  onChange: (option: StatusOption | undefined) => void,
-) => {
-  const statusOptions = WorkspaceStatuses.map((status) => {
-    const display = getDisplayWorkspaceStatus(status)
-    return {
-      label: display.text,
-      value: status,
-      color: display.type ?? "warning",
-    } as StatusOption
-  })
-  return useAutocomplete({
-    id: "status",
-    getInitialOption: async () =>
-      statusOptions.find((option) => option.value === initialOptionValue) ??
-      null,
-    getOptions: async () => statusOptions,
-    onChange,
-  })
-}
-
-type StatusAutocomplete = ReturnType<typeof useStatusAutocomplete>
-
-/** Components */
-
 const FilterSkeleton = (props: SkeletonProps) => {
   return (
     <Skeleton
@@ -330,7 +115,7 @@ export const Filter = ({
   autocomplete,
   error,
 }: {
-  filter: UseFilterResult
+  filter: ReturnType<typeof useFilter>
   error?: unknown
   autocomplete: {
     users?: UsersAutocomplete
@@ -344,6 +129,11 @@ export const Filter = ({
     autocomplete.status.isInitializing ||
     autocomplete.templates.isInitializing ||
     (autocomplete.users && autocomplete.users.isInitializing)
+  const [searchQuery, setSearchQuery] = useState(filter.query)
+
+  useEffect(() => {
+    setSearchQuery(filter.query)
+  }, [filter.query])
 
   if (isIinitializingFilters) {
     return (
@@ -358,56 +148,67 @@ export const Filter = ({
 
   return (
     <Box display="flex" sx={{ gap: 1, mb: 2 }}>
-      <TextField
-        error={shouldDisplayError}
-        helperText={
-          shouldDisplayError ? getValidationErrorMessage(error) : undefined
-        }
+      <Box
+        component="form"
         sx={{ width: "100%" }}
-        color="success"
-        size="small"
-        InputProps={{
-          placeholder: "Search...",
-          value: filter.query,
-          onChange: (e) => filter.update(e.target.value),
-          sx: {
-            borderRadius: "6px",
-            "& input::placeholder": {
-              color: (theme) => theme.palette.text.secondary,
-            },
-          },
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchOutlined
-                sx={{
-                  fontSize: 14,
-                  color: (theme) => theme.palette.text.secondary,
-                }}
-              />
-            </InputAdornment>
-          ),
-          endAdornment: hasFilterQuery && (
-            <InputAdornment position="end">
-              <Tooltip title="Clear filter">
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    filter.update("")
-                    autocomplete.templates.clearSelection()
-                    autocomplete.status.clearSelection()
-
-                    if (autocomplete.users) {
-                      autocomplete.users.clearSelection()
-                    }
-                  }}
-                >
-                  <CloseOutlined sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-            </InputAdornment>
-          ),
+        onSubmit={(e) => {
+          e.preventDefault()
+          const formData = new FormData(e.currentTarget)
+          const query = formData.get("query") as string
+          filter.update(query)
         }}
-      />
+      >
+        <TextField
+          fullWidth
+          error={shouldDisplayError}
+          helperText={
+            shouldDisplayError ? getValidationErrorMessage(error) : undefined
+          }
+          size="small"
+          InputProps={{
+            name: "query",
+            placeholder: "Search...",
+            value: searchQuery,
+            onChange: (e) => setSearchQuery(e.target.value),
+            sx: {
+              borderRadius: "6px",
+              "& input::placeholder": {
+                color: (theme) => theme.palette.text.secondary,
+              },
+            },
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined
+                  sx={{
+                    fontSize: 14,
+                    color: (theme) => theme.palette.text.secondary,
+                  }}
+                />
+              </InputAdornment>
+            ),
+            endAdornment: hasFilterQuery && (
+              <InputAdornment position="end">
+                <Tooltip title="Clear filter">
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      filter.update("")
+                      autocomplete.templates.clearSelection()
+                      autocomplete.status.clearSelection()
+
+                      if (autocomplete.users) {
+                        autocomplete.users.clearSelection()
+                      }
+                    }}
+                  >
+                    <CloseOutlined sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </Tooltip>
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Box>
       {autocomplete.users && <OwnerFilter autocomplete={autocomplete.users} />}
       <TemplatesFilter autocomplete={autocomplete.templates} />
       <StatusFilter autocomplete={autocomplete.status} />

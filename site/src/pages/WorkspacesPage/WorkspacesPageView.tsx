@@ -17,7 +17,7 @@ import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
 import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { Filter } from "./Filter"
+import { Filter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
 
 export const Language = {

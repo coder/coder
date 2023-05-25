@@ -4,13 +4,13 @@ import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import { useWorkspacesData, useWorkspaceUpdate } from "./data"
 import { WorkspacesPageView } from "./WorkspacesPageView"
-import {
-  useFilter,
-  useStatusAutocomplete,
-  useTemplatesAutocomplete,
-  useUsersAutocomplete,
-} from "./Filter"
+import { useFilter } from "./filter/filter"
 import { useOrganizationId, usePermissions } from "hooks"
+import {
+  useUsersAutocomplete,
+  useTemplatesAutocomplete,
+  useStatusAutocomplete,
+} from "./filter/autocompletes"
 
 const WorkspacesPage: FC = () => {
   const orgId = useOrganizationId()
