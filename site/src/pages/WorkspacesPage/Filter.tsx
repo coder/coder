@@ -115,6 +115,7 @@ type UseAutocompleteOptions<TOption extends BaseOption> = {
   getInitialOption: () => Promise<TOption | null>
   getOptions: (query: string) => Promise<TOption[]>
   onChange: (option: TOption | undefined) => void
+  enabled?: boolean
 }
 
 const useAutocomplete = <TOption extends BaseOption = BaseOption>({
@@ -122,6 +123,7 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
   getInitialOption,
   getOptions,
   onChange,
+  enabled,
 }: UseAutocompleteOptions<TOption>) => {
   const [query, setQuery] = useState("")
   const [selectedOption, setSelectedOption] = useState<TOption>()
@@ -129,10 +131,12 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
     queryKey: [id, "autocomplete", "initial"],
     queryFn: () => getInitialOption(),
     onSuccess: (option) => setSelectedOption(option ?? undefined),
+    enabled,
   })
   const searchOptionsQuery = useQuery({
     queryKey: [id, "autoComplete", "search"],
     queryFn: () => getOptions(query),
+    enabled,
   })
   const searchOptions = useMemo(() => {
     const isDataLoaded =
@@ -202,6 +206,7 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
 export const useUsersAutocomplete = (
   initialOptionValue: string | undefined,
   onChange: (option: OwnerOption | undefined) => void,
+  enabled?: boolean,
 ) =>
   useAutocomplete({
     id: "owner",
@@ -226,6 +231,7 @@ export const useUsersAutocomplete = (
       }))
     },
     onChange,
+    enabled,
   })
 
 type UsersAutocomplete = ReturnType<typeof useUsersAutocomplete>
@@ -320,7 +326,7 @@ export const Filter = ({
 }: {
   filter: UseFilterResult
   autocomplete: {
-    users: UsersAutocomplete
+    users?: UsersAutocomplete
     templates: TemplatesAutocomplete
     status: StatusAutocomplete
   }
@@ -329,13 +335,13 @@ export const Filter = ({
   const isIinitializingFilters =
     autocomplete.status.isInitializing ||
     autocomplete.templates.isInitializing ||
-    autocomplete.users.isInitializing
+    (autocomplete.users && autocomplete.users.isInitializing)
 
   if (isIinitializingFilters) {
     return (
       <Box display="flex" sx={{ gap: 1, mb: 2 }}>
         <FilterSkeleton width="100%" />
-        <FilterSkeleton width="200px" />
+        {autocomplete.users && <FilterSkeleton width="200px" />}
         <FilterSkeleton width="200px" />
         <FilterSkeleton width="200px" />
       </Box>
@@ -375,9 +381,12 @@ export const Filter = ({
                   size="small"
                   onClick={() => {
                     filter.update("")
-                    autocomplete.users.clearSelection()
                     autocomplete.templates.clearSelection()
                     autocomplete.status.clearSelection()
+
+                    if (autocomplete.users) {
+                      autocomplete.users.clearSelection()
+                    }
                   }}
                 >
                   <CloseOutlined sx={{ fontSize: 14 }} />
@@ -387,7 +396,7 @@ export const Filter = ({
           ),
         }}
       />
-      <OwnerFilter autocomplete={autocomplete.users} />
+      {autocomplete.users && <OwnerFilter autocomplete={autocomplete.users} />}
       <TemplatesFilter autocomplete={autocomplete.templates} />
       <StatusFilter autocomplete={autocomplete.status} />
     </Box>

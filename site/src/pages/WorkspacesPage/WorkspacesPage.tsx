@@ -10,7 +10,7 @@ import {
   useTemplatesAutocomplete,
   useUsersAutocomplete,
 } from "./Filter"
-import { useOrganizationId } from "hooks"
+import { useOrganizationId, usePermissions } from "hooks"
 
 const WorkspacesPage: FC = () => {
   const orgId = useOrganizationId()
@@ -21,9 +21,12 @@ const WorkspacesPage: FC = () => {
     query: filter.query,
   })
   const updateWorkspace = useWorkspaceUpdate(queryKey)
+  const permissions = usePermissions()
+  const canFilterByUser = permissions.viewDeploymentValues
   const usersAutocomplete = useUsersAutocomplete(
     filter.values.owner,
     (option) => filter.update({ ...filter.values, owner: option?.value }),
+    canFilterByUser,
   )
   const templatesAutocomplete = useTemplatesAutocomplete(
     orgId,
@@ -50,7 +53,7 @@ const WorkspacesPage: FC = () => {
         filterProps={{
           filter,
           autocomplete: {
-            users: usersAutocomplete,
+            users: canFilterByUser ? usersAutocomplete : undefined,
             templates: templatesAutocomplete,
             status: statusAutocomplete,
           },
