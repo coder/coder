@@ -199,31 +199,32 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 }
 
 func TestWorkspacesSortOrder(t *testing.T) {
-	// the correct sorting order is:
-	// 1. first show workspaces that are currently running,
-	// 2. then sort by user_name,
-	// 3. then sort by last_used_at (descending),
 	t.Parallel()
+
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+
+	// Workspace 1 should be running
 	workspace1 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
-		ctr.Name = "test-workspace-sort-1"
+		ctr.Name = "c-workspace"
 	})
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace1.LatestBuild.ID)
 
+	// Workspace 2 should be stopped
 	workspace2 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
-		ctr.Name = "test-workspace-sort-2"
+		ctr.Name = "b-workspace"
 	})
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace2.LatestBuild.ID)
 
 	build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, build2.ID)
 
+	// Workspace 3 should be running
 	workspace3 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
-		ctr.Name = "test-workspace-sort-3"
+		ctr.Name = "a-workspace"
 	})
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace3.LatestBuild.ID)
 
@@ -232,13 +233,16 @@ func TestWorkspacesSortOrder(t *testing.T) {
 
 	workspacesResponse, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(first) fetch workspaces")
-	require.Equal(t, 3, len(workspacesResponse.Workspaces), "should be 3 workspaces present")
+	workspaces := workspacesResponse.Workspaces
 
-	require.Equal(t, codersdk.WorkspaceStatusRunning, workspacesResponse.Workspaces[0].LatestBuild.Status, "should be the first item in the list because it is running")
-	require.Equal(t, codersdk.WorkspaceStatusRunning, workspacesResponse.Workspaces[1].LatestBuild.Status)
-	require.Equal(t, codersdk.WorkspaceStatusStopped, workspacesResponse.Workspaces[2].LatestBuild.Status, "The stopped workspace should be last")
-
-	require.Equal(t, workspace3.ID, workspacesResponse.Workspaces[0].ID, "If both are running, and have the same owner, sort by last used (in this case, the last one created)")
+	// the correct sorting order is:
+	// 1. Running workspaces
+	// 2. Sort by usernames
+	// 3. Sort by workspace names
+	require.Equal(t, 3, workspacesResponse.Count)
+	require.Equal(t, workspace3.Name, workspaces[0].Name)
+	require.Equal(t, workspace1.Name, workspaces[1].Name)
+	require.Equal(t, workspace2.Name, workspaces[2].Name)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {

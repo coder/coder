@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 	"strconv"
 	"time"
 
@@ -1015,34 +1014,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 			&owner,
 		))
 	}
-
-	sortWorkspaces(apiWorkspaces)
-
 	return apiWorkspaces, nil
-}
-
-func sortWorkspaces(workspaces []codersdk.Workspace) {
-	sort.Slice(workspaces, func(i, j int) bool {
-		iw := workspaces[i]
-		jw := workspaces[j]
-
-		if iw.LatestBuild.Status == codersdk.WorkspaceStatusRunning && jw.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
-			return true
-		}
-
-		if jw.LatestBuild.Status == codersdk.WorkspaceStatusRunning && iw.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
-			return false
-		}
-
-		if iw.OwnerID != jw.OwnerID {
-			return iw.OwnerName < jw.OwnerName
-		}
-
-		if jw.LastUsedAt.IsZero() && iw.LastUsedAt.IsZero() {
-			return iw.Name < jw.Name
-		}
-		return iw.LastUsedAt.After(jw.LastUsedAt)
-	})
 }
 
 func convertWorkspace(

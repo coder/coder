@@ -8342,8 +8342,7 @@ ORDER BY
 					latest_build.error IS NULL AND
 					latest_build.transition = 'start'::workspace_transition) DESC,
 	LOWER(users.username) ASC,
-	LOWER(name) ASC,
-	last_used_at DESC
+	LOWER(name) ASC
 LIMIT
 	CASE
 		WHEN $11 :: integer > 0 THEN
