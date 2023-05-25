@@ -68,16 +68,22 @@ const LicensesSettingsPageView: FC<Props> = ({
 
       {!isLoading && licenses && licenses?.length > 0 && (
         <Stack spacing={4}>
-          {licenses?.map((license) => (
-            <LicenseCard
-              key={license.id}
-              license={license}
-              userLimitActual={userLimitActual}
-              userLimitLimit={userLimitLimit}
-              isRemoving={isRemovingLicense}
-              onRemove={removeLicense}
-            />
-          ))}
+          {licenses
+            ?.sort(
+              (a, b) =>
+                new Date(b.claims.license_expires as number).valueOf() -
+                new Date(a.claims.license_expires as number).valueOf(),
+            )
+            .map((license) => (
+              <LicenseCard
+                key={license.id}
+                license={license}
+                userLimitActual={userLimitActual}
+                userLimitLimit={userLimitLimit}
+                isRemoving={isRemovingLicense}
+                onRemove={removeLicense}
+              />
+            ))}
         </Stack>
       )}
 
