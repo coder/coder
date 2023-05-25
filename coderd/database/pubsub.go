@@ -185,6 +185,13 @@ func (p *pgPubsub) SubscribeWithErr(event string, listener ListenerWithErr) (can
 func (p *pgPubsub) subscribeQueue(event string, newQ *msgQueue) (cancel func(), err error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
+	defer func() {
+		if err != nil {
+			// if we hit an error, we need to close the queue so we don't
+			// leak its goroutine.
+			newQ.close()
+		}
+	}()
 
 	err = p.pgListener.Listen(event)
 	if errors.Is(err, pq.ErrChannelAlreadyOpen) {
