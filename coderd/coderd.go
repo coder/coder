@@ -562,6 +562,10 @@ func New(options *Options) *API {
 			r.Get("/", api.templateVersion)
 			r.Patch("/", api.patchTemplateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
+			// Old agents may expect a non-error response from /schema and /parameters endpoints.
+			// The idea is to return an empty [], so that the coder CLI won't get blocked accidentally.
+			r.Get("/schema", api.templateVersionSchemaDeprecated)
+			r.Get("/parameters", api.templateVersionParametersDeprecated)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/gitauth", api.templateVersionGitAuth)
 			r.Get("/variables", api.templateVersionVariables)

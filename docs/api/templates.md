@@ -1921,6 +1921,32 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Removed: Get parameters by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/parameters \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/parameters`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get resources by template version
 
 ### Code samples
@@ -2233,6 +2259,32 @@ Status Code **200**
 | `type`                 | `list(string)` |
 | `validation_monotonic` | `increasing`   |
 | `validation_monotonic` | `decreasing`   |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Removed: Get schema by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/schema \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/schema`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

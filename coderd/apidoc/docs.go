@@ -2568,6 +2568,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Removed: Get parameters by template version",
+                "operationId": "get-parameters-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/resources": {
             "get": {
                 "security": [
@@ -2640,6 +2672,38 @@ const docTemplate = `{
                                 "$ref": "#/definitions/codersdk.TemplateVersionParameter"
                             }
                         }
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversion}/schema": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Removed: Get schema by template version",
+                "operationId": "get-schema-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
