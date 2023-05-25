@@ -1,6 +1,5 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import * as Mocks from "../../testHelpers/entities"
 import {
   WorkspaceDeletedBanner,
   WorkspaceDeletedBannerProps,
@@ -18,16 +17,4 @@ const Template: Story<WorkspaceDeletedBannerProps> = (args) => (
 export const Example = Template.bind({})
 Example.args = {
   handleClick: action("extend"),
-  workspace: {
-    ...Mocks.MockWorkspace,
-
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      job: {
-        ...Mocks.MockProvisionerJob,
-        status: "succeeded",
-      },
-      transition: "delete",
-    },
-  },
 }

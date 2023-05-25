@@ -28,6 +28,9 @@ import {
 } from "components/PageHeader/FullWidthPageHeader"
 import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
+import { useLocalStorage } from "hooks"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -105,6 +108,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const navigate = useNavigate()
   const serverVersion = buildInfo?.version || ""
   const { t } = useTranslation("workspacePage")
+  const { saveLocal, getLocal } = useLocalStorage()
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
     <ErrorAlert
@@ -183,10 +187,23 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           {buildError}
           {cancellationError}
 
-          <WorkspaceDeletedBanner
-            workspace={workspace}
-            handleClick={() => navigate(`/templates`)}
-          />
+          <ChooseOne>
+            <Cond condition={workspace.latest_build.status === "deleted"}>
+              <WorkspaceDeletedBanner
+                handleClick={() => navigate(`/templates`)}
+              />
+            </Cond>
+            <Cond>
+              {/* <ImpendingDeletionBanner/> determines its own visibility */}
+              <ImpendingDeletionBanner
+                workspace={workspace}
+                shouldRedisplayBanner={
+                  getLocal("dismissedWorkspace") !== workspace.id
+                }
+                onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
+              />
+            </Cond>
+          </ChooseOne>
 
           <TemplateVersionWarnings warnings={templateWarnings} />
 
