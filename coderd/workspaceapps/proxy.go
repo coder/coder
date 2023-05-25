@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"nhooyr.io/websocket"
@@ -361,39 +362,82 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
-			if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
-				return
+			// REVIEW: Like mentioned in coderd.go maybe we should extract the app
+			// using middleware that way we can do this in a single top-level CORS
+			// handler?  Or just do the URL parsing twice.
+			var corsmw func(next http.Handler) http.Handler
+			origin := r.Header.Get("Origin")
+			if originApp, ok := s.parseOrigin(origin); ok && originApp.Username == app.Username {
+				corsmw = cors.Handler(cors.Options{
+					AllowedOrigins: []string{origin},
+					AllowedMethods: []string{
+						http.MethodHead,
+						http.MethodGet,
+						http.MethodPost,
+						http.MethodPut,
+						http.MethodPatch,
+						http.MethodDelete,
+					},
+					AllowedHeaders:   []string{"*"},
+					AllowCredentials: true,
+				})
+			} else {
+				corsmw = cors.Handler(cors.Options{
+					AllowedOrigins:   []string{""}, // The middleware defaults to *.
+					AllowedMethods:   []string{},
+					AllowedHeaders:   []string{},
+					AllowCredentials: false,
+				})
 			}
 
-			token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
-				Logger:              s.Logger,
-				SignedTokenProvider: s.SignedTokenProvider,
-				DashboardURL:        s.DashboardURL,
-				PathAppBaseURL:      s.AccessURL,
-				AppHostname:         s.Hostname,
-				AppRequest: Request{
-					AccessMethod:      AccessMethodSubdomain,
-					BasePath:          "/",
-					UsernameOrID:      app.Username,
-					WorkspaceNameOrID: app.WorkspaceName,
-					AgentNameOrID:     app.AgentName,
-					AppSlugOrPort:     app.AppSlugOrPort,
-				},
-				AppPath:  r.URL.Path,
-				AppQuery: r.URL.RawQuery,
-			})
-			if !ok {
-				return
-			}
-
-			// Use the passed in app middlewares before passing to the proxy
-			// app.
-			mws := chi.Middlewares(middlewares)
+			// Use the passed in app middlewares before checking authentication and
+			// passing to the proxy app.
+			mws := chi.Middlewares(append(middlewares, corsmw))
 			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
+					return
+				}
+
+				token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
+					Logger:              s.Logger,
+					SignedTokenProvider: s.SignedTokenProvider,
+					DashboardURL:        s.DashboardURL,
+					PathAppBaseURL:      s.AccessURL,
+					AppHostname:         s.Hostname,
+					AppRequest: Request{
+						AccessMethod:      AccessMethodSubdomain,
+						BasePath:          "/",
+						UsernameOrID:      app.Username,
+						WorkspaceNameOrID: app.WorkspaceName,
+						AgentNameOrID:     app.AgentName,
+						AppSlugOrPort:     app.AppSlugOrPort,
+					},
+					AppPath:  r.URL.Path,
+					AppQuery: r.URL.RawQuery,
+				})
+				if !ok {
+					return
+				}
 				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+func (s *Server) parseOrigin(rawOrigin string) (httpapi.ApplicationURL, bool) {
+	origin, err := url.Parse(rawOrigin)
+	if rawOrigin == "" || origin.Host == "" || err != nil {
+		return httpapi.ApplicationURL{}, false
+	}
+	subdomain, ok := httpapi.ExecuteHostnamePattern(s.HostnameRegex, origin.Host)
+	if !ok {
+		return httpapi.ApplicationURL{}, false
+	}
+	app, err := httpapi.ParseSubdomainAppURL(subdomain)
+	if err != nil {
+		return httpapi.ApplicationURL{}, false
+	}
+	return app, true
 }
 
 // parseHostname will return if a given request is attempting to access a

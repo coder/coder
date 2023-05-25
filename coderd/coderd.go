@@ -406,9 +406,7 @@ func New(options *Options) *API {
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
-
 	r.Use(
-		cors,
 		httpmw.Recover(api.Logger),
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
@@ -419,9 +417,13 @@ func New(options *Options) *API {
 		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
 		// it is, it will serve that application.
 		//
-		// Workspace apps do their own auth and must be BEFORE the auth
-		// middleware.
+		// Workspace apps do their own auth and CORS and must be BEFORE the auth
+		// and CORS middleware.
+		// REVIEW: Would it be worth creating httpmw.ExtractWorkspaceApp and using a
+		// single CORS middleware?
 		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
+		// REVIEW: Is it OK that CORS come after the above middleware?
+		cors,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
