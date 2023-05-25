@@ -20,6 +20,9 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 	"tailscale.com/util/clientmetric"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
@@ -173,8 +176,6 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				ignorePorts[port] = "pprof"
 			}
 
-			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
-			defer prometheusSrvClose()
 			if port, err := extractPort(prometheusAddress); err == nil {
 				ignorePorts[port] = "prometheus"
 			}
@@ -244,6 +245,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
+			prometheusRegistry := prometheus.NewRegistry()
 			subsystem := inv.Environ.Get(agent.EnvAgentSubsystem)
 			agnt := agent.New(agent.Options{
 				Client:            client,
@@ -267,7 +269,12 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
 				Subsystem:     codersdk.AgentSubsystem(subsystem),
+
+				PrometheusRegistry: prometheusRegistry,
 			})
+
+			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
+			defer prometheusSrvClose()
 
 			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
 			defer debugSrvClose()
@@ -445,11 +452,25 @@ func urlPort(u string) (int, error) {
 	return -1, xerrors.Errorf("invalid port: %s", u)
 }
 
-func prometheusMetricsHandler() http.Handler {
-	// We don't have any other internal metrics so far, so it's safe to expose metrics this way.
-	// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
+func prometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
+
+		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
 		clientmetric.WritePrometheusExpositionFormat(w)
+
+		metricFamilies, err := prometheusRegistry.Gather()
+		if err != nil {
+			logger.Error(context.Background(), "Prometheus handler can't gather metric families", slog.Error(err))
+			return
+		}
+
+		for _, metricFamily := range metricFamilies {
+			_, err = expfmt.MetricFamilyToText(w, metricFamily)
+			if err != nil {
+				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
+				return
+			}
+		}
 	})
 }
