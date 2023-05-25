@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -1328,6 +1329,63 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 		workspaces = append(workspaces, workspace)
 	}
+
+	// Sort workspaces (ORDER BY)
+	isRunning := func(build database.WorkspaceBuild, job database.ProvisionerJob) bool {
+		return job.CompletedAt.Valid && !job.CanceledAt.Valid && !job.Error.Valid && build.Transition == database.WorkspaceTransitionStart
+	}
+
+	preloadedWorkspaceBuilds := map[uuid.UUID]database.WorkspaceBuild{}
+	preloadedProvisionerJobs := map[uuid.UUID]database.ProvisionerJob{}
+	preloadedUsers := map[uuid.UUID]database.User{}
+
+	for _, w := range workspaces {
+		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, w.ID)
+		if err == nil {
+			preloadedWorkspaceBuilds[w.ID] = build
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get latest build: %w", err)
+		}
+
+		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+		if err == nil {
+			preloadedProvisionerJobs[w.ID] = job
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get provisioner job: %w", err)
+		}
+
+		user, err := q.getUserByIDNoLock(w.OwnerID)
+		if err == nil {
+			preloadedUsers[w.ID] = user
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get user: %w", err)
+		}
+	}
+
+	sort.Slice(workspaces, func(i, j int) bool {
+		w1 := workspaces[i]
+		w2 := workspaces[j]
+
+		// Order by: running first
+		w1IsRunning := isRunning(preloadedWorkspaceBuilds[w1.ID], preloadedProvisionerJobs[w1.ID])
+		w2IsRunning := isRunning(preloadedWorkspaceBuilds[w2.ID], preloadedProvisionerJobs[w2.ID])
+
+		if w1IsRunning && !w2IsRunning {
+			return true
+		}
+
+		if !w1IsRunning && w2IsRunning {
+			return false
+		}
+
+		// Order by: usernames
+		if w1.ID != w2.ID {
+			return sort.StringsAreSorted([]string{preloadedUsers[w1.ID].Username, preloadedUsers[w2.ID].Username})
+		}
+
+		// Order by: workspace names
+		return sort.StringsAreSorted([]string{w1.Name, w2.Name})
+	})
 
 	beforePageCount := len(workspaces)
 
