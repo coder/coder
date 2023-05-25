@@ -22,6 +22,11 @@ import { useQuery } from "@tanstack/react-query"
 import { getUsers, getTemplates } from "api/api"
 import Skeleton, { SkeletonProps } from "@mui/material/Skeleton"
 import CheckOutlined from "@mui/icons-material/CheckOutlined"
+import {
+  getValidationErrorMessage,
+  hasError,
+  isApiValidationError,
+} from "api/errors"
 
 /** Filter */
 
@@ -323,14 +328,17 @@ const FilterSkeleton = (props: SkeletonProps) => {
 export const Filter = ({
   filter,
   autocomplete,
+  error,
 }: {
   filter: UseFilterResult
+  error?: unknown
   autocomplete: {
     users?: UsersAutocomplete
     templates: TemplatesAutocomplete
     status: StatusAutocomplete
   }
 }) => {
+  const shouldDisplayError = hasError(error) && isApiValidationError(error)
   const hasFilterQuery = filter.query !== ""
   const isIinitializingFilters =
     autocomplete.status.isInitializing ||
@@ -351,6 +359,10 @@ export const Filter = ({
   return (
     <Box display="flex" sx={{ gap: 1, mb: 2 }}>
       <TextField
+        error={shouldDisplayError}
+        helperText={
+          shouldDisplayError ? getValidationErrorMessage(error) : undefined
+        }
         sx={{ width: "100%" }}
         color="success"
         size="small"

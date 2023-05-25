@@ -34,6 +34,9 @@ export const isApiValidationError = (error: unknown): error is ApiError => {
   return isApiError(error) && hasApiFieldErrors(error)
 }
 
+export const hasError = (error: unknown) =>
+  error !== undefined && error !== null
+
 export const mapApiErrorToFieldErrors = (
   apiErrorResponse: ApiErrorResponse,
 ): FieldErrors => {

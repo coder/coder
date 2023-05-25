@@ -18,6 +18,7 @@ import difference from "lodash/difference"
 import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { Filter } from "./Filter"
+import { hasError, isApiValidationError } from "api/errors"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -98,7 +99,7 @@ export const WorkspacesPageView: FC<
       </PageHeader>
 
       <Stack>
-        <Maybe condition={Boolean(error)}>
+        <Maybe condition={hasError(error) && !isApiValidationError(error)}>
           <ErrorAlert error={error} />
         </Maybe>
         <ImpendingDeletionBanner
@@ -112,7 +113,7 @@ export const WorkspacesPageView: FC<
           }
         />
 
-        <Filter {...filterProps} />
+        <Filter error={error} {...filterProps} />
       </Stack>
       <WorkspacesTable
         workspaces={workspaces}
