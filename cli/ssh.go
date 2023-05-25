@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/gen2brain/beeep"
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
@@ -25,6 +23,9 @@ import (
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/cli/clibase"
@@ -157,10 +158,18 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 					defer rawSSH.Close()
 
 					_, err := io.Copy(rawSSH, inv.Stdin)
-					logger.Debug(ctx, "copy stdin complete", slog.Error(err))
+					if err != nil {
+						logger.Error(ctx, "copy stdin error", slog.Error(err))
+					} else {
+						logger.Debug(ctx, "copy stdin complete")
+					}
 				}()
 				_, err = io.Copy(inv.Stdout, rawSSH)
-				logger.Debug(ctx, "copy stdout complete", slog.Error(err))
+				if err != nil {
+					logger.Error(ctx, "copy stdout error", slog.Error(err))
+				} else {
+					logger.Debug(ctx, "copy stdout complete")
+				}
 				return nil
 			}
 
@@ -359,7 +368,10 @@ func watchAndClose(ctx context.Context, closer func() error, logger slog.Logger,
 	// Ensure session is ended on both context cancellation
 	// and workspace stop.
 	defer func() {
-		_ = closer()
+		err := closer()
+		if err != nil {
+			logger.Error(ctx, "error closing session", slog.Error(err))
+		}
 	}()
 
 startWatchLoop:
