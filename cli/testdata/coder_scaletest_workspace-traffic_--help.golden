@@ -30,6 +30,10 @@ Generate traffic to scaletest workspaces through coderd
       --scaletest-prometheus-address string, $CODER_SCALETEST_PROMETHEUS_ADDRESS (default: 0.0.0.0:21112)
           Address on which to expose scaletest Prometheus metrics.
 
+      --scaletest-prometheus-wait duration, $CODER_SCALETEST_PROMETHEUS_WAIT (default: 5s)
+          How long to wait before exiting in order to allow Prometheus metrics
+          to be scraped.
+
       --tick-interval duration, $CODER_SCALETEST_WORKSPACE_TRAFFIC_TICK_INTERVAL (default: 100ms)
           How often to send traffic.
 

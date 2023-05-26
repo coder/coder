@@ -92,6 +92,16 @@ Output format specs in the format "<format>[:<path>]". Not specifying a path wil
 
 Address on which to expose scaletest Prometheus metrics.
 
+### --scaletest-prometheus-wait
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Type        | <code>duration</code>                         |
+| Environment | <code>$CODER_SCALETEST_PROMETHEUS_WAIT</code> |
+| Default     | <code>5s</code>                               |
+
+How long to wait before exiting in order to allow Prometheus metrics to be scraped.
+
 ### --tick-interval
 
 |             |                                                               |

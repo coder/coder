@@ -904,6 +904,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		tickInterval               time.Duration
 		bytesPerTick               int64
 		scaletestPrometheusAddress string
+		scaletestPrometheusWait    time.Duration
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -956,6 +957,9 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
 				if err := closeTracing(ctx); err != nil {
 					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+					// Wait for prometheus metrics to be scraped
+					_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", scaletestPrometheusWait)
+					<-time.After(scaletestPrometheusWait)
 				}
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
@@ -1059,6 +1063,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Default:     "0.0.0.0:21112",
 			Description: "Address on which to expose scaletest Prometheus metrics.",
 			Value:       clibase.StringOf(&scaletestPrometheusAddress),
+		},
+		{
+			Flag:        "scaletest-prometheus-wait",
+			Env:         "CODER_SCALETEST_PROMETHEUS_WAIT",
+			Default:     "5s",
+			Description: "How long to wait before exiting in order to allow Prometheus metrics to be scraped.",
+			Value:       clibase.DurationOf(&scaletestPrometheusWait),
 		},
 	}
 
