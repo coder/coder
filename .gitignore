@@ -59,3 +59,4 @@ site/stats/
 ./scaletest/terraform/.terraform
 ./scaletest/terraform/.terraform.lock.hcl
 terraform.tfstate.*
+**/*.tfvars
