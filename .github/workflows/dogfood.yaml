@@ -50,7 +50,6 @@ jobs:
           cache-to: type=inline
   deploy_template:
     needs: deploy_image
-    if: ${{ needs.deploy_image.result == 'success' || needs.deploy_image.result == 'skipped' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
