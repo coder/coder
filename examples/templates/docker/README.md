@@ -1,28 +1,23 @@
 ---
 name: Develop in Docker
 description: Run workspaces on a Docker host using registry images
-tags: [local, docker]
+tags: [local, docker, remote]
 icon: /icon/docker.png
 ---
 
 # docker
 
-## Prerequisites
+## Getting started
 
-1. install jq on the coder host
-2. If you want to use a remote docker host, add and set it using the `docker context` command
+To get started, run `coder templates init`. When prompted, select this template.
+Follow the on-screen instructions to proceed.
+
+> Note: If you want to use a remote docker host, add and set it using the `docker context` command. For example:
 
 ```shell
 docker context create coder --docker "host=ssh://user@host"
 docker context use coder
 ```
-
-> Note: Your coder host must be able to connect to the remote docker host with a valid SSH key pair.
-
-## Getting started
-
-To get started, run `coder templates init`. When prompted, select this template.
-Follow the on-screen instructions to proceed.
 
 ## Editing the image
 

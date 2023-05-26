@@ -19,10 +19,10 @@ locals {
   username        = data.coder_workspace.me.owner
   host_os         = data.coder_provisioner.me.os
   unix_command    = <<EOF
-  docker context inspect $(docker context show) | grep Host | awk '{print $2}' | tr -d '"' | tr -d ',' | tr -d '\n' | jq -R | jq '{DOCKER_HOST: .}'
+  docker context inspect $(docker context show) | sed -ne 's/.*"Host":\(.*\),$/{"DOCKER_HOST":\1}/p'
   EOF
   windows_command = <<EOF
-  docker context inspect $(docker context show) | findstr Host | Foreach {($_ -split '\s+',4)[2]} | ForEach-Object {$_.TrimStart('"')} | ForEach-Object {$_.TrimEnd('",')} | ConvertTo-Json -Compress | ConvertFrom-Json | ConvertTo-Json -Compress | jq '{DOCKER_HOST: .}'
+   @{ DOCKER_HOST = ((docker context inspect $(docker context show) | findstr Host) -split '\s+',4)[2].Trim('",') } | ConvertTo-Json -Compress
   EOF
 }
 
