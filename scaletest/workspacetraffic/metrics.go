@@ -3,9 +3,10 @@ package workspacetraffic
 import "github.com/prometheus/client_golang/prometheus"
 
 type Metrics struct {
-	BytesRead           prometheus.CounterVec
-	BytesWritten        prometheus.CounterVec
-	Errors              prometheus.CounterVec
+	BytesReadTotal      prometheus.CounterVec
+	BytesWrittenTotal   prometheus.CounterVec
+	ReadErrorsTotal     prometheus.CounterVec
+	WriteErrorsTotal    prometheus.CounterVec
 	ReadLatencySeconds  prometheus.HistogramVec
 	WriteLatencySeconds prometheus.HistogramVec
 	LabelNames          []string
@@ -13,20 +14,25 @@ type Metrics struct {
 
 func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 	m := &Metrics{
-		BytesRead: *prometheus.NewCounterVec(prometheus.CounterOpts{
+		BytesReadTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
-			Name:      "bytes_read",
+			Name:      "bytes_read_total",
 		}, labelNames),
-		BytesWritten: *prometheus.NewCounterVec(prometheus.CounterOpts{
+		BytesWrittenTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
-			Name:      "bytes_written",
+			Name:      "bytes_written_total",
 		}, labelNames),
-		Errors: *prometheus.NewCounterVec(prometheus.CounterOpts{
+		ReadErrorsTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
-			Name:      "errors",
+			Name:      "read_errors_total",
+		}, labelNames),
+		WriteErrorsTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coderd",
+			Subsystem: "scaletest",
+			Name:      "write_errors_total",
 		}, labelNames),
 		ReadLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
@@ -40,9 +46,10 @@ func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 		}, labelNames),
 	}
 
-	reg.MustRegister(m.BytesRead)
-	reg.MustRegister(m.BytesWritten)
-	reg.MustRegister(m.Errors)
+	reg.MustRegister(m.BytesReadTotal)
+	reg.MustRegister(m.BytesWrittenTotal)
+	reg.MustRegister(m.ReadErrorsTotal)
+	reg.MustRegister(m.WriteErrorsTotal)
 	reg.MustRegister(m.ReadLatencySeconds)
 	reg.MustRegister(m.WriteLatencySeconds)
 	return m
