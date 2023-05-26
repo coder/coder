@@ -82,6 +82,8 @@ func TestProvisionerJob(t *testing.T) {
 	// This cannot be ran in parallel because it uses a signal.
 	// nolint:paralleltest
 	t.Run("Cancel", func(t *testing.T) {
+		t.Skip("This test issues an interrupt signal which will propagate to the test runner.")
+
 		if runtime.GOOS == "windows" {
 			// Sending interrupt signal isn't supported on Windows!
 			t.SkipNow()
