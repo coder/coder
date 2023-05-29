@@ -43,7 +43,7 @@ jobs:
 
       # Check for any typos!
       - name: Check for typos
-        uses: crate-ci/typos@v1.14.10
+        uses: crate-ci/typos@v1.14.11
         with:
           config: .github/workflows/typos.toml
       - name: Fix the typos
