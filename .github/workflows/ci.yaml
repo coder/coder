@@ -179,9 +179,13 @@ jobs:
         run: |
           curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install protoc-gen-go
-        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
+          protoc-gen-go --version
       - name: Install protoc-gen-go-drpc
-        run: go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3
+        run: |
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3
+          protoc-gen-go-grpc -version
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
       - name: Install yq
