@@ -34,7 +34,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
 	# drpc support for v2
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3 && \
+	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33 && \
 	# migrate for migration support for v2
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
