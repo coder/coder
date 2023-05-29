@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -72,8 +73,8 @@ func TestParameterResolver_ValidateResolve_PrevInvalid(t *testing.T) {
 	p := codersdk.TemplateVersionParameter{
 		Name:          "n",
 		Type:          "number",
-		ValidationMax: 10,
-		ValidationMin: 1,
+		ValidationMax: ptr.Ref(int32(10)),
+		ValidationMin: ptr.Ref(int32(1)),
 	}
 	v, err := uut.ValidateResolve(p, nil)
 	require.Error(t, err)
@@ -89,8 +90,8 @@ func TestParameterResolver_ValidateResolve_DefaultInvalid(t *testing.T) {
 	p := codersdk.TemplateVersionParameter{
 		Name:          "n",
 		Type:          "number",
-		ValidationMax: 10,
-		ValidationMin: 1,
+		ValidationMax: ptr.Ref(int32(10)),
+		ValidationMin: ptr.Ref(int32(1)),
 		DefaultValue:  "11",
 	}
 	v, err := uut.ValidateResolve(p, nil)
@@ -221,19 +222,19 @@ func TestRichParameterValidation(t *testing.T) {
 
 		numberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10))},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		monotonicIncreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10, ValidationMonotonic: "increasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10)), ValidationMonotonic: "increasing"},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		monotonicDecreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10, ValidationMonotonic: "decreasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10)), ValidationMonotonic: "decreasing"},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 

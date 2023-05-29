@@ -4164,8 +4164,8 @@ type InsertTemplateVersionParameterParams struct {
 	Icon                string          `db:"icon" json:"icon"`
 	Options             json.RawMessage `db:"options" json:"options"`
 	ValidationRegex     string          `db:"validation_regex" json:"validation_regex"`
-	ValidationMin       int32           `db:"validation_min" json:"validation_min"`
-	ValidationMax       int32           `db:"validation_max" json:"validation_max"`
+	ValidationMin       sql.NullInt32   `db:"validation_min" json:"validation_min"`
+	ValidationMax       sql.NullInt32   `db:"validation_max" json:"validation_max"`
 	ValidationError     string          `db:"validation_error" json:"validation_error"`
 	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
 	Required            bool            `db:"required" json:"required"`
