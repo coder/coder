@@ -570,7 +570,7 @@ func (b *Builder) verifyNoLegacyParameters() error {
 		return nil
 	}
 
-	_, err := b.store.ParameterValues(b.ctx, database.ParameterValuesParams{
+	pv, err := b.store.ParameterValues(b.ctx, database.ParameterValuesParams{
 		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
 		ScopeIds: []uuid.UUID{b.workspace.ID},
 	})
@@ -580,9 +580,10 @@ func (b *Builder) verifyNoLegacyParameters() error {
 	if err != nil {
 		return xerrors.Errorf("get workspace %w parameter values: %w", b.workspace.ID, err)
 	}
-
-	// len(parameterValues) > 0
-	return xerrors.Errorf("Legacy parameters are not supported anymore, delete the workspace and the related template.")
+	if len(pv) > 0 {
+		return xerrors.Errorf("Legacy parameters are not supported anymore, delete the workspace and the related template.")
+	}
+	return nil
 }
 
 func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
