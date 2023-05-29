@@ -5591,6 +5591,12 @@ const docTemplate = `{
                 "value"
             ],
             "properties": {
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetricLabel"
+                    }
+                },
                 "name": {
                     "type": "string"
                 },
@@ -5607,6 +5613,21 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "number"
+                }
+            }
+        },
+        "agentsdk.AgentMetricLabel": {
+            "type": "object",
+            "required": [
+                "name",
+                "value"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },

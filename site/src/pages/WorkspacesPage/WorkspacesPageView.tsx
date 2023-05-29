@@ -17,7 +17,7 @@ import { WorkspacesTable } from "components/WorkspacesTable/WorkspacesTable"
 import { workspaceFilterQuery } from "utils/filters"
 import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
-import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
+import { ImpendingDeletionBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
@@ -117,15 +117,17 @@ export const WorkspacesPageView: FC<
         <Maybe condition={Boolean(error)}>
           <ErrorAlert error={error} />
         </Maybe>
+        {/* <ImpendingDeletionBanner/> determines its own visibility */}
         <ImpendingDeletionBanner
           workspace={workspaces?.find((workspace) => workspace.deleting_at)}
-          displayImpendingDeletionBanner={isNewWorkspacesImpendingDeletion()}
+          shouldRedisplayBanner={isNewWorkspacesImpendingDeletion()}
           onDismiss={() =>
             saveLocal(
               "dismissedWorkspaceList",
               JSON.stringify(workspaceIdsWithImpendingDeletions),
             )
           }
+          count={Count.Multiple}
         />
 
         <SearchBarWithFilter

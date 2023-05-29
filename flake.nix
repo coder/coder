@@ -30,6 +30,7 @@
             gotestsum
             jq
             kubernetes-helm
+            mockgen
             nfpm
             nodePackages.typescript
             nodePackages.typescript-language-server
