@@ -23,19 +23,21 @@ import (
 
 var (
 	// use fixed IDs so logs are easier to read
-	templateID        = uuid.MustParse("12341234-0000-0000-0001-000000000000")
-	activeVersionID   = uuid.MustParse("12341234-0000-0000-0002-000000000000")
-	inactiveVersionID = uuid.MustParse("12341234-0000-0000-0003-000000000000")
-	activeJobID       = uuid.MustParse("12341234-0000-0000-0004-000000000000")
-	inactiveJobID     = uuid.MustParse("12341234-0000-0000-0005-000000000000")
-	orgID             = uuid.MustParse("12341234-0000-0000-0006-000000000000")
-	workspaceID       = uuid.MustParse("12341234-0000-0000-0007-000000000000")
-	userID            = uuid.MustParse("12341234-0000-0000-0008-000000000000")
-	activeFileID      = uuid.MustParse("12341234-0000-0000-0009-000000000000")
-	inactiveFileID    = uuid.MustParse("12341234-0000-0000-000a-000000000000")
-	lastBuildID       = uuid.MustParse("12341234-0000-0000-000b-000000000000")
-	lastBuildJobID    = uuid.MustParse("12341234-0000-0000-000c-000000000000")
-	otherUserID       = uuid.MustParse("12341234-0000-0000-000d-000000000000")
+	templateID         = uuid.MustParse("12341234-0000-0000-0001-000000000000")
+	activeVersionID    = uuid.MustParse("12341234-0000-0000-0002-000000000000")
+	inactiveVersionID  = uuid.MustParse("12341234-0000-0000-0003-000000000000")
+	activeJobID        = uuid.MustParse("12341234-0000-0000-0004-000000000000")
+	inactiveJobID      = uuid.MustParse("12341234-0000-0000-0005-000000000000")
+	orgID              = uuid.MustParse("12341234-0000-0000-0006-000000000000")
+	workspaceID        = uuid.MustParse("12341234-0000-0000-0007-000000000000")
+	userID             = uuid.MustParse("12341234-0000-0000-0008-000000000000")
+	activeFileID       = uuid.MustParse("12341234-0000-0000-0009-000000000000")
+	inactiveFileID     = uuid.MustParse("12341234-0000-0000-000a-000000000000")
+	lastBuildID        = uuid.MustParse("12341234-0000-0000-000b-000000000000")
+	lastBuildJobID     = uuid.MustParse("12341234-0000-0000-000c-000000000000")
+	otherUserID        = uuid.MustParse("12341234-0000-0000-000d-000000000000")
+	notReplacedParamID = uuid.MustParse("12341234-0000-0000-000e-000000000000")
+	replacedParamID    = uuid.MustParse("12341234-0000-0000-000f-000000000000")
 )
 
 func TestBuilder_NoOptions(t *testing.T) {
@@ -53,7 +55,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withRichParameters(nil),
+		withRichParameters(nil), withLegacyParameters(nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -101,7 +103,7 @@ func TestBuilder_Initiator(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withRichParameters(nil),
+		withRichParameters(nil), withLegacyParameters(nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -133,7 +135,7 @@ func TestBuilder_Reason(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withRichParameters(nil),
+		withRichParameters(nil), withLegacyParameters(nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -164,6 +166,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		withTemplate,
 		withActiveVersion(nil),
 		withLastBuildNotFound,
+		withLegacyParameters(nil),
 		// previous rich parameters are not queried because there is no previous build.
 
 		// Outputs
@@ -240,7 +243,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters),
+			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -280,7 +283,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters),
+			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -301,6 +304,40 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		req.NoError(err)
 	})
 
+	t.Run("StartWorkspaceWithLegacyParameterValues", func(t *testing.T) {
+		t.Parallel()
+
+		req := require.New(t)
+		asrt := assert.New(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		oldParams := []database.ParameterValue{
+			{Name: "not-replaced", SourceValue: "nr", ID: notReplacedParamID},
+			{Name: "replaced", SourceValue: "r", ID: replacedParamID},
+		}
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withInactiveVersion(richParameters),
+			withLastBuildFound,
+			withRichParameters(nil), withLegacyParameters(oldParams),
+
+			// Outputs
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
+		_, _, err := uut.Build(ctx, mDB, nil)
+		bldErr := wsbuilder.BuildError{}
+		req.ErrorAs(err, &bldErr)
+		asrt.Equal(http.StatusBadRequest, bldErr.Status)
+	})
+
 	t.Run("DoNotModifyImmutables", func(t *testing.T) {
 		t.Parallel()
 
@@ -319,7 +356,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters),
+			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -370,7 +407,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters),
+			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -427,7 +464,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters),
+			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -482,7 +519,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters),
+			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -657,6 +694,23 @@ func withLastBuildNotFound(mTx *dbmock.MockStore) {
 	mTx.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Times(1).
 		Return(database.WorkspaceBuild{}, sql.ErrNoRows)
+}
+
+func withLegacyParameters(params []database.ParameterValue) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		c := mTx.EXPECT().ParameterValues(
+			gomock.Any(),
+			database.ParameterValuesParams{
+				Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
+				ScopeIds: []uuid.UUID{workspaceID},
+			}).
+			Times(1)
+		if len(params) > 0 {
+			c.Return(params, nil)
+		} else {
+			c.Return(nil, sql.ErrNoRows)
+		}
+	}
 }
 
 func withRichParameters(params []database.WorkspaceBuildParameter) func(mTx *dbmock.MockStore) {

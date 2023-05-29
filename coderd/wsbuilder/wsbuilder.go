@@ -56,6 +56,8 @@ type Builder struct {
 	lastBuildErr              *error
 	lastBuildParameters       *[]database.WorkspaceBuildParameter
 	lastBuildJob              *database.ProvisionerJob
+
+	verifyNoLegacyParametersOnce bool
 }
 
 type Option func(Builder) Builder
@@ -481,6 +483,10 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch last build parameters", err}
 	}
+	err = b.verifyNoLegacyParameters()
+	if err != nil {
+		return nil, nil, BuildError{http.StatusBadRequest, "Legacy parameters verification", err}
+	}
 	resolver := codersdk.ParameterResolver{
 		Rich: db2sdk.WorkspaceBuildParameters(lastBuildParameters),
 	}
@@ -549,6 +555,34 @@ func (b *Builder) getTemplateVersionParameters() ([]database.TemplateVersionPara
 	}
 	b.templateVersionParameters = &tvp
 	return tvp, nil
+}
+
+// verifyNoLegacyParameters verifies that initiator can't start the workspace build
+// if it uses legacy parameters (database.ParameterValues).
+func (b *Builder) verifyNoLegacyParameters() error {
+	if b.verifyNoLegacyParametersOnce {
+		return nil
+	}
+	b.verifyNoLegacyParametersOnce = true
+
+	// Block starting the workspace with legacy parameters.
+	if b.trans != database.WorkspaceTransitionStart {
+		return nil
+	}
+
+	_, err := b.store.ParameterValues(b.ctx, database.ParameterValuesParams{
+		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
+		ScopeIds: []uuid.UUID{b.workspace.ID},
+	})
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("get workspace %w parameter values: %w", b.workspace.ID, err)
+	}
+
+	// len(parameterValues) > 0
+	return xerrors.Errorf("Legacy parameters are not supported anymore, delete the workspace and the related template.")
 }
 
 func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
