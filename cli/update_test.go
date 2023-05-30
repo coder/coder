@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -245,7 +246,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	)
 
 	numberRichParameters := []*proto.RichParameter{
-		{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10},
+		{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10))},
 	}
 
 	stringRichParameters := []*proto.RichParameter{
