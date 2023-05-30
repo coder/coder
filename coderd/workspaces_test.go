@@ -9,21 +9,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbauthz"
-
-	"github.com/coder/coder/coderd/database/dbgen"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
@@ -562,32 +560,36 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 func TestWorkspaceFilterAllStatus(t *testing.T) {
 	ctx := dbauthz.AsSystemRestricted(context.Background())
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
 
 	owner := coderdtest.CreateFirstUser(t, client)
 
-	file := dbgen.File(t, api.Database, database.File{
+	file := dbgen.File(t, db, database.File{
 		CreatedBy: owner.UserID,
 	})
-	versionJob := dbgen.ProvisionerJob(t, api.Database, database.ProvisionerJob{
+	versionJob := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
 		OrganizationID: owner.OrganizationID,
 		InitiatorID:    owner.UserID,
 		WorkerID:       uuid.NullUUID{},
 		FileID:         file.ID,
 	})
-	version := dbgen.TemplateVersion(t, api.Database, database.TemplateVersion{
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: owner.OrganizationID,
 		JobID:          versionJob.ID,
 		CreatedBy:      owner.UserID,
 	})
-	template := dbgen.Template(t, api.Database, database.Template{
+	template := dbgen.Template(t, db, database.Template{
 		OrganizationID:  owner.OrganizationID,
 		ActiveVersionID: version.ID,
 		CreatedBy:       owner.UserID,
 	})
 
 	makeWorkspace := func(workspace database.Workspace, job database.ProvisionerJob, transition database.WorkspaceTransition) (database.Workspace, database.WorkspaceBuild, database.ProvisionerJob) {
-		db := api.Database
+		db := db
 
 		workspace.OwnerID = owner.UserID
 		workspace.OrganizationID = owner.OrganizationID

@@ -15,11 +15,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-// IsDBAuthzStore is provided for unit testing only.
-type IsDBAuthzStore interface {
-	UnderlyingDatabase() database.Store
-}
-
 var _ database.Store = (*querier)(nil)
 
 // NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
@@ -102,12 +97,6 @@ func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) data
 		auth: authorizer,
 		log:  logger,
 	}
-}
-
-// UnderlyingDatabase is dangerous and should not be used. This is only provided to accommodate some
-// unit testing that has to manipulate the database directly.
-func (q *querier) UnderlyingDatabase() database.Store {
-	return q.db
 }
 
 // authorizeContext is a helper function to authorize an action on an object.

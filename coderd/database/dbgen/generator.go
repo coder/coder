@@ -11,17 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbtype"
-
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
-
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
 	"github.com/tabbed/pqtype"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/dbtype"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -277,10 +275,6 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 // ProvisionerJob might not have all the correct values like CompletedAt and CancelledAt. This is because
 // the workspaceBuild is required to fetch those,
 func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
-	if dba, ok := db.(dbauthz.IsDBAuthzStore); ok {
-		db = dba.UnderlyingDatabase()
-	}
-
 	id := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() || orig.Tags == nil {
