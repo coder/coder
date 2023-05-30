@@ -52,9 +52,11 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	})
 	if res != nil {
 		var body string
-		b, err := io.ReadAll(res.Body)
-		if err == nil {
-			body = string(b)
+		if res.Body != nil {
+			b, err := io.ReadAll(res.Body)
+			if err == nil {
+				body = string(b)
+			}
 		}
 
 		r.Response = WebsocketResponse{
