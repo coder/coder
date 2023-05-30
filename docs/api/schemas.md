@@ -6395,7 +6395,9 @@ Parameter represents a set value for the scope.
   "pass": true,
   "time": "string",
   "websocket": {
-    "error": null
+    "code": 0,
+    "error": null,
+    "response": "string"
   }
 }
 ```
@@ -6414,15 +6416,19 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "error": null
+  "code": 0,
+  "error": null,
+  "response": "string"
 }
 ```
 
 ### Properties
 
-| Name    | Type | Required | Restrictions | Description |
-| ------- | ---- | -------- | ------------ | ----------- |
-| `error` | any  | false    |              |             |
+| Name       | Type    | Required | Restrictions | Description |
+| ---------- | ------- | -------- | ------------ | ----------- |
+| `code`     | integer | false    |              |             |
+| `error`    | any     | false    |              |             |
+| `response` | string  | false    |              |             |
 
 ## netcheck.Report
 

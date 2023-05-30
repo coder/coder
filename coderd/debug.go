@@ -66,7 +66,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// @Summary Debug Websocket
+// @Summary Debug Info Websocket Test
 // @ID debug-info-websocket-test
 // @Security CoderSessionToken
 // @Produce json

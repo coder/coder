@@ -21,7 +21,13 @@ type WebsocketReportOptions struct {
 }
 
 type WebsocketReport struct {
-	Error error `json:"error"`
+	Response WebsocketResponse `json:"response"`
+	Error    error             `json:"error"`
+}
+
+type WebsocketResponse struct {
+	Body string `json:"body"`
+	Code int    `json:"code"`
 }
 
 func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions) {
@@ -39,11 +45,23 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 		u.Scheme = "ws"
 	}
 
-	//nolint:bodyclose
-	c, _, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+	//nolint:bodyclose // websocket package closes this for you
+	c, res, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 		HTTPClient: opts.HTTPClient,
 		HTTPHeader: http.Header{"Coder-Session-Token": []string{opts.APIKey}},
 	})
+	if res != nil {
+		var body string
+		b, err := io.ReadAll(res.Body)
+		if err == nil {
+			body = string(b)
+		}
+
+		r.Response = WebsocketResponse{
+			Body: body,
+			Code: res.StatusCode,
+		}
+	}
 	if err != nil {
 		r.Error = xerrors.Errorf("websocket dial: %w", err)
 		return

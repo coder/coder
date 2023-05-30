@@ -440,11 +440,11 @@ const docTemplate = `{
                 "tags": [
                     "Debug"
                 ],
-                "summary": "Debug Websocket",
+                "summary": "Debug Info Websocket Test",
                 "operationId": "debug-info-websocket-test",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -10462,7 +10462,13 @@ const docTemplate = `{
         "healthcheck.WebsocketReport": {
             "type": "object",
             "properties": {
-                "error": {}
+                "code": {
+                    "type": "integer"
+                },
+                "error": {},
+                "response": {
+                    "type": "string"
+                }
             }
         },
         "netcheck.Report": {
