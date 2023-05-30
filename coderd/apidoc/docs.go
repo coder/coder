@@ -747,7 +747,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.DeploymentDAUsResponse"
+                            "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
                 }
@@ -2124,7 +2124,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateDAUsResponse"
+                            "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
                 }
@@ -7211,6 +7211,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DAUsResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DAUEntry"
+                    }
+                },
+                "tz_hour_offset": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.DERP": {
             "type": "object",
             "properties": {
@@ -7294,17 +7308,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/clibase.Option"
-                    }
-                }
-            }
-        },
-        "codersdk.DeploymentDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
                     }
                 }
             }
@@ -8919,17 +8922,6 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {
                 "$ref": "#/definitions/codersdk.TransitionStats"
-            }
-        },
-        "codersdk.TemplateDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
-                    }
-                }
             }
         },
         "codersdk.TemplateExample": {

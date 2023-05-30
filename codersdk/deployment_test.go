@@ -3,6 +3,7 @@ package codersdk_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -194,4 +195,60 @@ func TestSSHConfig_ParseOptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTimezoneOffsets(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name           string
+		Loc            *time.Location
+		ExpectedOffset int
+	}{
+		{
+			Name:           "UTX",
+			Loc:            time.UTC,
+			ExpectedOffset: 0,
+		},
+		{
+			Name:           "Eastern",
+			Loc:            must(time.LoadLocation("America/New_York")),
+			ExpectedOffset: -4,
+		},
+		{
+			Name:           "Central",
+			Loc:            must(time.LoadLocation("America/Chicago")),
+			ExpectedOffset: -5,
+		},
+		{
+			Name:           "Ireland",
+			Loc:            must(time.LoadLocation("Europe/Dublin")),
+			ExpectedOffset: 1,
+		},
+		{
+			Name: "HalfHourTz",
+			// This timezone is +6:30, but the function rounds to the nearest hour.
+			// This is intentional because our DAUs endpoint only covers 1-hour offsets.
+			// If the user is in a non-hour timezone, they get the closest hour bucket.
+			Loc:            must(time.LoadLocation("Asia/Yangon")),
+			ExpectedOffset: 6,
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
+			offset := codersdk.TimezoneOffsetHour(c.Loc)
+			require.Equal(t, c.ExpectedOffset, offset)
+		})
+	}
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }

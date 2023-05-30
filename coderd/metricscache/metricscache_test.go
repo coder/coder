@@ -18,12 +18,22 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+func dateH(year, month, day, hour int) time.Time {
+	return time.Date(year, time.Month(month), day, hour, 0, 0, 0, time.UTC)
+}
+
 func date(year, month, day int) time.Time {
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 }
 
 func TestCache_TemplateUsers(t *testing.T) {
 	t.Parallel()
+	statRow := func(user uuid.UUID, date time.Time) database.InsertWorkspaceAgentStatParams {
+		return database.InsertWorkspaceAgentStatParams{
+			CreatedAt: date,
+			UserID:    user,
+		}
+	}
 
 	var (
 		zebra = uuid.UUID{1}
@@ -38,24 +48,21 @@ func TestCache_TemplateUsers(t *testing.T) {
 		uniqueUsers int
 	}
 	tests := []struct {
-		name string
-		args args
-		want want
+		name     string
+		args     args
+		want     want
+		tzOffset int
 	}{
-		{"empty", args{}, want{nil, 0}},
+		{name: "empty", args: args{}, want: want{nil, 0}},
 		{
-			"one hole", args{
+			name: "one hole",
+			args: args{
 				rows: []database.InsertWorkspaceAgentStatParams{
-					{
-						CreatedAt: date(2022, 8, 27),
-						UserID:    zebra,
-					},
-					{
-						CreatedAt: date(2022, 8, 30),
-						UserID:    zebra,
-					},
+					statRow(zebra, dateH(2022, 8, 27, 0)),
+					statRow(zebra, dateH(2022, 8, 30, 0)),
 				},
-			}, want{[]codersdk.DAUEntry{
+			},
+			want: want{[]codersdk.DAUEntry{
 				{
 					Date:   date(2022, 8, 27),
 					Amount: 1,
@@ -74,88 +81,113 @@ func TestCache_TemplateUsers(t *testing.T) {
 				},
 			}, 1},
 		},
-		{"no holes", args{
-			rows: []database.InsertWorkspaceAgentStatParams{
-				{
-					CreatedAt: date(2022, 8, 27),
-					UserID:    zebra,
-				},
-				{
-					CreatedAt: date(2022, 8, 28),
-					UserID:    zebra,
-				},
-				{
-					CreatedAt: date(2022, 8, 29),
-					UserID:    zebra,
+		{
+			name: "no holes",
+			args: args{
+				rows: []database.InsertWorkspaceAgentStatParams{
+					statRow(zebra, dateH(2022, 8, 27, 0)),
+					statRow(zebra, dateH(2022, 8, 28, 0)),
+					statRow(zebra, dateH(2022, 8, 29, 0)),
 				},
 			},
-		}, want{[]codersdk.DAUEntry{
-			{
-				Date:   date(2022, 8, 27),
-				Amount: 1,
-			},
-			{
-				Date:   date(2022, 8, 28),
-				Amount: 1,
-			},
-			{
-				Date:   date(2022, 8, 29),
-				Amount: 1,
-			},
-		}, 1}},
-		{"holes", args{
-			rows: []database.InsertWorkspaceAgentStatParams{
+			want: want{[]codersdk.DAUEntry{
 				{
-					CreatedAt: date(2022, 1, 1),
-					UserID:    zebra,
+					Date:   date(2022, 8, 27),
+					Amount: 1,
 				},
 				{
-					CreatedAt: date(2022, 1, 1),
-					UserID:    tiger,
+					Date:   date(2022, 8, 28),
+					Amount: 1,
 				},
 				{
-					CreatedAt: date(2022, 1, 4),
-					UserID:    zebra,
+					Date:   date(2022, 8, 29),
+					Amount: 1,
+				},
+			}, 1},
+		},
+		{
+			name: "holes",
+			args: args{
+				rows: []database.InsertWorkspaceAgentStatParams{
+					statRow(zebra, dateH(2022, 1, 1, 0)),
+					statRow(tiger, dateH(2022, 1, 1, 0)),
+					statRow(zebra, dateH(2022, 1, 4, 0)),
+					statRow(zebra, dateH(2022, 1, 7, 0)),
+					statRow(tiger, dateH(2022, 1, 7, 0)),
+				},
+			},
+			want: want{[]codersdk.DAUEntry{
+				{
+					Date:   date(2022, 1, 1),
+					Amount: 2,
 				},
 				{
-					CreatedAt: date(2022, 1, 7),
-					UserID:    zebra,
+					Date:   date(2022, 1, 2),
+					Amount: 0,
 				},
 				{
-					CreatedAt: date(2022, 1, 7),
-					UserID:    tiger,
+					Date:   date(2022, 1, 3),
+					Amount: 0,
+				},
+				{
+					Date:   date(2022, 1, 4),
+					Amount: 1,
+				},
+				{
+					Date:   date(2022, 1, 5),
+					Amount: 0,
+				},
+				{
+					Date:   date(2022, 1, 6),
+					Amount: 0,
+				},
+				{
+					Date:   date(2022, 1, 7),
+					Amount: 2,
+				},
+			}, 2},
+		},
+		{
+			name:     "tzOffset",
+			tzOffset: -1,
+			args: args{
+				rows: []database.InsertWorkspaceAgentStatParams{
+					statRow(zebra, dateH(2022, 1, 2, 1)),
+					statRow(tiger, dateH(2022, 1, 2, 1)),
+					// With offset these should be in the previous day
+					statRow(zebra, dateH(2022, 1, 2, 0)),
+					statRow(tiger, dateH(2022, 1, 2, 0)),
 				},
 			},
-		}, want{[]codersdk.DAUEntry{
-			{
-				Date:   date(2022, 1, 1),
-				Amount: 2,
+			want: want{[]codersdk.DAUEntry{
+				{
+					Date:   date(2022, 1, 1),
+					Amount: 2,
+				},
+				{
+					Date:   date(2022, 1, 2),
+					Amount: 2,
+				},
+			}, 2},
+		},
+		{
+			name:     "tzOffsetPreviousDay",
+			tzOffset: -6,
+			args: args{
+				rows: []database.InsertWorkspaceAgentStatParams{
+					statRow(zebra, dateH(2022, 1, 2, 1)),
+					statRow(tiger, dateH(2022, 1, 2, 1)),
+					statRow(zebra, dateH(2022, 1, 2, 0)),
+					statRow(tiger, dateH(2022, 1, 2, 0)),
+				},
 			},
-			{
-				Date:   date(2022, 1, 2),
-				Amount: 0,
-			},
-			{
-				Date:   date(2022, 1, 3),
-				Amount: 0,
-			},
-			{
-				Date:   date(2022, 1, 4),
-				Amount: 1,
-			},
-			{
-				Date:   date(2022, 1, 5),
-				Amount: 0,
-			},
-			{
-				Date:   date(2022, 1, 6),
-				Amount: 0,
-			},
-			{
-				Date:   date(2022, 1, 7),
-				Amount: 2,
-			},
-		}, 2}},
+			want: want{[]codersdk.DAUEntry{
+				{
+					Date:   date(2022, 1, 1),
+					Amount: 2,
+				},
+			}, 2},
+		},
 	}
 
 	for _, tt := range tests {
@@ -182,7 +214,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 			}
 
 			require.Eventuallyf(t, func() bool {
-				_, ok := cache.TemplateDAUs(template.ID)
+				_, _, ok := cache.TemplateDAUs(template.ID, tt.tzOffset)
 				return ok
 			}, testutil.WaitShort, testutil.IntervalMedium,
 				"TemplateDAUs never populated",
@@ -191,8 +223,9 @@ func TestCache_TemplateUsers(t *testing.T) {
 			gotUniqueUsers, ok := cache.TemplateUniqueUsers(template.ID)
 			require.True(t, ok)
 
-			gotEntries, ok := cache.TemplateDAUs(template.ID)
+			offset, gotEntries, ok := cache.TemplateDAUs(template.ID, tt.tzOffset)
 			require.True(t, ok)
+			require.Equal(t, offset, tt.tzOffset)
 			require.Equal(t, tt.want.entries, gotEntries.Entries)
 			require.Equal(t, tt.want.uniqueUsers, gotUniqueUsers)
 		})
