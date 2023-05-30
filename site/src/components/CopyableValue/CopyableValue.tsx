@@ -1,5 +1,5 @@
-import { makeStyles } from "@material-ui/core/styles"
-import Tooltip from "@material-ui/core/Tooltip"
+import { makeStyles } from "@mui/styles"
+import Tooltip from "@mui/material/Tooltip"
 import { useClickable } from "hooks/useClickable"
 import { useClipboard } from "hooks/useClipboard"
 import { FC, HTMLProps } from "react"

@@ -1,10 +1,11 @@
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { LogLevel } from "api/typesGenerated"
 import dayjs from "dayjs"
 import { FC, useMemo } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../utils/combineClasses"
 import AnsiToHTML from "ansi-to-html"
+import { Theme } from "@mui/material/styles"
 
 export interface Line {
   time: string

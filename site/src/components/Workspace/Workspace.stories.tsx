@@ -2,11 +2,12 @@ import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata"
 import { ProvisionerJobLog } from "api/typesGenerated"
-import * as Mocks from "../../testHelpers/entities"
+import * as Mocks from "testHelpers/entities"
 import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
 import { withReactContext } from "storybook-react-context"
 import EventSource from "eventsourcemock"
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
+import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
 
 export default {
   title: "components/Workspace",
@@ -23,20 +24,40 @@ export default {
   ],
 }
 
+const MockedAppearance = {
+  config: Mocks.MockAppearance,
+  preview: false,
+  setPreview: () => null,
+  save: () => null,
+}
+
 const Template: Story<WorkspaceProps> = (args) => (
-  <ProxyContext.Provider
+  <DashboardProviderContext.Provider
     value={{
-      proxy: getPreferredProxy([], undefined),
-      proxies: [],
-      isLoading: false,
-      isFetched: true,
-      setProxy: () => {
-        return
-      },
+      buildInfo: Mocks.MockBuildInfo,
+      entitlements: Mocks.MockEntitlementsWithScheduling,
+      experiments: Mocks.MockExperiments,
+      appearance: MockedAppearance,
     }}
   >
-    <Workspace {...args} />
-  </ProxyContext.Provider>
+    <ProxyContext.Provider
+      value={{
+        proxyLatencies: Mocks.MockProxyLatencies,
+        proxy: getPreferredProxy([], undefined),
+        proxies: [],
+        isLoading: false,
+        isFetched: true,
+        clearProxy: () => {
+          return
+        },
+        setProxy: () => {
+          return
+        },
+      }}
+    >
+      <Workspace {...args} />
+    </ProxyContext.Provider>
+  </DashboardProviderContext.Provider>
 )
 
 export const Running = Template.bind({})
@@ -657,4 +678,10 @@ function makeFailedBuildLogs(): ProvisionerJobLog[] {
       output: "",
     },
   ]
+}
+
+export const WithDeprecatedParameters = Template.bind({})
+WithDeprecatedParameters.args = {
+  ...Running.args,
+  templateWarnings: ["DEPRECATED_PARAMETERS"],
 }

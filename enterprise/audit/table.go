@@ -75,6 +75,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"allow_user_autostop":              ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
 		"max_ttl":                          ActionTrack,
+		"failure_ttl":                      ActionTrack,
+		"inactivity_ttl":                   ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                 ActionTrack,

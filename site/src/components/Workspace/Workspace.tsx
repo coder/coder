@@ -1,6 +1,5 @@
-import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -8,24 +7,30 @@ import {
   ActiveTransition,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
-import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { AlertBanner } from "../AlertBanner/AlertBanner"
+import { Alert, AlertDetail } from "../Alert/Alert"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
-import {
-  PageHeader,
-  PageHeaderSubtitle,
-  PageHeaderTitle,
-} from "../PageHeader/PageHeader"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
+import {
+  FullWidthPageHeader,
+  PageHeaderActions,
+  PageHeaderTitle,
+  PageHeaderSubtitle,
+} from "components/PageHeader/FullWidthPageHeader"
+import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
+import { useLocalStorage } from "hooks"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
+import AlertTitle from "@mui/material/AlertTitle"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -52,6 +57,7 @@ export interface WorkspaceProps {
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
+  templateWarnings?: TypesGen.TemplateVersionWarning[]
   canUpdateWorkspace: boolean
   canUpdateTemplate: boolean
   canChangeVersions: boolean
@@ -96,15 +102,16 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   quota_budget,
   failedBuildLogs,
   handleBuildRetry,
+  templateWarnings,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
   const serverVersion = buildInfo?.version || ""
   const { t } = useTranslation("workspacePage")
+  const { saveLocal, getLocal } = useLocalStorage()
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <AlertBanner
-      severity="error"
+    <ErrorAlert
       error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
       dismissible
     />
@@ -113,8 +120,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const cancellationError = Boolean(
     workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
   ) && (
-    <AlertBanner
-      severity="error"
+    <ErrorAlert
       error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
       dismissible
     />
@@ -125,31 +131,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     transitionStats = ActiveTransition(template, workspace)
   }
   return (
-    <Margins>
-      <PageHeader
-        actions={
-          <Stack direction="row" spacing={1} className={styles.actions}>
-            <WorkspaceActions
-              workspaceStatus={workspace.latest_build.status}
-              isOutdated={workspace.outdated}
-              handleStart={handleStart}
-              handleStop={handleStop}
-              handleRestart={handleRestart}
-              handleDelete={handleDelete}
-              handleUpdate={handleUpdate}
-              handleCancel={handleCancel}
-              handleSettings={handleSettings}
-              handleChangeVersion={handleChangeVersion}
-              canChangeVersions={canChangeVersions}
-              isUpdating={isUpdating}
-              isRestarting={isRestarting}
-            />
-          </Stack>
-        }
-      >
+    <>
+      <FullWidthPageHeader>
         <Stack direction="row" spacing={3} alignItems="center">
           <Avatar
-            size="xl"
+            size="md"
             src={workspace.template_icon}
             variant={workspace.template_icon ? "square" : undefined}
             fitImage={Boolean(workspace.template_icon)}
@@ -157,32 +143,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             {workspace.name}
           </Avatar>
           <div>
-            <PageHeaderTitle>
-              {workspace.name}
-              <WorkspaceStatusBadge
-                build={workspace.latest_build}
-                className={styles.statusBadge}
-              />
-            </PageHeaderTitle>
-            <PageHeaderSubtitle condensed>
-              {workspace.owner_name}
-            </PageHeaderSubtitle>
+            <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
+            <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
           </div>
         </Stack>
-      </PageHeader>
-
-      <Stack
-        direction="column"
-        className={styles.firstColumnSpacer}
-        spacing={4}
-      >
-        {buildError}
-        {cancellationError}
-
-        <WorkspaceDeletedBanner
-          workspace={workspace}
-          handleClick={() => navigate(`/templates`)}
-        />
 
         <WorkspaceStats
           workspace={workspace}
@@ -195,76 +159,114 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           onDeadlinePlus={scheduleProps.onDeadlinePlus}
         />
 
-        {failedBuildLogs && (
-          <Stack>
-            <AlertBanner severity="error">
-              <Stack
-                className={styles.fullWidth}
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-              >
-                <Stack spacing={0}>
-                  <span>Workspace build failed</span>
-                  <span className={styles.errorDetails}>
-                    {workspace.latest_build.job.error}
-                  </span>
-                </Stack>
+        <PageHeaderActions>
+          <WorkspaceActions
+            workspaceStatus={workspace.latest_build.status}
+            isOutdated={workspace.outdated}
+            handleStart={handleStart}
+            handleStop={handleStop}
+            handleRestart={handleRestart}
+            handleDelete={handleDelete}
+            handleUpdate={handleUpdate}
+            handleCancel={handleCancel}
+            handleSettings={handleSettings}
+            handleChangeVersion={handleChangeVersion}
+            canChangeVersions={canChangeVersions}
+            isUpdating={isUpdating}
+            isRestarting={isRestarting}
+          />
+        </PageHeaderActions>
+      </FullWidthPageHeader>
 
-                {canUpdateTemplate && (
-                  <div>
+      <Margins className={styles.content}>
+        <Stack
+          direction="column"
+          className={styles.firstColumnSpacer}
+          spacing={4}
+        >
+          {buildError}
+          {cancellationError}
+
+          <ChooseOne>
+            <Cond condition={workspace.latest_build.status === "deleted"}>
+              <WorkspaceDeletedBanner
+                handleClick={() => navigate(`/templates`)}
+              />
+            </Cond>
+            <Cond>
+              {/* <ImpendingDeletionBanner/> determines its own visibility */}
+              <ImpendingDeletionBanner
+                workspace={workspace}
+                shouldRedisplayBanner={
+                  getLocal("dismissedWorkspace") !== workspace.id
+                }
+                onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
+              />
+            </Cond>
+          </ChooseOne>
+
+          <TemplateVersionWarnings warnings={templateWarnings} />
+
+          {failedBuildLogs && (
+            <Stack>
+              <Alert
+                severity="error"
+                actions={
+                  canUpdateTemplate && (
                     <Button
+                      key={0}
                       onClick={handleBuildRetry}
-                      startIcon={<RefreshOutlined />}
+                      variant="text"
                       size="small"
-                      variant="outlined"
                     >
                       {t("actionButton.retryDebugMode")}
                     </Button>
-                  </div>
-                )}
-              </Stack>
-            </AlertBanner>
-            <WorkspaceBuildLogs logs={failedBuildLogs} />
-          </Stack>
-        )}
+                  )
+                }
+              >
+                <AlertTitle>Workspace build failed</AlertTitle>
+                <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
+              </Alert>
+              <WorkspaceBuildLogs logs={failedBuildLogs} />
+            </Stack>
+          )}
 
-        {transitionStats !== undefined && (
-          <WorkspaceBuildProgress
-            workspace={workspace}
-            transitionStats={transitionStats}
-          />
-        )}
+          {transitionStats !== undefined && (
+            <WorkspaceBuildProgress
+              workspace={workspace}
+              transitionStats={transitionStats}
+            />
+          )}
 
-        {typeof resources !== "undefined" && resources.length > 0 && (
-          <Resources
-            resources={resources}
-            agentRow={(agent) => (
-              <AgentRow
-                key={agent.id}
-                agent={agent}
-                workspace={workspace}
-                sshPrefix={sshPrefix}
-                showApps={canUpdateWorkspace}
-                hideSSHButton={hideSSHButton}
-                hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-                serverVersion={serverVersion}
-                onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-              />
-            )}
-          />
-        )}
+          {typeof resources !== "undefined" && resources.length > 0 && (
+            <Resources
+              resources={resources}
+              agentRow={(agent) => (
+                <AgentRow
+                  key={agent.id}
+                  agent={agent}
+                  workspace={workspace}
+                  sshPrefix={sshPrefix}
+                  showApps={canUpdateWorkspace}
+                  hideSSHButton={hideSSHButton}
+                  hideVSCodeDesktopButton={hideVSCodeDesktopButton}
+                  serverVersion={serverVersion}
+                  onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+                />
+              )}
+            />
+          )}
 
-        {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-          <AlertBanner
-            severity="error"
-            error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
-          />
-        ) : (
-          <BuildsTable builds={builds} />
-        )}
-      </Stack>
-    </Margins>
+          {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
+            <ErrorAlert
+              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
+            />
+          ) : (
+            <BuildsTable builds={builds} />
+          )}
+        </Stack>
+      </Margins>
+    </>
   )
 }
 
@@ -272,12 +274,16 @@ const spacerWidth = 300
 
 export const useStyles = makeStyles((theme) => {
   return {
+    content: {
+      marginTop: theme.spacing(4),
+    },
+
     statusBadge: {
       marginLeft: theme.spacing(2),
     },
 
     actions: {
-      [theme.breakpoints.down("sm")]: {
+      [theme.breakpoints.down("md")]: {
         flexDirection: "column",
       },
     },

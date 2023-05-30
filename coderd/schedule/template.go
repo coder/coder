@@ -18,6 +18,10 @@ type TemplateScheduleOptions struct {
 	//
 	// If set, users cannot disable automatic workspace shutdown.
 	MaxTTL time.Duration `json:"max_ttl"`
+	// If FailureTTL is set, all failed workspaces will be stopped automatically after this time has elapsed.
+	FailureTTL time.Duration `json:"failure_ttl"`
+	// If InactivityTTL is set, all inactive workspaces will be deleted automatically after this time has elapsed.
+	InactivityTTL time.Duration `json:"inactivity_ttl"`
 }
 
 // TemplateScheduleStore provides an interface for retrieving template
@@ -47,9 +51,11 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 		UserAutostartEnabled: true,
 		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
-		// Disregard the value in the database, since MaxTTL is an enterprise
-		// feature.
-		MaxTTL: 0,
+		// Disregard the values in the database, since MaxTTL, FailureTTL, and InactivityTTL are enterprise
+		// features.
+		MaxTTL:        0,
+		FailureTTL:    0,
+		InactivityTTL: 0,
 	}, nil
 }
 
@@ -68,5 +74,7 @@ func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context
 		AllowUserAutostart: tpl.AllowUserAutostart,
 		AllowUserAutostop:  tpl.AllowUserAutostop,
 		MaxTTL:             tpl.MaxTTL,
+		FailureTTL:         tpl.FailureTTL,
+		InactivityTTL:      tpl.InactivityTTL,
 	})
 }

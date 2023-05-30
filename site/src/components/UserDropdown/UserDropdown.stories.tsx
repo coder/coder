@@ -1,4 +1,4 @@
-import Box from "@material-ui/core/Box"
+import Box from "@mui/material/Box"
 import { Story } from "@storybook/react"
 import { MockUser } from "../../testHelpers/entities"
 import { UserDropdown, UserDropdownProps } from "./UsersDropdown"

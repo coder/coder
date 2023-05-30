@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { Group } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FormFooter } from "components/FormFooter/FormFooter"
@@ -11,6 +11,7 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
 import * as Yup from "yup"
+import { Stack } from "components/Stack/Stack"
 
 type FormData = {
   name: string
@@ -45,38 +46,37 @@ const UpdateGroupForm: FC<{
   return (
     <FullPageForm title="Group settings">
       <form onSubmit={form.handleSubmit}>
-        <TextField
-          {...getFieldHelpers("name")}
-          onChange={onChangeTrimmed(form)}
-          autoComplete="name"
-          autoFocus
-          fullWidth
-          label="Name"
-          variant="outlined"
-        />
+        <Stack spacing={2.5}>
+          <TextField
+            {...getFieldHelpers("name")}
+            onChange={onChangeTrimmed(form)}
+            autoComplete="name"
+            autoFocus
+            fullWidth
+            label="Name"
+          />
 
-        <LazyIconField
-          {...getFieldHelpers("avatar_url")}
-          onChange={onChangeTrimmed(form)}
-          fullWidth
-          label={t("form.fields.icon")}
-          variant="outlined"
-          onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
-        />
+          <LazyIconField
+            {...getFieldHelpers("avatar_url")}
+            onChange={onChangeTrimmed(form)}
+            fullWidth
+            label={t("form.fields.icon")}
+            onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
+          />
 
-        <TextField
-          {...getFieldHelpers("quota_allowance")}
-          onChange={onChangeTrimmed(form)}
-          autoFocus
-          fullWidth
-          type="number"
-          label="Quota Allowance"
-          variant="outlined"
-        />
-        <span>
-          This group gives {form.values.quota_allowance} quota credits to each
-          of its members.
-        </span>
+          <TextField
+            {...getFieldHelpers(
+              "quota_allowance",
+              `This group gives ${form.values.quota_allowance} quota credits to each
+            of its members.`,
+            )}
+            onChange={onChangeTrimmed(form)}
+            autoFocus
+            fullWidth
+            type="number"
+            label="Quota Allowance"
+          />
+        </Stack>
 
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>

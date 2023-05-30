@@ -22,7 +22,8 @@ import (
 // Super unlikely, but it happened. See: https://github.com/coder/coder/runs/5375197003
 var openPortMutex sync.Mutex
 
-// Open creates a new PostgreSQL server using a Docker container.
+// Open creates a new PostgreSQL database instance.  With DB_FROM environment variable set, it clones a database
+// from the provided template.  With the environment variable unset, it creates a new Docker container running postgres.
 func Open() (string, func(), error) {
 	if os.Getenv("DB_FROM") != "" {
 		// In CI, creating a Docker container for each test is slow.
@@ -46,15 +47,17 @@ func Open() (string, func(), error) {
 			return "", nil, xerrors.Errorf("create db with template: %w", err)
 		}
 
-		deleteDB := func() {
-			ddb, _ := sql.Open("postgres", dbURL)
-			defer ddb.Close()
-			_, _ = ddb.Exec("DROP DATABASE " + dbName)
-		}
-
-		return "postgres://postgres:postgres@127.0.0.1:5432/" + dbName + "?sslmode=disable", deleteDB, nil
+		return "postgres://postgres:postgres@127.0.0.1:5432/" + dbName + "?sslmode=disable", func() {
+			// We don't need to clean anything up here... it's just a database in a container,
+			// so cleaning up the container will clean up the database.
+		}, nil
 	}
+	return OpenContainerized(0)
+}
 
+// OpenContainerized creates a new PostgreSQL server using a Docker container.  If port is nonzero, forward host traffic
+// to that port to the database.  If port is zero, allocate a free port from the OS.
+func OpenContainerized(port int) (string, func(), error) {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return "", nil, xerrors.Errorf("create pool: %w", err)
@@ -66,12 +69,14 @@ func Open() (string, func(), error) {
 	}
 
 	openPortMutex.Lock()
-	// Pick an explicit port on the host to connect to 5432.
-	// This is necessary so we can configure the port to only use ipv4.
-	port, err := getFreePort()
-	if err != nil {
-		openPortMutex.Unlock()
-		return "", nil, xerrors.Errorf("get free port: %w", err)
+	if port == 0 {
+		// Pick an explicit port on the host to connect to 5432.
+		// This is necessary so we can configure the port to only use ipv4.
+		port, err = getFreePort()
+		if err != nil {
+			openPortMutex.Unlock()
+			return "", nil, xerrors.Errorf("get free port: %w", err)
+		}
 	}
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{

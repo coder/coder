@@ -138,6 +138,7 @@ var (
 					rbac.ResourceUser.Type:      {rbac.ActionRead},
 					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:  {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceAPIKey.Type:    {rbac.WildcardSymbol},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},

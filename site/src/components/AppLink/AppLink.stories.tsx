@@ -5,6 +5,7 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceApp,
+  MockProxyLatencies,
 } from "testHelpers/entities"
 import { AppLink, AppLinkProps } from "./AppLink"
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
@@ -17,11 +18,15 @@ export default {
 const Template: Story<AppLinkProps> = (args) => (
   <ProxyContext.Provider
     value={{
+      proxyLatencies: MockProxyLatencies,
       proxy: getPreferredProxy(MockWorkspaceProxies, MockPrimaryWorkspaceProxy),
       proxies: MockWorkspaceProxies,
       isLoading: false,
       isFetched: true,
       setProxy: () => {
+        return
+      },
+      clearProxy: () => {
         return
       },
     }}

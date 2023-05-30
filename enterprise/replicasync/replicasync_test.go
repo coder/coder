@@ -38,7 +38,9 @@ func TestReplica(t *testing.T) {
 		})
 		require.NoError(t, err)
 		defer cancel()
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, nil)
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, nil)
 		require.NoError(t, err)
 		<-closeChan
 		_ = server.Close()
@@ -63,7 +65,9 @@ func TestReplica(t *testing.T) {
 			Primary:      true,
 		})
 		require.NoError(t, err)
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
 			RelayAddress: "http://169.254.169.254",
 		})
 		require.NoError(t, err)
@@ -104,7 +108,9 @@ func TestReplica(t *testing.T) {
 			Primary:      true,
 		})
 		require.NoError(t, err)
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
 			RelayAddress: "http://169.254.169.254",
 			TLSConfig:    tlsConfig,
 		})
@@ -128,7 +134,9 @@ func TestReplica(t *testing.T) {
 			Primary:      true,
 		})
 		require.NoError(t, err)
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
 			PeerTimeout:  1 * time.Millisecond,
 			RelayAddress: "http://127.0.0.1:1",
 		})
@@ -143,13 +151,15 @@ func TestReplica(t *testing.T) {
 		// Refresh when a new replica appears!
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, nil)
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, nil)
 		require.NoError(t, err)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer srv.Close()
-		peer, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
+		peer, err := db.InsertReplica(ctx, database.InsertReplicaParams{
 			ID:           uuid.New(),
 			RelayAddress: srv.URL,
 			UpdatedAt:    database.Now(),
@@ -175,7 +185,9 @@ func TestReplica(t *testing.T) {
 			Primary:   true,
 		})
 		require.NoError(t, err)
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
 			RelayAddress:    "google.com",
 			CleanupInterval: time.Millisecond,
 		})
@@ -189,6 +201,8 @@ func TestReplica(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all
 		// discover each other in parallel!
 		t.Parallel()
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
 		// This doesn't use the database fake because creating
 		// this many PostgreSQL connections takes some
 		// configuration tweaking.
@@ -203,7 +217,7 @@ func TestReplica(t *testing.T) {
 		count := 20
 		wg.Add(count)
 		for i := 0; i < count; i++ {
-			server, err := replicasync.New(context.Background(), logger, db, pubsub, &replicasync.Options{
+			server, err := replicasync.New(ctx, logger, db, pubsub, &replicasync.Options{
 				RelayAddress: srv.URL,
 			})
 			require.NoError(t, err)

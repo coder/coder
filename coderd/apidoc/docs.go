@@ -149,6 +149,7 @@ const docTemplate = `{
                 ],
                 "summary": "Get applications host",
                 "operationId": "get-applications-host",
+                "deprecated": true,
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -5092,6 +5093,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/deregister": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Deregister workspace proxy",
+                "operationId": "deregister-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Deregister workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.DeregisterWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceproxies/me/issue-signed-app-token": {
             "post": {
                 "security": [
@@ -5154,7 +5191,7 @@ const docTemplate = `{
                 "operationId": "register-workspace-proxy",
                 "parameters": [
                     {
-                        "description": "Issue signed app token request",
+                        "description": "Register workspace proxy request",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -5177,6 +5214,39 @@ const docTemplate = `{
             }
         },
         "/workspaceproxies/{workspaceproxy}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxy",
+                "operationId": "get-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                        }
+                    }
+                }
+            },
             "delete": {
                 "security": [
                     {
@@ -5206,6 +5276,51 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update workspace proxy",
+                "operationId": "update-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchWorkspaceProxy"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
                     }
                 }
@@ -5663,6 +5778,12 @@ const docTemplate = `{
                 "value"
             ],
             "properties": {
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetricLabel"
+                    }
+                },
                 "name": {
                     "type": "string"
                 },
@@ -5679,6 +5800,21 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "number"
+                }
+            }
+        },
+        "agentsdk.AgentMetricLabel": {
+            "type": "object",
+            "required": [
+                "name",
+                "value"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -5858,6 +5994,9 @@ const docTemplate = `{
             "properties": {
                 "expanded_directory": {
                     "type": "string"
+                },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "version": {
                     "type": "string"
@@ -6299,6 +6438,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentSubsystem": {
+            "type": "string",
+            "enum": [
+                "envbox"
+            ],
+            "x-enum-varnames": [
+                "AgentSubsystemEnvbox"
+            ]
+        },
         "codersdk.AppHostResponse": {
             "type": "object",
             "properties": {
@@ -6719,9 +6867,17 @@ const docTemplate = `{
                     "description": "DisplayName is the displayed name of the template.",
                     "type": "string"
                 },
+                "failure_ttl_ms": {
+                    "description": "FailureTTLMillis allows optionally specifying the max lifetime before Coder\nstops all resources for failed workspaces created from this template.",
+                    "type": "integer"
+                },
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
+                },
+                "inactivity_ttl_ms": {
+                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\ndeletes inactive workspaces created from this template.",
+                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
@@ -6917,7 +7073,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "organization_id",
                 "password",
                 "username"
             ],
@@ -7126,6 +7281,9 @@ const docTemplate = `{
         "codersdk.DangerousConfig": {
             "type": "object",
             "properties": {
+                "allow_all_cors": {
+                    "type": "boolean"
+                },
                 "allow_path_app_sharing": {
                     "type": "boolean"
                 },
@@ -7934,6 +8092,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "source_value": {
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -8062,6 +8223,33 @@ const docTemplate = `{
             "properties": {
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.PatchWorkspaceProxy": {
+            "type": "object",
+            "required": [
+                "display_name",
+                "icon",
+                "id",
+                "name"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "regenerate_token": {
+                    "type": "boolean"
                 }
             }
         },
@@ -8305,13 +8493,13 @@ const docTemplate = `{
         "codersdk.ProxyHealthStatus": {
             "type": "string",
             "enum": [
-                "reachable",
+                "ok",
                 "unreachable",
                 "unhealthy",
                 "unregistered"
             ],
             "x-enum-varnames": [
-                "ProxyReachable",
+                "ProxyHealthy",
                 "ProxyUnreachable",
                 "ProxyUnhealthy",
                 "ProxyUnregistered"
@@ -8698,12 +8886,19 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "failure_ttl_ms": {
+                    "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "type": "integer"
+                },
                 "icon": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "inactivity_ttl_ms": {
+                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",
@@ -8891,6 +9086,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "DEPRECATED_PARAMETERS"
+                        ],
+                        "$ref": "#/definitions/codersdk.TemplateVersionWarning"
+                    }
                 }
             }
         },
@@ -9028,6 +9232,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.TemplateVersionWarning": {
+            "type": "string",
+            "enum": [
+                "DEPRECATED_PARAMETERS"
+            ],
+            "x-enum-varnames": [
+                "TemplateVersionWarningDeprecatedParameters"
+            ]
         },
         "codersdk.TokenConfig": {
             "type": "object",
@@ -9306,6 +9519,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "deleting_at": {
+                    "description": "DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.\nWorkspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -9454,6 +9672,9 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
+                },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "troubleshooting_url": {
                     "type": "string"
@@ -10529,6 +10750,15 @@ const docTemplate = `{
                 }
             }
         },
+        "wsproxysdk.DeregisterWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "replica_id": {
+                    "description": "ReplicaID is a unique identifier for the replica of the proxy that is\nderegistering. It should be generated by the client on startup and\nshould've already been passed to the register endpoint.",
+                    "type": "string"
+                }
+            }
+        },
         "wsproxysdk.IssueSignedAppTokenResponse": {
             "type": "object",
             "properties": {
@@ -10580,6 +10810,12 @@ const docTemplate = `{
             "properties": {
                 "app_security_key": {
                     "type": "string"
+                },
+                "derp_mesh_key": {
+                    "type": "string"
+                },
+                "derp_region_id": {
+                    "type": "integer"
                 },
                 "sibling_replicas": {
                     "description": "SiblingReplicas is a list of all other replicas of the proxy that have\nnot timed out.",

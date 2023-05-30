@@ -8,8 +8,6 @@ Coder's networking does a best effort to make direct connections to a workspace.
 
 A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over ssh, a workspace app, port forwarding, etc.
 
-<!-- TODO: Might want to modify this diagram? -->
-
 ![ProxyDiagram](../images/workspaceproxy/proxydiagram.png)
 
 # Deploy a workspace proxy
@@ -27,7 +25,7 @@ Workspace proxies can be used in the browser by navigating to the user `Account 
 Create the workspace proxy and make sure to save the returned authentication token for said proxy. This is the token the workspace proxy will use to authenticate back to primary coderd.
 
 ```bash
-$ coder proxy create --name=newyork --display-name="USA East" --icon="/emojis/2194.png"
+$ coder wsproxy create --name=newyork --display-name="USA East" --icon="/emojis/2194.png"
 Workspace Proxy "newyork" created successfully. Save this token, it will not be shown again.
 Token: 2fb6500b-bb47-4783-a0db-dedde895b865:05271b4ef9432bac14c02b3c56b5a2d7f05453718a1f85ba7e772c0a096c7175
 ```
@@ -35,17 +33,17 @@ Token: 2fb6500b-bb47-4783-a0db-dedde895b865:05271b4ef9432bac14c02b3c56b5a2d7f054
 To verify it was created.
 
 ```bash
-$ coder proxy ls
+$ coder wsproxy ls
 NAME         URL                    STATUS STATUS
 newyork                             unregistered
 ```
 
 ## Step 2: Deploy the proxy
 
-Deploying the workspace proxy will also register the proxy with coderd and make the workspace proxy usable. If the proxy deployment is successful, `coder proxy ls` will show an `ok` status code:
+Deploying the workspace proxy will also register the proxy with coderd and make the workspace proxy usable. If the proxy deployment is successful, `coder wsproxy ls` will show an `ok` status code:
 
 ```
-$ coder proxy lsPM
+$ coder wsproxy ls
 NAME              URL                           STATUS STATUS
 brazil-saopaulo   https://brazil.example.com  ok
 europe-frankfurt  https://europe.example.com  ok
@@ -56,17 +54,12 @@ Other Status codes:
 
 - `unregistered` : The workspace proxy was created, and not yet deployed
 - `unreachable` : The workspace proxy was registered, but is not responding. Likely the proxy went offline.
-- `unhealthy` : The workspace proxy is reachable, but has some issue that is preventing the proxy from being used. `coder proxy ls` should show the error message.
+- `unhealthy` : The workspace proxy is reachable, but has some issue that is preventing the proxy from being used. `coder wsproxy ls` should show the error message.
 - `ok` : The workspace proxy is healthy and working properly!
 
 ### Configuration
 
-<!--
- I am not sure the best way to present this.
- Ideally in the future we can auto sync some of the settings with coderd.
- -->
-
-Workspace proxy configuration overlaps with a subset of the coderd configuration. To see the full list of configuration options: `coder proxy server --help`
+Workspace proxy configuration overlaps with a subset of the coderd configuration. To see the full list of configuration options: `coder wsproxy server --help`
 
 ```bash
 # Proxy specific configuration. These are REQUIRED
@@ -94,7 +87,13 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 
 ```bash
 # Set configuration options via environment variables, a config file, or cmd flags
-coder proxy server
+coder wsproxy server
 ```
 
-<!-- Additional run options? -->
+### Selecting a proxy
+
+Users can navigate to their account settings to select a workspace proxy. Workspace proxy preferences are cached by the web browser. If a proxy goes offline, the session will fall back to the primary proxy. This could take up to 60 seconds.
+
+![Workspace proxy picker](../images/admin/workspace-proxy-picker.png)
+
+> In a future release, Coder will automatically pick the closest workspace proxy for each user, based on browser ping.

@@ -1,12 +1,13 @@
-import Box from "@material-ui/core/Box"
-import Button from "@material-ui/core/Button"
-import Paper from "@material-ui/core/Paper"
-import { makeStyles } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import Paper from "@mui/material/Paper"
+import { makeStyles } from "@mui/styles"
 import { License } from "api/typesGenerated"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
 import dayjs from "dayjs"
 import { useState } from "react"
+import { Pill } from "components/Pill/Pill"
+import { compareAsc } from "date-fns"
 
 type LicenseCardProps = {
   license: License
@@ -30,12 +31,7 @@ export const LicenseCard = ({
   >(undefined)
 
   return (
-    <Paper
-      variant="outlined"
-      key={license.id}
-      elevation={2}
-      className={styles.licenseCard}
-    >
+    <Paper key={license.id} elevation={2} className={styles.licenseCard}>
       <ConfirmDialog
         type="info"
         hideCancel={false}
@@ -48,46 +44,62 @@ export const LicenseCard = ({
           setLicenseIDMarkedForRemoval(undefined)
         }}
         onClose={() => setLicenseIDMarkedForRemoval(undefined)}
-        title="Confirm license removal"
+        title="Confirm License Removal"
         confirmLoading={isRemoving}
         confirmText="Remove"
-        description="Are you sure you want to remove this license?"
+        description="Removing this license will disable all Enterprise features. You add a new license at any time."
       />
       <Stack
-        direction="column"
+        direction="row"
+        spacing={2}
         className={styles.cardContent}
-        justifyContent="space-between"
+        justifyContent="left"
+        alignItems="center"
       >
-        <Box className={styles.licenseId}>
-          <span>#{license.id}</span>
-        </Box>
-        <Stack className={styles.accountType}>
-          <span>{license.claims.trial ? "Trial" : "Enterprise"}</span>
-        </Stack>
+        <span className={styles.licenseId}>#{license.id}</span>
+        <span className={styles.accountType}>
+          {license.claims.trial ? "Trial" : "Enterprise"}
+        </span>
         <Stack
           direction="row"
-          justifyContent="space-between"
+          justifyContent="right"
+          spacing={8}
           alignItems="self-end"
+          style={{
+            flex: 1,
+          }}
         >
-          <Stack direction="column" spacing={0} className={styles.userLimit}>
-            <span className={styles.secondaryMaincolor}>Users</span>
-            <div className={styles.primaryMainColor}>
-              <span className={styles.userLimitActual}>{userLimitActual}</span>
-              <span className={styles.userLimitLimit}>
-                {` / ${userLimitLimit || "Unlimited"}`}
-              </span>
-            </div>
-          </Stack>
-
           <Stack direction="column" spacing={0} alignItems="center">
-            <span className={styles.secondaryMaincolor}>Valid until</span>
-            <span className={styles.primaryMainColor}>
+            <span className={styles.secondaryMaincolor}>Users</span>
+            <span className={styles.userLimit}>
+              {userLimitActual} {` / ${userLimitLimit || "Unlimited"}`}
+            </span>
+          </Stack>
+          <Stack
+            direction="column"
+            spacing={0}
+            alignItems="center"
+            width="134px" // standardize width of date column
+          >
+            {compareAsc(
+              new Date(license.claims.license_expires * 1000),
+              new Date(),
+            ) < 1 ? (
+              <Pill
+                className={styles.expiredBadge}
+                text="Expired"
+                type="error"
+              />
+            ) : (
+              <span className={styles.secondaryMaincolor}>Valid Until</span>
+            )}
+            <span className={styles.licenseExpires}>
               {dayjs
                 .unix(license.claims.license_expires)
                 .format("MMMM D, YYYY")}
             </span>
           </Stack>
-          <div className={styles.actions}>
+          <Stack spacing={2}>
             <Button
               className={styles.removeButton}
               variant="text"
@@ -96,7 +108,7 @@ export const LicenseCard = ({
             >
               Remove
             </Button>
-          </div>
+          </Stack>
         </Stack>
       </Stack>
     </Paper>
@@ -105,41 +117,32 @@ export const LicenseCard = ({
 
 const useStyles = makeStyles((theme) => ({
   userLimit: {
-    width: "33%",
-  },
-  actions: {
-    width: "33%",
-    textAlign: "right",
-  },
-  userLimitActual: {
-    color: theme.palette.primary.main,
-  },
-  userLimitLimit: {
-    color: theme.palette.secondary.main,
-    fontWeight: 600,
+    color: theme.palette.text.primary,
   },
   licenseCard: {
+    ...theme.typography.body2,
     padding: theme.spacing(2),
   },
-  cardContent: {
-    minHeight: 100,
-  },
+  cardContent: {},
   licenseId: {
     color: theme.palette.secondary.main,
+    fontSize: 18,
     fontWeight: 600,
   },
   accountType: {
     fontWeight: 600,
-    fontSize: theme.typography.h4.fontSize,
-    justifyContent: "center",
+    fontSize: 18,
     alignItems: "center",
     textTransform: "capitalize",
   },
-  primaryMainColor: {
-    color: theme.palette.primary.main,
+  licenseExpires: {
+    color: theme.palette.text.secondary,
+  },
+  expiredBadge: {
+    marginBottom: theme.spacing(0.5),
   },
   secondaryMaincolor: {
-    color: theme.palette.secondary.main,
+    color: theme.palette.text.secondary,
   },
   removeButton: {
     height: "17px",

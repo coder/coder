@@ -25,6 +25,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/tracing"
@@ -70,6 +71,10 @@ type Options struct {
 	DERPServerRelayAddress string
 
 	ProxySessionToken string
+	// AllowAllCors will set all CORs headers to '*'.
+	// By default, CORs is set to accept external requests
+	// from the dashboardURL. This should only be used in development.
+	AllowAllCors bool
 }
 
 func (o *Options) Validate() error {
@@ -251,6 +256,10 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	derpHandler := derphttp.Handler(derpServer)
 	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupport(derpServer, derpHandler)
 
+	// The primary coderd dashboard needs to make some GET requests to
+	// the workspace proxies to check latency.
+	corsMW := httpmw.Cors(opts.AllowAllCors, opts.DashboardURL.String())
+
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)
 	// Persistent middlewares to all routes
@@ -263,6 +272,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		httpmw.Logger(s.Logger),
 		httpmw.Prometheus(s.PrometheusRegistry),
+		corsMW,
 
 		// HandleSubdomain is a middleware that handles all requests to the
 		// subdomain-based workspace apps.
@@ -309,13 +319,22 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.Get("/healthz-report", s.healthReport)
 	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       404,
-			Title:        "Route Not Found",
-			Description:  "The route you requested does not exist on this workspace proxy. Maybe you intended to make this request to the primary dashboard? Click below to be redirected to the primary site.",
+			Title:      "Head to the Dashboard",
+			Status:     http.StatusBadRequest,
+			HideStatus: true,
+			Description: "Workspace Proxies route traffic in terminals and apps directly to your workspace. " +
+				"This page must be loaded from the dashboard. Click to be redirected!",
 			RetryEnabled: false,
 			DashboardURL: opts.DashboardURL.String(),
 		})
 	})
+
+	// See coderd/coderd.go for why we need this.
+	rootRouter := chi.NewRouter()
+	// Make sure to add the cors middleware to the latency check route.
+	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck(opts.AllowAllCors, s.DashboardURL, s.AppServer.AccessURL)).ServeHTTP)
+	rootRouter.Mount("/", r)
+	s.Handler = rootRouter
 
 	return s, nil
 }
@@ -389,6 +408,16 @@ func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {
 func (s *Server) healthReport(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var report codersdk.ProxyHealthReport
+
+	// This is to catch edge cases where the server is shutting down, but might
+	// still serve a web request that returns "healthy". This is mainly just for
+	// unit tests, as shutting down the test webserver is tied to the lifecycle
+	// of the test. In practice, the webserver is tied to the lifecycle of the
+	// app, so the webserver AND the proxy will be shut down at the same time.
+	if s.ctx.Err() != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, "workspace proxy in middle of shutting down")
+		return
+	}
 
 	// Hit the build info to do basic version checking.
 	primaryBuild, err := s.SDKClient.SDKClient.BuildInfo(ctx)

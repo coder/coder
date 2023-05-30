@@ -175,12 +175,76 @@ func TestRegions(t *testing.T) {
 		require.Error(t, err)
 		require.Empty(t, regions)
 	})
+
+	t.Run("GoingAway", func(t *testing.T) {
+		t.Skip("This is flakey in CI because it relies on internal go routine timing. Should refactor.")
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentMoons),
+			"*",
+		}
+
+		db, pubsub := dbtestutil.NewDB(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AppHostname:      appHostname,
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: dv,
+			},
+			// The interval is set to 1 hour so the proxy health
+			// check will never happen manually. All checks will be
+			// forced updates.
+			ProxyHealthInterval: time.Hour,
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		})
+
+		const proxyName = "testproxy"
+		proxy := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+			Name: proxyName,
+		})
+		_ = proxy
+
+		require.Eventuallyf(t, func() bool {
+			proxy, err := client.WorkspaceProxyByName(ctx, proxyName)
+			if err != nil {
+				// We are testing the going away, not the initial healthy.
+				// Just force an update to change this to healthy.
+				_ = api.ProxyHealth.ForceUpdate(ctx)
+				return false
+			}
+			return proxy.Status.Status == codersdk.ProxyHealthy
+		}, testutil.WaitShort, testutil.IntervalFast, "proxy never became healthy")
+
+		_ = proxy.Close()
+		// The proxy should tell the primary on close that is is no longer healthy.
+		require.Eventuallyf(t, func() bool {
+			proxy, err := client.WorkspaceProxyByName(ctx, proxyName)
+			if err != nil {
+				return false
+			}
+			return proxy.Status.Status == codersdk.ProxyUnhealthy
+		}, testutil.WaitShort, testutil.IntervalFast, "proxy never became unhealthy after close")
+	})
 }
 
 func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Parallel()
 
-	t.Run("create", func(t *testing.T) {
+	t.Run("CreateAndUpdate", func(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
@@ -206,14 +270,33 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxies, err := client.WorkspaceProxies(ctx)
+		found, err := client.WorkspaceProxyByID(ctx, proxyRes.Proxy.ID)
 		require.NoError(t, err)
-		require.Len(t, proxies, 1)
-		require.Equal(t, proxyRes.Proxy.ID, proxies[0].ID)
+		// This will be different, so set it to the same
+		found.Status = proxyRes.Proxy.Status
+		require.Equal(t, proxyRes.Proxy, found, "expected proxy")
 		require.NotEmpty(t, proxyRes.ProxyToken)
+
+		// Update the proxy
+		expName := namesgenerator.GetRandomName(1)
+		expDisplayName := namesgenerator.GetRandomName(1)
+		expIcon := namesgenerator.GetRandomName(1)
+		_, err = client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
+			ID:          proxyRes.Proxy.ID,
+			Name:        expName,
+			DisplayName: expDisplayName,
+			Icon:        expIcon,
+		})
+		require.NoError(t, err, "expected no error updating proxy")
+
+		found, err = client.WorkspaceProxyByID(ctx, proxyRes.Proxy.ID)
+		require.NoError(t, err)
+		require.Equal(t, expName, found.Name, "name")
+		require.Equal(t, expDisplayName, found.DisplayName, "display name")
+		require.Equal(t, expIcon, found.Icon, "icon")
 	})
 
-	t.Run("delete", func(t *testing.T) {
+	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)

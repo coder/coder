@@ -81,8 +81,8 @@ message RichParameter {
     repeated RichParameterOption options = 7;
     string validation_regex = 8;
     string validation_error = 9;
-    int32 validation_min = 10;
-    int32 validation_max = 11;
+    optional int32 validation_min = 10;
+    optional int32 validation_max = 11;
     string validation_monotonic = 12;
     bool required = 13;
     string legacy_variable_name = 14;
@@ -241,6 +241,7 @@ message Provision {
         string template_name = 8;
         string template_version = 9;
         string workspace_owner_oidc_access_token = 10;
+        string workspace_owner_session_token = 11;
     }
 
     // Config represents execution configuration shared by both Plan and

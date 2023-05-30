@@ -231,7 +231,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				closers.Add(closeFunc)
 			}
 
-			opts := &wsproxy.Options{
+			proxy, err := wsproxy.New(ctx, &wsproxy.Options{
 				Logger:                 logger,
 				HTTPClient:             httpClient,
 				DashboardURL:           primaryAccessURL.Value(),
@@ -244,17 +244,15 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				APIRateLimit:           int(cfg.RateLimit.API.Value()),
 				SecureAuthCookie:       cfg.SecureAuthCookie.Value(),
 				DisablePathApps:        cfg.DisablePathApps.Value(),
+				ProxySessionToken:      proxySessionToken.Value(),
+				AllowAllCors:           cfg.Dangerous.AllowAllCors.Value(),
 				DERPEnabled:            cfg.DERP.Server.Enable.Value(),
 				DERPServerRelayAddress: cfg.DERP.Server.RelayURL.String(),
-				ProxySessionToken:      proxySessionToken.Value(),
-			}
-			if httpServers.TLSConfig != nil {
-				opts.TLSCertificates = httpServers.TLSConfig.Certificates
-			}
-			proxy, err := wsproxy.New(ctx, opts)
+			})
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
 			}
+			closers.Add(func() { _ = proxy.Close() })
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()

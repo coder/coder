@@ -1,6 +1,6 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import ArrowRightAltOutlined from "@material-ui/icons/ArrowRightAltOutlined"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
 import { useMachine } from "@xstate/react"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Paywall } from "components/Paywall/Paywall"
@@ -38,17 +38,18 @@ export const TemplatePermissionsPage: FC<
             cta={
               <Stack direction="row" alignItems="center">
                 <Link
-                  underline="none"
                   href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <Button size="small" startIcon={<ArrowRightAltOutlined />}>
+                  <Button
+                    startIcon={<ArrowRightAltOutlined />}
+                    variant="contained"
+                  >
                     See how to upgrade
                   </Button>
                 </Link>
                 <Link
-                  underline="none"
                   href="https://coder.com/docs/coder-oss/latest/admin/rbac"
                   target="_blank"
                   rel="noreferrer"

@@ -2,21 +2,25 @@ import { Region } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { Avatar } from "components/Avatar/Avatar"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
-import TableCell from "@material-ui/core/TableCell"
-import TableRow from "@material-ui/core/TableRow"
+import TableCell from "@mui/material/TableCell"
+import TableRow from "@mui/material/TableRow"
 import { FC } from "react"
 import {
   HealthyBadge,
   NotHealthyBadge,
 } from "components/DeploySettingsLayout/Badges"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
+import { ProxyLatencyReport } from "contexts/useProxyLatency"
+import { getLatencyColor } from "utils/colors"
+import { alpha } from "@mui/material/styles"
 
 export const ProxyRow: FC<{
+  latency?: ProxyLatencyReport
   proxy: Region
   onSelectRegion: (proxy: Region) => void
   preferred: boolean
-}> = ({ proxy, onSelectRegion, preferred }) => {
+}> = ({ proxy, onSelectRegion, preferred, latency }) => {
   const styles = useStyles()
 
   const clickable = useClickableTableRow(() => {
@@ -43,15 +47,32 @@ export const ProxyRow: FC<{
           }
           avatar={
             proxy.icon_url !== "" && (
-              <Avatar src={proxy.icon_url} variant="square" fitImage />
+              <Avatar
+                size="sm"
+                src={proxy.icon_url}
+                variant="square"
+                fitImage
+              />
             )
           }
         />
       </TableCell>
 
-      <TableCell>{proxy.path_app_url}</TableCell>
-      <TableCell>
+      <TableCell sx={{ fontSize: 14 }}>{proxy.path_app_url}</TableCell>
+      <TableCell sx={{ fontSize: 14 }}>
         <ProxyStatus proxy={proxy} />
+      </TableCell>
+      <TableCell
+        sx={{
+          fontSize: 14,
+          textAlign: "right",
+          color: (theme) =>
+            latency
+              ? getLatencyColor(theme, latency.latencyMS)
+              : theme.palette.text.secondary,
+        }}
+      >
+        {latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
       </TableCell>
     </TableRow>
   )
@@ -70,9 +91,11 @@ const ProxyStatus: FC<{
 
 const useStyles = makeStyles((theme) => ({
   preferredrow: {
-    // TODO: What is the best way to show what proxy is currently being used?
-    backgroundColor: theme.palette.secondary.main,
-    outline: `3px solid ${theme.palette.secondary.light}`,
-    outlineOffset: -3,
+    backgroundColor: alpha(
+      theme.palette.primary.main,
+      theme.palette.action.hoverOpacity,
+    ),
+    outline: `1px solid ${theme.palette.primary.main}`,
+    outlineOffset: "-1px",
   },
 }))

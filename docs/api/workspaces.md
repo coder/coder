@@ -56,6 +56,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 {
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "deleting_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -143,6 +144,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
+            "subsystem": "envbox",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
@@ -228,6 +230,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 {
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "deleting_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -315,6 +318,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
+            "subsystem": "envbox",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
@@ -423,6 +427,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
     {
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
+      "deleting_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_build": {
@@ -506,6 +511,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "startup_script": "string",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
+                "subsystem": "envbox",
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",
                 "version": "string"
@@ -592,6 +598,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 {
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "deleting_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -679,6 +686,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
+            "subsystem": "envbox",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"

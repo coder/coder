@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -18,7 +19,7 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func TestScaleTest(t *testing.T) {
+func TestScaleTestCreateWorkspaces(t *testing.T) {
 	t.Skipf("This test is flakey. See https://github.com/coder/coder/issues/4942")
 	t.Parallel()
 
@@ -197,4 +198,30 @@ param3: 1
 		require.NoError(t, err)
 		require.Len(t, users.Users, 1)
 	})
+}
+
+// This test just validates that the CLI command accepts its known arguments.
+// A more comprehensive test is performed in workspacetraffic/run_test.go
+func TestScaleTestWorkspaceTraffic(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancelFunc()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "scaletest", "workspace-traffic",
+		"--timeout", "1s",
+		"--bytes-per-tick", "1024",
+		"--tick-interval", "100ms",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+	)
+	clitest.SetupConfig(t, client, root)
+	var stdout, stderr bytes.Buffer
+	inv.Stdout = &stdout
+	inv.Stderr = &stderr
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "no scaletest workspaces exist")
 }

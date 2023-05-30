@@ -1,4 +1,4 @@
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import { OutdatedHelpTooltip } from "components/Tooltips"
 import { FC, useRef, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
@@ -12,13 +12,15 @@ import { Workspace } from "../../api/typesGenerated"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import upperFirst from "lodash/upperFirst"
 import { autostartDisplay, autostopDisplay } from "utils/schedule"
-import IconButton from "@material-ui/core/IconButton"
-import RemoveIcon from "@material-ui/icons/RemoveOutlined"
-import { makeStyles } from "@material-ui/core/styles"
-import AddIcon from "@material-ui/icons/AddOutlined"
-import Popover from "@material-ui/core/Popover"
-import TextField from "@material-ui/core/TextField"
-import Button from "@material-ui/core/Button"
+import IconButton from "@mui/material/IconButton"
+import RemoveIcon from "@mui/icons-material/RemoveOutlined"
+import { makeStyles } from "@mui/styles"
+import AddIcon from "@mui/icons-material/AddOutlined"
+import Popover from "@mui/material/Popover"
+import TextField from "@mui/material/TextField"
+import Button from "@mui/material/Button"
+import { WorkspaceStatusText } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
+import { ImpendingDeletionStat } from "components/WorkspaceDeletion"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -67,8 +69,15 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
 
   return (
     <>
-      <Stats aria-label={Language.workspaceDetails}>
+      <Stats aria-label={Language.workspaceDetails} className={styles.stats}>
         <StatsItem
+          className={styles.statsItem}
+          label="Status"
+          value={<WorkspaceStatusText workspace={workspace} />}
+        />
+        <ImpendingDeletionStat workspace={workspace} />
+        <StatsItem
+          className={styles.statsItem}
           label={Language.templateLabel}
           value={
             <Link
@@ -80,6 +89,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           }
         />
         <StatsItem
+          className={styles.statsItem}
           label={Language.versionLabel}
           value={
             <>
@@ -100,6 +110,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           }
         />
         <StatsItem
+          className={styles.statsItem}
           label={Language.lastBuiltLabel}
           value={
             <>
@@ -110,6 +121,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         />
         {shouldDisplayScheduleLabel(workspace) && (
           <StatsItem
+            className={styles.statsItem}
             label={getScheduleLabel(workspace)}
             value={
               <span className={styles.scheduleValue}>
@@ -152,6 +164,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         )}
         {workspace.latest_build.daily_cost > 0 && (
           <StatsItem
+            className={styles.statsItem}
             label={Language.costLabel}
             value={`${workspace.latest_build.daily_cost} ${
               quota_budget ? `/ ${quota_budget}` : ""
@@ -206,7 +219,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           />
 
           <Button
-            variant="outlined"
             size="small"
             className={styles.timePopoverButton}
             type="submit"
@@ -264,7 +276,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           />
 
           <Button
-            variant="outlined"
             size="small"
             className={styles.timePopoverButton}
             type="submit"
@@ -296,6 +307,32 @@ const getScheduleLabel = (workspace: Workspace) => {
 }
 
 const useStyles = makeStyles((theme) => ({
+  stats: {
+    padding: 0,
+    border: 0,
+    gap: theme.spacing(6),
+    rowGap: theme.spacing(3),
+    flex: 1,
+
+    [theme.breakpoints.down("md")]: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-start",
+      gap: theme.spacing(1),
+    },
+  },
+
+  statsItem: {
+    flexDirection: "column",
+    gap: 0,
+    padding: 0,
+
+    "& > span:first-of-type": {
+      fontSize: 12,
+      fontWeight: 500,
+    },
+  },
+
   scheduleValue: {
     display: "flex",
     alignItems: "center",
@@ -311,6 +348,8 @@ const useStyles = makeStyles((theme) => ({
   scheduleButton: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: 4,
+    width: 20,
+    height: 20,
 
     "& svg.MuiSvgIcon-root": {
       width: theme.spacing(1.5),

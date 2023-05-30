@@ -1,6 +1,10 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import { MockWorkspace, MockWorkspaceResource } from "testHelpers/entities"
+import {
+  MockProxyLatencies,
+  MockWorkspace,
+  MockWorkspaceResource,
+} from "testHelpers/entities"
 import { AgentRow } from "./AgentRow"
 import { ResourceCard, ResourceCardProps } from "./ResourceCard"
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
@@ -18,11 +22,15 @@ Example.args = {
   agentRow: (agent) => (
     <ProxyContext.Provider
       value={{
+        proxyLatencies: MockProxyLatencies,
         proxy: getPreferredProxy([], undefined),
         proxies: [],
         isLoading: false,
         isFetched: true,
         setProxy: () => {
+          return
+        },
+        clearProxy: () => {
           return
         },
       }}
@@ -84,11 +92,15 @@ BunchOfMetadata.args = {
   agentRow: (agent) => (
     <ProxyContext.Provider
       value={{
+        proxyLatencies: MockProxyLatencies,
         proxy: getPreferredProxy([], undefined),
         proxies: [],
         isLoading: false,
         isFetched: true,
         setProxy: () => {
+          return
+        },
+        clearProxy: () => {
           return
         },
       }}

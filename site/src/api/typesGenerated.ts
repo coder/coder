@@ -141,7 +141,6 @@ export interface BuildInfoResponse {
 
 // From codersdk/parameters.go
 export interface ComputedParameter extends Parameter {
-  readonly source_value: string
   readonly schema_id: string
   readonly default_source_value: boolean
 }
@@ -194,6 +193,8 @@ export interface CreateTemplateRequest {
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
+  readonly failure_ttl_ms?: number
+  readonly inactivity_ttl_ms?: number
 }
 
 // From codersdk/templateversions.go
@@ -262,12 +263,6 @@ export interface CreateWorkspaceProxyRequest {
   readonly icon: string
 }
 
-// From codersdk/workspaceproxy.go
-export interface CreateWorkspaceProxyResponse {
-  readonly proxy: WorkspaceProxy
-  readonly proxy_token: string
-}
-
 // From codersdk/organizations.go
 export interface CreateWorkspaceRequest {
   readonly template_id: string
@@ -317,6 +312,7 @@ export interface DERPServerConfig {
 export interface DangerousConfig {
   readonly allow_path_app_sharing: boolean
   readonly allow_path_app_site_owner_access: boolean
+  readonly allow_all_cors: boolean
 }
 
 // From codersdk/deployment.go
@@ -593,6 +589,7 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
   readonly created_at: string
   readonly updated_at: string
+  readonly source_value: string
 }
 
 // From codersdk/parameters.go
@@ -628,6 +625,15 @@ export interface PatchGroupRequest {
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
   readonly name: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface PatchWorkspaceProxy {
+  readonly id: string
+  readonly name: string
+  readonly display_name: string
+  readonly icon: string
+  readonly regenerate_token: boolean
 }
 
 // From codersdk/deployment.go
@@ -841,6 +847,8 @@ export interface Template {
   readonly allow_user_autostart: boolean
   readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
+  readonly failure_ttl_ms: number
+  readonly inactivity_ttl_ms: number
 }
 
 // From codersdk/templates.go
@@ -892,6 +900,7 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User
+  readonly warnings?: TemplateVersionWarning[]
 }
 
 // From codersdk/templateversions.go
@@ -1010,6 +1019,8 @@ export interface UpdateTemplateMeta {
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
+  readonly failure_ttl_ms?: number
+  readonly inactivity_ttl_ms?: number
 }
 
 // From codersdk/users.go
@@ -1026,6 +1037,12 @@ export interface UpdateUserProfileRequest {
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string
+}
+
+// From codersdk/workspaceproxy.go
+export interface UpdateWorkspaceProxyResponse {
+  readonly proxy: WorkspaceProxy
+  readonly proxy_token: string
 }
 
 // From codersdk/workspaces.go
@@ -1098,6 +1115,7 @@ export interface Workspace {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly last_used_at: string
+  readonly deleting_at?: string
 }
 
 // From codersdk/workspaceagents.go
@@ -1130,6 +1148,7 @@ export interface WorkspaceAgent {
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
+  readonly subsystem: AgentSubsystem
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1325,6 +1344,10 @@ export interface WorkspacesResponse {
 export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
+// From codersdk/workspaceagents.go
+export type AgentSubsystem = "envbox"
+export const AgentSubsystems: AgentSubsystem[] = ["envbox"]
+
 // From codersdk/audit.go
 export type AuditAction =
   | "create"
@@ -1378,7 +1401,6 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
-  | "workspace_actions"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
@@ -1391,7 +1413,6 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
-  "workspace_actions",
   "workspace_proxy",
 ]
 
@@ -1483,12 +1504,12 @@ export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
 
 // From codersdk/workspaceproxy.go
 export type ProxyHealthStatus =
-  | "reachable"
+  | "ok"
   | "unhealthy"
   | "unreachable"
   | "unregistered"
 export const ProxyHealthStatuses: ProxyHealthStatus[] = [
-  "reachable",
+  "ok",
   "unhealthy",
   "unreachable",
   "unregistered",
@@ -1577,6 +1598,12 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"
 export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
+
+// From codersdk/templateversions.go
+export type TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+export const TemplateVersionWarnings: TemplateVersionWarning[] = [
+  "DEPRECATED_PARAMETERS",
+]
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

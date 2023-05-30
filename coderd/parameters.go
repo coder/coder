@@ -206,6 +206,7 @@ func convertParameterValue(parameterValue database.ParameterValue) codersdk.Para
 		Name:              parameterValue.Name,
 		SourceScheme:      codersdk.ParameterSourceScheme(parameterValue.SourceScheme),
 		DestinationScheme: codersdk.ParameterDestinationScheme(parameterValue.DestinationScheme),
+		SourceValue:       parameterValue.SourceValue,
 	}
 }
 

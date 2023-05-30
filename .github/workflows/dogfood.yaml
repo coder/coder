@@ -6,9 +6,10 @@ on:
       - main
     paths:
       - "dogfood/**"
-  pull_request:
-    paths:
-      - "dogfood/**"
+  # Uncomment these lines when testing with CI.
+  # pull_request:
+  #   paths:
+  #     - "dogfood/**"
   workflow_dispatch:
 
 jobs:
@@ -48,6 +49,7 @@ jobs:
           cache-from: type=registry,ref=codercom/oss-dogfood:latest
           cache-to: type=inline
   deploy_template:
+    needs: deploy_image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

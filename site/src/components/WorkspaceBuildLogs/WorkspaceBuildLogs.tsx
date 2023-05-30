@@ -1,9 +1,10 @@
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import dayjs from "dayjs"
 import { FC, Fragment } from "react"
 import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { Logs } from "../Logs/Logs"
+import { Theme } from "@mui/material/styles"
 
 const Language = {
   seconds: "seconds",
@@ -111,7 +112,7 @@ const useStyles = makeStyles<
     alignItems: "center",
     fontFamily: "Inter",
 
-    "&:first-child": {
+    "&:first-of-type": {
       borderTopLeftRadius: theme.shape.borderRadius,
       borderTopRightRadius: theme.shape.borderRadius,
       borderTop: 0,

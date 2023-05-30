@@ -46,7 +46,6 @@ const (
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
-	FeatureWorkspaceActions           FeatureName = "workspace_actions"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -62,7 +61,6 @@ var FeatureNames = []FeatureName{
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
-	FeatureWorkspaceActions,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -332,6 +330,7 @@ type LoggingConfig struct {
 type DangerousConfig struct {
 	AllowPathAppSharing         clibase.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
 	AllowPathAppSiteOwnerAccess clibase.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+	AllowAllCors                clibase.Bool `json:"allow_all_cors" typescript:",notnull"`
 }
 
 const (
@@ -1176,6 +1175,16 @@ when required by your organization's security policy.`,
 		},
 		// ☢️ Dangerous settings
 		{
+			Name:        "DANGEROUS: Allow all CORs requests",
+			Description: "For security reasons, CORs requests are blocked. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
+			Flag:        "dangerous-allow-cors-requests",
+			Env:         "CODER_DANGEROUS_ALLOW_CORS_REQUESTS",
+			Hidden:      true, // Hidden, should only be used by yarn dev server
+			Value:       &c.Dangerous.AllowAllCors,
+			Group:       &deploymentGroupDangerous,
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
 			Name:        "DANGEROUS: Allow Path App Sharing",
 			Description: "Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
 			Flag:        "dangerous-allow-path-app-sharing",
@@ -1358,7 +1367,7 @@ when required by your organization's security policy.`,
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
 			Env:         "CODER_BROWSER_ONLY",
-			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationExternalProxies, "true"),
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true"),
 			Value:       &c.BrowserOnly,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "browserOnly",

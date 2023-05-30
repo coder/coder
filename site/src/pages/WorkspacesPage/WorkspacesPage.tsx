@@ -10,6 +10,7 @@ import { WorkspacesPageView } from "./WorkspacesPageView"
 const WorkspacesPage: FC = () => {
   const filter = useFilter(workspaceFilterQuery.me)
   const pagination = usePagination()
+
   const { data, error, queryKey } = useWorkspacesData({
     ...pagination,
     ...filter,

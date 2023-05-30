@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"os/signal"
 	"strconv"
@@ -46,6 +47,10 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			example{
 				Description: "Port forward multiple ports (TCP or UDP) in condensed syntax",
 				Command:     "coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012",
+			},
+			example{
+				Description: "Port forward specifying the local address to bind to",
+				Command:     "coder port-forward <workspace> --tcp 1.2.3.4:8080:8080",
 			},
 		),
 		Middleware: clibase.Chain(
@@ -255,9 +260,9 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 			for _, port := range ports {
 				specs = append(specs, portForwardSpec{
 					listenNetwork: "tcp",
-					listenAddress: fmt.Sprintf("127.0.0.1:%v", port.local),
+					listenAddress: port.local.String(),
 					dialNetwork:   "tcp",
-					dialAddress:   fmt.Sprintf("127.0.0.1:%v", port.remote),
+					dialAddress:   port.remote.String(),
 				})
 			}
 		}
@@ -273,9 +278,9 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 			for _, port := range ports {
 				specs = append(specs, portForwardSpec{
 					listenNetwork: "udp",
-					listenAddress: fmt.Sprintf("127.0.0.1:%v", port.local),
+					listenAddress: port.local.String(),
 					dialNetwork:   "udp",
-					dialAddress:   fmt.Sprintf("127.0.0.1:%v", port.remote),
+					dialAddress:   port.remote.String(),
 				})
 			}
 		}
@@ -307,29 +312,57 @@ func parsePort(in string) (uint16, error) {
 }
 
 type parsedSrcDestPort struct {
-	local, remote uint16
+	local, remote netip.AddrPort
 }
 
 func parseSrcDestPorts(in string) ([]parsedSrcDestPort, error) {
-	parts := strings.Split(in, ":")
-	if len(parts) > 2 {
-		return nil, xerrors.Errorf("invalid port specification %q", in)
-	}
-	if len(parts) == 1 {
+	var (
+		err        error
+		parts      = strings.Split(in, ":")
+		localAddr  = netip.AddrFrom4([4]byte{127, 0, 0, 1})
+		remoteAddr = netip.AddrFrom4([4]byte{127, 0, 0, 1})
+	)
+
+	switch len(parts) {
+	case 1:
 		// Duplicate the single part
 		parts = append(parts, parts[0])
+	case 2:
+		// Check to see if the first part is an IP address.
+		_localAddr, err := netip.ParseAddr(parts[0])
+		if err != nil {
+			break
+		}
+		// The first part is the local address, so duplicate the port.
+		localAddr = _localAddr
+		parts = []string{parts[1], parts[1]}
+
+	case 3:
+		_localAddr, err := netip.ParseAddr(parts[0])
+		if err != nil {
+			return nil, xerrors.Errorf("invalid port specification %q; invalid ip %q: %w", in, parts[0], err)
+		}
+		localAddr = _localAddr
+		parts = parts[1:]
+
+	default:
+		return nil, xerrors.Errorf("invalid port specification %q", in)
 	}
+
 	if !strings.Contains(parts[0], "-") {
-		local, err := parsePort(parts[0])
+		localPort, err := parsePort(parts[0])
 		if err != nil {
 			return nil, xerrors.Errorf("parse local port from %q: %w", in, err)
 		}
-		remote, err := parsePort(parts[1])
+		remotePort, err := parsePort(parts[1])
 		if err != nil {
 			return nil, xerrors.Errorf("parse remote port from %q: %w", in, err)
 		}
 
-		return []parsedSrcDestPort{{local: local, remote: remote}}, nil
+		return []parsedSrcDestPort{{
+			local:  netip.AddrPortFrom(localAddr, localPort),
+			remote: netip.AddrPortFrom(remoteAddr, remotePort),
+		}}, nil
 	}
 
 	local, err := parsePortRange(parts[0])
@@ -346,8 +379,8 @@ func parseSrcDestPorts(in string) ([]parsedSrcDestPort, error) {
 	var out []parsedSrcDestPort
 	for i := range local {
 		out = append(out, parsedSrcDestPort{
-			local:  local[i],
-			remote: remote[i],
+			local:  netip.AddrPortFrom(localAddr, local[i]),
+			remote: netip.AddrPortFrom(remoteAddr, remote[i]),
 		})
 	}
 	return out, nil

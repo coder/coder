@@ -4,6 +4,7 @@ import WS from "jest-websocket-mock"
 import { rest } from "msw"
 import {
   MockPrimaryWorkspaceProxy,
+  MockProxyLatencies,
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceProxies,
@@ -43,8 +44,9 @@ const renderTerminal = () => {
         element={
           <ProxyContext.Provider
             value={{
+              proxyLatencies: MockProxyLatencies,
               proxy: {
-                selectedProxy: MockPrimaryWorkspaceProxy,
+                proxy: MockPrimaryWorkspaceProxy,
                 preferredPathAppURL: "",
                 preferredWildcardHostname: "",
               },
@@ -52,6 +54,7 @@ const renderTerminal = () => {
               isFetched: true,
               isLoading: false,
               setProxy: jest.fn(),
+              clearProxy: jest.fn(),
             }}
           >
             <TerminalPage renderer="dom" />

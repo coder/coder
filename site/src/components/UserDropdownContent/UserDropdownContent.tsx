@@ -1,16 +1,16 @@
-import Divider from "@material-ui/core/Divider"
-import MenuItem from "@material-ui/core/MenuItem"
-import { makeStyles } from "@material-ui/core/styles"
-import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
-import BugIcon from "@material-ui/icons/BugReportOutlined"
-import ChatIcon from "@material-ui/icons/ChatOutlined"
-import LaunchIcon from "@material-ui/icons/LaunchOutlined"
+import Divider from "@mui/material/Divider"
+import MenuItem from "@mui/material/MenuItem"
+import { makeStyles } from "@mui/styles"
+import AccountIcon from "@mui/icons-material/AccountCircleOutlined"
+import BugIcon from "@mui/icons-material/BugReportOutlined"
+import ChatIcon from "@mui/icons-material/ChatOutlined"
+import LaunchIcon from "@mui/icons-material/LaunchOutlined"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { Link } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import DocsIcon from "@material-ui/icons/MenuBook"
-import LogoutIcon from "@material-ui/icons/ExitToAppOutlined"
+import DocsIcon from "@mui/icons-material/MenuBook"
+import LogoutIcon from "@mui/icons-material/ExitToAppOutlined"
 import { combineClasses } from "utils/combineClasses"
 
 export const Language = {
@@ -107,6 +107,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 const useStyles = makeStyles((theme) => ({
   info: {
     padding: theme.spacing(2.5),
+    ...theme.typography.body2,
   },
   userName: {
     fontWeight: 600,

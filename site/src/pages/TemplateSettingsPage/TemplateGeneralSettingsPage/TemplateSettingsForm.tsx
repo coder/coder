@@ -1,4 +1,4 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
@@ -20,9 +20,9 @@ import {
   FormFooter,
 } from "components/Form/Form"
 import { Stack } from "components/Stack/Stack"
-import Checkbox from "@material-ui/core/Checkbox"
+import Checkbox from "@mui/material/Checkbox"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
 
@@ -96,7 +96,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             autoFocus
             fullWidth
             label={t("nameLabel")}
-            variant="outlined"
           />
         </FormFields>
       </FormSection>
@@ -111,7 +110,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             disabled={isSubmitting}
             fullWidth
             label={t("displayNameLabel")}
-            variant="outlined"
           />
 
           <TextField
@@ -120,7 +118,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             disabled={isSubmitting}
             fullWidth
             label={t("descriptionLabel")}
-            variant="outlined"
             rows={2}
           />
 
@@ -130,7 +127,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             onChange={onChangeTrimmed(form)}
             fullWidth
             label={t("iconLabel")}
-            variant="outlined"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
         </FormFields>
@@ -143,7 +139,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         <label htmlFor="allow_user_cancel_workspace_jobs">
           <Stack direction="row" spacing={1}>
             <Checkbox
-              color="primary"
               id="allow_user_cancel_workspace_jobs"
               name="allow_user_cancel_workspace_jobs"
               disabled={isSubmitting}

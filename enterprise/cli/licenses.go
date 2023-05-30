@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -154,6 +155,14 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 				licenses = make([]codersdk.License, 0)
 			}
 
+			for i, license := range licenses {
+				newClaims, err := convertLicenseExpireTime(license.Claims)
+				if err != nil {
+					return err
+				}
+				licenses[i].Claims = newClaims
+			}
+
 			enc := json.NewEncoder(inv.Stdout)
 			enc.SetIndent("", "  ")
 			return enc.Encode(licenses)
@@ -186,4 +195,30 @@ func (r *RootCmd) licenseDelete() *clibase.Cmd {
 		},
 	}
 	return cmd
+}
+
+func convertLicenseExpireTime(licenseClaims map[string]interface{}) (map[string]interface{}, error) {
+	if licenseClaims["license_expires"] != nil {
+		licenseExpiresNumber, ok := licenseClaims["license_expires"].(json.Number)
+		if !ok {
+			return licenseClaims, xerrors.Errorf("could not convert license_expires to json.Number")
+		}
+
+		licenseExpires, err := licenseExpiresNumber.Int64()
+		if err != nil {
+			return licenseClaims, xerrors.Errorf("could not convert license_expires to int64: %w", err)
+		}
+
+		t := time.Unix(licenseExpires, 0)
+		rfc3339Format := t.Format(time.RFC3339)
+
+		claimsCopy := make(map[string]interface{}, len(licenseClaims))
+		for k, v := range licenseClaims {
+			claimsCopy[k] = v
+		}
+
+		claimsCopy["license_expires"] = rfc3339Format
+		return claimsCopy, nil
+	}
+	return licenseClaims, nil
 }

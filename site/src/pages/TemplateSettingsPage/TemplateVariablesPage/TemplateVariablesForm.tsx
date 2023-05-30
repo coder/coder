@@ -20,8 +20,6 @@ import {
   TemplateVariableField,
 } from "components/TemplateVariableField/TemplateVariableField"
 
-export const getValidationSchema = (): Yup.AnyObjectSchema => Yup.object()
-
 export interface TemplateVariablesForm {
   templateVersion: TemplateVersion
   templateVariables: TemplateVersionVariable[]

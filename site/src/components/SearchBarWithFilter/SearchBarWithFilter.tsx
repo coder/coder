@@ -1,12 +1,12 @@
-import Button from "@material-ui/core/Button"
-import Fade from "@material-ui/core/Fade"
-import InputAdornment from "@material-ui/core/InputAdornment"
-import Menu from "@material-ui/core/Menu"
-import MenuItem from "@material-ui/core/MenuItem"
-import OutlinedInput from "@material-ui/core/OutlinedInput"
-import { makeStyles } from "@material-ui/core/styles"
-import { Theme } from "@material-ui/core/styles/createTheme"
-import SearchIcon from "@material-ui/icons/Search"
+import Button from "@mui/material/Button"
+import Fade from "@mui/material/Fade"
+import InputAdornment from "@mui/material/InputAdornment"
+import Menu from "@mui/material/Menu"
+import MenuItem from "@mui/material/MenuItem"
+import OutlinedInput from "@mui/material/OutlinedInput"
+import { makeStyles } from "@mui/styles"
+import { Theme } from "@mui/material/styles"
+import SearchIcon from "@mui/icons-material/Search"
 import debounce from "just-debounce-it"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
@@ -80,9 +80,9 @@ export const SearchBarWithFilter: React.FC<
       <Stack direction="row" spacing={0}>
         {presetFilters && presetFilters.length > 0 && (
           <Button
-            variant="outlined"
             aria-controls="filter-menu"
             aria-haspopup="true"
+            size="large"
             onClick={handleClick}
             className={styles.buttonRoot}
           >

@@ -220,6 +220,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 		ID:                apiAgent.ID,
 		Version:           req.Version,
 		ExpandedDirectory: req.ExpandedDirectory,
+		Subsystem:         convertWorkspaceAgentSubsystem(req.Subsystem),
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error setting agent version",
@@ -930,7 +931,12 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 
-	api.Logger.Info(ctx, "accepting agent", slog.F("agent", workspaceAgent))
+	api.Logger.Info(ctx, "accepting agent",
+		slog.F("owner", owner.Username),
+		slog.F("workspace", workspace.Name),
+		slog.F("name", workspaceAgent.Name),
+	)
+	api.Logger.Debug(ctx, "accepting agent details", slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
@@ -1124,6 +1130,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
 		ShutdownScript:               dbAgent.ShutdownScript.String,
 		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
+		Subsystem:                    codersdk.AgentSubsystem(dbAgent.Subsystem),
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -1976,5 +1983,14 @@ func convertWorkspaceAgentStartupLog(logEntry database.WorkspaceAgentStartupLog)
 		CreatedAt: logEntry.CreatedAt,
 		Output:    logEntry.Output,
 		Level:     codersdk.LogLevel(logEntry.Level),
+	}
+}
+
+func convertWorkspaceAgentSubsystem(ss codersdk.AgentSubsystem) database.WorkspaceAgentSubsystem {
+	switch ss {
+	case codersdk.AgentSubsystemEnvbox:
+		return database.WorkspaceAgentSubsystemEnvbox
+	default:
+		return database.WorkspaceAgentSubsystemNone
 	}
 }

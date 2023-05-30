@@ -6,7 +6,6 @@ on:
       - main
 
   pull_request:
-
   workflow_dispatch:
 
 permissions:
@@ -27,6 +26,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  CODER_GO_VERSION: "~1.20"
+
 jobs:
   lint:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
@@ -37,11 +39,11 @@ jobs:
       # Install Go!
       - uses: actions/setup-go@v4
         with:
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       # Check for any typos!
       - name: Check for typos
-        uses: crate-ci/typos@v1.14.8
+        uses: crate-ci/typos@v1.14.10
         with:
           config: .github/workflows/typos.toml
       - name: Fix the typos
@@ -55,7 +57,7 @@ jobs:
       - name: Lint Go
         uses: golangci/golangci-lint-action@v3.3.1
         with:
-          version: v1.51.0
+          version: v1.52.2
 
       - name: Lint shell scripts
         uses: ludeeus/action-shellcheck@2.0.0
@@ -153,7 +155,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -177,13 +179,15 @@ jobs:
         run: |
           curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install protoc-gen-go
-        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
       - name: Install protoc-gen-go-drpc
-        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
+      - name: Install mockgen
+        run: go install github.com/golang/mock/mockgen@v1.6.0
 
       - name: Install Protoc
         run: |
@@ -254,7 +258,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -343,7 +347,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -435,7 +439,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -587,7 +591,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
       - uses: hashicorp/setup-terraform@v2
         with:

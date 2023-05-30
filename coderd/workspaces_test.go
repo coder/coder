@@ -198,6 +198,60 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	require.Equal(t, 0, len(memberViewWorkspaces.Workspaces), "member in other org should see 0 workspaces")
 }
 
+func TestWorkspacesSortOrder(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+
+	// c-workspace should be running
+	workspace1 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
+		ctr.Name = "c-workspace"
+	})
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace1.LatestBuild.ID)
+
+	// b-workspace should be stopped
+	workspace2 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
+		ctr.Name = "b-workspace"
+	})
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace2.LatestBuild.ID)
+
+	build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, build2.ID)
+
+	// a-workspace should be running
+	workspace3 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
+		ctr.Name = "a-workspace"
+	})
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace3.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	workspacesResponse, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(first) fetch workspaces")
+	workspaces := workspacesResponse.Workspaces
+
+	expected := []string{
+		workspace3.Name,
+		workspace1.Name,
+		workspace2.Name,
+	}
+
+	var actual []string
+	for _, w := range workspaces {
+		actual = append(actual, w.Name)
+	}
+
+	// the correct sorting order is:
+	// 1. Running workspaces
+	// 2. Sort by usernames
+	// 3. Sort by workspace names
+	require.Equal(t, expected, actual)
+}
+
 func TestPostWorkspacesByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidTemplate", func(t *testing.T) {
@@ -746,9 +800,11 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
 
@@ -819,9 +875,11 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
 
@@ -1915,8 +1973,8 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								DisplayName:         secondParameterDisplayName,
 								Type:                secondParameterType,
 								Description:         secondParameterDescription,
-								ValidationMin:       1,
-								ValidationMax:       3,
+								ValidationMin:       ptr.Ref(int32(1)),
+								ValidationMax:       ptr.Ref(int32(3)),
 								ValidationMonotonic: string(secondParameterValidationMonotonic),
 							},
 						},
@@ -2038,14 +2096,12 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 	require.Equal(t, secondParameterDescription, templateRichParameters[1].Description)
 	require.Equal(t, secondParameterRequired, templateRichParameters[1].Required)
 
-	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
-		// First parameter is optional, so coder will pick the default value.
-		{Name: secondParameterName, Value: secondParameterValue},
-	}
-
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.RichParameterValues = expectedBuildParameters
+		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			// First parameter is optional, so coder will pick the default value.
+			{Name: secondParameterName, Value: secondParameterValue},
+		}
 	})
 
 	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -2054,5 +2110,10 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
 	require.NoError(t, err)
 
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		// Coderd inserts the default for the missing parameter
+		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		{Name: secondParameterName, Value: secondParameterValue},
+	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }
