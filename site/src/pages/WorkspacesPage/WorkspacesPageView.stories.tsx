@@ -107,8 +107,6 @@ export default {
   component: WorkspacesPageView,
   args: {
     limit: DEFAULT_RECORDS_PER_PAGE,
-  },
-  parameters: {
     filterProps: defaultFilterProps,
   },
 } as ComponentMeta<typeof WorkspacesPageView>
