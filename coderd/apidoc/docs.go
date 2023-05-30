@@ -10425,7 +10425,16 @@ const docTemplate = `{
                 "time": {
                     "description": "Time is the time the report was generated at.",
                     "type": "string"
+                },
+                "websocket": {
+                    "$ref": "#/definitions/healthcheck.WebsocketReport"
                 }
+            }
+        },
+        "healthcheck.WebsocketReport": {
+            "type": "object",
+            "properties": {
+                "error": {}
             }
         },
         "netcheck.Report": {

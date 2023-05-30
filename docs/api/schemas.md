@@ -6393,7 +6393,10 @@ Parameter represents a set value for the scope.
     }
   },
   "pass": true,
-  "time": "string"
+  "time": "string",
+  "websocket": {
+    "error": null
+  }
 }
 ```
 
@@ -6405,6 +6408,21 @@ Parameter represents a set value for the scope.
 | `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
 | `pass`       | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
 | `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
+| `websocket`  | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
+
+## healthcheck.WebsocketReport
+
+```json
+{
+  "error": null
+}
+```
+
+### Properties
+
+| Name    | Type | Required | Restrictions | Description |
+| ------- | ---- | -------- | ------------ | ----------- |
+| `error` | any  | false    |              |             |
 
 ## netcheck.Report
 
