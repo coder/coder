@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbtype"
+
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/rbac"
 
@@ -26,6 +28,7 @@ import (
 // All methods take in a 'seed' object. Any provided fields in the seed will be
 // maintained. Any fields omitted will have sensible defaults generated.
 
+// genCtx is to give all generator functions permission if the db is a dbauthz db.
 var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	ID:     "owner",
 	Roles:  rbac.Roles(must(rbac.RoleNames{rbac.RoleOwner()}.Expand())),
@@ -271,7 +274,17 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 	return member
 }
 
+// ProvisionerJob might not have all the correct values like CompletedAt and CancelledAt. This is because
+// the workspaceBuild is required to fetch those,
 func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
+	id := takeFirst(orig.ID, uuid.New())
+	if !orig.StartedAt.Time.IsZero() {
+		if orig.Tags == nil {
+			orig.Tags = make(dbtype.StringMap)
+		}
+		// Make sure when we acquire the job, we only get this one.
+		orig.Tags[id.String()] = "true"
+	}
 	job, err := db.InsertProvisionerJob(genCtx, database.InsertProvisionerJobParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
 		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
@@ -286,6 +299,34 @@ func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJo
 		Tags:           orig.Tags,
 	})
 	require.NoError(t, err, "insert job")
+
+	if !orig.CompletedAt.Time.IsZero() || orig.Error.String != "" {
+		err := db.UpdateProvisionerJobWithCompleteByID(genCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:          job.ID,
+			UpdatedAt:   orig.UpdatedAt,
+			CompletedAt: orig.CompletedAt,
+			Error:       orig.Error,
+			ErrorCode:   orig.ErrorCode,
+		})
+		require.NoError(t, err)
+	}
+	if !orig.CanceledAt.Time.IsZero() {
+		err := db.UpdateProvisionerJobWithCancelByID(genCtx, database.UpdateProvisionerJobWithCancelByIDParams{
+			ID:          job.ID,
+			CanceledAt:  orig.CanceledAt,
+			CompletedAt: orig.CompletedAt,
+		})
+		require.NoError(t, err)
+	}
+	if !orig.StartedAt.Time.IsZero() {
+		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
+			StartedAt: orig.StartedAt,
+			Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags:      must(json.Marshal(orig.Tags)),
+		})
+		require.NoError(t, err)
+	}
+
 	return job
 }
 

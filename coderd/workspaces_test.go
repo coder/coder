@@ -2,11 +2,14 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/coderd/database/dbauthz"
 
 	"github.com/coder/coder/coderd/database/dbgen"
 
@@ -558,6 +561,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 }
 
 func TestWorkspaceFilterAllStatus(t *testing.T) {
+	ctx := dbauthz.AsSystemRestricted(context.Background())
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
 
 	owner := coderdtest.CreateFirstUser(t, client)
@@ -582,17 +586,48 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		CreatedBy:       owner.UserID,
 	})
 
-	makeWorkspace := func(workspace database.Workspace) database.Workspace {
+	makeWorkspace := func(workspace database.Workspace, job database.ProvisionerJob, transition database.WorkspaceTransition) (database.Workspace, database.WorkspaceBuild, database.ProvisionerJob) {
+		db := api.Database
+
 		workspace.OwnerID = owner.UserID
 		workspace.OrganizationID = owner.OrganizationID
 		workspace.TemplateID = template.ID
-		workspace = dbgen.Workspace(t, api.Database, workspace)
+		workspace = dbgen.Workspace(t, db, workspace)
 
-		return workspace
+		job.Type = database.ProvisionerJobTypeWorkspaceBuild
+		job.OrganizationID = owner.OrganizationID
+		job = dbgen.ProvisionerJob(t, db, job)
+
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: version.ID,
+			BuildNumber:       1,
+			Transition:        transition,
+			InitiatorID:       owner.UserID,
+			JobID:             job.ID,
+		})
+
+		var err error
+		job, err = db.GetProvisionerJobByID(ctx, job.IDtus
+		)
+		require.NoError(t, err)
+
+		return workspace, build, job
 	}
-	var _ = makeWorkspace
-	//makeWorkspace(database.Workspace{
-	//})
+
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusRunning),
+	}, database.ProvisionerJob{
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+	}, database.WorkspaceTransitionStart)
+
+	workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+
+	for _, apiWorkspace := range workspaces.Workspaces {
+		require.Equal(t, apiWorkspace.Name, string(apiWorkspace.LatestBuild.Status))
+	}
 
 	// pending
 	// starting
