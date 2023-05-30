@@ -330,8 +330,8 @@ github.com/coder/glog v1.0.1-0.20220322161911-7365fe7f2cd1 h1:UqBrPWSYvRI2s5RtOu
 github.com/coder/glog v1.0.1-0.20220322161911-7365fe7f2cd1/go.mod h1:EWib/APOK0SL3dFbYqvxE3UYd8E6s1ouQ7iEp/0LWV4=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs24WOxc3PBvygSNTQurm0PYPujJjLLOzs0=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
-github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d h1:09JG37IgTB6n3ouX9BXdUiibGzkGGbslFuDZO9Ru9aw=
-github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d/go.mod h1:r+1J5i/989wt6CUeNSuvFKKA9hHuKKPMxdzDbTuvwwk=
+github.com/coder/retry v1.4.0 h1:g0fojHFxcdgM3sBULqgjFDxw1UIvaCqk4ngUDu0EWag=
+github.com/coder/retry v1.4.0/go.mod h1:blHMk9vs6LkoRT9ZHyuZo360cufXEhrxqvEzeMtRGoY=
 github.com/coder/ssh v0.0.0-20230421140225-04bb837133e1 h1:LBw76rEDuhNJyohve11mbvYv5CmCLmcuUQGiz7Guk50=
 github.com/coder/ssh v0.0.0-20230421140225-04bb837133e1/go.mod h1:ZSS+CUoKHDrqVakTfTWUlKSr9MtMFkC4UvtQKD7O914=
 github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f h1:F0Xr1d8h8dAHn7tab1HXuzYFkcjmCydnEfdMbkOhlVk=
