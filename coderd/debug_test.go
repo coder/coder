@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -14,15 +15,17 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func TestDebug(t *testing.T) {
+func TestDebugHealth(t *testing.T) {
 	t.Parallel()
-	t.Run("Health/OK", func(t *testing.T) {
+	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
-			client      = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(context.Context) (*healthcheck.Report, error) {
+			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
+			sessionToken string
+			client       = coderdtest.New(t, &coderdtest.Options{
+				HealthcheckFunc: func(_ context.Context, apiKey string) (*healthcheck.Report, error) {
+					assert.Equal(t, sessionToken, apiKey)
 					return &healthcheck.Report{}, nil
 				},
 			})
@@ -30,6 +33,7 @@ func TestDebug(t *testing.T) {
 		)
 		defer cancel()
 
+		sessionToken = client.SessionToken()
 		res, err := client.Request(ctx, "GET", "/debug/health", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
@@ -37,14 +41,14 @@ func TestDebug(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
-	t.Run("Health/Timeout", func(t *testing.T) {
+	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			client      = coderdtest.New(t, &coderdtest.Options{
 				HealthcheckTimeout: time.Microsecond,
-				HealthcheckFunc: func(context.Context) (*healthcheck.Report, error) {
+				HealthcheckFunc: func(context.Context, string) (*healthcheck.Report, error) {
 					t := time.NewTimer(time.Second)
 					defer t.Stop()
 
@@ -65,5 +69,49 @@ func TestDebug(t *testing.T) {
 		defer res.Body.Close()
 		_, _ = io.ReadAll(res.Body)
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("Deduplicated", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
+			calls       int
+			client      = coderdtest.New(t, &coderdtest.Options{
+				HealthcheckRefresh: time.Hour,
+				HealthcheckTimeout: time.Hour,
+				HealthcheckFunc: func(context.Context, string) (*healthcheck.Report, error) {
+					calls++
+					return &healthcheck.Report{
+						Time: time.Now(),
+					}, nil
+				},
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+		)
+		defer cancel()
+
+		res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		_, _ = io.ReadAll(res.Body)
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		res, err = client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		_, _ = io.ReadAll(res.Body)
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, 1, calls)
+	})
+}
+
+func TestDebugWebsocket(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
 	})
 }

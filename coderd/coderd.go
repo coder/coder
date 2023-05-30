@@ -129,7 +129,7 @@ type Options struct {
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey     workspaceapps.SecurityKey
-	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckFunc    func(ctx context.Context, apiKey string) (*healthcheck.Report, error)
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
@@ -256,10 +256,11 @@ func New(options *Options) *API {
 		options.TemplateScheduleStore.Store(&v)
 	}
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) (*healthcheck.Report, error) {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				AccessURL: options.AccessURL,
 				DERPMap:   options.DERPMap.Clone(),
+				APIKey:    apiKey,
 			})
 		}
 	}
@@ -787,6 +788,7 @@ func New(options *Options) *API {
 
 			r.Get("/coordinator", api.debugCoordinator)
 			r.Get("/health", api.debugDeploymentHealth)
+			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
 		})
 	})
 
@@ -874,6 +876,7 @@ type API struct {
 	Experiments codersdk.Experiments
 
 	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
+	healthCheckCache atomic.Pointer[healthcheck.Report]
 }
 
 // Close waits for all WebSocket connections to drain before returning.

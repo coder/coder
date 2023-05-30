@@ -427,6 +427,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/ws": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Websocket Test",
+                "operationId": "debug-info-websocket-test",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/deployment/config": {
             "get": {
                 "security": [
@@ -10419,6 +10447,29 @@ const docTemplate = `{
                 "time": {
                     "description": "Time is the time the report was generated at.",
                     "type": "string"
+                },
+                "websocket": {
+                    "$ref": "#/definitions/healthcheck.WebsocketReport"
+                }
+            }
+        },
+        "healthcheck.WebsocketReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "response": {
+                    "$ref": "#/definitions/healthcheck.WebsocketResponse"
+                }
+            }
+        },
+        "healthcheck.WebsocketResponse": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "integer"
                 }
             }
         },
