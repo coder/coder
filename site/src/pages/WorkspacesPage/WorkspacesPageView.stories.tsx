@@ -1,3 +1,5 @@
+/* eslint-disable eslint-comments/disable-enable-pair -- ignore */
+/* eslint-disable @typescript-eslint/no-explicit-any -- We don't care about any here */
 import { ComponentMeta, Story } from "@storybook/react"
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils"
 import dayjs from "dayjs"
@@ -13,13 +15,15 @@ import {
   MockBuildInfo,
   MockEntitlementsWithScheduling,
   MockExperiments,
+  MockUser,
 } from "testHelpers/entities"
-import { workspaceFilterQuery } from "utils/filters"
 import {
   WorkspacesPageView,
   WorkspacesPageViewProps,
 } from "./WorkspacesPageView"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
+import { action } from "@storybook/addon-actions"
+import { ComponentProps } from "react"
 
 const createWorkspace = (
   status: WorkspaceStatus,
@@ -69,11 +73,41 @@ const MockedAppearance = {
   save: () => null,
 }
 
+const mockAutocomplete = {
+  initialOption: undefined,
+  isInitializing: false,
+  isSearching: false,
+  query: "",
+  searchOptions: [],
+  selectedOption: undefined,
+  selectOption: action("selectOption"),
+  setQuery: action("updateQuery"),
+}
+
+const defaultFilterProps = {
+  filter: {
+    query: `owner:${MockUser.username}`,
+    update: () => action("update"),
+    debounceUpdate: action("debounce") as any,
+    values: {
+      owner: MockUser.username,
+      template: undefined,
+      status: undefined,
+    },
+  },
+  autocomplete: {
+    users: mockAutocomplete,
+    templates: mockAutocomplete,
+    status: mockAutocomplete,
+  },
+} as ComponentProps<typeof WorkspacesPageView>["filterProps"]
+
 export default {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
   args: {
     limit: DEFAULT_RECORDS_PER_PAGE,
+    filterProps: defaultFilterProps,
   },
 } as ComponentMeta<typeof WorkspacesPageView>
 
@@ -99,13 +133,18 @@ AllStates.args = {
 export const OwnerHasNoWorkspaces = Template.bind({})
 OwnerHasNoWorkspaces.args = {
   workspaces: [],
-  filter: workspaceFilterQuery.me,
   count: 0,
 }
 
 export const NoSearchResults = Template.bind({})
 NoSearchResults.args = {
   workspaces: [],
-  filter: "searchtearmwithnoresults",
+  filterProps: {
+    ...defaultFilterProps,
+    filter: {
+      ...defaultFilterProps.filter,
+      query: "searchwithnoresults",
+    },
+  },
   count: 0,
 }

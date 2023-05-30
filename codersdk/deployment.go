@@ -1682,6 +1682,9 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
+	// New workspace filter
+	ExperimentWorkspaceFilter Experiment = "workspace_filter"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )

@@ -2561,6 +2561,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ------------------- |
 | `moons`             |
 | `workspace_actions` |
+| `workspace_filter`  |
 
 ## codersdk.Feature
 

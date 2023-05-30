@@ -1,11 +1,5 @@
-import CircularProgress from "@mui/material/CircularProgress"
-import ErrorIcon from "@mui/icons-material/ErrorOutline"
-import StopIcon from "@mui/icons-material/StopOutlined"
-import PlayIcon from "@mui/icons-material/PlayArrowOutlined"
-import QueuedIcon from "@mui/icons-material/HourglassEmpty"
-import { Workspace, WorkspaceBuild } from "api/typesGenerated"
+import { Workspace } from "api/typesGenerated"
 import { Pill } from "components/Pill/Pill"
-import i18next from "i18next"
 import { FC, PropsWithChildren } from "react"
 import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
@@ -14,82 +8,7 @@ import {
   ImpendingDeletionBadge,
   ImpendingDeletionText,
 } from "components/WorkspaceDeletion"
-
-const LoadingIcon: FC = () => {
-  return <CircularProgress size={10} style={{ color: "#FFF" }} />
-}
-
-export const getStatus = (buildStatus: WorkspaceBuild["status"]) => {
-  const { t } = i18next
-
-  switch (buildStatus) {
-    case undefined:
-      return {
-        text: t("workspaceStatus.loading", { ns: "common" }),
-        icon: <LoadingIcon />,
-      } as const
-    case "running":
-      return {
-        type: "success",
-        text: t("workspaceStatus.running", { ns: "common" }),
-        icon: <PlayIcon />,
-      } as const
-    case "starting":
-      return {
-        type: "success",
-        text: t("workspaceStatus.starting", { ns: "common" }),
-        icon: <LoadingIcon />,
-      } as const
-    case "stopping":
-      return {
-        type: "warning",
-        text: t("workspaceStatus.stopping", { ns: "common" }),
-        icon: <LoadingIcon />,
-      } as const
-    case "stopped":
-      return {
-        type: "warning",
-        text: t("workspaceStatus.stopped", { ns: "common" }),
-        icon: <StopIcon />,
-      } as const
-    case "deleting":
-      return {
-        type: "warning",
-        text: t("workspaceStatus.deleting", { ns: "common" }),
-        icon: <LoadingIcon />,
-      } as const
-    case "deleted":
-      return {
-        type: "error",
-        text: t("workspaceStatus.deleted", { ns: "common" }),
-        icon: <ErrorIcon />,
-      } as const
-    case "canceling":
-      return {
-        type: "warning",
-        text: t("workspaceStatus.canceling", { ns: "common" }),
-        icon: <LoadingIcon />,
-      } as const
-    case "canceled":
-      return {
-        type: "warning",
-        text: t("workspaceStatus.canceled", { ns: "common" }),
-        icon: <ErrorIcon />,
-      } as const
-    case "failed":
-      return {
-        type: "error",
-        text: t("workspaceStatus.failed", { ns: "common" }),
-        icon: <ErrorIcon />,
-      } as const
-    case "pending":
-      return {
-        type: "info",
-        text: t("workspaceStatus.pending", { ns: "common" }),
-        icon: <QueuedIcon />,
-      } as const
-  }
-}
+import { getDisplayWorkspaceStatus } from "utils/workspace"
 
 export type WorkspaceStatusBadgeProps = {
   workspace: Workspace
@@ -99,7 +18,9 @@ export type WorkspaceStatusBadgeProps = {
 export const WorkspaceStatusBadge: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ workspace, className }) => {
-  const { text, icon, type } = getStatus(workspace.latest_build.status)
+  const { text, icon, type } = getDisplayWorkspaceStatus(
+    workspace.latest_build.status,
+  )
   return (
     <ChooseOne>
       {/* <ImpendingDeletionBadge/> determines its own visibility */}
@@ -117,7 +38,9 @@ export const WorkspaceStatusText: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ workspace, className }) => {
   const styles = useStyles()
-  const { text, type } = getStatus(workspace.latest_build.status)
+  const { text, type } = getDisplayWorkspaceStatus(
+    workspace.latest_build.status,
+  )
 
   return (
     <ChooseOne>
