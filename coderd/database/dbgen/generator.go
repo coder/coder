@@ -277,8 +277,13 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 // ProvisionerJob might not have all the correct values like CompletedAt and CancelledAt. This is because
 // the workspaceBuild is required to fetch those,
 func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
+	if dba, ok := db.(dbauthz.IsDBAuthzStore); ok {
+		db = dba.UnderlyingDatabase()
+	}
+
 	id := takeFirst(orig.ID, uuid.New())
-	if !orig.StartedAt.Time.IsZero() {
+	// Always set some tags to prevent Acquire from grabbing jobs it should not.
+	if !orig.StartedAt.Time.IsZero() || orig.Tags == nil {
 		if orig.Tags == nil {
 			orig.Tags = make(dbtype.StringMap)
 		}
@@ -300,10 +305,19 @@ func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJo
 	})
 	require.NoError(t, err, "insert job")
 
+	if !orig.StartedAt.Time.IsZero() {
+		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
+			StartedAt: orig.StartedAt,
+			Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags:      must(json.Marshal(orig.Tags)),
+		})
+		require.NoError(t, err)
+	}
+
 	if !orig.CompletedAt.Time.IsZero() || orig.Error.String != "" {
 		err := db.UpdateProvisionerJobWithCompleteByID(genCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:          job.ID,
-			UpdatedAt:   orig.UpdatedAt,
+			UpdatedAt:   job.UpdatedAt,
 			CompletedAt: orig.CompletedAt,
 			Error:       orig.Error,
 			ErrorCode:   orig.ErrorCode,
@@ -318,14 +332,9 @@ func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJo
 		})
 		require.NoError(t, err)
 	}
-	if !orig.StartedAt.Time.IsZero() {
-		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
-			StartedAt: orig.StartedAt,
-			Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Tags:      must(json.Marshal(orig.Tags)),
-		})
-		require.NoError(t, err)
-	}
+
+	job, err = db.GetProvisionerJobByID(genCtx, job.ID)
+	require.NoError(t, err)
 
 	return job
 }

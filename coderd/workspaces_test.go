@@ -608,13 +608,27 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		})
 
 		var err error
-		job, err = db.GetProvisionerJobByID(ctx, job.IDtus
-		)
+		job, err = db.GetProvisionerJobByID(ctx, job.ID)
 		require.NoError(t, err)
 
 		return workspace, build, job
 	}
 
+	// pending
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusPending),
+	}, database.ProvisionerJob{
+		StartedAt: sql.NullTime{Valid: false},
+	}, database.WorkspaceTransitionStart)
+
+	// starting
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusStarting),
+	}, database.ProvisionerJob{
+		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+	}, database.WorkspaceTransitionStart)
+
+	// running
 	_, _, _ = makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusRunning),
 	}, database.ProvisionerJob{
@@ -622,24 +636,68 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 	}, database.WorkspaceTransitionStart)
 
+	// stopping
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusStopping),
+	}, database.ProvisionerJob{
+		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+	}, database.WorkspaceTransitionStop)
+
+	// stopped
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusStopped),
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}, database.WorkspaceTransitionStop)
+
+	// failed
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusFailed),
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		Error:       sql.NullString{String: "Some error", Valid: true},
+	}, database.WorkspaceTransitionStart)
+
+	// canceling
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusCanceling),
+	}, database.ProvisionerJob{
+		StartedAt:  sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CanceledAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}, database.WorkspaceTransitionStart)
+
+	// canceled
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusCanceled),
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CanceledAt:  sql.NullTime{Time: time.Now(), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}, database.WorkspaceTransitionStart)
+
+	// deleting
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusDeleting),
+	}, database.ProvisionerJob{
+		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+	}, database.WorkspaceTransitionDelete)
+
+	// deleted
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusDeleted),
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}, database.WorkspaceTransitionDelete)
+
 	workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 
 	for _, apiWorkspace := range workspaces.Workspaces {
 		require.Equal(t, apiWorkspace.Name, string(apiWorkspace.LatestBuild.Status))
 	}
-
-	// pending
-	// starting
-	// running
-	// stopping
-	// stopped
-	// failed
-	// canceling
-	// canceled
-	// deleted
-	// deleting
-
 }
 
 // TestWorkspaceFilter creates a set of workspaces, users, and organizations
