@@ -558,7 +558,7 @@ func (b *Builder) getTemplateVersionParameters() ([]database.TemplateVersionPara
 }
 
 // verifyNoLegacyParameters verifies that initiator can't start the workspace build
-// if it uses legacy parameters (database.ParameterValues).
+// if it uses legacy parameters (database.ParameterSchemas).
 func (b *Builder) verifyNoLegacyParameters() error {
 	if b.verifyNoLegacyParametersOnce {
 		return nil
@@ -570,17 +570,20 @@ func (b *Builder) verifyNoLegacyParameters() error {
 		return nil
 	}
 
-	pv, err := b.store.ParameterValues(b.ctx, database.ParameterValuesParams{
-		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
-		ScopeIds: []uuid.UUID{b.workspace.ID},
-	})
+	templateVersionJob, err := b.getTemplateVersionJob()
+	if err != nil {
+		return xerrors.Errorf("failed to fetch template version job: %w", err)
+	}
+
+	parameterSchemas, err := b.store.GetParameterSchemasByJobID(b.ctx, templateVersionJob.ID)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
-		return xerrors.Errorf("get workspace %w parameter values: %w", b.workspace.ID, err)
+		return xerrors.Errorf("failed to get parameter schemas: %w", err)
 	}
-	if len(pv) > 0 {
+
+	if len(parameterSchemas) > 0 {
 		return xerrors.Errorf("Legacy parameters are not supported anymore, delete the workspace and the related template.")
 	}
 	return nil

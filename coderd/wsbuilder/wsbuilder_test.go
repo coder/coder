@@ -55,7 +55,8 @@ func TestBuilder_NoOptions(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withRichParameters(nil), withLegacyParameters(nil),
+		withRichParameters(nil),
+		withParameterSchemas(inactiveJobID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -103,7 +104,8 @@ func TestBuilder_Initiator(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withRichParameters(nil), withLegacyParameters(nil),
+		withRichParameters(nil),
+		withParameterSchemas(inactiveJobID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -135,7 +137,8 @@ func TestBuilder_Reason(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withRichParameters(nil), withLegacyParameters(nil),
+		withRichParameters(nil),
+		withParameterSchemas(inactiveJobID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -166,7 +169,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		withTemplate,
 		withActiveVersion(nil),
 		withLastBuildNotFound,
-		withLegacyParameters(nil),
+		withParameterSchemas(activeJobID, nil),
 		// previous rich parameters are not queried because there is no previous build.
 
 		// Outputs
@@ -243,7 +246,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
+			withRichParameters(initialBuildParameters),
+			withParameterSchemas(inactiveJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -283,7 +287,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
+			withRichParameters(initialBuildParameters),
+			withParameterSchemas(inactiveJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -313,9 +318,15 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		oldParams := []database.ParameterValue{
-			{Name: "not-replaced", SourceValue: "nr", ID: notReplacedParamID},
-			{Name: "replaced", SourceValue: "r", ID: replacedParamID},
+		schemas := []database.ParameterSchema{
+			{
+				Name:                     "not-replaced",
+				DefaultDestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			},
+			{
+				Name:                     "replaced",
+				DefaultDestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			},
 		}
 
 		mDB := expectDB(t,
@@ -323,7 +334,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withRichParameters(nil), withLegacyParameters(oldParams),
+			withRichParameters(nil),
+			withParameterSchemas(inactiveJobID, schemas),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -356,7 +368,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
+			withRichParameters(initialBuildParameters),
+			withParameterSchemas(inactiveJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -407,7 +420,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
+			withRichParameters(initialBuildParameters),
+			withParameterSchemas(activeJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -464,7 +478,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
+			withRichParameters(initialBuildParameters),
+			withParameterSchemas(activeJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -519,7 +534,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withRichParameters(initialBuildParameters), withLegacyParameters(nil),
+			withRichParameters(initialBuildParameters),
+			withParameterSchemas(activeJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -696,17 +712,14 @@ func withLastBuildNotFound(mTx *dbmock.MockStore) {
 		Return(database.WorkspaceBuild{}, sql.ErrNoRows)
 }
 
-func withLegacyParameters(params []database.ParameterValue) func(mTx *dbmock.MockStore) {
+func withParameterSchemas(jobID uuid.UUID, schemas []database.ParameterSchema) func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
-		c := mTx.EXPECT().ParameterValues(
+		c := mTx.EXPECT().GetParameterSchemasByJobID(
 			gomock.Any(),
-			database.ParameterValuesParams{
-				Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
-				ScopeIds: []uuid.UUID{workspaceID},
-			}).
+			jobID).
 			Times(1)
-		if len(params) > 0 {
-			c.Return(params, nil)
+		if len(schemas) > 0 {
+			c.Return(schemas, nil)
 		} else {
 			c.Return(nil, sql.ErrNoRows)
 		}
