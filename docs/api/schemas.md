@@ -6395,9 +6395,11 @@ Parameter represents a set value for the scope.
   "pass": true,
   "time": "string",
   "websocket": {
-    "code": 0,
     "error": null,
-    "response": "string"
+    "response": {
+      "body": "string",
+      "code": 0
+    }
   }
 }
 ```
@@ -6416,19 +6418,36 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "code": 0,
   "error": null,
-  "response": "string"
+  "response": {
+    "body": "string",
+    "code": 0
+  }
 }
 ```
 
 ### Properties
 
-| Name       | Type    | Required | Restrictions | Description |
-| ---------- | ------- | -------- | ------------ | ----------- |
-| `code`     | integer | false    |              |             |
-| `error`    | any     | false    |              |             |
-| `response` | string  | false    |              |             |
+| Name       | Type                                                           | Required | Restrictions | Description |
+| ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`    | any                                                            | false    |              |             |
+| `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
+
+## healthcheck.WebsocketResponse
+
+```json
+{
+  "body": "string",
+  "code": 0
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+| ------ | ------- | -------- | ------------ | ----------- |
+| `body` | string  | false    |              |             |
+| `code` | integer | false    |              |             |
 
 ## netcheck.Report
 

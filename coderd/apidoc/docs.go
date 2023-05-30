@@ -10462,12 +10462,20 @@ const docTemplate = `{
         "healthcheck.WebsocketReport": {
             "type": "object",
             "properties": {
-                "code": {
-                    "type": "integer"
-                },
                 "error": {},
                 "response": {
+                    "$ref": "#/definitions/healthcheck.WebsocketResponse"
+                }
+            }
+        },
+        "healthcheck.WebsocketResponse": {
+            "type": "object",
+            "properties": {
+                "body": {
                     "type": "string"
+                },
+                "code": {
+                    "type": "integer"
                 }
             }
         },

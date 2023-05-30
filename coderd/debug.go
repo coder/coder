@@ -66,6 +66,8 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// For some reason the swagger docs need to be attached to a function.
+//
 // @Summary Debug Info Websocket Test
 // @ID debug-info-websocket-test
 // @Security CoderSessionToken
@@ -74,8 +76,4 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.Response
 // @Router /debug/ws [get]
 // @x-apidocgen {"skip": true}
-//
-// For some reason the swagger docs need to be attached to a function.
-//
-//nolint:unused
-func _debugws(http.ResponseWriter, *http.Request) {}
+func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused

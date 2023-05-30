@@ -209,9 +209,11 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   "pass": true,
   "time": "string",
   "websocket": {
-    "code": 0,
     "error": null,
-    "response": "string"
+    "response": {
+      "body": "string",
+      "code": 0
+    }
   }
 }
 ```
