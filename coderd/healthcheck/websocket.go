@@ -102,7 +102,7 @@ func (WebsocketEchoServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, "Invalid websocket.")
+		httpapi.Write(ctx, rw, http.StatusBadRequest, "unable to accept: "+err.Error())
 		return
 	}
 	defer c.Close(websocket.StatusGoingAway, "goodbye")
