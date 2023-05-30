@@ -50,7 +50,9 @@ export const WorkspaceProxyView: FC<
               <TableCell width="40%">Proxy</TableCell>
               <TableCell width="30%">URL</TableCell>
               <TableCell width="10%">Status</TableCell>
-              <TableCell width="20%">Latency</TableCell>
+              <TableCell width="20%" sx={{ textAlign: "right" }}>
+                Latency
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

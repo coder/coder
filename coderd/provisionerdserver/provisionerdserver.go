@@ -919,6 +919,21 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return nil, xerrors.Errorf("marshal parameter options: %w", err)
 			}
+
+			var validationMin, validationMax sql.NullInt32
+			if richParameter.ValidationMin != nil {
+				validationMin = sql.NullInt32{
+					Int32: *richParameter.ValidationMin,
+					Valid: true,
+				}
+			}
+			if richParameter.ValidationMax != nil {
+				validationMax = sql.NullInt32{
+					Int32: *richParameter.ValidationMax,
+					Valid: true,
+				}
+			}
+
 			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
 				TemplateVersionID:   input.TemplateVersionID,
 				Name:                richParameter.Name,
@@ -931,8 +946,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				Options:             options,
 				ValidationRegex:     richParameter.ValidationRegex,
 				ValidationError:     richParameter.ValidationError,
-				ValidationMin:       richParameter.ValidationMin,
-				ValidationMax:       richParameter.ValidationMax,
+				ValidationMin:       validationMin,
+				ValidationMax:       validationMax,
 				ValidationMonotonic: richParameter.ValidationMonotonic,
 				Required:            richParameter.Required,
 				LegacyVariableName:  richParameter.LegacyVariableName,

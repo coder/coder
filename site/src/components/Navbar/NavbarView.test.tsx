@@ -1,7 +1,26 @@
 import { screen } from "@testing-library/react"
-import { MockUser, MockUser2 } from "../../testHelpers/entities"
+import {
+  MockPrimaryWorkspaceProxy,
+  MockUser,
+  MockUser2,
+} from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language as navLanguage, NavbarView } from "./NavbarView"
+import { ProxyContextValue } from "contexts/ProxyContext"
+import { action } from "@storybook/addon-actions"
+
+const proxyContextValue: ProxyContextValue = {
+  proxy: {
+    preferredPathAppURL: "",
+    preferredWildcardHostname: "",
+    proxy: MockPrimaryWorkspaceProxy,
+  },
+  isLoading: false,
+  isFetched: true,
+  setProxy: jest.fn(),
+  clearProxy: action("clearProxy"),
+  proxyLatencies: {},
+}
 
 describe("NavbarView", () => {
   const noop = () => {
@@ -23,6 +42,7 @@ describe("NavbarView", () => {
   it("workspaces nav link has the correct href", async () => {
     render(
       <NavbarView
+        proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
         canViewAuditLog
@@ -36,6 +56,7 @@ describe("NavbarView", () => {
   it("templates nav link has the correct href", async () => {
     render(
       <NavbarView
+        proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
         canViewAuditLog
@@ -49,6 +70,7 @@ describe("NavbarView", () => {
   it("users nav link has the correct href", async () => {
     render(
       <NavbarView
+        proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
         canViewAuditLog
@@ -70,6 +92,7 @@ describe("NavbarView", () => {
     // When
     render(
       <NavbarView
+        proxyContextValue={proxyContextValue}
         user={mockUser}
         onSignOut={noop}
         canViewAuditLog
@@ -86,6 +109,7 @@ describe("NavbarView", () => {
   it("audit nav link has the correct href", async () => {
     render(
       <NavbarView
+        proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
         canViewAuditLog
@@ -99,6 +123,7 @@ describe("NavbarView", () => {
   it("audit nav link is hidden for members", async () => {
     render(
       <NavbarView
+        proxyContextValue={proxyContextValue}
         user={MockUser2}
         onSignOut={noop}
         canViewAuditLog={false}
@@ -112,6 +137,7 @@ describe("NavbarView", () => {
   it("deployment nav link has the correct href", async () => {
     render(
       <NavbarView
+        proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
         canViewAuditLog
@@ -127,6 +153,7 @@ describe("NavbarView", () => {
   it("deployment nav link is hidden for members", async () => {
     render(
       <NavbarView
+        proxyContextValue={proxyContextValue}
         user={MockUser2}
         onSignOut={noop}
         canViewAuditLog={false}
