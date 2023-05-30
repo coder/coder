@@ -407,6 +407,50 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("exit")
 		<-cmdDone
 	})
+
+	t.Run("FileLogging", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "-l", "--log-dir", dir)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+		pty.ExpectMatch("Waiting")
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(agentToken)
+		agentCloser := agent.New(agent.Options{
+			Client: agentClient,
+			Logger: slogtest.Make(t, nil).Named("agent"),
+		})
+		defer func() {
+			_ = agentCloser.Close()
+		}()
+
+		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+		pty.WriteLine("exit")
+		<-cmdDone
+
+		entries, err := os.ReadDir(dir)
+		require.NoError(t, err)
+		for _, e := range entries {
+			t.Logf("logdir entry: %s", e.Name())
+			if strings.HasPrefix(e.Name(), "coder-ssh") {
+				return
+			}
+		}
+		t.Fatal("failed to find ssh logfile")
+	})
 }
 
 //nolint:paralleltest // This test uses t.Setenv, parent test MUST NOT be parallel.

@@ -65,6 +65,17 @@ coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
+### Migrating from the built-in database to an external database
+
+To migrate from the built-in database to an external database, follow these steps:
+
+1. Stop your Coder deployment.
+2. Run `coder server postgres-builtin-serve` in a background terminal.
+3. Run `coder server postgres-builtin-url` and copy its output command.
+4. Run `pg_dump <built-in-connection-string> > coder.sql` to dump the internal database to a file.
+5. Restore that content to an external database with `psql <external-connection-string> < coder.sql`.
+6. Start your Coder deployment with `CODER_PG_CONNECTION_URL=<external-connection-string>`.
+
 ## System packages
 
 If you've installed Coder via a [system package](../install/packages.md) Coder, you can

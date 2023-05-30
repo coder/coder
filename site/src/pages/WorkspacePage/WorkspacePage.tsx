@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query"
 import { useMachine } from "@xstate/react"
 import { getWorkspaceBuildLogs } from "api/api"
 import { Workspace } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Loader } from "components/Loader/Loader"
 import { FC, useRef } from "react"
@@ -12,6 +11,7 @@ import { quotaMachine } from "xServices/quotas/quotasXService"
 import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 const useFailedBuildLogs = (workspace: Workspace | undefined) => {
   const now = useRef(new Date())
@@ -61,23 +61,18 @@ export const WorkspacePage: FC = () => {
         <Cond condition={workspaceState.matches("error")}>
           <div className={styles.error}>
             {Boolean(getWorkspaceError) && (
-              <AlertBanner severity="error" error={getWorkspaceError} />
+              <ErrorAlert error={getWorkspaceError} />
             )}
             {Boolean(getTemplateWarning) && (
-              <AlertBanner severity="error" error={getTemplateWarning} />
+              <ErrorAlert error={getTemplateWarning} />
             )}
             {Boolean(getTemplateParametersWarning) && (
-              <AlertBanner
-                severity="error"
-                error={getTemplateParametersWarning}
-              />
+              <ErrorAlert error={getTemplateParametersWarning} />
             )}
             {Boolean(checkPermissionsError) && (
-              <AlertBanner severity="error" error={checkPermissionsError} />
+              <ErrorAlert error={checkPermissionsError} />
             )}
-            {Boolean(getQuotaError) && (
-              <AlertBanner severity="error" error={getQuotaError} />
-            )}
+            {Boolean(getQuotaError) && <ErrorAlert error={getQuotaError} />}
           </div>
         </Cond>
         <Cond

@@ -145,6 +145,16 @@ func (c *Cmd) FullUsage() string {
 	return strings.Join(uses, " ")
 }
 
+// FullOptions returns the options of the command and its parents.
+func (c *Cmd) FullOptions() OptionSet {
+	var opts OptionSet
+	if c.Parent != nil {
+		opts = append(opts, c.Parent.FullOptions()...)
+	}
+	opts = append(opts, c.Options...)
+	return opts
+}
+
 // Invoke creates a new invocation of the command, with
 // stdio discarded.
 //

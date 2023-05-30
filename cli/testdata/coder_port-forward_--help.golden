@@ -22,6 +22,10 @@ Aliases: tunnel
 
      [40m [0m[91;40m$ coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012[0m[40m [0m
 
+  - Port forward specifying the local address to bind to:                       
+
+     [40m [0m[91;40m$ coder port-forward <workspace> --tcp 1.2.3.4:8080:8080[0m[40m [0m
+
 [1mOptions[0m
   -p, --tcp string-array, $CODER_PORT_FORWARD_TCP
           Forward TCP port(s) from the workspace to the local machine.

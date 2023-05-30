@@ -1,6 +1,5 @@
 import Link from "@mui/material/Link"
 import { Workspace } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
 import { FC } from "react"
@@ -18,6 +17,8 @@ import { WorkspacesTable } from "components/WorkspacesTable/WorkspacesTable"
 import { workspaceFilterQuery } from "utils/filters"
 import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
+import { ImpendingDeletionBanner, Count } from "components/WorkspaceDeletion"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -51,8 +52,6 @@ export interface WorkspacesPageViewProps {
   onPageChange: (page: number) => void
   onFilter: (query: string) => void
   onUpdateWorkspace: (workspace: Workspace) => void
-  allowAdvancedScheduling: boolean
-  allowWorkspaceActions: boolean
 }
 
 export const WorkspacesPageView: FC<
@@ -67,8 +66,6 @@ export const WorkspacesPageView: FC<
   onFilter,
   onPageChange,
   onUpdateWorkspace,
-  allowAdvancedScheduling,
-  allowWorkspaceActions,
 }) => {
   const { saveLocal, getLocal } = useLocalStorage()
 
@@ -97,14 +94,6 @@ export const WorkspacesPageView: FC<
     return diff && diff.length > 0
   }
 
-  const displayImpendingDeletionBanner =
-    (allowAdvancedScheduling &&
-      allowWorkspaceActions &&
-      workspaceIdsWithImpendingDeletions &&
-      workspaceIdsWithImpendingDeletions.length > 0 &&
-      isNewWorkspacesImpendingDeletion()) ??
-    false
-
   return (
     <Margins>
       <PageHeader>
@@ -126,28 +115,20 @@ export const WorkspacesPageView: FC<
 
       <Stack>
         <Maybe condition={Boolean(error)}>
-          <AlertBanner
-            error={error}
-            severity={
-              workspaces !== undefined && workspaces.length > 0
-                ? "warning"
-                : "error"
-            }
-          />
+          <ErrorAlert error={error} />
         </Maybe>
-        <Maybe condition={displayImpendingDeletionBanner}>
-          <AlertBanner
-            severity="info"
-            onDismiss={() =>
-              saveLocal(
-                "dismissedWorkspaceList",
-                JSON.stringify(workspaceIdsWithImpendingDeletions),
-              )
-            }
-            dismissible
-            text="You have workspaces that will be deleted soon."
-          />
-        </Maybe>
+        {/* <ImpendingDeletionBanner/> determines its own visibility */}
+        <ImpendingDeletionBanner
+          workspace={workspaces?.find((workspace) => workspace.deleting_at)}
+          shouldRedisplayBanner={isNewWorkspacesImpendingDeletion()}
+          onDismiss={() =>
+            saveLocal(
+              "dismissedWorkspaceList",
+              JSON.stringify(workspaceIdsWithImpendingDeletions),
+            )
+          }
+          count={Count.Multiple}
+        />
 
         <SearchBarWithFilter
           filter={filter}

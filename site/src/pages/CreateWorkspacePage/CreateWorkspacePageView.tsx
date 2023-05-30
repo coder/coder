@@ -8,7 +8,6 @@ import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
 import * as Yup from "yup"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { SelectedTemplate } from "./SelectedTemplate"
 import { Loader } from "components/Loader/Loader"
@@ -29,6 +28,7 @@ import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -174,8 +174,7 @@ export const CreateWorkspacePageView: FC<
                 CreateWorkspaceErrors.GET_TEMPLATES_ERROR
               ],
             ) && (
-              <AlertBanner
-                severity="error"
+              <ErrorAlert
                 error={
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATES_ERROR
@@ -188,8 +187,7 @@ export const CreateWorkspacePageView: FC<
                 CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
               ],
             ) && (
-              <AlertBanner
-                severity="error"
+              <ErrorAlert
                 error={
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
@@ -202,8 +200,7 @@ export const CreateWorkspacePageView: FC<
                 CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
               ],
             ) && (
-              <AlertBanner
-                severity="error"
+              <ErrorAlert
                 error={
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
@@ -219,8 +216,7 @@ export const CreateWorkspacePageView: FC<
             CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
           ],
         ) && (
-          <AlertBanner
-            severity="error"
+          <ErrorAlert
             error={
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR

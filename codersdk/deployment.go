@@ -330,6 +330,7 @@ type LoggingConfig struct {
 type DangerousConfig struct {
 	AllowPathAppSharing         clibase.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
 	AllowPathAppSiteOwnerAccess clibase.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+	AllowAllCors                clibase.Bool `json:"allow_all_cors" typescript:",notnull"`
 }
 
 const (
@@ -1167,6 +1168,16 @@ when required by your organization's security policy.`,
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// ☢️ Dangerous settings
+		{
+			Name:        "DANGEROUS: Allow all CORs requests",
+			Description: "For security reasons, CORs requests are blocked. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
+			Flag:        "dangerous-allow-cors-requests",
+			Env:         "CODER_DANGEROUS_ALLOW_CORS_REQUESTS",
+			Hidden:      true, // Hidden, should only be used by yarn dev server
+			Value:       &c.Dangerous.AllowAllCors,
+			Group:       &deploymentGroupDangerous,
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
 		{
 			Name:        "DANGEROUS: Allow Path App Sharing",
 			Description: "Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",

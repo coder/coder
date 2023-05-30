@@ -69,7 +69,7 @@ type CreateUserRequest struct {
 	Email          string    `json:"email" validate:"required,email" format:"email"`
 	Username       string    `json:"username" validate:"required,username"`
 	Password       string    `json:"password" validate:"required"`
-	OrganizationID uuid.UUID `json:"organization_id" validate:"required" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" validate:"" format:"uuid"`
 }
 
 type UpdateUserProfileRequest struct {

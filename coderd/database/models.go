@@ -1096,6 +1096,67 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+type WorkspaceAgentSubsystem string
+
+const (
+	WorkspaceAgentSubsystemEnvbuilder WorkspaceAgentSubsystem = "envbuilder"
+	WorkspaceAgentSubsystemEnvbox     WorkspaceAgentSubsystem = "envbox"
+	WorkspaceAgentSubsystemNone       WorkspaceAgentSubsystem = "none"
+)
+
+func (e *WorkspaceAgentSubsystem) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentSubsystem(s)
+	case string:
+		*e = WorkspaceAgentSubsystem(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentSubsystem: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentSubsystem struct {
+	WorkspaceAgentSubsystem WorkspaceAgentSubsystem
+	Valid                   bool // Valid is true if WorkspaceAgentSubsystem is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentSubsystem) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentSubsystem, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentSubsystem.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentSubsystem) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentSubsystem), nil
+}
+
+func (e WorkspaceAgentSubsystem) Valid() bool {
+	switch e {
+	case WorkspaceAgentSubsystemEnvbuilder,
+		WorkspaceAgentSubsystemEnvbox,
+		WorkspaceAgentSubsystemNone:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentSubsystemValues() []WorkspaceAgentSubsystem {
+	return []WorkspaceAgentSubsystem{
+		WorkspaceAgentSubsystemEnvbuilder,
+		WorkspaceAgentSubsystemEnvbox,
+		WorkspaceAgentSubsystemNone,
+	}
+}
+
 type WorkspaceAppHealth string
 
 const (
@@ -1587,7 +1648,8 @@ type WorkspaceAgent struct {
 	// Total length of startup logs
 	StartupLogsLength int32 `db:"startup_logs_length" json:"startup_logs_length"`
 	// Whether the startup logs overflowed in length
-	StartupLogsOverflowed bool `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
+	StartupLogsOverflowed bool                    `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
+	Subsystem             WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
 }
 
 type WorkspaceAgentMetadatum struct {

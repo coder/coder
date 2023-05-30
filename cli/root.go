@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -33,6 +35,7 @@ import (
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/gitauth"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
@@ -425,6 +428,24 @@ type RootCmd struct {
 	noFeatureWarning bool
 }
 
+func telemetryInvocation(i *clibase.Invocation) telemetry.CLIInvocation {
+	var topts []telemetry.CLIOption
+	for _, opt := range i.Command.FullOptions() {
+		if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
+			continue
+		}
+		topts = append(topts, telemetry.CLIOption{
+			Name:        opt.Name,
+			ValueSource: string(opt.ValueSource),
+		})
+	}
+	return telemetry.CLIInvocation{
+		Command:   i.Command.FullName(),
+		Options:   topts,
+		InvokedAt: time.Now(),
+	}
+}
+
 // InitClient sets client to a new client.
 // It reads from global configuration files if flags are not set.
 func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
@@ -465,7 +486,18 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				}
 			}
 
-			err = r.setClient(client, r.clientURL)
+			telemInv := telemetryInvocation(i)
+			byt, err := json.Marshal(telemInv)
+			if err != nil {
+				// Should be impossible
+				panic(err)
+			}
+			err = r.setClient(
+				client, r.clientURL,
+				append(r.header, codersdk.CLITelemetryHeader+"="+
+					base64.StdEncoding.EncodeToString(byt),
+				),
+			)
 			if err != nil {
 				return err
 			}
@@ -512,12 +544,12 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 	}
 }
 
-func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
+func (*RootCmd) setClient(client *codersdk.Client, serverURL *url.URL, headers []string) error {
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
 		header:    http.Header{},
 	}
-	for _, header := range r.header {
+	for _, header := range headers {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
 			return xerrors.Errorf("split header %q had less than two parts", header)
@@ -533,7 +565,7 @@ func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 
 func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
 	var client codersdk.Client
-	err := r.setClient(&client, serverURL)
+	err := r.setClient(&client, serverURL, r.header)
 	return &client, err
 }
 

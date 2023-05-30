@@ -5,7 +5,7 @@ import * as Yup from "yup"
 import { getFormHelpers } from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 interface SecurityFormValues {
   old_password: string
@@ -73,7 +73,7 @@ export const SecurityForm: FC<SecurityFormProps> = ({
       <form onSubmit={form.handleSubmit}>
         <Stack>
           {Boolean(updateSecurityError) && (
-            <AlertBanner severity="error" error={updateSecurityError} />
+            <ErrorAlert error={updateSecurityError} />
           )}
           <TextField
             {...getFieldHelpers("old_password")}

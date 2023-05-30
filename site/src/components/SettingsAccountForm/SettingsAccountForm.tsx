@@ -9,7 +9,7 @@ import {
 } from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface AccountFormValues {
   username: string
@@ -62,7 +62,7 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
       <form onSubmit={form.handleSubmit}>
         <Stack>
           {Boolean(updateProfileError) && (
-            <AlertBanner severity="error" error={updateProfileError} />
+            <ErrorAlert error={updateProfileError} />
           )}
           <TextField
             disabled

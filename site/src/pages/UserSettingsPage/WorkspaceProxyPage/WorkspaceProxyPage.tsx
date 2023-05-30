@@ -36,7 +36,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
         isLoading={proxiesLoading}
         hasLoaded={proxiesFetched}
         getWorkspaceProxiesError={proxiesError}
-        preferredProxy={proxy.selectedProxy}
+        preferredProxy={proxy.proxy}
         onSelect={(proxy) => {
           if (!proxy.healthy) {
             displayError("Please select a healthy workspace proxy.")

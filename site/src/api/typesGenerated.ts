@@ -141,7 +141,6 @@ export interface BuildInfoResponse {
 
 // From codersdk/parameters.go
 export interface ComputedParameter extends Parameter {
-  readonly source_value: string
   readonly schema_id: string
   readonly default_source_value: boolean
 }
@@ -313,6 +312,7 @@ export interface DERPServerConfig {
 export interface DangerousConfig {
   readonly allow_path_app_sharing: boolean
   readonly allow_path_app_site_owner_access: boolean
+  readonly allow_all_cors: boolean
 }
 
 // From codersdk/deployment.go
@@ -589,6 +589,7 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
   readonly created_at: string
   readonly updated_at: string
+  readonly source_value: string
 }
 
 // From codersdk/parameters.go
@@ -1147,6 +1148,7 @@ export interface WorkspaceAgent {
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
+  readonly subsystem: AgentSubsystem
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1340,6 +1342,10 @@ export interface WorkspacesResponse {
 // From codersdk/apikey.go
 export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
+
+// From codersdk/workspaceagents.go
+export type AgentSubsystem = "envbox"
+export const AgentSubsystems: AgentSubsystem[] = ["envbox"]
 
 // From codersdk/audit.go
 export type AuditAction =

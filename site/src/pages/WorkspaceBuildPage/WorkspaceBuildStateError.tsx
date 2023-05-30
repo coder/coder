@@ -1,6 +1,6 @@
 import Box from "@mui/material/Box"
 import { WorkspaceBuild } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 
 const Language = {
   stateMessage:
@@ -18,22 +18,19 @@ export const WorkspaceBuildStateError: React.FC<
     build.workspace_owner_name + "/" + build.workspace_name
   } --orphan`
   return (
-    <AlertBanner
-      severity="error"
-      text={
-        <Box>
-          {Language.stateMessage} A template admin may run{" "}
-          <Box
-            component="code"
-            display="inline-block"
-            width="fit-content"
-            fontWeight={600}
-          >
-            `{orphanCommand}`
-          </Box>{" "}
-          to delete the workspace skipping resource destruction.
-        </Box>
-      }
-    />
+    <Alert severity="error">
+      <Box>
+        {Language.stateMessage} A template admin may run{" "}
+        <Box
+          component="code"
+          display="inline-block"
+          width="fit-content"
+          fontWeight={600}
+        >
+          `{orphanCommand}`
+        </Box>{" "}
+        to delete the workspace skipping resource destruction.
+      </Box>
+    </Alert>
   )
 }

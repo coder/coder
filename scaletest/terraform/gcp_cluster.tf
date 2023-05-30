@@ -26,7 +26,7 @@ resource "google_container_cluster" "primary" {
   monitoring_config {
     enable_components = ["SYSTEM_COMPONENTS"]
     managed_prometheus {
-      enabled = true
+      enabled = false
     }
   }
   workload_identity_config {

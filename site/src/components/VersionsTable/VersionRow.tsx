@@ -73,7 +73,6 @@ export const VersionRow: React.FC<VersionRowProps> = ({
           ) : (
             onPromoteClick && (
               <Button
-                size="small"
                 className={styles.promoteButton}
                 onClick={(e) => {
                   e.preventDefault()

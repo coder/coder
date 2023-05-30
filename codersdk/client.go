@@ -61,6 +61,16 @@ const (
 	// Only owners can bypass rate limits. This is typically used for scale testing.
 	// nolint: gosec
 	BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit"
+
+	// Note: the use of X- prefix is deprecated, and we should eventually remove
+	// it from BypassRatelimitHeader.
+	//
+	// See: https://datatracker.ietf.org/doc/html/rfc6648.
+
+	// CLITelemetryHeader contains a base64-encoded representation of the CLI
+	// command that was invoked to produce the request. It is for internal use
+	// only.
+	CLITelemetryHeader = "Coder-CLI-Telemetry"
 )
 
 // loggableMimeTypes is a list of MIME types that are safe to log
@@ -179,15 +189,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 
-	if c.PlainLogger != nil {
-		out, err := httputil.DumpRequest(req, c.LogBodies)
-		if err != nil {
-			return nil, xerrors.Errorf("dump request: %w", err)
-		}
-		out = prefixLines([]byte("http --> "), out)
-		_, _ = c.PlainLogger.Write(out)
-	}
-
 	tokenHeader := c.SessionTokenHeader
 	if tokenHeader == "" {
 		tokenHeader = SessionTokenHeader
@@ -221,6 +222,18 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	})
 
 	resp, err := c.HTTPClient.Do(req)
+
+	// We log after sending the request because the HTTP Transport may modify
+	// the request within Do, e.g. by adding headers.
+	if resp != nil && c.PlainLogger != nil {
+		out, err := httputil.DumpRequest(resp.Request, c.LogBodies)
+		if err != nil {
+			return nil, xerrors.Errorf("dump request: %w", err)
+		}
+		out = prefixLines([]byte("http --> "), out)
+		_, _ = c.PlainLogger.Write(out)
+	}
+
 	if err != nil {
 		return nil, err
 	}

@@ -6,13 +6,20 @@ import {
   Workspace,
   WorkspaceStatus,
   WorkspaceStatuses,
-} from "../../api/typesGenerated"
-import { MockWorkspace } from "../../testHelpers/entities"
-import { workspaceFilterQuery } from "../../utils/filters"
+} from "api/typesGenerated"
+import {
+  MockWorkspace,
+  MockAppearance,
+  MockBuildInfo,
+  MockEntitlementsWithScheduling,
+  MockExperiments,
+} from "testHelpers/entities"
+import { workspaceFilterQuery } from "utils/filters"
 import {
   WorkspacesPageView,
   WorkspacesPageViewProps,
 } from "./WorkspacesPageView"
+import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
 
 const createWorkspace = (
   status: WorkspaceStatus,
@@ -55,6 +62,13 @@ const allWorkspaces = [
   ...Object.values(additionalWorkspaces),
 ]
 
+const MockedAppearance = {
+  config: MockAppearance,
+  preview: false,
+  setPreview: () => null,
+  save: () => null,
+}
+
 export default {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
@@ -64,7 +78,16 @@ export default {
 } as ComponentMeta<typeof WorkspacesPageView>
 
 const Template: Story<WorkspacesPageViewProps> = (args) => (
-  <WorkspacesPageView {...args} />
+  <DashboardProviderContext.Provider
+    value={{
+      buildInfo: MockBuildInfo,
+      entitlements: MockEntitlementsWithScheduling,
+      experiments: MockExperiments,
+      appearance: MockedAppearance,
+    }}
+  >
+    <WorkspacesPageView {...args} />
+  </DashboardProviderContext.Provider>
 )
 
 export const AllStates = Template.bind({})

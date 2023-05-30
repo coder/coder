@@ -104,6 +104,25 @@ func TestPortForward(t *testing.T) {
 				return l.Addr().String(), port
 			},
 		},
+		{
+			name:    "TCPWithAddress",
+			network: "tcp",
+			flag:    "--tcp=%v:%v",
+			setupRemote: func(t *testing.T) net.Listener {
+				l, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err, "create TCP listener")
+				return l
+			},
+			setupLocal: func(t *testing.T) (string, string) {
+				l, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err, "create TCP listener to generate random port")
+				defer l.Close()
+
+				_, port, err := net.SplitHostPort(l.Addr().String())
+				require.NoErrorf(t, err, "split TCP address %q", l.Addr().String())
+				return l.Addr().String(), fmt.Sprint("0.0.0.0:", port)
+			},
+		},
 	}
 
 	// Setup agent once to be shared between test-cases (avoid expensive

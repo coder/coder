@@ -5770,6 +5770,12 @@ const docTemplate = `{
                 "value"
             ],
             "properties": {
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetricLabel"
+                    }
+                },
                 "name": {
                     "type": "string"
                 },
@@ -5786,6 +5792,21 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "number"
+                }
+            }
+        },
+        "agentsdk.AgentMetricLabel": {
+            "type": "object",
+            "required": [
+                "name",
+                "value"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -5965,6 +5986,9 @@ const docTemplate = `{
             "properties": {
                 "expanded_directory": {
                     "type": "string"
+                },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "version": {
                     "type": "string"
@@ -6405,6 +6429,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AgentSubsystem": {
+            "type": "string",
+            "enum": [
+                "envbox"
+            ],
+            "x-enum-varnames": [
+                "AgentSubsystemEnvbox"
+            ]
         },
         "codersdk.AppHostResponse": {
             "type": "object",
@@ -7032,7 +7065,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "organization_id",
                 "password",
                 "username"
             ],
@@ -7241,6 +7273,9 @@ const docTemplate = `{
         "codersdk.DangerousConfig": {
             "type": "object",
             "properties": {
+                "allow_all_cors": {
+                    "type": "boolean"
+                },
                 "allow_path_app_sharing": {
                     "type": "boolean"
                 },
@@ -8048,6 +8083,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ParameterSourceScheme"
                         }
                     ]
+                },
+                "source_value": {
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string",
@@ -9626,6 +9664,9 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
+                },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "troubleshooting_url": {
                     "type": "string"
