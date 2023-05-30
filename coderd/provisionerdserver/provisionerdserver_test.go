@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/provisionersdk"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -29,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
