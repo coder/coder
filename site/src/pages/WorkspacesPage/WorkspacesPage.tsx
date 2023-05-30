@@ -12,6 +12,7 @@ import {
   useStatusAutocomplete,
 } from "./filter/autocompletes"
 import { useSearchParams } from "react-router-dom"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const WorkspacesPage: FC = () => {
   const orgId = useOrganizationId()
@@ -47,6 +48,7 @@ const WorkspacesPage: FC = () => {
     filter.values.status,
     (option) => filter.update({ ...filter.values, status: option?.value }),
   )
+  const dashboard = useDashboard()
 
   return (
     <>
@@ -55,6 +57,7 @@ const WorkspacesPage: FC = () => {
       </Helmet>
 
       <WorkspacesPageView
+        useNewFilter={dashboard.experiments.includes("workspace_filter")}
         workspaces={data?.workspaces}
         error={error}
         count={data?.count}

@@ -19,6 +19,8 @@ import { ImpendingDeletionBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { Filter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
+import { workspaceFilterQuery } from "utils/filters"
+import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -29,10 +31,24 @@ export const Language = {
   template: "Template",
 }
 
+const presetFilters = [
+  { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
+  { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
+  {
+    query: workspaceFilterQuery.running,
+    name: Language.runningWorkspacesButton,
+  },
+  {
+    query: workspaceFilterQuery.failed,
+    name: "Failed workspaces",
+  },
+]
+
 export interface WorkspacesPageViewProps {
   error: unknown
   workspaces?: Workspace[]
   count?: number
+  useNewFilter?: boolean
   page: number
   limit: number
   filterProps: ComponentProps<typeof Filter>
@@ -45,12 +61,13 @@ export const WorkspacesPageView: FC<
 > = ({
   workspaces,
   error,
-  page,
   limit,
   count,
   filterProps,
   onPageChange,
   onUpdateWorkspace,
+  useNewFilter,
+  page,
 }) => {
   const { saveLocal, getLocal } = useLocalStorage()
 
@@ -115,7 +132,16 @@ export const WorkspacesPageView: FC<
           count={Count.Multiple}
         />
 
-        <Filter error={error} {...filterProps} />
+        {useNewFilter ? (
+          <Filter error={error} {...filterProps} />
+        ) : (
+          <SearchBarWithFilter
+            filter={filterProps.filter.query}
+            onFilter={filterProps.filter.debounceUpdate}
+            presetFilters={presetFilters}
+            error={error}
+          />
+        )}
       </Stack>
       <WorkspacesTable
         workspaces={workspaces}
