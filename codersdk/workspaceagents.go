@@ -167,8 +167,6 @@ type DialWorkspaceAgentOptions struct {
 	Logger slog.Logger
 	// BlockEndpoints forced a direct connection through DERP.
 	BlockEndpoints bool
-	// CustomConnectionInfo avoids hitting the API to get connection info.
-	CustomConnectionInfo *WorkspaceAgentConnectionInfo
 }
 
 func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (agentConn *WorkspaceAgentConn, err error) {
@@ -176,13 +174,9 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		options = &DialWorkspaceAgentOptions{}
 	}
 
-	connInfo := options.CustomConnectionInfo
-	if connInfo == nil {
-		res, err := c.WorkspaceAgentConnectionInfo(ctx, agentID)
-		if err != nil {
-			return nil, xerrors.Errorf("get connection info: %w", err)
-		}
-		connInfo = &res
+	connInfo, err := c.WorkspaceAgentConnectionInfo(ctx, agentID)
+	if err != nil {
+		return nil, xerrors.Errorf("get connection info: %w", err)
 	}
 
 	ip := tailnet.IP()

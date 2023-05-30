@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net"
 	"testing"
-	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/workspaceapps/apptest"
 	"github.com/coder/coder/codersdk"
@@ -78,19 +79,32 @@ func TestDERP(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for both running proxies to become healthy.
-	for i := 0; i < 10; i++ {
-		regionsCtx := testutil.Context(t, testutil.WaitLong)
-		regions, err := client.Regions(regionsCtx)
-		require.NoError(t, err)
-		require.Len(t, regions, 4)
+	require.Eventually(t, func() bool {
+		healthCtx := testutil.Context(t, testutil.WaitLong)
+		err := api.ProxyHealth.ForceUpdate(healthCtx)
+		if !assert.NoError(t, err) {
+			return false
+		}
+
+		regions, err := client.Regions(healthCtx)
+		if !assert.NoError(t, err) {
+			return false
+		}
+		if !assert.Len(t, regions, 4) {
+			return false
+		}
+
 		// The first 3 regions should be healthy.
 		for _, r := range regions[:3] {
-			require.True(t, r.Healthy)
+			if !r.Healthy {
+				return false
+			}
 		}
-		// The last region should be unhealthy.
-		require.False(t, regions[3].Healthy)
-		time.Sleep(time.Second)
-	}
+
+		// The last region should never be healthy.
+		assert.False(t, regions[3].Healthy)
+		return true
+	}, testutil.WaitLong, testutil.IntervalMedium)
 
 	// Create a workspace + apps
 	authToken := uuid.NewString()
@@ -212,38 +226,158 @@ resourceLoop:
 			t.Run(r.RegionName, func(t *testing.T) {
 				t.Parallel()
 
-				ctx := testutil.Context(t, testutil.WaitLong)
-				conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
-					Logger: slogtest.Make(t, &slogtest.Options{
-						IgnoreErrors: true,
-					}).Named("agent").Leveled(slog.LevelDebug),
-					// Force DERP.
-					BlockEndpoints: true,
-					// Force connecting to this region only.
-					CustomConnectionInfo: &codersdk.WorkspaceAgentConnectionInfo{
-						DERPMap: &tailcfg.DERPMap{
-							Regions: map[int]*tailcfg.DERPRegion{
-								r.RegionID: r,
-							},
-							OmitDefaultRegions: true,
-						},
+				derpMap := &tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{
+						r.RegionID: r,
 					},
-				})
-				require.NoError(t, err)
-				t.Cleanup(func() {
-					err := conn.Close()
-					assert.NoError(t, err)
+					OmitDefaultRegions: true,
+				}
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				report := healthcheck.DERPReport{}
+				report.Run(ctx, &healthcheck.DERPReportOptions{
+					DERPMap: derpMap,
 				})
 
-				ok := conn.AwaitReachable(ctx)
-				require.True(t, ok)
-
-				_, p2p, _, err := conn.Ping(ctx)
-				require.NoError(t, err)
-				require.False(t, p2p)
+				t.Log("healthcheck report: " + spew.Sdump(&report))
+				require.True(t, report.Healthy, "healthcheck failed, see report dump")
 			})
 		}
 	})
+}
+
+func TestDERPEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{
+		string(codersdk.ExperimentMoons),
+		"*",
+	}
+
+	client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues:         deploymentValues,
+			AppHostname:              "*.primary.test.coder.com",
+			IncludeProvisionerDaemon: true,
+			RealIPConfig: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{{
+					IP:   net.ParseIP("127.0.0.1"),
+					Mask: net.CIDRMask(8, 32),
+				}},
+				TrustedHeaders: []string{
+					"CF-Connecting-IP",
+				},
+			},
+		},
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	user := coderdtest.CreateFirstUser(t, client)
+	_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		Features: license.Features{
+			codersdk.FeatureWorkspaceProxy: 1,
+		},
+	})
+
+	coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+		Name: "best-proxy",
+	})
+
+	// Wait for the proxy to become healthy.
+	require.Eventually(t, func() bool {
+		healthCtx := testutil.Context(t, testutil.WaitLong)
+		err := api.ProxyHealth.ForceUpdate(healthCtx)
+		if !assert.NoError(t, err) {
+			return false
+		}
+
+		regions, err := client.Regions(healthCtx)
+		if !assert.NoError(t, err) {
+			return false
+		}
+		if !assert.Len(t, regions, 2) {
+			return false
+		}
+		for _, r := range regions {
+			if !r.Healthy {
+				return false
+			}
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalMedium)
+
+	// Swap out the DERPMapper for a fake one that only returns the proxy. This
+	// allows us to force the agent to pick the proxy as its preferred region.
+	oldDERPMapper := *api.AGPL.DERPMapper.Load()
+	newDERPMapper := func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
+		derpMap = oldDERPMapper(derpMap)
+		// Strip everything but the proxy, which is region ID 10001.
+		derpMap.Regions = map[int]*tailcfg.DERPRegion{
+			10001: derpMap.Regions[10001],
+		}
+		derpMap.OmitDefaultRegions = true
+		return derpMap
+	}
+	api.AGPL.DERPMapper.Store(&newDERPMapper)
+
+	// Create a workspace + apps
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	workspace.LatestBuild = build
+
+	agentID := uuid.Nil
+resourceLoop:
+	for _, res := range build.Resources {
+		for _, agnt := range res.Agents {
+			agentID = agnt.ID
+			break resourceLoop
+		}
+	}
+	require.NotEqual(t, uuid.Nil, agentID)
+
+	// Connect an agent to the workspace
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	agentCloser := agent.New(agent.Options{
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	t.Cleanup(func() {
+		_ = agentCloser.Close()
+	})
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	// Connect to the workspace agent.
+	ctx := testutil.Context(t, testutil.WaitLong)
+	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: slogtest.Make(t, &slogtest.Options{
+			IgnoreErrors: true,
+		}).Named("client").Leveled(slog.LevelDebug),
+		// Force DERP.
+		BlockEndpoints: true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := conn.Close()
+		assert.NoError(t, err)
+	})
+
+	ok := conn.AwaitReachable(ctx)
+	require.True(t, ok)
+
+	_, p2p, _, err := conn.Ping(ctx)
+	require.NoError(t, err)
+	require.False(t, p2p)
 }
 
 func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
