@@ -37,7 +37,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	// Get cached report if it exists.
 	if report := api.healthCheckCache.Load(); report != nil {
 		if time.Since(report.Time) < api.HealthcheckRefresh {
-			httpapi.Write(ctx, rw, http.StatusOK, report)
+			httpapi.WriteIndent(ctx, rw, http.StatusOK, report)
 			return
 		}
 	}
@@ -61,7 +61,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	case res := <-resChan:
-		httpapi.Write(ctx, rw, http.StatusOK, res.Val)
+		httpapi.WriteIndent(ctx, rw, http.StatusOK, res.Val)
 		return
 	}
 }
