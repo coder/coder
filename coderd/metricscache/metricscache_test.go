@@ -48,12 +48,14 @@ func TestCache_TemplateUsers(t *testing.T) {
 		uniqueUsers int
 	}
 	tests := []struct {
-		name     string
-		args     args
-		want     want
+		name    string
+		args    args
+		tplWant want
+		// dauWant is optional
+		dauWant  []codersdk.DAUEntry
 		tzOffset int
 	}{
-		{name: "empty", args: args{}, want: want{nil, 0}},
+		{name: "empty", args: args{}, tplWant: want{nil, 0}},
 		{
 			name: "one hole",
 			args: args{
@@ -62,7 +64,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 					statRow(zebra, dateH(2022, 8, 30, 0)),
 				},
 			},
-			want: want{[]codersdk.DAUEntry{
+			tplWant: want{[]codersdk.DAUEntry{
 				{
 					Date:   date(2022, 8, 27),
 					Amount: 1,
@@ -90,7 +92,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 					statRow(zebra, dateH(2022, 8, 29, 0)),
 				},
 			},
-			want: want{[]codersdk.DAUEntry{
+			tplWant: want{[]codersdk.DAUEntry{
 				{
 					Date:   date(2022, 8, 27),
 					Amount: 1,
@@ -116,7 +118,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 					statRow(tiger, dateH(2022, 1, 7, 0)),
 				},
 			},
-			want: want{[]codersdk.DAUEntry{
+			tplWant: want{[]codersdk.DAUEntry{
 				{
 					Date:   date(2022, 1, 1),
 					Amount: 2,
@@ -159,7 +161,13 @@ func TestCache_TemplateUsers(t *testing.T) {
 					statRow(tiger, dateH(2022, 1, 2, 0)),
 				},
 			},
-			want: want{[]codersdk.DAUEntry{
+			tplWant: want{[]codersdk.DAUEntry{
+				{
+					Date:   date(2022, 1, 2),
+					Amount: 2,
+				},
+			}, 2},
+			dauWant: []codersdk.DAUEntry{
 				{
 					Date:   date(2022, 1, 1),
 					Amount: 2,
@@ -168,7 +176,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 					Date:   date(2022, 1, 2),
 					Amount: 2,
 				},
-			}, 2},
+			},
 		},
 		{
 			name:     "tzOffsetPreviousDay",
@@ -181,9 +189,15 @@ func TestCache_TemplateUsers(t *testing.T) {
 					statRow(tiger, dateH(2022, 1, 2, 0)),
 				},
 			},
-			want: want{[]codersdk.DAUEntry{
+			dauWant: []codersdk.DAUEntry{
 				{
 					Date:   date(2022, 1, 1),
+					Amount: 2,
+				},
+			},
+			tplWant: want{[]codersdk.DAUEntry{
+				{
+					Date:   date(2022, 1, 2),
 					Amount: 2,
 				},
 			}, 2},
@@ -223,11 +237,18 @@ func TestCache_TemplateUsers(t *testing.T) {
 			gotUniqueUsers, ok := cache.TemplateUniqueUsers(template.ID)
 			require.True(t, ok)
 
+			if tt.dauWant != nil {
+				_, dauResponse, ok := cache.DeploymentDAUs(tt.tzOffset)
+				require.True(t, ok)
+				require.Equal(t, tt.dauWant, dauResponse.Entries)
+			}
+
 			offset, gotEntries, ok := cache.TemplateDAUs(template.ID, tt.tzOffset)
 			require.True(t, ok)
-			require.Equal(t, offset, tt.tzOffset)
-			require.Equal(t, tt.want.entries, gotEntries.Entries)
-			require.Equal(t, tt.want.uniqueUsers, gotUniqueUsers)
+			// Template only supports 0 offset.
+			require.Equal(t, 0, offset)
+			require.Equal(t, tt.tplWant.entries, gotEntries.Entries)
+			require.Equal(t, tt.tplWant.uniqueUsers, gotUniqueUsers)
 		})
 	}
 }
