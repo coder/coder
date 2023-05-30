@@ -140,7 +140,6 @@ dark = createTheme(dark, {
           "& .MuiLoadingButton-loadingIndicator": {
             width: 14,
             height: 14,
-            left: 10,
           },
 
           "& .MuiLoadingButton-loadingIndicator .MuiCircularProgress-root": {
