@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -558,7 +559,13 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 	})
 }
 
+// TestWorkspaceFilterAllStatus tests workspace status is correctly set given a set of conditions.
 func TestWorkspaceFilterAllStatus(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("DB") != "" {
+		t.Skip(`This test takes too long with an actual database`)
+	}
+
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	db, pubsub := dbtestutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
