@@ -7,16 +7,19 @@ import {
 import { render } from "../../testHelpers/renderHelpers"
 import { Language as navLanguage, NavbarView } from "./NavbarView"
 import { ProxyContextValue } from "contexts/ProxyContext"
+import { action } from "@storybook/addon-actions"
 
 const proxyContextValue: ProxyContextValue = {
   proxy: {
     preferredPathAppURL: "",
     preferredWildcardHostname: "",
-    selectedProxy: MockPrimaryWorkspaceProxy,
+    proxy: MockPrimaryWorkspaceProxy,
   },
   isLoading: false,
   isFetched: true,
   setProxy: jest.fn(),
+  clearProxy: action("clearProxy"),
+  proxyLatencies: {},
 }
 
 describe("NavbarView", () => {

@@ -2,11 +2,11 @@ import Drawer from "@mui/material/Drawer"
 import IconButton from "@mui/material/IconButton"
 import List from "@mui/material/List"
 import ListItem from "@mui/material/ListItem"
-import { makeStyles } from "@mui/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import MenuIcon from "@mui/icons-material/Menu"
 import { CoderIcon } from "components/Icons/CoderIcon"
 import { FC, useRef, useState } from "react"
-import { NavLink, useLocation } from "react-router-dom"
+import { NavLink, useLocation, useNavigate } from "react-router-dom"
 import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
@@ -19,11 +19,10 @@ import MenuItem from "@mui/material/MenuItem"
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined"
 import { ProxyContextValue } from "contexts/ProxyContext"
 import { displayError } from "components/GlobalSnackbar/utils"
-import SignalCellular1BarOutlined from "@mui/icons-material/SignalCellular1BarOutlined"
-import SignalCellular2BarOutlined from "@mui/icons-material/SignalCellular2BarOutlined"
-import SignalCellular4BarOutlined from "@mui/icons-material/SignalCellular4BarOutlined"
-import SignalCellularConnectedNoInternet0BarOutlined from "@mui/icons-material/SignalCellularConnectedNoInternet0BarOutlined"
-import { SvgIconProps } from "@mui/material/SvgIcon"
+import Divider from "@mui/material/Divider"
+import HelpOutline from "@mui/icons-material/HelpOutline"
+import Tooltip from "@mui/material/Tooltip"
+import Skeleton from "@mui/material/Skeleton"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -35,7 +34,7 @@ export interface NavbarViewProps {
   onSignOut: () => void
   canViewAuditLog: boolean
   canViewDeployment: boolean
-  proxyContextValue: ProxyContextValue
+  proxyContextValue?: ProxyContextValue
 }
 
 export const Language = {
@@ -166,7 +165,9 @@ export const NavbarView: FC<NavbarViewProps> = ({
           alignItems="center"
           paddingRight={2}
         >
-          <ProxyMenu proxyContextValue={proxyContextValue} />
+          {proxyContextValue && (
+            <ProxyMenu proxyContextValue={proxyContextValue} />
+          )}
           {user && (
             <UserDropdown
               user={user}
@@ -186,9 +187,19 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
-  const selectedProxy = proxyContextValue.proxy.selectedProxy
-
+  const selectedProxy = proxyContextValue.proxy.proxy
   const closeMenu = () => setIsOpen(false)
+  const navigate = useNavigate()
+
+  if (!proxyContextValue.isFetched) {
+    return (
+      <Skeleton
+        width="160px"
+        height={30}
+        sx={{ borderRadius: "4px", transform: "none" }}
+      />
+    )
+  }
 
   return (
     <>
@@ -198,11 +209,12 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         size="small"
         endIcon={<KeyboardArrowDownOutlined />}
         sx={{
+          borderRadius: "4px",
           "& .MuiSvgIcon-root": { fontSize: 14 },
         }}
       >
         {selectedProxy ? (
-          <Box display="flex" gap={1} alignItems="center">
+          <Box display="flex" gap={2} alignItems="center">
             <Box width={14} height={14} lineHeight={0}>
               <Box
                 component="img"
@@ -214,11 +226,10 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
               />
             </Box>
             {selectedProxy.display_name}
-            <ProxyStatusIcon
+            <ProxyStatusLatency
               proxy={selectedProxy}
               latency={
-                proxyContextValue.proxyLatencies?.[selectedProxy.id]
-                  ?.latencyMS ?? 0
+                proxyContextValue.proxyLatencies?.[selectedProxy.id]?.latencyMS
               }
             />
           </Box>
@@ -231,6 +242,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         anchorEl={buttonRef.current}
         onClick={closeMenu}
         onClose={closeMenu}
+        sx={{ "& .MuiMenu-paper": { py: 1 } }}
       >
         {proxyContextValue.proxies?.map((proxy) => (
           <MenuItem
@@ -245,13 +257,13 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
               closeMenu()
             }}
             key={proxy.id}
-            selected={proxy.id === proxyContextValue.proxy.selectedProxy?.id}
+            selected={proxy.id === selectedProxy?.id}
             sx={{
-              "& .MuiSvgIcon-root": { fontSize: 16 },
+              fontSize: 14,
             }}
           >
-            <Box display="flex" gap={2} alignItems="center" width="100%">
-              <Box width={16} height={16} lineHeight={0}>
+            <Box display="flex" gap={3} alignItems="center" width="100%">
+              <Box width={14} height={14} lineHeight={0}>
                 <Box
                   component="img"
                   src={proxy.icon_url}
@@ -262,58 +274,62 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
                 />
               </Box>
               {proxy.display_name}
-              <ProxyStatusIcon
+              <ProxyStatusLatency
                 proxy={proxy}
                 latency={
-                  proxyContextValue.proxyLatencies?.[proxy.id]?.latencyMS ?? 0
+                  proxyContextValue.proxyLatencies?.[proxy.id]?.latencyMS
                 }
-                sx={{
-                  marginLeft: "auto",
-                }}
               />
             </Box>
           </MenuItem>
         ))}
+        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
+        <MenuItem
+          sx={{ fontSize: 14 }}
+          onClick={() => {
+            navigate("/settings/workspace-proxies")
+          }}
+        >
+          Proxy settings
+        </MenuItem>
       </Menu>
     </>
   )
 }
 
-const ProxyStatusIcon: FC<
-  { proxy: TypesGen.Region; latency: number } & SvgIconProps
-> = ({ proxy, latency, ...svgProps }) => {
-  if (!proxy.healthy) {
-    return (
-      <SignalCellularConnectedNoInternet0BarOutlined
-        {...svgProps}
-        sx={{ color: (theme) => theme.palette.warning.light, ...svgProps.sx }}
-      />
-    )
-  }
+const ProxyStatusLatency: FC<{ proxy: TypesGen.Region; latency?: number }> = ({
+  proxy,
+  latency,
+}) => {
+  const theme = useTheme()
+  let color = theme.palette.success.light
 
-  if (latency >= 150 && latency < 300) {
+  if (!latency) {
     return (
-      <SignalCellular2BarOutlined
-        {...svgProps}
-        sx={{ color: (theme) => theme.palette.warning.light, ...svgProps.sx }}
-      />
+      <Tooltip title="Latency not available">
+        <HelpOutline
+          sx={{
+            ml: "auto",
+            fontSize: "14px !important",
+            color: (theme) => theme.palette.text.secondary,
+          }}
+        />
+      </Tooltip>
     )
   }
 
   if (latency >= 300) {
-    return (
-      <SignalCellular1BarOutlined
-        {...svgProps}
-        sx={{ color: (theme) => theme.palette.error.light, ...svgProps.sx }}
-      />
-    )
+    color = theme.palette.error.light
+  }
+
+  if (!proxy.healthy || latency >= 100) {
+    color = theme.palette.warning.light
   }
 
   return (
-    <SignalCellular4BarOutlined
-      {...svgProps}
-      sx={{ color: (theme) => theme.palette.success.light, ...svgProps.sx }}
-    />
+    <Box sx={{ color, fontSize: 13, marginLeft: "auto" }}>
+      {latency.toFixed(0)}ms
+    </Box>
   )
 }
 
