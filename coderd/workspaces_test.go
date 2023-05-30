@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbgen"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -553,6 +555,56 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 	})
+}
+
+func TestWorkspaceFilterAllStatus(t *testing.T) {
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	file := dbgen.File(t, api.Database, database.File{
+		CreatedBy: owner.UserID,
+	})
+	versionJob := dbgen.ProvisionerJob(t, api.Database, database.ProvisionerJob{
+		OrganizationID: owner.OrganizationID,
+		InitiatorID:    owner.UserID,
+		WorkerID:       uuid.NullUUID{},
+		FileID:         file.ID,
+	})
+	version := dbgen.TemplateVersion(t, api.Database, database.TemplateVersion{
+		OrganizationID: owner.OrganizationID,
+		JobID:          versionJob.ID,
+		CreatedBy:      owner.UserID,
+	})
+	template := dbgen.Template(t, api.Database, database.Template{
+		OrganizationID:  owner.OrganizationID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       owner.UserID,
+	})
+
+	makeWorkspace := func(workspace database.Workspace) database.Workspace {
+		workspace.OwnerID = owner.UserID
+		workspace.OrganizationID = owner.OrganizationID
+		workspace.TemplateID = template.ID
+		workspace = dbgen.Workspace(t, api.Database, workspace)
+
+		return workspace
+	}
+	var _ = makeWorkspace
+	//makeWorkspace(database.Workspace{
+	//})
+
+	// pending
+	// starting
+	// running
+	// stopping
+	// stopped
+	// failed
+	// canceling
+	// canceled
+	// deleted
+	// deleting
+
 }
 
 // TestWorkspaceFilter creates a set of workspaces, users, and organizations
