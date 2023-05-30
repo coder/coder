@@ -3,14 +3,16 @@ package metricscache
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-
-	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
@@ -18,6 +20,14 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
 )
+
+// timezoneOffsets are the timezones that are cached and supported.
+// Any non-listed timezone offsets will need to use the closest supported one.
+var timezoneOffsets = []int{
+	0, // UTC - is listed first intentionally.
+	-12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1,
+	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+}
 
 // Cache holds the template metrics.
 // The aggregation queries responsible for these values can take up to a minute
@@ -29,8 +39,8 @@ type Cache struct {
 	log       slog.Logger
 	intervals Intervals
 
-	deploymentDAUResponses   atomic.Pointer[codersdk.DeploymentDAUsResponse]
-	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
+	deploymentDAUResponses   atomic.Pointer[map[int]codersdk.DAUsResponse]
+	templateDAUResponses     atomic.Pointer[map[int]map[uuid.UUID]codersdk.DAUsResponse]
 	templateUniqueUsers      atomic.Pointer[map[uuid.UUID]int]
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
@@ -107,37 +117,23 @@ func fillEmptyDays(sortedDates []time.Time) []time.Time {
 	return newDates
 }
 
-func convertDAUResponse(rows []database.GetTemplateDAUsRow) codersdk.TemplateDAUsResponse {
-	respMap := make(map[time.Time][]uuid.UUID)
-	for _, row := range rows {
-		uuids := respMap[row.Date]
-		if uuids == nil {
-			uuids = make([]uuid.UUID, 0, 8)
-		}
-		uuids = append(uuids, row.UserID)
-		respMap[row.Date] = uuids
-	}
-
-	dates := maps.Keys(respMap)
-	slices.SortFunc(dates, func(a, b time.Time) bool {
-		return a.Before(b)
-	})
-
-	var resp codersdk.TemplateDAUsResponse
-	for _, date := range fillEmptyDays(dates) {
-		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
-			Date:   date,
-			Amount: len(respMap[date]),
-		})
-	}
-
-	return resp
+type dauRow interface {
+	database.GetTemplateDAUsRow |
+		database.GetDeploymentDAUsRow
 }
 
-func convertDeploymentDAUResponse(rows []database.GetDeploymentDAUsRow) codersdk.DeploymentDAUsResponse {
+func convertDAUResponse[T dauRow](rows []T, tzOffset int) codersdk.DAUsResponse {
 	respMap := make(map[time.Time][]uuid.UUID)
 	for _, row := range rows {
-		respMap[row.Date] = append(respMap[row.Date], row.UserID)
+		switch row := any(row).(type) {
+		case database.GetDeploymentDAUsRow:
+			respMap[row.Date] = append(respMap[row.Date], row.UserID)
+		case database.GetTemplateDAUsRow:
+			respMap[row.Date] = append(respMap[row.Date], row.UserID)
+		default:
+			// This should never happen.
+			panic(fmt.Sprintf("%T not acceptable, developer error", row))
+		}
 	}
 
 	dates := maps.Keys(respMap)
@@ -145,13 +141,14 @@ func convertDeploymentDAUResponse(rows []database.GetDeploymentDAUsRow) codersdk
 		return a.Before(b)
 	})
 
-	var resp codersdk.DeploymentDAUsResponse
+	var resp codersdk.DAUsResponse
 	for _, date := range fillEmptyDays(dates) {
 		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
 			Date:   date,
 			Amount: len(respMap[date]),
 		})
 	}
+	resp.TZHourOffset = tzOffset
 
 	return resp
 }
@@ -164,6 +161,23 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 	return len(seen)
 }
 
+func (c *Cache) refreshDeploymentDAUs(ctx context.Context) error {
+	//nolint:gocritic // This is a system service.
+	ctx = dbauthz.AsSystemRestricted(ctx)
+
+	deploymentDAUs := make(map[int]codersdk.DAUsResponse)
+	for _, tzOffset := range timezoneOffsets {
+		rows, err := c.database.GetDeploymentDAUs(ctx, int32(tzOffset))
+		if err != nil {
+			return err
+		}
+		deploymentDAUs[tzOffset] = convertDAUResponse(rows, tzOffset)
+	}
+
+	c.deploymentDAUResponses.Store(&deploymentDAUs)
+	return nil
+}
+
 func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	//nolint:gocritic // This is a system service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
@@ -174,26 +188,35 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	}
 
 	var (
-		deploymentDAUs            = codersdk.DeploymentDAUsResponse{}
-		templateDAUs              = make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
+		templateDAUs              = make(map[int]map[uuid.UUID]codersdk.DAUsResponse, len(templates))
 		templateUniqueUsers       = make(map[uuid.UUID]int)
 		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
 	)
 
-	rows, err := c.database.GetDeploymentDAUs(ctx)
+	err = c.refreshDeploymentDAUs(ctx)
 	if err != nil {
-		return err
+		return xerrors.Errorf("deployment daus: %w", err)
 	}
-	deploymentDAUs = convertDeploymentDAUResponse(rows)
-	c.deploymentDAUResponses.Store(&deploymentDAUs)
 
 	for _, template := range templates {
-		rows, err := c.database.GetTemplateDAUs(ctx, template.ID)
-		if err != nil {
-			return err
+		for _, tzOffset := range timezoneOffsets {
+			rows, err := c.database.GetTemplateDAUs(ctx, database.GetTemplateDAUsParams{
+				TemplateID: template.ID,
+				TzOffset:   int32(tzOffset),
+			})
+			if err != nil {
+				return err
+			}
+			if templateDAUs[tzOffset] == nil {
+				templateDAUs[tzOffset] = make(map[uuid.UUID]codersdk.DAUsResponse)
+			}
+			templateDAUs[tzOffset][template.ID] = convertDAUResponse(rows, tzOffset)
+			if _, set := templateUniqueUsers[template.ID]; !set {
+				// If the uniqueUsers has not been counted yet, set the unique count with the rows we have.
+				// We only need to calculate this once.
+				templateUniqueUsers[template.ID] = countUniqueUsers(rows)
+			}
 		}
-		templateDAUs[template.ID] = convertDAUResponse(rows)
-		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
 
 		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx, database.GetTemplateAverageBuildTimeParams{
 			TemplateID: uuid.NullUUID{
@@ -294,26 +317,80 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) DeploymentDAUs() (*codersdk.DeploymentDAUsResponse, bool) {
+func (c *Cache) DeploymentDAUs(offset int) (int, *codersdk.DAUsResponse, bool) {
 	m := c.deploymentDAUResponses.Load()
-	return m, m != nil
+	if m == nil {
+		return 0, nil, false
+	}
+	closestOffset, resp, ok := closest(*m, offset)
+	if !ok {
+		return 0, nil, false
+	}
+	return closestOffset, &resp, ok
 }
 
 // TemplateDAUs returns an empty response if the template doesn't have users
 // or is loading for the first time.
-func (c *Cache) TemplateDAUs(id uuid.UUID) (*codersdk.TemplateDAUsResponse, bool) {
+// The cache will select the closest DAUs response to given timezone offset.
+func (c *Cache) TemplateDAUs(id uuid.UUID, offset int) (int, *codersdk.DAUsResponse, bool) {
 	m := c.templateDAUResponses.Load()
 	if m == nil {
 		// Data loading.
-		return nil, false
+		return 0, nil, false
 	}
 
-	resp, ok := (*m)[id]
+	closestOffset, resp, ok := closest(*m, offset)
 	if !ok {
 		// Probably no data.
-		return nil, false
+		return 0, nil, false
 	}
-	return &resp, true
+
+	tpl, ok := resp[id]
+	if !ok {
+		// Probably no data.
+		return 0, nil, false
+	}
+
+	return closestOffset, &tpl, true
+}
+
+// closest returns the value in the values map that has a key with the value most
+// close to the requested key. This is so if a user requests a timezone offset that
+// we do not have, we return the closest one we do have to the user.
+func closest[V any](values map[int]V, offset int) (int, V, bool) {
+	if len(values) == 0 {
+		var v V
+		return -1, v, false
+	}
+
+	v, ok := values[offset]
+	if ok {
+		// We have the exact offset, that was easy!
+		return offset, v, true
+	}
+
+	var closest int
+	var closestV V
+	diff := math.MaxInt
+	for k, v := range values {
+		newDiff := abs(k - offset)
+		// Take the closest value that is also the smallest value. We do this
+		// to make the output deterministic
+		if newDiff < diff || (newDiff == diff && k < closest) {
+			// new closest
+			closest = k
+			closestV = v
+			diff = newDiff
+		}
+	}
+	return closest, closestV, true
+}
+
+func abs(a int) int {
+	if a < 0 {
+		return -1 * a
+	}
+	return a
 }
 
 // TemplateUniqueUsers returns the number of unique Template users

@@ -826,16 +826,15 @@ export const getAuditLogs = async (
 
 export const getTemplateDAUs = async (
   templateId: string,
-): Promise<TypesGen.TemplateDAUsResponse> => {
+): Promise<TypesGen.DAUsResponse> => {
   const response = await axios.get(`/api/v2/templates/${templateId}/daus`)
   return response.data
 }
 
-export const getDeploymentDAUs =
-  async (): Promise<TypesGen.DeploymentDAUsResponse> => {
-    const response = await axios.get(`/api/v2/insights/daus`)
-    return response.data
-  }
+export const getDeploymentDAUs = async (): Promise<TypesGen.DAUsResponse> => {
+  const response = await axios.get(`/api/v2/insights/daus`)
+  return response.data
+}
 
 export const getTemplateACL = async (
   templateId: string,

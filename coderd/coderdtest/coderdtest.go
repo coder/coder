@@ -107,7 +107,7 @@ type Options struct {
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 
-	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckFunc    func(ctx context.Context, apiKey string) (*healthcheck.Report, error)
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 

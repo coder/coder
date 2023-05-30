@@ -427,6 +427,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/ws": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Websocket Test",
+                "operationId": "debug-info-websocket-test",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/deployment/config": {
             "get": {
                 "security": [
@@ -747,7 +775,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.DeploymentDAUsResponse"
+                            "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
                 }
@@ -2124,7 +2152,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateDAUsResponse"
+                            "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
                 }
@@ -7219,6 +7247,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DAUsResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DAUEntry"
+                    }
+                },
+                "tz_hour_offset": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.DERP": {
             "type": "object",
             "properties": {
@@ -7302,17 +7344,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/clibase.Option"
-                    }
-                }
-            }
-        },
-        "codersdk.DeploymentDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
                     }
                 }
             }
@@ -7559,11 +7590,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "moons",
-                "workspace_actions"
+                "workspace_actions",
+                "workspace_filter"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
-                "ExperimentWorkspaceActions"
+                "ExperimentWorkspaceActions",
+                "ExperimentWorkspaceFilter"
             ]
         },
         "codersdk.Feature": {
@@ -8927,17 +8960,6 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {
                 "$ref": "#/definitions/codersdk.TransitionStats"
-            }
-        },
-        "codersdk.TemplateDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
-                    }
-                }
             }
         },
         "codersdk.TemplateExample": {
@@ -10436,6 +10458,29 @@ const docTemplate = `{
                 "time": {
                     "description": "Time is the time the report was generated at.",
                     "type": "string"
+                },
+                "websocket": {
+                    "$ref": "#/definitions/healthcheck.WebsocketReport"
+                }
+            }
+        },
+        "healthcheck.WebsocketReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "response": {
+                    "$ref": "#/definitions/healthcheck.WebsocketResponse"
+                }
+            }
+        },
+        "healthcheck.WebsocketResponse": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "integer"
                 }
             }
         },

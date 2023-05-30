@@ -435,21 +435,21 @@ func (q *fakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.Ins
 	return stat, nil
 }
 
-func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
+func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
 	for _, as := range q.workspaceAgentStats {
-		if as.TemplateID != templateID {
+		if as.TemplateID != arg.TemplateID {
 			continue
 		}
 		if as.ConnectionCount == 0 {
 			continue
 		}
 
-		date := as.CreatedAt.Truncate(time.Hour * 24)
+		date := as.CreatedAt.UTC().Add(time.Duration(arg.TzOffset) * time.Hour).Truncate(time.Hour * 24)
 
 		dateEntry := seens[date]
 		if dateEntry == nil {
@@ -478,7 +478,7 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	return rs, nil
 }
 
-func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context) ([]database.GetDeploymentDAUsRow, error) {
+func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context, tzOffset int32) ([]database.GetDeploymentDAUsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -488,7 +488,7 @@ func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context) ([]database.GetDeploy
 		if as.ConnectionCount == 0 {
 			continue
 		}
-		date := as.CreatedAt.Truncate(time.Hour * 24)
+		date := as.CreatedAt.UTC().Add(time.Duration(tzOffset) * time.Hour).Truncate(time.Hour * 24)
 
 		dateEntry := seens[date]
 		if dateEntry == nil {
