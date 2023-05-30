@@ -38,8 +38,13 @@ coder server
 via the dashboard or running [coder_apps](../templates/README.md#coder-apps) on an absolute path. Set this to a wildcard
 subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
-> If you are providing TLS certificates directly to the Coder server, you must use a single certificate for the
-> root and wildcard domains. Multi-certificate support [is planned](https://github.com/coder/coder/pull/4150).
+If you are providing TLS certificates directly to the Coder server, either
+
+1. use a single certificate/key for the root and wildcard domains.
+2. configure both root and wildcard domain certificates/keys via
+   [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/values.yaml) in the Helm Chart, or
+   [`--tls-key-file`](../cli/server#--tls-cert-file) and [`--tls-key-file`](../cli/server#--tls-key-file) command
+   line options.
 
 ## TLS & Reverse Proxy
 
