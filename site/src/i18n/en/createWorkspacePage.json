@@ -3,6 +3,8 @@
   "nameLabel": "Workspace Name",
   "ownerLabel": "Owner",
   "createWorkspace": "Create workspace",
+  "validationNumberNotLesserThan": "Value must be greater than {{min}}.",
+  "validationNumberNotGreaterThan": "Value must be lesser than {{max}}.",
   "validationNumberNotInRange": "Value must be between {{min}} and {{max}}.",
   "validationPatternNotMatched": "{{error}} (value does not match the pattern {{pattern}})."
 }
