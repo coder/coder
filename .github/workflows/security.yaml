@@ -86,9 +86,9 @@ jobs:
       - name: Install mockgen
         run: go install github.com/golang/mock/mockgen@v1.6.0
       - name: Install protoc-gen-go
-        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
       - name: Install protoc-gen-go-drpc
-        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
       - name: Install Protoc
         run: |
           # protoc must be in lockstep with our dogfood Dockerfile or the
