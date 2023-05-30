@@ -79,13 +79,21 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 	}
 
 	validation := &provider.Validation{
-		Min:       int(richParameter.ValidationMin),
-		Max:       int(richParameter.ValidationMax),
+		Min:       ptrInt(richParameter.ValidationMin),
+		Max:       ptrInt(richParameter.ValidationMax),
 		Regex:     richParameter.ValidationRegex,
 		Error:     richParameter.ValidationError,
 		Monotonic: string(richParameter.ValidationMonotonic),
 	}
 	return validation.Valid(richParameter.Type, value)
+}
+
+func ptrInt(number *int32) *int {
+	if number == nil {
+		return nil
+	}
+	n := int(*number)
+	return &n
 }
 
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {
@@ -111,7 +119,8 @@ func parameterValuesAsArray(options []TemplateVersionParameterOption) []string {
 
 func validationEnabled(param TemplateVersionParameter) bool {
 	return len(param.ValidationRegex) > 0 ||
-		(param.ValidationMin != 0 && param.ValidationMax != 0) ||
+		param.ValidationMin != nil ||
+		param.ValidationMax != nil ||
 		len(param.ValidationMonotonic) > 0 ||
 		param.Type == "bool" || // boolean type doesn't have any custom validation rules, but the value must be checked (true/false).
 		param.Type == "list(string)" // list(string) type doesn't have special validation, but we need to check if this is a correct list.

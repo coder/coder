@@ -59,8 +59,8 @@ type TemplateVersionParameter struct {
 	Options              []TemplateVersionParameterOption `json:"options"`
 	ValidationError      string                           `json:"validation_error,omitempty"`
 	ValidationRegex      string                           `json:"validation_regex,omitempty"`
-	ValidationMin        int32                            `json:"validation_min,omitempty"`
-	ValidationMax        int32                            `json:"validation_max,omitempty"`
+	ValidationMin        *int32                           `json:"validation_min,omitempty"`
+	ValidationMax        *int32                           `json:"validation_max,omitempty"`
 	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
 	Required             bool                             `json:"required"`
 	LegacyVariableName   string                           `json:"legacy_variable_name,omitempty"`
