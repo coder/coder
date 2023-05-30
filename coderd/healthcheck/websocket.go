@@ -98,9 +98,18 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	c.Close(websocket.StatusGoingAway, "goodbye")
 }
 
-type WebsocketEchoServer struct{}
+type WebsocketEchoServer struct {
+	Error error
+	Code  int
+}
 
-func (WebsocketEchoServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (s *WebsocketEchoServer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	if s.Error != nil {
+		rw.WriteHeader(s.Code)
+		_, _ = rw.Write([]byte(s.Error.Error()))
+		return
+	}
+
 	ctx := r.Context()
 	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{})
 	if err != nil {
