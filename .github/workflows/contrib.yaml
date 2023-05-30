@@ -57,6 +57,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           requireScope: false
+          types:
+            - feat
+            - chore
+            - fix
+            - hotfix
+            - refactor
+            - perf
+            - test
 
   release-labels:
     runs-on: ubuntu-latest
