@@ -74,7 +74,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		DERPServerRegionID:         oop.DERPMap.RegionIDs()[0],
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
-		Keys:                       Keys,
+		LicenseKeys:                Keys,
 		ProxyHealthInterval:        options.ProxyHealthInterval,
 	})
 	assert.NoError(t, err)

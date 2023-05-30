@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -18,11 +19,13 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
 	agplaudit "github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/database/dbcrypt"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/enterprise/derpmesh"
@@ -39,8 +42,8 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if options.EntitlementsUpdateInterval == 0 {
 		options.EntitlementsUpdateInterval = 10 * time.Minute
 	}
-	if options.Keys == nil {
-		options.Keys = Keys
+	if options.LicenseKeys == nil {
+		options.LicenseKeys = Keys
 	}
 	if options.Options == nil {
 		options.Options = &coderd.Options{}
@@ -52,9 +55,16 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
+
+	externalTokenCipher := &atomic.Pointer[cryptorand.Cipher]{}
+	options.Database = dbcrypt.New(options.Database, &dbcrypt.Options{
+		ExternalTokenCipher: externalTokenCipher,
+	})
+
 	api := &API{
-		ctx:    ctx,
-		cancel: cancelFunc,
+		ctx:                 ctx,
+		cancel:              cancelFunc,
+		externalTokenCipher: externalTokenCipher,
 
 		AGPL:    coderd.New(options.Options),
 		Options: options,
@@ -274,8 +284,9 @@ type Options struct {
 	RBAC         bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
-	BrowserOnly bool
-	SCIMAPIKey  []byte
+	BrowserOnly             bool
+	SCIMAPIKey              []byte
+	ExternalTokenEncryption cryptorand.Cipher
 
 	// Used for high availability.
 	DERPServerRelayAddress string
@@ -283,7 +294,7 @@ type Options struct {
 
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
-	Keys                       map[string]ed25519.PublicKey
+	LicenseKeys                map[string]ed25519.PublicKey
 }
 
 type API struct {
@@ -294,6 +305,8 @@ type API struct {
 	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	externalTokenCipher *atomic.Pointer[cryptorand.Cipher]
 
 	// Detects multiple Coder replicas running at the same time.
 	replicaManager *replicasync.Manager
@@ -319,13 +332,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
-		api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
+		api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
+			codersdk.FeatureExternalTokenEncryption:    api.ExternalTokenEncryption != nil,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			codersdk.FeatureWorkspaceProxy:             true,
@@ -393,6 +407,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		} else {
 			store := schedule.NewAGPLTemplateScheduleStore()
 			api.AGPL.TemplateScheduleStore.Store(&store)
+		}
+	}
+
+	if changed, enabled := featureChanged(codersdk.FeatureExternalTokenEncryption); changed {
+		if enabled {
+			api.externalTokenCipher.Store(&api.ExternalTokenEncryption)
+		} else {
+			api.externalTokenCipher.Store(nil)
 		}
 	}
 
