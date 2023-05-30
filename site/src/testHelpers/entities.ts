@@ -1,8 +1,8 @@
-import { withDefaultFeatures } from "./../api/api"
+import { withDefaultFeatures, GetLicensesResponse } from "api/api"
 import { FieldError } from "api/errors"
 import { everyOneGroup } from "utils/groups"
-import * as Types from "../api/types"
-import * as TypesGen from "../api/typesGenerated"
+import * as Types from "api/types"
+import * as TypesGen from "api/typesGenerated"
 import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 import { TemplateVersionFiles } from "utils/templateVersion"
@@ -1730,5 +1730,47 @@ export const MockStartupLogs: TypesGen.WorkspaceAgentStartupLog[] = [
     created_at: "2023-05-04T11:30:42.593686Z",
     output: "Installing v4.8.3 of the amd64 release from GitHub.",
     level: "info",
+  },
+]
+
+export const MockLicenseResponse: GetLicensesResponse[] = [
+  {
+    id: 1,
+    uploaded_at: "1660104000",
+    expires_at: "3420244800", // expires on 5/20/2078
+    uuid: "1",
+    claims: {
+      trial: false,
+      all_features: true,
+      version: 1,
+      features: {},
+      license_expires: 3420244800,
+    },
+  },
+  {
+    id: 1,
+    uploaded_at: "1660104000",
+    expires_at: "1660104000", // expired on 8/10/2022
+    uuid: "1",
+    claims: {
+      trial: false,
+      all_features: true,
+      version: 1,
+      features: {},
+      license_expires: 1660104000,
+    },
+  },
+  {
+    id: 1,
+    uploaded_at: "1682346425",
+    expires_at: "1682346425", // expired on 4/24/2023
+    uuid: "1",
+    claims: {
+      trial: false,
+      all_features: true,
+      version: 1,
+      features: {},
+      license_expires: 1682346425,
+    },
   },
 ]

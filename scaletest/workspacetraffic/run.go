@@ -3,8 +3,8 @@ package workspacetraffic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,11 +19,14 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/scaletest/harness"
 	"github.com/coder/coder/scaletest/loadtestutil"
+
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 type Runner struct {
-	client *codersdk.Client
-	cfg    Config
+	client  *codersdk.Client
+	cfg     Config
+	metrics *Metrics
 }
 
 var (
@@ -31,10 +34,11 @@ var (
 	_ harness.Cleanable = &Runner{}
 )
 
-func NewRunner(client *codersdk.Client, cfg Config) *Runner {
+func NewRunner(client *codersdk.Client, cfg Config, metrics *Metrics) *Runner {
 	return &Runner{
-		client: client,
-		cfg:    cfg,
+		client:  client,
+		cfg:     cfg,
+		metrics: metrics,
 	}
 }
 
@@ -46,6 +50,16 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 	r.client.Logger = logger
 	r.client.LogBodies = true
+
+	// Initialize our metrics eagerly. This is mainly so that we can test for the
+	// presence of a zero-valued metric as opposed to the absence of a metric.
+	lvs := []string{r.cfg.WorkspaceOwner, r.cfg.WorkspaceName, r.cfg.AgentName}
+	r.metrics.BytesReadTotal.WithLabelValues(lvs...).Add(0)
+	r.metrics.BytesWrittenTotal.WithLabelValues(lvs...).Add(0)
+	r.metrics.ReadErrorsTotal.WithLabelValues(lvs...).Add(0)
+	r.metrics.WriteErrorsTotal.WithLabelValues(lvs...).Add(0)
+	r.metrics.ReadLatencySeconds.WithLabelValues(lvs...).Observe(0)
+	r.metrics.WriteLatencySeconds.WithLabelValues(lvs...).Observe(0)
 
 	var (
 		agentID             = r.cfg.AgentID
@@ -90,7 +104,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	}()
 
 	// Wrap the conn in a countReadWriter so we can monitor bytes sent/rcvd.
-	crw := countReadWriter{ReadWriter: conn}
+	crw := countReadWriter{ReadWriter: conn, metrics: r.metrics, labels: lvs}
 
 	// Create a ticker for sending data to the PTY.
 	tick := time.NewTicker(tickInterval)
@@ -131,11 +145,12 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	}
 
 	duration := time.Since(start)
-
-	logger.Info(ctx, "results",
+	logger.Info(ctx, "Test Results",
 		slog.F("duration", duration),
-		slog.F("sent", crw.BytesWritten()),
-		slog.F("rcvd", crw.BytesRead()),
+		slog.F("bytes_read_total", promtest.ToFloat64(r.metrics.BytesReadTotal)),
+		slog.F("bytes_written_total", promtest.ToFloat64(r.metrics.BytesWrittenTotal)),
+		slog.F("read_errors_total", promtest.ToFloat64(r.metrics.ReadErrorsTotal)),
+		slog.F("write_errors_total", promtest.ToFloat64(r.metrics.WriteErrorsTotal)),
 	)
 
 	return nil
@@ -184,32 +199,34 @@ func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 // countReadWriter wraps an io.ReadWriter and counts the number of bytes read and written.
 type countReadWriter struct {
 	io.ReadWriter
-	bytesRead    atomic.Int64
-	bytesWritten atomic.Int64
+	metrics *Metrics
+	labels  []string
 }
 
 func (w *countReadWriter) Read(p []byte) (int, error) {
+	start := time.Now()
 	n, err := w.ReadWriter.Read(p)
-	if err == nil {
-		w.bytesRead.Add(int64(n))
+	if reportableErr(err) {
+		w.metrics.ReadErrorsTotal.WithLabelValues(w.labels...).Inc()
+	}
+	w.metrics.ReadLatencySeconds.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
+	if n > 0 {
+		w.metrics.BytesReadTotal.WithLabelValues(w.labels...).Add(float64(n))
 	}
 	return n, err
 }
 
 func (w *countReadWriter) Write(p []byte) (int, error) {
+	start := time.Now()
 	n, err := w.ReadWriter.Write(p)
-	if err == nil {
-		w.bytesWritten.Add(int64(n))
+	if reportableErr(err) {
+		w.metrics.WriteErrorsTotal.WithLabelValues(w.labels...).Inc()
+	}
+	w.metrics.WriteLatencySeconds.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
+	if n > 0 {
+		w.metrics.BytesWrittenTotal.WithLabelValues(w.labels...).Add(float64(n))
 	}
 	return n, err
-}
-
-func (w *countReadWriter) BytesRead() int64 {
-	return w.bytesRead.Load()
-}
-
-func (w *countReadWriter) BytesWritten() int64 {
-	return w.bytesWritten.Load()
 }
 
 func mustRandStr(l int64) string {
@@ -221,4 +238,20 @@ func mustRandStr(l int64) string {
 		panic(err)
 	}
 	return randStr
+}
+
+// some errors we want to report in metrics; others we want to ignore
+// such as websocket.StatusNormalClosure or context.Canceled
+func reportableErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if xerrors.Is(err, context.Canceled) {
+		return false
+	}
+	var wsErr websocket.CloseError
+	if errors.As(err, &wsErr) {
+		return wsErr.Code != websocket.StatusNormalClosure
+	}
+	return false
 }

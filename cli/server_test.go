@@ -1491,6 +1491,8 @@ func TestServer_Production(t *testing.T) {
 
 //nolint:tparallel,paralleltest // This test cannot be run in parallel due to signal handling.
 func TestServer_Shutdown(t *testing.T) {
+	t.Skip("This test issues an interrupt signal which will propagate to the test runner.")
+
 	if runtime.GOOS == "windows" {
 		// Sending interrupt signal isn't supported on Windows!
 		t.SkipNow()

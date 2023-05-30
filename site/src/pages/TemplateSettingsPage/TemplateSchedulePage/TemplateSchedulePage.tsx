@@ -32,8 +32,9 @@ const TemplateSchedulePage: FC = () => {
     {
       onSuccess: () => {
         displaySuccess("Template updated successfully")
-        // clear browser-stored list of workspaces impending deletion
-        clearLocal("dismissedWorkspaceList")
+        // clear browser storage of workspaces impending deletion
+        clearLocal("dismissedWorkspaceList") // workspaces page
+        clearLocal("dismissedWorkspace") // workspace page
       },
     },
   )
