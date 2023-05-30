@@ -2,7 +2,7 @@
 set -eu
 
 # Coder's automatic install script.
-# See https://github.com/coder/coder#installing-coder
+# See https://github.com/coder/coder#installing-coder for more info.
 
 usage() {
 	arg0="$0"
