@@ -65,3 +65,17 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+// @Summary Debug Websocket
+// @ID debug-info-websocket-test
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Debug
+// @Success 201 {object} codersdk.Response
+// @Router /debug/ws [get]
+// @x-apidocgen {"skip": true}
+//
+// For some reason the swagger docs need to be attached to a function.
+//
+//nolint:unused
+func _debugws(http.ResponseWriter, *http.Request) {}

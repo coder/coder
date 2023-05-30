@@ -788,13 +788,6 @@ func New(options *Options) *API {
 
 			r.Get("/coordinator", api.debugCoordinator)
 			r.Get("/health", api.debugDeploymentHealth)
-			// @Summary Debug Info Deployment Health
-			// @ID debug-info-deployment-health
-			// @Security CoderSessionToken
-			// @Produce json
-			// @Tags Debug
-			// @Success 200 {object} healthcheck.Report
-			// @Router /debug/health [get]
 			r.Get("/ws", healthcheck.WebsocketEchoServer{}.ServeHTTP)
 		})
 	})
