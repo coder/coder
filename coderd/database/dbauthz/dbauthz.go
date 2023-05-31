@@ -17,6 +17,8 @@ import (
 
 var _ database.Store = (*querier)(nil)
 
+const wrapname = "dbauthz.querier"
+
 // NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
 // response when the user is not authorized.
 var NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
@@ -89,14 +91,20 @@ type querier struct {
 func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) database.Store {
 	// If the underlying db store is already a querier, return it.
 	// Do not double wrap.
-	if _, ok := db.(*querier); ok {
-		return db
+	for _, w := range db.Wrappers() {
+		if w == wrapname {
+			return db
+		}
 	}
 	return &querier{
 		db:   db,
 		auth: authorizer,
 		log:  logger,
 	}
+}
+
+func (q *querier) Wrappers() []string {
+	return append(q.db.Wrappers(), wrapname)
 }
 
 // authorizeContext is a helper function to authorize an action on an object.

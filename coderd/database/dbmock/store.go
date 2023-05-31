@@ -3233,3 +3233,17 @@ func (mr *MockStoreMockRecorder) UpsertServiceBanner(arg0, arg1 interface{}) *go
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertServiceBanner", reflect.TypeOf((*MockStore)(nil).UpsertServiceBanner), arg0, arg1)
 }
+
+// Wrappers mocks base method.
+func (m *MockStore) Wrappers() []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Wrappers")
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// Wrappers indicates an expected call of Wrappers.
+func (mr *MockStoreMockRecorder) Wrappers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Wrappers", reflect.TypeOf((*MockStore)(nil).Wrappers))
+}

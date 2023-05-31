@@ -12,11 +12,15 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+const wrapname = "dbmetrics.metricsStore"
+
 // New returns a database.Store that registers metrics for all queries to reg.
 func New(s database.Store, reg prometheus.Registerer) database.Store {
 	// Don't double-wrap.
-	if _, ok := s.(*metricsStore); ok {
-		return s
+	for _, w := range s.Wrappers() {
+		if w == wrapname {
+			return s
+		}
 	}
 	queryLatencies := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
@@ -47,6 +51,10 @@ type metricsStore struct {
 	s              database.Store
 	queryLatencies *prometheus.HistogramVec
 	txDuration     prometheus.Histogram
+}
+
+func (m metricsStore) Wrappers() []string {
+	return append(m.s.Wrappers(), wrapname)
 }
 
 func (m metricsStore) Ping(ctx context.Context) (time.Duration, error) {
