@@ -272,8 +272,7 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 	return member
 }
 
-// ProvisionerJob might not have all the correct values like CompletedAt and CancelledAt. This is because
-// the workspaceBuild is required to fetch those,
+// ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.
 func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
 	id := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.

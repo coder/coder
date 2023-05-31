@@ -1194,96 +1194,67 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				return nil, xerrors.Errorf("get provisioner job: %w", err)
 			}
 
-			// How this works is you need to 'continue' if the status does
-			// not match. I do 'if/else' so I can just match the postgres logic.
+			// This logic should match the logic in the workspace.sql file.
+			var statusMatch bool
 			switch database.WorkspaceStatus(arg.Status) {
 			case database.WorkspaceStatusPending:
-				if isNull(job.StartedAt) {
-				} else {
-					continue
-				}
-
+				statusMatch = isNull(job.StartedAt)
 			case database.WorkspaceStatusStarting:
-				if isNotNull(job.StartedAt) &&
+				statusMatch = isNotNull(job.StartedAt) &&
 					isNull(job.CanceledAt) &&
 					isNull(job.CompletedAt) &&
 					time.Since(job.UpdatedAt) < 30*time.Second &&
-					build.Transition == database.WorkspaceTransitionStart {
-				} else {
-					continue
-				}
+					build.Transition == database.WorkspaceTransitionStart
 
 			case database.WorkspaceStatusRunning:
-				if isNotNull(job.CompletedAt) &&
+				statusMatch = isNotNull(job.CompletedAt) &&
 					isNull(job.CanceledAt) &&
 					isNull(job.Error) &&
-					build.Transition == database.WorkspaceTransitionStart {
-				} else {
-					continue
-				}
+					build.Transition == database.WorkspaceTransitionStart
 
 			case database.WorkspaceStatusStopping:
-				if isNotNull(job.StartedAt) &&
+				statusMatch = isNotNull(job.StartedAt) &&
 					isNull(job.CanceledAt) &&
 					isNull(job.CompletedAt) &&
 					time.Since(job.UpdatedAt) < 30*time.Second &&
-					build.Transition == database.WorkspaceTransitionStop {
-				} else {
-					continue
-				}
+					build.Transition == database.WorkspaceTransitionStop
 
 			case database.WorkspaceStatusStopped:
-				if isNotNull(job.CompletedAt) &&
+				statusMatch = isNotNull(job.CompletedAt) &&
 					isNull(job.CanceledAt) &&
 					isNull(job.Error) &&
-					build.Transition == database.WorkspaceTransitionStop {
-				} else {
-					continue
-				}
-
+					build.Transition == database.WorkspaceTransitionStop
 			case database.WorkspaceStatusFailed:
-				if (isNotNull(job.CanceledAt) && isNotNull(job.Error)) ||
-					(isNotNull(job.CompletedAt) && isNotNull(job.Error)) {
-				} else {
-					continue
-				}
+				statusMatch = (isNotNull(job.CanceledAt) && isNotNull(job.Error)) ||
+					(isNotNull(job.CompletedAt) && isNotNull(job.Error))
 
 			case database.WorkspaceStatusCanceling:
-				if isNotNull(job.CanceledAt) &&
-					isNull(job.CompletedAt) {
-				} else {
-					continue
-				}
+				statusMatch = isNotNull(job.CanceledAt) &&
+					isNull(job.CompletedAt)
 
 			case database.WorkspaceStatusCanceled:
-				if isNotNull(job.CanceledAt) &&
-					isNotNull(job.CompletedAt) {
-				} else {
-					continue
-				}
+				statusMatch = isNotNull(job.CanceledAt) &&
+					isNotNull(job.CompletedAt)
 
 			case database.WorkspaceStatusDeleted:
-				if isNotNull(job.StartedAt) &&
+				statusMatch = isNotNull(job.StartedAt) &&
 					isNull(job.CanceledAt) &&
 					isNotNull(job.CompletedAt) &&
 					time.Since(job.UpdatedAt) < 30*time.Second &&
 					build.Transition == database.WorkspaceTransitionDelete &&
-					isNull(job.Error) {
-				} else {
-					continue
-				}
+					isNull(job.Error)
 
 			case database.WorkspaceStatusDeleting:
-				if isNull(job.CompletedAt) &&
+				statusMatch = isNull(job.CompletedAt) &&
 					isNull(job.CanceledAt) &&
 					isNull(job.Error) &&
-					build.Transition == database.WorkspaceTransitionDelete {
-				} else {
-					continue
-				}
+					build.Transition == database.WorkspaceTransitionDelete
 
 			default:
 				return nil, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
+			}
+			if !statusMatch {
+				continue
 			}
 		}
 

@@ -636,21 +636,21 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}
 
 	// pending
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusPending),
 	}, database.ProvisionerJob{
 		StartedAt: sql.NullTime{Valid: false},
 	}, database.WorkspaceTransitionStart)
 
 	// starting
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusStarting),
 	}, database.ProvisionerJob{
 		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 	}, database.WorkspaceTransitionStart)
 
 	// running
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusRunning),
 	}, database.ProvisionerJob{
 		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
@@ -658,14 +658,14 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStart)
 
 	// stopping
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusStopping),
 	}, database.ProvisionerJob{
 		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 	}, database.WorkspaceTransitionStop)
 
 	// stopped
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusStopped),
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -673,7 +673,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStop)
 
 	// failed -- delete
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusFailed) + "-deleted",
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -682,7 +682,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionDelete)
 
 	// failed -- stop
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusFailed) + "-stopped",
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -691,7 +691,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStop)
 
 	// canceling
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusCanceling),
 	}, database.ProvisionerJob{
 		StartedAt:  sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -699,7 +699,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStart)
 
 	// canceled
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusCanceled),
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -708,14 +708,14 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStart)
 
 	// deleting
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusDeleting),
 	}, database.ProvisionerJob{
 		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 	}, database.WorkspaceTransitionDelete)
 
 	// deleted
-	_, _, _ = makeWorkspace(database.Workspace{
+	makeWorkspace(database.Workspace{
 		Name: string(database.WorkspaceStatusDeleted),
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
