@@ -50,7 +50,7 @@ export const useFilter = ({
   onUpdate?: () => void
 }) => {
   const [searchParams, setSearchParams] = searchParamsResult
-  const query = searchParams.get("filter") ?? ""
+  const query = searchParams.get("filter") ?? "owner:me"
   const values = parseFilterQuery(query)
 
   const update = (values: string | FilterValues) => {
