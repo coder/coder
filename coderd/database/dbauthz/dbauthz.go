@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/open-policy-agent/opa/topdown"
@@ -91,10 +92,8 @@ type querier struct {
 func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) database.Store {
 	// If the underlying db store is already a querier, return it.
 	// Do not double wrap.
-	for _, w := range db.Wrappers() {
-		if w == wrapname {
-			return db
-		}
+	if slices.Contains(db.Wrappers(), wrapname) {
+		return db
 	}
 	return &querier{
 		db:   db,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
@@ -17,10 +18,8 @@ const wrapname = "dbmetrics.metricsStore"
 // New returns a database.Store that registers metrics for all queries to reg.
 func New(s database.Store, reg prometheus.Registerer) database.Store {
 	// Don't double-wrap.
-	for _, w := range s.Wrappers() {
-		if w == wrapname {
-			return s
-		}
+	if slices.Contains(s.Wrappers(), wrapname) {
+		return s
 	}
 	queryLatencies := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
