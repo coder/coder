@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/dbmetrics"
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -176,6 +177,11 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 
+	// Safety check: if we're not running a unit test, we *must* have a Prometheus registry.
+	if options.PrometheusRegistry == nil && flag.Lookup("test.v") == nil {
+		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
+	}
+
 	if options.DeploymentValues.DisableOwnerWorkspaceExec {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
 			NoOwnerWorkspaceExec: true,
@@ -184,6 +190,10 @@ func New(options *Options) *API {
 
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+	}
+	// The below are no-ops if already wrapped.
+	if options.PrometheusRegistry != nil {
+		options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 	}
 	options.Database = dbauthz.New(
 		options.Database,

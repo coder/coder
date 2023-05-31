@@ -23,6 +23,7 @@ import Divider from "@mui/material/Divider"
 import HelpOutline from "@mui/icons-material/HelpOutline"
 import Tooltip from "@mui/material/Tooltip"
 import Skeleton from "@mui/material/Skeleton"
+import { BUTTON_SM_HEIGHT } from "theme/theme"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -195,7 +196,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
     return (
       <Skeleton
         width="160px"
-        height={30}
+        height={BUTTON_SM_HEIGHT}
         sx={{ borderRadius: "4px", transform: "none" }}
       />
     )

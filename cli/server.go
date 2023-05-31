@@ -65,6 +65,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbmetrics"
 	"github.com/coder/coder/coderd/database/dbpurge"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
@@ -586,7 +587,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			if cfg.InMemoryDatabase {
-				options.Database = dbfake.New()
+				// This is only used for testing.
+				options.Database = dbmetrics.New(dbfake.New(), options.PrometheusRegistry)
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
 				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
@@ -597,7 +599,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					_ = sqlDB.Close()
 				}()
 
-				options.Database = database.New(sqlDB)
+				options.Database = dbmetrics.New(database.New(sqlDB), options.PrometheusRegistry)
 				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)

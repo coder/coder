@@ -41,20 +41,29 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       </Maybe>
       <p>{t("deleteDialog.confirm", { entity })}</p>
 
-      <TextField
-        fullWidth
-        autoFocus
-        className={styles.textField}
-        name="confirmation"
-        autoComplete="off"
-        id="confirmation"
-        placeholder={name}
-        value={nameValue}
-        onChange={handleChange}
-        label={t("deleteDialog.confirmLabel", { entity })}
-        error={hasError}
-        helperText={hasError && t("deleteDialog.incorrectName", { entity })}
-      />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (confirmed) {
+            onConfirm()
+          }
+        }}
+      >
+        <TextField
+          fullWidth
+          autoFocus
+          className={styles.textField}
+          name="confirmation"
+          autoComplete="off"
+          id="confirmation"
+          placeholder={name}
+          value={nameValue}
+          onChange={handleChange}
+          label={t("deleteDialog.confirmLabel", { entity })}
+          error={hasError}
+          helperText={hasError && t("deleteDialog.incorrectName", { entity })}
+        />
+      </form>
     </>
   )
 
