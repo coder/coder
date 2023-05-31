@@ -55,7 +55,6 @@ func New() database.Store {
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
-			parameterValues:           make([]database.ParameterValue, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
 			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
@@ -120,7 +119,6 @@ type data struct {
 	groups                    []database.Group
 	licenses                  []database.License
 	parameterSchemas          []database.ParameterSchema
-	parameterValues           []database.ParameterValue
 	provisionerDaemons        []database.ProvisionerDaemon
 	provisionerJobLogs        []database.ProvisionerJobLog
 	provisionerJobs           []database.ProvisionerJob
@@ -569,34 +567,6 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 	row.Stop50, row.Stop95 = tryPercentile(stopTimes, 50), tryPercentile(stopTimes, 95)
 	row.Start50, row.Start95 = tryPercentile(startTimes, 50), tryPercentile(startTimes, 95)
 	return row, nil
-}
-
-func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, parameterValue := range q.parameterValues {
-		if parameterValue.ID != id {
-			continue
-		}
-		return parameterValue, nil
-	}
-	return database.ParameterValue{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) DeleteParameterValueByID(_ context.Context, id uuid.UUID) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, parameterValue := range q.parameterValues {
-		if parameterValue.ID != id {
-			continue
-		}
-		q.parameterValues[index] = q.parameterValues[len(q.parameterValues)-1]
-		q.parameterValues = q.parameterValues[:len(q.parameterValues)-1]
-		return nil
-	}
-	return sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
