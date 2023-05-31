@@ -5867,21 +5867,21 @@ Parameter represents a set value for the scope.
 {
   "error": null,
   "healthy": true,
-  "healthzResponse": "string",
+  "healthz_response": "string",
   "reachable": true,
-  "statusCode": 0
+  "status_code": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description |
-| ----------------- | ------- | -------- | ------------ | ----------- |
-| `error`           | any     | false    |              |             |
-| `healthy`         | boolean | false    |              |             |
-| `healthzResponse` | string  | false    |              |             |
-| `reachable`       | boolean | false    |              |             |
-| `statusCode`      | integer | false    |              |             |
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `error`            | any     | false    |              |             |
+| `healthy`          | boolean | false    |              |             |
+| `healthz_response` | string  | false    |              |             |
+| `reachable`        | boolean | false    |              |             |
+| `status_code`      | integer | false    |              |             |
 
 ## healthcheck.DERPNodeReport
 
@@ -6212,9 +6212,9 @@ Parameter represents a set value for the scope.
   "access_url": {
     "error": null,
     "healthy": true,
-    "healthzResponse": "string",
+    "healthz_response": "string",
     "reachable": true,
-    "statusCode": 0
+    "status_code": 0
   },
   "derp": {
     "error": null,
@@ -6376,10 +6376,11 @@ Parameter represents a set value for the scope.
       }
     }
   },
-  "pass": true,
+  "healthy": true,
   "time": "string",
   "websocket": {
     "error": null,
+    "healthy": true,
     "response": {
       "body": "string",
       "code": 0
@@ -6394,7 +6395,7 @@ Parameter represents a set value for the scope.
 | ------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
 | `access_url` | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
 | `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
-| `pass`       | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
+| `healthy`    | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
 | `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
 | `websocket`  | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
 
@@ -6403,6 +6404,7 @@ Parameter represents a set value for the scope.
 ```json
 {
   "error": null,
+  "healthy": true,
   "response": {
     "body": "string",
     "code": 0
@@ -6415,6 +6417,7 @@ Parameter represents a set value for the scope.
 | Name       | Type                                                           | Required | Restrictions | Description |
 | ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `error`    | any                                                            | false    |              |             |
+| `healthy`  | boolean                                                        | false    |              |             |
 | `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
 
 ## healthcheck.WebsocketResponse
