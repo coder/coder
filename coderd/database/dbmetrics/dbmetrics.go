@@ -25,10 +25,19 @@ func New(s database.Store, reg prometheus.Registerer) database.Store {
 		Help:      "Latency distribution of queries in seconds.",
 		Buckets:   prometheus.DefBuckets,
 	}, []string{"query"})
+	txDuration := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "db",
+		Name:      "tx_duration_seconds",
+		Help:      "Duration of transactions in seconds.",
+		Buckets:   prometheus.DefBuckets,
+	})
 	reg.MustRegister(queryLatencies)
+	reg.MustRegister(txDuration)
 	return &metricsStore{
 		s:              s,
 		queryLatencies: queryLatencies,
+		txDuration:     txDuration,
 	}
 }
 
@@ -37,6 +46,7 @@ var _ database.Store = (*metricsStore)(nil)
 type metricsStore struct {
 	s              database.Store
 	queryLatencies *prometheus.HistogramVec
+	txDuration     prometheus.Histogram
 }
 
 func (m metricsStore) Ping(ctx context.Context) (time.Duration, error) {
@@ -47,8 +57,10 @@ func (m metricsStore) Ping(ctx context.Context) (time.Duration, error) {
 }
 
 func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions) error {
-	// No point in measuring this, as it's just a wrapper around the underlying store's InTx method.
-	return m.s.InTx(f, options)
+	start := time.Now()
+	err := m.s.InTx(f, options)
+	m.txDuration.Observe(time.Since(start).Seconds())
+	return err
 }
 
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
