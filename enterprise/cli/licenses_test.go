@@ -140,7 +140,7 @@ func TestLicensesListFake(t *testing.T) {
 	// so instead we have to fake the HTTP interaction.
 	t.Run("Mainline", func(t *testing.T) {
 		t.Parallel()
-		var expectedLicenseExpires = time.Date(2024, 4, 6, 16, 53, 35, 0, time.UTC)
+		expectedLicenseExpires := time.Date(2024, 4, 6, 16, 53, 35, 0, time.UTC)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		inv := setupFakeLicenseServerTest(t, "licenses", "list")
