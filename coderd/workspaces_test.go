@@ -569,7 +569,8 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		t.Skip(`This test takes too long with an actual database. Takes 10s on local machine`)
 	}
 
-	// nolint:gocritic -- unit testing
+	// For this test, we do not care about permissions.
+	// nolint:gocritic // unit testing
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	db, pubsub := dbtestutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
