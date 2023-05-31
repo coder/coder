@@ -209,20 +209,6 @@ func (mr *MockStoreMockRecorder) DeleteOldWorkspaceAgentStats(arg0 interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceAgentStats), arg0)
 }
 
-// DeleteParameterValueByID mocks base method.
-func (m *MockStore) DeleteParameterValueByID(arg0 context.Context, arg1 uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteParameterValueByID", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteParameterValueByID indicates an expected call of DeleteParameterValueByID.
-func (mr *MockStoreMockRecorder) DeleteParameterValueByID(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteParameterValueByID", reflect.TypeOf((*MockStore)(nil).DeleteParameterValueByID), arg0, arg1)
-}
-
 // DeleteReplicasUpdatedBefore mocks base method.
 func (m *MockStore) DeleteReplicasUpdatedBefore(arg0 context.Context, arg1 time.Time) error {
 	m.ctrl.T.Helper()
@@ -2478,21 +2464,6 @@ func (m *MockStore) InsertWorkspaceResourceMetadata(arg0 context.Context, arg1 d
 func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), arg0, arg1)
-}
-
-// ParameterValue mocks base method.
-func (m *MockStore) ParameterValue(arg0 context.Context, arg1 uuid.UUID) (database.ParameterValue, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ParameterValue", arg0, arg1)
-	ret0, _ := ret[0].(database.ParameterValue)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ParameterValue indicates an expected call of ParameterValue.
-func (mr *MockStoreMockRecorder) ParameterValue(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ParameterValue", reflect.TypeOf((*MockStore)(nil).ParameterValue), arg0, arg1)
 }
 
 // Ping mocks base method.

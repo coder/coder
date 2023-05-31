@@ -526,35 +526,6 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	return nil
 }
 
-func (q *querier) parameterRBACResource(ctx context.Context, scope database.ParameterScope, scopeID uuid.UUID) (rbac.Objecter, error) {
-	var resource rbac.Objecter
-	var err error
-	switch scope {
-	case database.ParameterScopeWorkspace:
-		return q.db.GetWorkspaceByID(ctx, scopeID)
-	case database.ParameterScopeImportJob:
-		var version database.TemplateVersion
-		version, err = q.db.GetTemplateVersionByJobID(ctx, scopeID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, err
-		}
-		resource = version.RBACObjectNoTemplate()
-
-		var template database.Template
-		template, err = q.db.GetTemplateByID(ctx, version.TemplateID.UUID)
-		if err == nil {
-			resource = version.RBACObject(template)
-		} else if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return nil, err
-		}
-		return resource, nil
-	case database.ParameterScopeTemplate:
-		return q.db.GetTemplateByID(ctx, scopeID)
-	default:
-		return nil, xerrors.Errorf("Parameter scope %q unsupported", scope)
-	}
-}
-
 func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	version, err := q.db.GetTemplateVersionByJobID(ctx, jobID)
 	if err != nil {
