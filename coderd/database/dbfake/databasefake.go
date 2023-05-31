@@ -1194,76 +1194,91 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				return nil, xerrors.Errorf("get provisioner job: %w", err)
 			}
 
+			// How this works is you need to 'continue' if the status does
+			// not match. I do 'if/else' so I can just match the postgres logic.
 			switch database.WorkspaceStatus(arg.Status) {
 			case database.WorkspaceStatusPending:
-				if !job.StartedAt.Valid {
+				if isNull(job.StartedAt) {
+				} else {
 					continue
 				}
 
 			case database.WorkspaceStatusStarting:
-				if !job.StartedAt.Valid &&
-					!job.CanceledAt.Valid &&
-					job.CompletedAt.Valid &&
-					time.Since(job.UpdatedAt) > 30*time.Second ||
-					build.Transition != database.WorkspaceTransitionStart {
+				if isNotNull(job.StartedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.CompletedAt) &&
+					time.Since(job.UpdatedAt) < 30*time.Second &&
+					build.Transition == database.WorkspaceTransitionStart {
+				} else {
 					continue
 				}
 
 			case database.WorkspaceStatusRunning:
-				if !job.CompletedAt.Valid &&
-					job.CanceledAt.Valid &&
-					job.Error.Valid ||
-					build.Transition != database.WorkspaceTransitionStart {
+				if isNotNull(job.CompletedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.Error) &&
+					build.Transition == database.WorkspaceTransitionStart {
+				} else {
 					continue
 				}
 
 			case database.WorkspaceStatusStopping:
-				if !job.StartedAt.Valid &&
-					!job.CanceledAt.Valid &&
-					job.CompletedAt.Valid &&
-					time.Since(job.UpdatedAt) > 30*time.Second ||
-					build.Transition != database.WorkspaceTransitionStop {
+				if isNotNull(job.StartedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.CompletedAt) &&
+					time.Since(job.UpdatedAt) < 30*time.Second &&
+					build.Transition == database.WorkspaceTransitionStop {
+				} else {
 					continue
 				}
 
 			case database.WorkspaceStatusStopped:
-				if !job.CompletedAt.Valid &&
-					job.CanceledAt.Valid &&
-					job.Error.Valid ||
-					build.Transition != database.WorkspaceTransitionStop {
+				if isNotNull(job.CompletedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.Error) &&
+					build.Transition == database.WorkspaceTransitionStop {
+				} else {
 					continue
 				}
 
 			case database.WorkspaceStatusFailed:
-				if (!job.CanceledAt.Valid && !job.Error.Valid) ||
-					(!job.CompletedAt.Valid && !job.Error.Valid) {
+				if (isNotNull(job.CanceledAt) && isNotNull(job.Error)) ||
+					(isNotNull(job.CompletedAt) && isNotNull(job.Error)) {
+				} else {
 					continue
 				}
 
 			case database.WorkspaceStatusCanceling:
-				if !job.CanceledAt.Valid && job.CompletedAt.Valid {
+				if isNotNull(job.CanceledAt) &&
+					isNull(job.CompletedAt) {
+				} else {
 					continue
 				}
 
 			case database.WorkspaceStatusCanceled:
-				if !job.CanceledAt.Valid && !job.CompletedAt.Valid {
+				if isNotNull(job.CanceledAt) &&
+					isNotNull(job.CompletedAt) {
+				} else {
 					continue
 				}
 
 			case database.WorkspaceStatusDeleted:
-				if !job.StartedAt.Valid &&
-					job.CanceledAt.Valid &&
-					!job.CompletedAt.Valid &&
-					time.Since(job.UpdatedAt) > 30*time.Second ||
-					build.Transition != database.WorkspaceTransitionDelete {
+				if isNotNull(job.StartedAt) &&
+					isNull(job.CanceledAt) &&
+					isNotNull(job.CompletedAt) &&
+					time.Since(job.UpdatedAt) < 30*time.Second &&
+					build.Transition == database.WorkspaceTransitionDelete &&
+					isNull(job.Error) {
+				} else {
 					continue
 				}
 
 			case database.WorkspaceStatusDeleting:
-				if !job.CompletedAt.Valid &&
-					job.CanceledAt.Valid &&
-					job.Error.Valid &&
-					build.Transition != database.WorkspaceTransitionDelete {
+				if isNull(job.CompletedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.Error) &&
+					build.Transition == database.WorkspaceTransitionDelete {
+				} else {
 					continue
 				}
 
@@ -5330,4 +5345,14 @@ func (q *fakeQuerier) UpdateWorkspaceProxyDeleted(_ context.Context, arg databas
 		}
 	}
 	return sql.ErrNoRows
+}
+
+// isNull is only used in dbfake, so reflect is ok. Use this to make the logic
+// look more similar to the postgres.
+func isNull(v interface{}) bool {
+	return !isNotNull(v)
+}
+
+func isNotNull(v interface{}) bool {
+	return reflect.ValueOf(v).FieldByName("Valid").Bool()
 }
