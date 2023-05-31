@@ -97,7 +97,7 @@ type fakeQuerier struct {
 	*data
 }
 
-func (q *fakeQuerier) Wrappers() []string {
+func (*fakeQuerier) Wrappers() []string {
 	return []string{}
 }
 

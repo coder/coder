@@ -69,7 +69,7 @@ type sqlQuerier struct {
 	db  DBTX
 }
 
-func (q *sqlQuerier) Wrappers() []string {
+func (*sqlQuerier) Wrappers() []string {
 	return []string{}
 }
 
