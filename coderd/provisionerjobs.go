@@ -59,7 +59,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		return
 	}
 
-	follower := newLogFollower(ctx, logger, api.Database, api.Pubsub, job, after, r, rw)
+	follower := newLogFollower(ctx, logger, api.Database, api.Pubsub, rw, r, job, after)
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
@@ -273,29 +273,29 @@ type logFollower struct {
 	rw     http.ResponseWriter
 	conn   *websocket.Conn
 
-	jobID    uuid.UUID
-	after    int64
-	complete bool
-	kicks    chan provisionersdk.ProvisionerJobLogsNotifyMessage
-	errors   chan error
+	jobID         uuid.UUID
+	after         int64
+	complete      bool
+	notifications chan provisionersdk.ProvisionerJobLogsNotifyMessage
+	errors        chan error
 }
 
 func newLogFollower(
 	ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub,
-	job database.ProvisionerJob, after int64, r *http.Request, rw http.ResponseWriter,
+	rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob, after int64,
 ) *logFollower {
 	return &logFollower{
-		ctx:      ctx,
-		logger:   logger,
-		db:       db,
-		pubsub:   pubsub,
-		r:        r,
-		rw:       rw,
-		jobID:    job.ID,
-		after:    after,
-		complete: jobIsComplete(logger, job),
-		kicks:    make(chan provisionersdk.ProvisionerJobLogsNotifyMessage),
-		errors:   make(chan error),
+		ctx:           ctx,
+		logger:        logger,
+		db:            db,
+		pubsub:        pubsub,
+		r:             r,
+		rw:            rw,
+		jobID:         job.ID,
+		after:         after,
+		complete:      jobIsComplete(logger, job),
+		notifications: make(chan provisionersdk.ProvisionerJobLogsNotifyMessage),
+		errors:        make(chan error),
 	}
 }
 
@@ -330,6 +330,7 @@ func (f *logFollower) follow() {
 			return
 		}
 		f.complete = jobIsComplete(f.logger, job)
+		f.logger.Debug(f.ctx, "queried job after subscribe", slog.F("complete", f.complete))
 	}
 
 	var err error
@@ -355,6 +356,7 @@ func (f *logFollower) follow() {
 				f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
 			}
 		}
+		return
 	}
 
 	// no need to wait if the job is done
@@ -370,7 +372,7 @@ func (f *logFollower) follow() {
 			// We could soldier on and retry, but loss of database connectivity
 			// is fairly serious, so instead just 500 and bail out.  Client
 			// can retry and hopefully find a healthier node.
-			f.logger.Error(f.ctx, "pubsub callback error", slog.Error(err))
+			f.logger.Error(f.ctx, "dropped or corrupted notification", slog.Error(err))
 			err = f.conn.Close(websocket.StatusInternalError, err.Error())
 			if err != nil {
 				f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
@@ -379,7 +381,7 @@ func (f *logFollower) follow() {
 		case <-f.ctx.Done():
 			// client disconnect
 			return
-		case n := <-f.kicks:
+		case n := <-f.notifications:
 			if n.EndOfLogs {
 				// safe to return here because we started the subscription,
 				// and then queried at least once, so we will have already
@@ -413,12 +415,13 @@ func (f *logFollower) listener(_ context.Context, message []byte, err error) {
 		f.errors <- err
 		return
 	}
-	f.kicks <- n
+	f.notifications <- n
 }
 
 // query fetches the latest job logs from the database and writes them to the
 // connection.
 func (f *logFollower) query() error {
+	f.logger.Debug(f.ctx, "querying logs", slog.F("after", f.after))
 	logs, err := f.db.GetProvisionerLogsAfterID(f.ctx, database.GetProvisionerLogsAfterIDParams{
 		JobID:        f.jobID,
 		CreatedAfter: f.after,
@@ -431,13 +434,12 @@ func (f *logFollower) query() error {
 		if err != nil {
 			return xerrors.Errorf("error marshaling log: %w", err)
 		}
-		// client expects a newline
-		logB = append(logB, '\n')
 		err = f.conn.Write(f.ctx, websocket.MessageText, logB)
 		if err != nil {
 			return xerrors.Errorf("error writing to websocket: %w", err)
 		}
 		f.after = log.ID
+		f.logger.Debug(f.ctx, "wrote log to websocket", slog.F("id", log.ID))
 	}
 	return nil
 }

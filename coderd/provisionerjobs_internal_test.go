@@ -157,7 +157,7 @@ func Test_logFollower_completeBeforeFollow(t *testing.T) {
 
 	// we need an HTTP server to get a websocket
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		uut := newLogFollower(ctx, logger, mDB, pubsub, job, 10, r, rw)
+		uut := newLogFollower(ctx, logger, mDB, pubsub, rw, r, job, 10)
 		uut.follow()
 	}))
 	defer srv.Close()
@@ -217,7 +217,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 
 	// we need an HTTP server to get a websocket
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		uut := newLogFollower(ctx, logger, mDB, pubsub, job, 0, r, rw)
+		uut := newLogFollower(ctx, logger, mDB, pubsub, rw, r, job, 0)
 		uut.follow()
 	}))
 	defer srv.Close()
@@ -293,7 +293,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 
 	// we need an HTTP server to get a websocket
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		uut := newLogFollower(ctx, logger, mDB, pubsub, job, 0, r, rw)
+		uut := newLogFollower(ctx, logger, mDB, pubsub, rw, r, job, 0)
 		uut.follow()
 	}))
 	defer srv.Close()
