@@ -569,6 +569,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		t.Skip(`This test takes too long with an actual database. Takes 10s on local machine`)
 	}
 
+	// nolint:gocritic -- unit testing
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	db, pubsub := dbtestutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -743,7 +744,6 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	// Now test the filter
 	for _, status := range statuses {
 		ctx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
-		defer cancel()
 
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Status: string(status),
@@ -752,6 +752,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		for _, workspace := range workspaces.Workspaces {
 			assert.Equal(t, status, workspace.LatestBuild.Status, "expect matching status to filter")
 		}
+		cancel()
 	}
 }
 
