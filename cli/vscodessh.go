@@ -83,7 +83,7 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			client.SetSessionToken(string(sessionToken))
 
 			// This adds custom headers to the request!
-			err = r.setClient(client, serverURL, r.header)
+			err = r.setClient(client, serverURL)
 			if err != nil {
 				return xerrors.Errorf("set client: %w", err)
 			}
