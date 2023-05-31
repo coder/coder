@@ -889,7 +889,7 @@ func TestAgent_StartupScript(t *testing.T) {
 				DERPMap:       &tailcfg.DERPMap{},
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(logger),
+			coordinator: tailnet.NewCoordinator(logger, emptyDerpMapFn),
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
@@ -930,7 +930,7 @@ func TestAgent_StartupScript(t *testing.T) {
 				return codersdk.ReadBodyAsError(res)
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(logger),
+			coordinator: tailnet.NewCoordinator(logger, emptyDerpMapFn),
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
@@ -1327,7 +1327,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 				ShutdownScript: "echo " + expected,
 			},
 			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(logger),
+			coordinator: tailnet.NewCoordinator(logger, emptyDerpMapFn),
 		}
 
 		fs := afero.NewMemMapFs()
@@ -1585,7 +1585,7 @@ func TestAgent_Reconnect(t *testing.T) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
-	coordinator := tailnet.NewCoordinator(logger)
+	coordinator := tailnet.NewCoordinator(logger, emptyDerpMapFn)
 	defer coordinator.Close()
 
 	agentID := uuid.New()
@@ -1623,7 +1623,7 @@ func TestAgent_Reconnect(t *testing.T) {
 func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator := tailnet.NewCoordinator(logger)
+	coordinator := tailnet.NewCoordinator(logger, emptyDerpMapFn)
 	defer coordinator.Close()
 
 	client := &client{
@@ -1737,7 +1737,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	if metadata.DERPMap == nil {
 		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 	}
-	coordinator := tailnet.NewCoordinator(logger)
+	coordinator := tailnet.NewCoordinator(logger, func() *tailcfg.DERPMap {
+		return metadata.DERPMap
+	})
 	t.Cleanup(func() {
 		_ = coordinator.Close()
 	})
@@ -1785,8 +1787,10 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		defer close(serveClientDone)
 		coordinator.ServeClient(serverConn, uuid.New(), agentID)
 	}()
-	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		return conn.UpdateNodes(node, false)
+	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(update tailnet.CoordinatorNodeUpdate) error {
+		// Don't need to worry about updating the DERP map since it'll never
+		// change in this test (as we aren't dealing with proxies etc.)
+		return conn.UpdateNodes(update.Nodes, false)
 	})
 	conn.SetNodeCallback(sendNode)
 	agentConn := &codersdk.WorkspaceAgentConn{
@@ -2094,4 +2098,8 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		}
 	}
 	return true
+}
+
+func emptyDerpMapFn() *tailcfg.DERPMap {
+	return &tailcfg.DERPMap{}
 }

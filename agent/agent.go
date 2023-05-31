@@ -810,8 +810,14 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 	}
 	defer coordinator.Close()
 	a.logger.Info(ctx, "connected to coordination endpoint")
-	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, func(nodes []*tailnet.Node) error {
-		return network.UpdateNodes(nodes, false)
+	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, func(update tailnet.CoordinatorNodeUpdate) error {
+		// Check if we need to update our DERP map.
+		if !tailnet.CompareDERPMaps(network.DERPMap(), update.DERPMap) {
+			a.logger.Info(ctx, "updating DERP map on connection request due to changes", slog.F("old", network.DERPMap()), slog.F("new", update.DERPMap))
+			network.SetDERPMap(update.DERPMap)
+		}
+
+		return network.UpdateNodes(update.Nodes, false)
 	})
 	network.SetNodeCallback(sendNodes)
 	select {

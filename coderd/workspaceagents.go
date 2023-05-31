@@ -687,8 +687,13 @@ func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspac
 		return left
 	})
 
-	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		err = conn.UpdateNodes(node, true)
+	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(update tailnet.CoordinatorNodeUpdate) error {
+		// Check if we need to update the DERP map used by the connection.
+		if !tailnet.CompareDERPMaps(conn.DERPMap(), update.DERPMap) {
+			conn.SetDERPMap(update.DERPMap)
+		}
+
+		err = conn.UpdateNodes(update.Nodes, true)
 		if err != nil {
 			return xerrors.Errorf("update nodes: %w", err)
 		}

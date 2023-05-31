@@ -300,13 +300,13 @@ func TestAgents(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// given
-	coordinator := tailnet.NewCoordinator(slogtest.Make(t, nil).Leveled(slog.LevelDebug))
-	coordinatorPtr := atomic.Pointer[tailnet.Coordinator]{}
-	coordinatorPtr.Store(&coordinator)
 	derpMap := tailnettest.RunDERPAndSTUN(t)
 	derpMapFn := func() *tailcfg.DERPMap {
 		return derpMap
 	}
+	coordinator := tailnet.NewCoordinator(slogtest.Make(t, nil).Leveled(slog.LevelDebug), derpMapFn)
+	coordinatorPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordinatorPtr.Store(&coordinator)
 	agentInactiveDisconnectTimeout := 1 * time.Hour // don't need to focus on this value in tests
 	registry := prometheus.NewRegistry()
 

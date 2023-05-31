@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
@@ -22,7 +23,7 @@ import (
 
 // NewCoordinator creates a new high availability coordinator
 // that uses PostgreSQL pubsub to exchange handshakes.
-func NewCoordinator(logger slog.Logger, pubsub database.Pubsub) (agpl.Coordinator, error) {
+func NewCoordinator(logger slog.Logger, pubsub database.Pubsub, derpMapFn func() *tailcfg.DERPMap) (agpl.Coordinator, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	nameCache, err := lru.New[uuid.UUID, string](512)
@@ -34,8 +35,9 @@ func NewCoordinator(logger slog.Logger, pubsub database.Pubsub) (agpl.Coordinato
 		id:                       uuid.New(),
 		log:                      logger,
 		pubsub:                   pubsub,
-		closeFunc:                cancelFunc,
 		close:                    make(chan struct{}),
+		closeFunc:                cancelFunc,
+		derpMapFn:                derpMapFn,
 		nodes:                    map[uuid.UUID]*agpl.Node{},
 		agentSockets:             map[uuid.UUID]*agpl.TrackedConn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*agpl.TrackedConn{},
@@ -56,6 +58,8 @@ type haCoordinator struct {
 	pubsub    database.Pubsub
 	close     chan struct{}
 	closeFunc context.CancelFunc
+
+	derpMapFn func() *tailcfg.DERPMap
 
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*agpl.Node
@@ -109,7 +113,10 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID
 	// node of the agent. This allows the connection to establish.
 	node, ok := c.nodes[agent]
 	if ok {
-		err := tc.Enqueue([]*agpl.Node{node})
+		err := tc.Enqueue(agpl.CoordinatorNodeUpdate{
+			DERPMap: c.derpMapFn(),
+			Nodes:   []*agpl.Node{node},
+		})
 		c.mutex.Unlock()
 		if err != nil {
 			return xerrors.Errorf("enqueue node: %w", err)
@@ -177,7 +184,10 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 		}
 		return nil
 	}
-	err = agentSocket.Enqueue([]*agpl.Node{&node})
+	err = agentSocket.Enqueue(agpl.CoordinatorNodeUpdate{
+		DERPMap: c.derpMapFn(),
+		Nodes:   []*agpl.Node{&node},
+	})
 	c.mutex.Unlock()
 	if err != nil {
 		return xerrors.Errorf("enqueu nodes: %w", err)
@@ -212,7 +222,10 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 	// Publish all nodes on this instance that want to connect to this agent.
 	nodes := c.nodesSubscribedToAgent(id)
 	if len(nodes) > 0 {
-		err := tc.Enqueue(nodes)
+		err := tc.Enqueue(agpl.CoordinatorNodeUpdate{
+			DERPMap: c.derpMapFn(),
+			Nodes:   nodes,
+		})
 		if err != nil {
 			c.mutex.Unlock()
 			return xerrors.Errorf("enqueue nodes: %w", err)
@@ -308,8 +321,12 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	}
 
 	// Publish the new node to every listening socket.
+	derpMap := c.derpMapFn()
 	for _, connectionSocket := range connectionSockets {
-		_ = connectionSocket.Enqueue([]*agpl.Node{&node})
+		_ = connectionSocket.Enqueue(agpl.CoordinatorNodeUpdate{
+			DERPMap: derpMap,
+			Nodes:   []*agpl.Node{&node},
+		})
 	}
 	c.mutex.Unlock()
 	return &node, nil
@@ -486,7 +503,10 @@ func (c *haCoordinator) handlePubsubMessage(ctx context.Context, message []byte)
 		if err != nil {
 			c.log.Error(ctx, "invalid nodes JSON", slog.F("id", agentID), slog.Error(err), slog.F("node", string(nodeJSON)))
 		}
-		err = agentSocket.Enqueue(nodes)
+		err = agentSocket.Enqueue(agpl.CoordinatorNodeUpdate{
+			DERPMap: c.derpMapFn(),
+			Nodes:   nodes,
+		})
 		if err != nil {
 			c.log.Error(ctx, "send callmemaybe to agent", slog.Error(err))
 			return
