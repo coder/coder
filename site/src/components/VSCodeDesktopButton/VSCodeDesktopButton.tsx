@@ -1,9 +1,13 @@
-import { FC, PropsWithChildren, useState, useEffect } from "react"
+import { FC, PropsWithChildren, useState, useRef } from "react"
 import { getApiKey } from "api/api"
 import { VSCodeIcon } from "components/Icons/VSCodeIcon"
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon"
 import { PrimaryAgentButton } from "components/Resources/AgentButton"
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown"
+import ButtonGroup from "@mui/material/ButtonGroup"
+import { useLocalStorage } from "hooks"
+import Menu from "@mui/material/Menu"
+import MenuItem from "@mui/material/MenuItem"
 
 export interface VSCodeDesktopButtonProps {
   userName: string
@@ -12,125 +16,181 @@ export interface VSCodeDesktopButtonProps {
   folderPath?: string
 }
 
-enum VSCodeVariant {
-  VSCode = "VSCode",
-  VSCodeInsiders = "VSCode Insiders",
-}
+type VSCodeVariant = "vscode" | "vscode-insiders"
 
-const getSelectedVariantFromLocalStorage = (): VSCodeVariant | null => {
-  const storedVariant = localStorage.getItem("selectedVariant")
-  if (
-    storedVariant &&
-    Object.values(VSCodeVariant).includes(storedVariant as VSCodeVariant)
-  ) {
-    return storedVariant as VSCodeVariant
-  }
-  return null
-}
+const VARIANT_KEY = "vscode-variant"
 
 export const VSCodeDesktopButton: FC<
   PropsWithChildren<VSCodeDesktopButtonProps>
-> = ({ userName, workspaceName, agentName, folderPath }) => {
-  const [loading, setLoading] = useState(false)
-  const [selectedVariant, setSelectedVariant] = useState<VSCodeVariant | null>(
-    getSelectedVariantFromLocalStorage(),
-  )
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-
-  useEffect(() => {
-    if (selectedVariant) {
-      localStorage.setItem("selectedVariant", selectedVariant)
-    } else {
-      localStorage.removeItem("selectedVariant")
+> = (props) => {
+  const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false)
+  const localStorage = useLocalStorage()
+  const previousVariant = localStorage.getLocal(VARIANT_KEY)
+  const [variant, setVariant] = useState<VSCodeVariant>(() => {
+    if (!previousVariant) {
+      return "vscode"
     }
-  }, [selectedVariant])
+    return previousVariant as VSCodeVariant
+  })
+  const menuAnchorRef = useRef<HTMLDivElement>(null)
 
-  const handleButtonClick = () => {
-    setLoading(true)
-    getApiKey()
-      .then(({ key }) => {
-        const query = new URLSearchParams({
-          owner: userName,
-          workspace: workspaceName,
-          url: location.origin,
-          token: key,
-        })
-        if (agentName) {
-          query.set("agent", agentName)
-        }
-        if (folderPath) {
-          query.set("folder", folderPath)
-        }
-
-        const vscodeCommand =
-          selectedVariant === VSCodeVariant.VSCode
-            ? "vscode://"
-            : "vscode-insiders://"
-
-        location.href = `${vscodeCommand}coder.coder-remote/open?${query.toString()}`
-      })
-      .catch((ex) => {
-        console.error(ex)
-      })
-      .finally(() => {
-        setLoading(false)
-      })
-  }
-
-  const handleVariantChange = (variant: VSCodeVariant) => {
-    setSelectedVariant(variant)
-    setDropdownOpen(false)
+  const selectVariant = (variant: VSCodeVariant) => {
+    localStorage.saveLocal(VARIANT_KEY, variant)
+    setVariant(variant)
+    setIsVariantMenuOpen(false)
   }
 
   return (
-    <div style={{ position: "relative", display: "inline-flex" }}>
-      <PrimaryAgentButton
-        startIcon={
-          selectedVariant === VSCodeVariant.VSCode ? (
-            <VSCodeIcon />
-          ) : (
-            <VSCodeInsidersIcon />
-          )
-        }
-        disabled={loading || dropdownOpen}
-        onClick={handleButtonClick}
+    <div>
+      <ButtonGroup
+        ref={menuAnchorRef}
+        variant="outlined"
+        sx={{
+          // Workaround to make the border transitions smmothly on button groups
+          "& > button:hover + button": {
+            borderLeft: "1px solid #FFF",
+          },
+        }}
       >
-        {selectedVariant === VSCodeVariant.VSCode
-          ? "VS Code Desktop"
-          : "VS Code Insiders"}
-      </PrimaryAgentButton>
-      <PrimaryAgentButton onClick={() => setDropdownOpen(!dropdownOpen)}>
-        <KeyboardArrowDownIcon
-          style={{
-            transition: "transform 0.3s ease-in-out",
-            transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)",
-            cursor: "pointer",
-          }}
-        />
-      </PrimaryAgentButton>
-      {dropdownOpen && (
-        <div
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            marginTop: "4px",
+        {variant === "vscode" ? (
+          <VSCodeButton {...props} />
+        ) : (
+          <VSCodeInsidersButton {...props} />
+        )}
+
+        <PrimaryAgentButton
+          aria-controls={
+            isVariantMenuOpen ? "vscode-variant-button-menu" : undefined
+          }
+          aria-expanded={isVariantMenuOpen ? "true" : undefined}
+          aria-label="select VSCode variant"
+          aria-haspopup="menu"
+          disableRipple
+          onClick={() => {
+            setIsVariantMenuOpen(true)
           }}
         >
-          <PrimaryAgentButton
-            onClick={() => handleVariantChange(VSCodeVariant.VSCode)}
-            startIcon={<VSCodeIcon />}
-          >
-            VS Code Desktop
-          </PrimaryAgentButton>
-          <PrimaryAgentButton
-            onClick={() => handleVariantChange(VSCodeVariant.VSCodeInsiders)}
-            startIcon={<VSCodeInsidersIcon />}
-          >
-            VS Code Insiders
-          </PrimaryAgentButton>
-        </div>
-      )}
+          <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
+        </PrimaryAgentButton>
+      </ButtonGroup>
+
+      <Menu
+        open={isVariantMenuOpen}
+        anchorEl={menuAnchorRef.current}
+        onClose={() => setIsVariantMenuOpen(false)}
+        sx={{
+          "& .MuiMenu-paper": {
+            width: menuAnchorRef.current?.clientWidth,
+          },
+        }}
+      >
+        <MenuItem
+          sx={{ fontSize: 14 }}
+          onClick={() => {
+            selectVariant("vscode")
+          }}
+        >
+          <VSCodeIcon sx={{ width: 12, height: 12 }} />
+          VS Code Desktop
+        </MenuItem>
+        <MenuItem
+          sx={{ fontSize: 14 }}
+          onClick={() => {
+            selectVariant("vscode-insiders")
+          }}
+        >
+          <VSCodeInsidersIcon sx={{ width: 12, height: 12 }} />
+          VS Code Insiders
+        </MenuItem>
+      </Menu>
     </div>
+  )
+}
+
+const VSCodeButton = ({
+  userName,
+  workspaceName,
+  agentName,
+  folderPath,
+}: VSCodeDesktopButtonProps) => {
+  const [loading, setLoading] = useState(false)
+
+  return (
+    <PrimaryAgentButton
+      startIcon={<VSCodeIcon />}
+      disabled={loading}
+      onClick={() => {
+        setLoading(true)
+        getApiKey()
+          .then(({ key }) => {
+            const query = new URLSearchParams({
+              owner: userName,
+              workspace: workspaceName,
+              url: location.origin,
+              token: key,
+            })
+            if (agentName) {
+              query.set("agent", agentName)
+            }
+            if (folderPath) {
+              query.set("folder", folderPath)
+            }
+
+            location.href = `vscode://coder.coder-remote/open?${query.toString()}`
+          })
+          .catch((ex) => {
+            console.error(ex)
+          })
+          .finally(() => {
+            setLoading(false)
+          })
+      }}
+    >
+      VS Code Desktop
+    </PrimaryAgentButton>
+  )
+}
+
+const VSCodeInsidersButton = ({
+  userName,
+  workspaceName,
+  agentName,
+  folderPath,
+}: VSCodeDesktopButtonProps) => {
+  const [loading, setLoading] = useState(false)
+
+  return (
+    <PrimaryAgentButton
+      startIcon={<VSCodeInsidersIcon />}
+      disabled={loading}
+      onClick={() => {
+        setLoading(true)
+        getApiKey()
+          .then(({ key }) => {
+            const query = new URLSearchParams({
+              owner: userName,
+              workspace: workspaceName,
+              url: location.origin,
+              token: key,
+            })
+            if (agentName) {
+              query.set("agent", agentName)
+            }
+            if (folderPath) {
+              query.set("folder", folderPath)
+            }
+
+            location.href = `vscode-insiders://coder.coder-remote/open?${query.toString()}`
+          })
+          .catch((ex) => {
+            console.error(ex)
+          })
+          .finally(() => {
+            setLoading(false)
+          })
+      }}
+    >
+      VS Code Insiders
+    </PrimaryAgentButton>
   )
 }
