@@ -1889,40 +1889,6 @@ func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UU
 	return organizations, nil
 }
 
-func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterValuesParams) ([]database.ParameterValue, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return nil, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	parameterValues := make([]database.ParameterValue, 0)
-	for _, parameterValue := range q.parameterValues {
-		if len(arg.Scopes) > 0 {
-			if !slice.Contains(arg.Scopes, parameterValue.Scope) {
-				continue
-			}
-		}
-		if len(arg.ScopeIds) > 0 {
-			if !slice.Contains(arg.ScopeIds, parameterValue.ScopeID) {
-				continue
-			}
-		}
-
-		if len(arg.IDs) > 0 {
-			if !slice.Contains(arg.IDs, parameterValue.ID) {
-				continue
-			}
-		}
-		parameterValues = append(parameterValues, parameterValue)
-	}
-	if len(parameterValues) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return parameterValues, nil
-}
-
 func (q *fakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2336,29 +2302,6 @@ func (q *fakeQuerier) GetParameterSchemasCreatedAfter(_ context.Context, after t
 		}
 	}
 	return parameters, nil
-}
-
-func (q *fakeQuerier) GetParameterValueByScopeAndName(_ context.Context, arg database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.ParameterValue{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, parameterValue := range q.parameterValues {
-		if parameterValue.Scope != arg.Scope {
-			continue
-		}
-		if parameterValue.ScopeID != arg.ScopeID {
-			continue
-		}
-		if parameterValue.Name != arg.Name {
-			continue
-		}
-		return parameterValue, nil
-	}
-	return database.ParameterValue{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, error) {
@@ -2971,30 +2914,6 @@ func (q *fakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	}
 	q.organizationMembers = append(q.organizationMembers, organizationMember)
 	return organizationMember, nil
-}
-
-func (q *fakeQuerier) InsertParameterValue(_ context.Context, arg database.InsertParameterValueParams) (database.ParameterValue, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.ParameterValue{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	//nolint:gosimple
-	parameterValue := database.ParameterValue{
-		ID:                arg.ID,
-		Name:              arg.Name,
-		CreatedAt:         arg.CreatedAt,
-		UpdatedAt:         arg.UpdatedAt,
-		Scope:             arg.Scope,
-		ScopeID:           arg.ScopeID,
-		SourceScheme:      arg.SourceScheme,
-		SourceValue:       arg.SourceValue,
-		DestinationScheme: arg.DestinationScheme,
-	}
-	q.parameterValues = append(q.parameterValues, parameterValue)
-	return parameterValue, nil
 }
 
 func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) (database.Template, error) {

@@ -463,22 +463,6 @@ func ParameterSchema(t testing.TB, db database.Store, seed database.ParameterSch
 	return scheme
 }
 
-func ParameterValue(t testing.TB, db database.Store, seed database.ParameterValue) database.ParameterValue {
-	scheme, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
-		ID:                takeFirst(seed.ID, uuid.New()),
-		Name:              takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
-		CreatedAt:         takeFirst(seed.CreatedAt, database.Now()),
-		UpdatedAt:         takeFirst(seed.UpdatedAt, database.Now()),
-		Scope:             takeFirst(seed.Scope, database.ParameterScopeWorkspace),
-		ScopeID:           takeFirst(seed.ScopeID, uuid.New()),
-		SourceScheme:      takeFirst(seed.SourceScheme, database.ParameterSourceSchemeNone),
-		SourceValue:       takeFirst(seed.SourceValue, ""),
-		DestinationScheme: takeFirst(seed.DestinationScheme, database.ParameterDestinationSchemeNone),
-	})
-	require.NoError(t, err, "insert parameter value")
-	return scheme
-}
-
 func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))

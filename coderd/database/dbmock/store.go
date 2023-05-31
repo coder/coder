@@ -882,21 +882,6 @@ func (mr *MockStoreMockRecorder) GetParameterSchemasCreatedAfter(arg0, arg1 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasCreatedAfter), arg0, arg1)
 }
 
-// GetParameterValueByScopeAndName mocks base method.
-func (m *MockStore) GetParameterValueByScopeAndName(arg0 context.Context, arg1 database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetParameterValueByScopeAndName", arg0, arg1)
-	ret0, _ := ret[0].(database.ParameterValue)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetParameterValueByScopeAndName indicates an expected call of GetParameterValueByScopeAndName.
-func (mr *MockStoreMockRecorder) GetParameterValueByScopeAndName(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterValueByScopeAndName", reflect.TypeOf((*MockStore)(nil).GetParameterValueByScopeAndName), arg0, arg1)
-}
-
 // GetPreviousTemplateVersion mocks base method.
 func (m *MockStore) GetPreviousTemplateVersion(arg0 context.Context, arg1 database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	m.ctrl.T.Helper()
@@ -2168,21 +2153,6 @@ func (mr *MockStoreMockRecorder) InsertParameterSchema(arg0, arg1 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertParameterSchema", reflect.TypeOf((*MockStore)(nil).InsertParameterSchema), arg0, arg1)
 }
 
-// InsertParameterValue mocks base method.
-func (m *MockStore) InsertParameterValue(arg0 context.Context, arg1 database.InsertParameterValueParams) (database.ParameterValue, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertParameterValue", arg0, arg1)
-	ret0, _ := ret[0].(database.ParameterValue)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertParameterValue indicates an expected call of InsertParameterValue.
-func (mr *MockStoreMockRecorder) InsertParameterValue(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertParameterValue", reflect.TypeOf((*MockStore)(nil).InsertParameterValue), arg0, arg1)
-}
-
 // InsertProvisionerDaemon mocks base method.
 func (m *MockStore) InsertProvisionerDaemon(arg0 context.Context, arg1 database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	m.ctrl.T.Helper()
@@ -2523,21 +2493,6 @@ func (m *MockStore) ParameterValue(arg0 context.Context, arg1 uuid.UUID) (databa
 func (mr *MockStoreMockRecorder) ParameterValue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ParameterValue", reflect.TypeOf((*MockStore)(nil).ParameterValue), arg0, arg1)
-}
-
-// ParameterValues mocks base method.
-func (m *MockStore) ParameterValues(arg0 context.Context, arg1 database.ParameterValuesParams) ([]database.ParameterValue, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ParameterValues", arg0, arg1)
-	ret0, _ := ret[0].([]database.ParameterValue)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ParameterValues indicates an expected call of ParameterValues.
-func (mr *MockStoreMockRecorder) ParameterValues(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ParameterValues", reflect.TypeOf((*MockStore)(nil).ParameterValues), arg0, arg1)
 }
 
 // Ping mocks base method.
