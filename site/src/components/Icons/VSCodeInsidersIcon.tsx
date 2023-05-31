@@ -2,8 +2,22 @@ import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon"
 
 export const VSCodeInsidersIcon = (props: SvgIconProps) => (
   <SvgIcon {...props} viewBox="0 0 256 256">
-    <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <mask id="mask0" mask-type="alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256">
+    <svg
+      width="256"
+      height="256"
+      viewBox="0 0 256 256"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <mask
+        id="mask0"
+        mask-type="alpha"
+        maskUnits="userSpaceOnUse"
+        x="0"
+        y="0"
+        width="256"
+        height="256"
+      >
         <path
           d="M176.049 250.669C180.838 255.459 188.13 256.7 194.234 253.764L246.94 228.419C252.478 225.755 256 220.154 256 214.008V42.1479C256 36.0025 252.478 30.4008 246.94 27.7374L194.234 2.39089C188.13 -0.544416 180.838 0.696607 176.049 5.48572C181.95 -0.41506 192.039 3.76413 192.039 12.1091V244.046C192.039 252.391 181.95 256.57 176.049 250.669Z"
           fill="white"
