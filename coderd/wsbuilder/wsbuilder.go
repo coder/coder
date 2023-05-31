@@ -485,7 +485,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	}
 	err = b.verifyNoLegacyParameters()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusBadRequest, "Legacy parameters verification", err}
+		return nil, nil, BuildError{http.StatusBadRequest, "Used unsupported legacy parameters", err}
 	}
 	resolver := codersdk.ParameterResolver{
 		Rich: db2sdk.WorkspaceBuildParameters(lastBuildParameters),
