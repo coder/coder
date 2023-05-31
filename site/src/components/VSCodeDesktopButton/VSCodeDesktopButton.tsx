@@ -1,4 +1,4 @@
-import React, { FC, PropsWithChildren, useState, useEffect } from "react"
+import { FC, PropsWithChildren, useState, useEffect } from "react"
 import { getApiKey } from "api/api"
 import { VSCodeIcon } from "components/Icons/VSCodeIcon"
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon"
