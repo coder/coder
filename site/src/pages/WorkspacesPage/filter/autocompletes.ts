@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query"
 import { getTemplates, getUsers } from "api/api"
 import { WorkspaceStatuses } from "api/typesGenerated"
 import { getDisplayWorkspaceStatus } from "utils/workspace"
+import { useMe } from "hooks"
 
 type UseAutocompleteOptions<TOption extends BaseOption> = {
   id: string
@@ -50,7 +51,7 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
   })
   const selectedOption = selectedOptionQuery.data
   const searchOptionsQuery = useQuery({
-    queryKey: [id, "autocomplete", "search"],
+    queryKey: [id, "autocomplete", "search", query],
     queryFn: () => getOptions(query),
     enabled,
   })
@@ -114,8 +115,18 @@ export const useUsersAutocomplete = (
   value: string | undefined,
   onChange: (option: OwnerOption | undefined) => void,
   enabled?: boolean,
-) =>
-  useAutocomplete({
+) => {
+  const me = useMe()
+
+  const addMeAsFirstOption = (options: OwnerOption[]) => {
+    options = options.filter((option) => option.value !== me.username)
+    return [
+      { label: me.username, value: me.username, avatarUrl: me.avatar_url },
+      ...options,
+    ]
+  }
+
+  return useAutocomplete({
     onChange,
     enabled,
     value,
@@ -134,13 +145,16 @@ export const useUsersAutocomplete = (
     },
     getOptions: async (query) => {
       const usersRes = await getUsers({ q: query, limit: 25 })
-      return usersRes.users.map((user) => ({
+      let options: OwnerOption[] = usersRes.users.map((user) => ({
         label: user.username,
         value: user.username,
         avatarUrl: user.avatar_url,
       }))
+      options = addMeAsFirstOption(options)
+      return options
     },
   })
+}
 
 export type UsersAutocomplete = ReturnType<typeof useUsersAutocomplete>
 
