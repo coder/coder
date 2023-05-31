@@ -154,13 +154,6 @@ func (m metricsStore) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 	return err
 }
 
-func (m metricsStore) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
-	start := time.Now()
-	err := m.s.DeleteParameterValueByID(ctx, id)
-	m.queryLatencies.WithLabelValues("DeleteParameterValueByID").Observe(time.Since(start).Seconds())
-	return err
-}
-
 func (m metricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
 	start := time.Now()
 	err := m.s.DeleteReplicasUpdatedBefore(ctx, updatedAt)
@@ -446,13 +439,6 @@ func (m metricsStore) GetParameterSchemasCreatedAfter(ctx context.Context, creat
 	schemas, err := m.s.GetParameterSchemasCreatedAfter(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetParameterSchemasCreatedAfter").Observe(time.Since(start).Seconds())
 	return schemas, err
-}
-
-func (m metricsStore) GetParameterValueByScopeAndName(ctx context.Context, arg database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {
-	start := time.Now()
-	value, err := m.s.GetParameterValueByScopeAndName(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetParameterValueByScopeAndName").Observe(time.Since(start).Seconds())
-	return value, err
 }
 
 func (m metricsStore) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
@@ -1029,13 +1015,6 @@ func (m metricsStore) InsertParameterSchema(ctx context.Context, arg database.In
 	return schema, err
 }
 
-func (m metricsStore) InsertParameterValue(ctx context.Context, arg database.InsertParameterValueParams) (database.ParameterValue, error) {
-	start := time.Now()
-	value, err := m.s.InsertParameterValue(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertParameterValue").Observe(time.Since(start).Seconds())
-	return value, err
-}
-
 func (m metricsStore) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	start := time.Now()
 	daemon, err := m.s.InsertProvisionerDaemon(ctx, arg)
@@ -1188,20 +1167,6 @@ func (m metricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, arg d
 	metadata, err := m.s.InsertWorkspaceResourceMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceResourceMetadata").Observe(time.Since(start).Seconds())
 	return metadata, err
-}
-
-func (m metricsStore) ParameterValue(ctx context.Context, id uuid.UUID) (database.ParameterValue, error) {
-	start := time.Now()
-	value, err := m.s.ParameterValue(ctx, id)
-	m.queryLatencies.WithLabelValues("ParameterValue").Observe(time.Since(start).Seconds())
-	return value, err
-}
-
-func (m metricsStore) ParameterValues(ctx context.Context, arg database.ParameterValuesParams) ([]database.ParameterValue, error) {
-	start := time.Now()
-	values, err := m.s.ParameterValues(ctx, arg)
-	m.queryLatencies.WithLabelValues("ParameterValues").Observe(time.Since(start).Seconds())
-	return values, err
 }
 
 func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
