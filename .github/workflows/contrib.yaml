@@ -47,25 +47,6 @@ jobs:
           branch: "main"
           allowlist: dependabot*
 
-  title:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_target'
-    steps:
-      - name: Validate PR title
-        uses: amannn/action-semantic-pull-request@v5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          requireScope: false
-          types: |
-            feat
-            chore
-            fix
-            hotfix
-            refactor
-            perf
-            test
-
   release-labels:
     runs-on: ubuntu-latest
     # Depend on lint so that title is Conventional Commits-compatible.
