@@ -64,7 +64,7 @@ export const deploymentConfigMachine = createMachine(
   {
     services: {
       getDeploymentValues: getDeploymentValues,
-      getDeploymentDAUs: async() => {
+      getDeploymentDAUs: async () => {
         return getDeploymentDAUs()
       },
     },
