@@ -15,6 +15,7 @@
     "format:write:only": "prettier --write",
     "lint": "jest --selectProjects lint",
     "lint:fix": "FIX=true yarn lint",
+    "types:check": "tsc --noEmit",
     "playwright:install": "playwright install --with-deps chromium",
     "playwright:test": "playwright test --config=e2e/playwright.config.ts",
     "storybook": "STORYBOOK=true storybook dev -p 6006",
