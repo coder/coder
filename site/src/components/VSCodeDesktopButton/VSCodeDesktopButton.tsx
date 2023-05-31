@@ -1,14 +1,15 @@
-import React, { FC, PropsWithChildren, useState, useEffect } from "react"
-import { getApiKey } from "api/api"
-import { VSCodeIcon } from "components/Icons/VSCodeIcon"
-import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon"
-import { PrimaryAgentButton } from "components/Resources/AgentButton"
+import React, { FC, PropsWithChildren, useState, useEffect } from "react";
+import { getApiKey } from "api/api";
+import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
+import { PrimaryAgentButton } from "components/Resources/AgentButton";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 
 export interface VSCodeDesktopButtonProps {
-  userName: string
-  workspaceName: string
-  agentName?: string
-  folderPath?: string
+  userName: string;
+  workspaceName: string;
+  agentName?: string;
+  folderPath?: string;
 }
 
 enum VSCodeVariant {
@@ -17,35 +18,35 @@ enum VSCodeVariant {
 }
 
 const getSelectedVariantFromLocalStorage = (): VSCodeVariant | null => {
-  const storedVariant = localStorage.getItem("selectedVariant")
+  const storedVariant = localStorage.getItem("selectedVariant");
   if (
     storedVariant &&
     Object.values(VSCodeVariant).includes(storedVariant as VSCodeVariant)
   ) {
-    return storedVariant as VSCodeVariant
+    return storedVariant as VSCodeVariant;
   }
-  return null
-}
+  return null;
+};
 
 export const VSCodeDesktopButton: FC<
   PropsWithChildren<VSCodeDesktopButtonProps>
 > = ({ userName, workspaceName, agentName, folderPath }) => {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState<VSCodeVariant | null>(
-    getSelectedVariantFromLocalStorage(),
-  )
-  const [dropdownOpen, setDropdownOpen] = useState(false)
+    getSelectedVariantFromLocalStorage()
+  );
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (selectedVariant) {
-      localStorage.setItem("selectedVariant", selectedVariant)
+      localStorage.setItem("selectedVariant", selectedVariant);
     } else {
-      localStorage.removeItem("selectedVariant")
+      localStorage.removeItem("selectedVariant");
     }
-  }, [selectedVariant])
+  }, [selectedVariant]);
 
   const handleButtonClick = () => {
-    setLoading(true)
+    setLoading(true);
     getApiKey()
       .then(({ key }) => {
         const query = new URLSearchParams({
@@ -53,76 +54,85 @@ export const VSCodeDesktopButton: FC<
           workspace: workspaceName,
           url: location.origin,
           token: key,
-        })
+        });
         if (agentName) {
-          query.set("agent", agentName)
+          query.set("agent", agentName);
         }
         if (folderPath) {
-          query.set("folder", folderPath)
+          query.set("folder", folderPath);
         }
 
         const vscodeCommand =
           selectedVariant === VSCodeVariant.VSCode
             ? "vscode://"
-            : "vscode-insiders://"
+            : "vscode-insiders://";
 
-        location.href = `${vscodeCommand}coder.coder-remote/open?${query.toString()}`
+        location.href = `${vscodeCommand}coder.coder-remote/open?${query.toString()}`;
       })
       .catch((ex) => {
-        console.error(ex)
+        console.error(ex);
       })
       .finally(() => {
-        setLoading(false)
-      })
-  }
+        setLoading(false);
+      });
+  };
 
   const handleVariantChange = (variant: VSCodeVariant) => {
-    setSelectedVariant(variant)
-    setDropdownOpen(false)
-  }
+    setSelectedVariant(variant);
+    setDropdownOpen(false);
+  };
 
   return (
-    <div>
-      <div style={{ position: "relative" }}>
-        <PrimaryAgentButton
-          startIcon={
-            selectedVariant === VSCodeVariant.VSCode ? (
-              <VSCodeIcon />
-            ) : (
-              <VSCodeInsidersIcon />
-            )
-          }
-          disabled={loading || dropdownOpen}
-          onClick={() => setDropdownOpen(!dropdownOpen)}
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      <PrimaryAgentButton
+        startIcon={
+          selectedVariant === VSCodeVariant.VSCode ? (
+            <VSCodeIcon />
+          ) : (
+            <VSCodeInsidersIcon />
+          )
+        }
+        disabled={loading || dropdownOpen}
+        onClick={handleButtonClick}
+      >
+        {selectedVariant === VSCodeVariant.VSCode
+          ? "VS Code Desktop"
+          : "VS Code Insiders"}
+      </PrimaryAgentButton>
+      <PrimaryAgentButton
+        onClick={() => setDropdownOpen(!dropdownOpen)}
+      >
+        <KeyboardArrowDownIcon
+          style={{
+            transition: "transform 0.3s ease-in-out",
+            transform: dropdownOpen ? "rotate(180deg)" : "rotate(0)",
+            cursor: "pointer",
+          }}
+        />
+      </PrimaryAgentButton>
+      {dropdownOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            marginTop: "4px",
+          }}
         >
-          {selectedVariant === VSCodeVariant.VSCode
-            ? "VS Code Desktop"
-            : "VS Code Insiders"}
-        </PrimaryAgentButton>
-        {dropdownOpen && (
-          <div
-            style={{
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              marginTop: "4px",
-            }}
+          <PrimaryAgentButton
+            onClick={() => handleVariantChange(VSCodeVariant.VSCode)}
+            startIcon={<VSCodeIcon />}
           >
-            <PrimaryAgentButton
-              onClick={() => handleVariantChange(VSCodeVariant.VSCode)}
-              startIcon={<VSCodeIcon />}
-            >
-              VS Code Desktop
-            </PrimaryAgentButton>
-            <PrimaryAgentButton
-              onClick={() => handleVariantChange(VSCodeVariant.VSCodeInsiders)}
-              startIcon={<VSCodeInsidersIcon />}
-            >
-              VS Code Insiders
-            </PrimaryAgentButton>
-          </div>
-        )}
-      </div>
+            VS Code Desktop
+          </PrimaryAgentButton>
+          <PrimaryAgentButton
+            onClick={() => handleVariantChange(VSCodeVariant.VSCodeInsiders)}
+            startIcon={<VSCodeInsidersIcon />}
+          >
+            VS Code Insiders
+          </PrimaryAgentButton>
+        </div>
+      )}
     </div>
-  )
-}
+  );
+};
