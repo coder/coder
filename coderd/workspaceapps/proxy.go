@@ -362,37 +362,24 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
-			// REVIEW: Like mentioned in coderd.go maybe we should extract the app
-			// using middleware that way we can do this in a single top-level CORS
-			// handler?  Or just do the URL parsing twice.
-			var corsmw func(next http.Handler) http.Handler
-			origin := r.Header.Get("Origin")
-			if originApp, ok := s.parseOrigin(origin); ok && originApp.Username == app.Username {
-				corsmw = cors.Handler(cors.Options{
-					AllowedOrigins: []string{origin},
-					AllowedMethods: []string{
-						http.MethodHead,
-						http.MethodGet,
-						http.MethodPost,
-						http.MethodPut,
-						http.MethodPatch,
-						http.MethodDelete,
-					},
-					AllowedHeaders:   []string{"*"},
-					AllowCredentials: true,
-				})
-			} else {
-				corsmw = cors.Handler(cors.Options{
-					AllowedOrigins:   []string{""}, // The middleware defaults to *.
-					AllowedMethods:   []string{},
-					AllowedHeaders:   []string{},
-					AllowCredentials: false,
-				})
-			}
-
 			// Use the passed in app middlewares before checking authentication and
 			// passing to the proxy app.
-			mws := chi.Middlewares(append(middlewares, corsmw))
+			mws := chi.Middlewares(append(middlewares, cors.Handler(cors.Options{
+				AllowOriginFunc: func(r *http.Request, origin string) bool {
+					originApp, ok := s.parseOrigin(origin)
+					return ok && originApp.Username == app.Username
+				},
+				AllowedMethods: []string{
+					http.MethodHead,
+					http.MethodGet,
+					http.MethodPost,
+					http.MethodPut,
+					http.MethodPatch,
+					http.MethodDelete,
+				},
+				AllowedHeaders:   []string{"*"},
+				AllowCredentials: true,
+			})))
 			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
 					return

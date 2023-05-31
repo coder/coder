@@ -419,10 +419,7 @@ func New(options *Options) *API {
 		//
 		// Workspace apps do their own auth and CORS and must be BEFORE the auth
 		// and CORS middleware.
-		// REVIEW: Would it be worth creating httpmw.ExtractWorkspaceApp and using a
-		// single CORS middleware?
 		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
-		// REVIEW: Is it OK that CORS come after the above middleware?
 		cors,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
