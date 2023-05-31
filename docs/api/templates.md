@@ -386,7 +386,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["DEPRECATED_PARAMETERS"]
+  "warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -464,7 +464,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["DEPRECATED_PARAMETERS"]
+  "warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -565,7 +565,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["DEPRECATED_PARAMETERS"]
+  "warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -864,7 +864,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
     "readme": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "updated_at": "2019-08-24T14:15:22Z",
-    "warnings": ["DEPRECATED_PARAMETERS"]
+    "warnings": ["UNSUPPORTED_WORKSPACES"]
   }
 ]
 ```
@@ -1053,7 +1053,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
     "readme": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "updated_at": "2019-08-24T14:15:22Z",
-    "warnings": ["DEPRECATED_PARAMETERS"]
+    "warnings": ["UNSUPPORTED_WORKSPACES"]
   }
 ]
 ```
@@ -1186,7 +1186,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["DEPRECATED_PARAMETERS"]
+  "warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -1272,7 +1272,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["DEPRECATED_PARAMETERS"]
+  "warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 

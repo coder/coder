@@ -62,7 +62,24 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, nil))
+	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing parameter schemas.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var warnings []codersdk.TemplateVersionWarning
+	if len(schemas) > 0 {
+		warnings = append(warnings, codersdk.TemplateVersionWarningUnsupportedWorkspaces)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, warnings))
 }
 
 // @Summary Patch template version by ID

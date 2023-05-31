@@ -8814,10 +8814,10 @@ const docTemplate = `{
         "codersdk.TemplateVersionWarning": {
             "type": "string",
             "enum": [
-                "DEPRECATED_PARAMETERS"
+                "UNSUPPORTED_WORKSPACES"
             ],
             "x-enum-varnames": [
-                "TemplateVersionWarningDeprecatedParameters"
+                "TemplateVersionWarningUnsupportedWorkspaces"
             ]
         },
         "codersdk.TokenConfig": {

@@ -352,7 +352,7 @@ export const MockTemplateVersion3: TypesGen.TemplateVersion = {
   name: "test-version-3",
   readme: "README",
   created_by: MockUser,
-  warnings: ["DEPRECATED_PARAMETERS"],
+  warnings: ["UNSUPPORTED_WORKSPACES"],
 }
 
 export const MockTemplate: TypesGen.Template = {

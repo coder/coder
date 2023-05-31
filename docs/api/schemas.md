@@ -3910,7 +3910,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["DEPRECATED_PARAMETERS"]
+  "warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -4068,16 +4068,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.TemplateVersionWarning
 
 ```json
-"DEPRECATED_PARAMETERS"
+"UNSUPPORTED_WORKSPACES"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value                   |
-| ----------------------- |
-| `DEPRECATED_PARAMETERS` |
+| Value                    |
+| ------------------------ |
+| `UNSUPPORTED_WORKSPACES` |
 
 ## codersdk.TokenConfig
 

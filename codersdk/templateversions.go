@@ -14,7 +14,7 @@ import (
 type TemplateVersionWarning string
 
 const (
-	TemplateVersionWarningDeprecatedParameters TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+	TemplateVersionWarningUnsupportedWorkspaces TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
 )
 
 // TemplateVersion represents a single version of a template.

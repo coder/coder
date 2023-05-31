@@ -1523,9 +1523,9 @@ export type TemplateRole = "" | "admin" | "use"
 export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 
 // From codersdk/templateversions.go
-export type TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
 export const TemplateVersionWarnings: TemplateVersionWarning[] = [
-  "DEPRECATED_PARAMETERS",
+  "UNSUPPORTED_WORKSPACES",
 ]
 
 // From codersdk/users.go

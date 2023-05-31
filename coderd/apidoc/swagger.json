@@ -7939,8 +7939,8 @@
     },
     "codersdk.TemplateVersionWarning": {
       "type": "string",
-      "enum": ["DEPRECATED_PARAMETERS"],
-      "x-enum-varnames": ["TemplateVersionWarningDeprecatedParameters"]
+      "enum": ["UNSUPPORTED_WORKSPACES"],
+      "x-enum-varnames": ["TemplateVersionWarningUnsupportedWorkspaces"]
     },
     "codersdk.TokenConfig": {
       "type": "object",
