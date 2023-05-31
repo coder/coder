@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
@@ -583,6 +584,9 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		InitiatorID:    owner.UserID,
 		WorkerID:       uuid.NullUUID{},
 		FileID:         file.ID,
+		Tags: dbtype.StringMap{
+			"custom": "true",
+		},
 	})
 	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: owner.OrganizationID,
@@ -701,11 +705,30 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
 	}, database.WorkspaceTransitionDelete)
 
-	workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
+	apiCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+	defer cancel()
+	workspaces, err := client.Workspaces(apiCtx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 
+	// Make sure all workspaces have the correct status
+	var statuses []codersdk.WorkspaceStatus
 	for _, apiWorkspace := range workspaces.Workspaces {
-		require.Equal(t, apiWorkspace.Name, string(apiWorkspace.LatestBuild.Status))
+		assert.Equal(t, apiWorkspace.Name, string(apiWorkspace.LatestBuild.Status), "workspace has incorrect status")
+		statuses = append(statuses, apiWorkspace.LatestBuild.Status)
+	}
+
+	// Now test the filter
+	for _, status := range statuses {
+		ctx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+		defer cancel()
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Status: string(status),
+		})
+		require.NoErrorf(t, err, "fetch with status: %s", status)
+		for _, workspace := range workspaces.Workspaces {
+			assert.Equal(t, status, workspace.LatestBuild.Status, "expect matching status to filter")
+		}
 	}
 }
 

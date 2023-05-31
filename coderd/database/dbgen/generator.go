@@ -277,7 +277,7 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
 	id := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
-	if !orig.StartedAt.Time.IsZero() || orig.Tags == nil {
+	if !orig.StartedAt.Time.IsZero() {
 		if orig.Tags == nil {
 			orig.Tags = make(dbtype.StringMap)
 		}
