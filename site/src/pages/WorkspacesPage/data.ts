@@ -12,6 +12,7 @@ import {
   WorkspacesResponse,
 } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
 type UseWorkspacesDataParams = {
@@ -26,17 +27,22 @@ export const useWorkspacesData = ({
   query,
 }: UseWorkspacesDataParams) => {
   const queryKey = ["workspaces", query, page]
+  const [shouldRefetch, setShouldRefetch] = useState(true)
   const result = useQuery({
     queryKey,
     queryFn: () =>
       getWorkspaces({
         q: query,
         limit: limit,
-        // If the page is <= 0, just use offset 0. This usually happens
-        // if the page is not provided.
         offset: page <= 0 ? 0 : (page - 1) * limit,
       }),
-    refetchInterval: 5_000,
+    onSuccess: () => {
+      setShouldRefetch(true)
+    },
+    onError: () => {
+      setShouldRefetch(false)
+    },
+    refetchInterval: shouldRefetch ? 5_000 : undefined,
   })
 
   return {

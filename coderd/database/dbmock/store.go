@@ -433,18 +433,18 @@ func (mr *MockStoreMockRecorder) GetDERPMeshKey(arg0 interface{}) *gomock.Call {
 }
 
 // GetDeploymentDAUs mocks base method.
-func (m *MockStore) GetDeploymentDAUs(arg0 context.Context) ([]database.GetDeploymentDAUsRow, error) {
+func (m *MockStore) GetDeploymentDAUs(arg0 context.Context, arg1 int32) ([]database.GetDeploymentDAUsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDeploymentDAUs", arg0)
+	ret := m.ctrl.Call(m, "GetDeploymentDAUs", arg0, arg1)
 	ret0, _ := ret[0].([]database.GetDeploymentDAUsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDeploymentDAUs indicates an expected call of GetDeploymentDAUs.
-func (mr *MockStoreMockRecorder) GetDeploymentDAUs(arg0 interface{}) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetDeploymentDAUs(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentDAUs", reflect.TypeOf((*MockStore)(nil).GetDeploymentDAUs), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentDAUs", reflect.TypeOf((*MockStore)(nil).GetDeploymentDAUs), arg0, arg1)
 }
 
 // GetDeploymentID mocks base method.
@@ -1093,7 +1093,7 @@ func (mr *MockStoreMockRecorder) GetTemplateByOrganizationAndName(arg0, arg1 int
 }
 
 // GetTemplateDAUs mocks base method.
-func (m *MockStore) GetTemplateDAUs(arg0 context.Context, arg1 uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
+func (m *MockStore) GetTemplateDAUs(arg0 context.Context, arg1 database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetTemplateDAUs", arg0, arg1)
 	ret0, _ := ret[0].([]database.GetTemplateDAUsRow)

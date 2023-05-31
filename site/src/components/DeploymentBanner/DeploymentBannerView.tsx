@@ -1,7 +1,6 @@
 import { DeploymentStats, WorkspaceStatus } from "api/typesGenerated"
 import { FC, useMemo, useEffect, useState } from "react"
 import prettyBytes from "pretty-bytes"
-import { getStatus } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import BuildingIcon from "@mui/icons-material/Build"
 import { makeStyles } from "@mui/styles"
 import { RocketIcon } from "components/Icons/RocketIcon"
@@ -19,6 +18,7 @@ import dayjs from "dayjs"
 import CollectedIcon from "@mui/icons-material/Compare"
 import RefreshIcon from "@mui/icons-material/Refresh"
 import Button from "@mui/material/Button"
+import { getDisplayWorkspaceStatus } from "utils/workspace"
 
 export const bannerHeight = 36
 
@@ -218,7 +218,7 @@ const WorkspaceBuildValue: FC<{
   count?: number
 }> = ({ status, count }) => {
   const styles = useStyles()
-  const displayStatus = getStatus(status)
+  const displayStatus = getDisplayWorkspaceStatus(status)
   let statusText = displayStatus.text
   let icon = displayStatus.icon
   if (status === "starting") {

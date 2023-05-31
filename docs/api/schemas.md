@@ -1635,6 +1635,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `amount` | integer | false    |              |             |
 | `date`   | string  | false    |              |             |
 
+## codersdk.DAUsResponse
+
+```json
+{
+  "entries": [
+    {
+      "amount": 0,
+      "date": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "tz_hour_offset": 0
+}
+```
+
+### Properties
+
+| Name             | Type                                            | Required | Restrictions | Description |
+| ---------------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `entries`        | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
+| `tz_hour_offset` | integer                                         | false    |              |             |
+
 ## codersdk.DERP
 
 ```json
@@ -2047,25 +2068,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `config`  | [codersdk.DeploymentValues](#codersdkdeploymentvalues) | false    |              |             |
 | `options` | array of [clibase.Option](#clibaseoption)              | false    |              |             |
 
-## codersdk.DeploymentDAUsResponse
-
-```json
-{
-  "entries": [
-    {
-      "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                            | Required | Restrictions | Description |
-| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
-
 ## codersdk.DeploymentStats
 
 ```json
@@ -2475,6 +2477,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------- |
 | `moons`             |
 | `workspace_actions` |
+| `workspace_filter`  |
 
 ## codersdk.Feature
 
@@ -3775,25 +3778,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name             | Type                                                 | Required | Restrictions | Description |
 | ---------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
-
-## codersdk.TemplateDAUsResponse
-
-```json
-{
-  "entries": [
-    {
-      "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                            | Required | Restrictions | Description |
-| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
 
 ## codersdk.TemplateExample
 
@@ -6114,7 +6098,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   },
   "pass": true,
-  "time": "string"
+  "time": "string",
+  "websocket": {
+    "error": null,
+    "response": {
+      "body": "string",
+      "code": 0
+    }
+  }
 }
 ```
 
@@ -6126,6 +6117,42 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
 | `pass`       | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
 | `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
+| `websocket`  | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
+
+## healthcheck.WebsocketReport
+
+```json
+{
+  "error": null,
+  "response": {
+    "body": "string",
+    "code": 0
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                                           | Required | Restrictions | Description |
+| ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`    | any                                                            | false    |              |             |
+| `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
+
+## healthcheck.WebsocketResponse
+
+```json
+{
+  "body": "string",
+  "code": 0
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+| ------ | ------- | -------- | ------------ | ----------- |
+| `body` | string  | false    |              |             |
+| `code` | integer | false    |              |             |
 
 ## netcheck.Report
 

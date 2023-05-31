@@ -496,13 +496,13 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		// everything from that point.
 		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
-		data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{
+		data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{
 			CreatedAfter: lowestID - 1,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal: %w", err)
 		}
-		err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(parsedID), data)
+		err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(parsedID), data)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("publish job log: %w", err)
@@ -720,11 +720,11 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		}
 	}
 
-	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
+	data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal job log: %w", err)
 	}
-	err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(jobID), data)
+	err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
 		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
@@ -1110,11 +1110,11 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			reflect.TypeOf(completed.Type).String())
 	}
 
-	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
+	data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal job log: %w", err)
 	}
-	err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(jobID), data)
+	err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
 		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
@@ -1513,19 +1513,6 @@ type TemplateVersionDryRunJob struct {
 	TemplateVersionID   uuid.UUID                          `json:"template_version_id"`
 	WorkspaceName       string                             `json:"workspace_name"`
 	RichParameterValues []database.WorkspaceBuildParameter `json:"rich_parameter_values"`
-}
-
-// ProvisionerJobLogsNotifyMessage is the payload published on
-// the provisioner job logs notify channel.
-type ProvisionerJobLogsNotifyMessage struct {
-	CreatedAfter int64 `json:"created_after"`
-	EndOfLogs    bool  `json:"end_of_logs,omitempty"`
-}
-
-// ProvisionerJobLogsNotifyChannel is the PostgreSQL NOTIFY channel
-// to publish updates to job logs on.
-func ProvisionerJobLogsNotifyChannel(jobID uuid.UUID) string {
-	return fmt.Sprintf("provisioner-log-logs:%s", jobID)
 }
 
 func asVariableValues(templateVariables []database.TemplateVersionVariable) []*sdkproto.VariableValue {

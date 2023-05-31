@@ -2,16 +2,27 @@ import Drawer from "@mui/material/Drawer"
 import IconButton from "@mui/material/IconButton"
 import List from "@mui/material/List"
 import ListItem from "@mui/material/ListItem"
-import { makeStyles } from "@mui/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import MenuIcon from "@mui/icons-material/Menu"
 import { CoderIcon } from "components/Icons/CoderIcon"
-import { useState } from "react"
-import { NavLink, useLocation } from "react-router-dom"
+import { FC, useRef, useState } from "react"
+import { NavLink, useLocation, useNavigate } from "react-router-dom"
 import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
 import { combineClasses } from "../../utils/combineClasses"
 import { UserDropdown } from "../UserDropdown/UsersDropdown"
+import Box from "@mui/material/Box"
+import Menu from "@mui/material/Menu"
+import Button from "@mui/material/Button"
+import MenuItem from "@mui/material/MenuItem"
+import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined"
+import { ProxyContextValue } from "contexts/ProxyContext"
+import { displayError } from "components/GlobalSnackbar/utils"
+import Divider from "@mui/material/Divider"
+import HelpOutline from "@mui/icons-material/HelpOutline"
+import Tooltip from "@mui/material/Tooltip"
+import Skeleton from "@mui/material/Skeleton"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -23,6 +34,7 @@ export interface NavbarViewProps {
   onSignOut: () => void
   canViewAuditLog: boolean
   canViewDeployment: boolean
+  proxyContextValue?: ProxyContextValue
 }
 
 export const Language = {
@@ -83,7 +95,7 @@ const NavItems: React.FC<
     </List>
   )
 }
-export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
+export const NavbarView: FC<NavbarViewProps> = ({
   user,
   logo_url,
   buildInfo,
@@ -91,6 +103,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
   onSignOut,
   canViewAuditLog,
   canViewDeployment,
+  proxyContextValue,
 }) => {
   const styles = useStyles()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -145,7 +158,16 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           canViewDeployment={canViewDeployment}
         />
 
-        <div className={styles.profileButton}>
+        <Box
+          display="flex"
+          marginLeft={{ lg: "auto" }}
+          gap={2}
+          alignItems="center"
+          paddingRight={2}
+        >
+          {proxyContextValue && (
+            <ProxyMenu proxyContextValue={proxyContextValue} />
+          )}
           {user && (
             <UserDropdown
               user={user}
@@ -154,9 +176,160 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
               onSignOut={onSignOut}
             />
           )}
-        </div>
+        </Box>
       </div>
     </nav>
+  )
+}
+
+const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
+  proxyContextValue,
+}) => {
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const selectedProxy = proxyContextValue.proxy.proxy
+  const closeMenu = () => setIsOpen(false)
+  const navigate = useNavigate()
+
+  if (!proxyContextValue.isFetched) {
+    return (
+      <Skeleton
+        width="160px"
+        height={30}
+        sx={{ borderRadius: "4px", transform: "none" }}
+      />
+    )
+  }
+
+  return (
+    <>
+      <Button
+        ref={buttonRef}
+        onClick={() => setIsOpen(true)}
+        size="small"
+        endIcon={<KeyboardArrowDownOutlined />}
+        sx={{
+          borderRadius: "4px",
+          "& .MuiSvgIcon-root": { fontSize: 14 },
+        }}
+      >
+        {selectedProxy ? (
+          <Box display="flex" gap={2} alignItems="center">
+            <Box width={14} height={14} lineHeight={0}>
+              <Box
+                component="img"
+                src={selectedProxy.icon_url}
+                alt=""
+                sx={{ objectFit: "contain" }}
+                width="100%"
+                height="100%"
+              />
+            </Box>
+            {selectedProxy.display_name}
+            <ProxyStatusLatency
+              proxy={selectedProxy}
+              latency={
+                proxyContextValue.proxyLatencies?.[selectedProxy.id]?.latencyMS
+              }
+            />
+          </Box>
+        ) : (
+          "Select Proxy"
+        )}
+      </Button>
+      <Menu
+        open={isOpen}
+        anchorEl={buttonRef.current}
+        onClick={closeMenu}
+        onClose={closeMenu}
+        sx={{ "& .MuiMenu-paper": { py: 1 } }}
+      >
+        {proxyContextValue.proxies?.map((proxy) => (
+          <MenuItem
+            onClick={() => {
+              if (!proxy.healthy) {
+                displayError("Please select a healthy workspace proxy.")
+                closeMenu()
+                return
+              }
+
+              proxyContextValue.setProxy(proxy)
+              closeMenu()
+            }}
+            key={proxy.id}
+            selected={proxy.id === selectedProxy?.id}
+            sx={{
+              fontSize: 14,
+            }}
+          >
+            <Box display="flex" gap={3} alignItems="center" width="100%">
+              <Box width={14} height={14} lineHeight={0}>
+                <Box
+                  component="img"
+                  src={proxy.icon_url}
+                  alt=""
+                  sx={{ objectFit: "contain" }}
+                  width="100%"
+                  height="100%"
+                />
+              </Box>
+              {proxy.display_name}
+              <ProxyStatusLatency
+                proxy={proxy}
+                latency={
+                  proxyContextValue.proxyLatencies?.[proxy.id]?.latencyMS
+                }
+              />
+            </Box>
+          </MenuItem>
+        ))}
+        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
+        <MenuItem
+          sx={{ fontSize: 14 }}
+          onClick={() => {
+            navigate("/settings/workspace-proxies")
+          }}
+        >
+          Proxy settings
+        </MenuItem>
+      </Menu>
+    </>
+  )
+}
+
+const ProxyStatusLatency: FC<{ proxy: TypesGen.Region; latency?: number }> = ({
+  proxy,
+  latency,
+}) => {
+  const theme = useTheme()
+  let color = theme.palette.success.light
+
+  if (!latency) {
+    return (
+      <Tooltip title="Latency not available">
+        <HelpOutline
+          sx={{
+            ml: "auto",
+            fontSize: "14px !important",
+            color: (theme) => theme.palette.text.secondary,
+          }}
+        />
+      </Tooltip>
+    )
+  }
+
+  if (latency >= 300) {
+    color = theme.palette.error.light
+  }
+
+  if (!proxy.healthy || latency >= 100) {
+    color = theme.palette.warning.light
+  }
+
+  return (
+    <Box sx={{ color, fontSize: 13, marginLeft: "auto" }}>
+      {latency.toFixed(0)}ms
+    </Box>
   )
 }
 
@@ -190,12 +363,6 @@ const useStyles = makeStyles((theme) => ({
     display: "none",
     [theme.breakpoints.up("md")]: {
       display: "flex",
-    },
-  },
-  profileButton: {
-    paddingRight: theme.spacing(2),
-    [theme.breakpoints.up("md")]: {
-      marginLeft: "auto",
     },
   },
   mobileMenuButton: {

@@ -5,6 +5,12 @@ import minMax from "dayjs/plugin/minMax"
 import utc from "dayjs/plugin/utc"
 import semver from "semver"
 import * as TypesGen from "../api/typesGenerated"
+import i18next from "i18next"
+import CircularProgress from "@mui/material/CircularProgress"
+import ErrorIcon from "@mui/icons-material/ErrorOutline"
+import StopIcon from "@mui/icons-material/StopOutlined"
+import PlayIcon from "@mui/icons-material/PlayArrowOutlined"
+import QueuedIcon from "@mui/icons-material/HourglassEmpty"
 
 dayjs.extend(duration)
 dayjs.extend(utc)
@@ -184,4 +190,82 @@ export const getDisplayWorkspaceTemplateName = (
   return workspace.template_display_name.length > 0
     ? workspace.template_display_name
     : workspace.template_name
+}
+
+export const getDisplayWorkspaceStatus = (
+  workspaceStatus: TypesGen.WorkspaceStatus,
+) => {
+  const { t } = i18next
+
+  switch (workspaceStatus) {
+    case undefined:
+      return {
+        text: t("workspaceStatus.loading", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "running":
+      return {
+        type: "success",
+        text: t("workspaceStatus.running", { ns: "common" }),
+        icon: <PlayIcon />,
+      } as const
+    case "starting":
+      return {
+        type: "success",
+        text: t("workspaceStatus.starting", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "stopping":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.stopping", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "stopped":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.stopped", { ns: "common" }),
+        icon: <StopIcon />,
+      } as const
+    case "deleting":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.deleting", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "deleted":
+      return {
+        type: "error",
+        text: t("workspaceStatus.deleted", { ns: "common" }),
+        icon: <ErrorIcon />,
+      } as const
+    case "canceling":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.canceling", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "canceled":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.canceled", { ns: "common" }),
+        icon: <ErrorIcon />,
+      } as const
+    case "failed":
+      return {
+        type: "error",
+        text: t("workspaceStatus.failed", { ns: "common" }),
+        icon: <ErrorIcon />,
+      } as const
+    case "pending":
+      return {
+        type: "info",
+        text: t("workspaceStatus.pending", { ns: "common" }),
+        icon: <QueuedIcon />,
+      } as const
+  }
+}
+
+const LoadingIcon = () => {
+  return <CircularProgress size={10} style={{ color: "#FFF" }} />
 }

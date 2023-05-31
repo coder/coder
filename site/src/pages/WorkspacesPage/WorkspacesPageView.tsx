@@ -2,7 +2,7 @@ import Link from "@mui/material/Link"
 import { Workspace } from "api/typesGenerated"
 import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
-import { FC } from "react"
+import { ComponentProps, FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "components/Margins/Margins"
 import {
@@ -10,15 +10,17 @@ import {
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
-import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "components/Stack/Stack"
 import { WorkspaceHelpTooltip } from "components/Tooltips"
 import { WorkspacesTable } from "components/WorkspacesTable/WorkspacesTable"
-import { workspaceFilterQuery } from "utils/filters"
 import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
 import { ImpendingDeletionBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { Filter } from "./filter/filter"
+import { hasError, isApiValidationError } from "api/errors"
+import { workspaceFilterQuery } from "utils/filters"
+import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -46,11 +48,11 @@ export interface WorkspacesPageViewProps {
   error: unknown
   workspaces?: Workspace[]
   count?: number
+  useNewFilter?: boolean
   page: number
   limit: number
-  filter: string
+  filterProps: ComponentProps<typeof Filter>
   onPageChange: (page: number) => void
-  onFilter: (query: string) => void
   onUpdateWorkspace: (workspace: Workspace) => void
 }
 
@@ -59,13 +61,13 @@ export const WorkspacesPageView: FC<
 > = ({
   workspaces,
   error,
-  filter,
-  page,
   limit,
   count,
-  onFilter,
+  filterProps,
   onPageChange,
   onUpdateWorkspace,
+  useNewFilter,
+  page,
 }) => {
   const { saveLocal, getLocal } = useLocalStorage()
 
@@ -114,7 +116,7 @@ export const WorkspacesPageView: FC<
       </PageHeader>
 
       <Stack>
-        <Maybe condition={Boolean(error)}>
+        <Maybe condition={hasError(error) && !isApiValidationError(error)}>
           <ErrorAlert error={error} />
         </Maybe>
         {/* <ImpendingDeletionBanner/> determines its own visibility */}
@@ -130,16 +132,20 @@ export const WorkspacesPageView: FC<
           count={Count.Multiple}
         />
 
-        <SearchBarWithFilter
-          filter={filter}
-          onFilter={onFilter}
-          presetFilters={presetFilters}
-          error={error}
-        />
+        {useNewFilter ? (
+          <Filter error={error} {...filterProps} />
+        ) : (
+          <SearchBarWithFilter
+            filter={filterProps.filter.query}
+            onFilter={filterProps.filter.debounceUpdate}
+            presetFilters={presetFilters}
+            error={error}
+          />
+        )}
       </Stack>
       <WorkspacesTable
         workspaces={workspaces}
-        isUsingFilter={filter !== workspaceFilterQuery.me}
+        isUsingFilter={filterProps.filter.query !== ""}
         onUpdateWorkspace={onUpdateWorkspace}
         error={error}
       />

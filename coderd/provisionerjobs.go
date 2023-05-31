@@ -5,22 +5,23 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
 
 	"github.com/google/uuid"
-	"go.uber.org/atomic"
+	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisionersdk"
 )
 
 // Returns provisioner logs based on query parameters.
@@ -32,7 +33,6 @@ import (
 func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	var (
 		ctx      = r.Context()
-		actor, _ = dbauthz.ActorFromContext(ctx)
 		logger   = api.Logger.With(slog.F("job_id", job.ID))
 		follow   = r.URL.Query().Has("follow")
 		afterRaw = r.URL.Query().Get("after")
@@ -55,129 +55,16 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 
 	if !follow {
-		logs, err := api.Database.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
-			JobID:        job.ID,
-			CreatedAfter: after,
-		})
-		if errors.Is(err, sql.ErrNoRows) {
-			err = nil
-		}
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching provisioner logs.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if logs == nil {
-			logs = []database.ProvisionerJobLog{}
-		}
-
-		logger.Debug(ctx, "Finished non-follow job logs")
-		httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
+		fetchAndWriteLogs(ctx, logger, api.Database, job.ID, after, rw)
 		return
 	}
 
-	// if we are following logs, start the subscription before we query the database, so that we don't miss any logs
-	// between the end of our query and the start of the subscription.  We might get duplicates, so we'll keep track
-	// of processed IDs.
-	var bufferedLogs <-chan *database.ProvisionerJobLog
-	if follow {
-		bl, closeFollow, err := api.followProvisionerJobLogs(actor, job.ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error watching provisioner logs.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		defer closeFollow()
-		bufferedLogs = bl
-	}
-
-	logs, err := api.Database.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
-		JobID:        job.ID,
-		CreatedAfter: after,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner logs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if logs == nil {
-		logs = []database.ProvisionerJobLog{}
-	}
-
+	follower := newLogFollower(ctx, logger, api.Database, api.Pubsub, rw, r, job, after)
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	go httpapi.Heartbeat(ctx, conn)
-
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
-	defer wsNetConn.Close() // Also closes conn.
-
-	logIdsDone := make(map[int64]bool)
-
-	// The Go stdlib JSON encoder appends a newline character after message write.
-	encoder := json.NewEncoder(wsNetConn)
-	for _, provisionerJobLog := range logs {
-		logIdsDone[provisionerJobLog.ID] = true
-		err = encoder.Encode(convertProvisionerJobLog(provisionerJobLog))
-		if err != nil {
-			return
-		}
-	}
-	job, err = api.Database.GetProvisionerJobByID(ctx, job.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.CompletedAt.Valid {
-		// job was complete before we queried the database for historical logs
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Debug(context.Background(), "job logs context canceled")
-			return
-		case log, ok := <-bufferedLogs:
-			// A nil log is sent when complete!
-			if !ok || log == nil {
-				logger.Debug(context.Background(), "reached the end of published logs")
-				return
-			}
-			if logIdsDone[log.ID] {
-				logger.Debug(ctx, "subscribe duplicated log",
-					slog.F("stage", log.Stage))
-			} else {
-				logger.Debug(ctx, "subscribe encoding log",
-					slog.F("stage", log.Stage))
-				err = encoder.Encode(convertProvisionerJobLog(*log))
-				if err != nil {
-					return
-				}
-			}
-		}
-	}
+	follower.follow()
 }
 
 func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
@@ -334,98 +221,225 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	return job
 }
 
-func provisionerJobLogsChannel(jobID uuid.UUID) string {
-	return fmt.Sprintf("provisioner-log-logs:%s", jobID)
+func fetchAndWriteLogs(ctx context.Context, logger slog.Logger, db database.Store, jobID uuid.UUID, after int64, rw http.ResponseWriter) {
+	logs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+		JobID:        jobID,
+		CreatedAfter: after,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner logs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if logs == nil {
+		logs = []database.ProvisionerJobLog{}
+	}
+
+	logger.Debug(ctx, "Finished non-follow job logs")
+	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
 }
 
-// provisionerJobLogsMessage is the message type published on the provisionerJobLogsChannel() channel
-type provisionerJobLogsMessage struct {
-	CreatedAfter int64 `json:"created_after"`
-	EndOfLogs    bool  `json:"end_of_logs,omitempty"`
+func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
+	status := db2sdk.ProvisionerJobStatus(job)
+	switch status {
+	case codersdk.ProvisionerJobCanceled:
+		return true
+	case codersdk.ProvisionerJobFailed:
+		return true
+	case codersdk.ProvisionerJobSucceeded:
+		return true
+	case codersdk.ProvisionerJobPending:
+		return false
+	case codersdk.ProvisionerJobCanceling:
+		return false
+	case codersdk.ProvisionerJobRunning:
+		return false
+	default:
+		logger.Error(context.Background(),
+			"unknown status",
+			slog.F("job_id", job.ID), slog.F("status", status))
+		return false
+	}
 }
 
-func (api *API) followProvisionerJobLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan *database.ProvisionerJobLog, func(), error) {
-	logger := api.Logger.With(slog.F("job_id", jobID))
+type logFollower struct {
+	ctx    context.Context
+	logger slog.Logger
+	db     database.Store
+	pubsub database.Pubsub
+	r      *http.Request
+	rw     http.ResponseWriter
+	conn   *websocket.Conn
 
-	var (
-		// With debug logging enabled length = 128 is insufficient
-		bufferedLogs  = make(chan *database.ProvisionerJobLog, 1024)
-		endOfLogs     atomic.Bool
-		lastSentLogID atomic.Int64
-	)
+	jobID         uuid.UUID
+	after         int64
+	complete      bool
+	notifications chan provisionersdk.ProvisionerJobLogsNotifyMessage
+	errors        chan error
+}
 
-	sendLog := func(log *database.ProvisionerJobLog) {
+func newLogFollower(
+	ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub,
+	rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob, after int64,
+) *logFollower {
+	return &logFollower{
+		ctx:           ctx,
+		logger:        logger,
+		db:            db,
+		pubsub:        pubsub,
+		r:             r,
+		rw:            rw,
+		jobID:         job.ID,
+		after:         after,
+		complete:      jobIsComplete(logger, job),
+		notifications: make(chan provisionersdk.ProvisionerJobLogsNotifyMessage),
+		errors:        make(chan error),
+	}
+}
+
+func (f *logFollower) follow() {
+	// note that we only need to subscribe to updates if the job is not yet
+	// complete.
+	if !f.complete {
+		subCancel, err := f.pubsub.SubscribeWithErr(
+			provisionersdk.ProvisionerJobLogsNotifyChannel(f.jobID),
+			f.listener,
+		)
+		if err != nil {
+			httpapi.Write(f.ctx, f.rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "failed to subscribe to job updates",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		defer subCancel()
+
+		// we were provided `complete` prior to starting this subscription, so
+		// we also need to check whether the job is now complete, in case the
+		// job completed between the last time we queried the job and the start
+		// of the subscription.  If the job completes after this, we will get
+		// a notification on the subscription.
+		job, err := f.db.GetProvisionerJobByID(f.ctx, f.jobID)
+		if err != nil {
+			httpapi.Write(f.ctx, f.rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "failed to query job",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		f.complete = jobIsComplete(f.logger, job)
+		f.logger.Debug(f.ctx, "queried job after subscribe", slog.F("complete", f.complete))
+	}
+
+	var err error
+	f.conn, err = websocket.Accept(f.rw, f.r, nil)
+	if err != nil {
+		httpapi.Write(f.ctx, f.rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer f.conn.Close(websocket.StatusNormalClosure, "done")
+	go httpapi.Heartbeat(f.ctx, f.conn)
+
+	// query for logs once right away, so we can get historical data from before
+	// subscription
+	if err := f.query(); err != nil {
+		if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+			// neither context expiry, nor EOF, close and log
+			f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
+			err = f.conn.Close(websocket.StatusInternalError, err.Error())
+			if err != nil {
+				f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
+			}
+		}
+		return
+	}
+
+	// no need to wait if the job is done
+	if f.complete {
+		return
+	}
+	for {
 		select {
-		case bufferedLogs <- log:
-			logger.Debug(context.Background(), "subscribe buffered log", slog.F("stage", log.Stage))
-			lastSentLogID.Store(log.ID)
-		default:
-			// If this overflows users could miss logs streaming. This can happen
-			// we get a lot of logs and consumer isn't keeping up.  We don't want to block the pubsub,
-			// so just drop them.
-			logger.Warn(context.Background(), "provisioner job log overflowing channel")
+		case err := <-f.errors:
+			// we've dropped at least one notification.  This can happen if we
+			// lose database connectivity.  We don't know whether the job is
+			// now complete since we could have missed the end of logs message.
+			// We could soldier on and retry, but loss of database connectivity
+			// is fairly serious, so instead just 500 and bail out.  Client
+			// can retry and hopefully find a healthier node.
+			f.logger.Error(f.ctx, "dropped or corrupted notification", slog.Error(err))
+			err = f.conn.Close(websocket.StatusInternalError, err.Error())
+			if err != nil {
+				f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
+			}
+			return
+		case <-f.ctx.Done():
+			// client disconnect
+			return
+		case n := <-f.notifications:
+			if n.EndOfLogs {
+				// safe to return here because we started the subscription,
+				// and then queried at least once, so we will have already
+				// gotten all logs prior to the start of our subscription.
+				return
+			}
+			err = f.query()
+			if err != nil {
+				if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+					// neither context expiry, nor EOF, close and log
+					f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
+					err = f.conn.Close(websocket.StatusInternalError, err.Error())
+					if err != nil {
+						f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
+					}
+				}
+				return
+			}
 		}
 	}
+}
 
-	closeSubscribe, err := api.Pubsub.Subscribe(
-		provisionerJobLogsChannel(jobID),
-		func(ctx context.Context, message []byte) {
-			if endOfLogs.Load() {
-				return
-			}
-			jlMsg := provisionerJobLogsMessage{}
-			err := json.Unmarshal(message, &jlMsg)
-			if err != nil {
-				logger.Warn(ctx, "invalid provisioner job log on channel", slog.Error(err))
-				return
-			}
-
-			// CreatedAfter is sent when logs are streaming!
-			if jlMsg.CreatedAfter != 0 {
-				logs, err := api.Database.GetProvisionerLogsAfterID(dbauthz.As(ctx, actor), database.GetProvisionerLogsAfterIDParams{
-					JobID:        jobID,
-					CreatedAfter: jlMsg.CreatedAfter,
-				})
-				if err != nil {
-					logger.Warn(ctx, "get provisioner logs", slog.Error(err))
-					return
-				}
-				for _, log := range logs {
-					if endOfLogs.Load() {
-						// An end of logs message came in while we were fetching
-						// logs or processing them!
-						return
-					}
-					log := log
-					sendLog(&log)
-				}
-			}
-
-			// EndOfLogs is sent when logs are done streaming.
-			// We don't want to end the stream until we've sent all the logs,
-			// so we fetch logs after the last ID we've seen and send them!
-			if jlMsg.EndOfLogs {
-				endOfLogs.Store(true)
-				logs, err := api.Database.GetProvisionerLogsAfterID(dbauthz.As(ctx, actor), database.GetProvisionerLogsAfterIDParams{
-					JobID:        jobID,
-					CreatedAfter: lastSentLogID.Load(),
-				})
-				if err != nil {
-					logger.Warn(ctx, "get provisioner logs", slog.Error(err))
-					return
-				}
-				for _, log := range logs {
-					log := log
-					sendLog(&log)
-				}
-				logger.Debug(ctx, "got End of Logs")
-				bufferedLogs <- nil
-			}
-		},
-	)
+func (f *logFollower) listener(_ context.Context, message []byte, err error) {
 	if err != nil {
-		return nil, nil, err
+		f.errors <- err
+		return
 	}
-	// We don't need to close the bufferedLogs channel because it will be garbage collected!
-	return bufferedLogs, closeSubscribe, nil
+	var n provisionersdk.ProvisionerJobLogsNotifyMessage
+	err = json.Unmarshal(message, &n)
+	if err != nil {
+		f.errors <- err
+		return
+	}
+	f.notifications <- n
+}
+
+// query fetches the latest job logs from the database and writes them to the
+// connection.
+func (f *logFollower) query() error {
+	f.logger.Debug(f.ctx, "querying logs", slog.F("after", f.after))
+	logs, err := f.db.GetProvisionerLogsAfterID(f.ctx, database.GetProvisionerLogsAfterIDParams{
+		JobID:        f.jobID,
+		CreatedAfter: f.after,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("error fetching logs: %w", err)
+	}
+	for _, log := range logs {
+		logB, err := json.Marshal(convertProvisionerJobLog(log))
+		if err != nil {
+			return xerrors.Errorf("error marshaling log: %w", err)
+		}
+		err = f.conn.Write(f.ctx, websocket.MessageText, logB)
+		if err != nil {
+			return xerrors.Errorf("error writing to websocket: %w", err)
+		}
+		f.after = log.ID
+		f.logger.Debug(f.ctx, "wrote log to websocket", slog.F("id", log.ID))
+	}
+	return nil
 }
