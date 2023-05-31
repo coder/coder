@@ -1,8 +1,10 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -564,7 +566,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 func TestWorkspaceFilterAllStatus(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("DB") != "" {
-		t.Skip(`This test takes too long with an actual database`)
+		t.Skip(`This test takes too long with an actual database. Takes 10s on local machine`)
 	}
 
 	ctx := dbauthz.AsSystemRestricted(context.Background())
@@ -607,8 +609,14 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		workspace.TemplateID = template.ID
 		workspace = dbgen.Workspace(t, db, workspace)
 
+		jobID := uuid.New()
+		job.ID = jobID
 		job.Type = database.ProvisionerJobTypeWorkspaceBuild
 		job.OrganizationID = owner.OrganizationID
+		// Need to prevent acquire from getting this job.
+		job.Tags = dbtype.StringMap{
+			jobID.String(): "true",
+		}
 		job = dbgen.ProvisionerJob(t, db, job)
 
 		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
@@ -664,14 +672,23 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
 	}, database.WorkspaceTransitionStop)
 
-	// failed
+	// failed -- delete
 	_, _, _ = makeWorkspace(database.Workspace{
-		Name: string(database.WorkspaceStatusFailed),
+		Name: string(database.WorkspaceStatusFailed) + "-deleted",
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
 		Error:       sql.NullString{String: "Some error", Valid: true},
-	}, database.WorkspaceTransitionStart)
+	}, database.WorkspaceTransitionDelete)
+
+	// failed -- stop
+	_, _, _ = makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusFailed) + "-stopped",
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		Error:       sql.NullString{String: "Some error", Valid: true},
+	}, database.WorkspaceTransitionStop)
 
 	// canceling
 	_, _, _ = makeWorkspace(database.Workspace{
@@ -713,7 +730,13 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	// Make sure all workspaces have the correct status
 	var statuses []codersdk.WorkspaceStatus
 	for _, apiWorkspace := range workspaces.Workspaces {
-		assert.Equal(t, apiWorkspace.Name, string(apiWorkspace.LatestBuild.Status), "workspace has incorrect status")
+		expStatus := strings.Split(apiWorkspace.Name, "-")
+		if !assert.Equal(t, expStatus[0], string(apiWorkspace.LatestBuild.Status), "workspace has incorrect status") {
+			d, _ := json.Marshal(apiWorkspace)
+			var buf bytes.Buffer
+			_ = json.Indent(&buf, d, "", "\t")
+			t.Logf("Incorrect workspace: %s", buf.String())
+		}
 		statuses = append(statuses, apiWorkspace.LatestBuild.Status)
 	}
 
