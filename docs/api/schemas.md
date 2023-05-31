@@ -1719,6 +1719,27 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `amount` | integer | false    |              |             |
 | `date`   | string  | false    |              |             |
 
+## codersdk.DAUsResponse
+
+```json
+{
+  "entries": [
+    {
+      "amount": 0,
+      "date": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "tz_hour_offset": 0
+}
+```
+
+### Properties
+
+| Name             | Type                                            | Required | Restrictions | Description |
+| ---------------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `entries`        | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
+| `tz_hour_offset` | integer                                         | false    |              |             |
+
 ## codersdk.DERP
 
 ```json
@@ -2131,25 +2152,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `config`  | [codersdk.DeploymentValues](#codersdkdeploymentvalues) | false    |              |             |
 | `options` | array of [clibase.Option](#clibaseoption)              | false    |              |             |
 
-## codersdk.DeploymentDAUsResponse
-
-```json
-{
-  "entries": [
-    {
-      "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                            | Required | Restrictions | Description |
-| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
-
 ## codersdk.DeploymentStats
 
 ```json
@@ -2559,6 +2561,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ------------------- |
 | `moons`             |
 | `workspace_actions` |
+| `workspace_filter`  |
 
 ## codersdk.Feature
 
@@ -4007,25 +4010,6 @@ Parameter represents a set value for the scope.
 | Name             | Type                                                 | Required | Restrictions | Description |
 | ---------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
-
-## codersdk.TemplateDAUsResponse
-
-```json
-{
-  "entries": [
-    {
-      "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                            | Required | Restrictions | Description |
-| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
 
 ## codersdk.TemplateExample
 
@@ -6393,7 +6377,14 @@ Parameter represents a set value for the scope.
     }
   },
   "pass": true,
-  "time": "string"
+  "time": "string",
+  "websocket": {
+    "error": null,
+    "response": {
+      "body": "string",
+      "code": 0
+    }
+  }
 }
 ```
 
@@ -6405,6 +6396,42 @@ Parameter represents a set value for the scope.
 | `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
 | `pass`       | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
 | `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
+| `websocket`  | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
+
+## healthcheck.WebsocketReport
+
+```json
+{
+  "error": null,
+  "response": {
+    "body": "string",
+    "code": 0
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                                           | Required | Restrictions | Description |
+| ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`    | any                                                            | false    |              |             |
+| `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
+
+## healthcheck.WebsocketResponse
+
+```json
+{
+  "body": "string",
+  "code": 0
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+| ------ | ------- | -------- | ------------ | ----------- |
+| `body` | string  | false    |              |             |
+| `code` | integer | false    |              |             |
 
 ## netcheck.Report
 

@@ -1535,9 +1535,9 @@ type TemplateVersionParameter struct {
 	// Validation: regex pattern
 	ValidationRegex string `db:"validation_regex" json:"validation_regex"`
 	// Validation: minimum length of value
-	ValidationMin int32 `db:"validation_min" json:"validation_min"`
+	ValidationMin sql.NullInt32 `db:"validation_min" json:"validation_min"`
 	// Validation: maximum length of value
-	ValidationMax int32 `db:"validation_max" json:"validation_max"`
+	ValidationMax sql.NullInt32 `db:"validation_max" json:"validation_max"`
 	// Validation: error displayed when the regex does not match.
 	ValidationError string `db:"validation_error" json:"validation_error"`
 	// Validation: consecutive values preserve the monotonic order

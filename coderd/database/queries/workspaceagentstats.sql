@@ -24,7 +24,7 @@ VALUES
 
 -- name: GetTemplateDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast(@tz_offset::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats
@@ -38,7 +38,7 @@ ORDER BY
 
 -- name: GetDeploymentDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast(@tz_offset::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats

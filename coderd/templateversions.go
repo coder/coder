@@ -1706,6 +1706,15 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 	if err != nil {
 		return codersdk.TemplateVersionParameter{}, err
 	}
+
+	var validationMin, validationMax *int32
+	if param.ValidationMin.Valid {
+		validationMin = &param.ValidationMin.Int32
+	}
+	if param.ValidationMax.Valid {
+		validationMax = &param.ValidationMax.Int32
+	}
+
 	return codersdk.TemplateVersionParameter{
 		Name:                 param.Name,
 		DisplayName:          param.DisplayName,
@@ -1717,8 +1726,8 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		Icon:                 param.Icon,
 		Options:              options,
 		ValidationRegex:      param.ValidationRegex,
-		ValidationMin:        param.ValidationMin,
-		ValidationMax:        param.ValidationMax,
+		ValidationMin:        validationMin,
+		ValidationMax:        validationMax,
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 		Required:             param.Required,

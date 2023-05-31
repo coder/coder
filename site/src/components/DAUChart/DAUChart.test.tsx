@@ -14,6 +14,7 @@ describe("DAUChart", () => {
     render(
       <DAUChart
         daus={{
+          tz_hour_offset: 0,
           entries: [],
         }}
       />,
@@ -25,6 +26,7 @@ describe("DAUChart", () => {
     render(
       <DAUChart
         daus={{
+          tz_hour_offset: 0,
           entries: [{ date: "2020-01-01", amount: 1 }],
         }}
       />,

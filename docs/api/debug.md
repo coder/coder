@@ -207,7 +207,14 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     }
   },
   "pass": true,
-  "time": "string"
+  "time": "string",
+  "websocket": {
+    "error": null,
+    "response": {
+      "body": "string",
+      "code": 0
+    }
+  }
 }
 ```
 
