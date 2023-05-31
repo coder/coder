@@ -125,7 +125,7 @@
     "@xstate/cli": "0.3.0",
     "chromatic": "6.17.4",
     "eslint": "8.35.0",
-    "eslint-config-prettier": "8.5.0",
+    "eslint-config-prettier": "8.8.0",
     "eslint-import-resolver-typescript": "3.5.0",
     "eslint-plugin-compat": "4.1.4",
     "eslint-plugin-eslint-comments": "3.2.0",
