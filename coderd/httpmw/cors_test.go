@@ -24,7 +24,9 @@ func TestWorkspaceAppCors(t *testing.T) {
 		Username:      "user",
 	}
 
-	handler := httpmw.WorkspaceAppCors(regex, app)
+	handler := httpmw.WorkspaceAppCors(regex, app)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusNoContent)
+	}))
 	methods := []string{
 		http.MethodOptions,
 		http.MethodHead,
@@ -72,14 +74,25 @@ func TestWorkspaceAppCors(t *testing.T) {
 				r.Header.Set("Origin", test.origin)
 				rw := httptest.NewRecorder()
 
-				handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-					rw.WriteHeader(http.StatusOK)
-				})).ServeHTTP(rw, r)
+				// Preflight requests need to know what method will be requested.
+				if method == http.MethodOptions {
+					r.Header.Set("Access-Control-Request-Method", method)
+				}
+
+				handler.ServeHTTP(rw, r)
 
 				if test.allowed {
 					require.Equal(t, test.origin, rw.Header().Get("Access-Control-Allow-Origin"))
 				} else {
 					require.Equal(t, "", rw.Header().Get("Access-Control-Allow-Origin"))
+				}
+
+				// For options we should never get to our handler as the middleware
+				// short-circuits with a 200.
+				if method == http.MethodOptions {
+					require.Equal(t, http.StatusOK, rw.Code)
+				} else {
+					require.Equal(t, http.StatusNoContent, rw.Code)
 				}
 			}
 		})
