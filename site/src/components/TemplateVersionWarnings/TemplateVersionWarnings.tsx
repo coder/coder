@@ -2,7 +2,6 @@ import { FC } from "react"
 import * as TypesGen from "api/typesGenerated"
 import { Alert } from "components/Alert/Alert"
 import { Maybe } from "components/Conditionals/Maybe"
-import Link from "@mui/material/Link"
 
 export interface TemplateVersionWarningsProps {
   warnings?: TypesGen.TemplateVersionWarning[]
