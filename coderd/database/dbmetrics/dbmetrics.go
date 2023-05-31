@@ -231,9 +231,9 @@ func (m metricsStore) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return key, err
 }
 
-func (m metricsStore) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
+func (m metricsStore) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]database.GetDeploymentDAUsRow, error) {
 	start := time.Now()
-	rows, err := m.s.GetDeploymentDAUs(ctx)
+	rows, err := m.s.GetDeploymentDAUs(ctx, tzOffset)
 	m.queryLatencies.WithLabelValues("GetDeploymentDAUs").Observe(time.Since(start).Seconds())
 	return rows, err
 }
@@ -539,9 +539,9 @@ func (m metricsStore) GetTemplateByOrganizationAndName(ctx context.Context, arg 
 	return template, err
 }
 
-func (m metricsStore) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
+func (m metricsStore) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
 	start := time.Now()
-	daus, err := m.s.GetTemplateDAUs(ctx, templateID)
+	daus, err := m.s.GetTemplateDAUs(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplateDAUs").Observe(time.Since(start).Seconds())
 	return daus, err
 }
