@@ -91,15 +91,15 @@ each OS:
 ```console
 # Linux
 $JAVA_HOME/lib/security/cacerts
-/etc/pki/java/cacerts
-/etc/ssl/certs/java/cacerts
+<Gateway installation directory>/etc/pki/java/cacerts
+<Gateway installation directory>/etc/ssl/certs/java/cacerts
 
 # macOS
-$(/usr/libexec/java_home)/lib/security/cacerts
-$(/usr/libexec/java_home)/jre/lib/security/cacerts
+$<Gateway installation directory>/lib/security/cacerts
+$<Gateway installation directory>/jre/lib/security/cacerts
 
 # Windows
-C:\Program Files (x86)\Java\jre<version>\lib\security\cacerts
+C:\Program Files (x86)\<Gateway installation directory>\jre<version>\lib\security\cacerts
 ```
 
 To add the certificate to the keystore, you can use the `keytool` utility that ships
