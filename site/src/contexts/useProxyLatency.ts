@@ -128,9 +128,6 @@ export const useProxyLatency = (
     const proxyRequests = Object.keys(proxyChecks).map((latencyURL) => {
       return axios.get(latencyURL, {
         withCredentials: false,
-        // Must add a custom header to make the request not a "simple request"
-        // https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests
-        headers: { "X-LATENCY-CHECK": "true" },
       })
     })
 
