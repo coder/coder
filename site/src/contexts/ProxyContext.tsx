@@ -101,7 +101,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   // Every time we get a new proxiesResponse, update the latency check
   // to each workspace proxy.
-  const proxyLatencies = useProxyLatency(proxiesResp)
+  const { proxyLatencies } = useProxyLatency(proxiesResp)
 
   // updateProxy is a helper function that when called will
   // update the proxy being used.

@@ -1,5 +1,5 @@
 import { Region, RegionsResponse } from "api/typesGenerated"
-import { useEffect, useReducer } from "react"
+import { useEffect, useReducer, useState } from "react"
 import PerformanceObserver from "@fastly/performance-observer-polyfill"
 import axios from "axios"
 import { generateRandomString } from "utils/random"
@@ -25,19 +25,28 @@ const proxyLatenciesReducer = (
   action: ProxyLatencyAction,
 ): Record<string, ProxyLatencyReport> => {
   // Just overwrite any existing latency.
-  return {
-    ...state,
-    [action.proxyID]: action.report,
-  }
+  state[action.proxyID] = action.report
+  return state
 }
 
 export const useProxyLatency = (
   proxies?: RegionsResponse,
-): Record<string, ProxyLatencyReport> => {
+): {
+  // Refetch can be called to refetch the proxy latencies.
+  // Until the new values are loaded, the old values will still be used.
+  refetch: () => void
+  proxyLatencies: Record<string, ProxyLatencyReport>
+} => {
   const [proxyLatencies, dispatchProxyLatencies] = useReducer(
     proxyLatenciesReducer,
     {},
   )
+
+  // This fetchNumber is used to trigger a refetch of the proxy latencies.
+  const [fetchNumber, setFetchNumber] = useState(0)
+  const refetch = (): void => {
+    setFetchNumber(fetchNumber + 1)
+  }
 
   // Only run latency updates when the proxies change.
   useEffect(() => {
@@ -148,7 +157,10 @@ export const useProxyLatency = (
         // via the performance observer. So we can disconnect the observer.
         observer.disconnect()
       })
-  }, [proxies])
+  }, [proxies, fetchNumber])
 
-  return proxyLatencies
+  return {
+    proxyLatencies,
+    refetch,
+  }
 }
