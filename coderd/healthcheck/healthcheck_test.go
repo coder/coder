@@ -49,7 +49,7 @@ func TestHealthcheck(t *testing.T) {
 			},
 		},
 		healthy:         true,
-		failingSections: []string{},
+		failingSections: nil,
 	}, {
 		name: "DERPFail",
 		checker: &testChecker{
