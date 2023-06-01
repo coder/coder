@@ -38,6 +38,12 @@ data "coder_parameter" "number_example_min_max" {
   }
 }
 
+data "coder_parameter" "number_example" {
+  name = "number_example"
+  type = "number"
+  default = 4
+}
+
 resource "coder_agent" "dev" {
   os   = "windows"
   arch = "arm64"
