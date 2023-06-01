@@ -4,9 +4,9 @@
 
 Workspace proxies provide low-latency experiences for geo-distributed teams.
 
-Coder's networking does a best effort to make direct connections to a workspace. In situations where this is not possible, such as [dashboard connections](../networking/README.md#dashboard-connections), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
+Coder's networking does a best effort to make direct connections to a workspace. In situations where this is not possible, such as connections via the web terminal and [web IDEs](../ides/web-ides.md), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
 
-A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over ssh, a workspace app, port forwarding, etc.
+A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over SSH, a workspace app, port forwarding, etc. Dashboard connections and API calls (e.g. the workspaces list) are not served over workspace proxies.
 
 ![ProxyDiagram](../images/workspaceproxy/proxydiagram.png)
 
@@ -95,5 +95,3 @@ coder wsproxy server
 Users can navigate to their account settings to select a workspace proxy. Workspace proxy preferences are cached by the web browser. If a proxy goes offline, the session will fall back to the primary proxy. This could take up to 60 seconds.
 
 ![Workspace proxy picker](../images/admin/workspace-proxy-picker.png)
-
-> In a future release, Coder will automatically pick the closest workspace proxy for each user, based on browser ping.
