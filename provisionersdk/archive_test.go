@@ -15,6 +15,32 @@ import (
 
 func TestTar(t *testing.T) {
 	t.Parallel()
+	t.Run("HeaderBreakLimit", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		file, err := os.CreateTemp(dir, "*.tf")
+		require.NoError(t, err)
+		_ = file.Close()
+		// A header is 512 bytes
+		err = provisionersdk.Tar(io.Discard, dir, 100)
+		require.Error(t, err)
+	})
+	t.Run("HeaderAndContent", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		file, err := os.CreateTemp(dir, "*.tf")
+		require.NoError(t, err)
+		_, _ = file.Write(make([]byte, 100))
+		_ = file.Close()
+		// Pay + header is 1024 bytes (padding)
+		err = provisionersdk.Tar(io.Discard, dir, 1025)
+		require.NoError(t, err)
+
+		// Limit is 1 byte too small (n == limit is a failure, must be under)
+		err = provisionersdk.Tar(io.Discard, dir, 1024)
+		require.Error(t, err)
+	})
+
 	t.Run("NoTF", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
@@ -97,7 +123,8 @@ func TestTar(t *testing.T) {
 			}
 		}
 		archive := new(bytes.Buffer)
-		err := provisionersdk.Tar(archive, dir, 1024)
+		// Headers are chonky so raise the limit to something reasonable
+		err := provisionersdk.Tar(archive, dir, 1024<<2)
 		require.NoError(t, err)
 		dir = t.TempDir()
 		err = provisionersdk.Untar(dir, archive)

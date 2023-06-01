@@ -34,8 +34,8 @@ func dirHasExt(dir string, ext string) (bool, error) {
 
 // Tar archives a Terraform directory.
 func Tar(w io.Writer, directory string, limit int64) error {
-	// The total bytes written must be under the limit.
-	w = xio.NewLimitWriter(w, limit)
+	// The total bytes written must be under the limit, so use -1
+	w = xio.NewLimitWriter(w, limit-1)
 	tarWriter := tar.NewWriter(w)
 
 	const tfExt = ".tf"
