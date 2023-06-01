@@ -53,6 +53,9 @@ const Template: Story<WorkspaceProps> = (args) => (
         setProxy: () => {
           return
         },
+        refetchProxyLatencies: () => {
+          return
+        },
       }}
     >
       <Workspace {...args} />
