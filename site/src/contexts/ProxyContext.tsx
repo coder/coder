@@ -45,6 +45,9 @@ export interface ProxyContextValue {
   // then the latency has not been fetched yet. Calculations happen async for each proxy in the list.
   // Refer to the returned report for a given proxy for more information.
   proxyLatencies: Record<string, ProxyLatencyReport>
+  // refetchProxyLatencies will trigger refreshing of the proxy latencies. By default the latencies
+  // are loaded once.
+  refetchProxyLatencies: () => void
   // setProxy is a function that sets the user's selected proxy. This function should
   // only be called if the user is manually selecting a proxy. This value is stored in local
   // storage and will persist across reloads and tabs.
@@ -101,7 +104,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   // Every time we get a new proxiesResponse, update the latency check
   // to each workspace proxy.
-  const proxyLatencies = useProxyLatency(proxiesResp)
+  const { proxyLatencies, refetch: refetchProxyLatencies } =
+    useProxyLatency(proxiesResp)
 
   // updateProxy is a helper function that when called will
   // update the proxy being used.
@@ -128,6 +132,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     <ProxyContext.Provider
       value={{
         proxyLatencies,
+        refetchProxyLatencies,
         userProxy: userSavedProxy,
         proxy: experimentEnabled
           ? proxy

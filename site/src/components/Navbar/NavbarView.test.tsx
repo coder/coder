@@ -19,6 +19,7 @@ const proxyContextValue: ProxyContextValue = {
   isFetched: true,
   setProxy: jest.fn(),
   clearProxy: action("clearProxy"),
+  refetchProxyLatencies: jest.fn(),
   proxyLatencies: {},
 }
 
