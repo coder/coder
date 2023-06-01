@@ -115,6 +115,9 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		return data.Close()
 	})
 	if err != nil {
+		if xerrors.Is(err, xio.ErrLimitReached) {
+			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
+		}
 		return err
 	}
 	err = tarWriter.Flush()
