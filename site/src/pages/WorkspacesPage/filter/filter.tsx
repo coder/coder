@@ -35,6 +35,7 @@ import {
   BaseOption,
 } from "./options"
 import debounce from "just-debounce-it"
+import { workspaceFilterQuery } from "utils/filters"
 
 export type FilterValues = {
   owner?: string // User["username"]
@@ -50,7 +51,7 @@ export const useFilter = ({
   onUpdate?: () => void
 }) => {
   const [searchParams, setSearchParams] = searchParamsResult
-  const query = searchParams.get("filter") ?? "owner:me"
+  const query = searchParams.get("filter") ?? workspaceFilterQuery.me
   const values = parseFilterQuery(query)
 
   const update = (values: string | FilterValues) => {
