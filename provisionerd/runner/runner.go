@@ -891,7 +891,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 	// will still be available for us to send the cancel to the provisioner
 	stream, err := r.provisioner.Provision(ctx)
 	if err != nil {
-		return nil, r.failedJobf("provision: %s", err)
+		return nil, r.failedWorkspaceBuildf("provision: %s", err)
 	}
 	defer stream.Close()
 	go func() {
@@ -909,13 +909,13 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 
 	err = stream.Send(req)
 	if err != nil {
-		return nil, r.failedJobf("start provision: %s", err)
+		return nil, r.failedWorkspaceBuildf("start provision: %s", err)
 	}
 
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, r.failedJobf("recv workspace provision: %s", err)
+			return nil, r.failedWorkspaceBuildf("recv workspace provision: %s", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
@@ -958,7 +958,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 			// Stop looping!
 			return msgType.Complete, nil
 		default:
-			return nil, r.failedJobf("invalid message type %T received from provisioner", msg.Type)
+			return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", msg.Type)
 		}
 	}
 }
@@ -1090,6 +1090,12 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			},
 		},
 	}, nil
+}
+
+func (r *Runner) failedWorkspaceBuildf(format string, args ...interface{}) *proto.FailedJob {
+	failedJob := r.failedJobf(format, args...)
+	failedJob.Type = &proto.FailedJob_WorkspaceBuild_{}
+	return failedJob
 }
 
 func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
