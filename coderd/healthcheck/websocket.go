@@ -21,6 +21,7 @@ type WebsocketReportOptions struct {
 }
 
 type WebsocketReport struct {
+	Healthy  bool              `json:"healthy"`
 	Response WebsocketResponse `json:"response"`
 	Error    error             `json:"error"`
 }
@@ -96,6 +97,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	}
 
 	c.Close(websocket.StatusGoingAway, "goodbye")
+	r.Healthy = true
 }
 
 type WebsocketEchoServer struct {
