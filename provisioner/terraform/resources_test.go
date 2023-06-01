@@ -337,6 +337,47 @@ func TestConvertResources(t *testing.T) {
 				ValidationMax: nil,
 			}},
 		},
+		"rich-parameters-validation": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                         "dev",
+					OperatingSystem:              "windows",
+					ShutdownScriptTimeoutSeconds: 300,
+					StartupScriptTimeoutSeconds:  300,
+					Architecture:                 "arm64",
+					Auth:                         &proto.Agent_Token{},
+					LoginBeforeReady:             true,
+					ConnectionTimeoutSeconds:     120,
+				}},
+			}},
+			parameters: []*proto.RichParameter{{
+				Name:          "number_example_min_max",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(3),
+				ValidationMax: terraform.PtrInt32(6),
+			}, {
+				Name:          "number_example_min",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(3),
+				ValidationMax: nil,
+			}, {
+				Name:          "number_example_max",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: nil,
+				ValidationMax: terraform.PtrInt32(6),
+			}, {
+				Name:          "number_example",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: nil,
+				ValidationMax: nil,
+			}},
+		},
 		"git-auth-providers": {
 			resources: []*proto.Resource{{
 				Name: "dev",
