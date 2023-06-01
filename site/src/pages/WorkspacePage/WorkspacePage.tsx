@@ -13,6 +13,7 @@ import { RequirePermission } from "components/RequirePermission/RequirePermissio
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { useOrganizationId } from "hooks"
 import { isAxiosError } from "axios"
+import { Margins } from "components/Margins/Margins"
 
 const useFailedBuildLogs = (workspace: Workspace | undefined) => {
   const now = useRef(new Date())
@@ -35,7 +36,6 @@ export const WorkspacePage: FC = () => {
   const { username, workspace: workspaceName } = useParams() as {
     username: string
     workspace: string
-    template: string
   }
   const orgId = useOrganizationId()
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
@@ -59,7 +59,9 @@ export const WorkspacePage: FC = () => {
     >
       <ChooseOne>
         <Cond condition={Boolean(pageError)}>
-          <ErrorAlert error={pageError} sx={{ my: 2 }} />
+          <Margins>
+            <ErrorAlert error={pageError} sx={{ my: 2 }} />
+          </Margins>
         </Cond>
         <Cond
           condition={
