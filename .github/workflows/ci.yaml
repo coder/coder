@@ -31,15 +31,16 @@ env:
 
 jobs:
   lint:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
       # Install Go!
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           go-version: ${{ env.CODER_GO_VERSION }}
+          cache: true
 
       # Check for any typos!
       - name: Check for typos
@@ -69,7 +70,7 @@ jobs:
       # Lint our dashboard!
       - name: Cache node_modules
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -132,7 +133,7 @@ jobs:
 
   gen:
     timeout-minutes: 8
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.docs-only == 'false'
     steps:
@@ -140,7 +141,7 @@ jobs:
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -152,7 +153,7 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -164,13 +165,13 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ github.job }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ github.job }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -220,7 +221,7 @@ jobs:
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -244,18 +245,18 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'buildjet-4vcpu-ubuntu-2204' ||  matrix.os == 'windows-2019' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
     timeout-minutes: 20
     strategy:
       matrix:
         os:
           - ubuntu-latest
           - macos-latest
-          - windows-2022
+          - windows-2019
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -267,13 +268,13 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> ${{ runner.os == 'Windows' && '$env:' || '$' }}GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.**', '**.go') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -335,7 +336,7 @@ jobs:
           flags: unittest-go-${{ matrix.os }}
 
   test-go-psql:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -344,7 +345,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -356,13 +357,13 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -413,7 +414,7 @@ jobs:
 
   deploy:
     name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 30
     needs: changes
     if: |
@@ -436,7 +437,7 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -448,20 +449,20 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-release-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -532,14 +533,14 @@ jobs:
           retention-days: 7
 
   test-js:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -548,7 +549,7 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - uses: actions/setup-node@v3
+      - uses: buildjet/setup-node@v3
         with:
           node-version: "16.16.0"
 
@@ -574,21 +575,21 @@ jobs:
     needs:
       - changes
     if: needs.changes.outputs.docs-only == 'false'
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
             .eslintcache
           key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -598,7 +599,7 @@ jobs:
           terraform_version: 1.1.9
           terraform_wrapper: false
 
-      - uses: actions/setup-node@v3
+      - uses: buildjet/setup-node@v3
         with:
           node-version: "16.16.0"
 
@@ -609,13 +610,13 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -654,7 +655,7 @@ jobs:
           # only get 1 commit on shallow checkout.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v3
+      - uses: buildjet/setup-node@v3
         with:
           node-version: "16.16.0"
 
