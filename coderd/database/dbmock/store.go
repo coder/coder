@@ -853,21 +853,6 @@ func (mr *MockStoreMockRecorder) GetParameterSchemasByJobID(arg0, arg1 interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasByJobID", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasByJobID), arg0, arg1)
 }
 
-// GetParameterSchemasCreatedAfter mocks base method.
-func (m *MockStore) GetParameterSchemasCreatedAfter(arg0 context.Context, arg1 time.Time) ([]database.ParameterSchema, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetParameterSchemasCreatedAfter", arg0, arg1)
-	ret0, _ := ret[0].([]database.ParameterSchema)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetParameterSchemasCreatedAfter indicates an expected call of GetParameterSchemasCreatedAfter.
-func (mr *MockStoreMockRecorder) GetParameterSchemasCreatedAfter(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasCreatedAfter), arg0, arg1)
-}
-
 // GetPreviousTemplateVersion mocks base method.
 func (m *MockStore) GetPreviousTemplateVersion(arg0 context.Context, arg1 database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	m.ctrl.T.Helper()

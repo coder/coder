@@ -434,13 +434,6 @@ func (m metricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID uuid
 	return schemas, err
 }
 
-func (m metricsStore) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
-	start := time.Now()
-	schemas, err := m.s.GetParameterSchemasCreatedAfter(ctx, createdAt)
-	m.queryLatencies.WithLabelValues("GetParameterSchemasCreatedAfter").Observe(time.Since(start).Seconds())
-	return schemas, err
-}
-
 func (m metricsStore) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	start := time.Now()
 	version, err := m.s.GetPreviousTemplateVersion(ctx, arg)

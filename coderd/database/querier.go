@@ -85,7 +85,6 @@ type sqlcQuerier interface {
 	GetOrganizations(ctx context.Context) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
-	GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]ParameterSchema, error)
 	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)

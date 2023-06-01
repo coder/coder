@@ -1935,51 +1935,6 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
-const getParameterSchemasCreatedAfter = `-- name: GetParameterSchemasCreatedAfter :many
-SELECT id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index FROM parameter_schemas WHERE created_at > $1
-`
-
-func (q *sqlQuerier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]ParameterSchema, error) {
-	rows, err := q.db.QueryContext(ctx, getParameterSchemasCreatedAfter, createdAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ParameterSchema
-	for rows.Next() {
-		var i ParameterSchema
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.JobID,
-			&i.Name,
-			&i.Description,
-			&i.DefaultSourceScheme,
-			&i.DefaultSourceValue,
-			&i.AllowOverrideSource,
-			&i.DefaultDestinationScheme,
-			&i.AllowOverrideDestination,
-			&i.DefaultRefresh,
-			&i.RedisplayValue,
-			&i.ValidationError,
-			&i.ValidationCondition,
-			&i.ValidationTypeSystem,
-			&i.ValidationValueType,
-			&i.Index,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertParameterSchema = `-- name: InsertParameterSchema :one
 INSERT INTO
 	parameter_schemas (

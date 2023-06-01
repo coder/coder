@@ -314,13 +314,6 @@ func (q *querier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now
 	return q.db.GetWorkspacesEligibleForAutoStartStop(ctx, now)
 }
 
-func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetParameterSchemasCreatedAfter(ctx, createdAt)
-}
-
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
