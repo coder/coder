@@ -84,6 +84,7 @@ jobs:
         working-directory: site
       - name: Check TypeScript Types
         run: yarn types:check
+        working-directory: site
 
       # Make sure the Helm chart is linted!
       - name: Install helm
