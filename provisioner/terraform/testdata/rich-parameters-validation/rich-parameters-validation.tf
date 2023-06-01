@@ -8,8 +8,8 @@ terraform {
 }
 
 data "coder_parameter" "number_example_min_max" {
-  name = "number_example_min_max"
-  type = "number"
+  name    = "number_example_min_max"
+  type    = "number"
   default = 4
   validation {
     min = 3
@@ -18,8 +18,8 @@ data "coder_parameter" "number_example_min_max" {
 }
 
 data "coder_parameter" "number_example_min" {
-  name = "number_example_min"
-  type = "number"
+  name    = "number_example_min"
+  type    = "number"
   default = 4
   validation {
     min = 3
@@ -27,8 +27,8 @@ data "coder_parameter" "number_example_min" {
 }
 
 data "coder_parameter" "number_example_max" {
-  name = "number_example_max"
-  type = "number"
+  name    = "number_example_max"
+  type    = "number"
   default = 4
   validation {
     max = 6
@@ -36,8 +36,8 @@ data "coder_parameter" "number_example_max" {
 }
 
 data "coder_parameter" "number_example" {
-  name = "number_example"
-  type = "number"
+  name    = "number_example"
+  type    = "number"
   default = 4
 }
 

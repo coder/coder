@@ -29,8 +29,8 @@ data "coder_parameter" "example" {
 
 // Plugin revision v0.7.0 requires defining "min" or "max" rules together.
 data "coder_parameter" "number_example_min_max" {
-  name = "number_example_min_max"
-  type = "number"
+  name    = "number_example_min_max"
+  type    = "number"
   default = 4
   validation {
     min = 3
@@ -39,8 +39,8 @@ data "coder_parameter" "number_example_min_max" {
 }
 
 data "coder_parameter" "number_example" {
-  name = "number_example"
-  type = "number"
+  name    = "number_example"
+  type    = "number"
   default = 4
 }
 
