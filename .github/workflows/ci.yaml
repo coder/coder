@@ -199,14 +199,6 @@ jobs:
 
       - uses: ./.github/actions/setup-go
 
-      - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.10.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          repo: gotestyourself/gotestsum
-          tag: v1.9.0
-
       - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.1.9
@@ -242,6 +234,14 @@ jobs:
           name: gotests-${{ matrix.os }}.xml
           path: ./gotests.xml
           retention-days: 30
+
+      - name: Upload tests to datadog
+        if: always()
+        run: |
+          npm install -g @datadog/datadog-ci
+          datadog-ci junit upload --service coder ./gotests.xml
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -290,6 +290,7 @@ jobs:
           name: gotests-postgres.xml
           path: ./gotests.xml
           retention-days: 30
+
       - name: Upload tests to datadog
         if: always()
         run: |
@@ -325,7 +326,15 @@ jobs:
 
       - name: Run Tests
         run: |
-          go test -race ./...
+          gotestsum --junitfile="gotests.xml" -race ./...
+      
+      - name: Upload tests to datadog
+        if: always()
+        run: |
+          npm install -g @datadog/datadog-ci
+          datadog-ci junit upload --service coder ./gotests.xml
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
 
   deploy:
     name: "deploy"
