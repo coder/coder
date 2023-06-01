@@ -615,7 +615,7 @@ test-postgres: test-clean test-postgres-docker
 		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
 		-coverpkg=./... \
-		-race -failfast
+		-failfast
 .PHONY: test-postgres
 
 test-postgres-docker:

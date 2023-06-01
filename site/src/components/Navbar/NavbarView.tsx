@@ -161,7 +161,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
         <Box
           display="flex"
-          marginLeft={{ lg: "auto" }}
+          marginLeft={{ md: "auto" }}
           gap={2}
           alignItems="center"
           paddingRight={2}
@@ -189,6 +189,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const selectedProxy = proxyContextValue.proxy.proxy
+  const refreshLatencies = proxyContextValue.refetchProxyLatencies
   const closeMenu = () => setIsOpen(false)
   const navigate = useNavigate()
 
@@ -292,6 +293,9 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           }}
         >
           Proxy settings
+        </MenuItem>
+        <MenuItem sx={{ fontSize: 14 }} onClick={refreshLatencies}>
+          Refresh Latencies
         </MenuItem>
       </Menu>
     </>
