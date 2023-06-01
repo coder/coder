@@ -453,7 +453,7 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 			continue
 		}
 
-		date := as.CreatedAt.UTC().Add(time.Duration(arg.TzOffset) * time.Hour).Truncate(time.Hour * 24)
+		date := as.CreatedAt.UTC().Add(time.Duration(arg.TzOffset) * time.Hour * -1).Truncate(time.Hour * 24)
 
 		dateEntry := seens[date]
 		if dateEntry == nil {
@@ -492,7 +492,7 @@ func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context, tzOffset int32) ([]da
 		if as.ConnectionCount == 0 {
 			continue
 		}
-		date := as.CreatedAt.UTC().Add(time.Duration(tzOffset) * time.Hour).Truncate(time.Hour * 24)
+		date := as.CreatedAt.UTC().Add(time.Duration(tzOffset) * -1 * time.Hour).Truncate(time.Hour * 24)
 
 		dateEntry := seens[date]
 		if dateEntry == nil {

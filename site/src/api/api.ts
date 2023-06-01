@@ -831,8 +831,11 @@ export const getTemplateDAUs = async (
   return response.data
 }
 
-export const getDeploymentDAUs = async (): Promise<TypesGen.DAUsResponse> => {
-  const response = await axios.get(`/api/v2/insights/daus`)
+export const getDeploymentDAUs = async (
+  // Default to user's local timezone
+  offset = new Date().getTimezoneOffset() / 60,
+): Promise<TypesGen.DAUsResponse> => {
+  const response = await axios.get(`/api/v2/insights/daus?tz_offset=${offset}`)
   return response.data
 }
 

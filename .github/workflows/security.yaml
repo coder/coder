@@ -23,7 +23,7 @@ env:
 
 jobs:
   codeql:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
 
@@ -33,7 +33,7 @@ jobs:
           languages: go, javascript
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: buildjet/setup-go@v4
         with:
           go-version: ${{ env.CODER_GO_VERSION }}
 
@@ -57,19 +57,20 @@ jobs:
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
   trivy:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           go-version: ${{ env.CODER_GO_VERSION }}
+          cache: true
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
