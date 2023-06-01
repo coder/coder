@@ -12,7 +12,7 @@ message Empty {}
 // AcquiredJob is returned when a provisioner daemon has a job locked.
 message AcquiredJob {
     message WorkspaceBuild {
-		reserved 3;
+        reserved 3;
 
         string workspace_build_id = 1;
         string workspace_name = 2;
@@ -28,7 +28,7 @@ message AcquiredJob {
         repeated provisioner.VariableValue user_variable_values = 2;
     }
     message TemplateDryRun {
-		reserved 1;
+        reserved 1;
 
         repeated provisioner.RichParameterValue rich_parameter_values = 2;
         repeated provisioner.VariableValue variable_values = 3;
@@ -108,7 +108,7 @@ message Log {
 
 // This message should be sent periodically as a heartbeat.
 message UpdateJobRequest {
-	reserved 3;
+    reserved 3;
 
     string job_id = 1;
     repeated Log logs = 2;
@@ -118,7 +118,7 @@ message UpdateJobRequest {
 }
 
 message UpdateJobResponse {
-	reserved 2;
+    reserved 2;
 
     bool canceled = 1;
 	repeated provisioner.VariableValue variable_values = 3;

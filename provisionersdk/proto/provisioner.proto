@@ -54,7 +54,7 @@ message RichParameterValue {
 message VariableValue {
     string name = 1;
     string value = 2;
-	bool sensitive = 3;
+    bool sensitive = 3;
 }
 
 // LogLevel represents severity of the log.
@@ -211,7 +211,7 @@ message Provision {
     }
 
     message Plan {
-		reserved 2;
+        reserved 2;
 
         Config config = 1;
         repeated RichParameterValue rich_parameter_values = 3;
@@ -236,9 +236,9 @@ message Provision {
         bytes state = 1;
         string error = 2;
         repeated Resource resources = 3;
-		repeated RichParameter parameters = 4;
-		repeated string git_auth_providers = 5;
-		bytes plan = 6;
+        repeated RichParameter parameters = 4;
+        repeated string git_auth_providers = 5;
+        bytes plan = 6;
     }
     message Response {
         oneof type {
