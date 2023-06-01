@@ -43,11 +43,12 @@ export const useProxyLatency = (
   )
 
   // This latestFetchRequest is used to trigger a refetch of the proxy latencies.
-  const [latestFetchRequest, setLatestFetchRequest] = useState(new Date().toISOString())
+  const [latestFetchRequest, setLatestFetchRequest] = useState(
+    new Date().toISOString(),
+  )
   const refetch = () => {
     setLatestFetchRequest(new Date().toISOString())
   }
-
 
   // Only run latency updates when the proxies change.
   useEffect(() => {

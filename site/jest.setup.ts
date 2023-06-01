@@ -35,7 +35,7 @@ jest.mock("contexts/useProxyLatency", () => ({
       }, {} as Record<string, ProxyLatencyReport>)
     }, [proxies])
 
-    return {proxyLatencies, refetch: jest.fn() }
+    return { proxyLatencies, refetch: jest.fn() }
   },
 }))
 
