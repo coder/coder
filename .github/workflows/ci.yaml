@@ -235,12 +235,9 @@ jobs:
           path: ./gotests.xml
           retention-days: 30
 
-      - name: Upload tests to datadog
+      - use: ./.github/actions/upload-datadog
         if: always()
-        run: |
-          npm install -g @datadog/datadog-ci
-          datadog-ci junit upload --service coder ./gotests.xml
-        env:
+        with:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
 
       - uses: codecov/codecov-action@v3
