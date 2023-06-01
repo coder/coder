@@ -153,13 +153,6 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, exp, must(db.GetTemplateVersionByID(context.Background(), exp.ID)))
 	})
 
-	t.Run("ParameterSchema", func(t *testing.T) {
-		t.Parallel()
-		db := dbfake.New()
-		exp := dbgen.ParameterSchema(t, db, database.ParameterSchema{})
-		require.Equal(t, []database.ParameterSchema{exp}, must(db.GetParameterSchemasByJobID(context.Background(), exp.JobID)))
-	})
-
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
