@@ -11,11 +11,11 @@ import (
 )
 
 type AccessURLReport struct {
-	Healthy         bool
-	Reachable       bool
-	StatusCode      int
-	HealthzResponse string
-	Error           error
+	Healthy         bool   `json:"healthy"`
+	Reachable       bool   `json:"reachable"`
+	StatusCode      int    `json:"status_code"`
+	HealthzResponse string `json:"healthz_response"`
+	Error           error  `json:"error"`
 }
 
 type AccessURLOptions struct {
