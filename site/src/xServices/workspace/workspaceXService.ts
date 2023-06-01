@@ -47,7 +47,6 @@ export interface WorkspaceContext {
   orgId: string
   username: string
   workspaceName: string
-  templateName: string
 
   error?: unknown
   // our server side events instance
@@ -725,15 +724,15 @@ async function loadInitialWorkspaceData({
   orgId,
   username,
   workspaceName,
-  templateName,
 }: WorkspaceContext) {
-  const [workspace, template] = await Promise.all([
-    API.getWorkspaceByOwnerAndName(username, workspaceName, {
+  const workspace = await API.getWorkspaceByOwnerAndName(
+    username,
+    workspaceName,
+    {
       include_deleted: true,
-    }),
-    API.getTemplateByName(orgId, templateName),
-  ])
-
+    },
+  )
+  const template = await API.getTemplateByName(orgId, workspace.template_name)
   const [templateVersion, permissions] = await Promise.all([
     API.getTemplateVersion(template.active_version_id),
     API.checkAuthorization({

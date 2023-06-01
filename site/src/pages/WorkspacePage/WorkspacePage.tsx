@@ -32,11 +32,7 @@ const useFailedBuildLogs = (workspace: Workspace | undefined) => {
 }
 
 export const WorkspacePage: FC = () => {
-  const {
-    username,
-    workspace: workspaceName,
-    template: templateName,
-  } = useParams() as {
+  const { username, workspace: workspaceName } = useParams() as {
     username: string
     workspace: string
     template: string
@@ -45,7 +41,6 @@ export const WorkspacePage: FC = () => {
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
     context: {
       orgId,
-      templateName,
       workspaceName,
       username,
     },
@@ -58,7 +53,9 @@ export const WorkspacePage: FC = () => {
 
   return (
     <RequirePermission
-      isFeatureVisible={isAxiosError(error) && error.response?.status !== 404}
+      isFeatureVisible={
+        !(isAxiosError(pageError) && pageError.response?.status === 404)
+      }
     >
       <ChooseOne>
         <Cond condition={Boolean(pageError)}>
