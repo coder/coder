@@ -326,7 +326,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          gotestsum --junitfile="gotests.xml" -race ./...
+          gotestsum --junitfile="gotests.xml" -- -race ./...
       
       - name: Upload tests to datadog
         if: always()
