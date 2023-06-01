@@ -75,9 +75,9 @@ explaining this IDE specification.
 
 > Note the JetBrains IDE is remotely installed into `~/.cache/JetBrains/RemoteDev/dist`
 
-## Configuring Gateway to use self-signed certificates
+## Configuring Gateway to use internal certificates
 
-When attempting to connect to a Coder deployment that uses self-signed certificates,
+When attempting to connect to a Coder deployment that uses internally signed certificates,
 you may receive the following error in Gateway:
 
 ```console
@@ -90,16 +90,15 @@ each OS:
 
 ```console
 # Linux
-$JAVA_HOME/lib/security/cacerts
-<Gateway installation directory>/etc/pki/java/cacerts
-<Gateway installation directory>/etc/ssl/certs/java/cacerts
+<Gateway installation directory>/jbr/lib/security/cacerts
 
 # macOS
-$<Gateway installation directory>/lib/security/cacerts
-$<Gateway installation directory>/jre/lib/security/cacerts
+<Gateway installation directory>/jbr/lib/security/cacerts
+/Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
 
 # Windows
-C:\Program Files (x86)\<Gateway installation directory>\jre<version>\lib\security\cacerts
+C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts
+%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
 ```
 
 To add the certificate to the keystore, you can use the `keytool` utility that ships
@@ -114,4 +113,7 @@ For example:
 
 ```powershell
 & 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/bin/keytool.exe' 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/lib/security/cacerts' -import -alias coder -file <cert>
+
+# command for Toolbox installation
+& '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\apps\Gateway\ch-0\<VERSION>\jbr\bin\keytool.exe' '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts' -import -alias coder -file <cert>
 ```
