@@ -78,22 +78,24 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		return nil
 	}
 
+	var min, max int
+	if richParameter.ValidationMin != nil {
+		min = int(*richParameter.ValidationMin)
+	}
+	if richParameter.ValidationMax != nil {
+		max = int(*richParameter.ValidationMax)
+	}
+
 	validation := &provider.Validation{
-		Min:       ptrInt(richParameter.ValidationMin),
-		Max:       ptrInt(richParameter.ValidationMax),
-		Regex:     richParameter.ValidationRegex,
-		Error:     richParameter.ValidationError,
-		Monotonic: string(richParameter.ValidationMonotonic),
+		Min:         min,
+		Max:         max,
+		MinDisabled: richParameter.ValidationMin == nil,
+		MaxDisabled: richParameter.ValidationMax == nil,
+		Regex:       richParameter.ValidationRegex,
+		Error:       richParameter.ValidationError,
+		Monotonic:   string(richParameter.ValidationMonotonic),
 	}
 	return validation.Valid(richParameter.Type, value)
-}
-
-func ptrInt(number *int32) *int {
-	if number == nil {
-		return nil
-	}
-	n := int(*number)
-	return &n
 }
 
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {

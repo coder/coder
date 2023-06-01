@@ -483,8 +483,12 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex
 			protoParam.ValidationError = param.Validation[0].Error
-			protoParam.ValidationMax = ptrInt32(param.Validation[0].Max)
-			protoParam.ValidationMin = ptrInt32(param.Validation[0].Min)
+			if !param.Validation[0].MaxDisabled {
+				protoParam.ValidationMax = ptrInt32(param.Validation[0].Max)
+			}
+			if !param.Validation[0].MinDisabled {
+				protoParam.ValidationMin = ptrInt32(param.Validation[0].Min)
+			}
 			protoParam.ValidationMonotonic = param.Validation[0].Monotonic
 		}
 		if len(param.Option) > 0 {
@@ -527,12 +531,8 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 	}, nil
 }
 
-func ptrInt32(number *int) *int32 {
-	var n int32
-	if number == nil {
-		return &n
-	}
-	n = int32(*number)
+func ptrInt32(number int) *int32 {
+	n := int32(number)
 	return &n
 }
 
