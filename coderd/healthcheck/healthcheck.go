@@ -15,7 +15,7 @@ type Report struct {
 	// Time is the time the report was generated at.
 	Time time.Time `json:"time"`
 	// Healthy is true if the report returns no errors.
-	Healthy bool `json:"pass"`
+	Healthy bool `json:"healthy"`
 
 	DERP      DERPReport      `json:"derp"`
 	AccessURL AccessURLReport `json:"access_url"`
@@ -80,6 +80,8 @@ func Run(ctx context.Context, opts *ReportOptions) (*Report, error) {
 
 	wg.Wait()
 	report.Time = time.Now()
-	report.Healthy = report.DERP.Healthy
+	report.Healthy = report.DERP.Healthy &&
+		report.AccessURL.Healthy &&
+		report.Websocket.Healthy
 	return &report, nil
 }

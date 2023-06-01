@@ -5588,21 +5588,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "error": null,
   "healthy": true,
-  "healthzResponse": "string",
+  "healthz_response": "string",
   "reachable": true,
-  "statusCode": 0
+  "status_code": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description |
-| ----------------- | ------- | -------- | ------------ | ----------- |
-| `error`           | any     | false    |              |             |
-| `healthy`         | boolean | false    |              |             |
-| `healthzResponse` | string  | false    |              |             |
-| `reachable`       | boolean | false    |              |             |
-| `statusCode`      | integer | false    |              |             |
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `error`            | any     | false    |              |             |
+| `healthy`          | boolean | false    |              |             |
+| `healthz_response` | string  | false    |              |             |
+| `reachable`        | boolean | false    |              |             |
+| `status_code`      | integer | false    |              |             |
 
 ## healthcheck.DERPNodeReport
 
@@ -5933,9 +5933,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "access_url": {
     "error": null,
     "healthy": true,
-    "healthzResponse": "string",
+    "healthz_response": "string",
     "reachable": true,
-    "statusCode": 0
+    "status_code": 0
   },
   "derp": {
     "error": null,
@@ -6097,10 +6097,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     }
   },
-  "pass": true,
+  "healthy": true,
   "time": "string",
   "websocket": {
     "error": null,
+    "healthy": true,
     "response": {
       "body": "string",
       "code": 0
@@ -6115,7 +6116,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
 | `access_url` | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
 | `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
-| `pass`       | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
+| `healthy`    | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
 | `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
 | `websocket`  | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
 
@@ -6124,6 +6125,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "error": null,
+  "healthy": true,
   "response": {
     "body": "string",
     "code": 0
@@ -6136,6 +6138,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name       | Type                                                           | Required | Restrictions | Description |
 | ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `error`    | any                                                            | false    |              |             |
+| `healthy`  | boolean                                                        | false    |              |             |
 | `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
 
 ## healthcheck.WebsocketResponse

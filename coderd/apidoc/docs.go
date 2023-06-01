@@ -9849,13 +9849,13 @@ const docTemplate = `{
                 "healthy": {
                     "type": "boolean"
                 },
-                "healthzResponse": {
+                "healthz_response": {
                     "type": "string"
                 },
                 "reachable": {
                     "type": "boolean"
                 },
-                "statusCode": {
+                "status_code": {
                     "type": "integer"
                 }
             }
@@ -9967,7 +9967,7 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
-                "pass": {
+                "healthy": {
                     "description": "Healthy is true if the report returns no errors.",
                     "type": "boolean"
                 },
@@ -9984,6 +9984,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
                 "response": {
                     "$ref": "#/definitions/healthcheck.WebsocketResponse"
                 }
