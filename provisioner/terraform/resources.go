@@ -483,6 +483,15 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex
 			protoParam.ValidationError = param.Validation[0].Error
+
+			// Backward compatibility with terraform-coder-plugin < v0.8.2
+			if _, ok := resource.AttributeValues["min_disabled"]; !ok && param.Validation[0].Min == 0 {
+				param.Validation[0].MinDisabled = true
+			}
+			if _, ok := resource.AttributeValues["max_disabled"]; !ok && param.Validation[0].Max == 0 {
+				param.Validation[0].MaxDisabled = true
+			}
+
 			if !param.Validation[0].MaxDisabled {
 				protoParam.ValidationMax = ptrInt32(param.Validation[0].Max)
 			}
