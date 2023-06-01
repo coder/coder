@@ -11,6 +11,6 @@ runs:
       run: |
         npm install -g @datadog/datadog-ci
         datadog-ci junit upload --service coder ./gotests.xml \
-          --tags "os:${{runner.os}},runner_name:${{runner.name}}"
+          --tags os:${{runner.os}} --tags runner_name:${{runner.name}}
       env:
         DATADOG_API_KEY: ${{ inputs.api-key }}
