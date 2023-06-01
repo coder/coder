@@ -69,7 +69,7 @@ jobs:
       # Lint our dashboard!
       - name: Cache node_modules
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -140,7 +140,7 @@ jobs:
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -164,13 +164,13 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ github.job }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ github.job }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -220,7 +220,7 @@ jobs:
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -267,13 +267,13 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> ${{ runner.os == 'Windows' && '$env:' || '$' }}GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.**', '**.go') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -356,13 +356,13 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
@@ -448,20 +448,20 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-release-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -539,7 +539,7 @@ jobs:
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -581,7 +581,7 @@ jobs:
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -609,13 +609,13 @@ jobs:
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}

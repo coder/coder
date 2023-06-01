@@ -69,7 +69,7 @@ jobs:
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
