@@ -54,6 +54,7 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		)
 	}
 
+	fileTooBigError := xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
 	err = filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -95,6 +96,10 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		if !fileInfo.Mode().IsRegular() {
 			return nil
 		}
+		// Before we even open the file, check if it is going to exceed our limit.
+		if fileInfo.Size()+totalSize >= limit {
+			return fileTooBigError
+		}
 		data, err := os.Open(file)
 		if err != nil {
 			return err
@@ -106,7 +111,7 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		}
 		totalSize += wrote
 		if limit != 0 && totalSize >= limit {
-			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
+			return fileTooBigError
 		}
 		return data.Close()
 	})
