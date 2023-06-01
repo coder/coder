@@ -235,10 +235,10 @@ jobs:
           path: ./gotests.xml
           retention-days: 30
 
-      - use: ./.github/actions/upload-datadog
+      - uses: ./.github/actions/upload-datadog
         if: always()
         with:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          api-key: ${{ secrets.DATADOG_API_KEY }}
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -288,13 +288,10 @@ jobs:
           path: ./gotests.xml
           retention-days: 30
 
-      - name: Upload tests to datadog
+      - uses: ./.github/actions/upload-datadog
         if: always()
-        run: |
-          npm install -g @datadog/datadog-ci
-          datadog-ci junit upload --service coder ./gotests.xml
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -325,13 +322,10 @@ jobs:
         run: |
           gotestsum --junitfile="gotests.xml" -- -race ./...
 
-      - name: Upload tests to datadog
+      - uses: ./.github/actions/upload-datadog
         if: always()
-        run: |
-          npm install -g @datadog/datadog-ci
-          datadog-ci junit upload --service coder ./gotests.xml
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
 
   deploy:
     name: "deploy"
