@@ -33,7 +33,7 @@ jobs:
           languages: go, javascript
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: buildjet/setup-go@v4
         with:
           go-version: ${{ env.CODER_GO_VERSION }}
 
@@ -63,9 +63,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           go-version: ${{ env.CODER_GO_VERSION }}
+          cache: true
 
       - name: Cache Node
         id: cache-node

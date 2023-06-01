@@ -37,9 +37,10 @@ jobs:
         uses: actions/checkout@v3
 
       # Install Go!
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           go-version: ${{ env.CODER_GO_VERSION }}
+          cache: true
 
       # Check for any typos!
       - name: Check for typos
@@ -152,7 +153,7 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -255,7 +256,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -344,7 +345,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -436,7 +437,7 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -548,7 +549,7 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - uses: actions/setup-node@v3
+      - uses: buildjet/setup-node@v3
         with:
           node-version: "16.16.0"
 
@@ -588,7 +589,7 @@ jobs:
             .eslintcache
           key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
           go-version: ${{ env.CODER_GO_VERSION }}
@@ -598,7 +599,7 @@ jobs:
           terraform_version: 1.1.9
           terraform_wrapper: false
 
-      - uses: actions/setup-node@v3
+      - uses: buildjet/setup-node@v3
         with:
           node-version: "16.16.0"
 
@@ -654,7 +655,7 @@ jobs:
           # only get 1 commit on shallow checkout.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v3
+      - uses: buildjet/setup-node@v3
         with:
           node-version: "16.16.0"
 
