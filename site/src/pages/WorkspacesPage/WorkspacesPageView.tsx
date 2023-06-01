@@ -145,7 +145,10 @@ export const WorkspacesPageView: FC<
       </Stack>
       <WorkspacesTable
         workspaces={workspaces}
-        isUsingFilter={filterProps.filter.query !== ""}
+        isUsingFilter={
+          filterProps.filter.query !== "" &&
+          filterProps.filter.query !== "owner:me"
+        }
         onUpdateWorkspace={onUpdateWorkspace}
         error={error}
       />
