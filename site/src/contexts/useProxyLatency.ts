@@ -42,11 +42,12 @@ export const useProxyLatency = (
     {},
   )
 
-  // This fetchNumber is used to trigger a refetch of the proxy latencies.
-  const [fetchNumber, setFetchNumber] = useState(0)
-  const refetch = (): void => {
-    setFetchNumber(fetchNumber + 1)
+  // This latestFetchRequest is used to trigger a refetch of the proxy latencies.
+  const [latestFetchRequest, setLatestFetchRequest] = useState(new Date().toISOString())
+  const refetch = () => {
+    setLatestFetchRequest(new Date().toISOString())
   }
+
 
   // Only run latency updates when the proxies change.
   useEffect(() => {
@@ -157,7 +158,7 @@ export const useProxyLatency = (
         // via the performance observer. So we can disconnect the observer.
         observer.disconnect()
       })
-  }, [proxies, fetchNumber])
+  }, [proxies, latestFetchRequest])
 
   return {
     proxyLatencies,
