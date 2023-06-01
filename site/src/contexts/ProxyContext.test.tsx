@@ -26,7 +26,7 @@ import userEvent from "@testing-library/user-event"
 // here and not inside a unit test.
 jest.mock("contexts/useProxyLatency", () => ({
   useProxyLatency: () => {
-    return hardCodedLatencies
+    return { proxyLatencies: hardCodedLatencies, refetch: jest.fn() }
   },
 }))
 
