@@ -165,6 +165,8 @@ message Parse {
         string directory = 1;
     }
     message Complete {
+		reserved 2;
+
         repeated TemplateVariable template_variables = 1;
     }
     message Response {
@@ -209,10 +211,12 @@ message Provision {
     }
 
     message Plan {
+		reserved 2;
+
         Config config = 1;
-        repeated RichParameterValue rich_parameter_values = 2;
-        repeated VariableValue variable_values = 3;
-        repeated GitAuthProvider git_auth_providers = 4;
+        repeated RichParameterValue rich_parameter_values = 3;
+        repeated VariableValue variable_values = 4;
+        repeated GitAuthProvider git_auth_providers = 5;
     }
 
     message Apply {

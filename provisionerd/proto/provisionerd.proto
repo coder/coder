@@ -12,12 +12,14 @@ message Empty {}
 // AcquiredJob is returned when a provisioner daemon has a job locked.
 message AcquiredJob {
     message WorkspaceBuild {
+		reserved 3;
+
         string workspace_build_id = 1;
         string workspace_name = 2;
-        repeated provisioner.RichParameterValue rich_parameter_values = 3;
-        repeated provisioner.VariableValue variable_values = 4;
-        repeated provisioner.GitAuthProvider git_auth_providers = 5;
-        provisioner.Provision.Metadata metadata = 6;
+        repeated provisioner.RichParameterValue rich_parameter_values = 4;
+        repeated provisioner.VariableValue variable_values = 5;
+        repeated provisioner.GitAuthProvider git_auth_providers = 6;
+        provisioner.Provision.Metadata metadata = 7;
         bytes state = 8;
         string log_level = 9;
     }
@@ -26,9 +28,11 @@ message AcquiredJob {
         repeated provisioner.VariableValue user_variable_values = 2;
     }
     message TemplateDryRun {
-        repeated provisioner.RichParameterValue rich_parameter_values = 1;
-        repeated provisioner.VariableValue variable_values = 2;
-        provisioner.Provision.Metadata metadata = 3;
+		reserved 1;
+
+        repeated provisioner.RichParameterValue rich_parameter_values = 2;
+        repeated provisioner.VariableValue variable_values = 3;
+        provisioner.Provision.Metadata metadata = 4;
     }
 
     string job_id = 1;
@@ -104,16 +108,20 @@ message Log {
 
 // This message should be sent periodically as a heartbeat.
 message UpdateJobRequest {
+	reserved 3;
+
     string job_id = 1;
     repeated Log logs = 2;
-    repeated provisioner.TemplateVariable template_variables = 3;
-	repeated provisioner.VariableValue user_variable_values = 4;
-    bytes readme = 5;
+    repeated provisioner.TemplateVariable template_variables = 4;
+	repeated provisioner.VariableValue user_variable_values = 5;
+    bytes readme = 6;
 }
 
 message UpdateJobResponse {
+	reserved 2;
+
     bool canceled = 1;
-	repeated provisioner.VariableValue variable_values = 2;
+	repeated provisioner.VariableValue variable_values = 3;
 }
 
 message CommitQuotaRequest {
