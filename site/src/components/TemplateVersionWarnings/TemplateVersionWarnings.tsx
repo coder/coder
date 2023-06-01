@@ -19,7 +19,7 @@ export const TemplateVersionWarnings: FC<
       <div data-testid="error-unsupported-workspaces">
         <Alert severity="error">
           This template uses legacy parameters which are not supported anymore.
-          Please delete the workspace and the related template.
+          Contact your administrator for assistance.
         </Alert>
       </div>
     </Maybe>

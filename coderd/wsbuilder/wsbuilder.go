@@ -584,7 +584,7 @@ func (b *Builder) verifyNoLegacyParameters() error {
 	}
 
 	if len(parameterSchemas) > 0 {
-		return xerrors.Errorf("Legacy parameters are not supported anymore, delete the workspace and the related template.")
+		return xerrors.Errorf("Legacy parameters are not supported anymore. Contact your administrator for assistance.")
 	}
 	return nil
 }

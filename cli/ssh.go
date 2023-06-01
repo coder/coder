@@ -119,7 +119,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			}
 
 			if unsupportedWorkspace && isTTYErr(inv) {
-				_, _ = fmt.Fprintln(inv.Stderr, "👋 Your workspace uses legacy parameters which are not supported anymore. Please delete the workspace and use a different template.")
+				_, _ = fmt.Fprintln(inv.Stderr, "👋 Your workspace uses legacy parameters which are not supported anymore. Contact your administrator for assistance.")
 			}
 
 			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
