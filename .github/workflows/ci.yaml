@@ -267,14 +267,6 @@ jobs:
 
       - uses: ./.github/actions/setup-go
 
-      - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.10.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          repo: gotestyourself/gotestsum
-          tag: v1.9.0
-
       - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.1.9
