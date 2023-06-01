@@ -2265,19 +2265,6 @@ func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
-func (q *fakeQuerier) GetParameterSchemasCreatedAfter(_ context.Context, after time.Time) ([]database.ParameterSchema, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	parameters := make([]database.ParameterSchema, 0)
-	for _, parameterSchema := range q.parameterSchemas {
-		if parameterSchema.CreatedAt.After(after) {
-			parameters = append(parameters, parameterSchema)
-		}
-	}
-	return parameters, nil
-}
-
 func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3026,38 +3013,6 @@ func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	}
 	q.provisionerJobLogs = append(q.provisionerJobLogs, logs...)
 	return logs, nil
-}
-
-func (q *fakeQuerier) InsertParameterSchema(_ context.Context, arg database.InsertParameterSchemaParams) (database.ParameterSchema, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.ParameterSchema{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	//nolint:gosimple
-	param := database.ParameterSchema{
-		ID:                       arg.ID,
-		CreatedAt:                arg.CreatedAt,
-		JobID:                    arg.JobID,
-		Name:                     arg.Name,
-		Description:              arg.Description,
-		DefaultSourceScheme:      arg.DefaultSourceScheme,
-		DefaultSourceValue:       arg.DefaultSourceValue,
-		AllowOverrideSource:      arg.AllowOverrideSource,
-		DefaultDestinationScheme: arg.DefaultDestinationScheme,
-		AllowOverrideDestination: arg.AllowOverrideDestination,
-		DefaultRefresh:           arg.DefaultRefresh,
-		RedisplayValue:           arg.RedisplayValue,
-		ValidationError:          arg.ValidationError,
-		ValidationCondition:      arg.ValidationCondition,
-		ValidationTypeSystem:     arg.ValidationTypeSystem,
-		ValidationValueType:      arg.ValidationValueType,
-		Index:                    arg.Index,
-	}
-	q.parameterSchemas = append(q.parameterSchemas, param)
-	return param, nil
 }
 
 func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {

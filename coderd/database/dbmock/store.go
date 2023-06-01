@@ -2109,21 +2109,6 @@ func (mr *MockStoreMockRecorder) InsertOrganizationMember(arg0, arg1 interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMember", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMember), arg0, arg1)
 }
 
-// InsertParameterSchema mocks base method.
-func (m *MockStore) InsertParameterSchema(arg0 context.Context, arg1 database.InsertParameterSchemaParams) (database.ParameterSchema, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertParameterSchema", arg0, arg1)
-	ret0, _ := ret[0].(database.ParameterSchema)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertParameterSchema indicates an expected call of InsertParameterSchema.
-func (mr *MockStoreMockRecorder) InsertParameterSchema(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertParameterSchema", reflect.TypeOf((*MockStore)(nil).InsertParameterSchema), arg0, arg1)
-}
-
 // InsertProvisionerDaemon mocks base method.
 func (m *MockStore) InsertProvisionerDaemon(arg0 context.Context, arg1 database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	m.ctrl.T.Helper()

@@ -293,12 +293,4 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Transition: database.WorkspaceTransitionStart,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
-	s.Run("InsertParameterSchema", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertParameterSchemaParams{
-			ID:                       uuid.New(),
-			DefaultSourceScheme:      database.ParameterSourceSchemeNone,
-			DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
-			ValidationTypeSystem:     database.ParameterTypeSystemNone,
-		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
-	}))
 }

@@ -425,13 +425,6 @@ func (q *querier) InsertWorkspaceResource(ctx context.Context, arg database.Inse
 	return q.db.InsertWorkspaceResource(ctx, arg)
 }
 
-func (q *querier) InsertParameterSchema(ctx context.Context, arg database.InsertParameterSchemaParams) (database.ParameterSchema, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.ParameterSchema{}, err
-	}
-	return q.db.InsertParameterSchema(ctx, arg)
-}
-
 func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, params database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceProxy{}, err

@@ -1001,13 +1001,6 @@ func (m metricsStore) InsertOrganizationMember(ctx context.Context, arg database
 	return member, err
 }
 
-func (m metricsStore) InsertParameterSchema(ctx context.Context, arg database.InsertParameterSchemaParams) (database.ParameterSchema, error) {
-	start := time.Now()
-	schema, err := m.s.InsertParameterSchema(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertParameterSchema").Observe(time.Since(start).Seconds())
-	return schema, err
-}
-
 func (m metricsStore) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	start := time.Now()
 	daemon, err := m.s.InsertProvisionerDaemon(ctx, arg)
