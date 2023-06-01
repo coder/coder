@@ -255,7 +255,7 @@ jobs:
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
 
-  test-go-psql:
+  test-go-pg:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
@@ -310,6 +310,23 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
           flags: unittest-go-postgres-linux
+
+  test-go-race:
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup-go
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.1.9
+          terraform_wrapper: false
+
+      - name: Run Tests
+        run: |
+          go test -race ./...
 
   deploy:
     name: "deploy"
