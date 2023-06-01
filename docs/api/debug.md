@@ -42,9 +42,9 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   "access_url": {
     "error": null,
     "healthy": true,
-    "healthzResponse": "string",
+    "healthz_response": "string",
     "reachable": true,
-    "statusCode": 0
+    "status_code": 0
   },
   "derp": {
     "error": null,
@@ -206,8 +206,16 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
       }
     }
   },
-  "pass": true,
-  "time": "string"
+  "healthy": true,
+  "time": "string",
+  "websocket": {
+    "error": null,
+    "healthy": true,
+    "response": {
+      "body": "string",
+      "code": 0
+    }
+  }
 }
 ```
 

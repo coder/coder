@@ -273,10 +273,21 @@ export interface CreateWorkspaceRequest {
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
 }
 
-// From codersdk/templates.go
+// From codersdk/deployment.go
 export interface DAUEntry {
   readonly date: string
   readonly amount: number
+}
+
+// From codersdk/deployment.go
+export interface DAURequest {
+  readonly TZHourOffset: number
+}
+
+// From codersdk/deployment.go
+export interface DAUsResponse {
+  readonly entries: DAUEntry[]
+  readonly tz_hour_offset: number
 }
 
 // From codersdk/deployment.go
@@ -313,11 +324,6 @@ export interface DangerousConfig {
   readonly allow_path_app_sharing: boolean
   readonly allow_path_app_site_owner_access: boolean
   readonly allow_all_cors: boolean
-}
-
-// From codersdk/deployment.go
-export interface DeploymentDAUsResponse {
-  readonly entries: DAUEntry[]
 }
 
 // From codersdk/deployment.go
@@ -864,11 +870,6 @@ export type TemplateBuildTimeStats = Record<
 >
 
 // From codersdk/templates.go
-export interface TemplateDAUsResponse {
-  readonly entries: DAUEntry[]
-}
-
-// From codersdk/templates.go
 export interface TemplateExample {
   readonly id: string
   readonly url: string
@@ -1385,8 +1386,12 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons" | "workspace_actions"
-export const Experiments: Experiment[] = ["moons", "workspace_actions"]
+export type Experiment = "moons" | "workspace_actions" | "workspace_filter"
+export const Experiments: Experiment[] = [
+  "moons",
+  "workspace_actions",
+  "workspace_filter",
+]
 
 // From codersdk/deployment.go
 export type FeatureName =

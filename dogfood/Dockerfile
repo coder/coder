@@ -32,9 +32,9 @@ RUN mkdir --parents "$GOPATH" && \
 	# goimports for updating imports
 	go install golang.org/x/tools/cmd/goimports@v0.1.7 && \
 	# protoc-gen-go is needed to build sysbox from source
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26 && \
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
 	# drpc support for v2
-	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26 && \
+	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33 && \
 	# migrate for migration support for v2
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
@@ -216,7 +216,7 @@ RUN systemctl enable \
 ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	DIVE_VERSION=0.10.0 \
 	DOCKER_GCR_VERSION=2.1.8 \
-	GOLANGCI_LINT_VERSION=1.51.0 \
+	GOLANGCI_LINT_VERSION=1.52.2 \
 	GRYPE_VERSION=0.61.1 \
 	HELM_VERSION=3.12.0 \
 	KUBE_LINTER_VERSION=0.6.3 \

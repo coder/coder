@@ -32,9 +32,12 @@ project_id = "some_google_project_id"
 1. Run `coder_init.sh <coder_url>` to setup an initial user and a pre-configured Kubernetes
    template. It will also download the Coder CLI from the Coder instance locally.
 
-1. Do whatever you need to do with the Coder instance.
+1. Do whatever you need to do with the Coder instance:
 
-   > To run Coder commands against the instance, you can use `coder_shim.sh <command>`.
+   > Note: To run Coder commands against the instance, you can use `coder_shim.sh <command>`.
    > You don't need to run `coder login` yourself.
+
+   - To create workspaces, run `./coder_shim.sh scaletest create-workspaces --template="kubernetes" --count=N`
+   - To generate workspace traffic, run `./coder_trafficgen.sh <name of loadtest from your Terraform vars>`. This will keep running until you delete the pod `coder-scaletest-workspace-traffic`.
 
 1. When you are finished, you can run `terraform destroy -var-file=override.tfvars`.

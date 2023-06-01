@@ -61,6 +61,16 @@ const (
 	// Only owners can bypass rate limits. This is typically used for scale testing.
 	// nolint: gosec
 	BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit"
+
+	// Note: the use of X- prefix is deprecated, and we should eventually remove
+	// it from BypassRatelimitHeader.
+	//
+	// See: https://datatracker.ietf.org/doc/html/rfc6648.
+
+	// CLITelemetryHeader contains a base64-encoded representation of the CLI
+	// command that was invoked to produce the request. It is for internal use
+	// only.
+	CLITelemetryHeader = "Coder-CLI-Telemetry"
 )
 
 // loggableMimeTypes is a list of MIME types that are safe to log
@@ -75,8 +85,9 @@ var loggableMimeTypes = map[string]struct{}{
 // New creates a Coder client for the provided URL.
 func New(serverURL *url.URL) *Client {
 	return &Client{
-		URL:        serverURL,
-		HTTPClient: &http.Client{},
+		URL:          serverURL,
+		HTTPClient:   &http.Client{},
+		ExtraHeaders: make(http.Header),
 	}
 }
 
@@ -85,6 +96,9 @@ func New(serverURL *url.URL) *Client {
 type Client struct {
 	mu           sync.RWMutex // Protects following.
 	sessionToken string
+
+	// ExtraHeaders are headers to add to every request.
+	ExtraHeaders http.Header
 
 	HTTPClient *http.Client
 	URL        *url.URL
@@ -179,14 +193,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 
-	if c.PlainLogger != nil {
-		out, err := httputil.DumpRequest(req, c.LogBodies)
-		if err != nil {
-			return nil, xerrors.Errorf("dump request: %w", err)
-		}
-		out = prefixLines([]byte("http --> "), out)
-		_, _ = c.PlainLogger.Write(out)
-	}
+	req.Header = c.ExtraHeaders.Clone()
 
 	tokenHeader := c.SessionTokenHeader
 	if tokenHeader == "" {
@@ -221,6 +228,18 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	})
 
 	resp, err := c.HTTPClient.Do(req)
+
+	// We log after sending the request because the HTTP Transport may modify
+	// the request within Do, e.g. by adding headers.
+	if resp != nil && c.PlainLogger != nil {
+		out, err := httputil.DumpRequest(resp.Request, c.LogBodies)
+		if err != nil {
+			return nil, xerrors.Errorf("dump request: %w", err)
+		}
+		out = prefixLines([]byte("http --> "), out)
+		_, _ = c.PlainLogger.Write(out)
+	}
+
 	if err != nil {
 		return nil, err
 	}

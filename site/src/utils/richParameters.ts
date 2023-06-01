@@ -70,6 +70,30 @@ export const useValidationSchemaForRichParameters = (
               case "number":
                 if (
                   templateParameter.validation_min &&
+                  !templateParameter.validation_max
+                ) {
+                  if (Number(val) < templateParameter.validation_min) {
+                    return ctx.createError({
+                      path: ctx.path,
+                      message: t("validationNumberLesserThan", {
+                        min: templateParameter.validation_min,
+                      }),
+                    })
+                  }
+                } else if (
+                  !templateParameter.validation_min &&
+                  templateParameter.validation_max
+                ) {
+                  if (templateParameter.validation_max < Number(val)) {
+                    return ctx.createError({
+                      path: ctx.path,
+                      message: t("validationNumberGreaterThan", {
+                        max: templateParameter.validation_max,
+                      }),
+                    })
+                  }
+                } else if (
+                  templateParameter.validation_min &&
                   templateParameter.validation_max
                 ) {
                   if (

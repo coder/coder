@@ -127,8 +127,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <ProxyContext.Provider
       value={{
+        proxyLatencies,
         userProxy: userSavedProxy,
-        proxyLatencies: proxyLatencies,
         proxy: experimentEnabled
           ? proxy
           : {

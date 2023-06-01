@@ -4164,8 +4164,8 @@ type InsertTemplateVersionParameterParams struct {
 	Icon                string          `db:"icon" json:"icon"`
 	Options             json.RawMessage `db:"options" json:"options"`
 	ValidationRegex     string          `db:"validation_regex" json:"validation_regex"`
-	ValidationMin       int32           `db:"validation_min" json:"validation_min"`
-	ValidationMax       int32           `db:"validation_max" json:"validation_max"`
+	ValidationMin       sql.NullInt32   `db:"validation_min" json:"validation_min"`
+	ValidationMax       sql.NullInt32   `db:"validation_max" json:"validation_max"`
 	ValidationError     string          `db:"validation_error" json:"validation_error"`
 	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
 	Required            bool            `db:"required" json:"required"`
@@ -6335,7 +6335,7 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 
 const getDeploymentDAUs = `-- name: GetDeploymentDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast($1::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats
@@ -6352,8 +6352,8 @@ type GetDeploymentDAUsRow struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context) ([]GetDeploymentDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs)
+func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]GetDeploymentDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs, tzOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -6428,7 +6428,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, creat
 
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast($2::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats
@@ -6441,13 +6441,18 @@ ORDER BY
 	date ASC
 `
 
+type GetTemplateDAUsParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	TzOffset   int32     `db:"tz_offset" json:"tz_offset"`
+}
+
 type GetTemplateDAUsRow struct {
 	Date   time.Time `db:"date" json:"date"`
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, templateID)
+func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, arg.TemplateID, arg.TzOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -8172,7 +8177,11 @@ const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
 FROM
-	workspaces
+    workspaces
+JOIN
+    users
+ON
+    workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
@@ -8333,7 +8342,12 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	last_used_at DESC
+	(latest_build.completed_at IS NOT NULL AND
+		latest_build.canceled_at IS NULL AND
+		latest_build.error IS NULL AND
+		latest_build.transition = 'start'::workspace_transition) DESC,
+	LOWER(users.username) ASC,
+	LOWER(name) ASC
 LIMIT
 	CASE
 		WHEN $11 :: integer > 0 THEN

@@ -102,10 +102,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           ? buttonMapping[ButtonTypesEnum.updating]
           : buttonMapping[ButtonTypesEnum.update])}
       {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
-      {!isRestarting &&
-        actionsByStatus.map((action) => (
-          <span key={action}>{buttonMapping[action]}</span>
-        ))}
+      {!isRestarting && actionsByStatus.map((action) => buttonMapping[action])}
       {canCancel && <CancelButton handleAction={handleCancel} />}
       <div>
         <IconButton

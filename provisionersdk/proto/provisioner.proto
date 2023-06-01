@@ -81,8 +81,8 @@ message RichParameter {
     repeated RichParameterOption options = 7;
     string validation_regex = 8;
     string validation_error = 9;
-    int32 validation_min = 10;
-    int32 validation_max = 11;
+    optional int32 validation_min = 10;
+    optional int32 validation_max = 11;
     string validation_monotonic = 12;
     bool required = 13;
     string legacy_variable_name = 14;
