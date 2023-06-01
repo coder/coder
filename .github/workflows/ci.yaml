@@ -298,6 +298,12 @@ jobs:
           name: gotests-postgres.xml
           path: ./gotests.xml
           retention-days: 30
+      - name: Upload tests to datadog
+        run: |
+          npm install -g @datadog/datadog-ci
+          datadog-ci junit upload --service coder ./gotests.xml
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
