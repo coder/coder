@@ -24,9 +24,18 @@ type Store interface {
 	querier
 	// customQuerier contains custom queries that are not generated.
 	customQuerier
+	// wrapper allows us to detect if the interface has been wrapped.
+	wrapper
 
 	Ping(ctx context.Context) (time.Duration, error)
 	InTx(func(Store) error, *sql.TxOptions) error
+}
+
+type wrapper interface {
+	// Wrappers returns a list of wrappers that have been applied to the store.
+	// This is used to detect if the store has already wrapped, and avoid
+	// double-wrapping.
+	Wrappers() []string
 }
 
 // DBTX represents a database connection or transaction.
@@ -58,6 +67,10 @@ type querier interface {
 type sqlQuerier struct {
 	sdb *sqlx.DB
 	db  DBTX
+}
+
+func (*sqlQuerier) Wrappers() []string {
+	return []string{}
 }
 
 // Ping returns the time it takes to ping the database.

@@ -97,6 +97,10 @@ type fakeQuerier struct {
 	*data
 }
 
+func (*fakeQuerier) Wrappers() []string {
+	return []string{}
+}
+
 type fakeTx struct {
 	*fakeQuerier
 	locks map[int64]struct{}
