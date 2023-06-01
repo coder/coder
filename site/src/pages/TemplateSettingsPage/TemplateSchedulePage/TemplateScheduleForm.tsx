@@ -1,7 +1,7 @@
 import TextField from "@mui/material/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormikTouched, useFormik } from "formik"
-import { FC, ChangeEvent } from "react"
+import { FC, ChangeEvent, useState } from "react"
 import { getFormHelpers } from "utils/formUtils"
 import * as Yup from "yup"
 import i18next from "i18next"
@@ -19,6 +19,7 @@ import Link from "@mui/material/Link"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 
 const TTLHelperText = ({
   ttl,
@@ -145,24 +146,28 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     },
     validationSchema,
     onSubmit: (formData) => {
-      // on submit, convert from hours => ms
-      onSubmit({
-        default_ttl_ms: formData.default_ttl_ms
-          ? formData.default_ttl_ms * MS_HOUR_CONVERSION
-          : undefined,
-        max_ttl_ms: formData.max_ttl_ms
-          ? formData.max_ttl_ms * MS_HOUR_CONVERSION
-          : undefined,
-        failure_ttl_ms: formData.failure_ttl_ms
-          ? formData.failure_ttl_ms * MS_DAY_CONVERSION
-          : undefined,
-        inactivity_ttl_ms: formData.inactivity_ttl_ms
-          ? formData.inactivity_ttl_ms * MS_DAY_CONVERSION
-          : undefined,
+      if (form.values.inactivity_cleanup_enabled) {
+        setIsInactivityDialogOpen(true)
+      } else {
+        // on submit, convert from hours => ms
+        onSubmit({
+          default_ttl_ms: formData.default_ttl_ms
+            ? formData.default_ttl_ms * MS_HOUR_CONVERSION
+            : undefined,
+          max_ttl_ms: formData.max_ttl_ms
+            ? formData.max_ttl_ms * MS_HOUR_CONVERSION
+            : undefined,
+          failure_ttl_ms: formData.failure_ttl_ms
+            ? formData.failure_ttl_ms * MS_DAY_CONVERSION
+            : undefined,
+          inactivity_ttl_ms: formData.inactivity_ttl_ms
+            ? formData.inactivity_ttl_ms * MS_DAY_CONVERSION
+            : undefined,
 
-        allow_user_autostart: formData.allow_user_autostart,
-        allow_user_autostop: formData.allow_user_autostop,
-      })
+          allow_user_autostart: formData.allow_user_autostart,
+          allow_user_autostop: formData.allow_user_autostop,
+        })
+      }
     },
     initialTouched,
   })
@@ -172,6 +177,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   )
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
+  const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
+    useState<boolean>(false)
 
   const handleToggleFailureCleanup = async (e: ChangeEvent) => {
     form.handleChange(e)
@@ -389,6 +396,15 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         onCancel={onCancel}
         isLoading={isSubmitting}
         submitDisabled={!form.isValid || !form.dirty}
+      />
+      <ConfirmDialog
+        type="delete"
+        open={isInactivityDialogOpen}
+        onConfirm={form.handleSubmit}
+        onClose={() => setIsInactivityDialogOpen(false)}
+        title="Delete inactive workspaces"
+        confirmText="Delete Workspaces"
+        description="There are workspaces that already match this filter and will be deleted upon form submission. Are you sure you want to proceed?"
       />
     </HorizontalForm>
   )
