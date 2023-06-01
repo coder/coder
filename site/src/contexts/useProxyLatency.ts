@@ -24,9 +24,10 @@ const proxyLatenciesReducer = (
   state: Record<string, ProxyLatencyReport>,
   action: ProxyLatencyAction,
 ): Record<string, ProxyLatencyReport> => {
-  // Just overwrite any existing latency.
-  state[action.proxyID] = action.report
-  return state
+  return {
+    ...state,
+    [action.proxyID]: action.report,
+  }
 }
 
 export const useProxyLatency = (
