@@ -97,7 +97,7 @@ func Tar(w io.Writer, directory string, limit int64) error {
 			return nil
 		}
 		// Before we even open the file, check if it is going to exceed our limit.
-		if fileInfo.Size()+totalSize >= limit {
+		if fileInfo.Size()+totalSize > limit {
 			return fileTooBigError
 		}
 		data, err := os.Open(file)
@@ -110,7 +110,7 @@ func Tar(w io.Writer, directory string, limit int64) error {
 			return err
 		}
 		totalSize += wrote
-		if limit != 0 && totalSize >= limit {
+		if limit != 0 && totalSize > limit {
 			return fileTooBigError
 		}
 		return data.Close()
