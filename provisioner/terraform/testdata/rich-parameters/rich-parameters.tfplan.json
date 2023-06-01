@@ -1,6 +1,6 @@
 {
   "format_version": "1.1",
-  "terraform_version": "1.3.7",
+  "terraform_version": "1.4.0",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -18,6 +18,7 @@
             "dir": null,
             "env": null,
             "login_before_ready": true,
+            "metadata": [],
             "motd_file": null,
             "os": "windows",
             "shutdown_script": null,
@@ -26,7 +27,9 @@
             "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "metadata": []
+          }
         },
         {
           "address": "null_resource.dev",
@@ -62,6 +65,7 @@
           "dir": null,
           "env": null,
           "login_before_ready": true,
+          "metadata": [],
           "motd_file": null,
           "os": "windows",
           "shutdown_script": null,
@@ -73,10 +77,12 @@
         "after_unknown": {
           "id": true,
           "init_script": true,
+          "metadata": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "metadata": [],
           "token": true
         }
       }
@@ -105,7 +111,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.3.7",
+    "terraform_version": "1.4.0",
     "values": {
       "root_module": {
         "resources": [
@@ -119,8 +125,9 @@
             "values": {
               "default": null,
               "description": null,
+              "display_name": null,
               "icon": null,
-              "id": "857b1591-ee42-4ded-9804-783ffd1eb180",
+              "id": "aedaafc2-a2b7-4fd0-8227-c8546b334003",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -152,6 +159,43 @@
             }
           },
           {
+            "address": "data.coder_parameter.number_example_min_max",
+            "mode": "data",
+            "type": "coder_parameter",
+            "name": "number_example_min_max",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 0,
+            "values": {
+              "default": "4",
+              "description": null,
+              "display_name": null,
+              "icon": null,
+              "id": "af3754f4-59d4-4f73-aa5a-583345f14dea",
+              "legacy_variable": null,
+              "legacy_variable_name": null,
+              "mutable": false,
+              "name": "number_example_min_max",
+              "option": null,
+              "optional": true,
+              "type": "number",
+              "validation": [
+                {
+                  "error": "",
+                  "max": 6,
+                  "min": 3,
+                  "monotonic": "",
+                  "regex": ""
+                }
+              ],
+              "value": "4"
+            },
+            "sensitive_values": {
+              "validation": [
+                {}
+              ]
+            }
+          },
+          {
             "address": "data.coder_parameter.sample",
             "mode": "data",
             "type": "coder_parameter",
@@ -161,8 +205,9 @@
             "values": {
               "default": "ok",
               "description": "blah blah",
+              "display_name": null,
               "icon": null,
-              "id": "1477c44d-b36a-48cd-9942-0b532f1791db",
+              "id": "22de5afe-f826-4fd3-8761-df796ed741d2",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -184,7 +229,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.20"
+        "version_constraint": "0.7.0"
       },
       "null": {
         "name": "null",
@@ -251,6 +296,35 @@
             "type": {
               "constant_value": "string"
             }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "data.coder_parameter.number_example_min_max",
+          "mode": "data",
+          "type": "coder_parameter",
+          "name": "number_example_min_max",
+          "provider_config_key": "coder",
+          "expressions": {
+            "default": {
+              "constant_value": 4
+            },
+            "name": {
+              "constant_value": "number_example_min_max"
+            },
+            "type": {
+              "constant_value": "number"
+            },
+            "validation": [
+              {
+                "max": {
+                  "constant_value": 6
+                },
+                "min": {
+                  "constant_value": 3
+                }
+              }
+            ]
           },
           "schema_version": 0
         },

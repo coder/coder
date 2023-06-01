@@ -323,6 +323,12 @@ func TestConvertResources(t *testing.T) {
 				Type:         "string",
 				Description:  "blah blah",
 				DefaultValue: "ok",
+			}, {
+				Name:          "number_example_min_max",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(3),
+				ValidationMax: terraform.PtrInt32(6),
 			}},
 		},
 		"git-auth-providers": {
