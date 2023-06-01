@@ -23,7 +23,7 @@ env:
 
 jobs:
   codeql:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
 
@@ -57,7 +57,7 @@ jobs:
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
   trivy:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
         with:
