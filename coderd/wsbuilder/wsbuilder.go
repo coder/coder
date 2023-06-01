@@ -485,7 +485,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	}
 	err = b.verifyNoLegacyParameters()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusBadRequest, "Used unsupported legacy parameters", err}
+		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
 	resolver := codersdk.ParameterResolver{
 		Rich: db2sdk.WorkspaceBuildParameters(lastBuildParameters),
@@ -584,7 +584,7 @@ func (b *Builder) verifyNoLegacyParameters() error {
 	}
 
 	if len(parameterSchemas) > 0 {
-		return xerrors.Errorf("Legacy parameters are not supported anymore. Contact your administrator for assistance.")
+		return xerrors.Errorf("Legacy parameters in use on this version are not supported anymore. Contact your administrator for assistance.")
 	}
 	return nil
 }
