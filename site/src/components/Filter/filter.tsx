@@ -111,7 +111,7 @@ const BaseSkeleton = (props: SkeletonProps) => {
 
 export const SearchFieldSkeleton = () => <BaseSkeleton width="100%" />
 export const MenuSkeleton = () => (
-  <BaseSkeleton width="200px" sx={{ flexShrink: 0 }} />
+  <BaseSkeleton sx={{ minWidth: 200, flexShrink: 0 }} />
 )
 
 export const Filter = ({
@@ -219,7 +219,7 @@ export const FilterMenu = <TOption extends BaseOption>({
       <MenuButton
         ref={buttonRef}
         onClick={() => setIsMenuOpen(true)}
-        sx={{ width: 200 }}
+        sx={{ minWidth: 200 }}
       >
         {label}
       </MenuButton>
