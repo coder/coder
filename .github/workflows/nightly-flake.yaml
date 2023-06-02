@@ -4,10 +4,10 @@ on:
     # Every day at midnight
     - cron: "0 0 * * *"
   workflow_dispatch:
-  push:
-    paths:
-      # For testing purposes
-      # - ".github/workflows/nightly-flake.yaml"
+  # For testing purposes
+  # push:
+  #   paths:
+  # - ".github/workflows/nightly-flake.yaml"
 jobs:
   test-go-race:
     # While GitHub's toaster runners are likelier to flake, we want consistency
