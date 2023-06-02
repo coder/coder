@@ -21,7 +21,7 @@ to the same Postgres endpoint.
 HA brings one configuration variable to set in each Coder
 node: `CODER_DERP_SERVER_RELAY_URL`. The HA nodes use these URLs to communicate
 with each other. Inter-node communication is only required while using the
-embedded relay (default). If you're using [custom relays](../networking/README.md#custom-relays), Coder ignores `CODER_DERP_SERVER_RELAY_URL` since Postgres is the sole rendezvous for the Coder nodes.
+embedded relay (default). If you're using [custom relays](../networking/index.md#custom-relays), Coder ignores `CODER_DERP_SERVER_RELAY_URL` since Postgres is the sole rendezvous for the Coder nodes.
 
 `CODER_DERP_SERVER_RELAY_URL` will never be `CODER_ACCESS_URL` because
 `CODER_ACCESS_URL` is a load balancer to all Coder nodes.
@@ -57,6 +57,6 @@ Then, increase the number of pods.
 
 ## Up next
 
-- [Networking](../networking/README.md)
+- [Networking](../networking/index.md)
 - [Kubernetes](../install/kubernetes.md)
 - [Enterprise](../enterprise.md)

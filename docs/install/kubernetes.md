@@ -176,9 +176,9 @@ Cloud's log management system if you are using managed Kubernetes.
 Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart. If you do not have a domain set up,
 this should be the IP address of Coder's LoadBalancer (`kubectl get svc -n coder`).
 
-See [troubleshooting templates](../templates/README.md#troubleshooting-templates) for more steps.
+See [troubleshooting templates](../templates/index.md#troubleshooting-templates) for more steps.
 
 ## Next steps
 
 - [Configuring Coder](../admin/configure.md)
-- [Templates](../templates/README.md)
+- [Templates](../templates/index.md)
