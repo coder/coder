@@ -7,7 +7,7 @@ on:
   push:
     paths:
       # For testing purposes
-      - ".github/workflows/nightly-flake.yaml"
+      # - ".github/workflows/nightly-flake.yaml"
 jobs:
   test-go-race:
     # While GitHub's toaster runners are likelier to flake, we want consistency
