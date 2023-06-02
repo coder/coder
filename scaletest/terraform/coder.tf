@@ -96,6 +96,8 @@ coder:
         secretKeyRef:
           name: "${kubernetes_secret.coder-db.metadata.0.name}"
           key: url
+    - name: "CODER_PPROF_ENABLE"
+      value: "true"
     - name: "CODER_PROMETHEUS_ENABLE"
       value: "true"
     - name: "CODER_VERBOSE"
@@ -214,6 +216,11 @@ resource "local_file" "kubernetes_template" {
       }
     }
   EOF
+}
+
+resource "local_file" "output_vars" {
+  filename = "${path.module}/.coderv2/url"
+  content = local.coder_url
 }
 
 output "coder_url" {

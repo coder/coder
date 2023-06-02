@@ -18,6 +18,12 @@ if [[ "$ARCH" == "x86_64" ]]; then
 fi
 PLATFORM="$(uname | tr '[:upper:]' '[:lower:]')"
 
+if [[ -f "${CONFIG_DIR}/coder.env" ]]; then
+	echo "Found existing coder.env in ${CONFIG_DIR}!"
+	echo "Nothing to do, exiting."
+	exit 0
+fi
+
 mkdir -p "${CONFIG_DIR}"
 echo "Fetching Coder CLI for first-time setup!"
 curl -fsSLk "${CODER_URL}/bin/coder-${PLATFORM}-${ARCH}" -o "${CONFIG_DIR}/coder"
