@@ -94,7 +94,6 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.create(),
 		r.deleteWorkspace(),
 		r.list(),
-		r.parameters(),
 		r.ping(),
 		r.rename(),
 		r.scaletest(),

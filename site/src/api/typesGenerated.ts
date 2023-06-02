@@ -139,12 +139,6 @@ export interface BuildInfoResponse {
   readonly workspace_proxy: boolean
 }
 
-// From codersdk/parameters.go
-export interface ComputedParameter extends Parameter {
-  readonly schema_id: string
-  readonly default_source_value: boolean
-}
-
 // From codersdk/users.go
 export interface CreateFirstUserRequest {
   readonly email: string
@@ -171,15 +165,6 @@ export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/parameters.go
-export interface CreateParameterRequest {
-  readonly copy_from_parameter?: string
-  readonly name: string
-  readonly source_value: string
-  readonly source_scheme: ParameterSourceScheme
-  readonly destination_scheme: ParameterDestinationScheme
-}
-
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
   readonly name: string
@@ -187,7 +172,6 @@ export interface CreateTemplateRequest {
   readonly description?: string
   readonly icon?: string
   readonly template_version_id: string
-  readonly parameter_values?: CreateParameterRequest[]
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
@@ -200,7 +184,6 @@ export interface CreateTemplateRequest {
 // From codersdk/templateversions.go
 export interface CreateTemplateVersionDryRunRequest {
   readonly workspace_name: string
-  readonly parameter_values: CreateParameterRequest[]
   readonly rich_parameter_values: WorkspaceBuildParameter[]
   readonly user_variable_values?: VariableValue[]
 }
@@ -214,7 +197,6 @@ export interface CreateTemplateVersionRequest {
   readonly example_id?: string
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
-  readonly parameter_values?: CreateParameterRequest[]
   readonly user_variable_values?: VariableValue[]
 }
 
@@ -251,7 +233,6 @@ export interface CreateWorkspaceBuildRequest {
   readonly dry_run?: boolean
   readonly state?: string
   readonly orphan?: boolean
-  readonly parameter_values?: CreateParameterRequest[]
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
   readonly log_level?: ProvisionerLogLevel
 }
@@ -269,7 +250,6 @@ export interface CreateWorkspaceRequest {
   readonly name: string
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
-  readonly parameter_values?: CreateParameterRequest[]
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
 }
 
@@ -583,40 +563,6 @@ export interface Pagination {
   readonly after_id?: string
   readonly limit?: number
   readonly offset?: number
-}
-
-// From codersdk/parameters.go
-export interface Parameter {
-  readonly id: string
-  readonly scope: ParameterScope
-  readonly scope_id: string
-  readonly name: string
-  readonly source_scheme: ParameterSourceScheme
-  readonly destination_scheme: ParameterDestinationScheme
-  readonly created_at: string
-  readonly updated_at: string
-  readonly source_value: string
-}
-
-// From codersdk/parameters.go
-export interface ParameterSchema {
-  readonly id: string
-  readonly created_at: string
-  readonly job_id: string
-  readonly name: string
-  readonly description: string
-  readonly default_source_scheme: ParameterSourceScheme
-  readonly default_source_value: string
-  readonly allow_override_source: boolean
-  readonly default_destination_scheme: ParameterDestinationScheme
-  readonly allow_override_destination: boolean
-  readonly default_refresh: string
-  readonly redisplay_value: boolean
-  readonly validation_error: string
-  readonly validation_condition: string
-  readonly validation_type_system: string
-  readonly validation_value_type: string
-  readonly validation_contains?: string[]
 }
 
 // From codersdk/groups.go
@@ -1450,33 +1396,6 @@ export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
 export type LoginType = "github" | "oidc" | "password" | "token"
 export const LoginTypes: LoginType[] = ["github", "oidc", "password", "token"]
 
-// From codersdk/parameters.go
-export type ParameterDestinationScheme =
-  | "environment_variable"
-  | "none"
-  | "provisioner_variable"
-export const ParameterDestinationSchemes: ParameterDestinationScheme[] = [
-  "environment_variable",
-  "none",
-  "provisioner_variable",
-]
-
-// From codersdk/parameters.go
-export type ParameterScope = "import_job" | "template" | "workspace"
-export const ParameterScopes: ParameterScope[] = [
-  "import_job",
-  "template",
-  "workspace",
-]
-
-// From codersdk/parameters.go
-export type ParameterSourceScheme = "data" | "none"
-export const ParameterSourceSchemes: ParameterSourceScheme[] = ["data", "none"]
-
-// From codersdk/parameters.go
-export type ParameterTypeSystem = "hcl" | "none"
-export const ParameterTypeSystems: ParameterTypeSystem[] = ["hcl", "none"]
-
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobStatus =
   | "canceled"
@@ -1604,9 +1523,9 @@ export type TemplateRole = "" | "admin" | "use"
 export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 
 // From codersdk/templateversions.go
-export type TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
 export const TemplateVersionWarnings: TemplateVersionWarning[] = [
-  "DEPRECATED_PARAMETERS",
+  "UNSUPPORTED_WORKSPACES",
 ]
 
 // From codersdk/users.go

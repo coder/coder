@@ -110,7 +110,6 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		versionName     string
 		provisioner     string
 		workdir         string
-		parameterFile   string
 		variablesFile   string
 		variables       []string
 		alwaysPrompt    bool
@@ -153,13 +152,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			job, _, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
+			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Name:            versionName,
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
 				FileID:          resp.ID,
-				ParameterFile:   parameterFile,
 				VariablesFile:   variablesFile,
 				Variables:       variables,
 				Template:        &template,
@@ -202,11 +200,6 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Value:       clibase.StringOf(&workdir),
 			// This is for testing!
 			Hidden: true,
-		},
-		{
-			Flag:        "parameter-file",
-			Description: "Specify a file path with parameter values.",
-			Value:       clibase.StringOf(&parameterFile),
 		},
 		{
 			Flag:        "variables-file",

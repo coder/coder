@@ -1,6 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import {
-  MockParameterSchemas,
   MockTemplateExample,
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
@@ -31,11 +30,6 @@ Initial.args = {}
 export const WithStarterTemplate = Template.bind({})
 WithStarterTemplate.args = {
   starterTemplate: MockTemplateExample,
-}
-
-export const WithParameters = Template.bind({})
-WithParameters.args = {
-  parameters: MockParameterSchemas,
 }
 
 export const WithVariables = Template.bind({})

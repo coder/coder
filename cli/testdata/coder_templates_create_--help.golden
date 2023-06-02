@@ -17,9 +17,6 @@ Create a template from the current directory or as specified by flag
           Specify an inactivity TTL for workspaces created from this template.
           This licensed feature's default is 0h (off).
 
-      --parameter-file string
-          Specify a file path with parameter values.
-
       --provisioner-tag string-array
           Specify a set of tags to target provisioner daemons.
 

@@ -1,6 +1,5 @@
 import TextField from "@mui/material/TextField"
 import * as TypesGen from "api/typesGenerated"
-import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
@@ -32,7 +31,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
-  GET_TEMPLATE_SCHEMA_ERROR = "getTemplateSchemaError",
   GET_TEMPLATE_GITAUTH_ERROR = "getTemplateGitAuthError",
   CREATE_WORKSPACE_ERROR = "createWorkspaceError",
 }
@@ -40,14 +38,12 @@ export enum CreateWorkspaceErrors {
 export interface CreateWorkspacePageViewProps {
   name: string
   loadingTemplates: boolean
-  loadingTemplateSchema: boolean
   creatingWorkspace: boolean
   hasTemplateErrors: boolean
   templateName: string
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateParameters?: TypesGen.TemplateVersionParameter[]
-  templateSchema?: TypesGen.ParameterSchema[]
   templateGitAuth?: TypesGen.TemplateVersionGitAuth[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
@@ -63,9 +59,6 @@ export interface CreateWorkspacePageViewProps {
 export const CreateWorkspacePageView: FC<
   React.PropsWithChildren<CreateWorkspacePageViewProps>
 > = (props) => {
-  const [parameterValues, setParameterValues] = useState<
-    Record<string, string>
-  >(props.defaultParameterValues ?? {})
   const initialRichParameterValues = selectInitialRichParametersValues(
     props.templateParameters,
     props.defaultParameterValues,
@@ -123,37 +116,14 @@ export const CreateWorkspacePageView: FC<
             return
           }
         }
-
-        if (!props.templateSchema) {
-          throw new Error("No template schema loaded")
-        }
-
-        const createRequests: TypesGen.CreateParameterRequest[] = []
-        props.templateSchema.forEach((schema) => {
-          let value = schema.default_source_value
-          if (schema.name in parameterValues) {
-            value = parameterValues[schema.name]
-          }
-          createRequests.push({
-            name: schema.name,
-            destination_scheme: schema.default_destination_scheme,
-            source_scheme: "data",
-            source_value: value,
-          })
-        })
         props.onSubmit({
           ...request,
-          parameter_values: createRequests,
         })
         form.setSubmitting(false)
       },
     })
 
-  const isLoading = props.loadingTemplateSchema || props.loadingTemplates
-  // We only want to show schema that have redisplay_value equals true
-  const schemaToBeDisplayed = props.templateSchema?.filter(
-    (schema) => schema.redisplay_value,
-  )
+  const isLoading = props.loadingTemplates
 
   const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
     form,
@@ -178,19 +148,6 @@ export const CreateWorkspacePageView: FC<
                 error={
                   props.createWorkspaceErrors[
                     CreateWorkspaceErrors.GET_TEMPLATES_ERROR
-                  ]
-                }
-              />
-            )}
-            {Boolean(
-              props.createWorkspaceErrors[
-                CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
-              ],
-            ) && (
-              <ErrorAlert
-                error={
-                  props.createWorkspaceErrors[
-                    CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
                   ]
                 }
               />
@@ -277,31 +234,6 @@ export const CreateWorkspacePageView: FC<
                   authenticated={auth.authenticated}
                   type={auth.type}
                   error={gitAuthErrors[auth.id]}
-                />
-              ))}
-            </FormFields>
-          </FormSection>
-        )}
-
-        {/* Template params */}
-        {schemaToBeDisplayed && schemaToBeDisplayed.length > 0 && (
-          <FormSection
-            title="Template params"
-            description="These values are provided by your template's Terraform configuration."
-          >
-            <FormFields>
-              {schemaToBeDisplayed.map((schema) => (
-                <ParameterInput
-                  disabled={form.isSubmitting}
-                  key={schema.id}
-                  defaultValue={parameterValues[schema.name]}
-                  onChange={(value) => {
-                    setParameterValues({
-                      ...parameterValues,
-                      [schema.name]: value,
-                    })
-                  }}
-                  schema={schema}
                 />
               ))}
             </FormFields>

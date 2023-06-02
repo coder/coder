@@ -31,20 +31,20 @@ func TestParse(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				description = "Testing!"
-			}`,
+			}
+
+			provider "coder" { feature_use_managed_variables = "true" }`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                "A",
-							RedisplayValue:      true,
-							AllowOverrideSource: true,
-							Description:         "Testing!",
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:        "A",
+								Description: "Testing!",
+								Required:    true,
 							},
-						}},
+						},
 					},
 				},
 			},
@@ -54,23 +54,19 @@ func TestParse(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				default = "wow"
-			}`,
+			}
+
+			provider "coder" { feature_use_managed_variables = "true" }`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                "A",
-							RedisplayValue:      true,
-							AllowOverrideSource: true,
-							DefaultSource: &proto.ParameterSource{
-								Scheme: proto.ParameterSource_DATA,
-								Value:  "wow",
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:         "A",
+								DefaultValue: "wow",
 							},
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
+						},
 					},
 				},
 			},
@@ -82,21 +78,19 @@ func TestParse(t *testing.T) {
 				validation {
 					condition = var.A == "value"
 				}
-			}`,
+			}
+
+			provider "coder" { feature_use_managed_variables = "true" }`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                 "A",
-							RedisplayValue:       true,
-							ValidationCondition:  `var.A == "value"`,
-							ValidationTypeSystem: proto.ParameterSchema_HCL,
-							AllowOverrideSource:  true,
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:     "A",
+								Required: true,
 							},
-						}},
+						},
 					},
 				},
 			},
@@ -112,49 +106,31 @@ func TestParse(t *testing.T) {
 			Name: "multiple-variables",
 			Files: map[string]string{
 				"main1.tf": `variable "foo" { }
-				variable "bar" { }`,
+				variable "bar" { }
+
+				provider "coder" { feature_use_managed_variables = "true" }`,
 				"main2.tf": `variable "baz" { }
 				variable "quux" { }`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{
+						TemplateVariables: []*proto.TemplateVariable{
 							{
-								Name:                "foo",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
+								Name:     "foo",
+								Required: true,
 							},
 							{
-								Name:                "bar",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
+								Name:     "bar",
+								Required: true,
 							},
 							{
-								Name:                "baz",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
+								Name:     "baz",
+								Required: true,
 							},
 							{
-								Name:                "quux",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
+								Name:     "quux",
+								Required: true,
 							},
 						},
 					},

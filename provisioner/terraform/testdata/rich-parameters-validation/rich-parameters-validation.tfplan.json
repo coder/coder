@@ -116,49 +116,6 @@
       "root_module": {
         "resources": [
           {
-            "address": "data.coder_parameter.example",
-            "mode": "data",
-            "type": "coder_parameter",
-            "name": "example",
-            "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
-            "values": {
-              "default": null,
-              "description": null,
-              "display_name": null,
-              "icon": null,
-              "id": "62a57280-032d-4528-9705-c663e6971d9d",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
-              "mutable": false,
-              "name": "Example",
-              "option": [
-                {
-                  "description": "",
-                  "icon": "",
-                  "name": "First Option",
-                  "value": "first"
-                },
-                {
-                  "description": "",
-                  "icon": "",
-                  "name": "Second Option",
-                  "value": "second"
-                }
-              ],
-              "optional": false,
-              "type": "string",
-              "validation": null,
-              "value": ""
-            },
-            "sensitive_values": {
-              "option": [
-                {},
-                {}
-              ]
-            }
-          },
-          {
             "address": "data.coder_parameter.number_example",
             "mode": "data",
             "type": "coder_parameter",
@@ -170,7 +127,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "37b849a7-1830-4662-b804-e23a6fb0a0dd",
+              "id": "b4018ceb-5529-4ea9-8d44-f1435255f5ce",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -178,10 +135,51 @@
               "option": null,
               "optional": true,
               "type": "number",
-              "validation": null,
+              "validation": [],
               "value": "4"
             },
-            "sensitive_values": {}
+            "sensitive_values": {
+              "validation": []
+            }
+          },
+          {
+            "address": "data.coder_parameter.number_example_max",
+            "mode": "data",
+            "type": "coder_parameter",
+            "name": "number_example_max",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 0,
+            "values": {
+              "default": "4",
+              "description": null,
+              "display_name": null,
+              "icon": null,
+              "id": "78f023f8-d78a-4660-bc55-f4af607e9c92",
+              "legacy_variable": null,
+              "legacy_variable_name": null,
+              "mutable": false,
+              "name": "number_example_max",
+              "option": null,
+              "optional": true,
+              "type": "number",
+              "validation": [
+                {
+                  "error": "",
+                  "max": 6,
+                  "max_disabled": false,
+                  "min": 0,
+                  "min_disabled": true,
+                  "monotonic": "",
+                  "regex": ""
+                }
+              ],
+              "value": "4"
+            },
+            "sensitive_values": {
+              "validation": [
+                {}
+              ]
+            }
           },
           {
             "address": "data.coder_parameter.number_example_max_zero",
@@ -191,11 +189,11 @@
             "provider_name": "registry.terraform.io/coder/coder",
             "schema_version": 0,
             "values": {
-              "default": "-2",
+              "default": "-3",
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "21eddf29-7529-4ea4-9416-c0c6c156c3ad",
+              "id": "d4dc1b09-51d8-4428-92e5-637ca7f23826",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -207,12 +205,53 @@
                 {
                   "error": "",
                   "max": 0,
-                  "min": -3,
+                  "max_disabled": false,
+                  "min": 0,
+                  "min_disabled": true,
                   "monotonic": "",
                   "regex": ""
                 }
               ],
-              "value": "-2"
+              "value": "-3"
+            },
+            "sensitive_values": {
+              "validation": [
+                {}
+              ]
+            }
+          },
+          {
+            "address": "data.coder_parameter.number_example_min",
+            "mode": "data",
+            "type": "coder_parameter",
+            "name": "number_example_min",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 0,
+            "values": {
+              "default": "4",
+              "description": null,
+              "display_name": null,
+              "icon": null,
+              "id": "7e0c0c5d-4c6f-44d3-aaae-31e6698d65d8",
+              "legacy_variable": null,
+              "legacy_variable_name": null,
+              "mutable": false,
+              "name": "number_example_min",
+              "option": null,
+              "optional": true,
+              "type": "number",
+              "validation": [
+                {
+                  "error": "",
+                  "max": 0,
+                  "max_disabled": true,
+                  "min": 3,
+                  "min_disabled": false,
+                  "monotonic": "",
+                  "regex": ""
+                }
+              ],
+              "value": "4"
             },
             "sensitive_values": {
               "validation": [
@@ -232,7 +271,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "826afb7f-80fe-4563-95d3-1f8da1f8c274",
+              "id": "1e9fe990-cc13-4cdb-84dd-ab198ffe8e8d",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -244,7 +283,9 @@
                 {
                   "error": "",
                   "max": 6,
+                  "max_disabled": false,
                   "min": 3,
+                  "min_disabled": false,
                   "monotonic": "",
                   "regex": ""
                 }
@@ -269,7 +310,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "9656b8ff-4e7b-4ba0-8377-569b358ff110",
+              "id": "a358e7b2-9ace-49fe-b94b-476f1a5e0fbd",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -280,8 +321,10 @@
               "validation": [
                 {
                   "error": "",
-                  "max": 6,
+                  "max": 0,
+                  "max_disabled": true,
                   "min": 0,
+                  "min_disabled": false,
                   "monotonic": "",
                   "regex": ""
                 }
@@ -293,31 +336,6 @@
                 {}
               ]
             }
-          },
-          {
-            "address": "data.coder_parameter.sample",
-            "mode": "data",
-            "type": "coder_parameter",
-            "name": "sample",
-            "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
-            "values": {
-              "default": "ok",
-              "description": "blah blah",
-              "display_name": null,
-              "icon": null,
-              "id": "07dd798d-22fe-437d-ae78-2092d01f4b0b",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
-              "mutable": false,
-              "name": "Sample",
-              "option": null,
-              "optional": true,
-              "type": "string",
-              "validation": null,
-              "value": "ok"
-            },
-            "sensitive_values": {}
           }
         ]
       }
@@ -328,7 +346,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.7.0"
+        "version_constraint": "0.8.2"
       },
       "null": {
         "name": "null",
@@ -365,40 +383,6 @@
           ]
         },
         {
-          "address": "data.coder_parameter.example",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "example",
-          "provider_config_key": "coder",
-          "expressions": {
-            "name": {
-              "constant_value": "Example"
-            },
-            "option": [
-              {
-                "name": {
-                  "constant_value": "First Option"
-                },
-                "value": {
-                  "constant_value": "first"
-                }
-              },
-              {
-                "name": {
-                  "constant_value": "Second Option"
-                },
-                "value": {
-                  "constant_value": "second"
-                }
-              }
-            ],
-            "type": {
-              "constant_value": "string"
-            }
-          },
-          "schema_version": 0
-        },
-        {
           "address": "data.coder_parameter.number_example",
           "mode": "data",
           "type": "coder_parameter",
@@ -418,6 +402,32 @@
           "schema_version": 0
         },
         {
+          "address": "data.coder_parameter.number_example_max",
+          "mode": "data",
+          "type": "coder_parameter",
+          "name": "number_example_max",
+          "provider_config_key": "coder",
+          "expressions": {
+            "default": {
+              "constant_value": 4
+            },
+            "name": {
+              "constant_value": "number_example_max"
+            },
+            "type": {
+              "constant_value": "number"
+            },
+            "validation": [
+              {
+                "max": {
+                  "constant_value": 6
+                }
+              }
+            ]
+          },
+          "schema_version": 0
+        },
+        {
           "address": "data.coder_parameter.number_example_max_zero",
           "mode": "data",
           "type": "coder_parameter",
@@ -425,7 +435,7 @@
           "provider_config_key": "coder",
           "expressions": {
             "default": {
-              "constant_value": -2
+              "constant_value": -3
             },
             "name": {
               "constant_value": "number_example_max_zero"
@@ -437,9 +447,32 @@
               {
                 "max": {
                   "constant_value": 0
-                },
+                }
+              }
+            ]
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "data.coder_parameter.number_example_min",
+          "mode": "data",
+          "type": "coder_parameter",
+          "name": "number_example_min",
+          "provider_config_key": "coder",
+          "expressions": {
+            "default": {
+              "constant_value": 4
+            },
+            "name": {
+              "constant_value": "number_example_min"
+            },
+            "type": {
+              "constant_value": "number"
+            },
+            "validation": [
+              {
                 "min": {
-                  "constant_value": -3
+                  "constant_value": 3
                 }
               }
             ]
@@ -493,36 +526,11 @@
             },
             "validation": [
               {
-                "max": {
-                  "constant_value": 6
-                },
                 "min": {
                   "constant_value": 0
                 }
               }
             ]
-          },
-          "schema_version": 0
-        },
-        {
-          "address": "data.coder_parameter.sample",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "sample",
-          "provider_config_key": "coder",
-          "expressions": {
-            "default": {
-              "constant_value": "ok"
-            },
-            "description": {
-              "constant_value": "blah blah"
-            },
-            "name": {
-              "constant_value": "Sample"
-            },
-            "type": {
-              "constant_value": "string"
-            }
           },
           "schema_version": 0
         }
