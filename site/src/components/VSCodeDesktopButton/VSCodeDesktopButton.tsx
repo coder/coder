@@ -69,6 +69,7 @@ export const VSCodeDesktopButton: FC<
           onClick={() => {
             setIsVariantMenuOpen(true)
           }}
+          sx={{ px: 0 }}
         >
           <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
         </PrimaryAgentButton>

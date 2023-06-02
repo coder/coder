@@ -130,7 +130,7 @@ type Options struct {
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey     workspaceapps.SecurityKey
-	HealthcheckFunc    func(ctx context.Context, apiKey string) (*healthcheck.Report, error)
+	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
@@ -266,7 +266,7 @@ func New(options *Options) *API {
 		options.TemplateScheduleStore.Store(&v)
 	}
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) (*healthcheck.Report, error) {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				AccessURL: options.AccessURL,
 				DERPMap:   options.DERPMap.Clone(),

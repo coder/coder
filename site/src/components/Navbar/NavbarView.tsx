@@ -161,7 +161,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
         <Box
           display="flex"
-          marginLeft={{ lg: "auto" }}
+          marginLeft={{ md: "auto" }}
           gap={2}
           alignItems="center"
           paddingRight={2}
@@ -189,10 +189,14 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const selectedProxy = proxyContextValue.proxy.proxy
+  const refreshLatencies = proxyContextValue.refetchProxyLatencies
   const closeMenu = () => setIsOpen(false)
   const navigate = useNavigate()
+  const latencies = proxyContextValue.proxyLatencies
+  const isLoadingLatencies = Object.keys(latencies).length === 0
+  const isLoading = proxyContextValue.isLoading || isLoadingLatencies
 
-  if (!proxyContextValue.isFetched) {
+  if (isLoading) {
     return (
       <Skeleton
         width="160px"
@@ -229,9 +233,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             {selectedProxy.display_name}
             <ProxyStatusLatency
               proxy={selectedProxy}
-              latency={
-                proxyContextValue.proxyLatencies?.[selectedProxy.id]?.latencyMS
-              }
+              latency={latencies?.[selectedProxy.id]?.latencyMS}
             />
           </Box>
         ) : (
@@ -277,9 +279,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
               {proxy.display_name}
               <ProxyStatusLatency
                 proxy={proxy}
-                latency={
-                  proxyContextValue.proxyLatencies?.[proxy.id]?.latencyMS
-                }
+                latency={latencies?.[proxy.id]?.latencyMS}
               />
             </Box>
           </MenuItem>
@@ -292,6 +292,9 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           }}
         >
           Proxy settings
+        </MenuItem>
+        <MenuItem sx={{ fontSize: 14 }} onClick={refreshLatencies}>
+          Refresh Latencies
         </MenuItem>
       </Menu>
     </>

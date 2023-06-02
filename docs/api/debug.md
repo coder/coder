@@ -206,6 +206,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
       }
     }
   },
+  "failing_sections": ["string"],
   "healthy": true,
   "time": "string",
   "websocket": {

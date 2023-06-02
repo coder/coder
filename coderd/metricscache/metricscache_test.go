@@ -151,7 +151,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 		},
 		{
 			name:     "tzOffset",
-			tzOffset: -1,
+			tzOffset: 1,
 			args: args{
 				rows: []database.InsertWorkspaceAgentStatParams{
 					statRow(zebra, dateH(2022, 1, 2, 1)),
@@ -180,7 +180,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 		},
 		{
 			name:     "tzOffsetPreviousDay",
-			tzOffset: -6,
+			tzOffset: 6,
 			args: args{
 				rows: []database.InsertWorkspaceAgentStatParams{
 					statRow(zebra, dateH(2022, 1, 2, 1)),
