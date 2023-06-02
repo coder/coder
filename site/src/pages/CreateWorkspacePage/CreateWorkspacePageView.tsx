@@ -317,8 +317,8 @@ export const CreateWorkspacePageView: FC<
                   ...getFieldHelpers(
                     "rich_parameter_values[" + index + "].value",
                   ),
-                  onChange: (value) => {
-                    form.setFieldValue("rich_parameter_values." + index, {
+                  onChange: async (value) => {
+                    await form.setFieldValue("rich_parameter_values." + index, {
                       name: parameter.name,
                       value: value,
                     })
@@ -339,8 +339,8 @@ export const CreateWorkspacePageView: FC<
                   ...getFieldHelpers(
                     "rich_parameter_values[" + index + "].value",
                   ),
-                  onChange: (value) => {
-                    form.setFieldValue("rich_parameter_values." + index, {
+                  onChange: async (value) => {
+                    await form.setFieldValue("rich_parameter_values." + index, {
                       name: parameter.name,
                       value: value,
                     })
