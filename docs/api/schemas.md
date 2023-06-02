@@ -6097,6 +6097,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     }
   },
+  "failing_sections": ["string"],
   "healthy": true,
   "time": "string",
   "websocket": {
@@ -6112,13 +6113,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                       | Required | Restrictions | Description                                      |
-| ------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
-| `access_url` | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
-| `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
-| `healthy`    | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
-| `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
-| `websocket`  | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
+| Name               | Type                                                       | Required | Restrictions | Description                                      |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
+| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
+| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
+| `failing_sections` | array of string                                            | false    |              |                                                  |
+| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
+| `time`             | string                                                     | false    |              | Time is the time the report was generated at.    |
+| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
 
 ## healthcheck.WebsocketReport
 

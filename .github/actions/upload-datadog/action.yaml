@@ -1,0 +1,16 @@
+name: Upload tests to datadog
+if: always()
+inputs:
+  api-key:
+    description: "Datadog API key"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      run: |
+        npm install -g @datadog/datadog-ci
+        datadog-ci junit upload --service coder ./gotests.xml \
+          --tags os:${{runner.os}} --tags runner_name:${{runner.name}}
+      env:
+        DATADOG_API_KEY: ${{ inputs.api-key }}

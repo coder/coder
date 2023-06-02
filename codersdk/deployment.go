@@ -1693,7 +1693,9 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsAll = Experiments{
+	ExperimentWorkspaceFilter,
+}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

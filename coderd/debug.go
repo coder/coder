@@ -47,11 +47,9 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), api.HealthcheckTimeout)
 		defer cancel()
 
-		report, err := api.HealthcheckFunc(ctx, apiKey)
-		if err == nil {
-			api.healthCheckCache.Store(report)
-		}
-		return report, err
+		report := api.HealthcheckFunc(ctx, apiKey)
+		api.healthCheckCache.Store(report)
+		return report, nil
 	})
 
 	select {

@@ -74,3 +74,46 @@ explaining this IDE specification.
    ![Gateway IDE Opened](../images/gateway/gateway-intellij-opened.png)
 
 > Note the JetBrains IDE is remotely installed into `~/.cache/JetBrains/RemoteDev/dist`
+
+## Configuring Gateway to use internal certificates
+
+When attempting to connect to a Coder deployment that uses internally signed certificates,
+you may receive the following error in Gateway:
+
+```console
+Failed to configure connection to https://coder.internal.enterprise/: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+```
+
+To resolve this issue, you will need to add Coder's certificate to the Java trust store
+present on your local machine. Here is the default location of the trust store for
+each OS:
+
+```console
+# Linux
+<Gateway installation directory>/jbr/lib/security/cacerts
+
+# macOS
+<Gateway installation directory>/jbr/lib/security/cacerts
+/Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
+
+# Windows
+C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts
+%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
+```
+
+To add the certificate to the keystore, you can use the `keytool` utility that ships
+with Java:
+
+```console
+keytool -import -alias coder -file <certificate> -keystore /path/to/trust/store
+```
+
+On Windows, you can use `keytool` that ships with the JetBrains Gateway installation.
+For example:
+
+```powershell
+& 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/bin/keytool.exe' 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jre/lib/security/cacerts' -import -alias coder -file <cert>
+
+# command for Toolbox installation
+& '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\apps\Gateway\ch-0\<VERSION>\jbr\bin\keytool.exe' '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts' -import -alias coder -file <cert>
+```
