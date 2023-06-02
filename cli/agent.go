@@ -66,8 +66,9 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
 				logWriter := &lumberjack.Logger{
-					Filename: filepath.Join(logDir, "coder-agent-init.log"),
-					MaxSize:  5, // MB
+					Filename:   filepath.Join(logDir, "coder-agent-init.log"),
+					MaxSize:    5, // MB
+					MaxBackups: 1,
 				}
 				defer logWriter.Close()
 
@@ -144,8 +145,9 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			go DumpHandler(ctx)
 
 			ljLogger := &lumberjack.Logger{
-				Filename: filepath.Join(logDir, "coder-agent.log"),
-				MaxSize:  5, // MB
+				Filename:   filepath.Join(logDir, "coder-agent.log"),
+				MaxSize:    5, // MB
+				MaxBackups: 1,
 			}
 			defer ljLogger.Close()
 			logWriter := &closeWriter{w: ljLogger}
