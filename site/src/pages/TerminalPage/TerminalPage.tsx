@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import WarningIcon from "@mui/icons-material/ErrorOutlineRounded"
 import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { useMachine } from "@xstate/react"
@@ -20,6 +20,12 @@ import { terminalMachine } from "../../xServices/terminal/terminalXService"
 import { useProxy } from "contexts/ProxyContext"
 import { combineClasses } from "utils/combineClasses"
 import Box from "@mui/material/Box"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { Region } from "api/typesGenerated"
+import { getLatencyColor } from "utils/latency"
+import Popover from "@mui/material/Popover"
+import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
+import { alpha } from "@mui/material"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -85,6 +91,12 @@ const TerminalPage: FC<
   const shouldDisplayStartupError = workspaceAgent
     ? workspaceAgent.lifecycle_state === "start_error"
     : false
+  const dashboard = useDashboard()
+  const proxyContext = useProxy()
+  const selectedProxy = proxyContext.proxy.proxy
+  const latency = selectedProxy
+    ? proxyContext.proxyLatencies[selectedProxy.id]
+    : undefined
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -347,8 +359,100 @@ const TerminalPage: FC<
           ref={xtermRef}
           data-testid="terminal"
         />
+        {dashboard.experiments.includes("moons") &&
+          selectedProxy &&
+          latency && (
+            <Latency proxy={selectedProxy} latency={latency.latencyMS} />
+          )}
       </Box>
     </>
+  )
+}
+
+const Latency = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
+  const theme = useTheme()
+  const color = getLatencyColor(theme, latency)
+  const anchorRef = useRef<HTMLButtonElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <Box sx={{ position: "fixed", bottom: 24, right: 24, zIndex: 10 }}>
+      <Box
+        ref={anchorRef}
+        component="button"
+        aria-label="Terminal latency"
+        aria-haspopup="true"
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        sx={{
+          padding: 0.75,
+          border: `1px solid ${alpha(color, 0.5)}`,
+          borderRadius: 9999,
+          background: "none",
+          cursor: "pointer",
+        }}
+      >
+        <Box
+          sx={{
+            height: 8,
+            width: 8,
+            backgroundColor: color,
+            border: 0,
+            borderRadius: 9999,
+          }}
+        />
+      </Box>
+      <Popover
+        id="latency-popover"
+        disableRestoreFocus
+        anchorEl={anchorRef.current}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        sx={{
+          pointerEvents: "none",
+          "& .MuiPaper-root": {
+            padding: (theme) => theme.spacing(1, 2),
+            marginTop: -1,
+          },
+        }}
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+      >
+        <Box
+          sx={{
+            fontSize: 13,
+            color: (theme) => theme.palette.text.secondary,
+            fontWeight: 500,
+          }}
+        >
+          Selected proxy
+        </Box>
+        <Box
+          sx={{ fontSize: 14, display: "flex", gap: 3, alignItems: "center" }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box width={12} height={12} lineHeight={0}>
+              <Box
+                component="img"
+                src={proxy.icon_url}
+                alt=""
+                sx={{ objectFit: "contain" }}
+                width="100%"
+                height="100%"
+              />
+            </Box>
+            {proxy.display_name}
+          </Box>
+          <ProxyStatusLatency latency={latency} />
+        </Box>
+      </Popover>
+    </Box>
   )
 }
 
