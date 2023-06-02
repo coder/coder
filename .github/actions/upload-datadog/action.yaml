@@ -9,7 +9,9 @@ runs:
   steps:
     - shell: bash
       run: |
-        if [[ ${{ github.event.pull_request.head.repo.full_name != 'coder/coder' }} ]]; then
+        repo_name=${{ github.event.pull_request.head.repo.full_name }}
+        echo "repo_name: $repo_name"
+        if [[  $repo_name != "coder/coder" ]]; then
           echo "Not a pull request from the main repo, skipping..."
           exit 0
         fi
