@@ -1,6 +1,4 @@
 name = "${SCALETEST_NAME}"
-coder_image_repo = "gcr.io/coder-dev-1/coder-cian/coderv2"
-coder_image_tag = "dev"
 project_id = "${SCALETEST_PROJECT}"
 prometheus_remote_write_user = "${SCALETEST_PROMETHEUS_REMOTE_WRITE_USER}"
 prometheus_remote_write_password = "${SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD}"
