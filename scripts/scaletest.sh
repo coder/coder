@@ -26,13 +26,13 @@ if [[ -z "${SCALETEST_PROJECT}" ]]; then
 	exit 1
 fi
 
-if [[ ! -f "${SCALETEST_SCENARIO_VARS}" ]] ; then
+if [[ ! -f "${SCALETEST_SCENARIO_VARS}" ]]; then
 	echo "No definition for scenario ${SCALETEST_SCENARIO} exists. Please create it and try again"
 	exit 1
 fi
 
 echo "Writing scaletest secrets to file."
-SCALETEST_NAME="${SCALETEST_NAME}" envsubst < "${SCALETEST_SECRETS_TEMPLATE}" > "${SCALETEST_SECRETS}"
+SCALETEST_NAME="${SCALETEST_NAME}" envsubst <"${SCALETEST_SECRETS_TEMPLATE}" >"${SCALETEST_SECRETS}"
 
 pushd "${PROJECT_ROOT}/scaletest/terraform"
 
@@ -55,7 +55,7 @@ until curl --output /dev/null --silent --fail "${SCALETEST_CODER_URL}/healthz"; 
 	fi
 
 	echo -n '.'
-	attempt_counter=$((attempt_counter+1))
+	attempt_counter=$((attempt_counter + 1))
 	sleep 10
 done
 

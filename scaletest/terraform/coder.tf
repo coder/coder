@@ -220,7 +220,7 @@ resource "local_file" "kubernetes_template" {
 
 resource "local_file" "output_vars" {
   filename = "${path.module}/.coderv2/url"
-  content = local.coder_url
+  content  = local.coder_url
 }
 
 output "coder_url" {
