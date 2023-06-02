@@ -203,7 +203,7 @@ In some cases, deleting a workspace with a hard dependency on a legacy parameter
 
 > ⚠️ Migration is available until v0.24.0 (Jun 2023) release.
 
-Terraform variables shouldn't be used for workspace scoped parameters anymore, and it's recommended to convert variables to `coder_parameter` resources. To make the migration smoother, there is a special property introduced -
+Terraform `variable` shouldn't be used for workspace scoped parameters anymore, and it's required to convert `variable` to `coder_parameter` resources. To make the migration smoother, there is a special property introduced -
 `legacy_variable` and `legacy_variable_name` , which can link `coder_parameter` with a legacy variable.
 
 ```hcl
