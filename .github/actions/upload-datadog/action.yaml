@@ -9,6 +9,10 @@ runs:
   steps:
     - shell: bash
       run: |
+        if [[ ${{ github.event.pull_request.head.repo.full_name != 'coder/coder' ]]; then
+          echo "Not a pull request from the main repo, skipping..."
+          exit 0
+        fi
         npm install -g @datadog/datadog-ci
         datadog-ci junit upload --service coder ./gotests.xml \
           --tags os:${{runner.os}} --tags runner_name:${{runner.name}}
