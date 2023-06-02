@@ -458,10 +458,6 @@
           "path": "./api/organizations.md"
         },
         {
-          "title": "Parameters",
-          "path": "./api/parameters.md"
-        },
-        {
           "title": "Schemas",
           "path": "./api/schemas.md"
         },

@@ -7,51 +7,6 @@ package provisioner;
 // Empty indicates a successful request/response.
 message Empty {}
 
-// ParameterSource represents the source location for a parameter to get it's value from.
-message ParameterSource {
-    enum Scheme {
-        DATA = 0;
-    }
-    Scheme scheme = 1;
-    string value = 2;
-}
-
-// ParameterDestination represents the target location for a provisioner to set the value.
-message ParameterDestination {
-    enum Scheme {
-        ENVIRONMENT_VARIABLE = 0;
-        PROVISIONER_VARIABLE = 1;
-    }
-    Scheme scheme = 1;
-}
-
-// ParameterValue represents the resolved source and destination of a parameter.
-message ParameterValue {
-    ParameterDestination.Scheme destination_scheme = 1;
-    string name = 2;
-    string value = 3;
-}
-
-// ParameterSchema represents validation and type information for a parsed parameter.
-message ParameterSchema {
-    string name = 1;
-    string description = 2;
-    ParameterSource default_source = 3;
-    bool allow_override_source = 4;
-    ParameterDestination default_destination = 5;
-    bool allow_override_destination = 6;
-    bool redisplay_value = 7;
-
-    enum TypeSystem {
-        None = 0;
-        HCL = 1;
-    }
-    TypeSystem validation_type_system = 8;
-    string validation_value_type = 9;
-    string validation_error = 10;
-    string validation_condition = 11;
-}
-
 // TemplateVariable represents a Terraform variable.
 message TemplateVariable {
     string name = 1;
@@ -99,7 +54,7 @@ message RichParameterValue {
 message VariableValue {
     string name = 1;
     string value = 2;
-	bool sensitive = 3;
+    bool sensitive = 3;
 }
 
 // LogLevel represents severity of the log.
@@ -210,8 +165,9 @@ message Parse {
         string directory = 1;
     }
     message Complete {
+		reserved 2;
+
         repeated TemplateVariable template_variables = 1;
-        repeated ParameterSchema parameter_schemas = 2;
     }
     message Response {
         oneof type {
@@ -255,8 +211,9 @@ message Provision {
     }
 
     message Plan {
+        reserved 2;
+
         Config config = 1;
-        repeated ParameterValue parameter_values = 2;
         repeated RichParameterValue rich_parameter_values = 3;
         repeated VariableValue variable_values = 4;
         repeated GitAuthProvider git_auth_providers = 5;
@@ -279,9 +236,9 @@ message Provision {
         bytes state = 1;
         string error = 2;
         repeated Resource resources = 3;
-		repeated RichParameter parameters = 4;
-		repeated string git_auth_providers = 5;
-		bytes plan = 6;
+        repeated RichParameter parameters = 4;
+        repeated string git_auth_providers = 5;
+        bytes plan = 6;
     }
     message Response {
         oneof type {

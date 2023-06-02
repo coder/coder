@@ -137,45 +137,6 @@ func TestParameterResolver_ValidateResolve_Immutable(t *testing.T) {
 	require.Equal(t, "", v)
 }
 
-func TestParameterResolver_ValidateResolve_Legacy(t *testing.T) {
-	t.Parallel()
-	uut := codersdk.ParameterResolver{
-		Legacy: []codersdk.Parameter{
-			{Name: "l", SourceValue: "5"},
-			{Name: "n", SourceValue: "6"},
-		},
-	}
-	p := codersdk.TemplateVersionParameter{
-		Name:               "n",
-		Type:               "number",
-		Required:           true,
-		LegacyVariableName: "l",
-	}
-	v, err := uut.ValidateResolve(p, nil)
-	require.NoError(t, err)
-	require.Equal(t, "5", v)
-}
-
-func TestParameterResolver_ValidateResolve_PreferRichOverLegacy(t *testing.T) {
-	t.Parallel()
-	uut := codersdk.ParameterResolver{
-		Rich: []codersdk.WorkspaceBuildParameter{{Name: "n", Value: "7"}},
-		Legacy: []codersdk.Parameter{
-			{Name: "l", SourceValue: "5"},
-			{Name: "n", SourceValue: "6"},
-		},
-	}
-	p := codersdk.TemplateVersionParameter{
-		Name:               "n",
-		Type:               "number",
-		Required:           true,
-		LegacyVariableName: "l",
-	}
-	v, err := uut.ValidateResolve(p, nil)
-	require.NoError(t, err)
-	require.Equal(t, "7", v)
-}
-
 func TestRichParameterValidation(t *testing.T) {
 	t.Parallel()
 

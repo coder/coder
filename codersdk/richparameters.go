@@ -131,8 +131,7 @@ func validationEnabled(param TemplateVersionParameter) bool {
 // correctly validates.
 // @typescript-ignore ParameterResolver
 type ParameterResolver struct {
-	Legacy []Parameter
-	Rich   []WorkspaceBuildParameter
+	Rich []WorkspaceBuildParameter
 }
 
 // ValidateResolve checks the provided value, v, against the parameter, p, and the previous build.  If v is nil, it also
@@ -171,17 +170,6 @@ func (r *ParameterResolver) findLastValue(p TemplateVersionParameter) *Workspace
 	for _, rp := range r.Rich {
 		if rp.Name == p.Name {
 			return &rp
-		}
-	}
-	// For migration purposes, we also support using a legacy variable
-	if p.LegacyVariableName != "" {
-		for _, lp := range r.Legacy {
-			if lp.Name == p.LegacyVariableName {
-				return &WorkspaceBuildParameter{
-					Name:  p.Name,
-					Value: lp.SourceValue,
-				}
-			}
 		}
 	}
 	return nil

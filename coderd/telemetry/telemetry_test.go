@@ -39,11 +39,6 @@ func TestTelemetry(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		_, _ = dbgen.APIKey(t, db, database.APIKey{})
-		_ = dbgen.ParameterSchema(t, db, database.ParameterSchema{
-			DefaultSourceScheme:      database.ParameterSourceSchemeNone,
-			DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
-			ValidationTypeSystem:     database.ParameterTypeSystemNone,
-		})
 		_ = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
 			Provisioner:   database.ProvisionerTypeTerraform,
 			StorageMethod: database.ProvisionerStorageMethodFile,
@@ -87,7 +82,6 @@ func TestTelemetry(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		_, snapshot := collectSnapshot(t, db)
-		require.Len(t, snapshot.ParameterSchemas, 1)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 1)
