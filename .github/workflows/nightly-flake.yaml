@@ -1,5 +1,4 @@
 name: nightly-flake
-description: A flake a day keeps the doctor away.
 on:
   schedule:
     # Every day at midnight
