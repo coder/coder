@@ -9,9 +9,9 @@ runs:
   steps:
     - shell: bash
       run: |
-        repo_name=${{ github.repository_owner	 }}/${{ github.repository_name }}
-        echo "repo_name: $repo_name"
-        if [[  $repo_name != "coder/coder" ]]; then
+        owner=${{ github.repository_owner	 }}
+        echo "owner: $owner"
+        if [[  $owner != "coder" ]]; then
           echo "Not a pull request from the main repo, skipping..."
           exit 0
         fi
