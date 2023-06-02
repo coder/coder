@@ -64,7 +64,6 @@ func (s *server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisione
 		return compareSourcePos(variables[i].Pos, variables[j].Pos)
 	})
 
-	var parameters []*proto.ParameterSchema
 	var templateVariables []*proto.TemplateVariable
 
 	useManagedVariables := flags != nil && flags[featureUseManagedVariables]
@@ -76,20 +75,12 @@ func (s *server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisione
 			}
 			templateVariables = append(templateVariables, mv)
 		}
-	} else {
-		for _, v := range variables {
-			schema, err := convertVariableToParameter(v)
-			if err != nil {
-				return xerrors.Errorf("convert variable %q: %w", v.Name, err)
-			}
-
-			parameters = append(parameters, schema)
-		}
+	} else if len(variables) > 0 {
+		return xerrors.Errorf("legacy parameters are not supported anymore, use %q flag to enable managed Terraform variables", featureUseManagedVariables)
 	}
 	return stream.Send(&proto.Parse_Response{
 		Type: &proto.Parse_Response_Complete{
 			Complete: &proto.Parse_Complete{
-				ParameterSchemas:  parameters,
 				TemplateVariables: templateVariables,
 			},
 		},
@@ -162,51 +153,6 @@ func parseFeatures(hclFilepath string) (map[string]bool, bool, hcl.Diagnostics) 
 		}
 	}
 	return flags, found, diags
-}
-
-// Converts a Terraform variable to a provisioner parameter.
-func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSchema, error) {
-	schema := &proto.ParameterSchema{
-		Name:                variable.Name,
-		Description:         variable.Description,
-		RedisplayValue:      !variable.Sensitive,
-		AllowOverrideSource: !variable.Sensitive,
-		ValidationValueType: variable.Type,
-		DefaultDestination: &proto.ParameterDestination{
-			Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-		},
-	}
-
-	if variable.Default != nil {
-		defaultData, valid := variable.Default.(string)
-		if !valid {
-			defaultDataRaw, err := json.Marshal(variable.Default)
-			if err != nil {
-				return nil, xerrors.Errorf("parse variable %q default: %w", variable.Name, err)
-			}
-			defaultData = string(defaultDataRaw)
-		}
-
-		schema.DefaultSource = &proto.ParameterSource{
-			Scheme: proto.ParameterSource_DATA,
-			Value:  defaultData,
-		}
-	}
-
-	if len(variable.Validations) > 0 && variable.Validations[0].Condition != nil {
-		// Terraform can contain multiple validation blocks, but it's used sparingly
-		// from what it appears.
-		validation := variable.Validations[0]
-		filedata, err := os.ReadFile(variable.Pos.Filename)
-		if err != nil {
-			return nil, xerrors.Errorf("read file %q: %w", variable.Pos.Filename, err)
-		}
-		schema.ValidationCondition = string(filedata[validation.Condition.Range().Start.Byte:validation.Condition.Range().End.Byte])
-		schema.ValidationError = validation.ErrorMessage
-		schema.ValidationTypeSystem = proto.ParameterSchema_HCL
-	}
-
-	return schema, nil
 }
 
 // Converts a Terraform variable to a managed variable.

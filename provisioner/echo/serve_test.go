@@ -49,11 +49,7 @@ func TestEcho(t *testing.T) {
 			},
 		}, {
 			Type: &proto.Parse_Response_Complete{
-				Complete: &proto.Parse_Complete{
-					ParameterSchemas: []*proto.ParameterSchema{{
-						Name: "parameter-schema",
-					}},
-				},
+				Complete: &proto.Parse_Complete{},
 			},
 		}}
 		data, err := echo.Tar(&echo.Responses{
@@ -69,8 +65,7 @@ func TestEcho(t *testing.T) {
 		require.Equal(t, responses[0].GetLog().Output, log.GetLog().Output)
 		complete, err := client.Recv()
 		require.NoError(t, err)
-		require.Equal(t, responses[1].GetComplete().ParameterSchemas[0].Name,
-			complete.GetComplete().ParameterSchemas[0].Name)
+		require.NotNil(t, complete)
 	})
 
 	t.Run("Provision", func(t *testing.T) {

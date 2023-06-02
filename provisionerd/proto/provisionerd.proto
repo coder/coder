@@ -12,9 +12,10 @@ message Empty {}
 // AcquiredJob is returned when a provisioner daemon has a job locked.
 message AcquiredJob {
     message WorkspaceBuild {
+        reserved 3;
+
         string workspace_build_id = 1;
         string workspace_name = 2;
-        repeated provisioner.ParameterValue parameter_values = 3;
         repeated provisioner.RichParameterValue rich_parameter_values = 4;
         repeated provisioner.VariableValue variable_values = 5;
         repeated provisioner.GitAuthProvider git_auth_providers = 6;
@@ -27,7 +28,8 @@ message AcquiredJob {
         repeated provisioner.VariableValue user_variable_values = 2;
     }
     message TemplateDryRun {
-        repeated provisioner.ParameterValue parameter_values = 1;
+        reserved 1;
+
         repeated provisioner.RichParameterValue rich_parameter_values = 2;
         repeated provisioner.VariableValue variable_values = 3;
         provisioner.Provision.Metadata metadata = 4;
@@ -106,19 +108,19 @@ message Log {
 
 // This message should be sent periodically as a heartbeat.
 message UpdateJobRequest {
+    reserved 3;
+
     string job_id = 1;
     repeated Log logs = 2;
-    repeated provisioner.ParameterSchema parameter_schemas = 3;
     repeated provisioner.TemplateVariable template_variables = 4;
 	repeated provisioner.VariableValue user_variable_values = 5;
     bytes readme = 6;
 }
 
 message UpdateJobResponse {
+    reserved 2;
+
     bool canceled = 1;
-    // If parameter schemas are sent, the job will respond
-    // with resolved parameter values.
-    repeated provisioner.ParameterValue parameter_values = 2;
 	repeated provisioner.VariableValue variable_values = 3;
 }
 

@@ -697,9 +697,9 @@ function makeFailedBuildLogs(): ProvisionerJobLog[] {
   ]
 }
 
-export const WithDeprecatedParameters: Story = {
+export const UnsupportedWorkspace: Story = {
   args: {
     ...Running.args,
-    templateWarnings: ["DEPRECATED_PARAMETERS"],
+    templateWarnings: ["UNSUPPORTED_WORKSPACES"],
   },
 }

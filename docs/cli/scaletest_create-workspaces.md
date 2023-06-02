@@ -164,24 +164,6 @@ Do not wait for agents to start before marking the test as succeeded. This can b
 
 Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.
 
-### --parameter
-
-|             |                                          |
-| ----------- | ---------------------------------------- |
-| Type        | <code>string-array</code>                |
-| Environment | <code>$CODER_SCALETEST_PARAMETERS</code> |
-
-Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value.
-
-### --parameters-file
-
-|             |                                               |
-| ----------- | --------------------------------------------- |
-| Type        | <code>string</code>                           |
-| Environment | <code>$CODER_SCALETEST_PARAMETERS_FILE</code> |
-
-Path to a YAML file containing the parameters to use for each workspace.
-
 ### --run-command
 
 |             |                                           |

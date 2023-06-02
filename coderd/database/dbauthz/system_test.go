@@ -133,10 +133,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("DeleteOldWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionDelete)
 	}))
-	s.Run("GetParameterSchemasCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.ParameterSchema(s.T(), db, database.ParameterSchema{CreatedAt: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).Asserts(rbac.ResourceSystem, rbac.ActionRead)
-	}))
 	s.Run("GetProvisionerJobsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: add provisioner job resource type
 		_ = dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{CreatedAt: time.Now().Add(-time.Hour)})
@@ -295,14 +291,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.InsertWorkspaceResourceParams{
 			ID:         r.ID,
 			Transition: database.WorkspaceTransitionStart,
-		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
-	}))
-	s.Run("InsertParameterSchema", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertParameterSchemaParams{
-			ID:                       uuid.New(),
-			DefaultSourceScheme:      database.ParameterSourceSchemeNone,
-			DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
-			ValidationTypeSystem:     database.ParameterTypeSystemNone,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
 }

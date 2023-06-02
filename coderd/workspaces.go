@@ -425,7 +425,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Reason(database.BuildReasonInitiator).
 			Initiator(apiKey.UserID).
 			ActiveVersion().
-			LegacyParameterValues(createWorkspace.ParameterValues).
 			RichParameterValues(createWorkspace.RichParameterValues)
 		workspaceBuild, provisionerJob, err = builder.Build(
 			ctx, db, func(action rbac.Action, object rbac.Objecter) bool {
