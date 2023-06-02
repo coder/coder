@@ -390,13 +390,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name        | In    | Type   | Required | Description                                 |
-| ----------- | ----- | ------ | -------- | ------------------------------------------- |
-| `owner`     | query | string | false    | Filter by owner username                    |
-| `template`  | query | string | false    | Filter by template name                     |
-| `name`      | query | string | false    | Filter with partial-match by workspace name |
-| `status`    | query | string | false    | Filter by workspace status                  |
-| `has_agent` | query | string | false    | Filter by agent status                      |
+| Name          | In    | Type   | Required | Description                                 |
+| ------------- | ----- | ------ | -------- | ------------------------------------------- |
+| `owner`       | query | string | false    | Filter by owner username                    |
+| `template`    | query | string | false    | Filter by template name                     |
+| `name`        | query | string | false    | Filter with partial-match by workspace name |
+| `status`      | query | string | false    | Filter by workspace status                  |
+| `has_agent`   | query | string | false    | Filter by agent status                      |
+| `deleting_by` | query | string | false    | Filter by DeletingAt time                   |
 
 #### Enumerated Values
 

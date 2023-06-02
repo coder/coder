@@ -149,24 +149,25 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       if (form.values.inactivity_cleanup_enabled) {
         setIsInactivityDialogOpen(true)
       } else {
+        actuallySubmit(formData)
         // on submit, convert from hours => ms
-        onSubmit({
-          default_ttl_ms: formData.default_ttl_ms
-            ? formData.default_ttl_ms * MS_HOUR_CONVERSION
-            : undefined,
-          max_ttl_ms: formData.max_ttl_ms
-            ? formData.max_ttl_ms * MS_HOUR_CONVERSION
-            : undefined,
-          failure_ttl_ms: formData.failure_ttl_ms
-            ? formData.failure_ttl_ms * MS_DAY_CONVERSION
-            : undefined,
-          inactivity_ttl_ms: formData.inactivity_ttl_ms
-            ? formData.inactivity_ttl_ms * MS_DAY_CONVERSION
-            : undefined,
+        // onSubmit({
+        //   default_ttl_ms: formData.default_ttl_ms
+        //     ? formData.default_ttl_ms * MS_HOUR_CONVERSION
+        //     : undefined,
+        //   max_ttl_ms: formData.max_ttl_ms
+        //     ? formData.max_ttl_ms * MS_HOUR_CONVERSION
+        //     : undefined,
+        //   failure_ttl_ms: formData.failure_ttl_ms
+        //     ? formData.failure_ttl_ms * MS_DAY_CONVERSION
+        //     : undefined,
+        //   inactivity_ttl_ms: formData.inactivity_ttl_ms
+        //     ? formData.inactivity_ttl_ms * MS_DAY_CONVERSION
+        //     : undefined,
 
-          allow_user_autostart: formData.allow_user_autostart,
-          allow_user_autostop: formData.allow_user_autostop,
-        })
+        //   allow_user_autostart: formData.allow_user_autostart,
+        //   allow_user_autostop: formData.allow_user_autostop,
+        // })
       }
     },
     initialTouched,
@@ -216,6 +217,27 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         inactivity_ttl_ms: 0,
       })
     }
+  }
+
+  const actuallySubmit = (formData: any) => {
+    // on submit, convert from hours => ms
+    onSubmit({
+      default_ttl_ms: formData.default_ttl_ms
+        ? formData.default_ttl_ms * MS_HOUR_CONVERSION
+        : undefined,
+      max_ttl_ms: formData.max_ttl_ms
+        ? formData.max_ttl_ms * MS_HOUR_CONVERSION
+        : undefined,
+      failure_ttl_ms: formData.failure_ttl_ms
+        ? formData.failure_ttl_ms * MS_DAY_CONVERSION
+        : undefined,
+      inactivity_ttl_ms: formData.inactivity_ttl_ms
+        ? formData.inactivity_ttl_ms * MS_DAY_CONVERSION
+        : undefined,
+
+      allow_user_autostart: formData.allow_user_autostart,
+      allow_user_autostop: formData.allow_user_autostop,
+    })
   }
 
   return (
@@ -400,7 +422,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       <ConfirmDialog
         type="delete"
         open={isInactivityDialogOpen}
-        onConfirm={form.handleSubmit}
+        onConfirm={() => actuallySubmit(form.values)}
         onClose={() => setIsInactivityDialogOpen(false)}
         title="Delete inactive workspaces"
         confirmText="Delete Workspaces"

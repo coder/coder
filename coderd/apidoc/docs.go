@@ -5408,6 +5408,12 @@ const docTemplate = `{
                         "description": "Filter by agent status",
                         "name": "has_agent",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by DeletingAt time",
+                        "name": "deleting_by",
+                        "in": "query"
                     }
                 ],
                 "responses": {
