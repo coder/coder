@@ -1,5 +1,4 @@
 name: Upload tests to datadog
-if: always()
 inputs:
   api-key:
     description: "Datadog API key"
@@ -9,7 +8,7 @@ runs:
   steps:
     - shell: bash
       run: |
-        owner=${{ github.repository_owner	 }}
+        owner=${{ github.repository_owner }}
         echo "owner: $owner"
         if [[  $owner != "coder" ]]; then
           echo "Not a pull request from the main repo, skipping..."
