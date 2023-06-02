@@ -141,7 +141,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.3
 	github.com/swaggo/http-swagger/v2 v2.0.1
-	github.com/swaggo/swag v1.8.6
+	github.com/swaggo/swag v1.16.1
 	github.com/tabbed/pqtype v0.1.1
 	github.com/u-root/u-root v0.11.0
 	github.com/unrolled/secure v1.13.0
