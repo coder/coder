@@ -21,8 +21,7 @@ import { Filter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
 import { workspaceFilterQuery } from "utils/filters"
 import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
-import Box from "@mui/material/Box"
-import Skeleton from "@mui/material/Skeleton"
+import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -146,26 +145,12 @@ export const WorkspacesPageView: FC<
         )}
       </Stack>
 
-      <Box
-        sx={{
-          fontSize: 13,
-          mb: 2,
-          mt: 1,
-          color: (theme) => theme.palette.text.secondary,
-          "& strong": { color: (theme) => theme.palette.text.primary },
-        }}
-      >
-        {workspaces ? (
-          <>
-            Showing <strong>{workspaces?.length}</strong> of{" "}
-            <strong>{count}</strong> workspaces
-          </>
-        ) : (
-          <Box sx={{ height: 24, display: "flex", alignItems: "center" }}>
-            <Skeleton variant="text" width={160} height={16} />
-          </Box>
-        )}
-      </Box>
+      <PaginationStatus
+        isLoading={!workspaces}
+        showing={workspaces?.length}
+        total={count}
+        label="workspaces"
+      />
 
       <WorkspacesTable
         workspaces={workspaces}
