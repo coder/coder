@@ -71,7 +71,7 @@ const MockedAppearance = {
   save: () => null,
 }
 
-const mockAutocomplete = {
+const mockMenu = {
   initialOption: undefined,
   isInitializing: false,
   isSearching: false,
@@ -93,10 +93,10 @@ const defaultFilterProps = {
       status: undefined,
     },
   },
-  autocomplete: {
-    users: mockAutocomplete,
-    templates: mockAutocomplete,
-    status: mockAutocomplete,
+  menus: {
+    user: mockMenu,
+    template: mockMenu,
+    status: mockMenu,
   },
 } as ComponentProps<typeof WorkspacesPageView>["filterProps"]
 

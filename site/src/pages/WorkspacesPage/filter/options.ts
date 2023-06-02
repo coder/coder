@@ -1,9 +1,6 @@
-export type BaseOption = {
-  label: string
-  value: string
-}
+import { BaseOption } from "components/Filter/options"
 
-export type OwnerOption = BaseOption & {
+export type UserOption = BaseOption & {
   avatarUrl?: string
 }
 

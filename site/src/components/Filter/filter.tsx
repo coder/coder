@@ -3,7 +3,7 @@ import Box from "@mui/material/Box"
 import TextField from "@mui/material/TextField"
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown"
 import Button, { ButtonProps } from "@mui/material/Button"
-import Menu from "@mui/material/Menu"
+import Menu, { MenuProps } from "@mui/material/Menu"
 import MenuItem from "@mui/material/MenuItem"
 import SearchOutlined from "@mui/icons-material/SearchOutlined"
 import InputAdornment from "@mui/material/InputAdornment"
@@ -21,18 +21,22 @@ import {
 import { useFilterMenu } from "./menu"
 import { BaseOption } from "./options"
 import debounce from "just-debounce-it"
+import MenuList from "@mui/material/MenuList"
+import { Loader } from "components/Loader/Loader"
 
 type FilterValues = Record<string, string | undefined>
 
 export const useFilter = ({
+  initialValue = "",
   onUpdate,
   searchParamsResult,
 }: {
+  initialValue?: string
   searchParamsResult: ReturnType<typeof useSearchParams>
   onUpdate?: () => void
 }) => {
   const [searchParams, setSearchParams] = searchParamsResult
-  const query = searchParams.get("filter") ?? ""
+  const query = searchParams.get("filter") ?? initialValue
   const values = parseFilterQuery(query)
 
   const update = (values: string | FilterValues) => {
@@ -257,6 +261,61 @@ export const FilterMenu = <TOption extends BaseOption>({
   )
 }
 
+export const FilterSearchMenu = <TOption extends BaseOption>({
+  id,
+  menu,
+  label,
+  children,
+}: {
+  menu: ReturnType<typeof useFilterMenu<TOption>>
+  label: ReactNode
+  id: string
+  children: (values: { option: TOption; isSelected: boolean }) => ReactNode
+}) => {
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  const handleClose = () => {
+    setIsMenuOpen(false)
+  }
+
+  return (
+    <div>
+      <MenuButton
+        ref={buttonRef}
+        onClick={() => setIsMenuOpen(true)}
+        sx={{ minWidth: 200 }}
+      >
+        {label}
+      </MenuButton>
+      <SearchMenu
+        id={id}
+        anchorEl={buttonRef.current}
+        open={isMenuOpen}
+        onClose={handleClose}
+        options={menu.searchOptions}
+        query={menu.query}
+        onQueryChange={menu.setQuery}
+        renderOption={(option) => (
+          <MenuItem
+            key={option.label}
+            selected={option.value === menu.selectedOption?.value}
+            onClick={() => {
+              menu.selectOption(option)
+              handleClose()
+            }}
+          >
+            {children({
+              option,
+              isSelected: option.value === menu.selectedOption?.value,
+            })}
+          </MenuItem>
+        )}
+      />
+    </div>
+  )
+}
+
 type OptionItemProps = {
   option: BaseOption
   left?: ReactNode
@@ -299,3 +358,122 @@ const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
     />
   )
 })
+
+function SearchMenu<TOption extends { label: string; value: string }>({
+  options,
+  renderOption,
+  query,
+  onQueryChange,
+  ...menuProps
+}: Pick<MenuProps, "anchorEl" | "open" | "onClose" | "id"> & {
+  options?: TOption[]
+  renderOption: (option: TOption) => ReactNode
+  query: string
+  onQueryChange: (query: string) => void
+}) {
+  const menuListRef = useRef<HTMLUListElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <Menu
+      {...menuProps}
+      onClose={(event, reason) => {
+        menuProps.onClose && menuProps.onClose(event, reason)
+        onQueryChange("")
+      }}
+      sx={{
+        "& .MuiPaper-root": {
+          width: 320,
+          paddingY: 0,
+        },
+      }}
+      // Disabled this so when we clear the filter and do some sorting in the
+      // search items it does not look strange. Github removes exit transitions
+      // on their filters as well.
+      transitionDuration={{
+        enter: 250,
+        exit: 0,
+      }}
+    >
+      <Box
+        component="li"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          paddingLeft: 2,
+          height: 40,
+          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+        }}
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === "ArrowDown" && menuListRef.current) {
+            const firstItem = menuListRef.current.firstChild as HTMLElement
+            firstItem.focus()
+          }
+        }}
+      >
+        <SearchOutlined
+          sx={{
+            fontSize: 14,
+            color: (theme) => theme.palette.text.secondary,
+          }}
+        />
+        <Box
+          tabIndex={-1}
+          component="input"
+          type="text"
+          placeholder="Search..."
+          autoFocus
+          value={query}
+          ref={searchInputRef}
+          onChange={(e) => {
+            onQueryChange(e.target.value)
+          }}
+          sx={{
+            height: "100%",
+            border: 0,
+            background: "none",
+            width: "100%",
+            marginLeft: 2,
+            outline: 0,
+            "&::placeholder": {
+              color: (theme) => theme.palette.text.secondary,
+            },
+          }}
+        />
+      </Box>
+
+      <Box component="li" sx={{ maxHeight: 480, overflowY: "auto" }}>
+        <MenuList
+          ref={menuListRef}
+          onKeyDown={(e) => {
+            if (e.shiftKey && e.code === "Tab") {
+              e.preventDefault()
+              e.stopPropagation()
+              searchInputRef.current?.focus()
+            }
+          }}
+        >
+          {options ? (
+            options.length > 0 ? (
+              options.map(renderOption)
+            ) : (
+              <Box
+                sx={{
+                  fontSize: 13,
+                  color: (theme) => theme.palette.text.secondary,
+                  textAlign: "center",
+                  py: 1,
+                }}
+              >
+                No results
+              </Box>
+            )
+          ) : (
+            <Loader size={14} />
+          )}
+        </MenuList>
+      </Box>
+    </Menu>
+  )
+}

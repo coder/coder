@@ -4,17 +4,18 @@ import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import { useWorkspacesData, useWorkspaceUpdate } from "./data"
 import { WorkspacesPageView } from "./WorkspacesPageView"
-import { useFilter } from "./filter/filter"
-import { useOrganizationId, usePermissions } from "hooks"
+import { useMe, useOrganizationId, usePermissions } from "hooks"
 import {
-  useUsersAutocomplete,
-  useTemplatesAutocomplete,
-  useStatusAutocomplete,
-} from "./filter/autocompletes"
+  useUserFilterMenu,
+  useTemplateFilterMenu,
+  useStatusFilterMenu,
+} from "./filter/menus"
 import { useSearchParams } from "react-router-dom"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { useFilter } from "components/Filter/filter"
 
 const WorkspacesPage: FC = () => {
+  const me = useMe()
   const orgId = useOrganizationId()
   // If we use a useSearchParams for each hook, the values will not be in sync.
   // So we have to use a single one, centralizing the values, and pass it to
@@ -22,6 +23,7 @@ const WorkspacesPage: FC = () => {
   const searchParamsResult = useSearchParams()
   const pagination = usePagination({ searchParamsResult })
   const filter = useFilter({
+    initialValue: `owner:${me.username}`,
     searchParamsResult,
     onUpdate: () => {
       pagination.goToPage(1)
@@ -34,20 +36,23 @@ const WorkspacesPage: FC = () => {
   const updateWorkspace = useWorkspaceUpdate(queryKey)
   const permissions = usePermissions()
   const canFilterByUser = permissions.viewDeploymentValues
-  const usersAutocomplete = useUsersAutocomplete(
-    filter.values.owner,
-    (option) => filter.update({ ...filter.values, owner: option?.value }),
-    canFilterByUser,
-  )
-  const templatesAutocomplete = useTemplatesAutocomplete(
+  const userMenu = useUserFilterMenu({
+    value: filter.values.owner,
+    onChange: (option) =>
+      filter.update({ ...filter.values, owner: option?.value }),
+    enabled: canFilterByUser,
+  })
+  const templateMenu = useTemplateFilterMenu({
     orgId,
-    filter.values.template,
-    (option) => filter.update({ ...filter.values, template: option?.value }),
-  )
-  const statusAutocomplete = useStatusAutocomplete(
-    filter.values.status,
-    (option) => filter.update({ ...filter.values, status: option?.value }),
-  )
+    value: filter.values.template,
+    onChange: (option) =>
+      filter.update({ ...filter.values, template: option?.value }),
+  })
+  const statusMenu = useStatusFilterMenu({
+    value: filter.values.status,
+    onChange: (option) =>
+      filter.update({ ...filter.values, status: option?.value }),
+  })
   const dashboard = useDashboard()
 
   return (
@@ -65,10 +70,10 @@ const WorkspacesPage: FC = () => {
         limit={pagination.limit}
         filterProps={{
           filter,
-          autocomplete: {
-            users: canFilterByUser ? usersAutocomplete : undefined,
-            templates: templatesAutocomplete,
-            status: statusAutocomplete,
+          menus: {
+            user: canFilterByUser ? userMenu : undefined,
+            template: templateMenu,
+            status: statusMenu,
           },
         }}
         onPageChange={pagination.goToPage}

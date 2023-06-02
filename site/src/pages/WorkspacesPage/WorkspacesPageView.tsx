@@ -17,7 +17,7 @@ import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
 import { ImpendingDeletionBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { Filter } from "./filter/filter"
+import { WorkspacesFilter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
 import { workspaceFilterQuery } from "utils/filters"
 import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
@@ -52,7 +52,7 @@ export interface WorkspacesPageViewProps {
   useNewFilter?: boolean
   page: number
   limit: number
-  filterProps: ComponentProps<typeof Filter>
+  filterProps: ComponentProps<typeof WorkspacesFilter>
   onPageChange: (page: number) => void
   onUpdateWorkspace: (workspace: Workspace) => void
 }
@@ -134,7 +134,7 @@ export const WorkspacesPageView: FC<
         />
 
         {useNewFilter ? (
-          <Filter error={error} {...filterProps} />
+          <WorkspacesFilter error={error} {...filterProps} />
         ) : (
           <SearchBarWithFilter
             filter={filterProps.filter.query}
