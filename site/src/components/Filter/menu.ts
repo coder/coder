@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react"
-import { BaseOption, StatusOption } from "./options"
+import { BaseOption } from "./options"
 import { useQuery } from "@tanstack/react-query"
 
-type UseAutocompleteOptions<TOption extends BaseOption> = {
+export type UseFilterMenuOptions<TOption extends BaseOption> = {
   id: string
   value: string | undefined
   // Using null because of react-query
@@ -13,14 +13,14 @@ type UseAutocompleteOptions<TOption extends BaseOption> = {
   enabled?: boolean
 }
 
-const useAutocomplete = <TOption extends BaseOption = BaseOption>({
+export const useFilterMenu = <TOption extends BaseOption = BaseOption>({
   id,
   value,
   getSelectedOption,
   getOptions,
   onChange,
   enabled,
-}: UseAutocompleteOptions<TOption>) => {
+}: UseFilterMenuOptions<TOption>) => {
   const selectedOptionsCacheRef = useRef<Record<string, TOption>>({})
   const [query, setQuery] = useState("")
   const selectedOptionQuery = useQuery({
@@ -101,23 +101,3 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
     isSearching: searchOptionsQuery.isFetching,
   }
 }
-
-export const useStatusAutocomplete = (
-  value: string | undefined,
-  onChange: (option: StatusOption | undefined) => void,
-) => {
-  const statusOptions: StatusOption[] = [
-    { value: "active", label: "Active", color: "success" },
-    { value: "suspended", label: "Suspended", color: "secondary" },
-  ]
-  return useAutocomplete({
-    onChange,
-    value,
-    id: "status",
-    getSelectedOption: async () =>
-      statusOptions.find((option) => option.value === value) ?? null,
-    getOptions: async () => statusOptions,
-  })
-}
-
-export type StatusAutocomplete = ReturnType<typeof useStatusAutocomplete>

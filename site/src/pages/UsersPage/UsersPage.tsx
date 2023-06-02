@@ -17,9 +17,9 @@ import { ConfirmDialog } from "../../components/Dialogs/ConfirmDialog/ConfirmDia
 import { ResetPasswordDialog } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
 import { pageTitle } from "../../utils/page"
 import { UsersPageView } from "./UsersPageView"
-import { useFilter } from "./filter/filter"
-import { useStatusAutocomplete } from "./filter/autocompletes"
+import { useStatusFilterMenu } from "./UsersFilter"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { useFilter } from "components/Filter/filter"
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -88,14 +88,14 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   useEffect(() => {
     usersSend({ type: "UPDATE_FILTER", query: useFilterResult.query })
   }, [useFilterResult.query, usersSend])
-  const statusAutocomplete = useStatusAutocomplete(
-    useFilterResult.values.status,
-    (option) =>
+  const statusMenu = useStatusFilterMenu({
+    value: useFilterResult.values.status,
+    onChange: (option) =>
       useFilterResult.update({
         ...useFilterResult.values,
         status: option?.value,
       }),
-  )
+  })
 
   return (
     <>
@@ -154,8 +154,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           dashboard.experiments.includes("workspace_filter")
             ? {
                 filter: useFilterResult,
-                autocomplete: {
-                  status: statusAutocomplete,
+                menus: {
+                  status: statusMenu,
                 },
               }
             : {

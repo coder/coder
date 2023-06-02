@@ -1,4 +1,4 @@
-import { FC, ReactNode, forwardRef, useEffect, useRef, useState } from "react"
+import { ReactNode, forwardRef, useEffect, useRef, useState } from "react"
 import Box from "@mui/material/Box"
 import TextField from "@mui/material/TextField"
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown"
@@ -7,7 +7,6 @@ import Menu from "@mui/material/Menu"
 import MenuItem from "@mui/material/MenuItem"
 import SearchOutlined from "@mui/icons-material/SearchOutlined"
 import InputAdornment from "@mui/material/InputAdornment"
-import { Palette, PaletteColor } from "@mui/material/styles"
 import IconButton from "@mui/material/IconButton"
 import Tooltip from "@mui/material/Tooltip"
 import CloseOutlined from "@mui/icons-material/CloseOutlined"
@@ -19,13 +18,11 @@ import {
   hasError,
   isApiValidationError,
 } from "api/errors"
-import { StatusAutocomplete } from "./autocompletes"
-import { StatusOption, BaseOption } from "./options"
+import { useFilterMenu } from "./menu"
+import { BaseOption } from "./options"
 import debounce from "just-debounce-it"
 
-export type FilterValues = {
-  status?: string
-}
+type FilterValues = Record<string, string | undefined>
 
 export const useFilter = ({
   onUpdate,
@@ -88,7 +85,7 @@ const stringifyFilter = (filterValue: FilterValues): string => {
   let result = ""
 
   for (const key in filterValue) {
-    const value = filterValue[key as keyof FilterValues]
+    const value = filterValue[key]
     if (value) {
       result += `${key}:${value} `
     }
@@ -97,7 +94,7 @@ const stringifyFilter = (filterValue: FilterValues): string => {
   return result.trim()
 }
 
-const FilterSkeleton = (props: SkeletonProps) => {
+const BaseSkeleton = (props: SkeletonProps) => {
   return (
     <Skeleton
       variant="rectangular"
@@ -112,94 +109,103 @@ const FilterSkeleton = (props: SkeletonProps) => {
   )
 }
 
+export const SearchFieldSkeleton = () => <BaseSkeleton width="100%" />
+export const MenuSkeleton = () => (
+  <BaseSkeleton width="200px" sx={{ flexShrink: 0 }} />
+)
+
 export const Filter = ({
   filter,
-  autocomplete,
+  isLoading,
   error,
+  skeleton,
+  options,
 }: {
   filter: ReturnType<typeof useFilter>
+  skeleton: ReactNode
+  isLoading: boolean
   error?: unknown
-  autocomplete: {
-    status: StatusAutocomplete
-  }
+  options?: ReactNode
 }) => {
   const shouldDisplayError = hasError(error) && isApiValidationError(error)
   const hasFilterQuery = filter.query !== ""
-  const isIinitializingFilters = autocomplete.status.isInitializing
   const [searchQuery, setSearchQuery] = useState(filter.query)
 
   useEffect(() => {
     setSearchQuery(filter.query)
   }, [filter.query])
 
-  if (isIinitializingFilters) {
-    return (
-      <Box display="flex" sx={{ gap: 1, mb: 2 }}>
-        <FilterSkeleton width="100%" />
-        <FilterSkeleton width="200px" sx={{ flexShrink: 0 }} />
-      </Box>
-    )
-  }
-
   return (
     <Box display="flex" sx={{ gap: 1, mb: 2 }}>
-      <TextField
-        fullWidth
-        error={shouldDisplayError}
-        helperText={
-          shouldDisplayError ? getValidationErrorMessage(error) : undefined
-        }
-        size="small"
-        InputProps={{
-          name: "query",
-          placeholder: "Search...",
-          value: searchQuery,
-          onChange: (e) => {
-            setSearchQuery(e.target.value)
-            filter.debounceUpdate(e.target.value)
-          },
-          sx: {
-            borderRadius: "6px",
-            "& input::placeholder": {
-              color: (theme) => theme.palette.text.secondary,
-            },
-          },
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchOutlined
-                sx={{
-                  fontSize: 14,
+      {isLoading ? (
+        skeleton
+      ) : (
+        <>
+          <TextField
+            fullWidth
+            error={shouldDisplayError}
+            helperText={
+              shouldDisplayError ? getValidationErrorMessage(error) : undefined
+            }
+            size="small"
+            InputProps={{
+              name: "query",
+              placeholder: "Search...",
+              value: searchQuery,
+              onChange: (e) => {
+                setSearchQuery(e.target.value)
+                filter.debounceUpdate(e.target.value)
+              },
+              sx: {
+                borderRadius: "6px",
+                "& input::placeholder": {
                   color: (theme) => theme.palette.text.secondary,
-                }}
-              />
-            </InputAdornment>
-          ),
-          endAdornment: hasFilterQuery && (
-            <InputAdornment position="end">
-              <Tooltip title="Clear filter">
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    filter.update("")
-                  }}
-                >
-                  <CloseOutlined sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-            </InputAdornment>
-          ),
-        }}
-      />
+                },
+              },
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchOutlined
+                    sx={{
+                      fontSize: 14,
+                      color: (theme) => theme.palette.text.secondary,
+                    }}
+                  />
+                </InputAdornment>
+              ),
+              endAdornment: hasFilterQuery && (
+                <InputAdornment position="end">
+                  <Tooltip title="Clear filter">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        filter.update("")
+                      }}
+                    >
+                      <CloseOutlined sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                </InputAdornment>
+              ),
+            }}
+          />
 
-      <StatusFilter autocomplete={autocomplete.status} />
+          {options}
+        </>
+      )}
     </Box>
   )
 }
 
-const StatusFilter = ({
-  autocomplete,
+export const FilterMenu = <TOption extends BaseOption>({
+  id,
+  menu,
+  label,
+  children,
 }: {
-  autocomplete: StatusAutocomplete
+  menu: ReturnType<typeof useFilterMenu<TOption>>
+  label: ReactNode
+  id: string
+  children: (values: { option: TOption; isSelected: boolean }) => ReactNode
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -215,14 +221,10 @@ const StatusFilter = ({
         onClick={() => setIsMenuOpen(true)}
         sx={{ width: 200 }}
       >
-        {autocomplete.selectedOption ? (
-          <StatusOptionItem option={autocomplete.selectedOption} />
-        ) : (
-          "All statuses"
-        )}
+        {label}
       </MenuButton>
       <Menu
-        id="status-filter-menu"
+        id={id}
         anchorEl={buttonRef.current}
         open={isMenuOpen}
         onClose={handleClose}
@@ -235,53 +237,23 @@ const StatusFilter = ({
           exit: 0,
         }}
       >
-        {autocomplete.searchOptions?.map((option) => (
+        {menu.searchOptions?.map((option) => (
           <MenuItem
             key={option.label}
-            selected={option.value === autocomplete.selectedOption?.value}
+            selected={option.value === menu.selectedOption?.value}
             onClick={() => {
-              autocomplete.selectOption(option)
+              menu.selectOption(option)
               handleClose()
             }}
           >
-            <StatusOptionItem
-              option={option}
-              isSelected={option.value === autocomplete.selectedOption?.value}
-            />
+            {children({
+              option,
+              isSelected: option.value === menu.selectedOption?.value,
+            })}
           </MenuItem>
         ))}
       </Menu>
     </div>
-  )
-}
-
-const StatusOptionItem = ({
-  option,
-  isSelected,
-}: {
-  option: StatusOption
-  isSelected?: boolean
-}) => {
-  return (
-    <OptionItem
-      option={option}
-      left={<StatusIndicator option={option} />}
-      isSelected={isSelected}
-    />
-  )
-}
-
-const StatusIndicator: FC<{ option: StatusOption }> = ({ option }) => {
-  return (
-    <Box
-      height={8}
-      width={8}
-      borderRadius={9999}
-      sx={{
-        backgroundColor: (theme) =>
-          (theme.palette[option.color as keyof Palette] as PaletteColor).light,
-      }}
-    />
   )
 }
 
@@ -291,7 +263,7 @@ type OptionItemProps = {
   isSelected?: boolean
 }
 
-const OptionItem = ({ option, left, isSelected }: OptionItemProps) => {
+export const OptionItem = ({ option, left, isSelected }: OptionItemProps) => {
   return (
     <Box
       display="flex"

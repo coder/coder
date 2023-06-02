@@ -5,7 +5,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 import { userFilterQuery } from "../../utils/filters"
-import { Filter } from "./filter/filter"
+import { UsersFilter } from "./UsersFilter"
 import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
 
 export const Language = {
@@ -31,7 +31,7 @@ export interface UsersPageViewProps {
   ) => void
   filterProps:
     | ComponentProps<typeof SearchBarWithFilter>
-    | ComponentProps<typeof Filter>
+    | ComponentProps<typeof UsersFilter>
   paginationRef: PaginationMachineRef
   isNonInitialPage: boolean
   actorID: string
@@ -70,7 +70,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
           error={error}
         />
       ) : (
-        <Filter {...filterProps} />
+        <UsersFilter {...filterProps} />
       )}
 
       <PaginationStatus
