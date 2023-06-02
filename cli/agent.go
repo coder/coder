@@ -68,6 +68,8 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				logWriter := &lumberjack.Logger{
 					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
+					// Without this, rotated logs will never be deleted.
+					MaxBackups: 1,
 				}
 				defer logWriter.Close()
 
@@ -146,6 +148,8 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ljLogger := &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
+				// Without this, rotated logs will never be deleted.
+				MaxBackups: 1,
 			}
 			defer ljLogger.Close()
 			logWriter := &closeWriter{w: ljLogger}
