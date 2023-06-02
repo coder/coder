@@ -88,6 +88,8 @@ Coder stores macOS and Linux logs at the following locations:
 | `shutdown_script` | `/tmp/coder-shutdown-script.log` |
 | Agent             | `/tmp/coder-agent.log`           |
 
+> Note: Logs are truncated once they reach 5MB in size.
+
 ---
 
 ## Up next
