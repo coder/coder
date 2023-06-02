@@ -25,4 +25,4 @@ By default, the Coder server runs on `http://127.0.0.1:3000` and uses a [public 
 ## Next steps
 
 - [Configuring Coder](../admin/configure.md)
-- [Templates](../templates/README.md)
+- [Templates](../templates/index.md)
