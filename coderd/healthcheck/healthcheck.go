@@ -11,11 +11,24 @@ import (
 	"tailscale.com/tailcfg"
 )
 
+const (
+	SectionDERP      string = "DERP"
+	SectionAccessURL string = "AccessURL"
+	SectionWebsocket string = "Websocket"
+)
+
+type Checker interface {
+	DERP(ctx context.Context, opts *DERPReportOptions) DERPReport
+	AccessURL(ctx context.Context, opts *AccessURLOptions) AccessURLReport
+	Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport
+}
+
 type Report struct {
 	// Time is the time the report was generated at.
 	Time time.Time `json:"time"`
 	// Healthy is true if the report returns no errors.
-	Healthy bool `json:"healthy"`
+	Healthy         bool     `json:"healthy"`
+	FailingSections []string `json:"failing_sections"`
 
 	DERP      DERPReport      `json:"derp"`
 	AccessURL AccessURLReport `json:"access_url"`
@@ -28,12 +41,36 @@ type ReportOptions struct {
 	AccessURL *url.URL
 	Client    *http.Client
 	APIKey    string
+
+	Checker Checker
 }
 
-func Run(ctx context.Context, opts *ReportOptions) (*Report, error) {
-	var report Report
+type defaultChecker struct{}
 
-	wg := &sync.WaitGroup{}
+func (defaultChecker) DERP(ctx context.Context, opts *DERPReportOptions) (report DERPReport) {
+	report.Run(ctx, opts)
+	return report
+}
+
+func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLOptions) (report AccessURLReport) {
+	report.Run(ctx, opts)
+	return report
+}
+
+func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) (report WebsocketReport) {
+	report.Run(ctx, opts)
+	return report
+}
+
+func Run(ctx context.Context, opts *ReportOptions) *Report {
+	var (
+		wg     sync.WaitGroup
+		report Report
+	)
+
+	if opts.Checker == nil {
+		opts.Checker = defaultChecker{}
+	}
 
 	wg.Add(1)
 	go func() {
@@ -44,7 +81,7 @@ func Run(ctx context.Context, opts *ReportOptions) (*Report, error) {
 			}
 		}()
 
-		report.DERP.Run(ctx, &DERPReportOptions{
+		report.DERP = opts.Checker.DERP(ctx, &DERPReportOptions{
 			DERPMap: opts.DERPMap,
 		})
 	}()
@@ -58,7 +95,7 @@ func Run(ctx context.Context, opts *ReportOptions) (*Report, error) {
 			}
 		}()
 
-		report.AccessURL.Run(ctx, &AccessURLOptions{
+		report.AccessURL = opts.Checker.AccessURL(ctx, &AccessURLOptions{
 			AccessURL: opts.AccessURL,
 			Client:    opts.Client,
 		})
@@ -72,7 +109,8 @@ func Run(ctx context.Context, opts *ReportOptions) (*Report, error) {
 				report.Websocket.Error = xerrors.Errorf("%v", err)
 			}
 		}()
-		report.Websocket.Run(ctx, &WebsocketReportOptions{
+
+		report.Websocket = opts.Checker.Websocket(ctx, &WebsocketReportOptions{
 			APIKey:    opts.APIKey,
 			AccessURL: opts.AccessURL,
 		})
@@ -80,8 +118,16 @@ func Run(ctx context.Context, opts *ReportOptions) (*Report, error) {
 
 	wg.Wait()
 	report.Time = time.Now()
-	report.Healthy = report.DERP.Healthy &&
-		report.AccessURL.Healthy &&
-		report.Websocket.Healthy
-	return &report, nil
+	if !report.DERP.Healthy {
+		report.FailingSections = append(report.FailingSections, SectionDERP)
+	}
+	if !report.AccessURL.Healthy {
+		report.FailingSections = append(report.FailingSections, SectionAccessURL)
+	}
+	if !report.Websocket.Healthy {
+		report.FailingSections = append(report.FailingSections, SectionWebsocket)
+	}
+
+	report.Healthy = len(report.FailingSections) == 0
+	return &report
 }

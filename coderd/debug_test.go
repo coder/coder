@@ -24,9 +24,9 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(_ context.Context, apiKey string) (*healthcheck.Report, error) {
+				HealthcheckFunc: func(_ context.Context, apiKey string) *healthcheck.Report {
 					assert.Equal(t, sessionToken, apiKey)
-					return &healthcheck.Report{}, nil
+					return &healthcheck.Report{}
 				},
 			})
 			_ = coderdtest.CreateFirstUser(t, client)
@@ -48,15 +48,15 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			client      = coderdtest.New(t, &coderdtest.Options{
 				HealthcheckTimeout: time.Microsecond,
-				HealthcheckFunc: func(context.Context, string) (*healthcheck.Report, error) {
+				HealthcheckFunc: func(context.Context, string) *healthcheck.Report {
 					t := time.NewTimer(time.Second)
 					defer t.Stop()
 
 					select {
 					case <-ctx.Done():
-						return nil, ctx.Err()
+						return &healthcheck.Report{}
 					case <-t.C:
-						return &healthcheck.Report{}, nil
+						return &healthcheck.Report{}
 					}
 				},
 			})
@@ -80,11 +80,11 @@ func TestDebugHealth(t *testing.T) {
 			client      = coderdtest.New(t, &coderdtest.Options{
 				HealthcheckRefresh: time.Hour,
 				HealthcheckTimeout: time.Hour,
-				HealthcheckFunc: func(context.Context, string) (*healthcheck.Report, error) {
+				HealthcheckFunc: func(context.Context, string) *healthcheck.Report {
 					calls++
 					return &healthcheck.Report{
 						Time: time.Now(),
-					}, nil
+					}
 				},
 			})
 			_ = coderdtest.CreateFirstUser(t, client)

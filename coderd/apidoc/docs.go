@@ -10440,6 +10440,12 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
+                "failing_sections": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "healthy": {
                     "description": "Healthy is true if the report returns no errors.",
                     "type": "boolean"
