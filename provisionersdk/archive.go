@@ -15,17 +15,15 @@ const (
 	TemplateArchiveLimit = 1 << 20
 )
 
-func dirHasExt(dir string, exts ...string) (bool, error) {
+func dirHasExt(dir string, ext string) (bool, error) {
 	dirEnts, err := os.ReadDir(dir)
 	if err != nil {
 		return false, err
 	}
 
 	for _, fi := range dirEnts {
-		for _, ext := range exts {
-			if strings.HasSuffix(fi.Name(), ext) {
-				return true, nil
-			}
+		if strings.HasSuffix(fi.Name(), ext) {
+			return true, nil
 		}
 	}
 
@@ -37,8 +35,8 @@ func Tar(w io.Writer, directory string, limit int64) error {
 	tarWriter := tar.NewWriter(w)
 	totalSize := int64(0)
 
-	tfExts := []string{".tf", ".tf.json"}
-	hasTf, err := dirHasExt(directory, tfExts...)
+	const tfExt = ".tf"
+	hasTf, err := dirHasExt(directory, tfExt)
 	if err != nil {
 		return err
 	}
@@ -52,7 +50,7 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		// useless.
 		return xerrors.Errorf(
 			"%s is not a valid template since it has no %s files",
-			absPath, tfExts,
+			absPath, tfExt,
 		)
 	}
 
