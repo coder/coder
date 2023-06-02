@@ -137,6 +137,7 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	// before ours.
 	waiter := StartWithWaiter(t, inv)
 	t.Cleanup(func() {
+		waiter.Cancel()
 		<-closeCh
 	})
 
@@ -163,9 +164,14 @@ func Run(t *testing.T, inv *clibase.Invocation) {
 type ErrorWaiter struct {
 	waitOnce    sync.Once
 	cachedError error
+	cancelFunc  context.CancelFunc
 
 	c <-chan error
 	t *testing.T
+}
+
+func (w *ErrorWaiter) Cancel() {
+	w.cancelFunc()
 }
 
 func (w *ErrorWaiter) Wait() error {
@@ -241,5 +247,5 @@ func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 		cleaningUp.Store(true)
 		<-doneCh
 	})
-	return &ErrorWaiter{c: errCh, t: t}
+	return &ErrorWaiter{c: errCh, t: t, cancelFunc: cancel}
 }

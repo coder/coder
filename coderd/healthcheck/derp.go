@@ -25,7 +25,6 @@ import (
 )
 
 type DERPReport struct {
-	mu      sync.Mutex
 	Healthy bool `json:"healthy"`
 
 	Regions map[int]*DERPRegionReport `json:"regions"`
@@ -78,6 +77,7 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 	r.Regions = map[int]*DERPRegionReport{}
 
 	wg := &sync.WaitGroup{}
+	mu := sync.Mutex{}
 
 	wg.Add(len(opts.DERPMap.Regions))
 	for _, region := range opts.DERPMap.Regions {
@@ -97,19 +97,19 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 
 			regionReport.Run(ctx)
 
-			r.mu.Lock()
+			mu.Lock()
 			r.Regions[region.RegionID] = &regionReport
 			if !regionReport.Healthy {
 				r.Healthy = false
 			}
-			r.mu.Unlock()
+			mu.Unlock()
 		}()
 	}
 
 	ncLogf := func(format string, args ...interface{}) {
-		r.mu.Lock()
+		mu.Lock()
 		r.NetcheckLogs = append(r.NetcheckLogs, fmt.Sprintf(format, args...))
-		r.mu.Unlock()
+		mu.Unlock()
 	}
 	nc := &netcheck.Client{
 		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil),

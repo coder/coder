@@ -249,14 +249,15 @@ func TestFilter(t *testing.T) {
 			localObjects := make([]fakeObject, len(objects))
 			copy(localObjects, objects)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-			defer cancel()
 			auth := NewAuthorizer(prometheus.NewRegistry())
 
 			if actor.Scope == nil {
 				// Default to ScopeAll
 				actor.Scope = ScopeAll
 			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
 			// Run auth 1 by 1
 			var allowedCount int

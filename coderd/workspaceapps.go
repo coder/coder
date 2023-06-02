@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/apikey"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
@@ -109,12 +110,13 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		exp = database.Now().Add(api.DeploymentValues.SessionDuration.Value())
 		lifetimeSeconds = int64(api.DeploymentValues.SessionDuration.Value().Seconds())
 	}
-	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
-		UserID:          apiKey.UserID,
-		LoginType:       database.LoginTypePassword,
-		ExpiresAt:       exp,
-		LifetimeSeconds: lifetimeSeconds,
-		Scope:           database.APIKeyScopeApplicationConnect,
+	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
+		UserID:           apiKey.UserID,
+		LoginType:        database.LoginTypePassword,
+		DeploymentValues: api.DeploymentValues,
+		ExpiresAt:        exp,
+		LifetimeSeconds:  lifetimeSeconds,
+		Scope:            database.APIKeyScopeApplicationConnect,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

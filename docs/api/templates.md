@@ -801,15 +801,16 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
       "amount": 0,
       "date": "2019-08-24T14:15:22Z"
     }
-  ]
+  ],
+  "tz_hour_offset": 0
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateDAUsResponse](schemas.md#codersdktemplatedausresponse) |
+| Status | Meaning                                                 | Description | Schema                                                   |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DAUsResponse](schemas.md#codersdkdausresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1680,6 +1681,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         "startup_script": "string",
         "startup_script_timeout_seconds": 0,
         "status": "connecting",
+        "subsystem": "envbox",
         "troubleshooting_url": "string",
         "updated_at": "2019-08-24T14:15:22Z",
         "version": "string"
@@ -1762,6 +1764,7 @@ Status Code **200**
 | `»» startup_script`                  | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_timeout_seconds`  | integer                                                                          | false    |              | »startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.                                    |
 | `»» status`                          | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
+| `»» subsystem`                       | [codersdk.AgentSubsystem](schemas.md#codersdkagentsubsystem)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» troubleshooting_url`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» updated_at`                      | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» version`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1803,6 +1806,7 @@ Status Code **200**
 | `status`               | `connected`        |
 | `status`               | `disconnected`     |
 | `status`               | `timeout`          |
+| `subsystem`            | `envbox`           |
 | `workspace_transition` | `start`            |
 | `workspace_transition` | `stop`             |
 | `workspace_transition` | `delete`           |
@@ -2109,6 +2113,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         "startup_script": "string",
         "startup_script_timeout_seconds": 0,
         "status": "connecting",
+        "subsystem": "envbox",
         "troubleshooting_url": "string",
         "updated_at": "2019-08-24T14:15:22Z",
         "version": "string"
@@ -2191,6 +2196,7 @@ Status Code **200**
 | `»» startup_script`                  | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_timeout_seconds`  | integer                                                                          | false    |              | »startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.                                    |
 | `»» status`                          | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
+| `»» subsystem`                       | [codersdk.AgentSubsystem](schemas.md#codersdkagentsubsystem)                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» troubleshooting_url`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» updated_at`                      | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» version`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -2232,6 +2238,7 @@ Status Code **200**
 | `status`               | `connected`        |
 | `status`               | `disconnected`     |
 | `status`               | `timeout`          |
+| `subsystem`            | `envbox`           |
 | `workspace_transition` | `start`            |
 | `workspace_transition` | `stop`             |
 | `workspace_transition` | `delete`           |

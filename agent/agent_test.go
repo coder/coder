@@ -27,6 +27,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
+	"github.com/prometheus/client_golang/prometheus"
+	promgo "github.com/prometheus/client_model/go"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1724,7 +1726,7 @@ func (c closeFunc) Close() error {
 	return c()
 }
 
-func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration) (
+func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(agent.Options) agent.Options) (
 	*codersdk.WorkspaceAgentConn,
 	*client,
 	<-chan *agentsdk.Stats,
@@ -1749,12 +1751,19 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		statsChan:   statsCh,
 		coordinator: coordinator,
 	}
-	closer := agent.New(agent.Options{
+
+	options := agent.Options{
 		Client:                 c,
 		Filesystem:             fs,
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
-	})
+	}
+
+	for _, opt := range opts {
+		options = opt(options)
+	}
+
+	closer := agent.New(options)
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
@@ -1978,4 +1987,111 @@ func tempDirUnixSocket(t *testing.T) string {
 	}
 
 	return t.TempDir()
+}
+
+func TestAgent_Metrics_SSH(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	registry := prometheus.NewRegistry()
+
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(o agent.Options) agent.Options {
+		o.PrometheusRegistry = registry
+		return o
+	})
+
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+	stdin, err := session.StdinPipe()
+	require.NoError(t, err)
+	err = session.Shell()
+	require.NoError(t, err)
+
+	expected := []agentsdk.AgentMetric{
+		{
+			Name:  "agent_reconnecting_pty_connections_total",
+			Type:  agentsdk.AgentMetricTypeCounter,
+			Value: 0,
+		},
+		{
+			Name:  "agent_sessions_total",
+			Type:  agentsdk.AgentMetricTypeCounter,
+			Value: 1,
+			Labels: []agentsdk.AgentMetricLabel{
+				{
+					Name:  "magic_type",
+					Value: "ssh",
+				},
+				{
+					Name:  "pty",
+					Value: "no",
+				},
+			},
+		},
+		{
+			Name:  "agent_ssh_server_failed_connections_total",
+			Type:  agentsdk.AgentMetricTypeCounter,
+			Value: 0,
+		},
+		{
+			Name:  "agent_ssh_server_sftp_connections_total",
+			Type:  agentsdk.AgentMetricTypeCounter,
+			Value: 0,
+		},
+		{
+			Name:  "agent_ssh_server_sftp_server_errors_total",
+			Type:  agentsdk.AgentMetricTypeCounter,
+			Value: 0,
+		},
+	}
+
+	var actual []*promgo.MetricFamily
+	assert.Eventually(t, func() bool {
+		actual, err = registry.Gather()
+		if err != nil {
+			return false
+		}
+
+		if len(expected) != len(actual) {
+			return false
+		}
+
+		return verifyCollectedMetrics(t, expected, actual)
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	require.Len(t, actual, len(expected))
+	collected := verifyCollectedMetrics(t, expected, actual)
+	require.True(t, collected, "expected metrics were not collected")
+
+	_ = stdin.Close()
+	err = session.Wait()
+	require.NoError(t, err)
+}
+
+func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actual []*promgo.MetricFamily) bool {
+	t.Helper()
+
+	for i, e := range expected {
+		assert.Equal(t, e.Name, actual[i].GetName())
+		assert.Equal(t, string(e.Type), strings.ToLower(actual[i].GetType().String()))
+
+		for _, m := range actual[i].GetMetric() {
+			assert.Equal(t, e.Value, m.Counter.GetValue())
+
+			if len(m.GetLabel()) > 0 {
+				for j, lbl := range m.GetLabel() {
+					assert.Equal(t, e.Labels[j].Name, lbl.GetName())
+					assert.Equal(t, e.Labels[j].Value, lbl.GetValue())
+				}
+			}
+			m.GetLabel()
+		}
+	}
+	return true
 }

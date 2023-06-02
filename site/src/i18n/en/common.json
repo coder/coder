@@ -8,8 +8,8 @@
     "stopped": "Stopped",
     "deleting": "Deleting",
     "deleted": "Deleted",
-    "canceling": "Canceling action",
-    "canceled": "Canceled action",
+    "canceling": "Canceling",
+    "canceled": "Canceled",
     "failed": "Failed",
     "pending": "Pending"
   },

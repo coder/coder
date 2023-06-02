@@ -26,6 +26,12 @@ const Template: Story<AppLinkProps> = (args) => (
       setProxy: () => {
         return
       },
+      clearProxy: () => {
+        return
+      },
+      refetchProxyLatencies: () => {
+        return
+      },
     }}
   >
     <AppLink {...args} />

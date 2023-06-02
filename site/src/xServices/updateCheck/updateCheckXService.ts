@@ -78,7 +78,8 @@ export const updateCheckMachine = createMachine(
   },
   {
     services: {
-      getUpdateCheck,
+      // For some reason, when passing values directly, jest.spy does not work.
+      getUpdateCheck: () => getUpdateCheck(),
     },
     actions: {
       assignUpdateCheck: assign({
@@ -101,7 +102,6 @@ export const updateCheckMachine = createMachine(
       shouldShowUpdateCheck: (_, { data }) => {
         const isNotDismissed = getDismissedVersionOnLocal() !== data.version
         const isOutdated = !data.current
-
         return isNotDismissed && isOutdated
       },
     },

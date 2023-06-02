@@ -5,6 +5,12 @@ import minMax from "dayjs/plugin/minMax"
 import utc from "dayjs/plugin/utc"
 import semver from "semver"
 import * as TypesGen from "../api/typesGenerated"
+import i18next from "i18next"
+import CircularProgress from "@mui/material/CircularProgress"
+import ErrorIcon from "@mui/icons-material/ErrorOutline"
+import StopIcon from "@mui/icons-material/StopOutlined"
+import PlayIcon from "@mui/icons-material/PlayArrowOutlined"
+import QueuedIcon from "@mui/icons-material/HourglassEmpty"
 
 dayjs.extend(duration)
 dayjs.extend(utc)
@@ -186,26 +192,80 @@ export const getDisplayWorkspaceTemplateName = (
     : workspace.template_name
 }
 
-// This const dictates how far out we alert the user that a workspace
-// has an impending deletion (due to template.InactivityTTL being set)
-const IMPENDING_DELETION_DISPLAY_THRESHOLD = 14 // 14 days
+export const getDisplayWorkspaceStatus = (
+  workspaceStatus: TypesGen.WorkspaceStatus,
+) => {
+  const { t } = i18next
 
-/**
- * Returns a boolean indicating if an impending deletion indicator should be
- * displayed in the UI. Impending deletions are configured by setting the
- * Template.InactivityTTL
- * @param {TypesGen.Workspace} workspace
- * @returns {boolean}
- */
-export const displayImpendingDeletion = (workspace: TypesGen.Workspace) => {
-  const today = new Date()
-  if (!workspace.deleting_at) {
-    return false
+  switch (workspaceStatus) {
+    case undefined:
+      return {
+        text: t("workspaceStatus.loading", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "running":
+      return {
+        type: "success",
+        text: t("workspaceStatus.running", { ns: "common" }),
+        icon: <PlayIcon />,
+      } as const
+    case "starting":
+      return {
+        type: "success",
+        text: t("workspaceStatus.starting", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "stopping":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.stopping", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "stopped":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.stopped", { ns: "common" }),
+        icon: <StopIcon />,
+      } as const
+    case "deleting":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.deleting", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "deleted":
+      return {
+        type: "error",
+        text: t("workspaceStatus.deleted", { ns: "common" }),
+        icon: <ErrorIcon />,
+      } as const
+    case "canceling":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.canceling", { ns: "common" }),
+        icon: <LoadingIcon />,
+      } as const
+    case "canceled":
+      return {
+        type: "warning",
+        text: t("workspaceStatus.canceled", { ns: "common" }),
+        icon: <ErrorIcon />,
+      } as const
+    case "failed":
+      return {
+        type: "error",
+        text: t("workspaceStatus.failed", { ns: "common" }),
+        icon: <ErrorIcon />,
+      } as const
+    case "pending":
+      return {
+        type: "info",
+        text: t("workspaceStatus.pending", { ns: "common" }),
+        icon: <QueuedIcon />,
+      } as const
   }
-  return (
-    new Date(workspace.deleting_at) <=
-    new Date(
-      today.setDate(today.getDate() + IMPENDING_DELETION_DISPLAY_THRESHOLD),
-    )
-  )
+}
+
+const LoadingIcon = () => {
+  return <CircularProgress size={10} style={{ color: "#FFF" }} />
 }

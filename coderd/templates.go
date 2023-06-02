@@ -203,6 +203,15 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 	templateVersionAudit.Old = templateVersion
+	if templateVersion.TemplateID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template version %s is already part of a template", createTemplate.VersionID),
+			Validations: []codersdk.ValidationError{
+				{Field: "template_version_id", Detail: "Template version is already part of a template"},
+			},
+		})
+		return
+	}
 
 	importJob, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -605,15 +614,27 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
-// @Success 200 {object} codersdk.TemplateDAUsResponse
+// @Success 200 {object} codersdk.DAUsResponse
 // @Router /templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	resp, _ := api.metricsCache.TemplateDAUs(template.ID)
+	vals := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	tzOffset := p.Int(vals, 0, "tz_offset")
+	p.ErrorExcessParams(vals)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	_, resp, _ := api.metricsCache.TemplateDAUs(template.ID, tzOffset)
 	if resp == nil || resp.Entries == nil {
-		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.TemplateDAUsResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DAUsResponse{
 			Entries: []codersdk.DAUEntry{},
 		})
 		return

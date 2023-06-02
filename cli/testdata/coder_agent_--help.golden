@@ -3,6 +3,15 @@ Usage: coder agent [flags]
 Starts the Coder workspace agent.
 
 [1mOptions[0m
+      --log-human string, $CODER_AGENT_LOGGING_HUMAN (default: /dev/stderr)
+          Output human-readable logs to a given file.
+
+      --log-json string, $CODER_AGENT_LOGGING_JSON
+          Output JSON logs to a given file.
+
+      --log-stackdriver string, $CODER_AGENT_LOGGING_STACKDRIVER
+          Output Stackdriver compatible logs to a given file.
+
       --auth string, $CODER_AGENT_AUTH (default: token)
           Specify the authentication type to use for the agent.
 

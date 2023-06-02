@@ -15,15 +15,17 @@ const (
 	TemplateArchiveLimit = 1 << 20
 )
 
-func dirHasExt(dir string, ext string) (bool, error) {
+func dirHasExt(dir string, exts ...string) (bool, error) {
 	dirEnts, err := os.ReadDir(dir)
 	if err != nil {
 		return false, err
 	}
 
 	for _, fi := range dirEnts {
-		if strings.HasSuffix(fi.Name(), ext) {
-			return true, nil
+		for _, ext := range exts {
+			if strings.HasSuffix(fi.Name(), ext) {
+				return true, nil
+			}
 		}
 	}
 
@@ -35,8 +37,8 @@ func Tar(w io.Writer, directory string, limit int64) error {
 	tarWriter := tar.NewWriter(w)
 	totalSize := int64(0)
 
-	const tfExt = ".tf"
-	hasTf, err := dirHasExt(directory, tfExt)
+	tfExts := []string{".tf", ".tf.json"}
+	hasTf, err := dirHasExt(directory, tfExts...)
 	if err != nil {
 		return err
 	}
@@ -50,7 +52,7 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		// useless.
 		return xerrors.Errorf(
 			"%s is not a valid template since it has no %s files",
-			absPath, tfExt,
+			absPath, tfExts,
 		)
 	}
 
@@ -73,7 +75,9 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		if err != nil {
 			return err
 		}
-		if strings.HasPrefix(rel, ".") || strings.HasPrefix(filepath.Base(rel), ".") {
+		// We want to allow .terraform.lock.hcl files to be archived. This
+		// allows provider plugins to be cached.
+		if (strings.HasPrefix(rel, ".") || strings.HasPrefix(filepath.Base(rel), ".")) && filepath.Base(rel) != ".terraform.lock.hcl" {
 			if fileInfo.IsDir() && rel != "." {
 				// Don't archive hidden files!
 				return filepath.SkipDir

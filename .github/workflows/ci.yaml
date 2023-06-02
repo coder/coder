@@ -6,7 +6,6 @@ on:
       - main
 
   pull_request:
-
   workflow_dispatch:
 
 permissions:
@@ -29,19 +28,16 @@ concurrency:
 
 jobs:
   lint:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      # Install Go!
-      - uses: actions/setup-go@v4
-        with:
-          go-version: "~1.20"
+      - uses: ./.github/actions/setup-go
 
       # Check for any typos!
       - name: Check for typos
-        uses: crate-ci/typos@v1.14.8
+        uses: crate-ci/typos@v1.14.11
         with:
           config: .github/workflows/typos.toml
       - name: Fix the typos
@@ -55,7 +51,7 @@ jobs:
       - name: Lint Go
         uses: golangci/golangci-lint-action@v3.3.1
         with:
-          version: v1.51.0
+          version: v1.52.2
 
       - name: Lint shell scripts
         uses: ludeeus/action-shellcheck@2.0.0
@@ -64,19 +60,7 @@ jobs:
         with:
           ignore: node_modules
 
-      # Lint our dashboard!
-      - name: Cache node_modules
-        id: cache-node
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
-      - name: Install node_modules
-        run: ./scripts/yarn_install.sh
+      - uses: ./.github/actions/setup-node
       - name: Lint TypeScript
         run: yarn lint
         working-directory: site
@@ -130,60 +114,28 @@ jobs:
 
   gen:
     timeout-minutes: 8
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.docs-only == 'false'
     steps:
       - uses: actions/checkout@v3
 
-      - name: Cache Node
-        id: cache-node
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
-
-      - name: Install node_modules
-        run: ./scripts/yarn_install.sh
-
-      - uses: actions/setup-go@v4
-        with:
-          cache: false
-          go-version: "~1.20"
-
-      - name: Echo Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
-          key: ${{ github.job }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
-          key: ${{ github.job }}-go-mod-${{ hashFiles('**/go.sum') }}
+      - uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/setup-go
 
       - name: Install sqlc
         run: |
           curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install protoc-gen-go
-        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
       - name: Install protoc-gen-go-drpc
-        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
+      - name: Install mockgen
+        run: go install github.com/golang/mock/mockgen@v1.6.0
 
       - name: Install Protoc
         run: |
@@ -214,19 +166,8 @@ jobs:
           fetch-depth: 0
           submodules: true
 
-      - name: Cache Node
-        id: cache-node
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
-
-      - name: Install node_modules
-        run: ./scripts/yarn_install.sh
+      - uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/setup-go
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
@@ -240,47 +181,23 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'buildjet-4vcpu-ubuntu-2204' ||  matrix.os == 'windows-2019' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
     timeout-minutes: 20
     strategy:
       matrix:
         os:
           - ubuntu-latest
           - macos-latest
-          - windows-2022
+          - windows-2019
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
-      - name: Echo Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "GOCACHE=$(go env GOCACHE)" >> ${{ runner.os == 'Windows' && '$env:' || '$' }}GITHUB_OUTPUT
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> ${{ runner.os == 'Windows' && '$env:' || '$' }}GITHUB_OUTPUT
-
-      - name: Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.**', '**.go') }}
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
-          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
-
-      - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.10.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          repo: gotestyourself/gotestsum
-          tag: v1.9.0
+      - uses: ./.github/actions/setup-go
 
       - uses: hashicorp/setup-terraform@v2
         with:
@@ -318,6 +235,11 @@ jobs:
           path: ./gotests.xml
           retention-days: 30
 
+      - uses: ./.github/actions/upload-datadog
+        if: always()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
+
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
@@ -330,8 +252,8 @@ jobs:
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
 
-  test-go-psql:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+  test-go-pg:
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -340,36 +262,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v4
-        with:
-          cache: false
-          go-version: "~1.20"
-
-      - name: Echo Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
-          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
-
-      - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.10.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          repo: gotestyourself/gotestsum
-          tag: v1.9.0
+      - uses: ./.github/actions/setup-go
 
       - uses: hashicorp/setup-terraform@v2
         with:
@@ -395,6 +288,11 @@ jobs:
           path: ./gotests.xml
           retention-days: 30
 
+      - uses: ./.github/actions/upload-datadog
+        if: always()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
+
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
@@ -407,9 +305,31 @@ jobs:
           files: ./gotests.coverage
           flags: unittest-go-postgres-linux
 
+  test-go-race:
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup-go
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.1.9
+          terraform_wrapper: false
+
+      - name: Run Tests
+        run: |
+          gotestsum --junitfile="gotests.xml" -- -race ./...
+
+      - uses: ./.github/actions/upload-datadog
+        if: always()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
+
   deploy:
     name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 30
     needs: changes
     if: |
@@ -432,39 +352,13 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - uses: actions/setup-go@v4
+      - uses: buildjet/setup-go@v4
         with:
           cache: false
-          go-version: "~1.20"
+          go-version: ${{ env.CODER_GO_VERSION }}
 
-      - name: Echo Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
-          key: ${{ runner.os }}-release-go-build-${{ hashFiles('**/go.sum') }}
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
-          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
-
-      - name: Cache Node
-        id: cache-node
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-release-node-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-node
 
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
@@ -528,28 +422,12 @@ jobs:
           retention-days: 7
 
   test-js:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
 
-      - name: Cache Node
-        id: cache-node
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: "16.16.0"
-
-      - name: Install node_modules
-        run: ./scripts/yarn_install.sh
+      - uses: ./.github/actions/setup-node
 
       - run: yarn test:ci --max-workers ${{ steps.cpu-cores.outputs.count }}
         working-directory: site
@@ -570,51 +448,22 @@ jobs:
     needs:
       - changes
     if: needs.changes.outputs.docs-only == 'false'
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
 
-      - name: Cache Node
-        id: cache-node
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
-
-      - uses: actions/setup-go@v4
-        with:
-          cache: false
-          go-version: "~1.20"
+      - uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/setup-go
 
       - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.1.9
           terraform_wrapper: false
 
-      - uses: actions/setup-node@v3
+      - uses: buildjet/setup-node@v3
         with:
           node-version: "16.16.0"
-
-      - name: Echo Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Go Build Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
-          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Build
         run: |
@@ -650,12 +499,7 @@ jobs:
           # only get 1 commit on shallow checkout.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: "16.16.0"
-
-      - name: Install dependencies
-        run: cd site && yarn
+      - uses: ./.github/actions/setup-node
 
       # This step is not meant for mainline because any detected changes to
       # storybook snapshots will require manual approval/review in order for

@@ -38,8 +38,14 @@ coder server
 via the dashboard or running [coder_apps](../templates/README.md#coder-apps) on an absolute path. Set this to a wildcard
 subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
-> If you are providing TLS certificates directly to the Coder server, you must use a single certificate for the
-> root and wildcard domains. Multi-certificate support [is planned](https://github.com/coder/coder/pull/4150).
+If you are providing TLS certificates directly to the Coder server, either
+
+1. Use a single certificate and key for both the root and wildcard domains.
+2. Configure multiple certificates and keys via
+   [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/values.yaml) in the Helm Chart, or
+   [`--tls-cert-file`](../cli/server#--tls-cert-file) and [`--tls-key-file`](../cli/server#--tls-key-file) command
+   line options (these both take a comma separated list of files; list certificates and their respective keys in the
+   same order).
 
 ## TLS & Reverse Proxy
 
@@ -64,6 +70,17 @@ the PostgreSQL interactive terminal), output the connection URL with the followi
 coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
+
+### Migrating from the built-in database to an external database
+
+To migrate from the built-in database to an external database, follow these steps:
+
+1. Stop your Coder deployment.
+2. Run `coder server postgres-builtin-serve` in a background terminal.
+3. Run `coder server postgres-builtin-url` and copy its output command.
+4. Run `pg_dump <built-in-connection-string> > coder.sql` to dump the internal database to a file.
+5. Restore that content to an external database with `psql <external-connection-string> < coder.sql`.
+6. Start your Coder deployment with `CODER_PG_CONNECTION_URL=<external-connection-string>`.
 
 ## System packages
 

@@ -30,6 +30,12 @@ Example.args = {
         setProxy: () => {
           return
         },
+        clearProxy: () => {
+          return
+        },
+        refetchProxyLatencies: () => {
+          return
+        },
       }}
     >
       <AgentRow
@@ -95,6 +101,12 @@ BunchOfMetadata.args = {
         isLoading: false,
         isFetched: true,
         setProxy: () => {
+          return
+        },
+        clearProxy: () => {
+          return
+        },
+        refetchProxyLatencies: () => {
           return
         },
       }}

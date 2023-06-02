@@ -232,18 +232,16 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
 }
 
-type DAUEntry struct {
-	Date   time.Time `json:"date" format:"date-time"`
-	Amount int       `json:"amount"`
+func (c *Client) TemplateDAUsLocalTZ(ctx context.Context, templateID uuid.UUID) (*DAUsResponse, error) {
+	return c.TemplateDAUs(ctx, templateID, TimezoneOffsetHour(time.Local))
 }
 
-// TemplateDAUsResponse contains statistics of daily active users of the template.
-type TemplateDAUsResponse struct {
-	Entries []DAUEntry `json:"entries"`
-}
-
-func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*TemplateDAUsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/daus", templateID), nil)
+// TemplateDAUs requires a tzOffset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local) for the
+// local timezone.
+func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID, tzOffset int) (*DAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/daus", templateID), nil, DAURequest{
+		TZHourOffset: tzOffset,
+	}.asRequestOption())
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
@@ -253,7 +251,7 @@ func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*Templ
 		return nil, ReadBodyAsError(res)
 	}
 
-	var resp TemplateDAUsResponse
+	var resp DAUsResponse
 	return &resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

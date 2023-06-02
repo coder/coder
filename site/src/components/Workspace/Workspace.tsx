@@ -1,6 +1,5 @@
 import Button from "@mui/material/Button"
 import { makeStyles } from "@mui/styles"
-import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -12,7 +11,7 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { AlertBanner } from "../AlertBanner/AlertBanner"
+import { Alert, AlertDetail } from "../Alert/Alert"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
 import { Resources } from "../Resources/Resources"
@@ -27,6 +26,11 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader"
 import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
+import { useLocalStorage } from "hooks"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
+import AlertTitle from "@mui/material/AlertTitle"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -104,10 +108,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const navigate = useNavigate()
   const serverVersion = buildInfo?.version || ""
   const { t } = useTranslation("workspacePage")
+  const { saveLocal, getLocal } = useLocalStorage()
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <AlertBanner
-      severity="error"
+    <ErrorAlert
       error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
       dismissible
     />
@@ -116,8 +120,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const cancellationError = Boolean(
     workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
   ) && (
-    <AlertBanner
-      severity="error"
+    <ErrorAlert
       error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
       dismissible
     />
@@ -184,42 +187,46 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           {buildError}
           {cancellationError}
 
-          <WorkspaceDeletedBanner
-            workspace={workspace}
-            handleClick={() => navigate(`/templates`)}
-          />
+          <ChooseOne>
+            <Cond condition={workspace.latest_build.status === "deleted"}>
+              <WorkspaceDeletedBanner
+                handleClick={() => navigate(`/templates`)}
+              />
+            </Cond>
+            <Cond>
+              {/* <ImpendingDeletionBanner/> determines its own visibility */}
+              <ImpendingDeletionBanner
+                workspace={workspace}
+                shouldRedisplayBanner={
+                  getLocal("dismissedWorkspace") !== workspace.id
+                }
+                onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
+              />
+            </Cond>
+          </ChooseOne>
 
           <TemplateVersionWarnings warnings={templateWarnings} />
 
           {failedBuildLogs && (
             <Stack>
-              <AlertBanner severity="error">
-                <Stack
-                  className={styles.fullWidth}
-                  direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                >
-                  <Stack spacing={0}>
-                    <span>Workspace build failed</span>
-                    <span className={styles.errorDetails}>
-                      {workspace.latest_build.job.error}
-                    </span>
-                  </Stack>
-
-                  {canUpdateTemplate && (
-                    <div>
-                      <Button
-                        onClick={handleBuildRetry}
-                        startIcon={<RefreshOutlined />}
-                        size="small"
-                      >
-                        {t("actionButton.retryDebugMode")}
-                      </Button>
-                    </div>
-                  )}
-                </Stack>
-              </AlertBanner>
+              <Alert
+                severity="error"
+                actions={
+                  canUpdateTemplate && (
+                    <Button
+                      key={0}
+                      onClick={handleBuildRetry}
+                      variant="text"
+                      size="small"
+                    >
+                      {t("actionButton.retryDebugMode")}
+                    </Button>
+                  )
+                }
+              >
+                <AlertTitle>Workspace build failed</AlertTitle>
+                <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
+              </Alert>
               <WorkspaceBuildLogs logs={failedBuildLogs} />
             </Stack>
           )}
@@ -251,8 +258,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           )}
 
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <AlertBanner
-              severity="error"
+            <ErrorAlert
               error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
             />
           ) : (

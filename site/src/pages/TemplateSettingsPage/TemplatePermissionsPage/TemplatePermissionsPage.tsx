@@ -43,7 +43,6 @@ export const TemplatePermissionsPage: FC<
                   rel="noreferrer"
                 >
                   <Button
-                    size="small"
                     startIcon={<ArrowRightAltOutlined />}
                     variant="contained"
                   >

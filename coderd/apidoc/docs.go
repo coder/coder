@@ -427,6 +427,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/ws": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Websocket Test",
+                "operationId": "debug-info-websocket-test",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/deployment/config": {
             "get": {
                 "security": [
@@ -747,7 +775,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.DeploymentDAUsResponse"
+                            "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
                 }
@@ -2124,7 +2152,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateDAUsResponse"
+                            "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
                 }
@@ -5770,6 +5798,12 @@ const docTemplate = `{
                 "value"
             ],
             "properties": {
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetricLabel"
+                    }
+                },
                 "name": {
                     "type": "string"
                 },
@@ -5786,6 +5820,21 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "number"
+                }
+            }
+        },
+        "agentsdk.AgentMetricLabel": {
+            "type": "object",
+            "required": [
+                "name",
+                "value"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -5965,6 +6014,9 @@ const docTemplate = `{
             "properties": {
                 "expanded_directory": {
                     "type": "string"
+                },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "version": {
                     "type": "string"
@@ -6405,6 +6457,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AgentSubsystem": {
+            "type": "string",
+            "enum": [
+                "envbox"
+            ],
+            "x-enum-varnames": [
+                "AgentSubsystemEnvbox"
+            ]
         },
         "codersdk.AppHostResponse": {
             "type": "object",
@@ -7032,7 +7093,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "organization_id",
                 "password",
                 "username"
             ],
@@ -7179,6 +7239,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DAUsResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DAUEntry"
+                    }
+                },
+                "tz_hour_offset": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.DERP": {
             "type": "object",
             "properties": {
@@ -7241,6 +7315,9 @@ const docTemplate = `{
         "codersdk.DangerousConfig": {
             "type": "object",
             "properties": {
+                "allow_all_cors": {
+                    "type": "boolean"
+                },
                 "allow_path_app_sharing": {
                     "type": "boolean"
                 },
@@ -7259,17 +7336,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/clibase.Option"
-                    }
-                }
-            }
-        },
-        "codersdk.DeploymentDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
                     }
                 }
             }
@@ -7516,11 +7582,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "moons",
-                "workspace_actions"
+                "workspace_actions",
+                "workspace_filter"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
-                "ExperimentWorkspaceActions"
+                "ExperimentWorkspaceActions",
+                "ExperimentWorkspaceFilter"
             ]
         },
         "codersdk.Feature": {
@@ -8048,6 +8116,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ParameterSourceScheme"
                         }
                     ]
+                },
+                "source_value": {
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string",
@@ -8883,17 +8954,6 @@ const docTemplate = `{
                 "$ref": "#/definitions/codersdk.TransitionStats"
             }
         },
-        "codersdk.TemplateDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
-                    }
-                }
-            }
-        },
         "codersdk.TemplateExample": {
             "type": "object",
             "properties": {
@@ -9627,6 +9687,9 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
                 },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
+                },
                 "troubleshooting_url": {
                     "type": "string"
                 },
@@ -10259,13 +10322,13 @@ const docTemplate = `{
                 "healthy": {
                     "type": "boolean"
                 },
-                "healthzResponse": {
+                "healthz_response": {
                     "type": "string"
                 },
                 "reachable": {
                     "type": "boolean"
                 },
-                "statusCode": {
+                "status_code": {
                     "type": "integer"
                 }
             }
@@ -10377,13 +10440,45 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
-                "pass": {
+                "failing_sections": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "healthy": {
                     "description": "Healthy is true if the report returns no errors.",
                     "type": "boolean"
                 },
                 "time": {
                     "description": "Time is the time the report was generated at.",
                     "type": "string"
+                },
+                "websocket": {
+                    "$ref": "#/definitions/healthcheck.WebsocketReport"
+                }
+            }
+        },
+        "healthcheck.WebsocketReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "response": {
+                    "$ref": "#/definitions/healthcheck.WebsocketResponse"
+                }
+            }
+        },
+        "healthcheck.WebsocketResponse": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "integer"
                 }
             }
         },

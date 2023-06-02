@@ -132,15 +132,20 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	}
 	logs := make(chan ProvisionerJobLog)
 	closed := make(chan struct{})
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
-	decoder := json.NewDecoder(wsNetConn)
 	go func() {
 		defer close(closed)
 		defer close(logs)
 		defer conn.Close(websocket.StatusGoingAway, "")
 		var log ProvisionerJobLog
 		for {
-			err = decoder.Decode(&log)
+			msgType, msg, err := conn.Read(ctx)
+			if err != nil {
+				return
+			}
+			if msgType != websocket.MessageText {
+				return
+			}
+			err = json.Unmarshal(msg, &log)
 			if err != nil {
 				return
 			}
@@ -152,7 +157,6 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		}
 	}()
 	return logs, closeFunc(func() error {
-		_ = wsNetConn.Close()
 		<-closed
 		return nil
 	}), nil

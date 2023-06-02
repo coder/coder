@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gliderlabs/ssh"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +34,7 @@ func TestServer_X11(t *testing.T) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	fs := afero.NewOsFs()
 	dir := t.TempDir()
-	s, err := agentssh.NewServer(ctx, logger, fs, 0, dir)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), fs, 0, dir)
 	require.NoError(t, err)
 	defer s.Close()
 

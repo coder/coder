@@ -27,6 +27,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/coderd/apikey"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
@@ -62,6 +63,7 @@ type Server struct {
 	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
 	Auditor               *atomic.Pointer[audit.Auditor]
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	DeploymentValues      *codersdk.DeploymentValues
 
 	AcquireJobDebounce time.Duration
 	OIDCConfig         httpmw.OAuth2Config
@@ -193,6 +195,20 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			}
 		}
 
+		var sessionToken string
+		switch workspaceBuild.Transition {
+		case database.WorkspaceTransitionStart:
+			sessionToken, err = server.regenerateSessionToken(ctx, owner, workspace)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("regenerate session token: %s", err))
+			}
+		case database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete:
+			err = deleteSessionToken(ctx, server.Database, workspace)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("delete session token: %s", err))
+			}
+		}
+
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: templateVersion.JobID,
@@ -286,6 +302,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 					WorkspaceOwnerId:              owner.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
+					WorkspaceOwnerSessionToken:    sessionToken,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -520,13 +537,13 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		// everything from that point.
 		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
-		data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{
+		data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{
 			CreatedAfter: lowestID - 1,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal: %w", err)
 		}
-		err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(parsedID), data)
+		err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(parsedID), data)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("publish job log: %w", err)
@@ -829,11 +846,11 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		}
 	}
 
-	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
+	data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal job log: %w", err)
 	}
-	err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(jobID), data)
+	err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
 		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
@@ -902,6 +919,21 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return nil, xerrors.Errorf("marshal parameter options: %w", err)
 			}
+
+			var validationMin, validationMax sql.NullInt32
+			if richParameter.ValidationMin != nil {
+				validationMin = sql.NullInt32{
+					Int32: *richParameter.ValidationMin,
+					Valid: true,
+				}
+			}
+			if richParameter.ValidationMax != nil {
+				validationMax = sql.NullInt32{
+					Int32: *richParameter.ValidationMax,
+					Valid: true,
+				}
+			}
+
 			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
 				TemplateVersionID:   input.TemplateVersionID,
 				Name:                richParameter.Name,
@@ -914,8 +946,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				Options:             options,
 				ValidationRegex:     richParameter.ValidationRegex,
 				ValidationError:     richParameter.ValidationError,
-				ValidationMin:       richParameter.ValidationMin,
-				ValidationMax:       richParameter.ValidationMax,
+				ValidationMin:       validationMin,
+				ValidationMax:       validationMax,
 				ValidationMonotonic: richParameter.ValidationMonotonic,
 				Required:            richParameter.Required,
 				LegacyVariableName:  richParameter.LegacyVariableName,
@@ -1204,11 +1236,11 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			reflect.TypeOf(completed.Type).String())
 	}
 
-	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
+	data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal job log: %w", err)
 	}
-	err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(jobID), data)
+	err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
 		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
@@ -1405,6 +1437,64 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	_, err = db.InsertWorkspaceResourceMetadata(ctx, arg)
 	if err != nil {
 		return xerrors.Errorf("insert workspace resource metadata: %w", err)
+	}
+
+	return nil
+}
+
+func workspaceSessionTokenName(workspace database.Workspace) string {
+	return fmt.Sprintf("%s_%s_session_token", workspace.OwnerID, workspace.ID)
+}
+
+func (server *Server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {
+	newkey, sessionToken, err := apikey.Generate(apikey.CreateParams{
+		UserID:           user.ID,
+		LoginType:        user.LoginType,
+		DeploymentValues: server.DeploymentValues,
+		TokenName:        workspaceSessionTokenName(workspace),
+		LifetimeSeconds:  int64(server.DeploymentValues.MaxTokenLifetime.Value().Seconds()),
+	})
+	if err != nil {
+		return "", xerrors.Errorf("generate API key: %w", err)
+	}
+
+	err = server.Database.InTx(func(tx database.Store) error {
+		err := deleteSessionToken(ctx, tx, workspace)
+		if err != nil {
+			return xerrors.Errorf("delete session token: %w", err)
+		}
+
+		_, err = tx.InsertAPIKey(ctx, newkey)
+		if err != nil {
+			return xerrors.Errorf("insert API key: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return "", xerrors.Errorf("create API key: %w", err)
+	}
+
+	return sessionToken, nil
+}
+
+func deleteSessionToken(ctx context.Context, db database.Store, workspace database.Workspace) error {
+	err := db.InTx(func(tx database.Store) error {
+		key, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+			UserID:    workspace.OwnerID,
+			TokenName: workspaceSessionTokenName(workspace),
+		})
+		if err == nil {
+			err = tx.DeleteAPIKeyByID(ctx, key.ID)
+		}
+
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get api key by name: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		return xerrors.Errorf("in tx: %w", err)
 	}
 
 	return nil
@@ -1612,19 +1702,6 @@ type TemplateVersionDryRunJob struct {
 	WorkspaceName       string                             `json:"workspace_name"`
 	ParameterValues     []database.ParameterValue          `json:"parameter_values"`
 	RichParameterValues []database.WorkspaceBuildParameter `json:"rich_parameter_values"`
-}
-
-// ProvisionerJobLogsNotifyMessage is the payload published on
-// the provisioner job logs notify channel.
-type ProvisionerJobLogsNotifyMessage struct {
-	CreatedAfter int64 `json:"created_after"`
-	EndOfLogs    bool  `json:"end_of_logs,omitempty"`
-}
-
-// ProvisionerJobLogsNotifyChannel is the PostgreSQL NOTIFY channel
-// to publish updates to job logs on.
-func ProvisionerJobLogsNotifyChannel(jobID uuid.UUID) string {
-	return fmt.Sprintf("provisioner-log-logs:%s", jobID)
 }
 
 func asVariableValues(templateVariables []database.TemplateVersionVariable) []*sdkproto.VariableValue {

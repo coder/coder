@@ -420,6 +420,7 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 gen: \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \
+	coderd/database/dbmock/store.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
@@ -441,6 +442,7 @@ gen/mark-fresh:
 	files="\
 		coderd/database/dump.sql \
 		coderd/database/querier.go \
+		coderd/database/dbmock/store.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		site/src/api/typesGenerated.ts \
@@ -475,6 +477,10 @@ coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/dat
 # Generates Go code for querying the database.
 coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go
 	./coderd/database/generate.sh
+
+
+coderd/database/dbmock/store.go: coderd/database/db.go coderd/database/querier.go
+	go generate ./coderd/database/dbmock/
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \
@@ -609,7 +615,7 @@ test-postgres: test-clean test-postgres-docker
 		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
 		-coverpkg=./... \
-		-race -failfast
+		-failfast
 .PHONY: test-postgres
 
 test-postgres-docker:

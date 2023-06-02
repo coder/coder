@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,6 +33,15 @@ func TestTar(t *testing.T) {
 		err = provisionersdk.Tar(io.Discard, dir, 1024)
 		require.NoError(t, err)
 	})
+	t.Run("ValidJSON", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		file, err := os.CreateTemp(dir, "*.tf.json")
+		require.NoError(t, err)
+		_ = file.Close()
+		err = provisionersdk.Tar(io.Discard, dir, 1024)
+		require.NoError(t, err)
+	})
 	t.Run("HiddenFiles", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
@@ -39,25 +49,39 @@ func TestTar(t *testing.T) {
 			Name     string
 			Archives bool
 		}
-		files := []*file{{
-			Name:     "*.tf",
-			Archives: true,
-		}, {
-			Name:     ".*",
-			Archives: false,
-		}, {
-			Name:     "./testing/.test/*.tf",
-			Archives: false,
-		}, {
-			Name:     "./testing/asd.*",
-			Archives: true,
-		}, {
-			Name:     ".terraform/.*",
-			Archives: false,
-		}, {
-			Name:     "example/.terraform/*",
-			Archives: false,
-		}}
+		files := []*file{
+			{
+				Name:     "*.tf",
+				Archives: true,
+			}, {
+				Name:     ".*",
+				Archives: false,
+			}, {
+				Name:     "./testing/.test/*.tf",
+				Archives: false,
+			}, {
+				Name:     "./testing/asd.*",
+				Archives: true,
+			}, {
+				Name:     ".terraform/.*",
+				Archives: false,
+			}, {
+				Name:     "example/.terraform/*",
+				Archives: false,
+			}, {
+				Name:     ".terraform.lock.hcl",
+				Archives: true,
+			}, {
+				Name:     "example/.terraform.lock.hcl",
+				Archives: true,
+			}, {
+				Name:     ".terraform/.terraform.lock.hcl",
+				Archives: false,
+			}, {
+				Name:     "terraform.tfstate",
+				Archives: false,
+			},
+		}
 		for _, file := range files {
 			newDir := dir
 			file.Name = filepath.FromSlash(file.Name)
@@ -67,11 +91,19 @@ func TestTar(t *testing.T) {
 				require.NoError(t, err)
 				file.Name = filepath.Base(file.Name)
 			}
-			tmpFile, err := os.CreateTemp(newDir, file.Name)
-			require.NoError(t, err)
-			_ = tmpFile.Close()
-			file.Name, err = filepath.Rel(dir, tmpFile.Name())
-			require.NoError(t, err)
+			if strings.Contains(file.Name, "*") {
+				tmpFile, err := os.CreateTemp(newDir, file.Name)
+				require.NoError(t, err)
+				_ = tmpFile.Close()
+				file.Name, err = filepath.Rel(dir, tmpFile.Name())
+				require.NoError(t, err)
+			} else {
+				name := filepath.Join(newDir, file.Name)
+				err := os.WriteFile(name, []byte{}, 0o600)
+				require.NoError(t, err)
+				file.Name, err = filepath.Rel(dir, name)
+				require.NoError(t, err)
+			}
 		}
 		archive := new(bytes.Buffer)
 		err := provisionersdk.Tar(archive, dir, 1024)

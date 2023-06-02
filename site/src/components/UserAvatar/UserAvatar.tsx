@@ -1,21 +1,19 @@
-import { Avatar } from "components/Avatar/Avatar"
+import { Avatar, AvatarProps } from "components/Avatar/Avatar"
 import { FC } from "react"
 
-export interface UserAvatarProps {
+export type UserAvatarProps = {
   username: string
   avatarURL?: string
-  // It is needed to work with the AvatarGroup so it can pass the
-  // MuiAvatarGroup-avatar className
-  className?: string
-}
+} & AvatarProps
 
 export const UserAvatar: FC<UserAvatarProps> = ({
   username,
   avatarURL,
-  className,
+
+  ...avatarProps
 }) => {
   return (
-    <Avatar title={username} src={avatarURL} className={className}>
+    <Avatar title={username} src={avatarURL} {...avatarProps}>
       {username}
     </Avatar>
   )

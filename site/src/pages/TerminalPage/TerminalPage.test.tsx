@@ -46,7 +46,7 @@ const renderTerminal = () => {
             value={{
               proxyLatencies: MockProxyLatencies,
               proxy: {
-                selectedProxy: MockPrimaryWorkspaceProxy,
+                proxy: MockPrimaryWorkspaceProxy,
                 preferredPathAppURL: "",
                 preferredWildcardHostname: "",
               },
@@ -54,6 +54,8 @@ const renderTerminal = () => {
               isFetched: true,
               isLoading: false,
               setProxy: jest.fn(),
+              clearProxy: jest.fn(),
+              refetchProxyLatencies: jest.fn(),
             }}
           >
             <TerminalPage renderer="dom" />

@@ -156,11 +156,27 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var organizationID uuid.UUID
+	//nolint:gocritic
+	organizations, err := api.Database.GetOrganizations(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		_ = handlerutil.WriteError(rw, err)
+		return
+	}
+
+	if len(organizations) > 0 {
+		// Add the user to the first organization. Once multi-organization
+		// support is added, we should enable a configuration map of user
+		// email to organization.
+		organizationID = organizations[0].ID
+	}
+
 	//nolint:gocritic // needed for SCIM
 	user, _, err := api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
-			Username: sUser.UserName,
-			Email:    email,
+			Username:       sUser.UserName,
+			Email:          email,
+			OrganizationID: organizationID,
 		},
 		LoginType: database.LoginTypeOIDC,
 	})

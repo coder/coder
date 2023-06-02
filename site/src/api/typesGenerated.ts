@@ -141,7 +141,6 @@ export interface BuildInfoResponse {
 
 // From codersdk/parameters.go
 export interface ComputedParameter extends Parameter {
-  readonly source_value: string
   readonly schema_id: string
   readonly default_source_value: boolean
 }
@@ -274,10 +273,21 @@ export interface CreateWorkspaceRequest {
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
 }
 
-// From codersdk/templates.go
+// From codersdk/deployment.go
 export interface DAUEntry {
   readonly date: string
   readonly amount: number
+}
+
+// From codersdk/deployment.go
+export interface DAURequest {
+  readonly TZHourOffset: number
+}
+
+// From codersdk/deployment.go
+export interface DAUsResponse {
+  readonly entries: DAUEntry[]
+  readonly tz_hour_offset: number
 }
 
 // From codersdk/deployment.go
@@ -313,11 +323,7 @@ export interface DERPServerConfig {
 export interface DangerousConfig {
   readonly allow_path_app_sharing: boolean
   readonly allow_path_app_site_owner_access: boolean
-}
-
-// From codersdk/deployment.go
-export interface DeploymentDAUsResponse {
-  readonly entries: DAUEntry[]
+  readonly allow_all_cors: boolean
 }
 
 // From codersdk/deployment.go
@@ -589,6 +595,7 @@ export interface Parameter {
   readonly destination_scheme: ParameterDestinationScheme
   readonly created_at: string
   readonly updated_at: string
+  readonly source_value: string
 }
 
 // From codersdk/parameters.go
@@ -861,11 +868,6 @@ export type TemplateBuildTimeStats = Record<
   WorkspaceTransition,
   TransitionStats
 >
-
-// From codersdk/templates.go
-export interface TemplateDAUsResponse {
-  readonly entries: DAUEntry[]
-}
 
 // From codersdk/templates.go
 export interface TemplateExample {
@@ -1147,6 +1149,7 @@ export interface WorkspaceAgent {
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
+  readonly subsystem: AgentSubsystem
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1341,6 +1344,10 @@ export interface WorkspacesResponse {
 export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
+// From codersdk/workspaceagents.go
+export type AgentSubsystem = "envbox"
+export const AgentSubsystems: AgentSubsystem[] = ["envbox"]
+
 // From codersdk/audit.go
 export type AuditAction =
   | "create"
@@ -1379,8 +1386,12 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons" | "workspace_actions"
-export const Experiments: Experiment[] = ["moons", "workspace_actions"]
+export type Experiment = "moons" | "workspace_actions" | "workspace_filter"
+export const Experiments: Experiment[] = [
+  "moons",
+  "workspace_actions",
+  "workspace_filter",
+]
 
 // From codersdk/deployment.go
 export type FeatureName =

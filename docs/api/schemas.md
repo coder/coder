@@ -20,6 +20,12 @@
 
 ```json
 {
+  "labels": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "name": "string",
   "type": "counter",
   "value": 0
@@ -28,11 +34,12 @@
 
 ### Properties
 
-| Name    | Type                                                 | Required | Restrictions | Description |
-| ------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
-| `name`  | string                                               | true     |              |             |
-| `type`  | [agentsdk.AgentMetricType](#agentsdkagentmetrictype) | true     |              |             |
-| `value` | number                                               | true     |              |             |
+| Name     | Type                                                            | Required | Restrictions | Description |
+| -------- | --------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `labels` | array of [agentsdk.AgentMetricLabel](#agentsdkagentmetriclabel) | false    |              |             |
+| `name`   | string                                                          | true     |              |             |
+| `type`   | [agentsdk.AgentMetricType](#agentsdkagentmetrictype)            | true     |              |             |
+| `value`  | number                                                          | true     |              |             |
 
 #### Enumerated Values
 
@@ -40,6 +47,22 @@
 | -------- | --------- |
 | `type`   | `counter` |
 | `type`   | `gauge`   |
+
+## agentsdk.AgentMetricLabel
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `name`  | string | true     |              |             |
+| `value` | string | true     |              |             |
 
 ## agentsdk.AgentMetricType
 
@@ -327,16 +350,18 @@
 ```json
 {
   "expanded_directory": "string",
+  "subsystem": "envbox",
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name                 | Type   | Required | Restrictions | Description |
-| -------------------- | ------ | -------- | ------------ | ----------- |
-| `expanded_directory` | string | false    |              |             |
-| `version`            | string | false    |              |             |
+| Name                 | Type                                               | Required | Restrictions | Description |
+| -------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `expanded_directory` | string                                             | false    |              |             |
+| `subsystem`          | [codersdk.AgentSubsystem](#codersdkagentsubsystem) | false    |              |             |
+| `version`            | string                                             | false    |              |             |
 
 ## agentsdk.StartupLog
 
@@ -368,6 +393,12 @@
   },
   "metrics": [
     {
+      "labels": [
+        {
+          "name": "string",
+          "value": "string"
+        }
+      ],
       "name": "string",
       "type": "counter",
       "value": 0
@@ -782,6 +813,20 @@
 | Name      | Type   | Required | Restrictions | Description |
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
+
+## codersdk.AgentSubsystem
+
+```json
+"envbox"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value    |
+| -------- |
+| `envbox` |
 
 ## codersdk.AppHostResponse
 
@@ -1548,7 +1593,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name              | Type   | Required | Restrictions | Description |
 | ----------------- | ------ | -------- | ------------ | ----------- |
 | `email`           | string | true     |              |             |
-| `organization_id` | string | true     |              |             |
+| `organization_id` | string | false    |              |             |
 | `password`        | string | true     |              |             |
 | `username`        | string | true     |              |             |
 
@@ -1674,6 +1719,27 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `amount` | integer | false    |              |             |
 | `date`   | string  | false    |              |             |
 
+## codersdk.DAUsResponse
+
+```json
+{
+  "entries": [
+    {
+      "amount": 0,
+      "date": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "tz_hour_offset": 0
+}
+```
+
+### Properties
+
+| Name             | Type                                            | Required | Restrictions | Description |
+| ---------------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `entries`        | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
+| `tz_hour_offset` | integer                                         | false    |              |             |
+
 ## codersdk.DERP
 
 ```json
@@ -1784,6 +1850,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
+  "allow_all_cors": true,
   "allow_path_app_sharing": true,
   "allow_path_app_site_owner_access": true
 }
@@ -1793,6 +1860,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 | Name                               | Type    | Required | Restrictions | Description |
 | ---------------------------------- | ------- | -------- | ------------ | ----------- |
+| `allow_all_cors`                   | boolean | false    |              |             |
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
@@ -1841,6 +1909,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "sshconfigOptions": ["string"]
     },
     "dangerous": {
+      "allow_all_cors": true,
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
     },
@@ -2083,25 +2152,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `config`  | [codersdk.DeploymentValues](#codersdkdeploymentvalues) | false    |              |             |
 | `options` | array of [clibase.Option](#clibaseoption)              | false    |              |             |
 
-## codersdk.DeploymentDAUsResponse
-
-```json
-{
-  "entries": [
-    {
-      "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                            | Required | Restrictions | Description |
-| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
-
 ## codersdk.DeploymentStats
 
 ```json
@@ -2185,6 +2235,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "sshconfigOptions": ["string"]
   },
   "dangerous": {
+    "allow_all_cors": true,
     "allow_path_app_sharing": true,
     "allow_path_app_site_owner_access": true
   },
@@ -2510,6 +2561,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ------------------- |
 | `moons`             |
 | `workspace_actions` |
+| `workspace_filter`  |
 
 ## codersdk.Feature
 
@@ -3063,6 +3115,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "scope": "template",
   "scope_id": "5d3fe357-12dd-4f62-b004-6d1fb3b8454f",
   "source_scheme": "none",
+  "source_value": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
@@ -3080,6 +3133,7 @@ Parameter represents a set value for the scope.
 | `scope`              | [codersdk.ParameterScope](#codersdkparameterscope)                         | false    |              |             |
 | `scope_id`           | string                                                                     | false    |              |             |
 | `source_scheme`      | [codersdk.ParameterSourceScheme](#codersdkparametersourcescheme)           | false    |              |             |
+| `source_value`       | string                                                                     | false    |              |             |
 | `updated_at`         | string                                                                     | false    |              |             |
 
 #### Enumerated Values
@@ -3957,25 +4011,6 @@ Parameter represents a set value for the scope.
 | ---------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
 
-## codersdk.TemplateDAUsResponse
-
-```json
-{
-  "entries": [
-    {
-      "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                            | Required | Restrictions | Description |
-| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
-
 ## codersdk.TemplateExample
 
 ```json
@@ -4698,6 +4733,7 @@ Parameter represents a set value for the scope.
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
+            "subsystem": "envbox",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
@@ -4828,6 +4864,7 @@ Parameter represents a set value for the scope.
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
+  "subsystem": "envbox",
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
@@ -4865,6 +4902,7 @@ Parameter represents a set value for the scope.
 | `startup_script`                  | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `startup_script_timeout_seconds`  | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
 | `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
+| `subsystem`                       | [codersdk.AgentSubsystem](#codersdkagentsubsystem)                   | false    |              |                                                                                                                                                                                                            |
 | `troubleshooting_url`             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `updated_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `version`                         | string                                                               | false    |              |                                                                                                                                                                                                            |
@@ -5219,6 +5257,7 @@ Parameter represents a set value for the scope.
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
+          "subsystem": "envbox",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
           "version": "string"
@@ -5500,6 +5539,7 @@ Parameter represents a set value for the scope.
       "startup_script": "string",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
+      "subsystem": "envbox",
       "troubleshooting_url": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "version": "string"
@@ -5698,6 +5738,7 @@ Parameter represents a set value for the scope.
                 "startup_script": "string",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
+                "subsystem": "envbox",
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",
                 "version": "string"
@@ -5826,21 +5867,21 @@ Parameter represents a set value for the scope.
 {
   "error": null,
   "healthy": true,
-  "healthzResponse": "string",
+  "healthz_response": "string",
   "reachable": true,
-  "statusCode": 0
+  "status_code": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description |
-| ----------------- | ------- | -------- | ------------ | ----------- |
-| `error`           | any     | false    |              |             |
-| `healthy`         | boolean | false    |              |             |
-| `healthzResponse` | string  | false    |              |             |
-| `reachable`       | boolean | false    |              |             |
-| `statusCode`      | integer | false    |              |             |
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `error`            | any     | false    |              |             |
+| `healthy`          | boolean | false    |              |             |
+| `healthz_response` | string  | false    |              |             |
+| `reachable`        | boolean | false    |              |             |
+| `status_code`      | integer | false    |              |             |
 
 ## healthcheck.DERPNodeReport
 
@@ -6171,9 +6212,9 @@ Parameter represents a set value for the scope.
   "access_url": {
     "error": null,
     "healthy": true,
-    "healthzResponse": "string",
+    "healthz_response": "string",
     "reachable": true,
-    "statusCode": 0
+    "status_code": 0
   },
   "derp": {
     "error": null,
@@ -6335,19 +6376,67 @@ Parameter represents a set value for the scope.
       }
     }
   },
-  "pass": true,
-  "time": "string"
+  "failing_sections": ["string"],
+  "healthy": true,
+  "time": "string",
+  "websocket": {
+    "error": null,
+    "healthy": true,
+    "response": {
+      "body": "string",
+      "code": 0
+    }
+  }
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                       | Required | Restrictions | Description                                      |
-| ------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
-| `access_url` | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
-| `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
-| `pass`       | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
-| `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
+| Name               | Type                                                       | Required | Restrictions | Description                                      |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
+| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
+| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
+| `failing_sections` | array of string                                            | false    |              |                                                  |
+| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
+| `time`             | string                                                     | false    |              | Time is the time the report was generated at.    |
+| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
+
+## healthcheck.WebsocketReport
+
+```json
+{
+  "error": null,
+  "healthy": true,
+  "response": {
+    "body": "string",
+    "code": 0
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                                           | Required | Restrictions | Description |
+| ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`    | any                                                            | false    |              |             |
+| `healthy`  | boolean                                                        | false    |              |             |
+| `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
+
+## healthcheck.WebsocketResponse
+
+```json
+{
+  "body": "string",
+  "code": 0
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+| ------ | ------- | -------- | ------------ | ----------- |
+| `body` | string  | false    |              |             |
+| `code` | integer | false    |              |             |
 
 ## netcheck.Report
 

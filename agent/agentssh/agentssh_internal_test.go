@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	gliderssh "github.com/gliderlabs/ssh"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,7 @@ func Test_sessionStart_orphan(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 	logger := slogtest.Make(t, nil)
-	s, err := NewServer(ctx, logger, afero.NewMemMapFs(), 0, "")
+	s, err := NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
 	require.NoError(t, err)
 
 	// Here we're going to call the handler directly with a faked SSH session
@@ -57,10 +58,11 @@ func Test_sessionStart_orphan(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+
 		// we don't really care what the error is here.  In the larger scenario,
 		// the client has disconnected, so we can't return any error information
 		// to them.
-		_ = s.startPTYSession(sess, cmd, ptyInfo, windowSize)
+		_ = s.startPTYSession(sess, "ssh", cmd, ptyInfo, windowSize)
 	}()
 
 	readDone := make(chan struct{})

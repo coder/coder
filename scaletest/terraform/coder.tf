@@ -128,34 +128,6 @@ EOF
   ]
 }
 
-resource "local_file" "coder-monitoring-manifest" {
-  filename = "${path.module}/.coderv2/coder-monitoring.yaml"
-  content  = <<EOF
-apiVersion: monitoring.googleapis.com/v1
-kind: PodMonitoring
-metadata:
-  namespace: ${kubernetes_namespace.coder_namespace.metadata.0.name}
-  name: coder-monitoring
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: coder
-  endpoints:
-  - port: prometheus-http
-    interval: 30s
-  EOF
-}
-
-resource "null_resource" "coder-monitoring-manifest_apply" {
-  provisioner "local-exec" {
-    working_dir = "${abspath(path.module)}/.coderv2"
-    command     = <<EOF
-KUBECONFIG=${var.name}-cluster.kubeconfig gcloud container clusters get-credentials ${var.name}-cluster --project=${var.project_id} --zone=${var.zone} && \
-KUBECONFIG=${var.name}-cluster.kubeconfig kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
-    EOF
-  }
-}
-
 resource "local_file" "kubernetes_template" {
   filename = "${path.module}/.coderv2/templates/kubernetes/main.tf"
   content  = <<EOF

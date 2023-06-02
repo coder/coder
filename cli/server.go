@@ -65,6 +65,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbmetrics"
 	"github.com/coder/coder/coderd/database/dbpurge"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
@@ -586,7 +587,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			if cfg.InMemoryDatabase {
-				options.Database = dbfake.New()
+				// This is only used for testing.
+				options.Database = dbmetrics.New(dbfake.New(), options.PrometheusRegistry)
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
 				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
@@ -597,7 +599,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					_ = sqlDB.Close()
 				}()
 
-				options.Database = database.New(sqlDB)
+				options.Database = dbmetrics.New(database.New(sqlDB), options.PrometheusRegistry)
 				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
@@ -1183,6 +1185,12 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
+	tfDir := filepath.Join(cacheDir, "tf")
+	err = os.MkdirAll(tfDir, 0o700)
+	if err != nil {
+		return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
+	}
+
 	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
 	wg.Add(1)
@@ -1201,7 +1209,7 @@ func newProvisionerDaemon(
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
 			},
-			CachePath: cacheDir,
+			CachePath: tfDir,
 			Logger:    logger,
 			Tracer:    tracer,
 		})
@@ -1213,9 +1221,10 @@ func newProvisionerDaemon(
 		}
 	}()
 
-	tempDir, err := os.MkdirTemp("", "provisionerd")
+	workDir := filepath.Join(cacheDir, "work")
+	err = os.MkdirAll(workDir, 0o700)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("mkdir work dir: %w", err)
 	}
 
 	provisioners := provisionerd.Provisioners{
@@ -1259,7 +1268,7 @@ func newProvisionerDaemon(
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Provisioners:        provisioners,
-		WorkDirectory:       tempDir,
+		WorkDirectory:       workDir,
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil
