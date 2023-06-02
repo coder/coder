@@ -25,7 +25,7 @@ import { Region } from "api/typesGenerated"
 import { getLatencyColor } from "utils/latency"
 import Popover from "@mui/material/Popover"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
-import { alpha } from "@mui/material"
+import { alpha } from "@mui/material/styles"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
