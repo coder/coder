@@ -98,7 +98,32 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
-	ticker := time.NewTicker(duration)
+	// Use time.Nanosecond to force an initial tick. It will be reset to the
+	// correct duration after executing once.
+	ticker := time.NewTicker(time.Nanosecond)
+	doTick := func() {
+		defer ticker.Reset(duration)
+
+		builds, err := db.GetLatestWorkspaceBuilds(ctx)
+		if err != nil {
+			return
+		}
+		jobIDs := make([]uuid.UUID, 0, len(builds))
+		for _, build := range builds {
+			jobIDs = append(jobIDs, build.JobID)
+		}
+		jobs, err := db.GetProvisionerJobsByIDs(ctx, jobIDs)
+		if err != nil {
+			return
+		}
+
+		gauge.Reset()
+		for _, job := range jobs {
+			status := db2sdk.ProvisionerJobStatus(job)
+			gauge.WithLabelValues(string(status)).Add(1)
+		}
+	}
+
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
@@ -107,25 +132,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-			}
-
-			builds, err := db.GetLatestWorkspaceBuilds(ctx)
-			if err != nil {
-				continue
-			}
-			jobIDs := make([]uuid.UUID, 0, len(builds))
-			for _, build := range builds {
-				jobIDs = append(jobIDs, build.JobID)
-			}
-			jobs, err := db.GetProvisionerJobsByIDs(ctx, jobIDs)
-			if err != nil {
-				continue
-			}
-
-			gauge.Reset()
-			for _, job := range jobs {
-				status := db2sdk.ProvisionerJobStatus(job)
-				gauge.WithLabelValues(string(status)).Add(1)
+				doTick()
 			}
 		}
 	}()
@@ -202,7 +209,9 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	done := make(chan struct{})
 
-	ticker := time.NewTicker(duration)
+	// Use time.Nanosecond to force an initial tick. It will be reset to the
+	// correct duration after executing once.
+	ticker := time.NewTicker(time.Nanosecond)
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
@@ -306,8 +315,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 
 		done:
 			logger.Debug(ctx, "Agent metrics collection is done")
-			metricsCollectorAgents.Observe(timer.ObserveDuration().Seconds())
-
+			timer.ObserveDuration()
 			ticker.Reset(duration)
 		}
 	}()
@@ -426,7 +434,9 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	done := make(chan struct{})
 
 	createdAfter := initialCreateAfter
-	ticker := time.NewTicker(duration)
+	// Use time.Nanosecond to force an initial tick. It will be reset to the
+	// correct duration after executing once.
+	ticker := time.NewTicker(time.Nanosecond)
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
@@ -472,8 +482,8 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				}
 			}
 
-			logger.Debug(ctx, "Agent metrics collection is done")
-			metricsCollectorAgentStats.Observe(timer.ObserveDuration().Seconds())
+			logger.Debug(ctx, "Agent metrics collection is done", slog.F("len", len(stats)))
+			timer.ObserveDuration()
 
 			createdAfter = checkpoint
 			ticker.Reset(duration)
