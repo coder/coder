@@ -484,12 +484,26 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 			protoParam.ValidationRegex = param.Validation[0].Regex
 			protoParam.ValidationError = param.Validation[0].Error
 
-			// Backward compatibility with terraform-coder-plugin < v0.8.2
-			if _, ok := resource.AttributeValues["min_disabled"]; !ok && param.Validation[0].Min == 0 {
-				param.Validation[0].MinDisabled = true
-			}
-			if _, ok := resource.AttributeValues["max_disabled"]; !ok && param.Validation[0].Max == 0 {
-				param.Validation[0].MaxDisabled = true
+			validationAttributeValues, ok := resource.AttributeValues["validation"]
+			if ok {
+				validationAttributeValuesArr, ok := validationAttributeValues.([]interface{})
+				if ok {
+					validationAttributeValuesMapStr, ok := validationAttributeValuesArr[0].(map[string]interface{})
+					if ok {
+						// Backward compatibility with terraform-coder-plugin < v0.8.2:
+						// * "min_disabled" and "max_disabled" are not available yet
+						// * "min" and "max" are required to be specified together
+						if _, ok = validationAttributeValuesMapStr["min_disabled"]; !ok {
+							if param.Validation[0].Min != 0 || param.Validation[0].Max != 0 {
+								param.Validation[0].MinDisabled = false
+								param.Validation[0].MaxDisabled = false
+							} else {
+								param.Validation[0].MinDisabled = true
+								param.Validation[0].MaxDisabled = true
+							}
+						}
+					}
+				}
 			}
 
 			if !param.Validation[0].MaxDisabled {

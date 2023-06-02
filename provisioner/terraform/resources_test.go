@@ -330,6 +330,18 @@ func TestConvertResources(t *testing.T) {
 				ValidationMin: terraform.PtrInt32(3),
 				ValidationMax: terraform.PtrInt32(6),
 			}, {
+				Name:          "number_example_min_zero",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(0),
+				ValidationMax: terraform.PtrInt32(6),
+			}, {
+				Name:          "number_example_max_zero",
+				Type:          "number",
+				DefaultValue:  "-2",
+				ValidationMin: terraform.PtrInt32(-3),
+				ValidationMax: terraform.PtrInt32(0),
+			}, {
 				Name:          "number_example",
 				Type:          "number",
 				DefaultValue:  "4",
@@ -365,11 +377,23 @@ func TestConvertResources(t *testing.T) {
 				ValidationMin: terraform.PtrInt32(3),
 				ValidationMax: nil,
 			}, {
+				Name:          "number_example_min_zero",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(0),
+				ValidationMax: nil,
+			}, {
 				Name:          "number_example_max",
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: nil,
 				ValidationMax: terraform.PtrInt32(6),
+			}, {
+				Name:          "number_example_max_zero",
+				Type:          "number",
+				DefaultValue:  "-3",
+				ValidationMin: nil,
+				ValidationMax: terraform.PtrInt32(0),
 			}, {
 				Name:          "number_example",
 				Type:          "number",

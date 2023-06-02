@@ -38,6 +38,26 @@ data "coder_parameter" "number_example_min_max" {
   }
 }
 
+data "coder_parameter" "number_example_min_zero" {
+  name    = "number_example_min_zero"
+  type    = "number"
+  default = 4
+  validation {
+    min = 0
+    max = 6
+  }
+}
+
+data "coder_parameter" "number_example_max_zero" {
+  name    = "number_example_max_zero"
+  type    = "number"
+  default = -2
+  validation {
+    min = -3
+    max = 0
+  }
+}
+
 data "coder_parameter" "number_example" {
   name    = "number_example"
   type    = "number"
