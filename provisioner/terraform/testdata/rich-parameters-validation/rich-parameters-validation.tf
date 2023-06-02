@@ -2,32 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.7.0"
+      version = "0.8.2"
     }
   }
 }
 
-data "coder_parameter" "sample" {
-  name        = "Sample"
-  type        = "string"
-  description = "blah blah"
-  default     = "ok"
-}
-
-data "coder_parameter" "example" {
-  name = "Example"
-  type = "string"
-  option {
-    name  = "First Option"
-    value = "first"
-  }
-  option {
-    name  = "Second Option"
-    value = "second"
-  }
-}
-
-// Plugin revision v0.7.0 requires defining "min" or "max" rules together.
 data "coder_parameter" "number_example_min_max" {
   name    = "number_example_min_max"
   type    = "number"
@@ -38,12 +17,29 @@ data "coder_parameter" "number_example_min_max" {
   }
 }
 
+data "coder_parameter" "number_example_min" {
+  name    = "number_example_min"
+  type    = "number"
+  default = 4
+  validation {
+    min = 3
+  }
+}
+
 data "coder_parameter" "number_example_min_zero" {
   name    = "number_example_min_zero"
   type    = "number"
   default = 4
   validation {
     min = 0
+  }
+}
+
+data "coder_parameter" "number_example_max" {
+  name    = "number_example_max"
+  type    = "number"
+  default = 4
+  validation {
     max = 6
   }
 }
@@ -51,9 +47,8 @@ data "coder_parameter" "number_example_min_zero" {
 data "coder_parameter" "number_example_max_zero" {
   name    = "number_example_max_zero"
   type    = "number"
-  default = -2
+  default = -3
   validation {
-    min = -3
     max = 0
   }
 }

@@ -187,6 +187,18 @@ func TestRichParameterValidation(t *testing.T) {
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
+		numberRichParametersMinOnly := []codersdk.TemplateVersionParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(5))},
+			{Name: boolParameterName, Type: "bool", Mutable: true},
+		}
+
+		numberRichParametersMaxOnly := []codersdk.TemplateVersionParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMax: ptr.Ref(int32(5))},
+			{Name: boolParameterName, Type: "bool", Mutable: true},
+		}
+
 		monotonicIncreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
 			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10)), ValidationMonotonic: "increasing"},
@@ -231,6 +243,14 @@ func TestRichParameterValidation(t *testing.T) {
 			{numberParameterName, "3", true, numberRichParameters},
 			{numberParameterName, "10", true, numberRichParameters},
 			{numberParameterName, "11", false, numberRichParameters},
+
+			{numberParameterName, "4", false, numberRichParametersMinOnly},
+			{numberParameterName, "5", true, numberRichParametersMinOnly},
+			{numberParameterName, "6", true, numberRichParametersMinOnly},
+
+			{numberParameterName, "4", true, numberRichParametersMaxOnly},
+			{numberParameterName, "5", true, numberRichParametersMaxOnly},
+			{numberParameterName, "6", false, numberRichParametersMaxOnly},
 
 			{numberParameterName, "6", false, monotonicIncreasingNumberRichParameters},
 			{numberParameterName, "7", true, monotonicIncreasingNumberRichParameters},
