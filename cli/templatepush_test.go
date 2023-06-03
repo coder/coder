@@ -83,14 +83,10 @@ func TestTemplatePush(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ProvisionComplete,
 		})
-		inv, root := clitest.New(t, "templates", "push", template.Name, "--activate", "false", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
+		inv, root := clitest.New(t, "templates", "push", template.Name, "--activate=false", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
-
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		w := clitest.StartWithWaiter(t, inv)
 
 		matches := []struct {
 			match string
@@ -103,7 +99,7 @@ func TestTemplatePush(t *testing.T) {
 			pty.WriteLine(m.write)
 		}
 
-		require.NoError(t, <-execDone)
+		w.RequireSuccess()
 
 		// Assert that the template version didn't change.
 		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
