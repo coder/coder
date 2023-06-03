@@ -61,15 +61,6 @@ It is recommended that all rate limits are disabled on the server before running
           Output format specs in the format "<format>[:<path>]". Not specifying
           a path will default to stdout. Available formats: text, json.
 
-      --parameter string-array, $CODER_SCALETEST_PARAMETERS
-          Parameters to use for each workspace. Can be specified multiple times.
-          Overrides any existing parameters with the same name from
-          --parameters-file. Format: key=value.
-
-      --parameters-file string, $CODER_SCALETEST_PARAMETERS_FILE
-          Path to a YAML file containing the parameters to use for each
-          workspace.
-
       --run-command string, $CODER_SCALETEST_RUN_COMMAND
           Command to run inside each workspace using reconnecting-pty (i.e. web
           terminal protocol). If not specified, no command will be run.

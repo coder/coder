@@ -9,7 +9,6 @@ import {
   displayError,
   displaySuccess,
 } from "../../components/GlobalSnackbar/utils"
-import { AxiosError } from "axios"
 
 const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
   // Cloning builds to not change the origin object with the sort()
@@ -41,29 +40,22 @@ const moreBuildsAvailable = (
   return event.data.latest_build.updated_at !== latestBuildInTimeline.updated_at
 }
 
-const Language = {
-  getTemplateWarning:
-    "Error updating workspace: latest template could not be fetched.",
-  getTemplateParametersWarning:
-    "Error updating workspace: template parameters could not be fetched.",
-  buildError: "Workspace action failed.",
-}
-
 type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
 
 export interface WorkspaceContext {
   // Initial data
+  orgId: string
   username: string
   workspaceName: string
+
+  error?: unknown
   // our server side events instance
   eventSource?: EventSource
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
+  permissions?: Permissions
   templateVersion?: TypesGen.TemplateVersion
   build?: TypesGen.WorkspaceBuild
-  getWorkspaceError?: AxiosError
-  getTemplateWarning: Error | unknown
-  getTemplateParametersWarning: Error | unknown
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
@@ -72,9 +64,6 @@ export interface WorkspaceContext {
   buildError?: Error | unknown
   cancellationMessage?: Types.Message
   cancellationError?: Error | unknown
-  // permissions
-  permissions?: Permissions
-  checkPermissionsError?: Error | unknown
   // debug
   createBuildLogLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"]
   // SSH Config
@@ -152,14 +141,8 @@ export const workspaceMachine = createMachine(
       context: {} as WorkspaceContext,
       events: {} as WorkspaceEvent,
       services: {} as {
-        getWorkspace: {
-          data: TypesGen.Workspace
-        }
-        getTemplate: {
-          data: TypesGen.Template
-        }
-        getTemplateVersion: {
-          data: TypesGen.TemplateVersion
+        loadInitialWorkspaceData: {
+          data: Awaited<ReturnType<typeof loadInitialWorkspaceData>>
         }
         getTemplateParameters: {
           data: TypesGen.TemplateVersionParameter[]
@@ -188,98 +171,26 @@ export const workspaceMachine = createMachine(
         getBuilds: {
           data: TypesGen.WorkspaceBuild[]
         }
-        checkPermissions: {
-          data: TypesGen.AuthorizationResponse
-        }
         getSSHPrefix: {
           data: TypesGen.SSHConfigResponse
         }
       },
     },
-    initial: "gettingWorkspace",
+    initial: "loadInitialData",
     states: {
-      gettingWorkspace: {
+      loadInitialData: {
         entry: ["clearContext"],
         invoke: {
-          src: "getWorkspace",
-          id: "getWorkspace",
-          onDone: [
-            {
-              actions: ["assignWorkspace", "clearGetWorkspaceError"],
-              target: "gettingTemplate",
-            },
-          ],
+          src: "loadInitialWorkspaceData",
+          id: "loadInitialWorkspaceData",
+          onDone: [{ target: "ready", actions: ["assignInitialData"] }],
           onError: [
             {
-              actions: "assignGetWorkspaceError",
+              actions: "assignError",
               target: "error",
             },
           ],
         },
-        tags: "loading",
-      },
-      gettingTemplate: {
-        invoke: {
-          src: "getTemplate",
-          id: "getTemplate",
-          onDone: [
-            {
-              actions: ["assignTemplate", "clearGetTemplateWarning"],
-              target: "gettingTemplateVersion",
-            },
-          ],
-          onError: [
-            {
-              actions: [
-                "assignGetTemplateWarning",
-                "displayGetTemplateWarning",
-              ],
-              target: "error",
-            },
-          ],
-        },
-        tags: "loading",
-      },
-      gettingTemplateVersion: {
-        invoke: {
-          src: "getTemplateVersion",
-          id: "getTemplateVersion",
-          onDone: [
-            {
-              actions: ["assignTemplateVersion", "clearGetTemplateWarning"],
-              target: "gettingPermissions",
-            },
-          ],
-          onError: [
-            {
-              actions: [
-                "assignGetTemplateWarning",
-                "displayGetTemplateWarning",
-              ],
-              target: "error",
-            },
-          ],
-        },
-        tags: "loading",
-      },
-      gettingPermissions: {
-        invoke: {
-          src: "checkPermissions",
-          id: "checkPermissions",
-          onDone: [
-            {
-              actions: ["assignPermissions", "clearGetPermissionsError"],
-              target: "ready",
-            },
-          ],
-          onError: [
-            {
-              actions: "assignGetPermissionsError",
-              target: "error",
-            },
-          ],
-        },
-        tags: "loading",
       },
       ready: {
         type: "parallel",
@@ -572,30 +483,14 @@ export const workspaceMachine = createMachine(
           permissions: undefined,
           eventSource: undefined,
         }),
-      assignWorkspace: assign({
-        workspace: (_, event) => event.data,
+      assignInitialData: assign({
+        workspace: (_, event) => event.data.workspace,
+        template: (_, event) => event.data.template,
+        templateVersion: (_, event) => event.data.templateVersion,
+        permissions: (_, event) => event.data.permissions as Permissions,
       }),
-      assignGetWorkspaceError: assign({
-        getWorkspaceError: (_, event) => event.data as AxiosError,
-      }),
-      clearGetWorkspaceError: (context) =>
-        assign({ ...context, getWorkspaceError: undefined }),
-      assignTemplate: assign({
-        template: (_, event) => event.data,
-      }),
-      assignTemplateVersion: assign({
-        templateVersion: (_, event) => event.data,
-      }),
-      assignPermissions: assign({
-        // Setting event.data as Permissions to be more stricted. So we know
-        // what permissions we asked for.
-        permissions: (_, event) => event.data as Permissions,
-      }),
-      assignGetPermissionsError: assign({
-        checkPermissionsError: (_, event) => event.data,
-      }),
-      clearGetPermissionsError: assign({
-        checkPermissionsError: (_) => undefined,
+      assignError: assign({
+        error: (_, event) => event.data,
       }),
       assignBuild: assign({
         build: (_, event) => event.data,
@@ -637,15 +532,6 @@ export const workspaceMachine = createMachine(
       logWatchWorkspaceWarning: (_, event) => {
         console.error("Watch workspace error:", event)
       },
-      assignGetTemplateWarning: assign({
-        getTemplateWarning: (_, event) => event.data,
-      }),
-      displayGetTemplateWarning: () => {
-        displayError(Language.getTemplateWarning)
-      },
-      clearGetTemplateWarning: assign({
-        getTemplateWarning: (_) => undefined,
-      }),
       // Timeline
       assignBuilds: assign({
         builds: (_, event) => event.data,
@@ -706,27 +592,7 @@ export const workspaceMachine = createMachine(
         Boolean(templateVersionIdToChange),
     },
     services: {
-      getWorkspace: async ({ username, workspaceName }) => {
-        return await API.getWorkspaceByOwnerAndName(username, workspaceName, {
-          include_deleted: true,
-        })
-      },
-      getTemplate: async (context) => {
-        if (context.workspace) {
-          return await API.getTemplate(context.workspace.template_id)
-        } else {
-          throw Error("Cannot get template without workspace")
-        }
-      },
-      getTemplateVersion: async (context) => {
-        if (context.template) {
-          return await API.getTemplateVersion(
-            context.template.active_version_id,
-          )
-        } else {
-          throw Error("Cannot get template version without template")
-        }
-      },
+      loadInitialWorkspaceData,
       updateWorkspace:
         ({ workspace }, { buildParameters }) =>
         async (send) => {
@@ -846,17 +712,6 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get builds without id")
         }
       },
-      checkPermissions: async ({ workspace, template }) => {
-        if (!workspace) {
-          throw new Error("Workspace is not set")
-        }
-        if (!template) {
-          throw new Error("Template is not set")
-        }
-        return await API.checkAuthorization({
-          checks: permissionsToCheck(workspace, template),
-        })
-      },
       scheduleBannerMachine: workspaceScheduleBannerMachine,
       getSSHPrefix: async () => {
         return API.getDeploymentSSHConfig()
@@ -864,3 +719,31 @@ export const workspaceMachine = createMachine(
     },
   },
 )
+
+async function loadInitialWorkspaceData({
+  orgId,
+  username,
+  workspaceName,
+}: WorkspaceContext) {
+  const workspace = await API.getWorkspaceByOwnerAndName(
+    username,
+    workspaceName,
+    {
+      include_deleted: true,
+    },
+  )
+  const template = await API.getTemplateByName(orgId, workspace.template_name)
+  const [templateVersion, permissions] = await Promise.all([
+    API.getTemplateVersion(template.active_version_id),
+    API.checkAuthorization({
+      checks: permissionsToCheck(workspace, template),
+    }),
+  ])
+
+  return {
+    workspace,
+    template,
+    templateVersion,
+    permissions,
+  }
+}

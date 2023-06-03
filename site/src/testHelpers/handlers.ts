@@ -3,7 +3,7 @@ import { WorkspaceBuildTransition } from "../api/types"
 import { CreateWorkspaceBuildRequest } from "../api/typesGenerated"
 import { permissionsToCheck } from "../xServices/auth/authXService"
 import * as M from "./entities"
-import { MockGroup, mockParameterSchema, MockWorkspaceQuota } from "./entities"
+import { MockGroup, MockWorkspaceQuota } from "./entities"
 import fs from "fs"
 import path from "path"
 
@@ -82,28 +82,6 @@ export const handlers = [
     "/api/v2/templateversions/:templateVersionId",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(M.MockTemplateVersion))
-    },
-  ),
-  rest.get(
-    "/api/v2/templateversions/:templateVersionId/schema",
-    async (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json([
-          mockParameterSchema({
-            id: "1",
-            name: M.MockTemplateVersionParameter1.name,
-          }),
-          mockParameterSchema({
-            id: "2",
-            name: M.MockTemplateVersionParameter2.name,
-          }),
-          mockParameterSchema({
-            id: "3",
-            name: M.MockTemplateVersionParameter3.name,
-          }),
-        ]),
-      )
     },
   ),
   rest.get(

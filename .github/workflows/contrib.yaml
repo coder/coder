@@ -49,8 +49,6 @@ jobs:
 
   release-labels:
     runs-on: ubuntu-latest
-    # Depend on lint so that title is Conventional Commits-compatible.
-    needs: [title]
     # Skip tagging for draft PRs.
     if: ${{ github.event_name == 'pull_request_target' && success() && !github.event.pull_request.draft }}
     steps:

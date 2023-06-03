@@ -46,14 +46,6 @@ Specify the directory to create from, use '-' to read tar from stdin.
 
 Specify a name for the new template version. It will be automatically generated if not provided.
 
-### --parameter-file
-
-|      |                     |
-| ---- | ------------------- |
-| Type | <code>string</code> |
-
-Specify a file path with parameter values.
-
 ### --provisioner-tag
 
 |      |                           |

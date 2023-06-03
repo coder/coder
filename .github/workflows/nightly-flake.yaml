@@ -1,0 +1,40 @@
+name: nightly-flake
+on:
+  schedule:
+    # Every day at midnight
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+  # For testing purposes
+  # push:
+  #   paths:
+  # - ".github/workflows/nightly-flake.yaml"
+jobs:
+  test-go-race:
+    # While GitHub's toaster runners are likelier to flake, we want consistency
+    # between this environment and the regular test environment for DataDog
+    # statistics and to only show real workflow threats.
+    runs-on: "buildjet-8vcpu-ubuntu-2204"
+    # This runner costs 0.016 USD per minute,
+    # so 0.016 * 240 = 3.84 USD per run.
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup-go
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.1.9
+          terraform_wrapper: false
+
+      - name: Run Tests
+        run: |
+          # -race is likeliest to catch flaky tests
+          # due to correctness detection and its performance
+          # impact.
+          gotestsum --junitfile="gotests.xml" -- -timeout=240m -count=10 -race ./...
+
+      - uses: ./.github/actions/upload-datadog
+        if: always()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}

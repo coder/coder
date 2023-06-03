@@ -157,7 +157,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		defer cancel()
 
 		inv, _ := clitest.New(t, "server", "create-admin-user")
-		inv.Environ.Set("CODER_POSTGRES_URL", connectionURL)
+		inv.Environ.Set("CODER_PG_CONNECTION_URL", connectionURL)
 		inv.Environ.Set("CODER_SSH_KEYGEN_ALGORITHM", "ed25519")
 		inv.Environ.Set("CODER_USERNAME", username)
 		inv.Environ.Set("CODER_EMAIL", email)

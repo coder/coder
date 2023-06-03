@@ -72,21 +72,6 @@ var (
 			Complete: &proto.Provision_Complete{},
 		},
 	}}
-
-	ParameterSuccess = []*proto.ParameterSchema{
-		{
-			AllowOverrideSource: true,
-			Name:                ParameterExecKey,
-			Description:         "description 1",
-			DefaultSource: &proto.ParameterSource{
-				Scheme: proto.ParameterSource_DATA,
-				Value:  formatExecValue(successKey, ""),
-			},
-			DefaultDestination: &proto.ParameterDestination{
-				Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-			},
-		},
-	}
 )
 
 // Serve starts the echo provisioner.
@@ -149,22 +134,6 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	default:
 		// Probably a cancel
 		return nil
-	}
-
-	for _, param := range msg.GetPlan().GetParameterValues() {
-		if param.Name == ParameterExecKey {
-			toks := strings.Split(param.Value, "=")
-			if len(toks) < 2 {
-				break
-			}
-
-			switch toks[0] {
-			case errorKey:
-				return xerrors.Errorf("returning error: %v", toks[1])
-			default:
-				// Do nothing
-			}
-		}
 	}
 
 	for index := 0; ; index++ {

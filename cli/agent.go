@@ -58,9 +58,50 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			ignorePorts := map[int]string{}
+			var (
+				ignorePorts = map[int]string{}
+				isLinux     = runtime.GOOS == "linux"
 
-			isLinux := runtime.GOOS == "linux"
+				sinks      = []slog.Sink{}
+				logClosers = []func() error{}
+			)
+			defer func() {
+				for _, closer := range logClosers {
+					_ = closer()
+				}
+			}()
+
+			addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
+				switch loc {
+				case "":
+					// Do nothing.
+
+				case "/dev/stderr":
+					sinks = append(sinks, sinkFn(inv.Stderr))
+
+				case "/dev/stdout":
+					sinks = append(sinks, sinkFn(inv.Stdout))
+
+				default:
+					fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+					if err != nil {
+						return xerrors.Errorf("open log file %q: %w", loc, err)
+					}
+					sinks = append(sinks, sinkFn(fi))
+					logClosers = append(logClosers, fi.Close)
+				}
+				return nil
+			}
+
+			if err := addSinkIfProvided(sloghuman.Sink, slogHumanPath); err != nil {
+				return xerrors.Errorf("add human sink: %w", err)
+			}
+			if err := addSinkIfProvided(slogjson.Sink, slogJSONPath); err != nil {
+				return xerrors.Errorf("add json sink: %w", err)
+			}
+			if err := addSinkIfProvided(slogstackdriver.Sink, slogStackdriverPath); err != nil {
+				return xerrors.Errorf("add stackdriver sink: %w", err)
+			}
 
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
@@ -68,48 +109,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				logWriter := &lumberjack.Logger{
 					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
+					// Without this, rotated logs will never be deleted.
+					MaxBackups: 1,
 				}
 				defer logWriter.Close()
 
-				sinks := []slog.Sink{sloghuman.Sink(logWriter)}
-				closers := []func() error{}
-				addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
-					switch loc {
-					case "":
-
-					case "/dev/stdout":
-						sinks = append(sinks, sinkFn(inv.Stdout))
-
-					case "/dev/stderr":
-						sinks = append(sinks, sinkFn(inv.Stderr))
-
-					default:
-						fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
-						if err != nil {
-							return xerrors.Errorf("open log file %q: %w", loc, err)
-						}
-						closers = append(closers, fi.Close)
-						sinks = append(sinks, sinkFn(fi))
-					}
-					return nil
-				}
-
-				if err := addSinkIfProvided(sloghuman.Sink, slogHumanPath); err != nil {
-					return xerrors.Errorf("add human sink: %w", err)
-				}
-				if err := addSinkIfProvided(slogjson.Sink, slogJSONPath); err != nil {
-					return xerrors.Errorf("add json sink: %w", err)
-				}
-				if err := addSinkIfProvided(slogstackdriver.Sink, slogStackdriverPath); err != nil {
-					return xerrors.Errorf("add stackdriver sink: %w", err)
-				}
-
+				sinks = append(sinks, sloghuman.Sink(logWriter))
 				logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
-				defer func() {
-					for _, closer := range closers {
-						_ = closer()
-					}
-				}()
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
@@ -146,12 +152,15 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ljLogger := &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
+				// Without this, rotated logs will never be deleted.
+				MaxBackups: 1,
 			}
 			defer ljLogger.Close()
 			logWriter := &closeWriter{w: ljLogger}
 			defer logWriter.Close()
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+			sinks = append(sinks, sloghuman.Sink(logWriter))
+			logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "starting agent",

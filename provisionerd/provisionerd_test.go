@@ -371,18 +371,6 @@ func TestProvisionerd(t *testing.T) {
 			completeChan  = make(chan struct{})
 			completeOnce  sync.Once
 
-			parameterValues = []*sdkproto.ParameterValue{
-				{
-					DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-					Name:              "test_var",
-					Value:             "dean was here",
-				},
-				{
-					DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-					Name:              "test_var_2",
-					Value:             "1234",
-				},
-			}
 			metadata = &sdkproto.Provision_Metadata{}
 		)
 
@@ -402,8 +390,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_TemplateDryRun_{
 							TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-								ParameterValues: parameterValues,
-								Metadata:        metadata,
+								Metadata: metadata,
 							},
 						},
 					}, nil

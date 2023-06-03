@@ -49,29 +49,6 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 	return nil, xerrors.Errorf("Parameter file name is not specified")
 }
 
-// Returns a parameter value from a given map, if the map does not exist or does not contain the item, it takes input from the user.
-// Throws an error if there are any errors with the users input.
-func getParameterValueFromMapOrInput(inv *clibase.Invocation, parameterMap map[string]string, parameterSchema codersdk.ParameterSchema) (string, error) {
-	var parameterValue string
-	var err error
-	if parameterMap != nil {
-		var ok bool
-		parameterValue, ok = parameterMap[parameterSchema.Name]
-		if !ok {
-			parameterValue, err = cliui.ParameterSchema(inv, parameterSchema)
-			if err != nil {
-				return "", err
-			}
-		}
-	} else {
-		parameterValue, err = cliui.ParameterSchema(inv, parameterSchema)
-		if err != nil {
-			return "", err
-		}
-	}
-	return parameterValue, nil
-}
-
 func getWorkspaceBuildParameterValueFromMapOrInput(inv *clibase.Invocation, parameterMap map[string]string, templateVersionParameter codersdk.TemplateVersionParameter) (*codersdk.WorkspaceBuildParameter, error) {
 	var parameterValue string
 	var err error

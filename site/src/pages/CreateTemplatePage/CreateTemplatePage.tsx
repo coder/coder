@@ -33,15 +33,8 @@ const CreateTemplatePage: FC = () => {
     },
   })
 
-  const {
-    starterTemplate,
-    parameters,
-    error,
-    file,
-    jobError,
-    jobLogs,
-    variables,
-  } = state.context
+  const { starterTemplate, error, file, jobError, jobLogs, variables } =
+    state.context
   const shouldDisplayForm = !state.hasTag("loading")
   const { entitlements } = useDashboard()
   const allowAdvancedScheduling =
@@ -75,7 +68,6 @@ const CreateTemplatePage: FC = () => {
               starterTemplate={starterTemplate}
               isSubmitting={state.hasTag("submitting")}
               variables={variables}
-              parameters={parameters}
               onCancel={onCancel}
               onSubmit={(data) => {
                 send({
