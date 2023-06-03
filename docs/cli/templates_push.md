@@ -12,6 +12,15 @@ coder templates push [flags] [template]
 
 ## Options
 
+### --activate
+
+|         |                   |
+| ------- | ----------------- |
+| Type    | <code>bool</code> |
+| Default | <code>true</code> |
+
+Whether the new template will be marked active.
+
 ### --always-prompt
 
 |      |                   |
