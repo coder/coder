@@ -122,7 +122,7 @@
     "@types/ua-parser-js": "0.7.36",
     "@types/uuid": "8.3.4",
     "@typescript-eslint/eslint-plugin": "5.50.0",
-    "@typescript-eslint/parser": "5.45.1",
+    "@typescript-eslint/parser": "5.59.8",
     "@xstate/cli": "0.3.0",
     "chromatic": "6.17.4",
     "eslint": "8.41.0",
