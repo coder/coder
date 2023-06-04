@@ -27,13 +27,17 @@ func rawRichParameterNames(workdir string) ([]string, error) {
 
 	var coderParameterNames []string
 	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".tf") {
+		if !strings.HasSuffix(entry.Name(), ".tf") || !strings.HasSuffix(entry.Name(), ".tf.json") {
 			continue
 		}
 
 		hclFilepath := path.Join(workdir, entry.Name())
 		parser := hclparse.NewParser()
-		parsedHCL, diags := parser.ParseHCLFile(hclFilepath)
+		if strings.HasSuffix(entry.Name(), ".tf.json") {
+			parsedHCL, diags := parser.ParseJSONFile(hclFilepath)
+		} else {
+			parsedHCL, diags := parser.ParseHCLFile(hclFilepath)
+		}
 		if diags.HasErrors() {
 			return nil, hcl.Diagnostics{
 				{
