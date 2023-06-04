@@ -1,0 +1,7 @@
+#include<stdio.h>
+ int fun1(int x )
+{
+   
+int mul;
+ mul= x*x*x*x;
+printf("the value is\n"
