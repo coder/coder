@@ -131,10 +131,11 @@ func parseFeatures(hclFilepath string) (map[string]bool, bool, hcl.Diagnostics) 
 	}
 
 	parser := hclparse.NewParser()
+	var parsedHCL *hcl.File
 	if strings.HasSuffix(hclFilepath, ".tf.json") {
-		parsedHCL, diags := parser.ParseJSONFile(hclFilepath)
+		parsedHCL, diags = parser.ParseJSONFile(hclFilepath)
 	} else {
-		parsedHCL, diags := parser.ParseHCLFile(hclFilepath)
+		parsedHCL, diags = parser.ParseHCLFile(hclFilepath)
 	}
 	if diags.HasErrors() {
 		return flags, false, diags
