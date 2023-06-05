@@ -47,6 +47,9 @@ updates:
       interval: "weekly"
       time: "06:00"
       timezone: "America/Chicago"
+    commit-message:
+      prefix: "chore"
+    labels: []
     ignore:
       # We need to coordinate terraform updates with the version hardcoded in
       # our Go code.
@@ -85,4 +88,27 @@ updates:
     labels: []
     ignore:
       # We likely want to update this ourselves.
+      - dependency-name: "coder/coder"
+
+  # Update dogfood.
+  - package-ecosystem: "docker"
+    directory: "/dogfood/"
+    schedule:
+      interval: "weekly"
+      time: "06:00"
+      timezone: "America/Chicago"
+    commit-message:
+      prefix: "chore"
+    labels: []
+
+  - package-ecosystem: "terraform"
+    directory: "/dogfood/"
+    schedule:
+      interval: "weekly"
+      time: "06:00"
+      timezone: "America/Chicago"
+    commit-message:
+      prefix: "chore"
+    labels: []
+    ignore:
       - dependency-name: "coder/coder"
