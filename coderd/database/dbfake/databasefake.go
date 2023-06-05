@@ -933,7 +933,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 	// Database orders by username
 	slices.SortFunc(users, func(a, b database.User) bool {
-		return sort.StringsAreSorted([]string{a.Username, b.Username})
+		return a.Username < b.Username
 	})
 
 	// Filter out deleted since they should never be returned..

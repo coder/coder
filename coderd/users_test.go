@@ -1694,7 +1694,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 // sortUsers sorts by (created_at, id)
 func sortUsers(users []codersdk.User) {
 	sort.Slice(users, func(i, j int) bool {
-		return sort.StringsAreSorted([]string{users[i].Username, users[j].Username})
+		return users[i].Username < users[j].Username
 	})
 }
 
