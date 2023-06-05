@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1007,6 +1008,61 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			return workspaces.Count == 1
 		}, testutil.IntervalMedium, "agent status timeout")
 	})
+
+	t.Run("FilterQueryHasDeletingBy", func(t *testing.T) {
+		t.Parallel()
+		inactivityTTL := 1 * 24 * time.Hour
+		var setCalled int64
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+				SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					if atomic.AddInt64(&setCalled, 1) == 2 {
+						require.Equal(t, inactivityTTL, options.InactivityTTL)
+					}
+					template.InactivityTTL = int64(options.InactivityTTL)
+					return template, nil
+				},
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// update template with inactivity ttl
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			InactivityTTLMillis: inactivityTTL.Milliseconds(),
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, inactivityTTL.Milliseconds(), template.InactivityTTLMillis)
+
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// stop build so workspace is inactive
+		stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, stopBuild.ID)
+
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("deleting_by:%s", time.Now().Add(inactivityTTL).Format("2006-01-02")),
+		})
+
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+	})
+
 }
 
 func TestOffsetLimit(t *testing.T) {
