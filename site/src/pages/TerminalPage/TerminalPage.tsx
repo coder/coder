@@ -25,7 +25,6 @@ import { Region } from "api/typesGenerated"
 import { getLatencyColor } from "utils/latency"
 import Popover from "@mui/material/Popover"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
-import { alpha } from "@mui/material/styles"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -362,21 +361,30 @@ const TerminalPage: FC<
         {dashboard.experiments.includes("moons") &&
           selectedProxy &&
           latency && (
-            <Latency proxy={selectedProxy} latency={latency.latencyMS} />
+            <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
           )}
       </Box>
     </>
   )
 }
 
-const Latency = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
+const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
   const theme = useTheme()
   const color = getLatencyColor(theme, latency)
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <Box sx={{ position: "fixed", bottom: 24, right: 24, zIndex: 10 }}>
+    <Box
+      sx={{
+        padding: (theme) => theme.spacing(2),
+        background: (theme) => theme.palette.background.paper,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        fontSize: 12,
+      }}
+    >
       <Box
         ref={anchorRef}
         component="button"
@@ -385,22 +393,24 @@ const Latency = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         sx={{
-          padding: 0.75,
-          border: `1px solid ${alpha(color, 0.5)}`,
-          borderRadius: 9999,
           background: "none",
           cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          border: 0,
         }}
       >
         <Box
           sx={{
-            height: 8,
-            width: 8,
+            height: 6,
+            width: 6,
             backgroundColor: color,
             border: 0,
             borderRadius: 9999,
           }}
         />
+        <ProxyStatusLatency latency={latency} />
       </Box>
       <Popover
         id="latency-popover"
