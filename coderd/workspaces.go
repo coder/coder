@@ -186,7 +186,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		for _, v := range wss {
 			if v.DeletingAt == nil {
-				break
+				continue
 			}
 			// get the beginning of the day on which deletion is scheduled
 			truncatedDeletionAt := v.DeletingAt.Truncate(24 * time.Hour)
