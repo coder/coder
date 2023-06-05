@@ -1,17 +1,9 @@
 import TextField from "@mui/material/TextField"
-import {
-  Template,
-  UpdateTemplateMeta,
-  WorkspaceStatus,
-  Workspace,
-} from "api/typesGenerated"
+import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormikTouched, useFormik } from "formik"
 import { FC, ChangeEvent, useState } from "react"
 import { getFormHelpers } from "utils/formUtils"
-import * as Yup from "yup"
-import i18next from "i18next"
 import { useTranslation } from "react-i18next"
-import { Maybe } from "components/Conditionals/Maybe"
 import {
   FormSection,
   HorizontalForm,
@@ -24,86 +16,15 @@ import Link from "@mui/material/Link"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { useQuery } from "@tanstack/react-query"
-import { getWorkspaces } from "api/api"
-import { compareAsc, add, endOfToday } from "date-fns"
+import { InactivityDialog } from "./InactivityDialog"
+import { useWorkspacesData } from "./useWorkspacesData"
+import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers"
+import { TTLHelperText } from "./TTLHelperText"
 
-const TTLHelperText = ({
-  ttl,
-  translationName,
-}: {
-  ttl?: number
-  translationName: string
-}) => {
-  const { t } = useTranslation("templateSettingsPage")
-  const count = typeof ttl !== "number" ? 0 : ttl
-  return (
-    // no helper text if ttl is negative - error will show once field is considered touched
-    <Maybe condition={count >= 0}>
-      <span>{t(translationName, { count })}</span>
-    </Maybe>
-  )
-}
-
-const MAX_TTL_DAYS = 7
 const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
 const FAILURE_CLEANUP_DEFAULT = 7
 const INACTIVITY_CLEANUP_DEFAULT = 180
-
-export interface TemplateScheduleFormValues extends UpdateTemplateMeta {
-  failure_cleanup_enabled: boolean
-  inactivity_cleanup_enabled: boolean
-}
-
-export const getValidationSchema = (): Yup.AnyObjectSchema =>
-  Yup.object({
-    default_ttl_ms: Yup.number()
-      .integer()
-      .min(0, i18next.t("defaultTTLMinError", { ns: "templateSettingsPage" }))
-      .max(
-        24 * MAX_TTL_DAYS /* 7 days in hours */,
-        i18next.t("defaultTTLMaxError", { ns: "templateSettingsPage" }),
-      ),
-    max_ttl_ms: Yup.number()
-      .integer()
-      .min(0, i18next.t("maxTTLMinError", { ns: "templateSettingsPage" }))
-      .max(
-        24 * MAX_TTL_DAYS /* 7 days in hours */,
-        i18next.t("maxTTLMaxError", { ns: "templateSettingsPage" }),
-      ),
-    failure_ttl_ms: Yup.number()
-      .min(0, "Failure cleanup days must not be less than 0.")
-      .test(
-        "positive-if-enabled",
-        "Failure cleanup days must be greater than zero when enabled.",
-        function (value) {
-          const parent = this.parent as TemplateScheduleFormValues
-          if (parent.failure_cleanup_enabled) {
-            return Boolean(value)
-          } else {
-            return true
-          }
-        },
-      ),
-    inactivity_ttl_ms: Yup.number()
-      .min(0, "Inactivity cleanup days must not be less than 0.")
-      .test(
-        "positive-if-enabled",
-        "Inactivity cleanup days must be greater than zero when enabled.",
-        function (value) {
-          const parent = this.parent as TemplateScheduleFormValues
-          if (parent.inactivity_cleanup_enabled) {
-            return Boolean(value)
-          } else {
-            return true
-          }
-        },
-      ),
-    allow_user_autostart: Yup.boolean(),
-    allow_user_autostop: Yup.boolean(),
-  })
 
 export interface TemplateScheduleForm {
   template: Template
@@ -172,6 +93,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   )
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
+
+  const workspacesToBeDeletedToday = useWorkspacesData(form.values)
+
   const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
     useState<boolean>(false)
 
@@ -195,35 +119,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       allow_user_autostop: formData.allow_user_autostop,
     })
   }
-
-  const { data: workspacesData } = useQuery({
-    queryKey: ["workspaces"],
-    queryFn: () => getWorkspaces({}),
-    enabled: form.values.inactivity_cleanup_enabled,
-  })
-
-  const inactiveStatuses: WorkspaceStatus[] = [
-    "stopped",
-    "canceled",
-    "failed",
-    "deleted",
-  ]
-
-  const workspacesToBeDeletedToday = workspacesData?.workspaces?.filter(
-    (workspace: Workspace) => {
-      const isInactive = inactiveStatuses.includes(
-        workspace.latest_build.status,
-      )
-
-      const proposedDeletion = add(new Date(workspace.last_used_at), {
-        days: form.values.inactivity_ttl_ms,
-      })
-
-      if (isInactive && compareAsc(proposedDeletion, endOfToday()) < 1) {
-        return workspace
-      }
-    },
-  )
 
   const handleToggleFailureCleanup = async (e: ChangeEvent) => {
     form.handleChange(e)
@@ -437,24 +332,16 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </FormSection>
         </>
       )}
+      <InactivityDialog
+        formValues={form.values}
+        submitValues={submitValues}
+        isInactivityDialogOpen={isInactivityDialogOpen}
+        setIsInactivityDialogOpen={setIsInactivityDialogOpen}
+      />
       <FormFooter
         onCancel={onCancel}
         isLoading={isSubmitting}
         submitDisabled={!form.isValid || !form.dirty}
-      />
-      <ConfirmDialog
-        type="delete"
-        open={isInactivityDialogOpen}
-        onConfirm={() => {
-          submitValues(form.values)
-          setIsInactivityDialogOpen(false)
-        }}
-        onClose={() => setIsInactivityDialogOpen(false)}
-        title="Delete inactive workspaces"
-        confirmText="Delete Workspaces"
-        description={`There are ${
-          workspacesToBeDeletedToday?.length ?? ""
-        } workspaces that already match this filter and will be deleted upon form submission. Are you sure you want to proceed?`}
       />
     </HorizontalForm>
   )
