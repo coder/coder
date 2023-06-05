@@ -4777,11 +4777,11 @@ WHERE
 		-- duplicating or missing data.
 		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
-			-- The query is ordered by the created_at field, so select all
+			-- The query is ordered by the username field, so select all
 			-- rows after the cursor.
-			(created_at, id) > (
+			(username) > (
 				SELECT
-					created_at, id
+					username
 				FROM
 					users
 				WHERE
