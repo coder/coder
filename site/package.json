@@ -64,7 +64,7 @@
     "formik": "2.4.1",
     "front-matter": "4.0.2",
     "history": "5.3.0",
-    "i18next": "21.9.1",
+    "i18next": "22.5.0",
     "jest-environment-jsdom": "29.5.0",
     "jest-location-mock": "1.0.9",
     "just-debounce-it": "3.1.1",
