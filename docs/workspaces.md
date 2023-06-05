@@ -5,7 +5,7 @@ for software development.
 
 ## Create workspaces
 
-Each Coder user has their own workspaces created from [shared templates](./templates/README.md):
+Each Coder user has their own workspaces created from [shared templates](./templates/index.md):
 
 ```console
 # create a workspace from the template; specify any variables
@@ -22,7 +22,7 @@ Coder [supports multiple IDEs](./ides.md) for use with your workspaces.
 ## Workspace lifecycle
 
 Workspaces in Coder are started and stopped, often based on whether there was
-any activity or if there was a [template update](./templates/README.md#Start/stop) available.
+any activity or if there was a [template update](./templates/index.md#Start/stop) available.
 
 Resources are often destroyed and re-created when a workspace is restarted,
 though the exact behavior depends on the template. For more
@@ -87,6 +87,8 @@ Coder stores macOS and Linux logs at the following locations:
 | `startup_script`  | `/tmp/coder-startup-script.log`  |
 | `shutdown_script` | `/tmp/coder-shutdown-script.log` |
 | Agent             | `/tmp/coder-agent.log`           |
+
+> Note: Logs are truncated once they reach 5MB in size.
 
 ---
 

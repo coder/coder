@@ -110,5 +110,5 @@ Congrats! You can now create new Linux-based workspaces that use Google Cloud Pl
 
 ## Next Steps
 
-- [Learn more about template configuration](../templates/README.md)
+- [Learn more about template configuration](../templates/index.md)
 - [Configure more IDEs](../ides/web-ides.md)
