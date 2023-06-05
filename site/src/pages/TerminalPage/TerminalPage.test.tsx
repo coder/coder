@@ -58,7 +58,7 @@ const renderTerminal = () => {
               refetchProxyLatencies: jest.fn(),
             }}
           >
-            <TerminalPage renderer="dom" />
+            <TerminalPage />
           </ProxyContext.Provider>
         }
       />
