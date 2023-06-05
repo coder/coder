@@ -90,5 +90,5 @@ export const getErrorDetail = (
   isApiError(error)
     ? error.response.data.detail
     : error instanceof Error
-    ? `Please verify the developer console for more details.`
+    ? `Please check the developer console for more details.`
     : null
