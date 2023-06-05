@@ -63,7 +63,7 @@ const useAutocomplete = <TOption extends BaseOption = BaseOption>({
       return undefined
     }
 
-    let options = searchOptionsQuery.data as TOption[]
+    let options = searchOptionsQuery.data ?? []
 
     if (selectedOption) {
       options = options.filter(

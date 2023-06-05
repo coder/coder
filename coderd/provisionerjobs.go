@@ -300,6 +300,9 @@ func newLogFollower(
 }
 
 func (f *logFollower) follow() {
+	var cancel context.CancelFunc
+	f.ctx, cancel = context.WithCancel(f.ctx)
+	defer cancel()
 	// note that we only need to subscribe to updates if the job is not yet
 	// complete.
 	if !f.complete {
@@ -405,17 +408,28 @@ func (f *logFollower) follow() {
 }
 
 func (f *logFollower) listener(_ context.Context, message []byte, err error) {
+	// in this function we always pair writes to channels with a select on the context
+	// otherwise we could block a goroutine if the follow() method exits.
 	if err != nil {
-		f.errors <- err
+		select {
+		case <-f.ctx.Done():
+		case f.errors <- err:
+		}
 		return
 	}
 	var n provisionersdk.ProvisionerJobLogsNotifyMessage
 	err = json.Unmarshal(message, &n)
 	if err != nil {
-		f.errors <- err
+		select {
+		case <-f.ctx.Done():
+		case f.errors <- err:
+		}
 		return
 	}
-	f.notifications <- n
+	select {
+	case <-f.ctx.Done():
+	case f.notifications <- n:
+	}
 }
 
 // query fetches the latest job logs from the database and writes them to the

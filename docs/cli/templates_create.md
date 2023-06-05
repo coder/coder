@@ -48,14 +48,6 @@ Specify a failure TTL for workspaces created from this template. This licensed f
 
 Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).
 
-### --parameter-file
-
-|      |                     |
-| ---- | ------------------- |
-| Type | <code>string</code> |
-
-Specify a file path with parameter values.
-
 ### --provisioner-tag
 
 |      |                           |

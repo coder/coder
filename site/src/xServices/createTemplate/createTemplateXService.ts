@@ -3,16 +3,12 @@ import {
   createTemplateVersion,
   getTemplateVersion,
   createTemplate,
-  getTemplateVersionSchema,
   uploadTemplateFile,
   getTemplateVersionLogs,
   getTemplateVersionVariables,
   getTemplateByName,
-  getTemplateVersionParameters,
 } from "api/api"
 import {
-  CreateTemplateVersionRequest,
-  ParameterSchema,
   ProvisionerJob,
   ProvisionerJobLog,
   Template,
@@ -59,7 +55,6 @@ interface CreateTemplateContext {
   exampleId?: string | null // It can be null because it is being passed from query string
   version?: TemplateVersion
   templateData?: CreateTemplateData
-  parameters?: ParameterSchema[]
   variables?: TemplateVersionVariable[]
   // file is used in the FE to show the filename and some other visual stuff
   // uploadedFile is the response from the server to use in the API
@@ -98,12 +93,8 @@ export const createTemplateMachine =
           waitForJobToBeCompleted: {
             data: TemplateVersion
           }
-          loadParameterSchema: {
-            data: ParameterSchema[]
-          }
           checkParametersAndVariables: {
             data: {
-              parameters?: ParameterSchema[]
               variables?: TemplateVersionVariable[]
             }
           }
@@ -117,7 +108,6 @@ export const createTemplateMachine =
             data: {
               template: Template
               version: TemplateVersion
-              parameters: ParameterSchema[]
               variables: TemplateVersionVariable[]
             }
           }
@@ -343,36 +333,14 @@ export const createTemplateMachine =
             organizationId,
             templateNameToCopy,
           )
-          const [version, schemaParameters, computedParameters, variables] =
-            await Promise.all([
-              getTemplateVersion(template.active_version_id),
-              getTemplateVersionSchema(template.active_version_id),
-              getTemplateVersionParameters(template.active_version_id),
-              getTemplateVersionVariables(template.active_version_id),
-            ])
-
-          // Recreate parameters with default_source_value from the already
-          // computed version parameters
-          const parameters: ParameterSchema[] = []
-          computedParameters.forEach((computedParameter) => {
-            const schema = schemaParameters.find(
-              (schema) => schema.name === computedParameter.name,
-            )
-            if (!schema) {
-              throw new Error(
-                `Parameter ${computedParameter.name} not found in schema`,
-              )
-            }
-            parameters.push({
-              ...schema,
-              default_source_value: computedParameter.source_value,
-            })
-          })
+          const [version, variables] = await Promise.all([
+            getTemplateVersion(template.active_version_id),
+            getTemplateVersionVariables(template.active_version_id),
+          ])
 
           return {
             template,
             version,
-            parameters,
             variables,
           }
         },
@@ -420,7 +388,6 @@ export const createTemplateMachine =
         },
         createVersionWithParametersAndVariables: async ({
           organizationId,
-          parameters,
           templateData,
           version,
         }) => {
@@ -431,27 +398,10 @@ export const createTemplateMachine =
             throw new Error("No template data defined")
           }
 
-          // Get parameter values if they are needed/present
-          const parameterValues: CreateTemplateVersionRequest["parameter_values"] =
-            []
-          if (parameters) {
-            const { parameter_values_by_name } = templateData
-            parameters.forEach((schema) => {
-              const value = parameter_values_by_name?.[schema.name]
-              parameterValues.push({
-                name: schema.name,
-                source_value: value ?? schema.default_source_value,
-                destination_scheme: schema.default_destination_scheme,
-                source_scheme: "data",
-              })
-            })
-          }
-
           return createTemplateVersion(organizationId, {
             storage_method: "file",
             file_id: version.job.file_id,
             provisioner: "terraform",
-            parameter_values: parameterValues,
             user_variable_values: templateData.user_variable_values,
             tags: {},
           })
@@ -481,26 +431,16 @@ export const createTemplateMachine =
             throw new Error("Version not defined")
           }
 
-          let promiseParameter: Promise<ParameterSchema[]> | undefined =
-            undefined
           let promiseVariables: Promise<TemplateVersionVariable[]> | undefined =
             undefined
-
-          if (isMissingParameter(version)) {
-            promiseParameter = getTemplateVersionSchema(version.id)
-          }
 
           if (isMissingVariables(version)) {
             promiseVariables = getTemplateVersionVariables(version.id)
           }
 
-          const [parameters, variables] = await Promise.all([
-            promiseParameter,
-            promiseVariables,
-          ])
+          const [variables] = await Promise.all([promiseVariables])
 
           return {
-            parameters,
             variables,
           }
         },
@@ -547,7 +487,6 @@ export const createTemplateMachine =
         assignVersion: assign({ version: (_, { data }) => data }),
         assignTemplateData: assign({ templateData: (_, { data }) => data }),
         assignParametersAndVariables: assign({
-          parameters: (_, { data }) => data.parameters,
           variables: (_, { data }) => data.variables,
         }),
         assignFile: assign({ file: (_, { file }) => file }),
@@ -560,7 +499,6 @@ export const createTemplateMachine =
         assignCopiedTemplateData: assign({
           copiedTemplate: (_, { data }) => data.template,
           version: (_, { data }) => data.version,
-          parameters: (_, { data }) => data.parameters,
           variables: (_, { data }) => data.variables,
         }),
       },
@@ -577,9 +515,9 @@ export const createTemplateMachine =
               !isMissingVariables(data),
           ),
         hasNoParametersOrVariables: (_, { data }) =>
-          data.parameters === undefined && data.variables === undefined,
+          data.variables === undefined,
         hasParametersOrVariables: (_, { data }) => {
-          return data.parameters.length > 0 || data.variables.length > 0
+          return data.variables.length > 0
         },
       },
     },

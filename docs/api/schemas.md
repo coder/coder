@@ -1334,40 +1334,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------ | ------ | -------- | ------------ | ----------- |
 | `name` | string | true     |              |             |
 
-## codersdk.CreateParameterRequest
-
-```json
-{
-  "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-  "destination_scheme": "none",
-  "name": "string",
-  "source_scheme": "none",
-  "source_value": "string"
-}
-```
-
-CreateParameterRequest is a structure used to create a new parameter value for a scope.
-
-### Properties
-
-| Name                  | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                        |
-| --------------------- | -------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `copy_from_parameter` | string                                                                     | false    |              | Copy from parameter allows copying the value of another parameter. The other param must be related to the same template_id for this to succeed. No other fields are required if using this, as all fields will be copied from the other parameter. |
-| `destination_scheme`  | [codersdk.ParameterDestinationScheme](#codersdkparameterdestinationscheme) | true     |              |                                                                                                                                                                                                                                                    |
-| `name`                | string                                                                     | true     |              |                                                                                                                                                                                                                                                    |
-| `source_scheme`       | [codersdk.ParameterSourceScheme](#codersdkparametersourcescheme)           | true     |              |                                                                                                                                                                                                                                                    |
-| `source_value`        | string                                                                     | true     |              |                                                                                                                                                                                                                                                    |
-
-#### Enumerated Values
-
-| Property             | Value                  |
-| -------------------- | ---------------------- |
-| `destination_scheme` | `none`                 |
-| `destination_scheme` | `environment_variable` |
-| `destination_scheme` | `provisioner_variable` |
-| `source_scheme`      | `none`                 |
-| `source_scheme`      | `data`                 |
-
 ## codersdk.CreateTemplateRequest
 
 ```json
@@ -1383,51 +1349,32 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "inactivity_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
 
 ### Properties
 
-| Name                                                                                                                                                                                      | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                                                                           |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `allow_user_autostart`                                                                                                                                                                    | boolean                                                                     | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                            |
-| `allow_user_autostop`                                                                                                                                                                     | boolean                                                                     | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license. |
-| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                     | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                              |
-| `default_ttl_ms`                                                                                                                                                                          | integer                                                                     | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                            |
-| `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                           |
-| `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                   |
-| `failure_ttl_ms`                                                                                                                                                                          | integer                                                                     | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                       |
-| `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                      |
-| `inactivity_ttl_ms`                                                                                                                                                                       | integer                                                                     | false    |              | Inactivity ttl ms allows optionally specifying the max lifetime before Coder deletes inactive workspaces created from this template.                                                                                                                  |
-| `max_ttl_ms`                                                                                                                                                                              | integer                                                                     | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.                                                                                                                                                   |
-| `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                                                                                                                                                                     |
-| `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                                                                                                                                                                    |
-| `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                  |
+| Name                                                                                                                                                                                      | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow_user_autostart`                                                                                                                                                                    | boolean | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                            |
+| `allow_user_autostop`                                                                                                                                                                     | boolean | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license. |
+| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                              |
+| `default_ttl_ms`                                                                                                                                                                          | integer | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                            |
+| `description`                                                                                                                                                                             | string  | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                           |
+| `display_name`                                                                                                                                                                            | string  | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                   |
+| `failure_ttl_ms`                                                                                                                                                                          | integer | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                       |
+| `icon`                                                                                                                                                                                    | string  | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                      |
+| `inactivity_ttl_ms`                                                                                                                                                                       | integer | false    |              | Inactivity ttl ms allows optionally specifying the max lifetime before Coder deletes inactive workspaces created from this template.                                                                                                                  |
+| `max_ttl_ms`                                                                                                                                                                              | integer | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.                                                                                                                                                   |
+| `name`                                                                                                                                                                                    | string  | true     |              | Name is the name of the template.                                                                                                                                                                                                                     |
+| `template_version_id`                                                                                                                                                                     | string  | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                  |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
 ## codersdk.CreateTemplateVersionDryRunRequest
 
 ```json
 {
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
   "rich_parameter_values": [
     {
       "name": "string",
@@ -1446,12 +1393,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                        |
-| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------- |
-| `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values is a structure used to create a new parameter value for a scope.] |
-| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                    |
-| `user_variable_values`  | array of [codersdk.VariableValue](#codersdkvariablevalue)                     | false    |              |                                                                                    |
-| `workspace_name`        | string                                                                        | false    |              |                                                                                    |
+| Name                    | Type                                                                          | Required | Restrictions | Description |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |             |
+| `user_variable_values`  | array of [codersdk.VariableValue](#codersdkvariablevalue)                     | false    |              |             |
+| `workspace_name`        | string                                                                        | false    |              |             |
 
 ## codersdk.CreateTemplateVersionRequest
 
@@ -1460,15 +1406,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "example_id": "string",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "name": "string",
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
   "provisioner": "terraform",
   "storage_method": "file",
   "tags": {
@@ -1487,18 +1424,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                          |
-| ---------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| `example_id`           | string                                                                      | false    |              |                                                                                                      |
-| `file_id`              | string                                                                      | false    |              |                                                                                                      |
-| `name`                 | string                                                                      | false    |              |                                                                                                      |
-| `parameter_values`     | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values allows for additional parameters to be provided during the dry-run provision stage. |
-| `provisioner`          | string                                                                      | true     |              |                                                                                                      |
-| `storage_method`       | [codersdk.ProvisionerStorageMethod](#codersdkprovisionerstoragemethod)      | true     |              |                                                                                                      |
-| `tags`                 | object                                                                      | false    |              |                                                                                                      |
-| » `[any property]`     | string                                                                      | false    |              |                                                                                                      |
-| `template_id`          | string                                                                      | false    |              | Template ID optionally associates a version with a template.                                         |
-| `user_variable_values` | array of [codersdk.VariableValue](#codersdkvariablevalue)                   | false    |              |                                                                                                      |
+| Name                   | Type                                                                   | Required | Restrictions | Description                                                  |
+| ---------------------- | ---------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------ |
+| `example_id`           | string                                                                 | false    |              |                                                              |
+| `file_id`              | string                                                                 | false    |              |                                                              |
+| `name`                 | string                                                                 | false    |              |                                                              |
+| `provisioner`          | string                                                                 | true     |              |                                                              |
+| `storage_method`       | [codersdk.ProvisionerStorageMethod](#codersdkprovisionerstoragemethod) | true     |              |                                                              |
+| `tags`                 | object                                                                 | false    |              |                                                              |
+| » `[any property]`     | string                                                                 | false    |              |                                                              |
+| `template_id`          | string                                                                 | false    |              | Template ID optionally associates a version with a template. |
+| `user_variable_values` | array of [codersdk.VariableValue](#codersdkvariablevalue)              | false    |              |                                                              |
 
 #### Enumerated Values
 
@@ -1604,15 +1540,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "dry_run": true,
   "log_level": "debug",
   "orphan": true,
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
   "rich_parameter_values": [
     {
       "name": "string",
@@ -1627,16 +1554,15 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                              |
-| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dry_run`               | boolean                                                                       | false    |              |                                                                                                                                                                                                          |
-| `log_level`             | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                         |
-| `orphan`                | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                            |
-| `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
-| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                                                                                                                                          |
-| `state`                 | array of integer                                                              | false    |              |                                                                                                                                                                                                          |
-| `template_version_id`   | string                                                                        | false    |              |                                                                                                                                                                                                          |
-| `transition`            | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              |                                                                                                                                                                                                          |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dry_run`               | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
+| `log_level`             | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
+| `orphan`                | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
+| `state`                 | array of integer                                                              | false    |              |                                                                                                                                                                                                               |
+| `template_version_id`   | string                                                                        | false    |              |                                                                                                                                                                                                               |
+| `transition`            | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              |                                                                                                                                                                                                               |
 
 #### Enumerated Values
 
@@ -1672,15 +1598,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 {
   "autostart_schedule": "string",
   "name": "string",
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
   "rich_parameter_values": [
     {
       "name": "string",
@@ -1694,14 +1611,13 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                    |
-| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------- |
-| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                |
-| `name`                  | string                                                                        | true     |              |                                                                                                |
-| `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values allows for additional parameters to be provided during the initial provision. |
-| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                                |
-| `template_id`           | string                                                                        | true     |              |                                                                                                |
-| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                     |
+| `name`                  | string                                                                        | true     |              |                                                                                                     |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision. |
+| `template_id`           | string                                                                        | true     |              |                                                                                                     |
+| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                     |
 
 ## codersdk.DAUEntry
 
@@ -3104,154 +3020,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `updated_at`      | string                                  | false    |              |             |
 | `user_id`         | string                                  | false    |              |             |
 
-## codersdk.Parameter
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "destination_scheme": "none",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "scope": "template",
-  "scope_id": "5d3fe357-12dd-4f62-b004-6d1fb3b8454f",
-  "source_scheme": "none",
-  "source_value": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
-}
-```
-
-Parameter represents a set value for the scope.
-
-### Properties
-
-| Name                 | Type                                                                       | Required | Restrictions | Description |
-| -------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `created_at`         | string                                                                     | false    |              |             |
-| `destination_scheme` | [codersdk.ParameterDestinationScheme](#codersdkparameterdestinationscheme) | false    |              |             |
-| `id`                 | string                                                                     | false    |              |             |
-| `name`               | string                                                                     | false    |              |             |
-| `scope`              | [codersdk.ParameterScope](#codersdkparameterscope)                         | false    |              |             |
-| `scope_id`           | string                                                                     | false    |              |             |
-| `source_scheme`      | [codersdk.ParameterSourceScheme](#codersdkparametersourcescheme)           | false    |              |             |
-| `source_value`       | string                                                                     | false    |              |             |
-| `updated_at`         | string                                                                     | false    |              |             |
-
-#### Enumerated Values
-
-| Property             | Value                  |
-| -------------------- | ---------------------- |
-| `destination_scheme` | `none`                 |
-| `destination_scheme` | `environment_variable` |
-| `destination_scheme` | `provisioner_variable` |
-| `scope`              | `template`             |
-| `scope`              | `workspace`            |
-| `scope`              | `import_job`           |
-| `source_scheme`      | `none`                 |
-| `source_scheme`      | `data`                 |
-
-## codersdk.ParameterDestinationScheme
-
-```json
-"none"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value                  |
-| ---------------------- |
-| `none`                 |
-| `environment_variable` |
-| `provisioner_variable` |
-
-## codersdk.ParameterSchema
-
-```json
-{
-  "allow_override_destination": true,
-  "allow_override_source": true,
-  "created_at": "2019-08-24T14:15:22Z",
-  "default_destination_scheme": "none",
-  "default_refresh": "string",
-  "default_source_scheme": "none",
-  "default_source_value": "string",
-  "description": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-  "name": "string",
-  "redisplay_value": true,
-  "validation_condition": "string",
-  "validation_contains": ["string"],
-  "validation_error": "string",
-  "validation_type_system": "string",
-  "validation_value_type": "string"
-}
-```
-
-### Properties
-
-| Name                         | Type                                                                       | Required | Restrictions | Description                                                                                                             |
-| ---------------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `allow_override_destination` | boolean                                                                    | false    |              |                                                                                                                         |
-| `allow_override_source`      | boolean                                                                    | false    |              |                                                                                                                         |
-| `created_at`                 | string                                                                     | false    |              |                                                                                                                         |
-| `default_destination_scheme` | [codersdk.ParameterDestinationScheme](#codersdkparameterdestinationscheme) | false    |              |                                                                                                                         |
-| `default_refresh`            | string                                                                     | false    |              |                                                                                                                         |
-| `default_source_scheme`      | [codersdk.ParameterSourceScheme](#codersdkparametersourcescheme)           | false    |              |                                                                                                                         |
-| `default_source_value`       | string                                                                     | false    |              |                                                                                                                         |
-| `description`                | string                                                                     | false    |              |                                                                                                                         |
-| `id`                         | string                                                                     | false    |              |                                                                                                                         |
-| `job_id`                     | string                                                                     | false    |              |                                                                                                                         |
-| `name`                       | string                                                                     | false    |              |                                                                                                                         |
-| `redisplay_value`            | boolean                                                                    | false    |              |                                                                                                                         |
-| `validation_condition`       | string                                                                     | false    |              |                                                                                                                         |
-| `validation_contains`        | array of string                                                            | false    |              | This is a special array of items provided if the validation condition explicitly states the value must be one of a set. |
-| `validation_error`           | string                                                                     | false    |              |                                                                                                                         |
-| `validation_type_system`     | string                                                                     | false    |              |                                                                                                                         |
-| `validation_value_type`      | string                                                                     | false    |              |                                                                                                                         |
-
-#### Enumerated Values
-
-| Property                     | Value                  |
-| ---------------------------- | ---------------------- |
-| `default_destination_scheme` | `none`                 |
-| `default_destination_scheme` | `environment_variable` |
-| `default_destination_scheme` | `provisioner_variable` |
-| `default_source_scheme`      | `none`                 |
-| `default_source_scheme`      | `data`                 |
-
-## codersdk.ParameterScope
-
-```json
-"template"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value        |
-| ------------ |
-| `template`   |
-| `workspace`  |
-| `import_job` |
-
-## codersdk.ParameterSourceScheme
-
-```json
-"none"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value  |
-| ------ |
-| `none` |
-| `data` |
-
 ## codersdk.PatchTemplateVersionRequest
 
 ```json
@@ -4142,7 +3910,7 @@ Parameter represents a set value for the scope.
   "readme": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["DEPRECATED_PARAMETERS"]
+  "warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -4300,16 +4068,16 @@ Parameter represents a set value for the scope.
 ## codersdk.TemplateVersionWarning
 
 ```json
-"DEPRECATED_PARAMETERS"
+"UNSUPPORTED_WORKSPACES"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value                   |
-| ----------------------- |
-| `DEPRECATED_PARAMETERS` |
+| Value                    |
+| ------------------------ |
+| `UNSUPPORTED_WORKSPACES` |
 
 ## codersdk.TokenConfig
 
@@ -5796,53 +5564,6 @@ Parameter represents a set value for the scope.
 | `count`      | integer                                           | false    |              |             |
 | `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |             |
 
-## database.ParameterDestinationScheme
-
-```json
-"none"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value                  |
-| ---------------------- |
-| `none`                 |
-| `environment_variable` |
-| `provisioner_variable` |
-
-## database.ParameterScope
-
-```json
-"template"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value        |
-| ------------ |
-| `template`   |
-| `import_job` |
-| `workspace`  |
-
-## database.ParameterSourceScheme
-
-```json
-"none"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value  |
-| ------ |
-| `none` |
-| `data` |
-
 ## derp.ServerInfoMessage
 
 ```json
@@ -6376,6 +6097,7 @@ Parameter represents a set value for the scope.
       }
     }
   },
+  "failing_sections": ["string"],
   "healthy": true,
   "time": "string",
   "websocket": {
@@ -6391,13 +6113,14 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name         | Type                                                       | Required | Restrictions | Description                                      |
-| ------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
-| `access_url` | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
-| `derp`       | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
-| `healthy`    | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
-| `time`       | string                                                     | false    |              | Time is the time the report was generated at.    |
-| `websocket`  | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
+| Name               | Type                                                       | Required | Restrictions | Description                                      |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
+| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
+| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
+| `failing_sections` | array of string                                            | false    |              |                                                  |
+| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
+| `time`             | string                                                     | false    |              | Time is the time the report was generated at.    |
+| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
 
 ## healthcheck.WebsocketReport
 
@@ -6497,40 +6220,6 @@ Parameter represents a set value for the scope.
 | » `[any property]`      | integer | false    |              |                                                                                                                                    |
 | `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
 | `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
-
-## parameter.ComputedValue
-
-```json
-{
-  "created_at": "string",
-  "default_source_value": true,
-  "destination_scheme": "none",
-  "id": "string",
-  "name": "string",
-  "schema_id": "string",
-  "scope": "template",
-  "scope_id": "string",
-  "source_scheme": "none",
-  "source_value": "string",
-  "updated_at": "string"
-}
-```
-
-### Properties
-
-| Name                   | Type                                                                       | Required | Restrictions | Description |
-| ---------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `created_at`           | string                                                                     | false    |              |             |
-| `default_source_value` | boolean                                                                    | false    |              |             |
-| `destination_scheme`   | [database.ParameterDestinationScheme](#databaseparameterdestinationscheme) | false    |              |             |
-| `id`                   | string                                                                     | false    |              |             |
-| `name`                 | string                                                                     | false    |              |             |
-| `schema_id`            | string                                                                     | false    |              |             |
-| `scope`                | [database.ParameterScope](#databaseparameterscope)                         | false    |              |             |
-| `scope_id`             | string                                                                     | false    |              |             |
-| `source_scheme`        | [database.ParameterSourceScheme](#databaseparametersourcescheme)           | false    |              |             |
-| `source_value`         | string                                                                     | false    |              |             |
-| `updated_at`           | string                                                                     | false    |              |             |
 
 ## sql.NullTime
 

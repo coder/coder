@@ -18,7 +18,6 @@ import (
 
 func (r *RootCmd) create() *clibase.Cmd {
 	var (
-		parameterFile     string
 		richParameterFile string
 		templateName      string
 		startAt           string
@@ -122,8 +121,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 
 			buildParams, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Template:          template,
-				ExistingParams:    []codersdk.Parameter{},
-				ParameterFile:     parameterFile,
 				RichParameterFile: richParameterFile,
 				NewWorkspaceName:  workspaceName,
 			})
@@ -151,7 +148,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
 				TTLMillis:           ttlMillis,
-				ParameterValues:     buildParams.parameters,
 				RichParameterValues: buildParams.richParameters,
 			})
 			if err != nil {
@@ -174,12 +170,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Env:           "CODER_TEMPLATE_NAME",
 			Description:   "Specify a template name.",
 			Value:         clibase.StringOf(&templateName),
-		},
-		clibase.Option{
-			Flag:        "parameter-file",
-			Env:         "CODER_PARAMETER_FILE",
-			Description: "Specify a file path with parameter values.",
-			Value:       clibase.StringOf(&parameterFile),
 		},
 		clibase.Option{
 			Flag:        "rich-parameter-file",
@@ -207,8 +197,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 
 type prepWorkspaceBuildArgs struct {
 	Template           codersdk.Template
-	ExistingParams     []codersdk.Parameter
-	ParameterFile      string
 	ExistingRichParams []codersdk.WorkspaceBuildParameter
 	RichParameterFile  string
 	NewWorkspaceName   string
@@ -218,8 +206,6 @@ type prepWorkspaceBuildArgs struct {
 }
 
 type buildParameters struct {
-	// Parameters contains legacy parameters stored in /parameters.
-	parameters []codersdk.CreateParameterRequest
 	// Rich parameters stores values for build parameters annotated with description, icon, type, etc.
 	richParameters []codersdk.WorkspaceBuildParameter
 }
@@ -229,80 +215,9 @@ type buildParameters struct {
 func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
 	ctx := inv.Context()
 
-	var useRichParameters bool
-	if len(args.ExistingRichParams) > 0 && len(args.RichParameterFile) > 0 {
-		useRichParameters = true
-	}
-
-	var useLegacyParameters bool
-	if len(args.ExistingParams) > 0 || len(args.ParameterFile) > 0 {
-		useLegacyParameters = true
-	}
-
-	if useRichParameters && useLegacyParameters {
-		return nil, xerrors.Errorf("Rich parameters can't be used together with legacy parameters.")
-	}
-
 	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
 	if err != nil {
 		return nil, err
-	}
-
-	// Legacy parameters
-	parameterSchemas, err := client.TemplateVersionSchema(ctx, templateVersion.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	// parameterMapFromFile can be nil if parameter file is not specified
-	var parameterMapFromFile map[string]string
-	useParamFile := false
-	if args.ParameterFile != "" {
-		useParamFile = true
-		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-		parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
-		if err != nil {
-			return nil, err
-		}
-	}
-	disclaimerPrinted := false
-	legacyParameters := make([]codersdk.CreateParameterRequest, 0)
-PromptParamLoop:
-	for _, parameterSchema := range parameterSchemas {
-		if !parameterSchema.AllowOverrideSource {
-			continue
-		}
-		if !disclaimerPrinted {
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
-			disclaimerPrinted = true
-		}
-
-		// Param file is all or nothing
-		if !useParamFile {
-			for _, e := range args.ExistingParams {
-				if e.Name == parameterSchema.Name {
-					// If the param already exists, we do not need to prompt it again.
-					// The workspace scope will reuse params for each build.
-					continue PromptParamLoop
-				}
-			}
-		}
-
-		parameterValue, err := getParameterValueFromMapOrInput(inv, parameterMapFromFile, parameterSchema)
-		if err != nil {
-			return nil, err
-		}
-
-		legacyParameters = append(legacyParameters, codersdk.CreateParameterRequest{
-			Name:              parameterSchema.Name,
-			SourceValue:       parameterValue,
-			SourceScheme:      codersdk.ParameterSourceSchemeData,
-			DestinationScheme: parameterSchema.DefaultDestinationScheme,
-		})
-	}
-
-	if disclaimerPrinted {
-		_, _ = fmt.Fprintln(inv.Stdout)
 	}
 
 	// Rich parameters
@@ -311,8 +226,8 @@ PromptParamLoop:
 		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
 	}
 
-	parameterMapFromFile = map[string]string{}
-	useParamFile = false
+	parameterMapFromFile := map[string]string{}
+	useParamFile := false
 	if args.RichParameterFile != "" {
 		useParamFile = true
 		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
@@ -321,7 +236,7 @@ PromptParamLoop:
 			return nil, err
 		}
 	}
-	disclaimerPrinted = false
+	disclaimerPrinted := false
 	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
 PromptRichParamLoop:
 	for _, templateVersionParameter := range templateVersionParameters {
@@ -379,7 +294,6 @@ PromptRichParamLoop:
 	// Run a dry-run with the given parameters to check correctness
 	dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
 		WorkspaceName:       args.NewWorkspaceName,
-		ParameterValues:     legacyParameters,
 		RichParameterValues: richParameters,
 	})
 	if err != nil {
@@ -421,7 +335,6 @@ PromptRichParamLoop:
 	}
 
 	return &buildParameters{
-		parameters:     legacyParameters,
 		richParameters: richParameters,
 	}, nil
 }

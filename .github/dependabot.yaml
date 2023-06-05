@@ -58,6 +58,8 @@ updates:
       interval: "monthly"
       time: "06:00"
       timezone: "America/Chicago"
+    reviewers:
+      - "coder/ts"
     commit-message:
       prefix: "chore"
     labels: []

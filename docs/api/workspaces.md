@@ -20,15 +20,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 {
   "autostart_schedule": "string",
   "name": "string",
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
   "rich_parameter_values": [
     {
       "name": "string",

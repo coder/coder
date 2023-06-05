@@ -125,7 +125,7 @@
     {
       "title": "Templates",
       "description": "Learn about templates, which define the infrastructure underlying workspaces",
-      "path": "./templates/README.md",
+      "path": "./templates/index.md",
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
@@ -216,7 +216,7 @@
     {
       "title": "Networking",
       "description": "Learn about networking in Coder",
-      "path": "./networking/README.md",
+      "path": "./networking/index.md",
       "icon_path": "./images/icons/networking.svg",
       "children": [
         {
@@ -456,10 +456,6 @@
         {
           "title": "Organizations",
           "path": "./api/organizations.md"
-        },
-        {
-          "title": "Parameters",
-          "path": "./api/parameters.md"
         },
         {
           "title": "Schemas",

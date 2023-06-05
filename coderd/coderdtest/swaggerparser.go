@@ -356,6 +356,6 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 			return // Exception: HTTP 200 is returned without response entity
 		}
 
-		assert.True(t, comment.produce == "", "Response model is undefined, so we can't predict the content type", comment)
+		assert.Truef(t, comment.produce == "", "Response model is undefined, so we can't predict the content type: %v", comment)
 	}
 }

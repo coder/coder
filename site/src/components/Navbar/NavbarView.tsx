@@ -192,8 +192,11 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   const refreshLatencies = proxyContextValue.refetchProxyLatencies
   const closeMenu = () => setIsOpen(false)
   const navigate = useNavigate()
+  const latencies = proxyContextValue.proxyLatencies
+  const isLoadingLatencies = Object.keys(latencies).length === 0
+  const isLoading = proxyContextValue.isLoading || isLoadingLatencies
 
-  if (!proxyContextValue.isFetched) {
+  if (isLoading) {
     return (
       <Skeleton
         width="160px"
@@ -230,9 +233,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             {selectedProxy.display_name}
             <ProxyStatusLatency
               proxy={selectedProxy}
-              latency={
-                proxyContextValue.proxyLatencies?.[selectedProxy.id]?.latencyMS
-              }
+              latency={latencies?.[selectedProxy.id]?.latencyMS}
             />
           </Box>
         ) : (
@@ -278,9 +279,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
               {proxy.display_name}
               <ProxyStatusLatency
                 proxy={proxy}
-                latency={
-                  proxyContextValue.proxyLatencies?.[proxy.id]?.latencyMS
-                }
+                latency={latencies?.[proxy.id]?.latencyMS}
               />
             </Box>
           </MenuItem>

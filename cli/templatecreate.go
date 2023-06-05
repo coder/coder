@@ -26,7 +26,6 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 	var (
 		provisioner     string
 		provisionerTags []string
-		parameterFile   string
 		variablesFile   string
 		variables       []string
 		defaultTTL      time.Duration
@@ -98,12 +97,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return err
 			}
 
-			job, _, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
+			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
 				FileID:          resp.ID,
-				ParameterFile:   parameterFile,
 				ProvisionerTags: tags,
 				VariablesFile:   variablesFile,
 				Variables:       variables,
@@ -146,11 +144,6 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		},
 	}
 	cmd.Options = clibase.OptionSet{
-		{
-			Flag:        "parameter-file",
-			Description: "Specify a file path with parameter values.",
-			Value:       clibase.StringOf(&parameterFile),
-		},
 		{
 			Flag:        "variables-file",
 			Description: "Specify a file path with values for Terraform-managed variables.",
@@ -198,12 +191,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 }
 
 type createValidTemplateVersionArgs struct {
-	Name          string
-	Client        *codersdk.Client
-	Organization  codersdk.Organization
-	Provisioner   database.ProvisionerType
-	FileID        uuid.UUID
-	ParameterFile string
+	Name         string
+	Client       *codersdk.Client
+	Organization codersdk.Organization
+	Provisioner  database.ProvisionerType
+	FileID       uuid.UUID
 
 	VariablesFile string
 	Variables     []string
@@ -217,17 +209,17 @@ type createValidTemplateVersionArgs struct {
 	ProvisionerTags map[string]string
 }
 
-func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplateVersionArgs) (*codersdk.TemplateVersion, error) {
 	client := args.Client
 
 	variableValues, err := loadVariableValuesFromFile(args.VariablesFile)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	variableValuesFromKeyValues, err := loadVariableValuesFromOptions(args.Variables)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	variableValues = append(variableValues, variableValuesFromKeyValues...)
 
@@ -236,7 +228,6 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
 		FileID:             args.FileID,
 		Provisioner:        codersdk.ProvisionerType(args.Provisioner),
-		ParameterValues:    parameters,
 		ProvisionerTags:    args.ProvisionerTags,
 		UserVariableValues: variableValues,
 	}
@@ -245,7 +236,7 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 	}
 	version, err := client.CreateTemplateVersion(inv.Context(), args.Organization.ID, req)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
@@ -263,115 +254,21 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 	if err != nil {
 		var jobErr *cliui.ProvisionerJobError
 		if errors.As(err, &jobErr) && !provisionerd.IsMissingParameterErrorCode(string(jobErr.Code)) {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 	version, err = client.TemplateVersion(inv.Context(), version.ID)
 	if err != nil {
-		return nil, nil, err
-	}
-	parameterSchemas, err := client.TemplateVersionSchema(inv.Context(), version.ID)
-	if err != nil {
-		return nil, nil, err
-	}
-	parameterValues, err := client.TemplateVersionParameters(inv.Context(), version.ID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// lastParameterValues are pulled from the current active template version if
-	// templateID is provided. This allows pulling params from the last
-	// version instead of prompting if we are updating template versions.
-	lastParameterValues := make(map[string]codersdk.Parameter)
-	if args.ReuseParameters && args.Template != nil {
-		activeVersion, err := client.TemplateVersion(inv.Context(), args.Template.ActiveVersionID)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)
-		}
-
-		// We don't want to compute the params, we only want to copy from this scope
-		values, err := client.Parameters(inv.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("Fetch previous version parameters: %w", err)
-		}
-		for _, value := range values {
-			lastParameterValues[value.Name] = value
-		}
-	}
-
-	if provisionerd.IsMissingParameterErrorCode(string(version.Job.ErrorCode)) {
-		valuesBySchemaID := map[string]codersdk.ComputedParameter{}
-		for _, parameterValue := range parameterValues {
-			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
-		}
-
-		// parameterMapFromFile can be nil if parameter file is not specified
-		var parameterMapFromFile map[string]string
-		if args.ParameterFile != "" {
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-			parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-
-		// pulled params come from the last template version
-		pulled := make([]string, 0)
-		missingSchemas := make([]codersdk.ParameterSchema, 0)
-		for _, parameterSchema := range parameterSchemas {
-			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
-			if ok {
-				continue
-			}
-
-			// The file values are handled below. So don't handle them here,
-			// just check if a value is present in the file.
-			_, fileOk := parameterMapFromFile[parameterSchema.Name]
-			if inherit, ok := lastParameterValues[parameterSchema.Name]; ok && !fileOk {
-				// If the value is not in the param file, and can be pulled from the last template version,
-				// then don't mark it as missing.
-				parameters = append(parameters, codersdk.CreateParameterRequest{
-					CloneID: inherit.ID,
-				})
-				pulled = append(pulled, fmt.Sprintf("%q", parameterSchema.Name))
-				continue
-			}
-
-			missingSchemas = append(missingSchemas, parameterSchema)
-		}
-		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set."))
-		if len(pulled) > 0 {
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render(fmt.Sprintf("The following parameter values are being pulled from the latest template version: %s.", strings.Join(pulled, ", "))))
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Use \"--always-prompt\" flag to change the values."))
-		}
-		_, _ = fmt.Fprint(inv.Stdout, "\r\n")
-
-		for _, parameterSchema := range missingSchemas {
-			parameterValue, err := getParameterValueFromMapOrInput(inv, parameterMapFromFile, parameterSchema)
-			if err != nil {
-				return nil, nil, err
-			}
-			parameters = append(parameters, codersdk.CreateParameterRequest{
-				Name:              parameterSchema.Name,
-				SourceValue:       parameterValue,
-				SourceScheme:      codersdk.ParameterSourceSchemeData,
-				DestinationScheme: parameterSchema.DefaultDestinationScheme,
-			})
-			_, _ = fmt.Fprintln(inv.Stdout)
-		}
-
-		// This recursion is only 1 level deep in practice.
-		// The first pass populates the missing parameters, so it does not enter this `if` block again.
-		return createValidTemplateVersion(inv, args, parameters...)
+		return nil, err
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
-		return nil, nil, xerrors.New(version.Job.Error)
+		return nil, xerrors.New(version.Job.Error)
 	}
 
 	resources, err := client.TemplateVersionResources(inv.Context(), version.ID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Only display the resources on the start transition, to avoid listing them more than once.
@@ -387,10 +284,10 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 		Title:          "Template Preview",
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("preview template resources: %w", err)
+		return nil, xerrors.Errorf("preview template resources: %w", err)
 	}
 
-	return &version, parameters, nil
+	return &version, nil
 }
 
 // prettyDirectoryPath returns a prettified path when inside the users

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -24,21 +23,19 @@ import (
 
 var (
 	// use fixed IDs so logs are easier to read
-	templateID         = uuid.MustParse("12341234-0000-0000-0001-000000000000")
-	activeVersionID    = uuid.MustParse("12341234-0000-0000-0002-000000000000")
-	inactiveVersionID  = uuid.MustParse("12341234-0000-0000-0003-000000000000")
-	activeJobID        = uuid.MustParse("12341234-0000-0000-0004-000000000000")
-	inactiveJobID      = uuid.MustParse("12341234-0000-0000-0005-000000000000")
-	orgID              = uuid.MustParse("12341234-0000-0000-0006-000000000000")
-	workspaceID        = uuid.MustParse("12341234-0000-0000-0007-000000000000")
-	userID             = uuid.MustParse("12341234-0000-0000-0008-000000000000")
-	activeFileID       = uuid.MustParse("12341234-0000-0000-0009-000000000000")
-	inactiveFileID     = uuid.MustParse("12341234-0000-0000-000a-000000000000")
-	lastBuildID        = uuid.MustParse("12341234-0000-0000-000b-000000000000")
-	lastBuildJobID     = uuid.MustParse("12341234-0000-0000-000c-000000000000")
-	otherUserID        = uuid.MustParse("12341234-0000-0000-000d-000000000000")
-	notReplacedParamID = uuid.MustParse("12341234-0000-0000-000e-000000000000")
-	replacedParamID    = uuid.MustParse("12341234-0000-0000-000f-000000000000")
+	templateID        = uuid.MustParse("12341234-0000-0000-0001-000000000000")
+	activeVersionID   = uuid.MustParse("12341234-0000-0000-0002-000000000000")
+	inactiveVersionID = uuid.MustParse("12341234-0000-0000-0003-000000000000")
+	activeJobID       = uuid.MustParse("12341234-0000-0000-0004-000000000000")
+	inactiveJobID     = uuid.MustParse("12341234-0000-0000-0005-000000000000")
+	orgID             = uuid.MustParse("12341234-0000-0000-0006-000000000000")
+	workspaceID       = uuid.MustParse("12341234-0000-0000-0007-000000000000")
+	userID            = uuid.MustParse("12341234-0000-0000-0008-000000000000")
+	activeFileID      = uuid.MustParse("12341234-0000-0000-0009-000000000000")
+	inactiveFileID    = uuid.MustParse("12341234-0000-0000-000a-000000000000")
+	lastBuildID       = uuid.MustParse("12341234-0000-0000-000b-000000000000")
+	lastBuildJobID    = uuid.MustParse("12341234-0000-0000-000c-000000000000")
+	otherUserID       = uuid.MustParse("12341234-0000-0000-000d-000000000000")
 )
 
 func TestBuilder_NoOptions(t *testing.T) {
@@ -56,7 +53,8 @@ func TestBuilder_NoOptions(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withLegacyParameters(nil), withRichParameters(nil),
+		withRichParameters(nil),
+		withParameterSchemas(inactiveJobID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -104,7 +102,8 @@ func TestBuilder_Initiator(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withLegacyParameters(nil), withRichParameters(nil),
+		withRichParameters(nil),
+		withParameterSchemas(inactiveJobID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -136,7 +135,8 @@ func TestBuilder_Reason(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
-		withLegacyParameters(nil), withRichParameters(nil),
+		withRichParameters(nil),
+		withParameterSchemas(inactiveJobID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -167,7 +167,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		withTemplate,
 		withActiveVersion(nil),
 		withLastBuildNotFound,
-		withLegacyParameters(nil),
+		withParameterSchemas(activeJobID, nil),
 		// previous rich parameters are not queried because there is no previous build.
 
 		// Outputs
@@ -186,47 +186,6 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion()
-	_, _, err := uut.Build(ctx, mDB, nil)
-	req.NoError(err)
-}
-
-func TestBuilder_LegacyParams(t *testing.T) {
-	t.Parallel()
-	req := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	oldParams := []database.ParameterValue{
-		{Name: "not-replaced", SourceValue: "nr", ID: notReplacedParamID},
-		{Name: "replaced", SourceValue: "r", ID: replacedParamID},
-	}
-	newParams := []codersdk.CreateParameterRequest{
-		{Name: "replaced", SourceValue: "s"},
-		{Name: "new", SourceValue: "n"},
-	}
-
-	mDB := expectDB(t,
-		// Inputs
-		withTemplate,
-		withActiveVersion(nil),
-		withLastBuildFound,
-		withLegacyParameters(oldParams),
-		withRichParameters(nil),
-
-		// Outputs
-		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
-		}),
-		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
-		}),
-		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
-		}),
-		expectReplacedParam(replacedParamID, "replaced", "s"),
-		expectInsertedParam("new", "n"),
-	)
-
-	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion().LegacyParameterValues(newParams)
 	_, _, err := uut.Build(ctx, mDB, nil)
 	req.NoError(err)
 }
@@ -285,8 +244,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
+			withParameterSchemas(inactiveJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -326,8 +285,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
+			withParameterSchemas(inactiveJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -348,6 +307,47 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		req.NoError(err)
 	})
 
+	t.Run("StartWorkspaceWithLegacyParameterValues", func(t *testing.T) {
+		t.Parallel()
+
+		req := require.New(t)
+		asrt := assert.New(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		schemas := []database.ParameterSchema{
+			{
+				Name:                     "not-replaced",
+				DefaultDestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			},
+			{
+				Name:                     "replaced",
+				DefaultDestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			},
+		}
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withInactiveVersion(richParameters),
+			withLastBuildFound,
+			withRichParameters(nil),
+			withParameterSchemas(inactiveJobID, schemas),
+
+			// Outputs
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
+		_, _, err := uut.Build(ctx, mDB, nil)
+		bldErr := wsbuilder.BuildError{}
+		req.ErrorAs(err, &bldErr)
+		asrt.Equal(http.StatusBadRequest, bldErr.Status)
+	})
+
 	t.Run("DoNotModifyImmutables", func(t *testing.T) {
 		t.Parallel()
 
@@ -366,8 +366,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
+			withParameterSchemas(inactiveJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -418,8 +418,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
+			withParameterSchemas(activeJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -476,8 +476,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
+			withParameterSchemas(activeJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -532,8 +532,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
-			withLegacyParameters(nil),
 			withRichParameters(initialBuildParameters),
+			withParameterSchemas(activeJobID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -710,17 +710,14 @@ func withLastBuildNotFound(mTx *dbmock.MockStore) {
 		Return(database.WorkspaceBuild{}, sql.ErrNoRows)
 }
 
-func withLegacyParameters(params []database.ParameterValue) func(mTx *dbmock.MockStore) {
+func withParameterSchemas(jobID uuid.UUID, schemas []database.ParameterSchema) func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
-		c := mTx.EXPECT().ParameterValues(
+		c := mTx.EXPECT().GetParameterSchemasByJobID(
 			gomock.Any(),
-			database.ParameterValuesParams{
-				Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
-				ScopeIds: []uuid.UUID{workspaceID},
-			}).
+			jobID).
 			Times(1)
-		if len(params) > 0 {
-			c.Return(params, nil)
+		if len(schemas) > 0 {
+			c.Return(schemas, nil)
 		} else {
 			c.Return(nil, sql.ErrNoRows)
 		}
@@ -795,45 +792,5 @@ func expectBuildParameters(
 					return nil
 				},
 			)
-	}
-}
-
-type insertParameterMatcher struct {
-	name  string
-	value string
-}
-
-func (m insertParameterMatcher) Matches(x interface{}) bool {
-	p, ok := x.(database.InsertParameterValueParams)
-	if !ok {
-		return false
-	}
-	if p.Name != m.name {
-		return false
-	}
-	return p.SourceValue == m.value
-}
-
-func (m insertParameterMatcher) String() string {
-	return fmt.Sprintf("ParameterValue %s=%s", m.name, m.value)
-}
-
-func expectReplacedParam(oldID uuid.UUID, name, newValue string) func(store *dbmock.MockStore) {
-	return func(mTx *dbmock.MockStore) {
-		del := mTx.EXPECT().DeleteParameterValueByID(gomock.Any(), oldID).
-			Times(1).
-			Return(nil)
-		mTx.EXPECT().InsertParameterValue(gomock.Any(), insertParameterMatcher{name, newValue}).
-			Times(1).
-			After(del).
-			Return(database.ParameterValue{}, nil)
-	}
-}
-
-func expectInsertedParam(name, newValue string) func(store *dbmock.MockStore) {
-	return func(mTx *dbmock.MockStore) {
-		mTx.EXPECT().InsertParameterValue(gomock.Any(), insertParameterMatcher{name, newValue}).
-			Times(1).
-			Return(database.ParameterValue{}, nil)
 	}
 }

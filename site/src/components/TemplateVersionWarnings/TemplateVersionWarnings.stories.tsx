@@ -13,7 +13,7 @@ const Template: Story<TemplateVersionWarningsProps> = (args) => (
   <TemplateVersionWarnings {...args} />
 )
 
-export const DeprecatedParameters = Template.bind({})
-DeprecatedParameters.args = {
-  warnings: ["DEPRECATED_PARAMETERS"],
+export const UnsupportedWorkspaces = Template.bind({})
+UnsupportedWorkspaces.args = {
+  warnings: ["UNSUPPORTED_WORKSPACES"],
 }

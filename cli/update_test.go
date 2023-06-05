@@ -76,69 +76,6 @@ func TestUpdate(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, version2.ID.String(), ws.LatestBuild.TemplateVersionID.String())
 	})
-
-	t.Run("WithParameter", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-
-		coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
-
-		inv, root := clitest.New(t, "create",
-			"my-workspace",
-			"--template", template.Name,
-			"-y",
-		)
-		clitest.SetupConfig(t, client, root)
-
-		err := inv.Run()
-		require.NoError(t, err)
-
-		ws, err := client.WorkspaceByOwnerAndName(context.Background(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
-		require.NoError(t, err)
-		require.Equal(t, version1.ID.String(), ws.LatestBuild.TemplateVersionID.String())
-
-		defaultValue := "something"
-		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          createTestParseResponseWithDefault(defaultValue),
-			ProvisionApply: echo.ProvisionComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-		}, template.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
-
-		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: version2.ID,
-		})
-		require.NoError(t, err)
-
-		inv, root = clitest.New(t, "update", ws.Name)
-		clitest.SetupConfig(t, client, root)
-
-		pty := ptytest.New(t).Attach(inv)
-
-		doneChan := make(chan struct{})
-		go func() {
-			defer close(doneChan)
-			err := inv.Run()
-			assert.NoError(t, err)
-		}()
-
-		matches := []string{
-			fmt.Sprintf("Enter a value (default: %q):", defaultValue), "bingo",
-			"Enter a value:", "boingo",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
-		}
-
-		<-doneChan
-	})
 }
 
 func TestUpdateWithRichParameters(t *testing.T) {

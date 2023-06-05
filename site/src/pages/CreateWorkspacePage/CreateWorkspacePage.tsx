@@ -32,10 +32,8 @@ const CreateWorkspacePage: FC = () => {
   const {
     templates,
     templateParameters,
-    templateSchema,
     templateGitAuth,
     selectedTemplate,
-    getTemplateSchemaError,
     getTemplateGitAuthError,
     getTemplatesError,
     createWorkspaceError,
@@ -55,21 +53,15 @@ const CreateWorkspacePage: FC = () => {
         name={name}
         defaultParameterValues={defaultParameterValues}
         loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
-        loadingTemplateSchema={createWorkspaceState.matches(
-          "gettingTemplateSchema",
-        )}
         creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
         hasTemplateErrors={createWorkspaceState.matches("error")}
         templateName={templateName}
         templates={templates}
         selectedTemplate={selectedTemplate}
         templateParameters={orderedTemplateParameters(templateParameters)}
-        templateSchema={templateSchema}
         templateGitAuth={templateGitAuth}
         createWorkspaceErrors={{
           [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
-          [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]:
-            getTemplateSchemaError,
           [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
           [CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR]:
             getTemplateGitAuthError,

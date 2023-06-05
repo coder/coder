@@ -32,10 +32,10 @@ The password of the new user. If not specified, you will be prompted via stdin.
 
 ### --postgres-url
 
-|             |                                  |
-| ----------- | -------------------------------- |
-| Type        | <code>string</code>              |
-| Environment | <code>$CODER_POSTGRES_URL</code> |
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Type        | <code>string</code>                   |
+| Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
 URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).
 

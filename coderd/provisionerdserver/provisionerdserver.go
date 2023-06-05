@@ -33,7 +33,6 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -209,27 +208,6 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			}
 		}
 
-		// Compute parameters for the workspace to consume.
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			TemplateImportJobID: templateVersion.JobID,
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			WorkspaceID: uuid.NullUUID{
-				UUID:  workspace.ID,
-				Valid: true,
-			},
-		}, nil)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
-		}
-
-		// Convert types to their corresponding protobuf types.
-		protoParameters, err := convertComputedParameterValues(parameters)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
-		}
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
@@ -287,7 +265,6 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				WorkspaceBuildId:    workspaceBuild.ID.String(),
 				WorkspaceName:       workspace.Name,
 				State:               workspaceBuild.ProvisionerState,
-				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				VariableValues:      asVariableValues(templateVariables),
 				GitAuthProviders:    gitAuthProviders,
@@ -323,26 +300,8 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
 		}
 
-		// Compute parameters for the dry-run to consume.
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			TemplateImportJobID:       templateVersion.JobID,
-			TemplateID:                templateVersion.TemplateID,
-			WorkspaceID:               uuid.NullUUID{},
-			AdditionalParameterValues: input.ParameterValues,
-		}, nil)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
-		}
-
-		// Convert types to their corresponding protobuf types.
-		protoParameters, err := convertComputedParameterValues(parameters)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
-		}
-
 		protoJob.Type = &proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
 				VariableValues:      asVariableValues(templateVariables),
 				Metadata: &sdkproto.Provision_Metadata{
@@ -614,91 +573,6 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		return &proto.UpdateJobResponse{
 			Canceled:       job.CanceledAt.Valid,
 			VariableValues: variableValues,
-		}, nil
-	}
-
-	if len(request.ParameterSchemas) > 0 {
-		for index, protoParameter := range request.ParameterSchemas {
-			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
-			if err != nil {
-				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
-			}
-
-			parameterSchema := database.InsertParameterSchemaParams{
-				ID:                   uuid.New(),
-				CreatedAt:            database.Now(),
-				JobID:                job.ID,
-				Name:                 protoParameter.Name,
-				Description:          protoParameter.Description,
-				RedisplayValue:       protoParameter.RedisplayValue,
-				ValidationError:      protoParameter.ValidationError,
-				ValidationCondition:  protoParameter.ValidationCondition,
-				ValidationValueType:  protoParameter.ValidationValueType,
-				ValidationTypeSystem: validationTypeSystem,
-
-				DefaultSourceScheme:      database.ParameterSourceSchemeNone,
-				DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
-
-				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
-				AllowOverrideSource:      protoParameter.AllowOverrideSource,
-
-				Index: int32(index),
-			}
-
-			// It's possible a parameter doesn't define a default source!
-			if protoParameter.DefaultSource != nil {
-				parameterSourceScheme, err := convertParameterSourceScheme(protoParameter.DefaultSource.Scheme)
-				if err != nil {
-					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
-				}
-				parameterSchema.DefaultSourceScheme = parameterSourceScheme
-				parameterSchema.DefaultSourceValue = protoParameter.DefaultSource.Value
-			}
-
-			// It's possible a parameter doesn't define a default destination!
-			if protoParameter.DefaultDestination != nil {
-				parameterDestinationScheme, err := convertParameterDestinationScheme(protoParameter.DefaultDestination.Scheme)
-				if err != nil {
-					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
-				}
-				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
-			}
-
-			_, err = server.Database.InsertParameterSchema(ctx, parameterSchema)
-			if err != nil {
-				return nil, xerrors.Errorf("insert parameter schema: %w", err)
-			}
-		}
-
-		var templateID uuid.NullUUID
-		if job.Type == database.ProvisionerJobTypeTemplateVersionImport {
-			templateVersion, err := server.Database.GetTemplateVersionByJobID(ctx, job.ID)
-			if err != nil {
-				return nil, xerrors.Errorf("get template version by job id: %w", err)
-			}
-			templateID = templateVersion.TemplateID
-		}
-
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			TemplateImportJobID: job.ID,
-			TemplateID:          templateID,
-		}, nil)
-		if err != nil {
-			return nil, xerrors.Errorf("compute parameters: %w", err)
-		}
-		// Convert parameters to the protobuf type.
-		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
-		for _, computedParameter := range parameters {
-			converted, err := convertComputedParameterValue(computedParameter)
-			if err != nil {
-				return nil, xerrors.Errorf("convert parameter: %s", err)
-			}
-			protoParameters = append(protoParameters, converted)
-		}
-
-		return &proto.UpdateJobResponse{
-			Canceled:        job.CanceledAt.Valid,
-			ParameterValues: protoParameters,
 		}, nil
 	}
 
@@ -1545,37 +1419,6 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig ht
 	return link.OAuthAccessToken, nil
 }
 
-func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {
-	switch typeSystem {
-	case sdkproto.ParameterSchema_None:
-		return database.ParameterTypeSystemNone, nil
-	case sdkproto.ParameterSchema_HCL:
-		return database.ParameterTypeSystemHCL, nil
-	default:
-		return database.ParameterTypeSystem(""), xerrors.Errorf("unknown type system: %d", typeSystem)
-	}
-}
-
-func convertParameterSourceScheme(sourceScheme sdkproto.ParameterSource_Scheme) (database.ParameterSourceScheme, error) {
-	switch sourceScheme {
-	case sdkproto.ParameterSource_DATA:
-		return database.ParameterSourceSchemeData, nil
-	default:
-		return database.ParameterSourceScheme(""), xerrors.Errorf("unknown parameter source scheme: %d", sourceScheme)
-	}
-}
-
-func convertParameterDestinationScheme(destinationScheme sdkproto.ParameterDestination_Scheme) (database.ParameterDestinationScheme, error) {
-	switch destinationScheme {
-	case sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE:
-		return database.ParameterDestinationSchemeEnvironmentVariable, nil
-	case sdkproto.ParameterDestination_PROVISIONER_VARIABLE:
-		return database.ParameterDestinationSchemeProvisionerVariable, nil
-	default:
-		return database.ParameterDestinationScheme(""), xerrors.Errorf("unknown parameter destination scheme: %d", destinationScheme)
-	}
-}
-
 func convertLogLevel(logLevel sdkproto.LogLevel) (database.LogLevel, error) {
 	switch logLevel {
 	case sdkproto.LogLevel_TRACE:
@@ -1627,37 +1470,6 @@ func convertVariableValues(variableValues []codersdk.VariableValue) []*sdkproto.
 	return protoVariableValues
 }
 
-func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sdkproto.ParameterValue, error) {
-	protoParameters := make([]*sdkproto.ParameterValue, len(parameters))
-	for i, computedParameter := range parameters {
-		converted, err := convertComputedParameterValue(computedParameter)
-		if err != nil {
-			return nil, xerrors.Errorf("convert parameter: %w", err)
-		}
-		protoParameters[i] = converted
-	}
-
-	return protoParameters, nil
-}
-
-func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.ParameterValue, error) {
-	var scheme sdkproto.ParameterDestination_Scheme
-	switch param.DestinationScheme {
-	case database.ParameterDestinationSchemeEnvironmentVariable:
-		scheme = sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE
-	case database.ParameterDestinationSchemeProvisionerVariable:
-		scheme = sdkproto.ParameterDestination_PROVISIONER_VARIABLE
-	default:
-		return nil, xerrors.Errorf("unrecognized destination scheme: %q", param.DestinationScheme)
-	}
-
-	return &sdkproto.ParameterValue{
-		DestinationScheme: scheme,
-		Name:              param.Name,
-		Value:             param.SourceValue,
-	}, nil
-}
-
 func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkproto.WorkspaceTransition, error) {
 	switch transition {
 	case database.WorkspaceTransitionStart:
@@ -1700,7 +1512,6 @@ type WorkspaceProvisionJob struct {
 type TemplateVersionDryRunJob struct {
 	TemplateVersionID   uuid.UUID                          `json:"template_version_id"`
 	WorkspaceName       string                             `json:"workspace_name"`
-	ParameterValues     []database.ParameterValue          `json:"parameter_values"`
 	RichParameterValues []database.WorkspaceBuildParameter `json:"rich_parameter_values"`
 }
 

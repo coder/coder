@@ -204,27 +204,6 @@ func TestProvision(t *testing.T) {
 		Apply             bool
 	}{
 		{
-			Name: "single-variable",
-			Files: map[string]string{
-				"main.tf": `variable "A" {
-				description = "Testing!"
-			}`,
-			},
-			Request: &proto.Provision_Plan{
-				ParameterValues: []*proto.ParameterValue{{
-					DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-					Name:              "A",
-					Value:             "example",
-				}},
-			},
-			Response: &proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
-				},
-			},
-			Apply: true,
-		},
-		{
 			Name: "missing-variable",
 			Files: map[string]string{
 				"main.tf": `variable "A" {
@@ -304,22 +283,6 @@ func TestProvision(t *testing.T) {
 				},
 			},
 			ExpectLogContains: "nothing to do",
-		},
-		{
-			Name: "unsupported-parameter-scheme",
-			Files: map[string]string{
-				"main.tf": "",
-			},
-			Request: &proto.Provision_Plan{
-				ParameterValues: []*proto.ParameterValue{
-					{
-						DestinationScheme: 88,
-						Name:              "UNSUPPORTED",
-						Value:             "sadface",
-					},
-				},
-			},
-			ErrorContains: "unsupported parameter type",
 		},
 		{
 			Name: "rich-parameter-with-value",
@@ -462,7 +425,6 @@ func TestProvision(t *testing.T) {
 				if planRequest.GetPlan().GetConfig() == nil {
 					planRequest.GetPlan().Config = &proto.Provision_Config{}
 				}
-				planRequest.GetPlan().ParameterValues = testCase.Request.ParameterValues
 				planRequest.GetPlan().RichParameterValues = testCase.Request.RichParameterValues
 				planRequest.GetPlan().GitAuthProviders = testCase.Request.GitAuthProviders
 				if testCase.Request.Config != nil {
