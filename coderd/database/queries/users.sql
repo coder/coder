@@ -183,9 +183,8 @@ WHERE
 	END
 	-- End of filters
 ORDER BY
-	-- Deterministic and consistent ordering of all users, even if they share
-	-- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET @offset_opt
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	username ASC OFFSET @offset_opt
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF(@limit_opt :: int, 0);

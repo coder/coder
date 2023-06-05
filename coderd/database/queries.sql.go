@@ -4817,9 +4817,8 @@ WHERE
 	END
 	-- End of filters
 ORDER BY
-	-- Deterministic and consistent ordering of all users, even if they share
-	-- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET $5
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	username ASC OFFSET $5
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF($6 :: int, 0)
