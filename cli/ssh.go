@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,8 +49,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		identityAgent  string
 		wsPollInterval time.Duration
 		noWait         bool
-		logDir         string
-		logToFile      bool
+		logFilePath    string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -74,21 +72,10 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 					logger.Error(ctx, "command exit", slog.Error(retErr))
 				}
 			}()
-			if logToFile {
-				// we need a way to ensure different ssh invocations don't clobber
-				// each other's logs. Date-time strings will likely have collisions
-				// in unit tests and/or scripts unless we extend precision out to
-				// sub-millisecond, which seems unwieldy.  A simple 5-character random
-				// string will do it, since the operating system already tracks
-				// dates and times for file IO.
-				qual, err := cryptorand.String(5)
+			if logFilePath != "" {
+				logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 				if err != nil {
-					return xerrors.Errorf("generate random qualifier: %w", err)
-				}
-				logPth := path.Join(logDir, fmt.Sprintf("coder-ssh-%s.log", qual))
-				logFile, err := os.Create(logPth)
-				if err != nil {
-					return xerrors.Errorf("error opening %s for logging: %w", logPth, err)
+					return xerrors.Errorf("error opening %s for logging: %w", logFilePath, err)
 				}
 				logger = slog.Make(sloghuman.Sink(logFile))
 				defer logFile.Close()
@@ -354,18 +341,11 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Value:       clibase.BoolOf(&noWait),
 		},
 		{
-			Flag:        "log-dir",
-			Default:     os.TempDir(),
-			Description: "Specify the location for the log files.",
-			Env:         "CODER_SSH_LOG_DIR",
-			Value:       clibase.StringOf(&logDir),
-		},
-		{
-			Flag:          "log-to-file",
+			Flag:          "log-file",
+			Description:   "Specify the location of an SSH diagnostic log file.",
+			Env:           "CODER_SSH_LOG_FILE",
 			FlagShorthand: "l",
-			Env:           "CODER_SSH_LOG_TO_FILE",
-			Description:   "Enable diagnostic logging to file.",
-			Value:         clibase.BoolOf(&logToFile),
+			Value:         clibase.StringOf(&logFilePath),
 		},
 	}
 	return cmd

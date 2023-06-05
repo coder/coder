@@ -411,10 +411,10 @@ func TestSSH(t *testing.T) {
 	t.Run("FileLogging", func(t *testing.T) {
 		t.Parallel()
 
-		dir := t.TempDir()
+		logFile := filepath.Join(t.TempDir(), "coder-ssh.log")
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-		inv, root := clitest.New(t, "ssh", workspace.Name, "-l", "--log-dir", dir)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "-l", logFile)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
@@ -441,15 +441,10 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("exit")
 		<-cmdDone
 
-		entries, err := os.ReadDir(dir)
-		require.NoError(t, err)
-		for _, e := range entries {
-			t.Logf("logdir entry: %s", e.Name())
-			if strings.HasPrefix(e.Name(), "coder-ssh") {
-				return
-			}
+		_, err := os.Stat(logFile)
+		if err != nil {
+			t.Fatalf("failed to find ssh logfile: %v", err)
 		}
-		t.Fatal("failed to find ssh logfile")
 	})
 }
 
