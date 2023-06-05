@@ -107,9 +107,10 @@ func TestLimitWriter(t *testing.T) {
 	}
 
 	for _, c := range testCases {
+		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			buf := bytes.NewBuffer([]byte{})
 			allBuff := bytes.NewBuffer([]byte{})
 			w := xio.NewLimitWriter(buf, c.L)
