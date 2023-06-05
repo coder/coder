@@ -1579,10 +1579,7 @@ func TestPaginatedUsers(t *testing.T) {
 	err = eg.Wait()
 	require.NoError(t, err, "create users failed")
 
-	// Sorting the users will sort by (created_at, uuid). This is to handle
-	// the off case that created_at is identical for 2 users.
-	// This is a really rare case in production, but does happen in unit tests
-	// due to the fake database being in memory and exceptionally quick.
+	// Sorting the users will sort by username.
 	sortUsers(allUsers)
 	sortUsers(specialUsers)
 
@@ -1697,10 +1694,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 // sortUsers sorts by (created_at, id)
 func sortUsers(users []codersdk.User) {
 	sort.Slice(users, func(i, j int) bool {
-		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
-			return users[i].ID.String() < users[j].ID.String()
-		}
-		return users[i].CreatedAt.Before(users[j].CreatedAt)
+		return sort.StringsAreSorted([]string{users[i].Username, users[j].Username})
 	})
 }
 
