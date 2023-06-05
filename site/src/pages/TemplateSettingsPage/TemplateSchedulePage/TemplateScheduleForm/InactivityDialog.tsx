@@ -1,33 +1,29 @@
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { useWorkspacesData } from "./useWorkspacesData"
-import { TemplateScheduleFormValues } from "./formHelpers"
 
 export const InactivityDialog = ({
-  formValues,
   submitValues,
   isInactivityDialogOpen,
   setIsInactivityDialogOpen,
+  workspacesToBeDeletedToday,
 }: {
-  formValues: TemplateScheduleFormValues
-  submitValues: (arg0: TemplateScheduleFormValues) => void
+  submitValues: () => void
   isInactivityDialogOpen: boolean
   setIsInactivityDialogOpen: (arg0: boolean) => void
+  workspacesToBeDeletedToday: number
 }) => {
-  const workspacesToBeDeletedToday = useWorkspacesData(formValues)
-
   return (
     <ConfirmDialog
       type="delete"
       open={isInactivityDialogOpen}
       onConfirm={() => {
-        submitValues(formValues)
+        submitValues()
         setIsInactivityDialogOpen(false)
       }}
       onClose={() => setIsInactivityDialogOpen(false)}
       title="Delete inactive workspaces"
       confirmText="Delete Workspaces"
       description={`There are ${
-        workspacesToBeDeletedToday?.length ?? ""
+        workspacesToBeDeletedToday ? workspacesToBeDeletedToday : ""
       } workspaces that already match this filter and will be deleted upon form submission. Are you sure you want to proceed?`}
     />
   )

@@ -74,7 +74,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         allowAdvancedScheduling && Boolean(template.inactivity_ttl_ms),
     },
     validationSchema,
-    onSubmit: (formData) => {
+    onSubmit: () => {
       if (
         form.values.inactivity_cleanup_enabled &&
         workspacesToBeDeletedToday &&
@@ -82,7 +82,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       ) {
         setIsInactivityDialogOpen(true)
       } else {
-        submitValues(formData)
+        submitValues()
       }
     },
     initialTouched,
@@ -99,24 +99,24 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
     useState<boolean>(false)
 
-  const submitValues = (formData: TemplateScheduleFormValues) => {
+  const submitValues = () => {
     // on submit, convert from hours => ms
     onSubmit({
-      default_ttl_ms: formData.default_ttl_ms
-        ? formData.default_ttl_ms * MS_HOUR_CONVERSION
+      default_ttl_ms: form.values.default_ttl_ms
+        ? form.values.default_ttl_ms * MS_HOUR_CONVERSION
         : undefined,
-      max_ttl_ms: formData.max_ttl_ms
-        ? formData.max_ttl_ms * MS_HOUR_CONVERSION
+      max_ttl_ms: form.values.max_ttl_ms
+        ? form.values.max_ttl_ms * MS_HOUR_CONVERSION
         : undefined,
-      failure_ttl_ms: formData.failure_ttl_ms
-        ? formData.failure_ttl_ms * MS_DAY_CONVERSION
+      failure_ttl_ms: form.values.failure_ttl_ms
+        ? form.values.failure_ttl_ms * MS_DAY_CONVERSION
         : undefined,
-      inactivity_ttl_ms: formData.inactivity_ttl_ms
-        ? formData.inactivity_ttl_ms * MS_DAY_CONVERSION
+      inactivity_ttl_ms: form.values.inactivity_ttl_ms
+        ? form.values.inactivity_ttl_ms * MS_DAY_CONVERSION
         : undefined,
 
-      allow_user_autostart: formData.allow_user_autostart,
-      allow_user_autostop: formData.allow_user_autostop,
+      allow_user_autostart: form.values.allow_user_autostart,
+      allow_user_autostop: form.values.allow_user_autostop,
     })
   }
 
@@ -333,10 +333,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         </>
       )}
       <InactivityDialog
-        formValues={form.values}
         submitValues={submitValues}
         isInactivityDialogOpen={isInactivityDialogOpen}
         setIsInactivityDialogOpen={setIsInactivityDialogOpen}
+        workspacesToBeDeletedToday={workspacesToBeDeletedToday?.length ?? 0}
       />
       <FormFooter
         onCancel={onCancel}
