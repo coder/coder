@@ -9215,6 +9215,10 @@ const docTemplate = `{
                 "lifecycle_state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 },
+                "login_before_ready": {
+                    "description": "Deprecated: Use StartupScriptBehavior instead.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },

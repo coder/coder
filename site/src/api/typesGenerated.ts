@@ -1091,6 +1091,7 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
+  readonly login_before_ready: boolean
   readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string

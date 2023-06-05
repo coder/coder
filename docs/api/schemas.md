@@ -4490,6 +4490,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
               }
             },
             "lifecycle_state": "created",
+            "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -4621,6 +4622,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   },
   "lifecycle_state": "created",
+  "login_before_ready": true,
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -4659,6 +4661,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `latency`                         | object                                                                                       | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
 | » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                                                            |
 | `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                            |
+| `login_before_ready`              | boolean                                                                                      | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                             |
 | `name`                            | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `operating_system`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `resource_id`                     | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -5029,6 +5032,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -5311,6 +5315,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       },
       "lifecycle_state": "created",
+      "login_before_ready": true,
       "name": "string",
       "operating_system": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -5510,6 +5515,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
                   }
                 },
                 "lifecycle_state": "created",
+                "login_before_ready": true,
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",

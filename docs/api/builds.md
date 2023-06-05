@@ -100,6 +100,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -253,6 +254,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -547,6 +549,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
           }
         },
         "lifecycle_state": "created",
+        "login_before_ready": true,
         "name": "string",
         "operating_system": "string",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -630,6 +633,7 @@ Status Code **200**
 | `»»»» latency_ms`                    | number                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» preferred`                     | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                                                                |
+| `»» login_before_ready`              | boolean                                                                                                | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                                                                 |
 | `»» name`                            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                     | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -790,6 +794,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -948,6 +953,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               }
             },
             "lifecycle_state": "created",
+            "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -1065,6 +1071,7 @@ Status Code **200**
 | `»»»»» latency_ms`                    | number                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» preferred`                     | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                                                                |
+| `»»» login_before_ready`              | boolean                                                                                                | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                                                                 |
 | `»»» name`                            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» operating_system`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» resource_id`                     | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1279,6 +1286,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",

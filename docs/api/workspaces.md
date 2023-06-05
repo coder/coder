@@ -124,6 +124,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
               }
             },
             "lifecycle_state": "created",
+            "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -298,6 +299,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               }
             },
             "lifecycle_state": "created",
+            "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -491,6 +493,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                   }
                 },
                 "lifecycle_state": "created",
+                "login_before_ready": true,
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -666,6 +669,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
               }
             },
             "lifecycle_state": "created",
+            "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
