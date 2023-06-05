@@ -32,11 +32,7 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
-const TerminalPage: FC<
-  React.PropsWithChildren<{
-    readonly renderer?: XTerm.RendererType
-  }>
-> = ({ renderer }) => {
+const TerminalPage: FC = () => {
   const navigate = useNavigate()
   const styles = useStyles()
   const { proxy } = useProxy()
@@ -160,7 +156,6 @@ const TerminalPage: FC<
       theme: {
         background: colors.gray[16],
       },
-      rendererType: renderer,
     })
     const fitAddon = new FitAddon()
     setFitAddon(fitAddon)
@@ -198,7 +193,7 @@ const TerminalPage: FC<
       window.removeEventListener("resize", listener)
       terminal.dispose()
     }
-  }, [renderer, sendEvent, xtermRef, handleWebLink])
+  }, [sendEvent, xtermRef, handleWebLink])
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found
