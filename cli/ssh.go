@@ -105,6 +105,23 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				return err
 			}
 
+			templateVersion, err := client.TemplateVersion(ctx, workspace.LatestBuild.TemplateVersionID)
+			if err != nil {
+				return err
+			}
+
+			var unsupportedWorkspace bool
+			for _, warning := range templateVersion.Warnings {
+				if warning == codersdk.TemplateVersionWarningUnsupportedWorkspaces {
+					unsupportedWorkspace = true
+					break
+				}
+			}
+
+			if unsupportedWorkspace && isTTYErr(inv) {
+				_, _ = fmt.Fprintln(inv.Stderr, "👋 Your workspace uses legacy parameters which are not supported anymore. Contact your administrator for assistance.")
+			}
+
 			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
 			if outdated && isTTYErr(inv) {
 				_, _ = fmt.Fprintln(inv.Stderr, updateWorkspaceBanner)

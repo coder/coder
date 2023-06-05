@@ -136,24 +136,40 @@ func RouteNotFound(rw http.ResponseWriter) {
 // marshaling, such as the number of elements in an array, which could help us
 // spot routes that need to be paginated.
 func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
+	// Pretty up JSON when testing.
+	if flag.Lookup("test.v") != nil {
+		WriteIndent(ctx, rw, status, response)
+		return
+	}
+
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	buf := &bytes.Buffer{}
-	enc := json.NewEncoder(buf)
+	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+	rw.WriteHeader(status)
+
+	enc := json.NewEncoder(rw)
 	enc.SetEscapeHTML(true)
-	// Pretty up JSON when testing.
-	if flag.Lookup("test.v") != nil {
-		enc.SetIndent("", "\t")
-	}
+
 	err := enc.Encode(response)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
+	_, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)
-	_, err = rw.Write(buf.Bytes())
+
+	enc := json.NewEncoder(rw)
+	enc.SetEscapeHTML(true)
+	enc.SetIndent("", "\t")
+
+	err := enc.Encode(response)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return

@@ -33,6 +33,9 @@ Example.args = {
         clearProxy: () => {
           return
         },
+        refetchProxyLatencies: () => {
+          return
+        },
       }}
     >
       <AgentRow
@@ -101,6 +104,9 @@ BunchOfMetadata.args = {
           return
         },
         clearProxy: () => {
+          return
+        },
+        refetchProxyLatencies: () => {
           return
         },
       }}

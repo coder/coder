@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 import i18next from "i18next"
 import {
-  mockParameterSchema,
   MockTemplate,
   MockUser,
   MockWorkspace,
@@ -79,7 +78,6 @@ describe("CreateWorkspacePage", () => {
   })
 
   it("succeeds with default owner", async () => {
-    jest.spyOn(API, "getTemplateVersionSchema").mockResolvedValueOnce([])
     jest
       .spyOn(API, "getUsers")
       .mockResolvedValueOnce({ users: [MockUser], count: 1 })
@@ -114,39 +112,9 @@ describe("CreateWorkspacePage", () => {
     )
   })
 
-  it("uses default param values passed from the URL", async () => {
-    const param = "dotfile_uri"
-    const paramValue = "localhost:3000"
-    jest.spyOn(API, "getTemplateVersionSchema").mockResolvedValueOnce([
-      mockParameterSchema({
-        name: param,
-        redisplay_value: true,
-        default_source_value: "",
-      }),
-    ])
-    jest
-      .spyOn(API, "getTemplateVersionRichParameters")
-      .mockResolvedValueOnce([MockTemplateVersionParameter1])
-
-    renderWithAuth(<CreateWorkspacePage />, {
-      route:
-        "/templates/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}`,
-      path: "/templates/:template/workspace",
-    }),
-      await screen.findByDisplayValue(paramValue)
-  })
-
   it("uses default rich param values passed from the URL", async () => {
     const param = "first_parameter"
     const paramValue = "It works!"
-    jest.spyOn(API, "getTemplateVersionSchema").mockResolvedValueOnce([
-      mockParameterSchema({
-        name: param,
-        default_source_value: "",
-      }),
-    ])
     jest
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1])

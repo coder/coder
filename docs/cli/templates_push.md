@@ -12,6 +12,15 @@ coder templates push [flags] [template]
 
 ## Options
 
+### --activate
+
+|         |                   |
+| ------- | ----------------- |
+| Type    | <code>bool</code> |
+| Default | <code>true</code> |
+
+Whether the new template will be marked active.
+
 ### --always-prompt
 
 |      |                   |
@@ -36,14 +45,6 @@ Specify the directory to create from, use '-' to read tar from stdin.
 | Type | <code>string</code> |
 
 Specify a name for the new template version. It will be automatically generated if not provided.
-
-### --parameter-file
-
-|      |                     |
-| ---- | ------------------- |
-| Type | <code>string</code> |
-
-Specify a file path with parameter values.
 
 ### --provisioner-tag
 

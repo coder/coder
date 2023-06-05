@@ -1,4 +1,3 @@
-import { makeStyles } from "@mui/styles"
 import { useQuery } from "@tanstack/react-query"
 import { useMachine } from "@xstate/react"
 import { getWorkspaceBuildLogs } from "api/api"
@@ -12,6 +11,9 @@ import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { useOrganizationId } from "hooks"
+import { isAxiosError } from "axios"
+import { Margins } from "components/Margins/Margins"
 
 const useFailedBuildLogs = (workspace: Workspace | undefined) => {
   const now = useRef(new Date())
@@ -35,45 +37,31 @@ export const WorkspacePage: FC = () => {
     username: string
     workspace: string
   }
+  const orgId = useOrganizationId()
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
     context: {
+      orgId,
       workspaceName,
       username,
     },
   })
-  const {
-    workspace,
-    getWorkspaceError,
-    getTemplateWarning,
-    getTemplateParametersWarning,
-    checkPermissionsError,
-  } = workspaceState.context
+  const { workspace, error } = workspaceState.context
   const [quotaState] = useMachine(quotaMachine, { context: { username } })
   const { getQuotaError } = quotaState.context
-  const styles = useStyles()
   const failedBuildLogs = useFailedBuildLogs(workspace)
+  const pageError = error ?? getQuotaError
 
   return (
     <RequirePermission
-      isFeatureVisible={getWorkspaceError?.response?.status !== 404}
+      isFeatureVisible={
+        !(isAxiosError(pageError) && pageError.response?.status === 404)
+      }
     >
       <ChooseOne>
-        <Cond condition={workspaceState.matches("error")}>
-          <div className={styles.error}>
-            {Boolean(getWorkspaceError) && (
-              <ErrorAlert error={getWorkspaceError} />
-            )}
-            {Boolean(getTemplateWarning) && (
-              <ErrorAlert error={getTemplateWarning} />
-            )}
-            {Boolean(getTemplateParametersWarning) && (
-              <ErrorAlert error={getTemplateParametersWarning} />
-            )}
-            {Boolean(checkPermissionsError) && (
-              <ErrorAlert error={checkPermissionsError} />
-            )}
-            {Boolean(getQuotaError) && <ErrorAlert error={getQuotaError} />}
-          </div>
+        <Cond condition={Boolean(pageError)}>
+          <Margins>
+            <ErrorAlert error={pageError} sx={{ my: 2 }} />
+          </Margins>
         </Cond>
         <Cond
           condition={
@@ -96,11 +84,5 @@ export const WorkspacePage: FC = () => {
     </RequirePermission>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  error: {
-    margin: theme.spacing(2),
-  },
-}))
 
 export default WorkspacePage

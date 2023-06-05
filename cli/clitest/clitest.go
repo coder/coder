@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/config"
@@ -39,7 +41,7 @@ func New(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
 
 type logWriter struct {
 	prefix string
-	t      *testing.T
+	log    slog.Logger
 }
 
 func (l *logWriter) Write(p []byte) (n int, err error) {
@@ -47,8 +49,9 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 	if trimmed == "" {
 		return len(p), nil
 	}
-	l.t.Log(
-		l.prefix + ": " + trimmed,
+	l.log.Info(
+		context.Background(),
+		l.prefix+": "+trimmed,
 	)
 	return len(p), nil
 }
@@ -57,12 +60,13 @@ func NewWithCommand(
 	t *testing.T, cmd *clibase.Cmd, args ...string,
 ) (*clibase.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
+	logger := slogtest.Make(t, nil)
 	i := &clibase.Invocation{
 		Command: cmd,
 		Args:    append([]string{"--global-config", string(configDir)}, args...),
 		Stdin:   io.LimitReader(nil, 0),
-		Stdout:  (&logWriter{prefix: "stdout", t: t}),
-		Stderr:  (&logWriter{prefix: "stderr", t: t}),
+		Stdout:  (&logWriter{prefix: "stdout", log: logger}),
+		Stderr:  (&logWriter{prefix: "stderr", log: logger}),
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 

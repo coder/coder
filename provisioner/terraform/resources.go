@@ -483,8 +483,35 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex
 			protoParam.ValidationError = param.Validation[0].Error
-			protoParam.ValidationMax = ptrInt32(param.Validation[0].Max)
-			protoParam.ValidationMin = ptrInt32(param.Validation[0].Min)
+
+			validationAttributeValues, ok := resource.AttributeValues["validation"]
+			if ok {
+				validationAttributeValuesArr, ok := validationAttributeValues.([]interface{})
+				if ok {
+					validationAttributeValuesMapStr, ok := validationAttributeValuesArr[0].(map[string]interface{})
+					if ok {
+						// Backward compatibility with terraform-coder-plugin < v0.8.2:
+						// * "min_disabled" and "max_disabled" are not available yet
+						// * "min" and "max" are required to be specified together
+						if _, ok = validationAttributeValuesMapStr["min_disabled"]; !ok {
+							if param.Validation[0].Min != 0 || param.Validation[0].Max != 0 {
+								param.Validation[0].MinDisabled = false
+								param.Validation[0].MaxDisabled = false
+							} else {
+								param.Validation[0].MinDisabled = true
+								param.Validation[0].MaxDisabled = true
+							}
+						}
+					}
+				}
+			}
+
+			if !param.Validation[0].MaxDisabled {
+				protoParam.ValidationMax = PtrInt32(param.Validation[0].Max)
+			}
+			if !param.Validation[0].MinDisabled {
+				protoParam.ValidationMin = PtrInt32(param.Validation[0].Min)
+			}
 			protoParam.ValidationMonotonic = param.Validation[0].Monotonic
 		}
 		if len(param.Option) > 0 {
@@ -527,12 +554,8 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 	}, nil
 }
 
-func ptrInt32(number *int) *int32 {
-	var n int32
-	if number == nil {
-		return &n
-	}
-	n = int32(*number)
+func PtrInt32(number int) *int32 {
+	n := int32(number)
 	return &n
 }
 

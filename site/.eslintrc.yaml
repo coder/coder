@@ -136,6 +136,7 @@ rules:
   "object-curly-spacing": "off"
   react-hooks/exhaustive-deps: warn
   react-hooks/rules-of-hooks: error
+  react/display-name: "off"
   react/jsx-no-script-url:
     - error
     - - name: Link

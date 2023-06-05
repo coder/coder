@@ -1935,358 +1935,6 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
-const getParameterSchemasCreatedAfter = `-- name: GetParameterSchemasCreatedAfter :many
-SELECT id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index FROM parameter_schemas WHERE created_at > $1
-`
-
-func (q *sqlQuerier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]ParameterSchema, error) {
-	rows, err := q.db.QueryContext(ctx, getParameterSchemasCreatedAfter, createdAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ParameterSchema
-	for rows.Next() {
-		var i ParameterSchema
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.JobID,
-			&i.Name,
-			&i.Description,
-			&i.DefaultSourceScheme,
-			&i.DefaultSourceValue,
-			&i.AllowOverrideSource,
-			&i.DefaultDestinationScheme,
-			&i.AllowOverrideDestination,
-			&i.DefaultRefresh,
-			&i.RedisplayValue,
-			&i.ValidationError,
-			&i.ValidationCondition,
-			&i.ValidationTypeSystem,
-			&i.ValidationValueType,
-			&i.Index,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertParameterSchema = `-- name: InsertParameterSchema :one
-INSERT INTO
-	parameter_schemas (
-		id,
-		created_at,
-		job_id,
-		"name",
-		description,
-		default_source_scheme,
-		default_source_value,
-		allow_override_source,
-		default_destination_scheme,
-		allow_override_destination,
-		default_refresh,
-		redisplay_value,
-		validation_error,
-		validation_condition,
-		validation_type_system,
-		validation_value_type,
-		index
-	)
-VALUES
-	(
-		$1,
-		$2,
-		$3,
-		$4,
-		$5,
-		$6,
-		$7,
-		$8,
-		$9,
-		$10,
-		$11,
-		$12,
-		$13,
-		$14,
-		$15,
-		$16,
-		$17
-	) RETURNING id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index
-`
-
-type InsertParameterSchemaParams struct {
-	ID                       uuid.UUID                  `db:"id" json:"id"`
-	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
-	JobID                    uuid.UUID                  `db:"job_id" json:"job_id"`
-	Name                     string                     `db:"name" json:"name"`
-	Description              string                     `db:"description" json:"description"`
-	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
-	DefaultSourceValue       string                     `db:"default_source_value" json:"default_source_value"`
-	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
-	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
-	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
-	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
-	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
-	ValidationError          string                     `db:"validation_error" json:"validation_error"`
-	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
-	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
-	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
-	Index                    int32                      `db:"index" json:"index"`
-}
-
-func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error) {
-	row := q.db.QueryRowContext(ctx, insertParameterSchema,
-		arg.ID,
-		arg.CreatedAt,
-		arg.JobID,
-		arg.Name,
-		arg.Description,
-		arg.DefaultSourceScheme,
-		arg.DefaultSourceValue,
-		arg.AllowOverrideSource,
-		arg.DefaultDestinationScheme,
-		arg.AllowOverrideDestination,
-		arg.DefaultRefresh,
-		arg.RedisplayValue,
-		arg.ValidationError,
-		arg.ValidationCondition,
-		arg.ValidationTypeSystem,
-		arg.ValidationValueType,
-		arg.Index,
-	)
-	var i ParameterSchema
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.JobID,
-		&i.Name,
-		&i.Description,
-		&i.DefaultSourceScheme,
-		&i.DefaultSourceValue,
-		&i.AllowOverrideSource,
-		&i.DefaultDestinationScheme,
-		&i.AllowOverrideDestination,
-		&i.DefaultRefresh,
-		&i.RedisplayValue,
-		&i.ValidationError,
-		&i.ValidationCondition,
-		&i.ValidationTypeSystem,
-		&i.ValidationValueType,
-		&i.Index,
-	)
-	return i, err
-}
-
-const deleteParameterValueByID = `-- name: DeleteParameterValueByID :exec
-DELETE FROM
-	parameter_values
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteParameterValueByID, id)
-	return err
-}
-
-const getParameterValueByScopeAndName = `-- name: GetParameterValueByScopeAndName :one
-SELECT
-	id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
-FROM
-	parameter_values
-WHERE
-	scope = $1
-	AND scope_id = $2
-	AND NAME = $3
-LIMIT
-	1
-`
-
-type GetParameterValueByScopeAndNameParams struct {
-	Scope   ParameterScope `db:"scope" json:"scope"`
-	ScopeID uuid.UUID      `db:"scope_id" json:"scope_id"`
-	Name    string         `db:"name" json:"name"`
-}
-
-func (q *sqlQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg GetParameterValueByScopeAndNameParams) (ParameterValue, error) {
-	row := q.db.QueryRowContext(ctx, getParameterValueByScopeAndName, arg.Scope, arg.ScopeID, arg.Name)
-	var i ParameterValue
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Scope,
-		&i.ScopeID,
-		&i.Name,
-		&i.SourceScheme,
-		&i.SourceValue,
-		&i.DestinationScheme,
-	)
-	return i, err
-}
-
-const insertParameterValue = `-- name: InsertParameterValue :one
-INSERT INTO
-	parameter_values (
-		id,
-		"name",
-		created_at,
-		updated_at,
-		scope,
-		scope_id,
-		source_scheme,
-		source_value,
-		destination_scheme
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
-`
-
-type InsertParameterValueParams struct {
-	ID                uuid.UUID                  `db:"id" json:"id"`
-	Name              string                     `db:"name" json:"name"`
-	CreatedAt         time.Time                  `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time                  `db:"updated_at" json:"updated_at"`
-	Scope             ParameterScope             `db:"scope" json:"scope"`
-	ScopeID           uuid.UUID                  `db:"scope_id" json:"scope_id"`
-	SourceScheme      ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
-	SourceValue       string                     `db:"source_value" json:"source_value"`
-	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
-}
-
-func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParameterValueParams) (ParameterValue, error) {
-	row := q.db.QueryRowContext(ctx, insertParameterValue,
-		arg.ID,
-		arg.Name,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.Scope,
-		arg.ScopeID,
-		arg.SourceScheme,
-		arg.SourceValue,
-		arg.DestinationScheme,
-	)
-	var i ParameterValue
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Scope,
-		&i.ScopeID,
-		&i.Name,
-		&i.SourceScheme,
-		&i.SourceValue,
-		&i.DestinationScheme,
-	)
-	return i, err
-}
-
-const parameterValue = `-- name: ParameterValue :one
-SELECT id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme FROM
-	parameter_values
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (ParameterValue, error) {
-	row := q.db.QueryRowContext(ctx, parameterValue, id)
-	var i ParameterValue
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Scope,
-		&i.ScopeID,
-		&i.Name,
-		&i.SourceScheme,
-		&i.SourceValue,
-		&i.DestinationScheme,
-	)
-	return i, err
-}
-
-const parameterValues = `-- name: ParameterValues :many
-SELECT
-	id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
-FROM
-	parameter_values
-WHERE
-  	CASE
-		  WHEN cardinality($1 :: parameter_scope[]) > 0 THEN
-				  scope = ANY($1 :: parameter_scope[])
-		  ELSE true
-	END
-    AND CASE
-		WHEN cardinality($2 :: uuid[]) > 0 THEN
-			scope_id = ANY($2 :: uuid[])
-		ELSE true
-	END
-  	AND CASE
-		WHEN cardinality($3 :: uuid[]) > 0 THEN
-			id = ANY($3 :: uuid[])
-		ELSE true
-	END
-  	AND CASE
-		  WHEN cardinality($4 :: text[]) > 0 THEN
-				  "name" = ANY($4 :: text[])
-		  ELSE true
-	END
-`
-
-type ParameterValuesParams struct {
-	Scopes   []ParameterScope `db:"scopes" json:"scopes"`
-	ScopeIds []uuid.UUID      `db:"scope_ids" json:"scope_ids"`
-	IDs      []uuid.UUID      `db:"ids" json:"ids"`
-	Names    []string         `db:"names" json:"names"`
-}
-
-func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error) {
-	rows, err := q.db.QueryContext(ctx, parameterValues,
-		pq.Array(arg.Scopes),
-		pq.Array(arg.ScopeIds),
-		pq.Array(arg.IDs),
-		pq.Array(arg.Names),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ParameterValue
-	for rows.Next() {
-		var i ParameterValue
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Scope,
-			&i.ScopeID,
-			&i.Name,
-			&i.SourceScheme,
-			&i.SourceValue,
-			&i.DestinationScheme,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
 	id, created_at, updated_at, name, provisioners, replica_id, tags
@@ -6335,7 +5983,7 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 
 const getDeploymentDAUs = `-- name: GetDeploymentDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast($1::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats
@@ -6352,8 +6000,8 @@ type GetDeploymentDAUsRow struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context) ([]GetDeploymentDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs)
+func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]GetDeploymentDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs, tzOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -6428,7 +6076,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, creat
 
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast($2::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats
@@ -6441,13 +6089,18 @@ ORDER BY
 	date ASC
 `
 
+type GetTemplateDAUsParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	TzOffset   int32     `db:"tz_offset" json:"tz_offset"`
+}
+
 type GetTemplateDAUsRow struct {
 	Date   time.Time `db:"date" json:"date"`
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, templateID)
+func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, arg.TemplateID, arg.TzOffset)
 	if err != nil {
 		return nil, err
 	}

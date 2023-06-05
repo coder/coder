@@ -1682,6 +1682,9 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
+	// New workspace filter
+	ExperimentWorkspaceFilter Experiment = "workspace_filter"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1690,7 +1693,9 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsAll = Experiments{
+	ExperimentWorkspaceFilter,
+}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.
@@ -1720,12 +1725,48 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 	return exp, json.NewDecoder(res.Body).Decode(&exp)
 }
 
-type DeploymentDAUsResponse struct {
-	Entries []DAUEntry `json:"entries"`
+type DAUsResponse struct {
+	Entries      []DAUEntry `json:"entries"`
+	TZHourOffset int        `json:"tz_hour_offset"`
 }
 
-func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil)
+type DAUEntry struct {
+	Date   time.Time `json:"date" format:"date-time"`
+	Amount int       `json:"amount"`
+}
+
+type DAURequest struct {
+	TZHourOffset int
+}
+
+func (d DAURequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("tz_offset", strconv.Itoa(d.TZHourOffset))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+func TimezoneOffsetHour(loc *time.Location) int {
+	if loc == nil {
+		// Default to UTC time to be consistent across all callers.
+		loc = time.UTC
+	}
+	_, offsetSec := time.Now().In(loc).Zone()
+	// Convert to hours
+	return offsetSec / 60 / 60
+}
+
+func (c *Client) DeploymentDAUsLocalTZ(ctx context.Context) (*DAUsResponse, error) {
+	return c.DeploymentDAUs(ctx, TimezoneOffsetHour(time.Local))
+}
+
+// DeploymentDAUs requires a tzOffset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local) for the
+// local timezone.
+func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil, DAURequest{
+		TZHourOffset: tzOffset,
+	}.asRequestOption())
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
@@ -1735,7 +1776,7 @@ func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, e
 		return nil, ReadBodyAsError(res)
 	}
 
-	var resp DeploymentDAUsResponse
+	var resp DAUsResponse
 	return &resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

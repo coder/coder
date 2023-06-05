@@ -238,7 +238,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 
 	createAdminUserCommand.Options.Add(
 		clibase.Option{
-			Env:         "CODER_POSTGRES_URL",
+			Env:         "CODER_PG_CONNECTION_URL",
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
 			Value:       clibase.StringOf(&newUserDBURL),

@@ -15,7 +15,8 @@ trial](https://coder.com/trial).
 | Cost Control    | [Max Workspace Autostop](./templates/#configure-max-workspace-autostop)       |     ❌      |     ✅     |
 | Deployment      | [High Availability](./admin/high-availability.md)                             |     ❌      |     ✅     |
 | Deployment      | [Appearance](./admin/appearance.md)                                           |     ❌      |     ✅     |
-| Deployment      | Isolated Terraform Runners                                                    |     ❌      |     ✅     |
+| Deployment      | [Isolated Terraform Runners](./admin/provisioners.md)                         |     ❌      |     ✅     |
+| Deployment      | [Workspace Proxies](./admin/workspace-proxies.md)                             |     ❌      |     ✅     |
 
 > Previous plans to restrict OIDC and Git Auth features in OSS have been removed
 > as of 2023-01-11

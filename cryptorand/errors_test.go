@@ -75,11 +75,6 @@ func TestRandError(t *testing.T) {
 		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Float32 error")
 	})
 
-	t.Run("Bool", func(t *testing.T) {
-		_, err := cryptorand.Bool()
-		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Bool error")
-	})
-
 	t.Run("StringCharset", func(t *testing.T) {
 		_, err := cryptorand.HexString(10)
 		require.ErrorIs(t, err, io.ErrShortBuffer, "expected HexString error")

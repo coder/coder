@@ -77,28 +77,6 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 	}, nil
 }
 
-func Parameters(params []database.ParameterValue) []codersdk.Parameter {
-	out := make([]codersdk.Parameter, len(params))
-	for i, p := range params {
-		out[i] = Parameter(p)
-	}
-	return out
-}
-
-func Parameter(parameterValue database.ParameterValue) codersdk.Parameter {
-	return codersdk.Parameter{
-		ID:                parameterValue.ID,
-		CreatedAt:         parameterValue.CreatedAt,
-		UpdatedAt:         parameterValue.UpdatedAt,
-		Scope:             codersdk.ParameterScope(parameterValue.Scope),
-		ScopeID:           parameterValue.ScopeID,
-		Name:              parameterValue.Name,
-		SourceScheme:      codersdk.ParameterSourceScheme(parameterValue.SourceScheme),
-		DestinationScheme: codersdk.ParameterDestinationScheme(parameterValue.DestinationScheme),
-		SourceValue:       parameterValue.SourceValue,
-	}
-}
-
 func ProvisionerJobStatus(provisionerJob database.ProvisionerJob) codersdk.ProvisionerJobStatus {
 	switch {
 	case provisionerJob.CanceledAt.Valid:

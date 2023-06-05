@@ -9,10 +9,11 @@ import {
   HealthyBadge,
   NotHealthyBadge,
 } from "components/DeploySettingsLayout/Badges"
-import { makeStyles, useTheme } from "@mui/styles"
+import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
 import { getLatencyColor } from "utils/colors"
+import { alpha } from "@mui/material/styles"
 
 export const ProxyRow: FC<{
   latency?: ProxyLatencyReport
@@ -21,7 +22,6 @@ export const ProxyRow: FC<{
   preferred: boolean
 }> = ({ proxy, onSelectRegion, preferred, latency }) => {
   const styles = useStyles()
-  const theme = useTheme()
 
   const clickable = useClickableTableRow(() => {
     onSelectRegion(proxy)
@@ -47,24 +47,32 @@ export const ProxyRow: FC<{
           }
           avatar={
             proxy.icon_url !== "" && (
-              <Avatar src={proxy.icon_url} variant="square" fitImage />
+              <Avatar
+                size="sm"
+                src={proxy.icon_url}
+                variant="square"
+                fitImage
+              />
             )
           }
         />
       </TableCell>
 
-      <TableCell>{proxy.path_app_url}</TableCell>
-      <TableCell>
+      <TableCell sx={{ fontSize: 14 }}>{proxy.path_app_url}</TableCell>
+      <TableCell sx={{ fontSize: 14 }}>
         <ProxyStatus proxy={proxy} />
       </TableCell>
-      <TableCell>
-        <span
-          style={{
-            color: latency ? getLatencyColor(theme, latency.latencyMS) : "",
-          }}
-        >
-          {latency ? `${latency.latencyMS.toFixed(1)} ms` : "?"}
-        </span>
+      <TableCell
+        sx={{
+          fontSize: 14,
+          textAlign: "right",
+          color: (theme) =>
+            latency
+              ? getLatencyColor(theme, latency.latencyMS)
+              : theme.palette.text.secondary,
+        }}
+      >
+        {latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
       </TableCell>
     </TableRow>
   )
@@ -83,9 +91,11 @@ const ProxyStatus: FC<{
 
 const useStyles = makeStyles((theme) => ({
   preferredrow: {
-    // TODO: What is the best way to show what proxy is currently being used?
-    backgroundColor: theme.palette.secondary.main,
-    outline: `3px solid ${theme.palette.secondary.light}`,
-    outlineOffset: -3,
+    backgroundColor: alpha(
+      theme.palette.primary.main,
+      theme.palette.action.hoverOpacity,
+    ),
+    outline: `1px solid ${theme.palette.primary.main}`,
+    outlineOffset: "-1px",
   },
 }))

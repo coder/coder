@@ -8,4 +8,4 @@ The following resources may help as you're deploying Coder.
 - [Run Coder as a system service](../install/packages.md)
 - [Deploy Coder offline](../install/offline.md)
 - [Supported resources (Terraform registry)](https://registry.terraform.io)
-- [Writing custom templates](../templates/README.md)
+- [Writing custom templates](../templates/index.md)

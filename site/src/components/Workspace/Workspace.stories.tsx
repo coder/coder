@@ -1,19 +1,56 @@
 import { action } from "@storybook/addon-actions"
-import { Story } from "@storybook/react"
+import { Meta, StoryObj } from "@storybook/react"
 import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata"
 import { ProvisionerJobLog } from "api/typesGenerated"
 import * as Mocks from "testHelpers/entities"
-import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
+import { Workspace, WorkspaceErrors } from "./Workspace"
 import { withReactContext } from "storybook-react-context"
 import EventSource from "eventsourcemock"
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
 
-export default {
+const MockedAppearance = {
+  config: Mocks.MockAppearance,
+  preview: false,
+  setPreview: () => null,
+  save: () => null,
+}
+
+const meta: Meta<typeof Workspace> = {
   title: "components/Workspace",
   component: Workspace,
-  argTypes: {},
   decorators: [
+    (Story) => (
+      <DashboardProviderContext.Provider
+        value={{
+          buildInfo: Mocks.MockBuildInfo,
+          entitlements: Mocks.MockEntitlementsWithScheduling,
+          experiments: Mocks.MockExperiments,
+          appearance: MockedAppearance,
+        }}
+      >
+        <ProxyContext.Provider
+          value={{
+            proxyLatencies: Mocks.MockProxyLatencies,
+            proxy: getPreferredProxy([], undefined),
+            proxies: [],
+            isLoading: false,
+            isFetched: true,
+            clearProxy: () => {
+              return
+            },
+            setProxy: () => {
+              return
+            },
+            refetchProxyLatencies: () => {
+              return
+            },
+          }}
+        >
+          <Story />
+        </ProxyContext.Provider>
+      </DashboardProviderContext.Provider>
+    ),
     withReactContext({
       Context: WatchAgentMetadataContext,
       initialState: (_: string): EventSource => {
@@ -23,169 +60,149 @@ export default {
     }),
   ],
 }
+export default meta
+type Story = StoryObj<typeof Workspace>
 
-const MockedAppearance = {
-  config: Mocks.MockAppearance,
-  preview: false,
-  setPreview: () => null,
-  save: () => null,
-}
-
-const Template: Story<WorkspaceProps> = (args) => (
-  <DashboardProviderContext.Provider
-    value={{
-      buildInfo: Mocks.MockBuildInfo,
-      entitlements: Mocks.MockEntitlementsWithScheduling,
-      experiments: Mocks.MockExperiments,
-      appearance: MockedAppearance,
-    }}
-  >
-    <ProxyContext.Provider
-      value={{
-        proxyLatencies: Mocks.MockProxyLatencies,
-        proxy: getPreferredProxy([], undefined),
-        proxies: [],
-        isLoading: false,
-        isFetched: true,
-        clearProxy: () => {
-          return
-        },
-        setProxy: () => {
-          return
-        },
-      }}
-    >
-      <Workspace {...args} />
-    </ProxyContext.Provider>
-  </DashboardProviderContext.Provider>
-)
-
-export const Running = Template.bind({})
-Running.args = {
-  scheduleProps: {
-    onDeadlineMinus: () => {
-      // do nothing, this is just for storybook
+export const Running: Story = {
+  args: {
+    scheduleProps: {
+      onDeadlineMinus: () => {
+        // do nothing, this is just for storybook
+      },
+      onDeadlinePlus: () => {
+        // do nothing, this is just for storybook
+      },
+      maxDeadlineDecrease: 0,
+      maxDeadlineIncrease: 24,
     },
-    onDeadlinePlus: () => {
-      // do nothing, this is just for storybook
-    },
-    maxDeadlineDecrease: 0,
-    maxDeadlineIncrease: 24,
-  },
-  workspace: Mocks.MockWorkspace,
-  handleStart: action("start"),
-  handleStop: action("stop"),
-  resources: [
-    Mocks.MockWorkspaceResource,
-    Mocks.MockWorkspaceResource2,
-    Mocks.MockWorkspaceResource3,
-  ],
-  builds: [Mocks.MockWorkspaceBuild],
-  canUpdateWorkspace: true,
-  workspaceErrors: {},
-  buildInfo: Mocks.MockBuildInfo,
-  template: Mocks.MockTemplate,
-}
-
-export const WithoutUpdateAccess = Template.bind({})
-WithoutUpdateAccess.args = {
-  ...Running.args,
-  canUpdateWorkspace: false,
-}
-
-export const Starting = Template.bind({})
-Starting.args = {
-  ...Running.args,
-  workspace: Mocks.MockStartingWorkspace,
-}
-
-export const Stopped = Template.bind({})
-Stopped.args = {
-  ...Running.args,
-  workspace: Mocks.MockStoppedWorkspace,
-}
-
-export const Stopping = Template.bind({})
-Stopping.args = {
-  ...Running.args,
-  workspace: Mocks.MockStoppingWorkspace,
-}
-
-export const Failed = Template.bind({})
-Failed.args = {
-  ...Running.args,
-  workspace: Mocks.MockFailedWorkspace,
-  workspaceErrors: {
-    [WorkspaceErrors.BUILD_ERROR]: Mocks.mockApiError({
-      message: "A workspace build is already active.",
-    }),
+    workspace: Mocks.MockWorkspace,
+    handleStart: action("start"),
+    handleStop: action("stop"),
+    resources: [
+      Mocks.MockWorkspaceResource,
+      Mocks.MockWorkspaceResource2,
+      Mocks.MockWorkspaceResource3,
+    ],
+    builds: [Mocks.MockWorkspaceBuild],
+    canUpdateWorkspace: true,
+    workspaceErrors: {},
+    buildInfo: Mocks.MockBuildInfo,
+    template: Mocks.MockTemplate,
   },
 }
 
-export const FailedWithLogs = Template.bind({})
-FailedWithLogs.args = {
-  ...Running.args,
-  workspace: {
-    ...Mocks.MockFailedWorkspace,
-    latest_build: {
-      ...Mocks.MockFailedWorkspace.latest_build,
-      job: {
-        ...Mocks.MockFailedWorkspace.latest_build.job,
-        error:
-          "recv workspace provision: plan terraform: terraform plan: exit status 1",
+export const WithoutUpdateAccess: Story = {
+  args: {
+    ...Running.args,
+    canUpdateWorkspace: false,
+  },
+}
+
+export const Starting: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockStartingWorkspace,
+  },
+}
+
+export const Stopped: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockStoppedWorkspace,
+  },
+}
+
+export const Stopping: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockStoppingWorkspace,
+  },
+}
+
+export const Failed: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockFailedWorkspace,
+    workspaceErrors: {
+      [WorkspaceErrors.BUILD_ERROR]: Mocks.mockApiError({
+        message: "A workspace build is already active.",
+      }),
+    },
+  },
+}
+
+export const FailedWithLogs: Story = {
+  args: {
+    ...Running.args,
+    workspace: {
+      ...Mocks.MockFailedWorkspace,
+      latest_build: {
+        ...Mocks.MockFailedWorkspace.latest_build,
+        job: {
+          ...Mocks.MockFailedWorkspace.latest_build.job,
+          error:
+            "recv workspace provision: plan terraform: terraform plan: exit status 1",
+        },
       },
     },
-  },
-  failedBuildLogs: makeFailedBuildLogs(),
-}
-
-export const Deleting = Template.bind({})
-Deleting.args = {
-  ...Running.args,
-  workspace: Mocks.MockDeletingWorkspace,
-}
-
-export const Deleted = Template.bind({})
-Deleted.args = {
-  ...Running.args,
-  workspace: Mocks.MockDeletedWorkspace,
-}
-
-export const Canceling = Template.bind({})
-Canceling.args = {
-  ...Running.args,
-  workspace: Mocks.MockCancelingWorkspace,
-}
-
-export const Canceled = Template.bind({})
-Canceled.args = {
-  ...Running.args,
-  workspace: Mocks.MockCanceledWorkspace,
-}
-
-export const Outdated = Template.bind({})
-Outdated.args = {
-  ...Running.args,
-  workspace: Mocks.MockOutdatedWorkspace,
-}
-
-export const GetBuildsError = Template.bind({})
-GetBuildsError.args = {
-  ...Running.args,
-  workspaceErrors: {
-    [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.mockApiError({
-      message: "There is a problem fetching builds.",
-    }),
+    failedBuildLogs: makeFailedBuildLogs(),
   },
 }
 
-export const CancellationError = Template.bind({})
-CancellationError.args = {
-  ...Failed.args,
-  workspaceErrors: {
-    [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.mockApiError({
-      message: "Job could not be canceled.",
-    }),
+export const Deleting: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockDeletingWorkspace,
+  },
+}
+
+export const Deleted: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockDeletedWorkspace,
+  },
+}
+
+export const Canceling: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockCancelingWorkspace,
+  },
+}
+
+export const Canceled: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockCanceledWorkspace,
+  },
+}
+
+export const Outdated: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockOutdatedWorkspace,
+  },
+}
+
+export const GetBuildsError: Story = {
+  args: {
+    ...Running.args,
+    workspaceErrors: {
+      [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.mockApiError({
+        message: "There is a problem fetching builds.",
+      }),
+    },
+  },
+}
+
+export const CancellationError: Story = {
+  args: {
+    ...Failed.args,
+    workspaceErrors: {
+      [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.mockApiError({
+        message: "Job could not be canceled.",
+      }),
+    },
   },
 }
 
@@ -680,8 +697,9 @@ function makeFailedBuildLogs(): ProvisionerJobLog[] {
   ]
 }
 
-export const WithDeprecatedParameters = Template.bind({})
-WithDeprecatedParameters.args = {
-  ...Running.args,
-  templateWarnings: ["DEPRECATED_PARAMETERS"],
+export const UnsupportedWorkspace: Story = {
+  args: {
+    ...Running.args,
+    templateWarnings: ["UNSUPPORTED_WORKSPACES"],
+  },
 }

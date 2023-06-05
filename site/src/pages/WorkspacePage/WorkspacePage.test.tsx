@@ -394,7 +394,7 @@ describe("WorkspacePage", () => {
     })
   })
 
-  it("shows the template warnings", async () => {
+  it("shows the template warning", async () => {
     server.use(
       rest.get(
         "/api/v2/templateversions/:templateVersionId",
@@ -405,6 +405,6 @@ describe("WorkspacePage", () => {
     )
 
     await renderWorkspacePage()
-    await screen.findByTestId("warning-deprecated-parameters")
+    await screen.findByTestId("error-unsupported-workspaces")
   })
 })

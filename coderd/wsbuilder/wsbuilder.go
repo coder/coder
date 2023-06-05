@@ -34,15 +34,14 @@ import (
 // build, job, err := b.Build(...)
 type Builder struct {
 	// settings that control the kind of build you get
-	workspace             database.Workspace
-	trans                 database.WorkspaceTransition
-	version               versionTarget
-	state                 stateTarget
-	logLevel              string
-	legacyParameterValues []codersdk.CreateParameterRequest
-	richParameterValues   []codersdk.WorkspaceBuildParameter
-	initiator             uuid.UUID
-	reason                database.BuildReason
+	workspace           database.Workspace
+	trans               database.WorkspaceTransition
+	version             versionTarget
+	state               stateTarget
+	logLevel            string
+	richParameterValues []codersdk.WorkspaceBuildParameter
+	initiator           uuid.UUID
+	reason              database.BuildReason
 
 	// used during build, makes function arguments less verbose
 	ctx   context.Context
@@ -56,8 +55,9 @@ type Builder struct {
 	lastBuild                 *database.WorkspaceBuild
 	lastBuildErr              *error
 	lastBuildParameters       *[]database.WorkspaceBuildParameter
-	lastParameterValues       *[]database.ParameterValue
 	lastBuildJob              *database.ProvisionerJob
+
+	verifyNoLegacyParametersOnce bool
 }
 
 type Option func(Builder) Builder
@@ -137,12 +137,6 @@ func (b Builder) Initiator(u uuid.UUID) Builder {
 func (b Builder) Reason(r database.BuildReason) Builder {
 	// nolint: revive
 	b.reason = r
-	return b
-}
-
-func (b Builder) LegacyParameterValues(p []codersdk.CreateParameterRequest) Builder {
-	// nolint: revive
-	b.legacyParameterValues = p
 	return b
 }
 
@@ -271,15 +265,6 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 		}
 	}
 
-	legacyParameters, err := b.getLastParameterValues()
-	if err != nil {
-		return nil, nil, BuildError{
-			http.StatusInternalServerError,
-			"failed to fetch previous legacy parameters.",
-			err,
-		}
-	}
-
 	// if we haven't been told specifically who initiated, default to owner
 	if b.initiator == uuid.Nil {
 		b.initiator = b.workspace.OwnerID
@@ -287,45 +272,6 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	// default reason is initiator
 	if b.reason == "" {
 		b.reason = database.BuildReasonInitiator
-	}
-
-	// Write/Update any new params
-	now := database.Now()
-	for _, param := range b.legacyParameterValues {
-		for _, exists := range legacyParameters {
-			// If the param exists, delete the old param before inserting the new one
-			if exists.Name == param.Name {
-				err = b.store.DeleteParameterValueByID(b.ctx, exists.ID)
-				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-					return nil, nil, BuildError{
-						http.StatusInternalServerError,
-						fmt.Sprintf("Failed to delete old param %q", exists.Name),
-						err,
-					}
-				}
-			}
-		}
-
-		// If the value is empty, we don't want to save it on database so
-		// Terraform can use the default value
-		if param.SourceValue == "" {
-			continue
-		}
-
-		_, err = b.store.InsertParameterValue(b.ctx, database.InsertParameterValueParams{
-			ID:                uuid.New(),
-			Name:              param.Name,
-			CreatedAt:         now,
-			UpdatedAt:         now,
-			Scope:             database.ParameterScopeWorkspace,
-			ScopeID:           b.workspace.ID,
-			SourceScheme:      database.ParameterSourceScheme(param.SourceScheme),
-			SourceValue:       param.SourceValue,
-			DestinationScheme: database.ParameterDestinationScheme(param.DestinationScheme),
-		})
-		if err != nil {
-			return nil, nil, BuildError{http.StatusInternalServerError, "insert parameter value", err}
-		}
 	}
 
 	workspaceBuildID := uuid.New()
@@ -346,6 +292,7 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	}
 	tags := provisionerdserver.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
 
+	now := database.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{
 		ID:             uuid.New(),
 		CreatedAt:      now,
@@ -536,13 +483,12 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch last build parameters", err}
 	}
-	lastParameterValues, err := b.getLastParameterValues()
+	err = b.verifyNoLegacyParameters()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch last parameter values", err}
+		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
 	resolver := codersdk.ParameterResolver{
-		Rich:   db2sdk.WorkspaceBuildParameters(lastBuildParameters),
-		Legacy: db2sdk.Parameters(lastParameterValues),
+		Rich: db2sdk.WorkspaceBuildParameters(lastBuildParameters),
 	}
 	for _, templateVersionParameter := range templateVersionParameters {
 		tvp, err := db2sdk.TemplateVersionParameter(templateVersionParameter)
@@ -611,19 +557,36 @@ func (b *Builder) getTemplateVersionParameters() ([]database.TemplateVersionPara
 	return tvp, nil
 }
 
-func (b *Builder) getLastParameterValues() ([]database.ParameterValue, error) {
-	if b.lastParameterValues != nil {
-		return *b.lastParameterValues, nil
+// verifyNoLegacyParameters verifies that initiator can't start the workspace build
+// if it uses legacy parameters (database.ParameterSchemas).
+func (b *Builder) verifyNoLegacyParameters() error {
+	if b.verifyNoLegacyParametersOnce {
+		return nil
 	}
-	pv, err := b.store.ParameterValues(b.ctx, database.ParameterValuesParams{
-		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
-		ScopeIds: []uuid.UUID{b.workspace.ID},
-	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, xerrors.Errorf("get workspace %w parameter values: %w", b.workspace.ID, err)
+	b.verifyNoLegacyParametersOnce = true
+
+	// Block starting the workspace with legacy parameters.
+	if b.trans != database.WorkspaceTransitionStart {
+		return nil
 	}
-	b.lastParameterValues = &pv
-	return pv, nil
+
+	templateVersionJob, err := b.getTemplateVersionJob()
+	if err != nil {
+		return xerrors.Errorf("failed to fetch template version job: %w", err)
+	}
+
+	parameterSchemas, err := b.store.GetParameterSchemasByJobID(b.ctx, templateVersionJob.ID)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("failed to get parameter schemas: %w", err)
+	}
+
+	if len(parameterSchemas) > 0 {
+		return xerrors.Errorf("Legacy parameters in use on this version are not supported anymore. Contact your administrator for assistance.")
+	}
+	return nil
 }
 
 func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {

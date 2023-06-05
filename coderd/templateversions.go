@@ -74,7 +74,12 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, schemas))
+	var warnings []codersdk.TemplateVersionWarning
+	if len(schemas) > 0 {
+		warnings = append(warnings, codersdk.TemplateVersionWarningUnsupportedWorkspaces)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, warnings))
 }
 
 // @Summary Patch template version by ID
@@ -168,19 +173,7 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error listing parameter schemas.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(job), user, schemas))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(job), user, nil))
 }
 
 // @Summary Cancel template version by ID
@@ -237,58 +230,6 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
 	})
-}
-
-// @Summary Get schema by template version
-// @ID get-schema-by-template-version
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Templates
-// @Param templateversion path string true "Template version ID" format(uuid)
-// @Success 200 {array} codersdk.ParameterSchema
-// @Router /templateversions/{templateversion}/schema [get]
-func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
-
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Template version job hasn't completed!",
-		})
-		return
-	}
-	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error listing parameter schemas.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	apiSchemas := make([]codersdk.ParameterSchema, 0)
-	for _, schema := range schemas {
-		apiSchema, err := convertParameterSchema(schema)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("Internal error converting schema %s.", schema.Name),
-				Detail:  err.Error(),
-			})
-			return
-		}
-		apiSchemas = append(apiSchemas, apiSchema)
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, apiSchemas)
 }
 
 // @Summary Get rich parameters by template version
@@ -470,52 +411,6 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersionVariables(dbTemplateVersionVariables))
 }
 
-// @Summary Get parameters by template version
-// @ID get-parameters-by-template-version
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Templates
-// @Param templateversion path string true "Template version ID" format(uuid)
-// @Success 200 {array} parameter.ComputedValue
-// @Router /templateversions/{templateversion}/parameters [get]
-func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
-
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Job hasn't completed!",
-		})
-		return
-	}
-	values, err := parameter.Compute(ctx, api.Database, parameter.ComputeScope{
-		TemplateImportJobID: job.ID,
-	}, &parameter.ComputeOptions{
-		// We *never* want to send the client secret parameter values.
-		HideRedisplayValues: true,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error computing values.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if values == nil {
-		values = []parameter.ComputedValue{}
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, values)
-}
-
 // @Summary Create template version dry-run
 // @ID create-template-version-dry-run
 // @Security CoderSessionToken
@@ -561,20 +456,6 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Convert parameters from request to parameters for the job
-	parameterValues := make([]database.ParameterValue, len(req.ParameterValues))
-	for i, v := range req.ParameterValues {
-		parameterValues[i] = database.ParameterValue{
-			ID:                uuid.Nil,
-			Scope:             database.ParameterScopeWorkspace,
-			ScopeID:           uuid.Nil,
-			Name:              v.Name,
-			SourceScheme:      database.ParameterSourceSchemeData,
-			SourceValue:       v.SourceValue,
-			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
-		}
-	}
-
 	richParameterValues := make([]database.WorkspaceBuildParameter, len(req.RichParameterValues))
 	for i, v := range req.RichParameterValues {
 		richParameterValues[i] = database.WorkspaceBuildParameter{
@@ -589,7 +470,6 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 	input, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
 		TemplateVersionID:   templateVersion.ID,
 		WorkspaceName:       req.WorkspaceName,
-		ParameterValues:     parameterValues,
 		RichParameterValues: richParameterValues,
 	})
 	if err != nil {
@@ -911,18 +791,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				})
 				return err
 			}
-			schemas, err := store.GetParameterSchemasByJobID(ctx, job.ID)
-			if errors.Is(err, sql.ErrNoRows) {
-				err = nil
-			}
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error listing parameter schemas.",
-					Detail:  err.Error(),
-				})
-				return err
-			}
-			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), user, schemas))
+			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), user, nil))
 		}
 
 		return nil
@@ -986,19 +855,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error listing parameter schemas.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, schemas))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, nil))
 }
 
 // @Summary Get template version by organization, template, and name
@@ -1072,19 +929,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		return
 	}
 
-	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error listing parameter schemas.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, schemas))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, nil))
 }
 
 // @Summary Get previous template version by organization, template, and name
@@ -1179,19 +1024,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error listing parameter schemas.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(job), user, schemas))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(job), user, nil))
 }
 
 // @Summary Update active template version by template ID
@@ -1423,68 +1256,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	var provisionerJob database.ProvisionerJob
 	err = api.Database.InTx(func(tx database.Store) error {
 		jobID := uuid.New()
-		inherits := make([]uuid.UUID, 0)
-		for _, parameterValue := range req.ParameterValues {
-			if parameterValue.CloneID != uuid.Nil {
-				inherits = append(inherits, parameterValue.CloneID)
-			}
-		}
-
-		// Expand inherited params
-		if len(inherits) > 0 {
-			if req.TemplateID == uuid.Nil {
-				return xerrors.Errorf("cannot inherit parameters if template_id is not set")
-			}
-
-			inheritedParams, err := tx.ParameterValues(ctx, database.ParameterValuesParams{
-				IDs: inherits,
-			})
-			if err != nil {
-				return xerrors.Errorf("fetch inherited params: %w", err)
-			}
-			for _, copy := range inheritedParams {
-				// This is a bit inefficient, as we make a new db call for each
-				// param.
-				version, err := tx.GetTemplateVersionByJobID(ctx, copy.ScopeID)
-				if err != nil {
-					return xerrors.Errorf("fetch template version for param %q: %w", copy.Name, err)
-				}
-				if !version.TemplateID.Valid || version.TemplateID.UUID != req.TemplateID {
-					return xerrors.Errorf("cannot inherit parameters from other templates")
-				}
-				if copy.Scope != database.ParameterScopeImportJob {
-					return xerrors.Errorf("copy parameter scope is %q, must be %q", copy.Scope, database.ParameterScopeImportJob)
-				}
-				// Add the copied param to the list to process
-				req.ParameterValues = append(req.ParameterValues, codersdk.CreateParameterRequest{
-					Name:              copy.Name,
-					SourceValue:       copy.SourceValue,
-					SourceScheme:      codersdk.ParameterSourceScheme(copy.SourceScheme),
-					DestinationScheme: codersdk.ParameterDestinationScheme(copy.DestinationScheme),
-				})
-			}
-		}
-
-		for _, parameterValue := range req.ParameterValues {
-			if parameterValue.CloneID != uuid.Nil {
-				continue
-			}
-
-			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
-				ID:                uuid.New(),
-				Name:              parameterValue.Name,
-				CreatedAt:         database.Now(),
-				UpdatedAt:         database.Now(),
-				Scope:             database.ParameterScopeImportJob,
-				ScopeID:           jobID,
-				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
-				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
-			})
-			if err != nil {
-				return xerrors.Errorf("insert parameter value: %w", err)
-			}
-		}
 
 		templateVersionID := uuid.New()
 		jobInput, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
@@ -1565,19 +1336,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, provisionerJob.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error listing parameter schemas.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), user, schemas))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), user, nil))
 }
 
 // templateVersionResources returns the workspace agent resources associated
@@ -1644,7 +1403,7 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, user database.User, schemas []database.ParameterSchema) codersdk.TemplateVersion {
+func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, user database.User, warnings []codersdk.TemplateVersionWarning) codersdk.TemplateVersion {
 	createdBy := codersdk.User{
 		ID:        user.ID,
 		Username:  user.Username,
@@ -1653,11 +1412,6 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Status:    codersdk.UserStatus(user.Status),
 		Roles:     []codersdk.Role{},
 		AvatarURL: user.AvatarURL.String,
-	}
-
-	var warnings []codersdk.TemplateVersionWarning
-	if len(schemas) > 0 {
-		warnings = append(warnings, codersdk.TemplateVersionWarningDeprecatedParameters)
 	}
 
 	return codersdk.TemplateVersion{

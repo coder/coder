@@ -156,26 +156,6 @@ func TestFloat32(t *testing.T) {
 	}
 }
 
-func TestBool(t *testing.T) {
-	t.Parallel()
-
-	const iterations = 10000
-	trueCount := 0
-
-	for i := 0; i < iterations; i++ {
-		v, err := cryptorand.Bool()
-		require.NoError(t, err, "unexpected error from Bool")
-		if v {
-			trueCount++
-		}
-	}
-
-	percentage := (float64(trueCount) / iterations) * 100
-	t.Logf("number of true values: %d of %d total (%.2f%%)", trueCount, iterations, percentage)
-	require.True(t, percentage > 48, "expected more than 48 percent of values to be true")
-	require.True(t, percentage < 52, "expected less than 52 percent of values to be true")
-}
-
 func TestDuration(t *testing.T) {
 	t.Parallel()
 

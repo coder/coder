@@ -14,7 +14,7 @@ import (
 type TemplateVersionWarning string
 
 const (
-	TemplateVersionWarningDeprecatedParameters TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+	TemplateVersionWarningUnsupportedWorkspaces TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
 )
 
 // TemplateVersion represents a single version of a template.
@@ -144,34 +144,6 @@ func (c *Client) TemplateVersionGitAuth(ctx context.Context, version uuid.UUID) 
 	return gitAuth, json.NewDecoder(res.Body).Decode(&gitAuth)
 }
 
-// TemplateVersionSchema returns schemas for a template version by ID.
-func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]ParameterSchema, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/schema", version), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var params []ParameterSchema
-	return params, json.NewDecoder(res.Body).Decode(&params)
-}
-
-// TemplateVersionParameters returns computed parameters for a template version.
-func (c *Client) TemplateVersionParameters(ctx context.Context, version uuid.UUID) ([]ComputedParameter, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/parameters", version), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var params []ComputedParameter
-	return params, json.NewDecoder(res.Body).Decode(&params)
-}
-
 // TemplateVersionResources returns resources a template version declares.
 func (c *Client) TemplateVersionResources(ctx context.Context, version uuid.UUID) ([]WorkspaceResource, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/resources", version), nil)
@@ -209,7 +181,6 @@ func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID
 // CreateTemplateVersionDryRun.
 type CreateTemplateVersionDryRunRequest struct {
 	WorkspaceName       string                    `json:"workspace_name"`
-	ParameterValues     []CreateParameterRequest  `json:"parameter_values"`
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values"`
 	UserVariableValues  []VariableValue           `json:"user_variable_values,omitempty"`
 }
