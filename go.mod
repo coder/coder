@@ -127,7 +127,7 @@ require (
 	github.com/moby/moby v24.0.1+incompatible
 	github.com/muesli/reflow v0.3.0
 	github.com/open-policy-agent/opa v0.51.0
-	github.com/ory/dockertest/v3 v3.9.1
+	github.com/ory/dockertest/v3 v3.10.0
 	github.com/pion/udp v0.1.2
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
