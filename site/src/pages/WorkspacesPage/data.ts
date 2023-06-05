@@ -16,8 +16,8 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
 type UseWorkspacesDataParams = {
-  page?: number
-  limit?: number
+  page: number
+  limit: number
   query: string
 }
 
@@ -34,7 +34,7 @@ export const useWorkspacesData = ({
       getWorkspaces({
         q: query,
         limit: limit,
-        offset: page && limit && (page <= 0 ? 0 : (page - 1) * limit),
+        offset: page <= 0 ? 0 : (page - 1) * limit,
       }),
     onSuccess: () => {
       setShouldRefetch(true)

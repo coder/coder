@@ -1,5 +1,10 @@
 import TextField from "@mui/material/TextField"
-import { Template, UpdateTemplateMeta } from "api/typesGenerated"
+import {
+  Template,
+  UpdateTemplateMeta,
+  WorkspaceStatus,
+  Workspace,
+} from "api/typesGenerated"
 import { FormikTouched, useFormik } from "formik"
 import { FC, ChangeEvent, useState } from "react"
 import { getFormHelpers } from "utils/formUtils"
@@ -20,7 +25,9 @@ import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { useWorkspacesData } from "pages/WorkspacesPage/data"
+import { useQuery } from "@tanstack/react-query"
+import { getWorkspaces } from "api/api"
+import { compareAsc, add, endOfToday } from "date-fns"
 
 const TTLHelperText = ({
   ttl,
@@ -147,7 +154,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     },
     validationSchema,
     onSubmit: (formData) => {
-      if (form.values.inactivity_cleanup_enabled) {
+      if (
+        form.values.inactivity_cleanup_enabled &&
+        workspacesToBeDeletedToday &&
+        workspacesToBeDeletedToday.length > 0
+      ) {
         setIsInactivityDialogOpen(true)
       } else {
         submitValues(formData)
@@ -185,13 +196,34 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     })
   }
 
-  const { data: workspacesData, error: getWorkspacesError } = useWorkspacesData(
-    {
-      query: "deleting_by:2023-05-12",
+  const { data: workspacesData } = useQuery({
+    queryKey: ["workspaces"],
+    queryFn: () => getWorkspaces({}),
+    enabled: form.values.inactivity_cleanup_enabled,
+  })
+
+  const inactiveStatuses: WorkspaceStatus[] = [
+    "stopped",
+    "canceled",
+    "failed",
+    "deleted",
+  ]
+
+  const workspacesToBeDeletedToday = workspacesData?.workspaces?.filter(
+    (workspace: Workspace) => {
+      const isInactive = inactiveStatuses.includes(
+        workspace.latest_build.status,
+      )
+
+      const proposedDeletion = add(new Date(workspace.last_used_at), {
+        days: form.values.inactivity_ttl_ms,
+      })
+
+      if (isInactive && compareAsc(proposedDeletion, endOfToday()) < 1) {
+        return workspace
+      }
     },
   )
-
-  console.log("workspacesData", workspacesData)
 
   const handleToggleFailureCleanup = async (e: ChangeEvent) => {
     form.handleChange(e)
@@ -413,11 +445,16 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       <ConfirmDialog
         type="delete"
         open={isInactivityDialogOpen}
-        onConfirm={() => submitValues(form.values)}
+        onConfirm={() => {
+          submitValues(form.values)
+          setIsInactivityDialogOpen(false)
+        }}
         onClose={() => setIsInactivityDialogOpen(false)}
         title="Delete inactive workspaces"
         confirmText="Delete Workspaces"
-        description="There are workspaces that already match this filter and will be deleted upon form submission. Are you sure you want to proceed?"
+        description={`There are ${
+          workspacesToBeDeletedToday?.length ?? ""
+        } workspaces that already match this filter and will be deleted upon form submission. Are you sure you want to proceed?`}
       />
     </HorizontalForm>
   )
