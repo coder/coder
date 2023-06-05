@@ -90,6 +90,9 @@ message Agent {
         int64 interval = 4;
         int64 timeout = 5;
     }
+    reserved 14;
+    reserved "login_before_ready";
+
     string id = 1;
     string name = 2;
     map<string, string> env = 3;
