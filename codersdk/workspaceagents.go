@@ -76,6 +76,20 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 	WorkspaceAgentLifecycleOff,
 }
 
+// WorkspaceAgentStartupScriptBehavior defines whether or not the startup script
+// should be considered blocking or non-blocking. The blocking behavior means
+// that the agent will not be considered ready until the startup script has
+// completed and, for example, SSH connections will wait for the agent to be
+// ready (can be overridden).
+//
+// Presently, non-blocking is the default, but this may change in the future.
+type WorkspaceAgentStartupScriptBehavior string
+
+const (
+	WorkspaceAgentStartupScriptBehaviorBlocking    WorkspaceAgentStartupScriptBehavior = "blocking"
+	WorkspaceAgentStartupScriptBehaviorNonBlocking WorkspaceAgentStartupScriptBehavior = "non-blocking"
+)
+
 type WorkspaceAgentMetadataResult struct {
 	CollectedAt time.Time `json:"collected_at" format:"date-time"`
 	// Age is the number of seconds since the metadata was collected.
@@ -124,11 +138,10 @@ type WorkspaceAgent struct {
 	Version               string                  `json:"version"`
 	Apps                  []WorkspaceApp          `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
-	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
-	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
-	TroubleshootingURL       string                `json:"troubleshooting_url"`
-	// LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
-	LoginBeforeReady bool `json:"login_before_ready"`
+	DERPLatency              map[string]DERPRegion               `json:"latency,omitempty"`
+	ConnectionTimeoutSeconds int32                               `json:"connection_timeout_seconds"`
+	TroubleshootingURL       string                              `json:"troubleshooting_url"`
+	StartupScriptBehavior    WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
 	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
 	StartupScriptTimeoutSeconds  int32          `json:"startup_script_timeout_seconds"`
 	ShutdownScript               string         `json:"shutdown_script,omitempty"`

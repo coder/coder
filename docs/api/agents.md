@@ -463,7 +463,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
     }
   },
   "lifecycle_state": "created",
-  "login_before_ready": true,
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -472,6 +471,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "startup_logs_length": 0,
   "startup_logs_overflowed": true,
   "startup_script": "string",
+  "startup_script_behavior": "blocking",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
   "subsystem": "envbox",

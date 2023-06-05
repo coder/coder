@@ -1126,7 +1126,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		ConnectionTimeoutSeconds:     dbAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:           troubleshootingURL,
 		LifecycleState:               codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
-		LoginBeforeReady:             dbAgent.LoginBeforeReady,
+		StartupScriptBehavior:        codersdk.WorkspaceAgentStartupScriptBehavior(dbAgent.StartupScriptBehavior),
 		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
 		ShutdownScript:               dbAgent.ShutdownScript.String,
 		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
