@@ -133,8 +133,8 @@ require (
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.6-0.20221018182125-7da137aa03f0
 	github.com/prometheus/client_golang v1.15.1
-	github.com/prometheus/client_model v0.3.0
-	github.com/prometheus/common v0.42.0
+	github.com/prometheus/client_model v0.4.0
+	github.com/prometheus/common v0.44.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/afero v1.9.3
