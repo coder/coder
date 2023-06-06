@@ -61,6 +61,16 @@ export const useProxyLatency = (
   refetch: () => void
   proxyLatencies: Record<string, ProxyLatencyReport>
 } => {
+  // maxStoredLatencies is the maximum number of latencies to store per proxy in local storage.
+  let maxStoredLatencies = 5
+  // The reason we pull this from local storage is so for development purposes, a user can manually
+  // set a larger number to collect data in their normal usage. This data can later be analyzed to come up
+  // with some better magic numbers.
+  const maxStoredLatenciesVar = localStorage.getItem("workspace-proxy-latencies-max")
+  if(maxStoredLatenciesVar) {
+    maxStoredLatencies = Number(maxStoredLatenciesVar)
+  }
+
   const [proxyLatencies, dispatchProxyLatencies] = useReducer(
     proxyLatenciesReducer,
     {},
@@ -188,7 +198,7 @@ export const useProxyLatency = (
         observer.disconnect()
 
         // Local storage cleanup
-        garbageCollectStoredLatencies(proxies)
+        garbageCollectStoredLatencies(proxies, maxStoredLatencies)
       })
   }, [proxies, latestFetchRequest])
 
@@ -224,16 +234,15 @@ const updateStoredLatencies =(action: ProxyLatencyAction): void => {
 
 // garbageCollectStoredLatencies will remove any latencies that are older then 1 week or latencies of proxies
 // that no longer exist. This is intended to keep the size of local storage down.
-const garbageCollectStoredLatencies = (regions: RegionsResponse): void => {
+const garbageCollectStoredLatencies = (regions: RegionsResponse, maxStored: number): void => {
   const latencies = loadStoredLatencies()
   const now = Date.now()
-  console.log("Garbage collecting stored latencies")
-  const cleaned = cleanupLatencies(latencies, regions, new Date(now))
+  const cleaned = cleanupLatencies(latencies, regions, new Date(now), maxStored)
 
   localStorage.setItem("workspace-proxy-latencies", JSON.stringify(cleaned))
 }
 
-const cleanupLatencies = (stored: Record<string, ProxyLatencyReport[]>, regions: RegionsResponse, now: Date): Record<string, ProxyLatencyReport[]> => {
+const cleanupLatencies = (stored: Record<string, ProxyLatencyReport[]>, regions: RegionsResponse, now: Date, maxStored: number): Record<string, ProxyLatencyReport[]> => {
   Object.keys(stored).forEach((proxyID) => {
     if(!regions.regions.find((region) => region.id === proxyID)) {
       delete(stored[proxyID])
@@ -246,7 +255,7 @@ const cleanupLatencies = (stored: Record<string, ProxyLatencyReport[]>, regions:
       return new Date(report.at).getTime() > nowMS - (1000 * 60 * 60 * 24 * 7)
     })
     // Only keep the 5 latest
-    stored[proxyID] = stored[proxyID].slice(-5)
+    stored[proxyID] = stored[proxyID].slice(-1*maxStored)
   })
   return stored
 }
