@@ -129,3 +129,15 @@ kubectl exec -it deployment/coder /bin/bash -n coder
 
 coder reset-password <username>
 ```
+
+## Filtering users
+
+In the Coder UI you can filter your users using the pre-defined filter or by using the Coder's filter query like the examples below:
+
+- `status:active` to find active users
+- `role:admin` to find admin users
+
+The supported filters are:
+
+- `status` - The status of the user. It can be a `active` or `suspended`.
+- `role` - The role of the user. You can [find here](https://pkg.go.dev/github.com/coder/coder/codersdk#TemplateRole) all the user roles that are supported.
