@@ -822,6 +822,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				provisionerDaemons = append(provisionerDaemons, daemon)
 			}
+			provisionerdMetrics.Runner.NumDaemons.Set(float64(len(provisionerDaemons)))
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
