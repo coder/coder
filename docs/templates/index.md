@@ -202,7 +202,7 @@ The startup script can contain important steps that must be executed successfull
 
 We also recommend that startup scripts always have an end, meaning that long running processes should be run in the background. This is usually achieved by adding `&` to the end of the command. For example, `sleep 10 &` will run the command in the background and allow the startup script to complete.
 
-If a backgrounded command (`&`) writes to stdout or stderr, the startup script will not complete until the command completes or closes the file descriptors. To avoid this, you can redirect the stdout and stderr to a file. For example, `sleep 10 >/dev/null 2>&1 &` will redirect the stdout and stderr to `/dev/null` (discard) and run the command in the background.
+> **Note:** If a backgrounded command (`&`) writes to stdout or stderr, the startup script will not complete until the command completes or closes the file descriptors. To avoid this, you can redirect the stdout and stderr to a file. For example, `sleep 10 >/dev/null 2>&1 &` will redirect the stdout and stderr to `/dev/null` (discard) and run the command in the background.
 
 PS. Notice how each step starts with `echo "..."` to provide feedback to the user about what is happening? This is especially useful when the startup script behavior is set to blocking because the user will be informed about why they're waiting to access their workspace.
 
