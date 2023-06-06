@@ -1,4 +1,4 @@
-import { AuditActions } from "api/typesGenerated"
+import { AuditActions, ResourceTypes } from "api/typesGenerated"
 import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter"
 import {
   Filter,
@@ -22,6 +22,7 @@ export const AuditFilter = ({
   menus: {
     user: UserFilterMenu
     action: ActionFilterMenu
+    resourceType: ResourceTypeFilterMenu
   }
 }) => {
   return (
@@ -31,6 +32,7 @@ export const AuditFilter = ({
       error={error}
       options={
         <>
+          <ResourceTypeMenu {...menus.resourceType} />
           <ActionMenu {...menus.action} />
           <UserMenu {...menus.user} />
         </>
@@ -38,6 +40,7 @@ export const AuditFilter = ({
       skeleton={
         <>
           <SearchFieldSkeleton />
+          <MenuSkeleton />
           <MenuSkeleton />
           <MenuSkeleton />
         </>
@@ -76,6 +79,66 @@ const ActionMenu = (menu: ActionFilterMenu) => {
           <OptionItem option={menu.selectedOption} />
         ) : (
           "All actions"
+        )
+      }
+    >
+      {(itemProps) => <OptionItem {...itemProps} />}
+    </FilterMenu>
+  )
+}
+
+export const useResourceTypeFilterMenu = ({
+  value,
+  onChange,
+}: Pick<UseFilterMenuOptions<BaseOption>, "value" | "onChange">) => {
+  const actionOptions: BaseOption[] = ResourceTypes.map((type) => {
+    let label = capitalize(type)
+
+    if (type === "api_key") {
+      label = "API Key"
+    }
+
+    if (type === "git_ssh_key") {
+      label = "Git SSH Key"
+    }
+
+    if (type === "template_version") {
+      label = "Template Version"
+    }
+
+    if (type === "workspace_build") {
+      label = "Workspace Build"
+    }
+
+    return {
+      value: type,
+      label,
+    }
+  })
+  return useFilterMenu({
+    onChange,
+    value,
+    id: "resourceType",
+    getSelectedOption: async () =>
+      actionOptions.find((option) => option.value === value) ?? null,
+    getOptions: async () => actionOptions,
+  })
+}
+
+export type ResourceTypeFilterMenu = ReturnType<
+  typeof useResourceTypeFilterMenu
+>
+
+const ResourceTypeMenu = (menu: ResourceTypeFilterMenu) => {
+  return (
+    <FilterMenu
+      id="resource-type-menu"
+      menu={menu}
+      label={
+        menu.selectedOption ? (
+          <OptionItem option={menu.selectedOption} />
+        ) : (
+          "All resource types"
         )
       }
     >

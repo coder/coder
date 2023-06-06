@@ -11,7 +11,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { usePagination } from "hooks"
 import { useQuery } from "@tanstack/react-query"
 import { getAuditLogs } from "api/api"
-import { useActionFilterMenu } from "./AuditFilter"
+import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter"
 
 const AuditPage: FC = () => {
   const dashboard = useDashboard()
@@ -37,6 +37,14 @@ const AuditPage: FC = () => {
       filter.update({
         ...filter.values,
         action: option?.value,
+      }),
+  })
+  const resourceTypeMenu = useResourceTypeFilterMenu({
+    value: filter.values["resource_type"],
+    onChange: (option) =>
+      filter.update({
+        ...filter.values,
+        resource_type: option?.value,
       }),
   })
   const { audit_log: isAuditLogVisible } = useFeatureVisibility()
@@ -72,6 +80,7 @@ const AuditPage: FC = () => {
                 menus: {
                   user: userMenu,
                   action: actionMenu,
+                  resourceType: resourceTypeMenu,
                 },
               }
             : {
