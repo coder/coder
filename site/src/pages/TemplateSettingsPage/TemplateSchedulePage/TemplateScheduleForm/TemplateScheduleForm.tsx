@@ -17,7 +17,7 @@ import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
 import { InactivityDialog } from "./InactivityDialog"
-import { useWorkspacesData } from "./useWorkspacesData"
+import { useWorkspacesToBeDeleted } from "./useWorkspacesToBeDeleted"
 import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers"
 import { TTLHelperText } from "./TTLHelperText"
 
@@ -94,7 +94,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
 
-  const workspacesToBeDeletedToday = useWorkspacesData(form.values)
+  const workspacesToBeDeletedToday = useWorkspacesToBeDeleted(form.values)
 
   const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
     useState<boolean>(false)
