@@ -9216,7 +9216,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 },
                 "login_before_ready": {
-                    "description": "LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
+                    "description": "Deprecated: Use StartupScriptBehavior instead.",
                     "type": "boolean"
                 },
                 "name": {
@@ -9243,6 +9243,9 @@ const docTemplate = `{
                 },
                 "startup_script": {
                     "type": "string"
+                },
+                "startup_script_behavior": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentStartupScriptBehavior"
                 },
                 "startup_script_timeout_seconds": {
                     "description": "StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.",
@@ -9364,6 +9367,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentStartupScriptBehavior": {
+            "type": "string",
+            "enum": [
+                "blocking",
+                "non-blocking"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentStartupScriptBehaviorBlocking",
+                "WorkspaceAgentStartupScriptBehaviorNonBlocking"
+            ]
         },
         "codersdk.WorkspaceAgentStatus": {
             "type": "string",

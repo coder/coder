@@ -152,7 +152,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		ConnectionTimeoutSeconds:    takeFirst(orig.ConnectionTimeoutSeconds, 3600),
 		TroubleshootingURL:          takeFirst(orig.TroubleshootingURL, "https://example.com"),
 		MOTDFile:                    takeFirst(orig.TroubleshootingURL, ""),
-		LoginBeforeReady:            takeFirst(orig.LoginBeforeReady, false),
+		StartupScriptBehavior:       takeFirst(orig.StartupScriptBehavior, "non-blocking"),
 		StartupScriptTimeoutSeconds: takeFirst(orig.StartupScriptTimeoutSeconds, 3600),
 	})
 	require.NoError(t, err, "insert workspace agent")

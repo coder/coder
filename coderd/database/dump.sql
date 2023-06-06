@@ -99,6 +99,11 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_proxy'
 );
 
+CREATE TYPE startup_script_behavior AS ENUM (
+    'blocking',
+    'non-blocking'
+);
+
 CREATE TYPE user_status AS ENUM (
     'active',
     'suspended'
@@ -596,7 +601,6 @@ CREATE TABLE workspace_agents (
     troubleshooting_url text DEFAULT ''::text NOT NULL,
     motd_file text DEFAULT ''::text NOT NULL,
     lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
-    login_before_ready boolean DEFAULT true NOT NULL,
     startup_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
     shutdown_script character varying(65534),
@@ -604,6 +608,7 @@ CREATE TABLE workspace_agents (
     startup_logs_length integer DEFAULT 0 NOT NULL,
     startup_logs_overflowed boolean DEFAULT false NOT NULL,
     subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL,
+    startup_script_behavior startup_script_behavior DEFAULT 'non-blocking'::startup_script_behavior NOT NULL,
     CONSTRAINT max_startup_logs_length CHECK ((startup_logs_length <= 1048576))
 );
 
@@ -617,8 +622,6 @@ COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace c
 
 COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
 
-COMMENT ON COLUMN workspace_agents.login_before_ready IS 'If true, the agent will not prevent login before it is ready (e.g. startup script is still executing).';
-
 COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
 
 COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
@@ -630,6 +633,8 @@ COMMENT ON COLUMN workspace_agents.shutdown_script_timeout_seconds IS 'The numbe
 COMMENT ON COLUMN workspace_agents.startup_logs_length IS 'Total length of startup logs';
 
 COMMENT ON COLUMN workspace_agents.startup_logs_overflowed IS 'Whether the startup logs overflowed in length';
+
+COMMENT ON COLUMN workspace_agents.startup_script_behavior IS 'When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

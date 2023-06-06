@@ -959,6 +959,64 @@ func AllResourceTypeValues() []ResourceType {
 	}
 }
 
+type StartupScriptBehavior string
+
+const (
+	StartupScriptBehaviorBlocking    StartupScriptBehavior = "blocking"
+	StartupScriptBehaviorNonBlocking StartupScriptBehavior = "non-blocking"
+)
+
+func (e *StartupScriptBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StartupScriptBehavior(s)
+	case string:
+		*e = StartupScriptBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StartupScriptBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullStartupScriptBehavior struct {
+	StartupScriptBehavior StartupScriptBehavior
+	Valid                 bool // Valid is true if StartupScriptBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStartupScriptBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.StartupScriptBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StartupScriptBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStartupScriptBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StartupScriptBehavior), nil
+}
+
+func (e StartupScriptBehavior) Valid() bool {
+	switch e {
+	case StartupScriptBehaviorBlocking,
+		StartupScriptBehaviorNonBlocking:
+		return true
+	}
+	return false
+}
+
+func AllStartupScriptBehaviorValues() []StartupScriptBehavior {
+	return []StartupScriptBehavior{
+		StartupScriptBehaviorBlocking,
+		StartupScriptBehaviorNonBlocking,
+	}
+}
+
 type UserStatus string
 
 const (
@@ -1635,8 +1693,6 @@ type WorkspaceAgent struct {
 	MOTDFile string `db:"motd_file" json:"motd_file"`
 	// The current lifecycle state reported by the workspace agent.
 	LifecycleState WorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
-	// If true, the agent will not prevent login before it is ready (e.g. startup script is still executing).
-	LoginBeforeReady bool `db:"login_before_ready" json:"login_before_ready"`
 	// The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
 	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 	// The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder
@@ -1650,6 +1706,8 @@ type WorkspaceAgent struct {
 	// Whether the startup logs overflowed in length
 	StartupLogsOverflowed bool                    `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
 	Subsystem             WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
+	// When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.
+	StartupScriptBehavior StartupScriptBehavior `db:"startup_script_behavior" json:"startup_script_behavior"`
 }
 
 type WorkspaceAgentMetadatum struct {

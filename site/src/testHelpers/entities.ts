@@ -498,7 +498,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
   lifecycle_state: "starting",
-  login_before_ready: false,
+  login_before_ready: false, // Deprecated.
+  startup_script_behavior: "blocking",
   startup_logs_length: 0,
   startup_logs_overflowed: false,
   startup_script_timeout_seconds: 120,

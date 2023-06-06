@@ -26,9 +26,9 @@ Start a shell into a workspace
 
       --no-wait bool, $CODER_SSH_NO_WAIT
           Specifies whether to wait for a workspace to become ready before
-          logging in (only applicable when the login before ready option has not
-          been enabled). Note that the workspace agent may still be in the
-          process of executing the startup script and the workspace may be in an
+          logging in (only applicable when the startup script behavior is
+          blocking). Note that the workspace agent may still be in the process
+          of executing the startup script and the workspace may be in an
           incomplete state.
 
       --stdio bool, $CODER_SSH_STDIO

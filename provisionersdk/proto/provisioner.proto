@@ -90,6 +90,9 @@ message Agent {
         int64 interval = 4;
         int64 timeout = 5;
     }
+    reserved 14;
+    reserved "login_before_ready";
+
     string id = 1;
     string name = 2;
     map<string, string> env = 3;
@@ -105,11 +108,12 @@ message Agent {
 	int32 connection_timeout_seconds = 11;
 	string troubleshooting_url = 12;
 	string motd_file = 13;
-	bool login_before_ready = 14;
+	// Field 14 was bool login_before_ready = 14, now removed.
 	int32 startup_script_timeout_seconds = 15;
 	string shutdown_script = 16;
 	int32 shutdown_script_timeout_seconds = 17;
     repeated Metadata metadata = 18;
+	string startup_script_behavior = 19;
 }
 
 enum AppSharingLevel {

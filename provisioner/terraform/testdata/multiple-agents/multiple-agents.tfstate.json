@@ -17,19 +17,23 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "7fd8bb3f-704e-4d85-aaaf-1928a9a4df83",
+            "id": "ff8b851f-127f-452f-9180-4e619b0093f2",
             "init_script": "",
             "login_before_ready": true,
+            "metadata": [],
             "motd_file": null,
             "os": "linux",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "ebdd904c-a277-49ec-97cc-e29c7326b475",
+            "token": "36dbfd5d-adf5-4e3e-9d92-190be56773fa",
             "troubleshooting_url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "metadata": []
+          }
         },
         {
           "address": "coder_agent.dev2",
@@ -44,19 +48,23 @@
             "connection_timeout": 1,
             "dir": null,
             "env": null,
-            "id": "cd35b6c2-3f81-4857-ac8c-9cc0d1d0f0ee",
+            "id": "a4951d98-2e07-4144-8942-a6f7584a6da0",
             "init_script": "",
             "login_before_ready": true,
+            "metadata": [],
             "motd_file": "/etc/motd",
             "os": "darwin",
             "shutdown_script": "echo bye bye",
             "shutdown_script_timeout": 30,
             "startup_script": null,
+            "startup_script_behavior": "non-blocking",
             "startup_script_timeout": 30,
-            "token": "bbfc3bb1-31c8-42a2-bc5a-3f4ee95eea7b",
+            "token": "f101a336-401d-4744-848f-437fe635f832",
             "troubleshooting_url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "metadata": []
+          }
         },
         {
           "address": "coder_agent.dev3",
@@ -71,19 +79,54 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "7407c159-30e7-4c7c-8187-3bf0f6805515",
+            "id": "a3e1eaae-4bfd-4240-bc0a-0e940c3dd861",
             "init_script": "",
-            "login_before_ready": false,
+            "login_before_ready": true,
+            "metadata": [],
             "motd_file": null,
             "os": "windows",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": "blocking",
             "startup_script_timeout": 300,
-            "token": "080070d7-cb08-4634-aa05-7ee07a193441",
+            "token": "1551c374-aae3-4be8-8fa2-6082921b837f",
             "troubleshooting_url": "https://coder.com/troubleshoot"
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "metadata": []
+          }
+        },
+        {
+          "address": "coder_agent.dev4",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev4",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "env": null,
+            "id": "fb94747b-e187-4c69-9c95-fb09c0832664",
+            "init_script": "",
+            "login_before_ready": false,
+            "metadata": [],
+            "motd_file": null,
+            "os": "linux",
+            "shutdown_script": null,
+            "shutdown_script_timeout": 300,
+            "startup_script": null,
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
+            "token": "714bf65d-92ff-4e7c-adbe-211b15a21085",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "metadata": []
+          }
         },
         {
           "address": "null_resource.dev",
@@ -93,14 +136,15 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "235602507221507275",
+            "id": "3687348305461113369",
             "triggers": null
           },
           "sensitive_values": {},
           "depends_on": [
             "coder_agent.dev1",
             "coder_agent.dev2",
-            "coder_agent.dev3"
+            "coder_agent.dev3",
+            "coder_agent.dev4"
           ]
         }
       ]
