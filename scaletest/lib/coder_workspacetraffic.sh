@@ -11,9 +11,10 @@ fi
 [[ -n ${VERBOSE:-} ]] && set -x
 
 LOADTEST_NAME="$1"
-CODER_TOKEN=$(./coder_shim.sh tokens create)
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+CODER_TOKEN=$("${PROJECT_ROOT}/scaletest/lib/coder_shim.sh" tokens create)
 CODER_URL="http://coder.coder-${LOADTEST_NAME}.svc.cluster.local"
-export KUBECONFIG="${PWD}/.coderv2/${LOADTEST_NAME}-cluster.kubeconfig"
+export KUBECONFIG="${PROJECT_ROOT}/scaletest/.coderv2/${LOADTEST_NAME}-cluster.kubeconfig"
 
 # Clean up any pre-existing pods
 kubectl -n "coder-${LOADTEST_NAME}" delete pod coder-scaletest-workspace-traffic --force || true
