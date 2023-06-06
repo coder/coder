@@ -18,8 +18,8 @@ Start a shell into a workspace
           Specifies which identity agent to use (overrides $SSH_AUTH_SOCK),
           forward agent must also be enabled.
 
-  -l, --log-file string, $CODER_SSH_LOG_FILE
-          Specify the location of an SSH diagnostic log file.
+  -l, --log-dir string, $CODER_SSH_LOG_DIR
+          Specify the directory containing SSH diagnostic log files.
 
       --no-wait bool, $CODER_SSH_NO_WAIT
           Specifies whether to wait for a workspace to become ready before

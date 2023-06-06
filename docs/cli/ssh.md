@@ -39,14 +39,14 @@ Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, b
 
 Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled.
 
-### -l, --log-file
+### -l, --log-dir
 
-|             |                                  |
-| ----------- | -------------------------------- |
-| Type        | <code>string</code>              |
-| Environment | <code>$CODER_SSH_LOG_FILE</code> |
+|             |                                 |
+| ----------- | ------------------------------- |
+| Type        | <code>string</code>             |
+| Environment | <code>$CODER_SSH_LOG_DIR</code> |
 
-Specify the location of an SSH diagnostic log file.
+Specify the directory containing SSH diagnostic log files.
 
 ### --no-wait
 
