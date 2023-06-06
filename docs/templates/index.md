@@ -412,11 +412,11 @@ Depending on the contents of the [startup script](https://registry.terraform.io/
 
 #### Unable to access workspace, startup script is still running
 
-If you're trying to access your workspace and are unable to because the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running, it means the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option is set to blocking or you have enabled the `--wait` option (for e.g. `coder ssh` or `coder config-ssh`). In such an event, you can always access the workspace by using the web terminal, or via SSH using the `--no-wait` option. To force the startup script to exit, you can try to terminate processes started by the startup script or terminating the startup script itself (on Linux, `ps` and `kill` are useful tools).
+If you're trying to access your workspace and are unable to because the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running, it means the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option is set to blocking or you have enabled the `--wait` option (for e.g. `coder ssh` or `coder config-ssh`). In such an event, you can always access the workspace by using the web terminal, or via SSH using the `--no-wait` option. If the startup script is running longer than it should, or never completing, you can try to [debug the startup script](#debugging-the-startup-script) to resolve the issue. Alternatively, you can try to force the startup script to exit by terminating processes started by it or terminating the startup script itself (on Linux, `ps` and `kill` are useful tools).
 
-For tips on how to write a startup script that doesn't run forever, see the [`startup_script`](#startup_script) section, or read about [debugging the startup script](#debugging-the-startup-script) for help in resolving issues.
+For tips on how to write a startup script that doesn't run forever, see the [`startup_script`](#startup_script) section.
 
-Template authors can also set the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option to non-blocking, which will allow users to access the workspace while the startup script is still running. Note that the workspace must be updated after changing the option.
+Template authors can also set the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option to non-blocking, which will allow users to access the workspace while the startup script is still running. Note that the workspace must be updated after changing this option.
 
 Useful commands:
 
