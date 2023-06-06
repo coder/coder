@@ -414,17 +414,11 @@ func TestSSH(t *testing.T) {
 		logDir := t.TempDir()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-		inv, root := clitest.New(t, "ssh", workspace.Name, "-l", logDir)
+		inv, root := clitest.New(t, "ssh", "-l", logDir, workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
+		w := clitest.StartWithWaiter(t, inv)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
 		pty.ExpectMatch("Waiting")
 
 		agentClient := agentsdk.New(client.URL)
@@ -439,12 +433,11 @@ func TestSSH(t *testing.T) {
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
-		<-cmdDone
+		w.RequireSuccess()
 
-		ents, err := os.ReadDir(t.TempDir())
+		ents, err := os.ReadDir(logDir)
 		require.NoError(t, err)
-
-		require.Len(t, ents, 1, "expected one file in logdir")
+		require.Len(t, ents, 1, "expected one file in logdir %s", logDir)
 	})
 }
 
