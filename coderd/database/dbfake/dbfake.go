@@ -5189,3 +5189,42 @@ func (q *fakeQuerier) UpsertServiceBanner(_ context.Context, data string) error 
 	q.serviceBanner = []byte(data)
 	return nil
 }
+
+// The remaining methods are only used by the enterprise/tailnet.pgCoord.  This coordinator explicitly depends on
+// postgres triggers that announce changes on the pubsub.  Implementing support for this in the fake database would
+// strongly couple the fakeQuerier to the pubsub, which is undesirable.  Furthermore, it makes little sense to directly
+// test the pgCoord against anything other than postgres.  The fakeQuerier is designed to allow us to test the Coderd
+// API, and for that kind of test, the in-memory, AGPL tailnet coordinator is sufficient.  Therefore, these methods
+// remain unimplemented in the fakeQuerier.
+
+func (*fakeQuerier) UpsertTailnetClient(context.Context, database.UpsertTailnetClientParams) (database.TailnetClient, error) {
+	panic("unimplemented")
+}
+
+func (*fakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
+	panic("unimplemented")
+}
+
+func (*fakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (database.TailnetCoordinator, error) {
+	panic("unimplemented")
+}
+
+func (*fakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
+	panic("unimplemented")
+}
+
+func (*fakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
+	panic("unimplemented")
+}
+
+func (*fakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
+	panic("unimplemented")
+}
+
+func (*fakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
+	panic("unimplemented")
+}
+
+func (*fakeQuerier) GetTailnetClientsForAgent(context.Context, uuid.UUID) ([]database.TailnetClient, error) {
+	panic("unimplemented")
+}

@@ -1,6 +1,7 @@
 package tailnet
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -174,11 +175,12 @@ func newCore(logger slog.Logger) *core {
 var ErrWouldBlock = xerrors.New("would block")
 
 type TrackedConn struct {
-	ctx     context.Context
-	cancel  func()
-	conn    net.Conn
-	updates chan []*Node
-	logger  slog.Logger
+	ctx      context.Context
+	cancel   func()
+	conn     net.Conn
+	updates  chan []*Node
+	logger   slog.Logger
+	lastData []byte
 
 	// ID is an ephemeral UUID used to uniquely identify the owner of the
 	// connection.
@@ -224,6 +226,10 @@ func (t *TrackedConn) SendUpdates() {
 				t.logger.Error(t.ctx, "unable to marshal nodes update", slog.Error(err), slog.F("nodes", nodes))
 				return
 			}
+			if bytes.Equal(t.lastData, data) {
+				t.logger.Debug(t.ctx, "skipping duplicate update", slog.F("nodes", nodes))
+				continue
+			}
 
 			// Set a deadline so that hung connections don't put back pressure on the system.
 			// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
@@ -255,6 +261,7 @@ func (t *TrackedConn) SendUpdates() {
 				_ = t.Close()
 				return
 			}
+			t.lastData = data
 		}
 	}
 }
