@@ -130,7 +130,7 @@ kubectl exec -it deployment/coder /bin/bash -n coder
 coder reset-password <username>
 ```
 
-## Filtering Users
+## User filtering
 
 In the Coder UI, you can filter your users using pre-defined filters or by utilizing the Coder's filter query. The examples provided below demonstrate how to use the Coder's filter query:
 
