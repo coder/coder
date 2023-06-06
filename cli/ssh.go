@@ -77,8 +77,18 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("error opening %s for logging: %w", logFilePath, err)
 				}
-				logger = slog.Make(sloghuman.Sink(logFile))
-				defer logFile.Close()
+				// HACK: Something was keeping a reference to this file
+				// after the goroutine ends, leading to the race observed
+				// here: https://github.com/coder/coder/actions/runs/5178818818/jobs/9331016395.
+				rd, wr := io.Pipe()
+				go func() {
+					_, _ = io.Copy(logFile, rd)
+				}()
+				defer func() {
+					_ = wr.Close()
+					_ = logFile.Close()
+				}()
+				logger = slog.Make(sloghuman.Sink(wr))
 				if r.verbose {
 					logger = logger.Leveled(slog.LevelDebug)
 				}

@@ -441,10 +441,12 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("exit")
 		<-cmdDone
 
-		_, err := os.Stat(logFile)
+		info, err := os.Stat(logFile)
 		if err != nil {
 			t.Fatalf("failed to find ssh logfile: %v", err)
 		}
+
+		require.Greater(t, info.Size(), int64(0), "ssh logfile is empty")
 	})
 }
 
