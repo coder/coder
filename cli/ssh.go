@@ -50,7 +50,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		identityAgent  string
 		wsPollInterval time.Duration
 		noWait         bool
-		logFilePath    string
+		logDirPath     string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -73,11 +73,33 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 					logger.Error(ctx, "command exit", slog.Error(retErr))
 				}
 			}()
-			if logFilePath != "" {
-				logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+			if logDirPath != "" {
+				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
-					return xerrors.Errorf("error opening %s for logging: %w", logFilePath, err)
+					panic(err)
 				}
+				logFilePath := filepath.Join(
+					logDirPath,
+					fmt.Sprintf(
+						"coder-ssh-%s-%s.log",
+						// The time portion makes it easier to find the right
+						// log file.
+						time.Now().Format("20060102-150405"),
+						// The nonce prevents collisions, as SSH invocations
+						// frequently happen in parallel.
+						nonce,
+					),
+				)
+				logFile, err := os.OpenFile(
+					logFilePath,
+					os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
+					0o600,
+				)
+				if err != nil {
+					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
+				}
+				defer logFile.Close()
+
 				logger = slog.Make(sloghuman.Sink(logFile))
 				if r.verbose {
 					logger = logger.Leveled(slog.LevelDebug)
@@ -359,11 +381,11 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Value:       clibase.BoolOf(&noWait),
 		},
 		{
-			Flag:          "log-file",
-			Description:   "Specify the location of an SSH diagnostic log file.",
-			Env:           "CODER_SSH_LOG_FILE",
+			Flag:          "log-dir",
+			Description:   "Specify the directory containing SSH diagnostic log files.",
+			Env:           "CODER_SSH_LOG_DIR",
 			FlagShorthand: "l",
-			Value:         clibase.StringOf(&logFilePath),
+			Value:         clibase.StringOf(&logDirPath),
 		},
 	}
 	return cmd
