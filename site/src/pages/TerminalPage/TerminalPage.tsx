@@ -372,12 +372,13 @@ const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
   return (
     <Box
       sx={{
-        padding: (theme) => theme.spacing(2),
+        padding: (theme) => theme.spacing(1, 2),
         background: (theme) => theme.palette.background.paper,
         display: "flex",
         alignItems: "center",
         justifyContent: "flex-end",
         fontSize: 12,
+        borderTop: (theme) => `1px solid ${theme.palette.divider}`,
       }}
     >
       <Box
@@ -520,7 +521,6 @@ const useStyles = makeStyles((theme) => ({
   terminal: {
     width: "100vw",
     overflow: "hidden",
-    padding: theme.spacing(1),
     backgroundColor: theme.palette.background.paper,
     flex: 1,
     // These styles attempt to mimic the VS Code scrollbar.
