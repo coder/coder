@@ -50,9 +50,9 @@ export interface WorkspacesPageViewProps {
   workspaces?: Workspace[]
   count?: number
   useNewFilter?: boolean
+  filterProps: ComponentProps<typeof WorkspacesFilter>
   page: number
   limit: number
-  filterProps: ComponentProps<typeof WorkspacesFilter>
   onPageChange: (page: number) => void
   onUpdateWorkspace: (workspace: Workspace) => void
 }

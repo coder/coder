@@ -13,16 +13,17 @@ import {
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
-import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { Timeline } from "components/Timeline/Timeline"
 import { AuditHelpTooltip } from "components/Tooltips"
-import { FC } from "react"
+import { ComponentProps, FC } from "react"
 import { useTranslation } from "react-i18next"
-import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import { AuditPaywall } from "./AuditPaywall"
+import { AuditFilter } from "./AuditFilter"
+import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
 
 export const Language = {
   title: "Audit",
@@ -49,23 +50,27 @@ const presetFilters = [
 export interface AuditPageViewProps {
   auditLogs?: AuditLog[]
   count?: number
-  filter: string
-  onFilter: (filter: string) => void
-  paginationRef: PaginationMachineRef
+  page: number
+  limit: number
+  onPageChange: (page: number) => void
   isNonInitialPage: boolean
   isAuditLogVisible: boolean
   error?: Error | unknown
+  filterProps:
+    | ComponentProps<typeof SearchBarWithFilter>
+    | ComponentProps<typeof AuditFilter>
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
   auditLogs,
   count,
-  filter,
-  onFilter,
-  paginationRef,
+  page,
+  limit,
+  onPageChange,
   isNonInitialPage,
   isAuditLogVisible,
   error,
+  filterProps,
 }) => {
   const { t } = useTranslation("auditLog")
 
@@ -86,12 +91,22 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
       <ChooseOne>
         <Cond condition={isAuditLogVisible}>
-          <SearchBarWithFilter
-            docs="https://coder.com/docs/coder-oss/latest/admin/audit-logs#filtering-logs"
-            filter={filter}
-            onFilter={onFilter}
-            presetFilters={presetFilters}
-            error={error}
+          {"onFilter" in filterProps ? (
+            <SearchBarWithFilter
+              {...filterProps}
+              docs="https://coder.com/docs/coder-oss/latest/admin/audit-logs#filtering-logs"
+              presetFilters={presetFilters}
+              error={error}
+            />
+          ) : (
+            <AuditFilter {...filterProps} />
+          )}
+
+          <PaginationStatus
+            isLoading={Boolean(isLoading)}
+            showing={auditLogs?.length}
+            total={count}
+            label="audit logs"
           />
 
           <TableContainer>
@@ -143,7 +158,14 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
             </Table>
           </TableContainer>
 
-          <PaginationWidget numRecords={count} paginationRef={paginationRef} />
+          {count !== undefined && (
+            <PaginationWidgetBase
+              count={count}
+              limit={limit}
+              onChange={onPageChange}
+              page={page}
+            />
+          )}
         </Cond>
 
         <Cond>

@@ -1,59 +1,8 @@
-import { UserOption, StatusOption, TemplateOption } from "./options"
-import { getTemplates, getUsers } from "api/api"
+import { StatusOption, TemplateOption } from "./options"
+import { getTemplates } from "api/api"
 import { WorkspaceStatuses } from "api/typesGenerated"
 import { getDisplayWorkspaceStatus } from "utils/workspace"
-import { useMe } from "hooks"
 import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu"
-
-export const useUserFilterMenu = ({
-  value,
-  onChange,
-  enabled,
-}: Pick<
-  UseFilterMenuOptions<UserOption>,
-  "value" | "onChange" | "enabled"
->) => {
-  const me = useMe()
-
-  const addMeAsFirstOption = (options: UserOption[]) => {
-    options = options.filter((option) => option.value !== me.username)
-    return [
-      { label: me.username, value: me.username, avatarUrl: me.avatar_url },
-      ...options,
-    ]
-  }
-
-  return useFilterMenu({
-    onChange,
-    enabled,
-    value,
-    id: "owner",
-    getSelectedOption: async () => {
-      const usersRes = await getUsers({ q: value, limit: 1 })
-      const firstUser = usersRes.users.at(0)
-      if (firstUser && firstUser.username === value) {
-        return {
-          label: firstUser.username,
-          value: firstUser.username,
-          avatarUrl: firstUser.avatar_url,
-        }
-      }
-      return null
-    },
-    getOptions: async (query) => {
-      const usersRes = await getUsers({ q: query, limit: 25 })
-      let options: UserOption[] = usersRes.users.map((user) => ({
-        label: user.username,
-        value: user.username,
-        avatarUrl: user.avatar_url,
-      }))
-      options = addMeAsFirstOption(options)
-      return options
-    },
-  })
-}
-
-export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>
 
 export const useTemplateFilterMenu = ({
   value,
