@@ -58,10 +58,9 @@ data "coder_parameter" "data_disk_size" {
 }
 
 resource "coder_agent" "main" {
-  arch               = "amd64"
-  auth               = "azure-instance-identity"
-  os                 = "windows"
-  login_before_ready = false
+  arch = "amd64"
+  auth = "azure-instance-identity"
+  os   = "windows"
 }
 
 resource "random_password" "admin_password" {

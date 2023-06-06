@@ -115,6 +115,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		alwaysPrompt    bool
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
+		activate        bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -172,11 +173,13 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-				ID: job.ID,
-			})
-			if err != nil {
-				return err
+			if activate {
+				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+					ID: job.ID,
+				})
+				if err != nil {
+					return err
+				}
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
@@ -225,6 +228,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Flag:        "always-prompt",
 			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
 			Value:       clibase.BoolOf(&alwaysPrompt),
+		},
+		{
+			Flag:        "activate",
+			Description: "Whether the new template will be marked active.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&activate),
 		},
 		cliui.SkipPromptOption(),
 		uploadFlags.option(),

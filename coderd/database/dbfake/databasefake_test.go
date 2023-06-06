@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -106,26 +107,25 @@ func TestExactMethods(t *testing.T) {
 	}
 }
 
-// TestUserOrder ensures that the fake database returns users in the order they
-// were created.
+// TestUserOrder ensures that the fake database returns users sorted by username.
 func TestUserOrder(t *testing.T) {
 	t.Parallel()
 
 	db := dbfake.New()
 	now := database.Now()
-	count := 10
-	for i := 0; i < count; i++ {
-		dbgen.User(t, db, database.User{
-			Username:  fmt.Sprintf("user%d", i),
-			CreatedAt: now,
-		})
+
+	usernames := []string{"b-user", "d-user", "a-user", "c-user", "e-user"}
+	for _, username := range usernames {
+		dbgen.User(t, db, database.User{Username: username, CreatedAt: now})
 	}
 
 	users, err := db.GetUsers(context.Background(), database.GetUsersParams{})
 	require.NoError(t, err)
-	require.Lenf(t, users, count, "expected %d users", count)
+	require.Lenf(t, users, len(usernames), "expected %d users", len(usernames))
+
+	sort.Strings(usernames)
 	for i, user := range users {
-		require.Equal(t, fmt.Sprintf("user%d", i), user.Username)
+		require.Equal(t, usernames[i], user.Username)
 	}
 }
 

@@ -3,6 +3,7 @@ package dbauthz_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -211,7 +212,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentParams{
-			ID: uuid.New(),
+			ID:                    uuid.New(),
+			StartupScriptBehavior: database.StartupScriptBehaviorNonBlocking,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {
@@ -240,7 +242,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			StartedAt: sql.NullTime{Valid: false},
 		})
-		check.Args(database.AcquireProvisionerJobParams{Types: []database.ProvisionerType{j.Provisioner}}).
+		check.Args(database.AcquireProvisionerJobParams{Types: []database.ProvisionerType{j.Provisioner}, Tags: must(json.Marshal(j.Tags))}).
 			Asserts( /*rbac.ResourceSystem, rbac.ActionUpdate*/ )
 	}))
 	s.Run("UpdateProvisionerJobWithCompleteByID", s.Subtest(func(db database.Store, check *expects) {

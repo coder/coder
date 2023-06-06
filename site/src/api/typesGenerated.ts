@@ -1092,6 +1092,7 @@ export interface WorkspaceAgent {
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
   readonly login_before_ready: boolean
+  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
@@ -1561,6 +1562,11 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "start_timeout",
   "starting",
 ]
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking"
+export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] =
+  ["blocking", "non-blocking"]
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus =

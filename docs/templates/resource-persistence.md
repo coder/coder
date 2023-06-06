@@ -87,4 +87,4 @@ resource "docker_volume" "home_volume" {
 
 ## Up next
 
-- [Templates](../templates/README.md)
+- [Templates](../templates/index.md)

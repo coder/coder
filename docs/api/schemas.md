@@ -4499,6 +4499,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "startup_logs_length": 0,
             "startup_logs_overflowed": true,
             "startup_script": "string",
+            "startup_script_behavior": "blocking",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
             "subsystem": "envbox",
@@ -4630,6 +4631,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "startup_logs_length": 0,
   "startup_logs_overflowed": true,
   "startup_script": "string",
+  "startup_script_behavior": "blocking",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
   "subsystem": "envbox",
@@ -4641,39 +4643,40 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                              | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                                |
-| --------------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                            | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)              | false    |              |                                                                                                                                                                                                            |
-| `architecture`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `connection_timeout_seconds`      | integer                                                              | false    |              |                                                                                                                                                                                                            |
-| `created_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `directory`                       | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `disconnected_at`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `environment_variables`           | object                                                               | false    |              |                                                                                                                                                                                                            |
-| » `[any property]`                | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `expanded_directory`              | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `first_connected_at`              | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `id`                              | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `instance_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `last_connected_at`               | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `latency`                         | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
-| » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                                                                                                                                                            |
-| `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                                                                                                                                                            |
-| `login_before_ready`              | boolean                                                              | false    |              | Login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                       |
-| `name`                            | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `operating_system`                | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `resource_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `shutdown_script`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `shutdown_script_timeout_seconds` | integer                                                              | false    |              |                                                                                                                                                                                                            |
-| `startup_logs_length`             | integer                                                              | false    |              |                                                                                                                                                                                                            |
-| `startup_logs_overflowed`         | boolean                                                              | false    |              |                                                                                                                                                                                                            |
-| `startup_script`                  | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `startup_script_timeout_seconds`  | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
-| `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
-| `subsystem`                       | [codersdk.AgentSubsystem](#codersdkagentsubsystem)                   | false    |              |                                                                                                                                                                                                            |
-| `troubleshooting_url`             | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `updated_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `version`                         | string                                                               | false    |              |                                                                                                                                                                                                            |
+| Name                              | Type                                                                                         | Required | Restrictions | Description                                                                                                                                                                                                |
+| --------------------------------- | -------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                            | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                                                            |
+| `architecture`                    | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `connection_timeout_seconds`      | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
+| `created_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `directory`                       | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `disconnected_at`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `environment_variables`           | object                                                                                       | false    |              |                                                                                                                                                                                                            |
+| » `[any property]`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `expanded_directory`              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `first_connected_at`              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `id`                              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `instance_id`                     | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `last_connected_at`               | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `latency`                         | object                                                                                       | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
+| » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                                                            |
+| `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                            |
+| `login_before_ready`              | boolean                                                                                      | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                             |
+| `name`                            | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `operating_system`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `resource_id`                     | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `shutdown_script`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `shutdown_script_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
+| `startup_logs_length`             | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
+| `startup_logs_overflowed`         | boolean                                                                                      | false    |              |                                                                                                                                                                                                            |
+| `startup_script`                  | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `startup_script_behavior`         | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              |                                                                                                                                                                                                            |
+| `startup_script_timeout_seconds`  | integer                                                                                      | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
+| `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                                                            |
+| `subsystem`                       | [codersdk.AgentSubsystem](#codersdkagentsubsystem)                                           | false    |              |                                                                                                                                                                                                            |
+| `troubleshooting_url`             | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `updated_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `version`                         | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 
 ## codersdk.WorkspaceAgentConnectionInfo
 
@@ -4840,6 +4843,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`         | integer                                | false    |              |             |
 | `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
 | `output`     | string                                 | false    |              |             |
+
+## codersdk.WorkspaceAgentStartupScriptBehavior
+
+```json
+"blocking"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `blocking`     |
+| `non-blocking` |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -5023,6 +5041,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "startup_logs_length": 0,
           "startup_logs_overflowed": true,
           "startup_script": "string",
+          "startup_script_behavior": "blocking",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
           "subsystem": "envbox",
@@ -5305,6 +5324,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "startup_logs_length": 0,
       "startup_logs_overflowed": true,
       "startup_script": "string",
+      "startup_script_behavior": "blocking",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
       "subsystem": "envbox",
@@ -5504,6 +5524,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
                 "startup_logs_length": 0,
                 "startup_logs_overflowed": true,
                 "startup_script": "string",
+                "startup_script_behavior": "blocking",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
                 "subsystem": "envbox",

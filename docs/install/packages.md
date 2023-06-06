@@ -38,4 +38,4 @@ sudo systemctl restart coder
 ## Next steps
 
 - [Configuring Coder](../admin/configure.md)
-- [Templates](../templates/README.md)
+- [Templates](../templates/index.md)

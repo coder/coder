@@ -35,7 +35,7 @@ coder server
 ## Wildcard access URL
 
 `CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard)
-via the dashboard or running [coder_apps](../templates/README.md#coder-apps) on an absolute path. Set this to a wildcard
+via the dashboard or running [coder_apps](../templates/index.md#coder-apps) on an absolute path. Set this to a wildcard
 subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
 If you are providing TLS certificates directly to the Coder server, either
@@ -43,7 +43,7 @@ If you are providing TLS certificates directly to the Coder server, either
 1. Use a single certificate and key for both the root and wildcard domains.
 2. Configure multiple certificates and keys via
    [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/values.yaml) in the Helm Chart, or
-   [`--tls-cert-file`](../cli/server#--tls-cert-file) and [`--tls-key-file`](../cli/server#--tls-key-file) command
+   [`--tls-cert-file`](../cli/server.md#--tls-cert-file) and [`--tls-key-file`](../cli/server.md#--tls-key-file) command
    line options (these both take a comma separated list of files; list certificates and their respective keys in the
    same order).
 
