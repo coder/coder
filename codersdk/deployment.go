@@ -953,7 +953,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "OIDC Group Field",
-			Description: "Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.",
+			Description: "This field must be set if using the group sync feature and the scope name is not 'groups'",
 			Flag:        "oidc-group-field",
 			Env:         "CODER_OIDC_GROUP_FIELD",
 			// This value is intentionally blank. If this is empty, then OIDC group
