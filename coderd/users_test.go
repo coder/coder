@@ -1553,6 +1553,9 @@ func TestPaginatedUsers(t *testing.T) {
 				email = fmt.Sprintf("%d@gmail.com", i)
 				username = fmt.Sprintf("specialuser%d", i)
 			}
+			if i%3 == 0 {
+				username = strings.ToUpper(username)
+			}
 			// One side effect of having to use the api vs the db calls directly, is you cannot
 			// mock time. Ideally I could pass in mocked times and space these users out.
 			//
@@ -1694,7 +1697,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 // sortUsers sorts by (created_at, id)
 func sortUsers(users []codersdk.User) {
 	sort.Slice(users, func(i, j int) bool {
-		return users[i].Username < users[j].Username
+		return strings.ToLower(users[i].Username) < strings.ToLower(users[j].Username)
 	})
 }
 

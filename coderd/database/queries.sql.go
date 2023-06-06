@@ -4779,9 +4779,9 @@ WHERE
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the username field, so select all
 			-- rows after the cursor.
-			(username) > (
+			(LOWER(username)) > (
 				SELECT
-					username
+					LOWER(username)
 				FROM
 					users
 				WHERE
@@ -4818,7 +4818,7 @@ WHERE
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	username ASC OFFSET $5
+	LOWER(username) ASC OFFSET $5
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF($6 :: int, 0)
