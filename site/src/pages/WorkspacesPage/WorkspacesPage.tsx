@@ -4,7 +4,7 @@ import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import { useWorkspacesData, useWorkspaceUpdate } from "./data"
 import { WorkspacesPageView } from "./WorkspacesPageView"
-import { useMe, useOrganizationId, usePermissions } from "hooks"
+import { useOrganizationId, usePermissions } from "hooks"
 import {
   useUserFilterMenu,
   useTemplateFilterMenu,
@@ -15,7 +15,6 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { useFilter } from "components/Filter/filter"
 
 const WorkspacesPage: FC = () => {
-  const me = useMe()
   const orgId = useOrganizationId()
   // If we use a useSearchParams for each hook, the values will not be in sync.
   // So we have to use a single one, centralizing the values, and pass it to
@@ -23,7 +22,7 @@ const WorkspacesPage: FC = () => {
   const searchParamsResult = useSearchParams()
   const pagination = usePagination({ searchParamsResult })
   const filter = useFilter({
-    initialValue: `owner:${me.username}`,
+    initialValue: `owner:me`,
     searchParamsResult,
     onUpdate: () => {
       pagination.goToPage(1)

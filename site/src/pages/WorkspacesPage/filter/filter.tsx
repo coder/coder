@@ -14,6 +14,20 @@ import {
   SearchFieldSkeleton,
   useFilter,
 } from "components/Filter/filter"
+import { workspaceFilterQuery } from "utils/filters"
+
+const PRESET_FILTERS = [
+  { query: workspaceFilterQuery.me, name: "My workspaces" },
+  { query: workspaceFilterQuery.all, name: "All workspaces" },
+  {
+    query: workspaceFilterQuery.running,
+    name: "Running workspaces",
+  },
+  {
+    query: workspaceFilterQuery.failed,
+    name: "Failed workspaces",
+  },
+]
 
 export const WorkspacesFilter = ({
   filter,
@@ -30,6 +44,7 @@ export const WorkspacesFilter = ({
 }) => {
   return (
     <Filter
+      presets={PRESET_FILTERS}
       isLoading={menus.status.isInitializing}
       filter={filter}
       error={error}
