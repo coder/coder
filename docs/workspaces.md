@@ -90,7 +90,7 @@ Coder stores macOS and Linux logs at the following locations:
 
 > Note: Logs are truncated once they reach 5MB in size.
 
-## Workspace Filtering
+## Workspace filtering
 
 In the Coder UI, you can filter your workspaces using pre-defined filters or employing the Coder's filter query. Take a look at the following examples to understand how to use the Coder's filter query:
 
