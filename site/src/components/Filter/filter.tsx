@@ -23,6 +23,7 @@ import { BaseOption } from "./options"
 import debounce from "just-debounce-it"
 import MenuList from "@mui/material/MenuList"
 import { Loader } from "components/Loader/Loader"
+import InfoOutlined from "@mui/icons-material/InfoOutlined"
 
 type FilterValues = Record<string, string | undefined>
 
@@ -127,10 +128,12 @@ export const Filter = ({
   error,
   skeleton,
   options,
+  learnMoreLink,
 }: {
   filter: ReturnType<typeof useFilter>
   skeleton: ReactNode
   isLoading: boolean
+  learnMoreLink: string
   error?: unknown
   options?: ReactNode
 }) => {
@@ -168,6 +171,9 @@ export const Filter = ({
                 "& input::placeholder": {
                   color: (theme) => theme.palette.text.secondary,
                 },
+                "& .MuiInputAdornment-root": {
+                  marginLeft: 0,
+                },
               },
               startAdornment: (
                 <InputAdornment position="start">
@@ -179,19 +185,35 @@ export const Filter = ({
                   />
                 </InputAdornment>
               ),
-              endAdornment: hasFilterQuery && (
-                <InputAdornment position="end">
-                  <Tooltip title="Clear filter">
-                    <IconButton
-                      size="small"
-                      onClick={() => {
-                        filter.update("")
-                      }}
-                    >
-                      <CloseOutlined sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  </Tooltip>
-                </InputAdornment>
+              endAdornment: (
+                <>
+                  {hasFilterQuery && (
+                    <InputAdornment position="end">
+                      <Tooltip title="Clear filter">
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            filter.update("")
+                          }}
+                        >
+                          <CloseOutlined sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </InputAdornment>
+                  )}
+
+                  <InputAdornment position="end">
+                    <Tooltip title="View advanced filtering">
+                      <IconButton
+                        href={learnMoreLink}
+                        size="small"
+                        target="_blank"
+                      >
+                        <InfoOutlined sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </InputAdornment>
+                </>
               ),
             }}
           />

@@ -49,6 +49,7 @@ export const UsersFilter = ({
 }) => {
   return (
     <Filter
+      learnMoreLink="https://coder.com/docs/v2/latest/admin/users#user-filtering"
       isLoading={menus.status.isInitializing}
       filter={filter}
       error={error}

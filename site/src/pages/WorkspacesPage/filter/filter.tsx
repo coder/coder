@@ -33,6 +33,7 @@ export const WorkspacesFilter = ({
       isLoading={menus.status.isInitializing}
       filter={filter}
       error={error}
+      learnMoreLink="https://coder.com/docs/v2/latest/workspaces#workspace-filtering"
       options={
         <>
           {menus.user && <UserMenu {...menus.user} />}
