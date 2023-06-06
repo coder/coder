@@ -56,11 +56,14 @@ export const useFilter = ({
     500,
   )
 
+  const used = query !== "" && query !== initialValue
+
   return {
     query,
     update,
     debounceUpdate,
     values,
+    used,
   }
 }
 

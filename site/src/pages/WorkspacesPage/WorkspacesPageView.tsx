@@ -154,10 +154,7 @@ export const WorkspacesPageView: FC<
 
       <WorkspacesTable
         workspaces={workspaces}
-        isUsingFilter={
-          filterProps.filter.query !== "" &&
-          filterProps.filter.query !== workspaceFilterQuery.me
-        }
+        isUsingFilter={filterProps.filter.used}
         onUpdateWorkspace={onUpdateWorkspace}
         error={error}
       />

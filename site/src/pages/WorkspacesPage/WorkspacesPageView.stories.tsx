@@ -87,6 +87,7 @@ const defaultFilterProps = {
     query: `owner:${MockUser.username}`,
     update: () => action("update"),
     debounceUpdate: action("debounce") as any,
+    used: false,
     values: {
       owner: MockUser.username,
       template: undefined,
@@ -148,6 +149,7 @@ export const NoSearchResults: Story = {
       filter: {
         ...defaultFilterProps.filter,
         query: "searchwithnoresults",
+        used: true,
       },
     },
     count: 0,
