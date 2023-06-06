@@ -148,7 +148,7 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, errs := searchquery.Workspaces(c.Query, codersdk.Pagination{}, 0)
+			values, _, errs := searchquery.Workspaces(c.Query, codersdk.Pagination{}, 0)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -167,7 +167,7 @@ func TestSearchWorkspace(t *testing.T) {
 
 		query := ``
 		timeout := 1337 * time.Second
-		values, errs := searchquery.Workspaces(query, codersdk.Pagination{}, timeout)
+		values, _, errs := searchquery.Workspaces(query, codersdk.Pagination{}, timeout)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})

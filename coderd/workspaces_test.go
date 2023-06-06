@@ -1062,7 +1062,6 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
 	})
-
 }
 
 func TestOffsetLimit(t *testing.T) {
