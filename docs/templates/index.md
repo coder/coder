@@ -151,7 +151,7 @@ Use the Coder agent's `startup_script` to run additional commands like
 installing IDEs, [cloning dotfiles](../dotfiles.md#templates), and cloning
 project repos.
 
-**Note:** By default, the startup script is executed in the background allowing users to access the workspace before the script completes. If you want to change this, see `startup_script_behavior` below.
+**Note:** By default, the startup script is executed in the background allowing users to access the workspace before the script completes. If you want to change this, see [`startup_script_behavior`](#startup_script_behavior) below.
 
 Here are a few guidelines for writing a good startup script (more on these below):
 
