@@ -6,10 +6,12 @@ on:
       - main
     paths:
       - "dogfood/**"
+      - ".github/workflows/dogfood.yaml"
   # Uncomment these lines when testing with CI.
   # pull_request:
   #   paths:
   #     - "dogfood/**"
+  #     - ".github/workflows/dogfood.yaml"
   workflow_dispatch:
 
 jobs:
