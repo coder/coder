@@ -11,6 +11,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { usePagination } from "hooks"
 import { useQuery } from "@tanstack/react-query"
 import { getAuditLogs } from "api/api"
+import { useActionFilterMenu } from "./AuditFilter"
 
 const AuditPage: FC = () => {
   const dashboard = useDashboard()
@@ -28,6 +29,14 @@ const AuditPage: FC = () => {
       filter.update({
         ...filter.values,
         username: option?.value,
+      }),
+  })
+  const actionMenu = useActionFilterMenu({
+    value: filter.values.action,
+    onChange: (option) =>
+      filter.update({
+        ...filter.values,
+        action: option?.value,
       }),
   })
   const { audit_log: isAuditLogVisible } = useFeatureVisibility()
@@ -62,6 +71,7 @@ const AuditPage: FC = () => {
                 filter,
                 menus: {
                   user: userMenu,
+                  action: actionMenu,
                 },
               }
             : {
