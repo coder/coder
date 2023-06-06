@@ -4777,11 +4777,11 @@ WHERE
 		-- duplicating or missing data.
 		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
-			-- The query is ordered by the created_at field, so select all
+			-- The query is ordered by the username field, so select all
 			-- rows after the cursor.
-			(created_at, id) > (
+			(username) > (
 				SELECT
-					created_at, id
+					username
 				FROM
 					users
 				WHERE
@@ -4817,9 +4817,8 @@ WHERE
 	END
 	-- End of filters
 ORDER BY
-	-- Deterministic and consistent ordering of all users, even if they share
-	-- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET $5
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	username ASC OFFSET $5
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF($6 :: int, 0)
