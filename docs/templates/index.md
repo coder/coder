@@ -198,9 +198,9 @@ coder dotfiles -y "$DOTFILES_URI"
 }
 ```
 
-The startup script can contain important steps that must be executed successfully so that the workspace is in a usable state, for this reason we recommend using `set -e` (exit on error) at the top and `|| true` (allow command to fail) to ensure the user is notified when something goes wrong. These are not shown in the example above because, while useful, they need to be used with care.
+The startup script can contain important steps that must be executed successfully so that the workspace is in a usable state, for this reason we recommend using `set -e` (exit on error) at the top and `|| true` (allow command to fail) to ensure the user is notified when something goes wrong. These are not shown in the example above because, while useful, they need to be used with care. For more assurance, you can utilize [shellcheck](https://www.shellcheck.net) to find bugs in the script and employ [`set -euo pipefail`](https://wizardzines.com/comics/bash-errors/) to exit on error, unset variables, and fail on pipe errors.
 
-We also recommend that startup scripts always have an end, meaning that long running processes should be run in the background. This is usually achieved by adding `&` to the end of the command. For example, `sleep 10 &` will run the command in the background and allow the startup script to complete.
+We also recommend that startup scripts do not run forever. Long-running processes, like code-server, should be run in the background. This is usually achieved by adding `&` to the end of the command. For example, `sleep 10 &` will run the command in the background and allow the startup script to complete.
 
 > **Note:** If a backgrounded command (`&`) writes to stdout or stderr, the startup script will not complete until the command completes or closes the file descriptors. To avoid this, you can redirect the stdout and stderr to a file. For example, `sleep 10 >/dev/null 2>&1 &` will redirect the stdout and stderr to `/dev/null` (discard) and run the command in the background.
 
@@ -467,7 +467,9 @@ if [ $status -ne 0 ]; then
 fi
 ```
 
-This script tells us what command is being run and what the exit status is. If the exit status is non-zero, it means the command failed. Note that here we don't need `set -x` because we're manually echoing the commands which protects against sensitive information being shown in the log. We also don't need `set -e` because we're manually checking the exit status and exiting if it's non-zero.
+> **Note:** We don't use `set -x` here because we're manually echoing the commands. This protects against sensitive information being shown in the log.
+
+This script tells us what command is being run and what the exit status is. If the exit status is non-zero, it means the command failed and we exit the script. Since we are manually checking the exit status here, we don't need `set -e` at the top of the script to exit on error.
 
 ## Template permissions (enterprise)
 
