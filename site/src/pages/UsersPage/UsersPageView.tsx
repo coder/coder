@@ -1,10 +1,12 @@
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
-import { FC } from "react"
+import { ComponentProps, FC } from "react"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import * as TypesGen from "../../api/typesGenerated"
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 import { userFilterQuery } from "../../utils/filters"
+import { UsersFilter } from "./UsersFilter"
+import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
 
 export const Language = {
   activeUsersFilterName: "Active users",
@@ -14,7 +16,6 @@ export interface UsersPageViewProps {
   users?: TypesGen.User[]
   count?: number
   roles?: TypesGen.AssignableRoles[]
-  filter?: string
   error?: unknown
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
@@ -28,7 +29,9 @@ export interface UsersPageViewProps {
     user: TypesGen.User,
     roles: TypesGen.Role["name"][],
   ) => void
-  onFilter: (query: string) => void
+  filterProps:
+    | ComponentProps<typeof SearchBarWithFilter>
+    | ComponentProps<typeof UsersFilter>
   paginationRef: PaginationMachineRef
   isNonInitialPage: boolean
   actorID: string
@@ -48,8 +51,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   isUpdatingUserRoles,
   canEditUsers,
   isLoading,
-  filter,
-  onFilter,
+  filterProps,
   paginationRef,
   isNonInitialPage,
   actorID,
@@ -61,11 +63,21 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
 
   return (
     <>
-      <SearchBarWithFilter
-        filter={filter}
-        onFilter={onFilter}
-        presetFilters={presetFilters}
-        error={error}
+      {"onFilter" in filterProps ? (
+        <SearchBarWithFilter
+          {...filterProps}
+          presetFilters={presetFilters}
+          error={error}
+        />
+      ) : (
+        <UsersFilter {...filterProps} />
+      )}
+
+      <PaginationStatus
+        isLoading={Boolean(isLoading)}
+        showing={users?.length}
+        total={count}
+        label="users"
       />
 
       <UsersTable
