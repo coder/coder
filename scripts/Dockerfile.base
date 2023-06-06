@@ -11,6 +11,7 @@ RUN apk add --no-cache \
 		wget \
 		bash \
 		git \
+		openssl>=3.1.1-r1 \
 		openssh-client \
 		terraform=1.4.6-r1 && \
 	addgroup \
