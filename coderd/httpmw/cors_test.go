@@ -17,16 +17,6 @@ func TestWorkspaceAppCors(t *testing.T) {
 	regex, err := httpapi.CompileHostnamePattern("*--apps.dev.coder.com")
 	require.NoError(t, err)
 
-	app := httpapi.ApplicationURL{
-		AppSlugOrPort: "3000",
-		AgentName:     "agent",
-		WorkspaceName: "ws",
-		Username:      "user",
-	}
-
-	handler := httpmw.WorkspaceAppCors(regex, app)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		rw.WriteHeader(http.StatusNoContent)
-	}))
 	methods := []string{
 		http.MethodOptions,
 		http.MethodHead,
@@ -40,26 +30,62 @@ func TestWorkspaceAppCors(t *testing.T) {
 	tests := []struct {
 		name    string
 		origin  string
+		app     httpapi.ApplicationURL
 		allowed bool
 	}{
 		{
-			name:    "Self",
-			origin:  "https://3000--agent--ws--user--apps.dev.coder.com",
+			name:   "Self",
+			origin: "https://3000--agent--ws--user--apps.dev.coder.com",
+			app: httpapi.ApplicationURL{
+				AppSlugOrPort: "3000",
+				AgentName:     "agent",
+				WorkspaceName: "ws",
+				Username:      "user",
+			},
 			allowed: true,
 		},
 		{
-			name:    "SameWorkspace",
-			origin:  "https://8000--agent--ws--user--apps.dev.coder.com",
+			name:   "SameWorkspace",
+			origin: "https://8000--agent--ws--user--apps.dev.coder.com",
+			app: httpapi.ApplicationURL{
+				AppSlugOrPort: "3000",
+				AgentName:     "agent",
+				WorkspaceName: "ws",
+				Username:      "user",
+			},
 			allowed: true,
 		},
 		{
-			name:    "SameUser",
-			origin:  "https://8000--agent2--ws2--user--apps.dev.coder.com",
+			name:   "SameUser",
+			origin: "https://8000--agent2--ws2--user--apps.dev.coder.com",
+			app: httpapi.ApplicationURL{
+				AppSlugOrPort: "3000",
+				AgentName:     "agent",
+				WorkspaceName: "ws",
+				Username:      "user",
+			},
 			allowed: true,
 		},
 		{
-			name:    "DifferentUser",
-			origin:  "https://3000--agent--ws--user2--apps.dev.coder.com",
+			name:   "DifferentOriginOwner",
+			origin: "https://3000--agent--ws--user2--apps.dev.coder.com",
+			app: httpapi.ApplicationURL{
+				AppSlugOrPort: "3000",
+				AgentName:     "agent",
+				WorkspaceName: "ws",
+				Username:      "user",
+			},
+			allowed: false,
+		},
+		{
+			name:   "DifferentHostOwner",
+			origin: "https://3000--agent--ws--user--apps.dev.coder.com",
+			app: httpapi.ApplicationURL{
+				AppSlugOrPort: "3000",
+				AgentName:     "agent",
+				WorkspaceName: "ws",
+				Username:      "user2",
+			},
 			allowed: false,
 		},
 	}
@@ -78,6 +104,10 @@ func TestWorkspaceAppCors(t *testing.T) {
 				if method == http.MethodOptions {
 					r.Header.Set("Access-Control-Request-Method", method)
 				}
+
+				handler := httpmw.WorkspaceAppCors(regex, test.app)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+					rw.WriteHeader(http.StatusNoContent)
+				}))
 
 				handler.ServeHTTP(rw, r)
 
