@@ -412,34 +412,40 @@ WHERE
 			action = $6 :: audit_action
 		ELSE true
 	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $7 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $7
+		ELSE true
+	END
 	-- Filter by username
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			users.username = $7
+		WHEN $8 :: text != '' THEN
+			user_id = (SELECT id FROM users WHERE lower(username) = lower($8) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			users.email = $8
+		WHEN $9 :: text != '' THEN
+			users.email = $9
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" >= $9
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $10
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" <= $10
+		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $11
 		ELSE true
 	END
     -- Filter by build_reason
     AND CASE
-	    WHEN $11::text != '' THEN
-            workspace_builds.reason::text = $11
+	    WHEN $12::text != '' THEN
+            workspace_builds.reason::text = $12
         ELSE true
     END
 ORDER BY
@@ -457,6 +463,7 @@ type GetAuditLogsOffsetParams struct {
 	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
 	ResourceTarget string    `db:"resource_target" json:"resource_target"`
 	Action         string    `db:"action" json:"action"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
 	Username       string    `db:"username" json:"username"`
 	Email          string    `db:"email" json:"email"`
 	DateFrom       time.Time `db:"date_from" json:"date_from"`
@@ -499,6 +506,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.ResourceID,
 		arg.ResourceTarget,
 		arg.Action,
+		arg.UserID,
 		arg.Username,
 		arg.Email,
 		arg.DateFrom,

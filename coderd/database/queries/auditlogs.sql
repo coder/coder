@@ -62,10 +62,16 @@ WHERE
 			action = @action :: audit_action
 		ELSE true
 	END
+	-- Filter by user_id
+	AND CASE
+		WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = @user_id
+		ELSE true
+	END
 	-- Filter by username
 	AND CASE
 		WHEN @username :: text != '' THEN
-			users.username = @username
+			user_id = (SELECT id FROM users WHERE lower(username) = lower(@username) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by user_email
