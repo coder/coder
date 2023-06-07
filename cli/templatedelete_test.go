@@ -37,7 +37,7 @@ func TestTemplateDelete(t *testing.T) {
 			execDone <- inv.Run()
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(template.Name)))
+		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.DefaultStyles.Code.Render(template.Name)))
 		pty.WriteLine("yes")
 
 		require.NoError(t, <-execDone)
@@ -95,7 +95,7 @@ func TestTemplateDelete(t *testing.T) {
 			execDone <- inv.Run()
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))))
+		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.DefaultStyles.Code.Render(strings.Join(templateNames, ", "))))
 		pty.WriteLine("yes")
 
 		require.NoError(t, <-execDone)

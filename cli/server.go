@@ -361,7 +361,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Warnf(
 					inv.Stderr,
 					"The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
-					cliui.Styles.Field.Render(cfg.AccessURL.String()), reason,
+					cliui.DefaultStyles.Field.Render(cfg.AccessURL.String()), reason,
 				)
 			}
 
@@ -822,6 +822,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				provisionerDaemons = append(provisionerDaemons, daemon)
 			}
+			provisionerdMetrics.Runner.NumDaemons.Set(float64(len(provisionerDaemons)))
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
@@ -903,7 +904,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			select {
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			case <-tunnelDone:
@@ -1015,7 +1016,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if pgRawURL {
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.DefaultStyles.Code.Render(fmt.Sprintf("psql %q", url)))
 			}
 			return nil
 		},
@@ -1045,7 +1046,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if pgRawURL {
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.DefaultStyles.Code.Render(fmt.Sprintf("psql %q", url)))
 			}
 
 			<-ctx.Done()
@@ -1281,7 +1282,7 @@ func PrintLogo(inv *clibase.Invocation) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(inv.Stdout, "%s - Your Self-Hosted Remote Development Platform\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
+	_, _ = fmt.Fprintf(inv.Stdout, "%s - Your Self-Hosted Remote Development Platform\n", cliui.DefaultStyles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
 func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {

@@ -931,14 +931,9 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	users := make([]database.User, len(q.users))
 	copy(users, q.users)
 
-	// Database orders by created_at
+	// Database orders by username
 	slices.SortFunc(users, func(a, b database.User) bool {
-		if a.CreatedAt.Equal(b.CreatedAt) {
-			// Technically the postgres database also orders by uuid. So match
-			// that behavior
-			return a.ID.String() < b.ID.String()
-		}
-		return a.CreatedAt.Before(b.CreatedAt)
+		return strings.ToLower(a.Username) < strings.ToLower(b.Username)
 	})
 
 	// Filter out deleted since they should never be returned..

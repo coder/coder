@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { updateTemplateMeta } from "api/api"
 import { UpdateTemplateMeta } from "api/typesGenerated"
 import { displaySuccess } from "components/GlobalSnackbar/utils"
@@ -7,7 +7,10 @@ import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
-import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
+import {
+  getTemplateQuery,
+  useTemplateSettingsContext,
+} from "../TemplateSettingsLayout"
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView"
 
 export const TemplateSettingsPage: FC = () => {
@@ -15,6 +18,7 @@ export const TemplateSettingsPage: FC = () => {
   const { t } = useTranslation("templateSettingsPage")
   const navigate = useNavigate()
   const { template } = useTemplateSettingsContext()
+  const queryClient = useQueryClient()
   const {
     mutate: updateTemplate,
     isLoading: isSubmitting,
@@ -23,6 +27,9 @@ export const TemplateSettingsPage: FC = () => {
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
       onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: getTemplateQuery(templateName),
+        })
         displaySuccess("Template updated successfully")
       },
     },

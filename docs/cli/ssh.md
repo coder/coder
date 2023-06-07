@@ -55,7 +55,7 @@ Specify the directory containing SSH diagnostic log files.
 | Type        | <code>bool</code>               |
 | Environment | <code>$CODER_SSH_NO_WAIT</code> |
 
-Specifies whether to wait for a workspace to become ready before logging in (only applicable when the login before ready option has not been enabled). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.
+Specifies whether to wait for a workspace to become ready before logging in (only applicable when the startup script behavior is blocking). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.
 
 ### --stdio
 

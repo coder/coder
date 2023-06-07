@@ -48,7 +48,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	// We don't take the fast path for opts.NoWait yet because we want to
 	// show the message.
 	if agent.Status == codersdk.WorkspaceAgentConnected &&
-		(agent.LoginBeforeReady || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
+		(agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
 		return nil
 	}
 
@@ -96,7 +96,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	// we do this just before starting the spinner to avoid needless
 	// spinning.
 	if agent.Status == codersdk.WorkspaceAgentConnected &&
-		!agent.LoginBeforeReady && opts.NoWait {
+		agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorBlocking && opts.NoWait {
 		showMessage()
 		return nil
 	}
@@ -140,7 +140,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			// NOTE(mafredri): Once we have access to the workspace agent's
 			// startup script logs, we can show them here.
 			// https://github.com/coder/coder/issues/2957
-			if !agent.LoginBeforeReady && !opts.NoWait {
+			if agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorBlocking && !opts.NoWait {
 				switch agent.LifecycleState {
 				case codersdk.WorkspaceAgentLifecycleReady:
 					return nil
@@ -179,7 +179,7 @@ type message struct {
 
 func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *message) {
 	m = &message{
-		Spin:   fmt.Sprintf("Waiting for connection from %s...", Styles.Field.Render(agent.Name)),
+		Spin:   fmt.Sprintf("Waiting for connection from %s...", DefaultStyles.Field.Render(agent.Name)),
 		Prompt: "Don't panic, your workspace is booting up!",
 	}
 	defer func() {
@@ -192,7 +192,7 @@ func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *messag
 
 		// We don't want to wrap the troubleshooting URL, so we'll handle word
 		// wrapping ourselves (vs using lipgloss).
-		w := wordwrap.NewWriter(Styles.Paragraph.GetWidth() - Styles.Paragraph.GetMarginLeft()*2)
+		w := wordwrap.NewWriter(DefaultStyles.Paragraph.GetWidth() - DefaultStyles.Paragraph.GetMarginLeft()*2)
 		w.Breakpoints = []rune{' ', '\n'}
 
 		_, _ = fmt.Fprint(w, m.Prompt)
@@ -208,7 +208,7 @@ func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *messag
 		// We want to prefix the prompt with a caret, but we want text on the
 		// following lines to align with the text on the first line (i.e. added
 		// spacing).
-		ind := " " + Styles.Prompt.String()
+		ind := " " + DefaultStyles.Prompt.String()
 		iw := indent.NewWriter(1, func(w io.Writer) {
 			_, _ = w.Write([]byte(ind))
 			ind = "   " // Set indentation to space after initial prompt.
@@ -223,7 +223,7 @@ func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *messag
 	case codersdk.WorkspaceAgentDisconnected:
 		m.Prompt = "The workspace agent lost connection!"
 	case codersdk.WorkspaceAgentConnected:
-		m.Spin = fmt.Sprintf("Waiting for %s to become ready...", Styles.Field.Render(agent.Name))
+		m.Spin = fmt.Sprintf("Waiting for %s to become ready...", DefaultStyles.Field.Render(agent.Name))
 		m.Prompt = "Don't panic, your workspace agent has connected and the workspace is getting ready!"
 		if opts.NoWait {
 			m.Prompt = "Your workspace is still getting ready, it may be in an incomplete state."

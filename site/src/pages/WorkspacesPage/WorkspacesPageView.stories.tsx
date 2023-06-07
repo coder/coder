@@ -71,7 +71,7 @@ const MockedAppearance = {
   save: () => null,
 }
 
-const mockAutocomplete = {
+const mockMenu = {
   initialOption: undefined,
   isInitializing: false,
   isSearching: false,
@@ -84,19 +84,20 @@ const mockAutocomplete = {
 
 const defaultFilterProps = {
   filter: {
-    query: `owner:${MockUser.username}`,
+    query: `owner:me`,
     update: () => action("update"),
     debounceUpdate: action("debounce") as any,
+    used: false,
     values: {
       owner: MockUser.username,
       template: undefined,
       status: undefined,
     },
   },
-  autocomplete: {
-    users: mockAutocomplete,
-    templates: mockAutocomplete,
-    status: mockAutocomplete,
+  menus: {
+    user: mockMenu,
+    template: mockMenu,
+    status: mockMenu,
   },
 } as ComponentProps<typeof WorkspacesPageView>["filterProps"]
 
@@ -148,6 +149,7 @@ export const NoSearchResults: Story = {
       filter: {
         ...defaultFilterProps.filter,
         query: "searchwithnoresults",
+        used: true,
       },
     },
     count: 0,

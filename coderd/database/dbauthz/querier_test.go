@@ -726,14 +726,14 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(database.GetFilteredUserCountParams{}).Asserts().Returns(int64(1))
 	}))
 	s.Run("GetUsers", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now().Add(-time.Hour)})
-		b := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now()})
+		a := dbgen.User(s.T(), db, database.User{Username: "GetUsers-a-user"})
+		b := dbgen.User(s.T(), db, database.User{Username: "GetUsers-b-user"})
 		check.Args(database.GetUsersParams{}).
 			Asserts(a, rbac.ActionRead, b, rbac.ActionRead)
 	}))
 	s.Run("GetUsersWithCount", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now().Add(-time.Hour)})
-		b := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now()})
+		a := dbgen.User(s.T(), db, database.User{Username: "GetUsersWithCount-a-user"})
+		b := dbgen.User(s.T(), db, database.User{Username: "GetUsersWithCount-b-user"})
 		check.Args(database.GetUsersParams{}).Asserts(a, rbac.ActionRead, b, rbac.ActionRead)
 	}))
 	s.Run("InsertUser", s.Subtest(func(db database.Store, check *expects) {

@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/coder/terraform-provider-coder/provider"
 
+	"github.com/coder/coder/coderd/util/slice"
+	stringutil "github.com/coder/coder/coderd/util/strings"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -24,22 +28,24 @@ type agentMetadata struct {
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth                         string            `mapstructure:"auth"`
-	OperatingSystem              string            `mapstructure:"os"`
-	Architecture                 string            `mapstructure:"arch"`
-	Directory                    string            `mapstructure:"dir"`
-	ID                           string            `mapstructure:"id"`
-	Token                        string            `mapstructure:"token"`
-	Env                          map[string]string `mapstructure:"env"`
-	StartupScript                string            `mapstructure:"startup_script"`
-	ConnectionTimeoutSeconds     int32             `mapstructure:"connection_timeout"`
-	TroubleshootingURL           string            `mapstructure:"troubleshooting_url"`
-	MOTDFile                     string            `mapstructure:"motd_file"`
-	LoginBeforeReady             bool              `mapstructure:"login_before_ready"`
-	StartupScriptTimeoutSeconds  int32             `mapstructure:"startup_script_timeout"`
-	ShutdownScript               string            `mapstructure:"shutdown_script"`
-	ShutdownScriptTimeoutSeconds int32             `mapstructure:"shutdown_script_timeout"`
-	Metadata                     []agentMetadata   `mapstructure:"metadata"`
+	Auth                     string            `mapstructure:"auth"`
+	OperatingSystem          string            `mapstructure:"os"`
+	Architecture             string            `mapstructure:"arch"`
+	Directory                string            `mapstructure:"dir"`
+	ID                       string            `mapstructure:"id"`
+	Token                    string            `mapstructure:"token"`
+	Env                      map[string]string `mapstructure:"env"`
+	StartupScript            string            `mapstructure:"startup_script"`
+	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
+	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
+	MOTDFile                 string            `mapstructure:"motd_file"`
+	// Deprecated, but remains here for backwards compatibility.
+	LoginBeforeReady             bool            `mapstructure:"login_before_ready"`
+	StartupScriptBehavior        string          `mapstructure:"startup_script_behavior"`
+	StartupScriptTimeoutSeconds  int32           `mapstructure:"startup_script_timeout"`
+	ShutdownScript               string          `mapstructure:"shutdown_script"`
+	ShutdownScriptTimeoutSeconds int32           `mapstructure:"shutdown_script_timeout"`
+	Metadata                     []agentMetadata `mapstructure:"metadata"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -151,10 +157,18 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 			}
 			agentNames[tfResource.Name] = struct{}{}
 
-			// Handling for provider pre-v0.6.10.
-			loginBeforeReady := true
-			if _, ok := tfResource.AttributeValues["login_before_ready"]; ok {
-				loginBeforeReady = attrs.LoginBeforeReady
+			// Handling for deprecated attributes. login_before_ready was replaced
+			// by startup_script_behavior, but we still need to support it for
+			// backwards compatibility.
+			startupScriptBehavior := string(codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking)
+			if attrs.StartupScriptBehavior != "" {
+				startupScriptBehavior = attrs.StartupScriptBehavior
+			} else {
+				// Handling for provider pre-v0.6.10 (because login_before_ready
+				// defaulted to true, we must check for its presence).
+				if _, ok := tfResource.AttributeValues["login_before_ready"]; ok && !attrs.LoginBeforeReady {
+					startupScriptBehavior = string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking)
+				}
 			}
 
 			var metadata []*proto.Agent_Metadata
@@ -179,7 +193,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 				ConnectionTimeoutSeconds:     attrs.ConnectionTimeoutSeconds,
 				TroubleshootingUrl:           attrs.TroubleshootingURL,
 				MotdFile:                     attrs.MOTDFile,
-				LoginBeforeReady:             loginBeforeReady,
+				StartupScriptBehavior:        startupScriptBehavior,
 				StartupScriptTimeoutSeconds:  attrs.StartupScriptTimeoutSeconds,
 				ShutdownScript:               attrs.ShutdownScript,
 				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
@@ -462,6 +476,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 		}
 	}
 
+	var duplicatedParamNames []string
 	parameters := make([]*proto.RichParameter, 0)
 	for _, resource := range orderedRichParametersResources(tfResourcesRichParameters, rawParameterNames) {
 		var param provider.Parameter
@@ -525,7 +540,29 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 				})
 			}
 		}
+
+		// Check if this parameter duplicates an existing parameter.
+		formattedName := fmt.Sprintf("%q", protoParam.Name)
+		if !slice.Contains(duplicatedParamNames, formattedName) &&
+			slice.ContainsCompare(parameters, protoParam, func(a, b *proto.RichParameter) bool {
+				return a.Name == b.Name
+			}) {
+			duplicatedParamNames = append(duplicatedParamNames, formattedName)
+		}
+
 		parameters = append(parameters, protoParam)
+	}
+
+	// Enforce that parameters be uniquely named.
+	if len(duplicatedParamNames) > 0 {
+		s := ""
+		if len(duplicatedParamNames) == 1 {
+			s = "s"
+		}
+		return nil, xerrors.Errorf(
+			"coder_parameter names must be unique but %s appear%s multiple times",
+			stringutil.JoinWithConjunction(duplicatedParamNames), s,
+		)
 	}
 
 	// A map is used to ensure we don't have duplicates!

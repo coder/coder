@@ -145,11 +145,21 @@ by all child processes of the agent, including SSH sessions. See the
 [Coder Terraform Provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
 for the full list of supported arguments for the `coder_agent`.
 
-#### startup_script
+#### `startup_script`
 
 Use the Coder agent's `startup_script` to run additional commands like
 installing IDEs, [cloning dotfiles](../dotfiles.md#templates), and cloning
 project repos.
+
+**Note:** By default, the startup script is executed in the background.
+This allows users to access the workspace before the script completes.
+If you want to change this, see [`startup_script_behavior`](#startup_script_behavior) below.
+
+Here are a few guidelines for writing a good startup script (more on these below):
+
+1. Use `set -e` to exit the script if any command fails and `|| true` for commands that are allowed to fail
+2. Use `&` to start a process in the background, allowing the startup script to complete
+3. Inform the user about what's going on via `echo`
 
 ```hcl
 resource "coder_agent" "coder" {
@@ -163,26 +173,62 @@ resource "coder_agent" "coder" {
 # that does not require root permissions. Note that /tmp may be mounted in tmpfs which
 # can lead to increased RAM usage. To avoid this, you can pre-install code-server inside
 # the Docker image or VM image.
+echo "Installing code-server..."
 curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
 
 # The & prevents the startup_script from blocking so the next commands can run.
 # The stdout and stderr of code-server is redirected to /tmp/code-server.log.
+echo "Starting code-server..."
 /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
-# var.repo and var.dotfiles_uri is specified
-# elsewhere in the Terraform code as input
-# variables.
+# Notice: var.repo and var.dotfiles_uri are specified elsewhere in the Terraform
+# code as input variables.
+REPO=${var.repo}
+DOTFILES_URI=${var.dotfiles_uri}
 
 # clone repo
 ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-git clone --progress git@github.com:${var.repo}
+echo "Cloning $REPO..."
+git clone --progress git@github.com:"$REPO"
 
 # use coder CLI to clone and install dotfiles
-coder dotfiles -y ${var.dotfiles_uri}
-
+echo "Cloning dotfiles..."
+coder dotfiles -y "$DOTFILES_URI"
   EOT
 }
 ```
+
+The startup script can contain important steps that must be executed successfully so that the workspace is in a usable state, for this reason we recommend using `set -e` (exit on error) at the top and `|| true` (allow command to fail) to ensure the user is notified when something goes wrong. These are not shown in the example above because, while useful, they need to be used with care. For more assurance, you can utilize [shellcheck](https://www.shellcheck.net) to find bugs in the script and employ [`set -euo pipefail`](https://wizardzines.com/comics/bash-errors/) to exit on error, unset variables, and fail on pipe errors.
+
+We also recommend that startup scripts do not run forever. Long-running processes, like code-server, should be run in the background. This is usually achieved by adding `&` to the end of the command. For example, `sleep 10 &` will run the command in the background and allow the startup script to complete.
+
+> **Note:** If a backgrounded command (`&`) writes to stdout or stderr, the startup script will not complete until the command completes or closes the file descriptors. To avoid this, you can redirect the stdout and stderr to a file. For example, `sleep 10 >/dev/null 2>&1 &` will redirect the stdout and stderr to `/dev/null` (discard) and run the command in the background.
+
+PS. Notice how each step starts with `echo "..."` to provide feedback to the user about what is happening? This is especially useful when the startup script behavior is set to blocking because the user will be informed about why they're waiting to access their workspace.
+
+#### `startup_script_behavior`
+
+Use the Coder agent's `startup_script_behavior` to change the behavior between `blocking` and `non-blocking` (default). The blocking behavior is recommended for most use cases because it allows the startup script to complete before the user accesses the workspace. For example, let's say you want to check out a very large repo in the startup script. If the startup script is non-blocking, the user may log in via SSH or open the IDE before the repo is fully checked out. This can lead to a poor user experience.
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  startup_script_behavior = "blocking"
+  startup_script = "echo 'Starting...'"
+```
+
+Whichever behavior is enabled, the user can still choose to override it by specifying the appropriate flags (or environment variables) in the CLI when connecting to the workspace. The behavior can be overridden by one of the following means:
+
+- Set an environment variable (for use with `ssh` or `coder ssh`):
+  - `export CODER_SSH_WAIT=true` (blocking)
+  - `export CODER_SSH_NO_WAIT=true` (non-blocking)
+- Use a flag with `coder ssh`:
+  - `coder ssh --wait my-workspace` (blocking)
+  - `coder ssh --no-wait my-workspace` (non-blocking)
+- Use a flag that configures all future `ssh` connections:
+  - `coder config-ssh --wait` (blocking)
+  - `coder config-ssh --no-wait` (non-blocking)
 
 ### Start/stop
 
@@ -372,36 +418,62 @@ practices:
   - The Coder agent shutdown script logs are typically stored in `/tmp/coder-shutdown-script.log`
 - This can also happen if the websockets are not being forwarded correctly when running Coder behind a reverse proxy. [Read our reverse-proxy docs](https://coder.com/docs/v2/latest/admin/configure#tls--reverse-proxy)
 
-### Agent does not become ready
+### Startup script issues
 
-If the agent does not become ready, it means the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status. This also means the [login before ready](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#login_before_ready) option hasn't been set to true.
+Depending on the contents of the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script), and whether or not the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) is set to blocking or non-blocking, you may notice issues related to the startup script. In this section we will cover common scenarios and how to resolve them.
 
-```console
-$ coder ssh myworkspace
-⢄⡱ Waiting for [agent] to become ready...
+#### Unable to access workspace, startup script is still running
+
+If you're trying to access your workspace and are unable to because the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running, it means the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option is set to blocking or you have enabled the `--wait` option (for e.g. `coder ssh` or `coder config-ssh`). In such an event, you can always access the workspace by using the web terminal, or via SSH using the `--no-wait` option. If the startup script is running longer than it should, or never completing, you can try to [debug the startup script](#debugging-the-startup-script) to resolve the issue. Alternatively, you can try to force the startup script to exit by terminating processes started by it or terminating the startup script itself (on Linux, `ps` and `kill` are useful tools).
+
+For tips on how to write a startup script that doesn't run forever, see the [`startup_script`](#startup_script) section. For more ways to override the startup script behavior, see the [`startup_script_behavior`](#startup_script_behavior) section.
+
+Template authors can also set the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option to non-blocking, which will allow users to access the workspace while the startup script is still running. Note that the workspace must be updated after changing this option.
+
+#### Your workspace may be incomplete
+
+If you see a warning that your workspace may be incomplete, it means you should be aware that programs, files, or settings may be missing from your workspace. This can happen if the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status (see [startup script error](#startup-script-error)). No action is necessary, but you may want to [start a new shell session](#session-was-started-before-the-startup-script-finished-web-terminal) after it has completed or check the [startup script logs](#debugging-the-startup-script) to see if there are any issues.
+
+#### Session was started before the startup script finished
+
+The web terminal may show this message if it was started before the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) finished, but the startup script has since finished. This message can safely be dismissed, however, be aware that your preferred shell or dotfiles may not yet be activated for this shell session. You can either start a new session or source your dotfiles manually. Note that starting a new session means that commands running in the terminal will be terminated and you may lose unsaved work.
+
+Examples for activating your preferred shell or sourcing your dotfiles:
+
+- `exec zsh -l`
+- `source ~/.bashrc`
+
+#### Startup script exited with an error
+
+When the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) exits with an error, it means the last command run by the script failed. When `set -e` is used, this means that any failing command will immediately exit the script and the remaining commands will not be executed. This also means that [your workspace may be incomplete](#your-workspace-may-be-incomplete). If you see this error, you can check the [startup script logs](#debugging-the-startup-script) to figure out what the issue is.
+
+Common causes for startup script errors:
+
+- A missing command or file
+- A command that fails due to missing permissions
+- Network issues (e.g., unable to reach a server)
+
+#### Debugging the startup script
+
+The simplest way to debug the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is to open the workspace in the Coder dashboard and click "Show startup log" (if not already visible). This will show all the output from the script. Another option is to view the log file inside the workspace (usually `/tmp/coder-startup-script.log`). If the logs don't indicate what's going on or going wrong, you can increase verbosity by adding `set -x` to the top of the startup script (note that this will show all commands run and may output sensitive information). Alternatively, you can add `echo` statements to show what's going on.
+
+Here's a short example of an informative startup script:
+
+```sh
+echo "Running startup script..."
+echo "Run: long-running-command"
+/path/to/long-running-command
+status=$?
+echo "Done: long-running-command, exit status: ${status}"
+if [ $status -ne 0 ]; then
+  echo "Startup script failed, exiting..."
+  exit $status
+fi
 ```
 
-To troubleshoot readiness issues, check the agent logs as suggested above. You can connect to the workspace using `coder ssh` with the `--no-wait` flag. Please note that while this makes login possible, the workspace may be in an incomplete state.
+> **Note:** We don't use `set -x` here because we're manually echoing the commands. This protects against sensitive information being shown in the log.
 
-```console
-$ coder ssh myworkspace --no-wait
-
- > The workspace is taking longer than expected to get
-   ready, the agent startup script is still executing.
-   See troubleshooting instructions at: [...]
-
-user@myworkspace $
-```
-
-If the startup script is expected to take a long time, you can try raising the timeout defined in the template:
-
-```tf
-resource "coder_agent" "main" {
-  # ...
-  login_before_ready = false
-  startup_script_timeout  = 1800 # 30 minutes in seconds.
-}
-```
+This script tells us what command is being run and what the exit status is. If the exit status is non-zero, it means the command failed and we exit the script. Since we are manually checking the exit status here, we don't need `set -e` at the top of the script to exit on error.
 
 ## Template permissions (enterprise)
 
