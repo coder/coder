@@ -687,7 +687,7 @@ func formatExamples(examples ...example) string {
 				"  - " + padStyle.Render(e.Description + ":")[4:] + "\n\n    ",
 			)
 		}
-		// We add 1 space here because `cliui.Styles.Code` adds an extra
+		// We add 1 space here because `cliui.DefaultStyles.Code` adds an extra
 		// space. This makes the code block align at an even 2 or 6
 		// spaces for symmetry.
 		_, _ = sb.WriteString(" " + cliui.DefaultStyles.Code.Render(fmt.Sprintf("$ %s", e.Command)))
