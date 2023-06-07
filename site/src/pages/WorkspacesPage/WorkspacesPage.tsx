@@ -5,14 +5,11 @@ import { pageTitle } from "utils/page"
 import { useWorkspacesData, useWorkspaceUpdate } from "./data"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 import { useOrganizationId, usePermissions } from "hooks"
-import {
-  useUserFilterMenu,
-  useTemplateFilterMenu,
-  useStatusFilterMenu,
-} from "./filter/menus"
+import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus"
 import { useSearchParams } from "react-router-dom"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { useFilter } from "components/Filter/filter"
+import { useUserFilterMenu } from "components/Filter/UserFilter"
 
 const WorkspacesPage: FC = () => {
   const orgId = useOrganizationId()
@@ -67,6 +64,7 @@ const WorkspacesPage: FC = () => {
         count={data?.count}
         page={pagination.page}
         limit={pagination.limit}
+        onPageChange={pagination.goToPage}
         filterProps={{
           filter,
           menus: {
@@ -75,7 +73,6 @@ const WorkspacesPage: FC = () => {
             status: statusMenu,
           },
         }}
-        onPageChange={pagination.goToPage}
         onUpdateWorkspace={(workspace) => {
           updateWorkspace.mutate(workspace)
         }}

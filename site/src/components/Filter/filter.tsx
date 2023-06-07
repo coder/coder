@@ -175,6 +175,7 @@ export const Filter = ({
               }
               size="small"
               InputProps={{
+                "aria-label": "Filter",
                 name: "query",
                 placeholder: "Search...",
                 value: searchQuery,
