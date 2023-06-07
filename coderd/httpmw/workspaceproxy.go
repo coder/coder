@@ -173,7 +173,7 @@ func WorkspaceProxyParam(r *http.Request) database.WorkspaceProxy {
 // parameter.
 //
 //nolint:revive
-func ExtractWorkspaceProxyParam(db database.Store) func(http.Handler) http.Handler {
+func ExtractWorkspaceProxyParam(db database.Store, deploymentID string, fetchPrimaryProxy func(ctx context.Context) (database.WorkspaceProxy, error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -188,9 +188,14 @@ func ExtractWorkspaceProxyParam(db database.Store) func(http.Handler) http.Handl
 
 			var proxy database.WorkspaceProxy
 			var dbErr error
-			if proxyID, err := uuid.Parse(proxyQuery); err == nil {
+			if proxyQuery == "primary" || proxyQuery == deploymentID {
+				// Requesting primary proxy
+				proxy, dbErr = fetchPrimaryProxy(ctx)
+			} else if proxyID, err := uuid.Parse(proxyQuery); err == nil {
+				// Request proxy by id
 				proxy, dbErr = db.GetWorkspaceProxyByID(ctx, proxyID)
 			} else {
+				// Request proxy by name
 				proxy, dbErr = db.GetWorkspaceProxyByName(ctx, proxyQuery)
 			}
 			if httpapi.Is404Error(dbErr) {

@@ -127,21 +127,83 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updatedProxy, err := api.Database.UpdateWorkspaceProxy(ctx, database.UpdateWorkspaceProxyParams{
-		Name:        req.Name,
-		DisplayName: req.DisplayName,
-		Icon:        req.Icon,
-		ID:          proxy.ID,
-		// If hashedSecret is nil or empty, this will not update the secret.
-		TokenHashedSecret: hashedSecret,
-	})
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	deploymentIDStr, err := api.Database.GetDeploymentID(ctx)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
+	}
+
+	var updatedProxy database.WorkspaceProxy
+	if proxy.ID.String() == deploymentIDStr {
+		// User is editing the default primary proxy.
+		if req.Name != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot update name of default primary proxy",
+				Validations: []codersdk.ValidationError{
+					{Field: "name", Detail: "Cannot update name of default primary proxy"},
+				},
+			})
+			return
+		}
+		if req.DisplayName == "" && req.Icon == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No update arguments provided. Nothing to do.",
+				Validations: []codersdk.ValidationError{
+					{Field: "display_name", Detail: "No value provided."},
+					{Field: "icon", Detail: "No value provided."},
+				},
+			})
+			return
+		}
+
+		args := database.UpsertDefaultProxyParams{
+			DisplayName: req.DisplayName,
+			IconUrl:     req.Icon,
+		}
+		if req.DisplayName == "" || req.Icon == "" {
+			// If the user has not specified an update value, use the existing value.
+			existing, err := api.Database.GetDefaultProxyConfig(ctx)
+			if err != nil {
+				httpapi.InternalServerError(rw, err)
+				return
+			}
+			if req.DisplayName == "" {
+				args.DisplayName = existing.DisplayName
+			}
+			if req.Icon == "" {
+				args.IconUrl = existing.IconUrl
+			}
+		}
+
+		err = api.Database.UpsertDefaultProxy(ctx, args)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
+		// Use the primary region to fetch the default proxy values.
+		updatedProxy, err = api.AGPL.PrimaryWorkspaceProxy(ctx)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	} else {
+		updatedProxy, err = api.Database.UpdateWorkspaceProxy(ctx, database.UpdateWorkspaceProxyParams{
+			Name:        req.Name,
+			DisplayName: req.DisplayName,
+			Icon:        req.Icon,
+			ID:          proxy.ID,
+			// If hashedSecret is nil or empty, this will not update the secret.
+			TokenHashedSecret: hashedSecret,
+		})
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	aReq.New = updatedProxy
@@ -181,6 +243,13 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = proxy
 	defer commitAudit()
+
+	if proxy.Name == "primary" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot delete primary proxy",
+		})
+		return
+	}
 
 	err := api.Database.UpdateWorkspaceProxyDeleted(ctx, database.UpdateWorkspaceProxyDeletedParams{
 		ID:      proxy.ID,
