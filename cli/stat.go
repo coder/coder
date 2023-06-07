@@ -9,6 +9,7 @@ import (
 
 	"github.com/elastic/go-sysinfo"
 	sysinfotypes "github.com/elastic/go-sysinfo/types"
+	"tailscale.com/types/ptr"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -40,20 +41,25 @@ func (*RootCmd) stat() *clibase.Cmd {
 			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
-			hi, err := sysinfo.Host()
+			host, err := sysinfo.Host()
 			if err != nil {
 				return err
 			}
 			sr := statsRow{}
-			if cs, err := statCPU(hi, sampleInterval); err != nil {
+			if cs, err := statCPU(host, sampleInterval); err != nil {
 				return err
 			} else {
 				sr.HostCPU = cs
 			}
-			if ms, err := statMem(hi); err != nil {
+			if ms, err := statMem(host); err != nil {
 				return err
 			} else {
 				sr.HostMemory = ms
+			}
+			if ds, err := statDisk(host); err != nil {
+				return err
+			} else {
+				sr.Disk = ds
 			}
 			out, err := formatter.Format(inv.Context(), []statsRow{sr})
 			if err != nil {
@@ -81,7 +87,7 @@ func statCPU(hi sysinfotypes.Host, interval time.Duration) (*stat, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.Total = nproc
+	s.Total = ptr.To(nproc)
 	total := c2.Total() - c1.Total()
 	idle := c2.Idle - c1.Idle
 	used := total - idle
@@ -98,8 +104,15 @@ func statMem(hi sysinfotypes.Host) (*stat, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.Total = float64(hm.Total) / 1024 / 1024 / 1024
+	s.Total = ptr.To(float64(hm.Total) / 1024 / 1024 / 1024)
 	s.Used = float64(hm.Used) / 1024 / 1024 / 1024
+	return s, nil
+}
+
+func statDisk(hi sysinfotypes.Host) (*stat, error) {
+	s := &stat{
+		Unit: "GB",
+	}
 	return s, nil
 }
 
@@ -107,14 +120,16 @@ type statsRow struct {
 	HostCPU         *stat `json:"host_cpu" table:"host_cpu,default_sort"`
 	HostMemory      *stat `json:"host_memory" table:"host_memory"`
 	Disk            *stat `json:"disk" table:"disk"`
+	LoadNorm        *stat `json:"load_norm" table:"load_norm"`
 	ContainerCPU    *stat `json:"container_cpu" table:"container_cpu"`
 	ContainerMemory *stat `json:"container_memory" table:"container_memory"`
+	Uptime          *stat `json:"uptime" table:"uptime"`
 }
 
 type stat struct {
-	Total float64 `json:"total"`
-	Unit  string  `json:"unit"`
-	Used  float64 `json:"used"`
+	Total *float64 `json:"total"`
+	Unit  string   `json:"unit"`
+	Used  float64  `json:"used"`
 }
 
 func (s *stat) String() string {
@@ -123,8 +138,10 @@ func (s *stat) String() string {
 	}
 	var sb strings.Builder
 	_, _ = sb.WriteString(strconv.FormatFloat(s.Used, 'f', 1, 64))
-	_, _ = sb.WriteString("/")
-	_, _ = sb.WriteString(strconv.FormatFloat(s.Total, 'f', 1, 64))
+	if s.Total != (*float64)(nil) {
+		_, _ = sb.WriteString("/")
+		_, _ = sb.WriteString(strconv.FormatFloat(*s.Total, 'f', 1, 64))
+	}
 	_, _ = sb.WriteString(" ")
 	if s.Unit != "" {
 		_, _ = sb.WriteString(s.Unit)
