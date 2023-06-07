@@ -33,6 +33,14 @@ export const useUserFilterMenu = ({
     value,
     id: "owner",
     getSelectedOption: async () => {
+      if (value === "me") {
+        return {
+          label: me.username,
+          value: me.username,
+          avatarUrl: me.avatar_url,
+        }
+      }
+
       const usersRes = await getUsers({ q: value, limit: 1 })
       const firstUser = usersRes.users.at(0)
       if (firstUser && firstUser.username === value) {
