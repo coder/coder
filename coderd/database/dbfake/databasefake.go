@@ -5176,14 +5176,14 @@ func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
 }
 
-func (q *fakeQuerier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
+func (q *fakeQuerier) GetDefaultProxyConfig(_ context.Context) (database.GetDefaultProxyConfigRow, error) {
 	return database.GetDefaultProxyConfigRow{
 		DisplayName: q.defaultProxyDisplayName,
 		IconUrl:     q.defaultProxyIconURL,
 	}, nil
 }
 
-func (q *fakeQuerier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
+func (q *fakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
 	q.defaultProxyDisplayName = arg.DisplayName
 	q.defaultProxyIconURL = arg.IconUrl
 	return nil
