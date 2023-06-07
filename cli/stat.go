@@ -2,23 +2,28 @@ package cli
 
 import (
 	"fmt"
-	"math"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/elastic/go-sysinfo"
+	sysinfotypes "github.com/elastic/go-sysinfo/types"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 )
 
 func (*RootCmd) stat() *clibase.Cmd {
+	defaultCols := []string{"host_cpu", "host_memory", "disk"}
+	if isContainerized() {
+		// If running in a container, we assume that users want to see these first. Prepend.
+		defaultCols = append([]string{"container_cpu", "container_memory"}, defaultCols...)
+	}
 	var (
 		sampleInterval time.Duration
 		formatter      = cliui.NewOutputFormatter(
-			cliui.TextFormat(),
+			cliui.TableFormat([]statsRow{}, defaultCols),
 			cliui.JSONFormat(),
 		)
 	)
@@ -35,11 +40,17 @@ func (*RootCmd) stat() *clibase.Cmd {
 			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
-			stats, err := newStats(sampleInterval)
+			hi, err := sysinfo.Host()
 			if err != nil {
 				return err
 			}
-			out, err := formatter.Format(inv.Context(), stats)
+			sr := statsRow{}
+			if cs, err := statCPU(hi, sampleInterval); err != nil {
+				return err
+			} else {
+				sr.HostCPU = cs
+			}
+			out, err := formatter.Format(inv.Context(), []statsRow{sr})
 			if err != nil {
 				return err
 			}
@@ -51,79 +62,47 @@ func (*RootCmd) stat() *clibase.Cmd {
 	return cmd
 }
 
-type stats struct {
-	HostCPU         stat `json:"cpu_host"`
-	HostMemory      stat `json:"mem_host"`
-	Disk            stat `json:"disk"`
-	InContainer     bool `json:"in_container,omitempty"`
-	ContainerCPU    stat `json:"cpu_container,omitempty"`
-	ContainerMemory stat `json:"mem_container,omitempty"`
-}
-
-func (s *stats) String() string {
-	var sb strings.Builder
-	sb.WriteString(s.HostCPU.String())
-	sb.WriteString("\n")
-	sb.WriteString(s.HostMemory.String())
-	sb.WriteString("\n")
-	sb.WriteString(s.Disk.String())
-	sb.WriteString("\n")
-	if s.InContainer {
-		sb.WriteString(s.ContainerCPU.String())
-		sb.WriteString("\n")
-		sb.WriteString(s.ContainerMemory.String())
-		sb.WriteString("\n")
-	}
-	return sb.String()
-}
-
-func newStats(dur time.Duration) (stats, error) {
-	var s stats
+func statCPU(hi sysinfotypes.Host, interval time.Duration) (*stat, error) {
 	nproc := float64(runtime.NumCPU())
-	// start := time.Now()
-	// ticksPerDur := dur / tickInterval
-	h1, err := sysinfo.Host()
-	if err != nil {
-		return s, err
+	s := &stat{
+		Unit: "cores",
 	}
-	<-time.After(dur)
-	h2, err := sysinfo.Host()
+	c1, err := hi.CPUTime()
 	if err != nil {
-		return s, err
+		return nil, err
 	}
-	// elapsed := time.Since(start)
-	// numTicks := elapsed / tickInterval
-	cts1, err := h1.CPUTime()
+	<-time.After(interval)
+	c2, err := hi.CPUTime()
 	if err != nil {
-		return s, err
+		return nil, err
 	}
-	cts2, err := h2.CPUTime()
-	if err != nil {
-		return s, err
-	}
-	// Assuming the total measured should add up to $(nproc) "cores",
-	// we determine a scaling factor such that scaleFactor * total = nproc.
-	// We then calculate used as the total time spent idle, and multiply
-	// that by scaleFactor to give a rough approximation of how busy the
-	// CPU(s) were.
-	s.HostCPU.Total = nproc
-	total := (cts2.Total() - cts1.Total())
-	idle := (cts2.Idle - cts1.Idle)
+	s.Total = nproc
+	total := c2.Total() - c1.Total()
+	idle := c2.Idle - c1.Idle
 	used := total - idle
 	scaleFactor := nproc / total.Seconds()
-	s.HostCPU.Used = used.Seconds() * scaleFactor
-	s.HostCPU.Unit = "cores"
-
+	s.Used = used.Seconds() * scaleFactor
 	return s, nil
 }
 
+type statsRow struct {
+	HostCPU         *stat `json:"host_cpu" table:"host_cpu,default_sort"`
+	HostMemory      *stat `json:"host_memory" table:"host_memory"`
+	Disk            *stat `json:"disk" table:"disk"`
+	ContainerCPU    *stat `json:"container_cpu" table:"container_cpu"`
+	ContainerMemory *stat `json:"container_memory" table:"container_memory"`
+}
+
 type stat struct {
-	Used  float64 `json:"used"`
 	Total float64 `json:"total"`
 	Unit  string  `json:"unit"`
+	Used  float64 `json:"used"`
 }
 
 func (s *stat) String() string {
+	if s == nil {
+		return "-"
+	}
 	var sb strings.Builder
 	_, _ = sb.WriteString(strconv.FormatFloat(s.Used, 'f', 1, 64))
 	_, _ = sb.WriteString("/")
@@ -131,16 +110,15 @@ func (s *stat) String() string {
 	_, _ = sb.WriteString(" ")
 	if s.Unit != "" {
 		_, _ = sb.WriteString(s.Unit)
-		_, _ = sb.WriteString(" ")
 	}
-	_, _ = sb.WriteString("(")
-	var pct float64
-	if s.Total == 0 {
-		pct = math.NaN()
-	} else {
-		pct = s.Used / s.Total * 100
-	}
-	_, _ = sb.WriteString(strconv.FormatFloat(pct, 'f', 1, 64))
-	_, _ = sb.WriteString("%)")
 	return sb.String()
+}
+
+func isContainerized() bool {
+	hi, err := sysinfo.Host()
+	if err != nil {
+		// If we can't get the host info, we have other issues.
+		panic(err)
+	}
+	return hi.Info().Containerized != nil && *hi.Info().Containerized
 }

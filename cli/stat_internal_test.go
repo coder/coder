@@ -12,11 +12,11 @@ func TestStatString(t *testing.T) {
 		Stat     stat
 	}{
 		{
-			Expected: "1.2/3.4 quatloos (50%)",
-			Stat:     stat{Used: 1.2, Total: 3.4, Unit: "quatloos"},
+			Expected: "1.2/5.7 quatloos",
+			Stat:     stat{Used: 1.234, Total: 5.678, Unit: "quatloos"},
 		},
 		{
-			Expected: "0/0 HP (NaN%)",
+			Expected: "0.0/0.0 HP",
 			Stat:     stat{Used: 0, Total: 0, Unit: "HP"},
 		},
 	} {
