@@ -154,7 +154,14 @@ export const Filter = ({
   }, [filter.query])
 
   return (
-    <Box display="flex" sx={{ gap: 1, mb: 2 }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexWrap: ["wrap", undefined, "nowrap"],
+        gap: 1,
+        mb: 2,
+      }}
+    >
       {isLoading ? (
         skeleton
       ) : (
