@@ -136,7 +136,7 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var updatedProxy database.WorkspaceProxy
 	if proxy.ID.String() == deploymentIDStr {
 		// User is editing the default primary proxy.
-		if req.Name != "" {
+		if req.Name != "" && req.Name != proxy.Name {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot update name of default primary proxy, did you mean to update the 'display name'?",
 				Validations: []codersdk.ValidationError{
