@@ -42,15 +42,15 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 				for _, example := range exampleList {
 					name := fmt.Sprintf(
 						"%s\n%s\n%s\n",
-						cliui.Styles.Bold.Render(example.Name),
-						cliui.Styles.Wrap.Copy().PaddingLeft(6).Render(example.Description),
-						cliui.Styles.Keyword.Copy().PaddingLeft(6).Render(example.URL),
+						cliui.DefaultStyles.Bold.Render(example.Name),
+						cliui.DefaultStyles.Wrap.Copy().PaddingLeft(6).Render(example.Description),
+						cliui.DefaultStyles.Keyword.Copy().PaddingLeft(6).Render(example.URL),
 					)
 					optsToID[name] = example.ID
 				}
 				opts := maps.Keys(optsToID)
 				sort.Strings(opts)
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Wrap.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Wrap.Render(
 					"A template defines infrastructure as code to be provisioned "+
 						"for individual developer workspaces. Select an example to be copied to the active directory:\n"))
 				selected, err := cliui.Select(inv, cliui.SelectOptions{
@@ -94,7 +94,7 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 			} else {
 				relPath = "./" + relPath
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Extracting %s to %s...\n", cliui.Styles.Field.Render(selectedTemplate.ID), relPath)
+			_, _ = fmt.Fprintf(inv.Stdout, "Extracting %s to %s...\n", cliui.DefaultStyles.Field.Render(selectedTemplate.ID), relPath)
 			err = os.MkdirAll(directory, 0o700)
 			if err != nil {
 				return err
@@ -104,8 +104,8 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 				return err
 			}
 			_, _ = fmt.Fprintln(inv.Stdout, "Create your template by running:")
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("cd "+relPath+" && coder templates create"))+"\n")
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Wrap.Render("Examples provide a starting point and are expected to be edited! 🎨"))
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Paragraph.Render(cliui.DefaultStyles.Code.Render("cd "+relPath+" && coder templates create"))+"\n")
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Wrap.Render("Examples provide a starting point and are expected to be edited! 🎨"))
 			return nil
 		},
 	}

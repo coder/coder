@@ -70,7 +70,7 @@ require (
 	github.com/charmbracelet/glamour v0.6.0
 	// In later at least v0.7.1, lipgloss changes its terminal detection
 	// which breaks most of our CLI golden files tests.
-	github.com/charmbracelet/lipgloss v0.7.1
+	github.com/charmbracelet/lipgloss v0.7.2-0.20230523185852-859b49e84842
 	github.com/cli/safeexec v1.0.0
 	github.com/codeclysm/extract v2.2.0+incompatible
 	github.com/coder/flog v1.1.0

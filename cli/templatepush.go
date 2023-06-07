@@ -73,7 +73,7 @@ func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.
 
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = inv.Stdout
-	spin.Suffix = cliui.Styles.Keyword.Render(" Uploading directory...")
+	spin.Suffix = cliui.DefaultStyles.Keyword.Render(" Uploading directory...")
 	spin.Start()
 	defer spin.Stop()
 
@@ -182,7 +182,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				}
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}

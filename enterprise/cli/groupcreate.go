@@ -37,7 +37,7 @@ func (r *RootCmd) groupCreate() *clibase.Cmd {
 				return xerrors.Errorf("create group: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Successfully created group %s!\n", cliui.Styles.Keyword.Render(group.Name))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully created group %s!\n", cliui.DefaultStyles.Keyword.Render(group.Name))
 			return nil
 		},
 	}

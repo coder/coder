@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
+
 	"github.com/coder/coder/cli/cliui"
 )
 
@@ -127,7 +128,7 @@ var usageTemplate = template.Must(
 				return opt.Flag
 			},
 			"prettyHeader": func(s string) string {
-				return cliui.Styles.Bold.Render(s)
+				return cliui.DefaultStyles.Bold.Render(s)
 			},
 			"isEnterprise": func(opt clibase.Option) bool {
 				return opt.Annotations.IsSet("enterprise")

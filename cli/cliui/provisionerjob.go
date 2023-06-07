@@ -71,7 +71,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 	)
 
 	printStage := func() {
-		_, _ = fmt.Fprintf(writer, Styles.Prompt.Render("⧗")+"%s\n", Styles.Field.Render(currentStage))
+		_, _ = fmt.Fprintf(writer, DefaultStyles.Prompt.Render("⧗")+"%s\n", DefaultStyles.Field.Render(currentStage))
 	}
 
 	updateStage := func(stage string, startedAt time.Time) {
@@ -80,11 +80,11 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 			if !didLogBetweenStage {
 				prefix = "\033[1A\r"
 			}
-			mark := Styles.Checkmark
+			mark := DefaultStyles.Checkmark
 			if job.CompletedAt != nil && job.Status != codersdk.ProvisionerJobSucceeded {
-				mark = Styles.Crossmark
+				mark = DefaultStyles.Crossmark
 			}
-			_, _ = fmt.Fprintf(writer, prefix+mark.String()+Styles.Placeholder.Render(" %s [%dms]")+"\n", currentStage, startedAt.Sub(currentStageStartedAt).Milliseconds())
+			_, _ = fmt.Fprintf(writer, prefix+mark.String()+DefaultStyles.Placeholder.Render(" %s [%dms]")+"\n", currentStage, startedAt.Sub(currentStageStartedAt).Milliseconds())
 		}
 		if stage == "" {
 			return
@@ -129,7 +129,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 					return
 				}
 			}
-			_, _ = fmt.Fprintf(writer, "\033[2K\r\n"+Styles.FocusedPrompt.String()+Styles.Bold.Render("Gracefully canceling...")+"\n\n")
+			_, _ = fmt.Fprintf(writer, "\033[2K\r\n"+DefaultStyles.FocusedPrompt.String()+DefaultStyles.Bold.Render("Gracefully canceling...")+"\n\n")
 			err := opts.Cancel()
 			if err != nil {
 				errChan <- xerrors.Errorf("cancel: %w", err)
@@ -207,11 +207,11 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 				if !opts.Verbose {
 					continue
 				}
-				output = Styles.Placeholder.Render(log.Output)
+				output = DefaultStyles.Placeholder.Render(log.Output)
 			case codersdk.LogLevelError:
-				output = defaultStyles.Error.Render(log.Output)
+				output = DefaultStyles.Error.Render(log.Output)
 			case codersdk.LogLevelWarn:
-				output = Styles.Warn.Render(log.Output)
+				output = DefaultStyles.Warn.Render(log.Output)
 			case codersdk.LogLevelInfo:
 				output = log.Output
 			}
@@ -222,7 +222,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 				jobMutex.Unlock()
 				continue
 			}
-			_, _ = fmt.Fprintf(logOutput, "%s %s\n", Styles.Placeholder.Render(" "), output)
+			_, _ = fmt.Fprintf(logOutput, "%s %s\n", DefaultStyles.Placeholder.Render(" "), output)
 			if !opts.Silent {
 				didLogBetweenStage = true
 			}
