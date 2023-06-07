@@ -41,7 +41,7 @@ var errDuplicateKey = &pq.Error{
 
 // New returns an in-memory fake of the database.
 func New() database.Store {
-	return &fakeQuerier{
+	q := &fakeQuerier{
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:                   make([]database.APIKey, 0),
@@ -73,6 +73,9 @@ func New() database.Store {
 			locks:                     map[int64]struct{}{},
 		},
 	}
+	q.defaultProxyDisplayName = "Default"
+	q.defaultProxyIconURL = "/emojis/1f3e1.png"
+	return q
 }
 
 type rwMutex interface {
@@ -144,14 +147,16 @@ type data struct {
 
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
-	locks           map[int64]struct{}
-	deploymentID    string
-	derpMeshKey     string
-	lastUpdateCheck []byte
-	serviceBanner   []byte
-	logoURL         string
-	appSecurityKey  string
-	lastLicenseID   int32
+	locks                   map[int64]struct{}
+	deploymentID            string
+	derpMeshKey             string
+	lastUpdateCheck         []byte
+	serviceBanner           []byte
+	logoURL                 string
+	appSecurityKey          string
+	lastLicenseID           int32
+	defaultProxyDisplayName string
+	defaultProxyIconURL     string
 }
 
 func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
@@ -5169,4 +5174,17 @@ func isNull(v interface{}) bool {
 
 func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
+}
+
+func (q *fakeQuerier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
+	return database.GetDefaultProxyConfigRow{
+		DisplayName: q.defaultProxyDisplayName,
+		IconUrl:     q.defaultProxyIconURL,
+	}, nil
+}
+
+func (q *fakeQuerier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
+	q.defaultProxyDisplayName = arg.DisplayName
+	q.defaultProxyIconURL = arg.IconUrl
+	return nil
 }

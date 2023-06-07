@@ -3028,6 +3028,24 @@ func (q *sqlQuerier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getDefaultProxyConfig = `-- name: GetDefaultProxyConfig :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'default_proxy_display_name'), 'Default') :: text AS display_name,
+	COALESCE((SELECT value FROM site_configs WHERE key = 'default_proxy_icon_url'), '/emojis/1f3e1.png') :: text AS icon_url
+`
+
+type GetDefaultProxyConfigRow struct {
+	DisplayName string `db:"display_name" json:"display_name"`
+	IconUrl     string `db:"icon_url" json:"icon_url"`
+}
+
+func (q *sqlQuerier) GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error) {
+	row := q.db.QueryRowContext(ctx, getDefaultProxyConfig)
+	var i GetDefaultProxyConfigRow
+	err := row.Scan(&i.DisplayName, &i.IconUrl)
+	return i, err
+}
+
 const getDeploymentID = `-- name: GetDeploymentID :one
 SELECT value FROM site_configs WHERE key = 'deployment_id'
 `
@@ -3097,6 +3115,29 @@ ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing
 
 func (q *sqlQuerier) UpsertAppSecurityKey(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertAppSecurityKey, value)
+	return err
+}
+
+const upsertDefaultProxy = `-- name: UpsertDefaultProxy :exec
+INSERT INTO site_configs (key, value)
+VALUES
+    ('default_proxy_display_name', $1 :: text),
+	('default_proxy_icon_url', $2 :: text)
+ON CONFLICT
+    (key)
+DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
+`
+
+type UpsertDefaultProxyParams struct {
+	DisplayName string `db:"display_name" json:"display_name"`
+	IconUrl     string `db:"icon_url" json:"icon_url"`
+}
+
+// The default proxy is implied and not actually stored in the database.
+// So we need to store it's configuration here for display purposes.
+// The functional values are immutable and controlled implicitly.
+func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error {
+	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconUrl)
 	return err
 }
 

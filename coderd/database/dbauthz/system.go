@@ -431,3 +431,10 @@ func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, params databa
 	}
 	return q.db.GetWorkspaceProxyByHostname(ctx, params)
 }
+
+func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertDefaultProxy(ctx, arg)
+}

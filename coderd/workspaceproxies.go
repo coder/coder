@@ -29,12 +29,10 @@ func (api *API) PrimaryRegion(ctx context.Context) (codersdk.Region, error) {
 	}
 
 	return codersdk.Region{
-		ID: deploymentID,
-		// TODO: provide some way to customize these fields for the primary
-		// region
+		ID:               deploymentID,
 		Name:             "primary",
 		DisplayName:      "Default",
-		IconURL:          "/emojis/1f60e.png", // face with sunglasses
+		IconURL:          "/emojis/1f3e1.png", // House with garden
 		Healthy:          true,
 		PathAppURL:       api.AccessURL.String(),
 		WildcardHostname: api.AppHostname,
