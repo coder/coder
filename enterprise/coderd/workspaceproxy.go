@@ -138,7 +138,7 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		// User is editing the default primary proxy.
 		if req.Name != "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot update name of default primary proxy",
+				Message: "Cannot update name of default primary proxy, did you mean to update the 'display name'?",
 				Validations: []codersdk.ValidationError{
 					{Field: "name", Detail: "Cannot update name of default primary proxy"},
 				},
@@ -244,7 +244,7 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = proxy
 	defer commitAudit()
 
-	if proxy.Name == "primary" {
+	if proxy.IsPrimary() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot delete primary proxy",
 		})
@@ -402,6 +402,14 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+
+	// Add the primary as well
+	primaryProxy, err := api.AGPL.PrimaryWorkspaceProxy(ctx)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	proxies = append(proxies, primaryProxy)
 
 	statues := api.ProxyHealth.HealthStatus()
 	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies, statues))
@@ -680,6 +688,18 @@ func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhea
 }
 
 func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.WorkspaceProxy {
+	if p.IsPrimary() {
+		// Primary is always healthy since the primary serves the api that this
+		// is returned from.
+		u, _ := url.Parse(p.Url)
+		status = proxyhealth.ProxyStatus{
+			Proxy:     p,
+			ProxyHost: u.Host,
+			Status:    proxyhealth.Healthy,
+			Report:    codersdk.ProxyHealthReport{},
+			CheckedAt: time.Now(),
+		}
+	}
 	if status.Status == "" {
 		status.Status = proxyhealth.Unknown
 	}
