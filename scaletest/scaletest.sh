@@ -159,7 +159,7 @@ maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETES
 echo "Starting pprof"
 maybedryrun "$DRY_RUN" kubectl -n "coder-${SCALETEST_NAME}" port-forward deployment/coder 6061:6060 &
 pfpid=$!
-maybedryrun "$DRY_RUN" trap 'kill $pfpid' EXIT
+maybedryrun "$DRY_RUN" trap "kill $pfpid" EXIT
 
 echo "Waiting for pprof endpoint to become available"
 pprof_attempt_counter=0
@@ -175,7 +175,7 @@ done
 echo "Taking pprof snapshots"
 maybedryrun "$DRY_RUN" curl --silent --fail --output "${SCALETEST_NAME}-heap.pprof.gz" http://localhost:6061/debug/pprof/heap
 maybedryrun "$DRY_RUN" curl --silent --fail --output "${SCALETEST_NAME}-goroutine.pprof.gz" http://localhost:6061/debug/pprof/goroutine
-maybedryrun "$DRY_RUN" kill $pfpid
+maybedryrun "$DRY_RUN" trap - EXIT
 
 if [[ "${SCALETEST_SKIP_CLEANUP}" == 1 ]]; then
 	echo "Leaving resources up for you to inspect."
