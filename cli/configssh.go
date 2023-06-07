@@ -45,7 +45,10 @@ const (
 // sshConfigOptions represents options that can be stored and read
 // from the coder config in ~/.ssh/coder.
 type sshConfigOptions struct {
-	sshOptions []string
+	wait           bool
+	noWait         bool
+	userHostPrefix string
+	sshOptions     []string
 }
 
 // addOptions expects options in the form of "option=value" or "option value".
@@ -100,10 +103,22 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 	sort.Strings(opt1)
 	opt2 := slices.Clone(other.sshOptions)
 	sort.Strings(opt2)
-	return slices.Equal(opt1, opt2)
+	if !slices.Equal(opt1, opt2) {
+		return false
+	}
+	return o.wait == other.wait && o.noWait == other.noWait && o.userHostPrefix == other.userHostPrefix
 }
 
 func (o sshConfigOptions) asList() (list []string) {
+	if o.wait {
+		list = append(list, "wait")
+	}
+	if o.noWait {
+		list = append(list, "no-wait")
+	}
+	if o.userHostPrefix != "" {
+		list = append(list, fmt.Sprintf("ssh-host-prefix: %s", o.userHostPrefix))
+	}
 	for _, opt := range o.sshOptions {
 		list = append(list, fmt.Sprintf("ssh-option: %s", opt))
 	}
@@ -178,6 +193,7 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
+//nolint:gocyclo
 func (r *RootCmd) configSSH() *clibase.Cmd {
 	var (
 		sshConfigFile    string
@@ -185,7 +201,6 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		usePreviousOpts  bool
 		dryRun           bool
 		skipProxyCommand bool
-		userHostPrefix   string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -207,6 +222,13 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			if sshConfigOpts.wait && sshConfigOpts.noWait {
+				return xerrors.Errorf("cannot specify both --wait and --no-wait")
+			}
+			if skipProxyCommand && (sshConfigOpts.wait || sshConfigOpts.noWait) {
+				return xerrors.Errorf("cannot specify --skip-proxy-command with --wait or --no-wait")
+			}
+
 			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(inv.Context(), client)
 
 			out := inv.Stdout
@@ -295,7 +317,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 					// Selecting "no" will use the last config.
 					sshConfigOpts = *lastConfig
 				} else {
-					changes = append(changes, "Use new SSH options")
+					changes = append(changes, "Use new options")
 				}
 				// Only print when prompts are shown.
 				if yes, _ := inv.ParsedFlags().GetBool("yes"); !yes {
@@ -336,9 +358,9 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 				coderdConfig.HostnamePrefix = "coder."
 			}
 
-			if userHostPrefix != "" {
+			if sshConfigOpts.userHostPrefix != "" {
 				// Override with user flag.
-				coderdConfig.HostnamePrefix = userHostPrefix
+				coderdConfig.HostnamePrefix = sshConfigOpts.userHostPrefix
 			}
 
 			// Ensure stable sorting of output.
@@ -363,13 +385,22 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 					}
 
 					if !skipProxyCommand {
+						flags := ""
+						if sshConfigOpts.wait {
+							flags += " --wait"
+						} else if sshConfigOpts.noWait {
+							flags += " --no-wait"
+						}
 						defaultOptions = append(defaultOptions, fmt.Sprintf(
-							"ProxyCommand %s --global-config %s ssh --stdio %s",
-							escapedCoderBinary, escapedGlobalConfig, workspaceHostname,
+							"ProxyCommand %s --global-config %s ssh --stdio%s %s",
+							escapedCoderBinary, escapedGlobalConfig, flags, workspaceHostname,
 						))
 					}
 
-					var configOptions sshConfigOptions
+					// Create a copy of the options so we can modify them.
+					configOptions := sshConfigOpts
+					configOptions.sshOptions = nil
+
 					// Add standard options.
 					err := configOptions.addOptions(defaultOptions...)
 					if err != nil {
@@ -507,7 +538,19 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Flag:        "ssh-host-prefix",
 			Env:         "",
 			Description: "Override the default host prefix.",
-			Value:       clibase.StringOf(&userHostPrefix),
+			Value:       clibase.StringOf(&sshConfigOpts.userHostPrefix),
+		},
+		{
+			Flag:        "wait",
+			Env:         "CODER_CONFIGSSH_WAIT", // Not to be mixed with CODER_SSH_WAIT.
+			Description: "Set the option to wait for the the startup script to finish executing. This is the default if the template has configured the agent startup script behavior as blocking. Can not be used together with --no-wait.",
+			Value:       clibase.BoolOf(&sshConfigOpts.wait),
+		},
+		{
+			Flag:        "no-wait",
+			Env:         "CODER_CONFIGSSH_NO_WAIT", // Not to be mixed with CODER_SSH_NO_WAIT.
+			Description: "Set the option to enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking. Can not be used together with --wait.",
+			Value:       clibase.BoolOf(&sshConfigOpts.noWait),
 		},
 		cliui.SkipPromptOption(),
 	}
@@ -524,12 +567,25 @@ func sshConfigWriteSectionHeader(w io.Writer, addNewline bool, o sshConfigOption
 	_, _ = fmt.Fprint(w, nl+sshStartToken+"\n")
 	_, _ = fmt.Fprint(w, sshConfigSectionHeader)
 	_, _ = fmt.Fprint(w, sshConfigDocsHeader)
-	if len(o.sshOptions) > 0 {
-		_, _ = fmt.Fprint(w, sshConfigOptionsHeader)
-		for _, opt := range o.sshOptions {
-			_, _ = fmt.Fprintf(w, "# :%s=%s\n", "ssh-option", opt)
-		}
+
+	var ow strings.Builder
+	if o.wait {
+		_, _ = fmt.Fprintf(&ow, "# :%s\n", "wait")
 	}
+	if o.noWait {
+		_, _ = fmt.Fprintf(&ow, "# :%s\n", "no-wait")
+	}
+	if o.userHostPrefix != "" {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-host-prefix", o.userHostPrefix)
+	}
+	for _, opt := range o.sshOptions {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-option", opt)
+	}
+	if ow.Len() > 0 {
+		_, _ = fmt.Fprint(w, sshConfigOptionsHeader)
+		_, _ = fmt.Fprint(w, ow.String())
+	}
+
 	_, _ = fmt.Fprint(w, "#\n")
 }
 
@@ -545,6 +601,12 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 			line = strings.TrimPrefix(line, "# :")
 			parts := strings.SplitN(line, "=", 2)
 			switch parts[0] {
+			case "wait":
+				o.wait = true
+			case "no-wait":
+				o.noWait = true
+			case "user-host-prefix":
+				o.userHostPrefix = parts[1]
 			case "ssh-option":
 				o.sshOptions = append(o.sshOptions, parts[1])
 			default:

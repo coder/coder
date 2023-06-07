@@ -15,6 +15,12 @@ Add an SSH Host entry for your workspaces "ssh coder.workspace"
   -n, --dry-run bool, $CODER_SSH_DRY_RUN
           Perform a trial run with no changes made, showing a diff at the end.
 
+      --no-wait bool, $CODER_CONFIGSSH_NO_WAIT
+          Set the option to enter workspace immediately after the agent has
+          connected. This is the default if the template has configured the
+          agent startup script behavior as non-blocking. Can not be used
+          together with --wait.
+
       --ssh-config-file string, $CODER_SSH_CONFIG_FILE (default: ~/.ssh/config)
           Specifies the path to an SSH config.
 
@@ -27,6 +33,11 @@ Add an SSH Host entry for your workspaces "ssh coder.workspace"
       --use-previous-options bool, $CODER_SSH_USE_PREVIOUS_OPTIONS
           Specifies whether or not to keep options from previous run of
           config-ssh.
+
+      --wait bool, $CODER_CONFIGSSH_WAIT
+          Set the option to wait for the the startup script to finish executing.
+          This is the default if the template has configured the agent startup
+          script behavior as blocking. Can not be used together with --no-wait.
 
   -y, --yes bool
           Bypass prompts.

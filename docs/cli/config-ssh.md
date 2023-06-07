@@ -34,6 +34,15 @@ coder config-ssh [flags]
 
 Perform a trial run with no changes made, showing a diff at the end.
 
+### --no-wait
+
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Type        | <code>bool</code>                     |
+| Environment | <code>$CODER_CONFIGSSH_NO_WAIT</code> |
+
+Set the option to enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking. Can not be used together with --wait.
+
 ### --ssh-config-file
 
 |             |                                     |
@@ -69,6 +78,15 @@ Specifies additional SSH options to embed in each host stanza.
 | Environment | <code>$CODER_SSH_USE_PREVIOUS_OPTIONS</code> |
 
 Specifies whether or not to keep options from previous run of config-ssh.
+
+### --wait
+
+|             |                                    |
+| ----------- | ---------------------------------- |
+| Type        | <code>bool</code>                  |
+| Environment | <code>$CODER_CONFIGSSH_WAIT</code> |
+
+Set the option to wait for the the startup script to finish executing. This is the default if the template has configured the agent startup script behavior as blocking. Can not be used together with --no-wait.
 
 ### -y, --yes
 
