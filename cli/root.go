@@ -33,7 +33,6 @@ import (
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
-
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"

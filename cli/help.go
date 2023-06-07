@@ -18,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
-
 	"github.com/coder/coder/cli/cliui"
 )
 
