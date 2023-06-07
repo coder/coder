@@ -50,6 +50,11 @@ func (*RootCmd) stat() *clibase.Cmd {
 			} else {
 				sr.HostCPU = cs
 			}
+			if ms, err := statMem(hi); err != nil {
+				return err
+			} else {
+				sr.HostMemory = ms
+			}
 			out, err := formatter.Format(inv.Context(), []statsRow{sr})
 			if err != nil {
 				return err
@@ -82,6 +87,19 @@ func statCPU(hi sysinfotypes.Host, interval time.Duration) (*stat, error) {
 	used := total - idle
 	scaleFactor := nproc / total.Seconds()
 	s.Used = used.Seconds() * scaleFactor
+	return s, nil
+}
+
+func statMem(hi sysinfotypes.Host) (*stat, error) {
+	s := &stat{
+		Unit: "GB",
+	}
+	hm, err := hi.Memory()
+	if err != nil {
+		return nil, err
+	}
+	s.Total = float64(hm.Total) / 1024 / 1024 / 1024
+	s.Used = float64(hm.Used) / 1024 / 1024 / 1024
 	return s, nil
 }
 
