@@ -430,19 +430,13 @@ For tips on how to write a startup script that doesn't run forever, see the [`st
 
 Template authors can also set the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option to non-blocking, which will allow users to access the workspace while the startup script is still running. Note that the workspace must be updated after changing this option.
 
-Useful commands:
-
-- `coder ssh --wait my-workspace` or `export CODER_SSH_WAIT=true; ssh coder.my-workspace`
-- `coder ssh --no-wait my-workspace` or `export CODER_SSH_NO_WAIT=true; ssh coder.my-workspace`
-- `coder config-ssh --wait` or `coder config-ssh --no-wait`
-
 #### Your workspace may be incomplete
 
-If you see a warning that your workspace may be incomplete, it means you should be aware that programs, files, or settings may be missing from your workspace. This can happen if the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status (see [startup script error](#startup-script-error)). No action is necessary, but you may want to check the [startup script logs](#debugging-the-startup-script) to see if there are any issues.
+If you see a warning that your workspace may be incomplete, it means you should be aware that programs, files, or settings may be missing from your workspace. This can happen if the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status (see [startup script error](#startup-script-error)). No action is necessary, but you may want to [start a new shell session](#session-was-started-before-the-startup-script-finished-web-terminal) after it has completed or check the [startup script logs](#debugging-the-startup-script) to see if there are any issues.
 
-#### Session was started before the startup script finished (web terminal)
+#### Session was started before the startup script finished
 
-They web terminal may show this message if it was started before the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) finished, but the startup script has since finished. This message can safely be dismissed, however, be aware that your preferred shell or dotfiles may not yet be activated for this shell session. You can either start a new session or source your dotfiles manually. Note that starting a new session means that commands running in the terminal will be terminated and you may lose unsaved work.
+The web terminal may show this message if it was started before the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) finished, but the startup script has since finished. This message can safely be dismissed, however, be aware that your preferred shell or dotfiles may not yet be activated for this shell session. You can either start a new session or source your dotfiles manually. Note that starting a new session means that commands running in the terminal will be terminated and you may lose unsaved work.
 
 Examples for activating your preferred shell or sourcing your dotfiles:
 
