@@ -65,7 +65,7 @@ Enable diagnostic logging to file.
 | Type        | <code>bool</code>               |
 | Environment | <code>$CODER_SSH_NO_WAIT</code> |
 
-Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking. Can not be used together with --wait.
+Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.
 
 ### --stdio
 
@@ -79,11 +79,12 @@ Specifies whether to emit SSH output over stdin/stdout.
 ### --wait
 
 |             |                              |
-| ----------- | ---------------------------- |
-| Type        | <code>bool</code>            |
+| ----------- | ---------------------------- | --- | ------------ |
+| Type        | <code>enum[yes               | no  | auto]</code> |
 | Environment | <code>$CODER_SSH_WAIT</code> |
+| Default     | <code>auto</code>            |
 
-Wait for the the startup script to finish executing. This is the default if the template has configured the agent startup script behavior as blocking. Can not be used together with --no-wait.
+Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.
 
 ### --workspace-poll-interval
 

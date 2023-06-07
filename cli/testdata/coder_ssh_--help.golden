@@ -27,7 +27,7 @@ Start a shell into a workspace
       --no-wait bool, $CODER_SSH_NO_WAIT
           Enter workspace immediately after the agent has connected. This is the
           default if the template has configured the agent startup script
-          behavior as non-blocking. Can not be used together with --wait.
+          behavior as non-blocking.
  DEPRECATED 
       --stdio bool, $CODER_SSH_STDIO
           Specifies whether to emit SSH output over stdin/stdout.
