@@ -14,6 +14,20 @@ import {
   useFilter,
 } from "components/Filter/filter"
 import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter"
+import { workspaceFilterQuery } from "utils/filters"
+
+const PRESET_FILTERS = [
+  { query: workspaceFilterQuery.me, name: "My workspaces" },
+  { query: workspaceFilterQuery.all, name: "All workspaces" },
+  {
+    query: workspaceFilterQuery.running,
+    name: "Running workspaces",
+  },
+  {
+    query: workspaceFilterQuery.failed,
+    name: "Failed workspaces",
+  },
+]
 
 export const WorkspacesFilter = ({
   filter,
@@ -30,9 +44,11 @@ export const WorkspacesFilter = ({
 }) => {
   return (
     <Filter
+      presets={PRESET_FILTERS}
       isLoading={menus.status.isInitializing}
       filter={filter}
       error={error}
+      learnMoreLink="https://coder.com/docs/v2/latest/workspaces#workspace-filtering"
       options={
         <>
           {menus.user && <UserMenu {...menus.user} />}

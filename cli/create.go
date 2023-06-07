@@ -63,7 +63,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 
 			var template codersdk.Template
 			if templateName == "" {
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Wrap.Render("Select a template below to preview the provisioned infrastructure:"))
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Wrap.Render("Select a template below to preview the provisioned infrastructure:"))
 
 				templates, err := client.TemplatesByOrganization(inv.Context(), organization.ID)
 				if err != nil {
@@ -81,7 +81,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 					templateName := template.Name
 
 					if template.ActiveUserCount > 0 {
-						templateName += cliui.Styles.Placeholder.Render(
+						templateName += cliui.DefaultStyles.Placeholder.Render(
 							fmt.Sprintf(
 								" (used by %s)",
 								formatActiveDevelopers(template.ActiveUserCount),
@@ -159,7 +159,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				return xerrors.Errorf("watch build: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been created at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been created at %s!\n", cliui.DefaultStyles.Keyword.Render(workspace.Name), cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
@@ -230,7 +230,7 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 	useParamFile := false
 	if args.RichParameterFile != "" {
 		useParamFile = true
-		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
+		_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
 		parameterMapFromFile, err = createParameterMapFromFile(args.RichParameterFile)
 		if err != nil {
 			return nil, err
@@ -241,7 +241,7 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 PromptRichParamLoop:
 	for _, templateVersionParameter := range templateVersionParameters {
 		if !disclaimerPrinted {
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
 			disclaimerPrinted = true
 		}
 
@@ -265,7 +265,7 @@ PromptRichParamLoop:
 			}
 
 			if exists {
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
 				continue
 			}
 		}

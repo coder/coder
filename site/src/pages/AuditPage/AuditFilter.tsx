@@ -12,6 +12,23 @@ import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu"
 import { BaseOption } from "components/Filter/options"
 import capitalize from "lodash/capitalize"
 
+const PRESET_FILTERS = [
+  {
+    query: "resource_type:workspace action:create",
+    name: "Created workspaces",
+  },
+  { query: "resource_type:template action:create", name: "Added templates" },
+  { query: "resource_type:user action:delete", name: "Deleted users" },
+  {
+    query: "resource_type:workspace_build action:start build_reason:initiator",
+    name: "Builds started by a user",
+  },
+  {
+    query: "resource_type:api_key action:login",
+    name: "User logins",
+  },
+]
+
 export const AuditFilter = ({
   filter,
   error,
@@ -27,6 +44,8 @@ export const AuditFilter = ({
 }) => {
   return (
     <Filter
+      learnMoreLink="https://coder.com/docs/v2/latest/admin/audit-logs#filtering-logs"
+      presets={PRESET_FILTERS}
       isLoading={menus.user.isInitializing}
       filter={filter}
       error={error}

@@ -90,12 +90,12 @@ func (r *RootCmd) gitssh() *clibase.Cmd {
 				exitErr := &exec.ExitError{}
 				if xerrors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
 					_, _ = fmt.Fprintln(inv.Stderr,
-						"\n"+cliui.Styles.Wrap.Render("Coder authenticates with "+cliui.Styles.Field.Render("git")+
+						"\n"+cliui.DefaultStyles.Wrap.Render("Coder authenticates with "+cliui.DefaultStyles.Field.Render("git")+
 							" using the public key below. All clones with SSH are authenticated automatically 🪄.")+"\n")
-					_, _ = fmt.Fprintln(inv.Stderr, cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey))+"\n")
+					_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Code.Render(strings.TrimSpace(key.PublicKey))+"\n")
 					_, _ = fmt.Fprintln(inv.Stderr, "Add to GitHub and GitLab:")
-					_, _ = fmt.Fprintln(inv.Stderr, cliui.Styles.Prompt.String()+"https://github.com/settings/ssh/new")
-					_, _ = fmt.Fprintln(inv.Stderr, cliui.Styles.Prompt.String()+"https://gitlab.com/-/profile/keys")
+					_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Prompt.String()+"https://github.com/settings/ssh/new")
+					_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Prompt.String()+"https://gitlab.com/-/profile/keys")
 					_, _ = fmt.Fprintln(inv.Stderr)
 					return err
 				}

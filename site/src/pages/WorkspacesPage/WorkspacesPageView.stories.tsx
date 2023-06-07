@@ -84,7 +84,7 @@ const mockMenu = {
 
 const defaultFilterProps = {
   filter: {
-    query: `owner:${MockUser.username}`,
+    query: `owner:me`,
     update: () => action("update"),
     debounceUpdate: action("debounce") as any,
     used: false,
