@@ -35,7 +35,7 @@ func (m cliMessage) String() string {
 // Warn writes a log to the writer provided.
 func Warn(wtr io.Writer, header string, lines ...string) {
 	_, _ = fmt.Fprint(wtr, cliMessage{
-		Style:  Styles.Warn.Copy(),
+		Style:  DefaultStyles.Warn.Copy(),
 		Prefix: "WARN: ",
 		Header: header,
 		Lines:  lines,
@@ -63,7 +63,7 @@ func Infof(wtr io.Writer, fmtStr string, args ...interface{}) {
 // Error writes a log to the writer provided.
 func Error(wtr io.Writer, header string, lines ...string) {
 	_, _ = fmt.Fprint(wtr, cliMessage{
-		Style:  Styles.Error.Copy(),
+		Style:  DefaultStyles.Error.Copy(),
 		Prefix: "ERROR: ",
 		Header: header,
 		Lines:  lines,

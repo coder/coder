@@ -55,21 +55,21 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 		}
 	}
 
-	_, _ = fmt.Fprint(inv.Stdout, Styles.FocusedPrompt.String()+opts.Text+" ")
+	_, _ = fmt.Fprint(inv.Stdout, DefaultStyles.FocusedPrompt.String()+opts.Text+" ")
 	if opts.IsConfirm {
 		if len(opts.Default) == 0 {
 			opts.Default = ConfirmYes
 		}
-		renderedYes := Styles.Placeholder.Render(ConfirmYes)
-		renderedNo := Styles.Placeholder.Render(ConfirmNo)
+		renderedYes := DefaultStyles.Placeholder.Render(ConfirmYes)
+		renderedNo := DefaultStyles.Placeholder.Render(ConfirmNo)
 		if opts.Default == ConfirmYes {
-			renderedYes = Styles.Bold.Render(ConfirmYes)
+			renderedYes = DefaultStyles.Bold.Render(ConfirmYes)
 		} else {
-			renderedNo = Styles.Bold.Render(ConfirmNo)
+			renderedNo = DefaultStyles.Bold.Render(ConfirmNo)
 		}
-		_, _ = fmt.Fprint(inv.Stdout, Styles.Placeholder.Render("("+renderedYes+Styles.Placeholder.Render("/"+renderedNo+Styles.Placeholder.Render(") "))))
+		_, _ = fmt.Fprint(inv.Stdout, DefaultStyles.Placeholder.Render("("+renderedYes+DefaultStyles.Placeholder.Render("/"+renderedNo+DefaultStyles.Placeholder.Render(") "))))
 	} else if opts.Default != "" {
-		_, _ = fmt.Fprint(inv.Stdout, Styles.Placeholder.Render("("+opts.Default+") "))
+		_, _ = fmt.Fprint(inv.Stdout, DefaultStyles.Placeholder.Render("("+opts.Default+") "))
 	}
 	interrupt := make(chan os.Signal, 1)
 
@@ -126,7 +126,7 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 		if opts.Validate != nil {
 			err := opts.Validate(line)
 			if err != nil {
-				_, _ = fmt.Fprintln(inv.Stdout, defaultStyles.Error.Render(err.Error()))
+				_, _ = fmt.Fprintln(inv.Stdout, DefaultStyles.Error.Render(err.Error()))
 				return Prompt(inv, opts)
 			}
 		}

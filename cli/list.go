@@ -98,9 +98,9 @@ func (r *RootCmd) list() *clibase.Cmd {
 				return err
 			}
 			if len(res.Workspaces) == 0 {
-				_, _ = fmt.Fprintln(inv.Stderr, cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
+				_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Prompt.String()+"No workspaces found! Create one:")
 				_, _ = fmt.Fprintln(inv.Stderr)
-				_, _ = fmt.Fprintln(inv.Stderr, "  "+cliui.Styles.Code.Render("coder create <name>"))
+				_, _ = fmt.Fprintln(inv.Stderr, "  "+cliui.DefaultStyles.Code.Render("coder create <name>"))
 				_, _ = fmt.Fprintln(inv.Stderr)
 				return nil
 			}
