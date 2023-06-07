@@ -385,11 +385,10 @@ func TestIssueSignedAppToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	proxyClient := wsproxysdk.New(client.URL)
-	proxyClient.SetSessionToken(proxyRes.ProxyToken)
-
 	t.Run("BadAppRequest", func(t *testing.T) {
 		t.Parallel()
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err = proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
@@ -410,6 +409,8 @@ func TestIssueSignedAppToken(t *testing.T) {
 	}
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err = proxyClient.IssueSignedAppToken(ctx, goodRequest)
@@ -418,6 +419,8 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	t.Run("OKHTML", func(t *testing.T) {
 		t.Parallel()
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		rw := httptest.NewRecorder()
 		ctx := testutil.Context(t, testutil.WaitLong)
