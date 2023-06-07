@@ -3,9 +3,10 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"net/http"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"net/http"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
