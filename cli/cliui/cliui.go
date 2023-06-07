@@ -38,8 +38,8 @@ func init() {
 		lipgloss.NewRenderer(os.Stdout, termenv.WithColorCache(true)),
 	)
 
-	// All Styles are set after we change the DefaultRender so that the ColorCache
-	// is in effect, mitigating the severe issues seen here:
+	// All Styles are set after we change the DefaultRenderer so that the ColorCache
+	// is in effect, mitigating the severe performance issue seen here:
 	// https://github.com/coder/coder/issues/7884.
 
 	charmStyles := common.DefaultStyles()
