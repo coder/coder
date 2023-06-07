@@ -34,15 +34,6 @@ coder config-ssh [flags]
 
 Perform a trial run with no changes made, showing a diff at the end.
 
-### --no-wait
-
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Type        | <code>bool</code>                     |
-| Environment | <code>$CODER_CONFIGSSH_NO_WAIT</code> |
-
-Set the option to enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking. Can not be used together with --wait.
-
 ### --ssh-config-file
 
 |             |                                     |
@@ -55,9 +46,10 @@ Specifies the path to an SSH config.
 
 ### --ssh-host-prefix
 
-|      |                     |
-| ---- | ------------------- |
-| Type | <code>string</code> |
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_CONFIGSSH_SSH_HOST_PREFIX</code> |
 
 Override the default host prefix.
 
@@ -82,11 +74,12 @@ Specifies whether or not to keep options from previous run of config-ssh.
 ### --wait
 
 |             |                                    |
-| ----------- | ---------------------------------- |
-| Type        | <code>bool</code>                  |
+| ----------- | ---------------------------------- | --- | ------------ |
+| Type        | <code>enum[yes                     | no  | auto]</code> |
 | Environment | <code>$CODER_CONFIGSSH_WAIT</code> |
+| Default     | <code>auto</code>                  |
 
-Set the option to wait for the the startup script to finish executing. This is the default if the template has configured the agent startup script behavior as blocking. Can not be used together with --no-wait.
+Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.
 
 ### -y, --yes
 

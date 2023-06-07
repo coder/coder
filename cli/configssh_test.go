@@ -487,7 +487,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				ssh: strings.Join([]string{
 					headerStart,
 					"# Last config-ssh options:",
-					"# :wait",
+					"# :wait=yes",
 					"# :ssh-host-prefix=coder-test.",
 					"#",
 					headerEnd,
@@ -496,7 +496,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			},
 			args: []string{
 				"--yes",
-				"--wait",
+				"--wait=yes",
 				"--ssh-host-prefix", "coder-test.",
 			},
 		},
@@ -506,7 +506,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				ssh: strings.Join([]string{
 					headerStart,
 					"# Last config-ssh options:",
-					"# :no-wait",
+					"# :wait=no",
 					"# :ssh-option=ForwardAgent=yes",
 					"#",
 					headerEnd,
@@ -517,7 +517,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				ssh: strings.Join([]string{
 					headerStart,
 					"# Last config-ssh options:",
-					"# :no-wait",
+					"# :wait=no",
 					"# :ssh-option=ForwardAgent=yes",
 					"#",
 					headerEnd,
