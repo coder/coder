@@ -25,14 +25,17 @@ Start a shell into a workspace
           Enable diagnostic logging to file.
 
       --no-wait bool, $CODER_SSH_NO_WAIT
-          Specifies whether to wait for a workspace to become ready before
-          logging in (only applicable when the startup script behavior is
-          blocking). Note that the workspace agent may still be in the process
-          of executing the startup script and the workspace may be in an
-          incomplete state.
+          Enter workspace immediately after the agent has connected. This is the
+          default if the template has configured the agent startup script
+          behavior as non-blocking. Can not be used together with --wait.
 
       --stdio bool, $CODER_SSH_STDIO
           Specifies whether to emit SSH output over stdin/stdout.
+
+      --wait bool, $CODER_SSH_WAIT
+          Wait for the the startup script to finish executing. This is the
+          default if the template has configured the agent startup script
+          behavior as blocking. Can not be used together with --no-wait.
 
       --workspace-poll-interval duration, $CODER_WORKSPACE_POLL_INTERVAL (default: 1m)
           Specifies how often to poll for workspace automated shutdown.

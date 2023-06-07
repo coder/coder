@@ -65,7 +65,7 @@ Enable diagnostic logging to file.
 | Type        | <code>bool</code>               |
 | Environment | <code>$CODER_SSH_NO_WAIT</code> |
 
-Specifies whether to wait for a workspace to become ready before logging in (only applicable when the startup script behavior is blocking). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.
+Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking. Can not be used together with --wait.
 
 ### --stdio
 
@@ -75,6 +75,15 @@ Specifies whether to wait for a workspace to become ready before logging in (onl
 | Environment | <code>$CODER_SSH_STDIO</code> |
 
 Specifies whether to emit SSH output over stdin/stdout.
+
+### --wait
+
+|             |                              |
+| ----------- | ---------------------------- |
+| Type        | <code>bool</code>            |
+| Environment | <code>$CODER_SSH_WAIT</code> |
+
+Wait for the the startup script to finish executing. This is the default if the template has configured the agent startup script behavior as blocking. Can not be used together with --no-wait.
 
 ### --workspace-poll-interval
 
