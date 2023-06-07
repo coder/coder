@@ -175,6 +175,8 @@ done
 echo "Taking pprof snapshots"
 maybedryrun "$DRY_RUN" curl --silent --fail --output "${SCALETEST_NAME}-heap.pprof.gz" http://localhost:6061/debug/pprof/heap
 maybedryrun "$DRY_RUN" curl --silent --fail --output "${SCALETEST_NAME}-goroutine.pprof.gz" http://localhost:6061/debug/pprof/goroutine
+# No longer need to port-forward
+maybedryrun "$DRY_RUN" kill "$pfpid"
 maybedryrun "$DRY_RUN" trap - EXIT
 
 if [[ "${SCALETEST_SKIP_CLEANUP}" == 1 ]]; then
