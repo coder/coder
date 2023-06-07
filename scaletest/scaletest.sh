@@ -84,10 +84,10 @@ fi
 if [[ -z "${SCALETEST_PROMETHEUS_REMOTE_WRITE_USER}" ]] || [[ -z "${SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD}" ]]; then
 	echo "SCALETEST_PROMETHEUS_REMOTE_WRITE_USER or SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD not specified."
 	echo "No prometheus metrics will be collected!"
-	read -p "Continue (y/N)? " choice
+	read -pr "Continue (y/N)? " choice
 	case "$choice" in
-	y|Y|yes|YES ) ;;
-	* ) exit 1;;
+	y | Y | yes | YES) ;;
+	*) exit 1 ;;
 	esac
 fi
 

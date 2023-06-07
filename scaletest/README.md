@@ -16,7 +16,6 @@ At a high level, it performs the following steps:
 - Directly after traffic generation, captures goroutine and heap snapshots of the Coder deployment.
 - Tears down all resources (unless `--skip-cleanup` is specified).
 
-
 ## Usage
 
 The main entrypoint is the `scaletest.sh` script.
@@ -34,7 +33,7 @@ Usage: scaletest.sh --name <name> --project <project> --num-workspaces <num-work
 - `--scenario`: Deployment scenario to use (example: `small`). See `terraform/scenario-*.tfvars`.
 
 > **Note:** In order to capture Prometheus metrics, you must define the environment variables
- `SCALETEST_PROMETHEUS_REMOTE_WRITE_USER` and `SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD`.
+> `SCALETEST_PROMETHEUS_REMOTE_WRITE_USER` and `SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD`.
 
 ### Optional arguments:
 
