@@ -59,6 +59,15 @@ func TestTar(t *testing.T) {
 		err = provisionersdk.Tar(io.Discard, dir, 1024)
 		require.NoError(t, err)
 	})
+	t.Run("ValidJSON", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		file, err := os.CreateTemp(dir, "*.tf.json")
+		require.NoError(t, err)
+		_ = file.Close()
+		err = provisionersdk.Tar(io.Discard, dir, 1024)
+		require.NoError(t, err)
+	})
 	t.Run("HiddenFiles", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
