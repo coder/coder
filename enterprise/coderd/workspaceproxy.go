@@ -409,7 +409,7 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	proxies = append(proxies, primaryProxy)
+	proxies = append([]database.WorkspaceProxy{primaryProxy}, proxies...)
 
 	statues := api.ProxyHealth.HealthStatus()
 	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies, statues))
