@@ -14,7 +14,7 @@ SCALETEST_SCENARIO="${SCALETEST_SCENARIO:-}"
 SCALETEST_PROJECT="${SCALETEST_PROJECT:-}"
 SCALETEST_PROMETHEUS_REMOTE_WRITE_USER="${SCALETEST_PROMETHEUS_REMOTE_WRITE_USER:-}"
 SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD="${SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD:-}"
-SCALETEST_SKIP_CLEANUP="${SCALETEST_SKIP_CLEANUP:-}"
+SCALETEST_SKIP_CLEANUP="${SCALETEST_SKIP_CLEANUP:-0}"
 
 script_name=$(basename "$0")
 args="$(getopt -o "" -l dry-run,help,name:,num-workspaces:,project:,scenario:,skip-cleanup -- "$@")"
@@ -26,7 +26,7 @@ while true; do
 		shift
 		;;
 	--help)
-		echo "Usage: $script_name --name <name> --project <project> [--num-workspaces <num-workspaces>] [--scenario <scenario>] [--dry-run]"
+		echo "Usage: $script_name --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--dry-run] [--skip-cleanup]"
 		exit 1
 		;;
 	--name)
@@ -99,11 +99,17 @@ if [[ ! -f "${SCALETEST_SCENARIO_VARS}" ]]; then
 	exit 1
 fi
 
-if [[ "${SCALETEST_SKIP_CLEANUP}" == "true" ]]; then
+if [[ "${SCALETEST_SKIP_CLEANUP}" == 1 ]]; then
 	log "WARNING: you told me to not clean up after myself, so this is now your job!"
 fi
 
 CONFIG_DIR="${PROJECT_ROOT}/scaletest/.coderv2"
+if [[ -d "${CONFIG_DIR}" ]] && files=$(ls -qAH -- "${CONFIG_DIR}") && [[ -z "$files" ]]; then
+	echo "Cleaning previous configuration"
+	maybedryrun "$DRY_RUN" rm -fv "${CONFIG_DIR}/*"
+fi
+maybedryrun "$DRY_RUN" mkdir -p "${CONFIG_DIR}"
+
 SCALETEST_SCENARIO_VARS="${PROJECT_ROOT}/scaletest/terraform/scenario-${SCALETEST_SCENARIO}.tfvars"
 SCALETEST_SECRETS="${PROJECT_ROOT}/scaletest/terraform/secrets.tfvars"
 SCALETEST_SECRETS_TEMPLATE="${PROJECT_ROOT}/scaletest/terraform/secrets.tfvars.tpl"
@@ -128,7 +134,7 @@ if [[ "${DRY_RUN}" != 1 ]]; then
 else
 	SCALETEST_CODER_URL="http://coder.dryrun.local:3000"
 fi
-KUBECONFIG="${PWD}/.coderv2/${SCALETEST_NAME}-cluster.kubeconfig"
+KUBECONFIG="${PROJECT_ROOT}/scaletest/.coderv2/${SCALETEST_NAME}-cluster.kubeconfig"
 echo "Waiting for Coder deployment at ${SCALETEST_CODER_URL} to become ready"
 maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETEST_NAME}" rollout status deployment/coder
 
@@ -171,7 +177,7 @@ maybedryrun "$DRY_RUN" curl --silent --fail --output "${SCALETEST_NAME}-heap.ppr
 maybedryrun "$DRY_RUN" curl --silent --fail --output "${SCALETEST_NAME}-goroutine.pprof.gz" http://localhost:6061/debug/pprof/goroutine
 maybedryrun "$DRY_RUN" kill $pfpid
 
-if [[ "${SCALETEST_SKIP_CLEANUP}" == "true" ]]; then
+if [[ "${SCALETEST_SKIP_CLEANUP}" == 1 ]]; then
 	echo "Leaving resources up for you to inspect."
 	echo "Please don't forget to clean up afterwards:"
 	echo "cd terraform && terraform destroy --var-file=${SCALETEST_SCENARIO_VARS} --var-file=${SCALETEST_SECRETS} --auto-approve"
