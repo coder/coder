@@ -206,6 +206,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
 
+	// Some routes expect a deployment ID
+	err := options.Database.InsertDeploymentID(dbauthz.AsSystemRestricted(context.Background()), uuid.NewString())
+	require.NoError(t, err, "insert a deployment id")
+
 	if options.DeploymentValues == nil {
 		options.DeploymentValues = DeploymentValues(t)
 	}
