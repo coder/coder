@@ -112,6 +112,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
               encodeURIComponent(`owner:${user.username}`),
           )
         }}
+        onViewActivity={(user) => {
+          navigate(
+            "/audit?filter=" + encodeURIComponent(`username:${user.username}`),
+          )
+        }}
         onDeleteUser={(user) => {
           usersSend({
             type: "DELETE_USER",
