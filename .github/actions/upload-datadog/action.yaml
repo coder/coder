@@ -9,8 +9,15 @@ runs:
   steps:
     - shell: bash
       run: |
-        if [[ ${{ github.event.pull_request.head.repo.full_name != 'coder/coder' }} ]]; then
+        owner=${{ github.repository_owner	 }}
+        echo "owner: $owner"
+        if [[  $owner != "coder" ]]; then
           echo "Not a pull request from the main repo, skipping..."
+          exit 0
+        fi
+        if [[ -z "${{ inputs.api-key }}" ]]; then
+          # This can happen for dependabot.
+          echo "No API key provided, skipping..."
           exit 0
         fi
         npm install -g @datadog/datadog-ci

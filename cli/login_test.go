@@ -142,7 +142,7 @@ func TestLogin(t *testing.T) {
 
 		// Validate that we reprompt for matching passwords.
 		pty.ExpectMatch("Passwords do not match")
-		pty.ExpectMatch("Enter a " + cliui.Styles.Field.Render("password"))
+		pty.ExpectMatch("Enter a " + cliui.DefaultStyles.Field.Render("password"))
 
 		pty.WriteLine("SomeSecurePassword!")
 		pty.ExpectMatch("Confirm")

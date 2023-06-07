@@ -1,9 +1,13 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,11 +18,14 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
@@ -553,6 +560,201 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 	})
+}
+
+// TestWorkspaceFilterAllStatus tests workspace status is correctly set given a set of conditions.
+func TestWorkspaceFilterAllStatus(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("DB") != "" {
+		t.Skip(`This test takes too long with an actual database. Takes 10s on local machine`)
+	}
+
+	// For this test, we do not care about permissions.
+	// nolint:gocritic // unit testing
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	file := dbgen.File(t, db, database.File{
+		CreatedBy: owner.UserID,
+	})
+	versionJob := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		OrganizationID: owner.OrganizationID,
+		InitiatorID:    owner.UserID,
+		WorkerID:       uuid.NullUUID{},
+		FileID:         file.ID,
+		Tags: dbtype.StringMap{
+			"custom": "true",
+		},
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: owner.OrganizationID,
+		JobID:          versionJob.ID,
+		CreatedBy:      owner.UserID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  owner.OrganizationID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       owner.UserID,
+	})
+
+	makeWorkspace := func(workspace database.Workspace, job database.ProvisionerJob, transition database.WorkspaceTransition) (database.Workspace, database.WorkspaceBuild, database.ProvisionerJob) {
+		db := db
+
+		workspace.OwnerID = owner.UserID
+		workspace.OrganizationID = owner.OrganizationID
+		workspace.TemplateID = template.ID
+		workspace = dbgen.Workspace(t, db, workspace)
+
+		jobID := uuid.New()
+		job.ID = jobID
+		job.Type = database.ProvisionerJobTypeWorkspaceBuild
+		job.OrganizationID = owner.OrganizationID
+		// Need to prevent acquire from getting this job.
+		job.Tags = dbtype.StringMap{
+			jobID.String(): "true",
+		}
+		job = dbgen.ProvisionerJob(t, db, job)
+
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: version.ID,
+			BuildNumber:       1,
+			Transition:        transition,
+			InitiatorID:       owner.UserID,
+			JobID:             job.ID,
+		})
+
+		var err error
+		job, err = db.GetProvisionerJobByID(ctx, job.ID)
+		require.NoError(t, err)
+
+		return workspace, build, job
+	}
+
+	// pending
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusPending),
+	}, database.ProvisionerJob{
+		StartedAt: sql.NullTime{Valid: false},
+	}, database.WorkspaceTransitionStart)
+
+	// starting
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusStarting),
+	}, database.ProvisionerJob{
+		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+	}, database.WorkspaceTransitionStart)
+
+	// running
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusRunning),
+	}, database.ProvisionerJob{
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+	}, database.WorkspaceTransitionStart)
+
+	// stopping
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusStopping),
+	}, database.ProvisionerJob{
+		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+	}, database.WorkspaceTransitionStop)
+
+	// stopped
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusStopped),
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}, database.WorkspaceTransitionStop)
+
+	// failed -- delete
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusFailed) + "-deleted",
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		Error:       sql.NullString{String: "Some error", Valid: true},
+	}, database.WorkspaceTransitionDelete)
+
+	// failed -- stop
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusFailed) + "-stopped",
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		Error:       sql.NullString{String: "Some error", Valid: true},
+	}, database.WorkspaceTransitionStop)
+
+	// canceling
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusCanceling),
+	}, database.ProvisionerJob{
+		StartedAt:  sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CanceledAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}, database.WorkspaceTransitionStart)
+
+	// canceled
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusCanceled),
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CanceledAt:  sql.NullTime{Time: time.Now(), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}, database.WorkspaceTransitionStart)
+
+	// deleting
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusDeleting),
+	}, database.ProvisionerJob{
+		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+	}, database.WorkspaceTransitionDelete)
+
+	// deleted
+	makeWorkspace(database.Workspace{
+		Name: string(database.WorkspaceStatusDeleted),
+	}, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
+		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}, database.WorkspaceTransitionDelete)
+
+	apiCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+	defer cancel()
+	workspaces, err := client.Workspaces(apiCtx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+
+	// Make sure all workspaces have the correct status
+	var statuses []codersdk.WorkspaceStatus
+	for _, apiWorkspace := range workspaces.Workspaces {
+		expStatus := strings.Split(apiWorkspace.Name, "-")
+		if !assert.Equal(t, expStatus[0], string(apiWorkspace.LatestBuild.Status), "workspace has incorrect status") {
+			d, _ := json.Marshal(apiWorkspace)
+			var buf bytes.Buffer
+			_ = json.Indent(&buf, d, "", "\t")
+			t.Logf("Incorrect workspace: %s", buf.String())
+		}
+		statuses = append(statuses, apiWorkspace.LatestBuild.Status)
+	}
+
+	// Now test the filter
+	for _, status := range statuses {
+		ctx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Status: string(status),
+		})
+		require.NoErrorf(t, err, "fetch with status: %s", status)
+		for _, workspace := range workspaces.Workspaces {
+			assert.Equal(t, status, workspace.LatestBuild.Status, "expect matching status to filter")
+		}
+		cancel()
+	}
 }
 
 // TestWorkspaceFilter creates a set of workspaces, users, and organizations

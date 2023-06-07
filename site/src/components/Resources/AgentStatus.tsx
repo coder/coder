@@ -252,44 +252,39 @@ const OffLifecycle: React.FC = () => {
 const ConnectedStatus: React.FC<{
   agent: WorkspaceAgent
 }> = ({ agent }) => {
-  // NOTE(mafredri): Keep this behind feature flag for the time-being,
-  // if login_before_ready is false, the user has updated to
-  // terraform-provider-coder v0.6.10 and opted in to the functionality.
-  //
-  // Remove check once documentation is in place and we do a breaking
-  // release indicating startup script behavior has changed.
-  // https://github.com/coder/coder/issues/5749
-  if (agent.login_before_ready) {
-    return <ReadyLifecycle />
+  switch (agent.startup_script_behavior) {
+    case "non-blocking":
+      return <ReadyLifecycle />
+    case "blocking":
+      return (
+        <ChooseOne>
+          <Cond condition={agent.lifecycle_state === "ready"}>
+            <ReadyLifecycle />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "start_timeout"}>
+            <StartTimeoutLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "start_error"}>
+            <StartErrorLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "shutting_down"}>
+            <ShuttingDownLifecycle />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
+            <ShutdownTimeoutLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "shutdown_error"}>
+            <ShutdownErrorLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "off"}>
+            <OffLifecycle />
+          </Cond>
+          <Cond>
+            <StartingLifecycle />
+          </Cond>
+        </ChooseOne>
+      )
   }
-  return (
-    <ChooseOne>
-      <Cond condition={agent.lifecycle_state === "ready"}>
-        <ReadyLifecycle />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "start_timeout"}>
-        <StartTimeoutLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "start_error"}>
-        <StartErrorLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "shutting_down"}>
-        <ShuttingDownLifecycle />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
-        <ShutdownTimeoutLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "shutdown_error"}>
-        <ShutdownErrorLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "off"}>
-        <OffLifecycle />
-      </Cond>
-      <Cond>
-        <StartingLifecycle />
-      </Cond>
-    </ChooseOne>
-  )
 }
 
 const DisconnectedStatus: React.FC = () => {

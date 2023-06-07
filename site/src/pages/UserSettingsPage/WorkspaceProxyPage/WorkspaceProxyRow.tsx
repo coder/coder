@@ -12,7 +12,7 @@ import {
 import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
-import { getLatencyColor } from "utils/colors"
+import { getLatencyColor } from "utils/latency"
 import { alpha } from "@mui/material/styles"
 
 export const ProxyRow: FC<{

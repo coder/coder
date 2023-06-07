@@ -7,8 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 	"math/rand"
-	"net"
-	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -117,11 +115,17 @@ func TestPubsub_ordering(t *testing.T) {
 	}
 }
 
+// disconnectTestPort is the hardcoded port for TestPubsub_Disconnect.  In this test we need to be able to stop Postgres
+// and restart it on the same port.  If we use an ephemeral port, there is a chance the OS will reallocate before we
+// start back up.  The downside is that if the test crashes and leaves the container up, subsequent test runs will fail
+// until we manually kill the container.
+const disconnectTestPort = 26892
+
+// nolint: paralleltest
 func TestPubsub_Disconnect(t *testing.T) {
-	t.Parallel()
 	// we always use a Docker container for this test, even in CI, since we need to be able to kill
 	// postgres and bring it back on the same port.
-	connectionURL, closePg, err := postgres.OpenContainerized(0)
+	connectionURL, closePg, err := postgres.OpenContainerized(disconnectTestPort)
 	require.NoError(t, err)
 	defer closePg()
 	db, err := sql.Open("postgres", connectionURL)
@@ -191,13 +195,8 @@ func TestPubsub_Disconnect(t *testing.T) {
 
 	// restart postgres on the same port --- since we only use LISTEN/NOTIFY it doesn't
 	// matter that the new postgres doesn't have any persisted state from before.
-	u, err := url.Parse(connectionURL)
+	_, closeNewPg, err := postgres.OpenContainerized(disconnectTestPort)
 	require.NoError(t, err)
-	addr, err := net.ResolveTCPAddr("tcp", u.Host)
-	require.NoError(t, err)
-	newURL, closeNewPg, err := postgres.OpenContainerized(addr.Port)
-	require.NoError(t, err)
-	require.Equal(t, connectionURL, newURL)
 	defer closeNewPg()
 
 	// now write messages until we DON'T hit an error -- pubsub is back up.

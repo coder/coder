@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
+import { makeStyles, useTheme } from "@mui/styles"
 import WarningIcon from "@mui/icons-material/ErrorOutlineRounded"
 import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { useMachine } from "@xstate/react"
@@ -20,6 +20,11 @@ import { terminalMachine } from "../../xServices/terminal/terminalXService"
 import { useProxy } from "contexts/ProxyContext"
 import { combineClasses } from "utils/combineClasses"
 import Box from "@mui/material/Box"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { Region } from "api/typesGenerated"
+import { getLatencyColor } from "utils/latency"
+import Popover from "@mui/material/Popover"
+import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -27,11 +32,7 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
-const TerminalPage: FC<
-  React.PropsWithChildren<{
-    readonly renderer?: XTerm.RendererType
-  }>
-> = ({ renderer }) => {
+const TerminalPage: FC = () => {
   const navigate = useNavigate()
   const styles = useStyles()
   const { proxy } = useProxy()
@@ -85,6 +86,12 @@ const TerminalPage: FC<
   const shouldDisplayStartupError = workspaceAgent
     ? workspaceAgent.lifecycle_state === "start_error"
     : false
+  const dashboard = useDashboard()
+  const proxyContext = useProxy()
+  const selectedProxy = proxyContext.proxy.proxy
+  const latency = selectedProxy
+    ? proxyContext.proxyLatencies[selectedProxy.id]
+    : undefined
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -149,7 +156,6 @@ const TerminalPage: FC<
       theme: {
         background: colors.gray[16],
       },
-      rendererType: renderer,
     })
     const fitAddon = new FitAddon()
     setFitAddon(fitAddon)
@@ -187,7 +193,7 @@ const TerminalPage: FC<
       window.removeEventListener("resize", listener)
       terminal.dispose()
     }
-  }, [renderer, sendEvent, xtermRef, handleWebLink])
+  }, [sendEvent, xtermRef, handleWebLink])
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found
@@ -347,8 +353,112 @@ const TerminalPage: FC<
           ref={xtermRef}
           data-testid="terminal"
         />
+        {dashboard.experiments.includes("moons") &&
+          selectedProxy &&
+          latency && (
+            <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
+          )}
       </Box>
     </>
+  )
+}
+
+const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
+  const theme = useTheme()
+  const color = getLatencyColor(theme, latency)
+  const anchorRef = useRef<HTMLButtonElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <Box
+      sx={{
+        padding: (theme) => theme.spacing(1, 2),
+        background: (theme) => theme.palette.background.paper,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        fontSize: 12,
+        borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+      }}
+    >
+      <Box
+        ref={anchorRef}
+        component="button"
+        aria-label="Terminal latency"
+        aria-haspopup="true"
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        sx={{
+          background: "none",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          border: 0,
+        }}
+      >
+        <Box
+          sx={{
+            height: 6,
+            width: 6,
+            backgroundColor: color,
+            border: 0,
+            borderRadius: 9999,
+          }}
+        />
+        <ProxyStatusLatency latency={latency} />
+      </Box>
+      <Popover
+        id="latency-popover"
+        disableRestoreFocus
+        anchorEl={anchorRef.current}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        sx={{
+          pointerEvents: "none",
+          "& .MuiPaper-root": {
+            padding: (theme) => theme.spacing(1, 2),
+            marginTop: -1,
+          },
+        }}
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+      >
+        <Box
+          sx={{
+            fontSize: 13,
+            color: (theme) => theme.palette.text.secondary,
+            fontWeight: 500,
+          }}
+        >
+          Selected proxy
+        </Box>
+        <Box
+          sx={{ fontSize: 14, display: "flex", gap: 3, alignItems: "center" }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box width={12} height={12} lineHeight={0}>
+              <Box
+                component="img"
+                src={proxy.icon_url}
+                alt=""
+                sx={{ objectFit: "contain" }}
+                width="100%"
+                height="100%"
+              />
+            </Box>
+            {proxy.display_name}
+          </Box>
+          <ProxyStatusLatency latency={latency} />
+        </Box>
+      </Popover>
+    </Box>
   )
 }
 
@@ -411,7 +521,6 @@ const useStyles = makeStyles((theme) => ({
   terminal: {
     width: "100vw",
     overflow: "hidden",
-    padding: theme.spacing(1),
     backgroundColor: theme.palette.background.paper,
     flex: 1,
     // These styles attempt to mimic the VS Code scrollbar.

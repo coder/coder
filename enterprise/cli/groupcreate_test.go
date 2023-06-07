@@ -46,6 +46,6 @@ func TestCreateGroup(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch(fmt.Sprintf("Successfully created group %s!", cliui.Styles.Keyword.Render(groupName)))
+		pty.ExpectMatch(fmt.Sprintf("Successfully created group %s!", cliui.DefaultStyles.Keyword.Render(groupName)))
 	})
 }

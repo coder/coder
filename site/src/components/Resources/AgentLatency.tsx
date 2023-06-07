@@ -8,7 +8,7 @@ import {
 } from "components/Tooltips/HelpTooltip"
 import { Stack } from "components/Stack/Stack"
 import { WorkspaceAgent, DERPRegion } from "api/typesGenerated"
-import { getLatencyColor } from "utils/colors"
+import { getLatencyColor } from "utils/latency"
 
 const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
   // Find the right latency to display

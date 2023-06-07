@@ -405,6 +405,7 @@ func New(options *Options) *API {
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
+	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
 	r.Use(
 		cors,
@@ -414,7 +415,7 @@ func New(options *Options) *API {
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
-		httpmw.Prometheus(options.PrometheusRegistry),
+		prometheusMW,
 		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
 		// it is, it will serve that application.
 		//
@@ -826,7 +827,7 @@ func New(options *Options) *API {
 	// This is the only route we add before all the middleware.
 	// We want to time the latency of the request, so any middleware will
 	// interfere with that timing.
-	rootRouter.Get("/latency-check", cors(LatencyCheck(options.DeploymentValues.Dangerous.AllowAllCors.Value(), api.AccessURL)).ServeHTTP)
+	rootRouter.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
 	rootRouter.Mount("/", r)
 	api.RootHandler = rootRouter
 

@@ -3,10 +3,8 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
-	"net"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -17,10 +15,6 @@ import (
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/cryptorand"
 )
-
-// Required to prevent port collision during container creation.
-// Super unlikely, but it happened. See: https://github.com/coder/coder/runs/5375197003
-var openPortMutex sync.Mutex
 
 // Open creates a new PostgreSQL database instance.  With DB_FROM environment variable set, it clones a database
 // from the provided template.  With the environment variable unset, it creates a new Docker container running postgres.
@@ -68,17 +62,6 @@ func OpenContainerized(port int) (string, func(), error) {
 		return "", nil, xerrors.Errorf("create tempdir: %w", err)
 	}
 
-	openPortMutex.Lock()
-	if port == 0 {
-		// Pick an explicit port on the host to connect to 5432.
-		// This is necessary so we can configure the port to only use ipv4.
-		port, err = getFreePort()
-		if err != nil {
-			openPortMutex.Unlock()
-			return "", nil, xerrors.Errorf("get free port: %w", err)
-		}
-	}
-
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "postgres",
 		Tag:        "13",
@@ -114,10 +97,8 @@ func OpenContainerized(port int) (string, func(), error) {
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	if err != nil {
-		openPortMutex.Unlock()
 		return "", nil, xerrors.Errorf("could not start resource: %w", err)
 	}
-	openPortMutex.Unlock()
 
 	hostAndPort := resource.GetHostPort("5432/tcp")
 	dbURL := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", hostAndPort)
@@ -165,19 +146,4 @@ func OpenContainerized(port int) (string, func(), error) {
 		_ = pool.Purge(resource)
 		_ = os.RemoveAll(tempDir)
 	}, nil
-}
-
-// getFreePort asks the kernel for a free open port that is ready to use.
-func getFreePort() (port int, err error) {
-	// Binding to port 0 tells the OS to grab a port for us:
-	// https://stackoverflow.com/questions/1365265/on-localhost-how-do-i-pick-a-free-port-number
-	listener, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		return 0, err
-	}
-
-	defer listener.Close()
-	// This is always a *net.TCPAddr.
-	// nolint:forcetypeassert
-	return listener.Addr().(*net.TCPAddr).Port, nil
 }

@@ -137,7 +137,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 					return err
 				}
 				// if the repo exists we soft fail the update operation and try to continue
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Error.Render("Failed to update repo, continuing..."))
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Error.Render("Failed to update repo, continuing..."))
 			}
 
 			// save git repo url so we can detect changes next time

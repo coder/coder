@@ -58,6 +58,6 @@ From there, you can import the AWS starter template in the dashboard and begin c
 ## Next steps
 
 - [IDEs with Coder](../ides.md)
-- [Writing custom templates for Coder](../templates/README.md)
+- [Writing custom templates for Coder](../templates/index.md)
 - [Configure the Coder server](../admin/configure.md)
 - [Use your own domain + TLS](../admin/configure.md#tls--reverse-proxy)

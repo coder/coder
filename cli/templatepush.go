@@ -73,7 +73,7 @@ func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.
 
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = inv.Stdout
-	spin.Suffix = cliui.Styles.Keyword.Render(" Uploading directory...")
+	spin.Suffix = cliui.DefaultStyles.Keyword.Render(" Uploading directory...")
 	spin.Start()
 	defer spin.Stop()
 
@@ -115,6 +115,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		alwaysPrompt    bool
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
+		activate        bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -172,14 +173,16 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-				ID: job.ID,
-			})
-			if err != nil {
-				return err
+			if activate {
+				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+					ID: job.ID,
+				})
+				if err != nil {
+					return err
+				}
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
@@ -225,6 +228,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Flag:        "always-prompt",
 			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
 			Value:       clibase.BoolOf(&alwaysPrompt),
+		},
+		{
+			Flag:        "activate",
+			Description: "Whether the new template will be marked active.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&activate),
 		},
 		cliui.SkipPromptOption(),
 		uploadFlags.option(),
