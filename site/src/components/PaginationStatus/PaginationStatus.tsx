@@ -32,7 +32,8 @@ export const PaginationStatus = ({
     >
       {!isLoading ? (
         <>
-          Showing <strong>{showing}</strong> of <strong>{total}</strong> {label}
+          Showing <strong>{showing}</strong> of{" "}
+          <strong>{total?.toLocaleString()}</strong> {label}
         </>
       ) : (
         <Box sx={{ height: 24, display: "flex", alignItems: "center" }}>
