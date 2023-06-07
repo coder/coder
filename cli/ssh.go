@@ -384,7 +384,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		{
 			Flag:        "no-wait",
 			Env:         "CODER_SSH_NO_WAIT",
-			Description: "Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking. Can not be used together with --wait.",
+			Description: "Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.",
 			Value:       clibase.BoolOf(&noWait),
 			UseInstead:  []clibase.Option{waitOption},
 		},
