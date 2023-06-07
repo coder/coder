@@ -103,7 +103,7 @@ func loadEnabledFeatures(moduleDir string) (map[string]bool, hcl.Diagnostics) {
 
 	var found bool
 	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".tf") || !strings.HasSuffix(entry.Name(), ".tf.json") {
+		if !strings.HasSuffix(entry.Name(), ".tf") && !strings.HasSuffix(entry.Name(), ".tf.json") {
 			continue
 		}
 

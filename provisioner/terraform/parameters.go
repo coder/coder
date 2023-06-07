@@ -27,35 +27,44 @@ func rawRichParameterNames(workdir string) ([]string, error) {
 
 	var coderParameterNames []string
 	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".tf") || !strings.HasSuffix(entry.Name(), ".tf.json") {
+		if !strings.HasSuffix(entry.Name(), ".tf") && !strings.HasSuffix(entry.Name(), ".tf.json") {
 			continue
 		}
 
-		var parsedHCL *hcl.File
-		var diags hcl.Diagnostics
-		hclFilepath := path.Join(workdir, entry.Name())
-		parser := hclparse.NewParser()
+		var (
+			parsedTF   *hcl.File
+			diags      hcl.Diagnostics
+			tfFilepath = path.Join(workdir, entry.Name())
+			parser     = hclparse.NewParser()
+		)
+
+		// Support .tf.json files.
+		// Warning: since JSON parsing in Go automatically sorts maps
+		// alphabetically, we can't preserve the original order of parameters
+		// like in HCL.
 		if strings.HasSuffix(entry.Name(), ".tf.json") {
-			parsedHCL, diags = parser.ParseJSONFile(hclFilepath)
+			parsedTF, diags = parser.ParseJSONFile(tfFilepath)
 		} else {
-			parsedHCL, diags = parser.ParseHCLFile(hclFilepath)
+			parsedTF, diags = parser.ParseHCLFile(tfFilepath)
 		}
+
 		if diags.HasErrors() {
 			return nil, hcl.Diagnostics{
 				{
 					Severity: hcl.DiagError,
 					Summary:  "Failed to parse HCL file",
-					Detail:   fmt.Sprintf("parser.ParseHCLFile can't parse %q file", hclFilepath),
+					Detail:   fmt.Sprintf("parser.ParseHCLFile can't parse %q file", tfFilepath),
 				},
 			}
 		}
 
-		content, _, _ := parsedHCL.Body.PartialContent(terraformWithCoderParametersSchema)
+		content, _, _ := parsedTF.Body.PartialContent(terraformWithCoderParametersSchema)
 		for _, block := range content.Blocks {
 			if block.Type == "data" && block.Labels[0] == "coder_parameter" && len(block.Labels) == 2 {
 				coderParameterNames = append(coderParameterNames, block.Labels[1])
 			}
 		}
 	}
+
 	return coderParameterNames, nil
 }
