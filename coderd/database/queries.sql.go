@@ -3122,7 +3122,7 @@ const upsertDefaultProxy = `-- name: UpsertDefaultProxy :exec
 INSERT INTO site_configs (key, value)
 VALUES
     ('default_proxy_display_name', $1 :: text),
-	('default_proxy_icon_url', $2 :: text)
+    ('default_proxy_icon_url', $2 :: text)
 ON CONFLICT
     (key)
 DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
