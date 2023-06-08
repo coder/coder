@@ -17,7 +17,7 @@ import (
 
 func TestCommandHelp(t *testing.T) {
 	// Test with AGPL commands
-	clitest.TestCommandHelp(t, (&cli.RootCmd{}).AGPL())
+	clitest.TestCommandHelp(t, (&cli.RootCmd{}).AGPL(), clitest.DefaultCases())
 }
 
 func TestRoot(t *testing.T) {

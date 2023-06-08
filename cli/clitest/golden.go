@@ -33,11 +33,41 @@ var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
 
+type CommandHelpCase struct {
+	Name string
+	Cmd  []string
+}
+
+func DefaultCases() []CommandHelpCase {
+	return []CommandHelpCase{
+		{
+			Name: "coder --help",
+			Cmd:  []string{"--help"},
+		},
+		{
+			Name: "coder server --help",
+			Cmd:  []string{"server", "--help"},
+		},
+		{
+			Name: "coder agent --help",
+			Cmd:  []string{"agent", "--help"},
+		},
+		{
+			Name: "coder list --output json",
+			Cmd:  []string{"list", "--output", "json"},
+		},
+		{
+			Name: "coder users list --output json",
+			Cmd:  []string{"users", "list", "--output", "json"},
+		},
+	}
+}
+
 // TestCommandHelp will test the help output of the given commands
 // using golden files.
 //
 //nolint:tparallel,paralleltest
-func TestCommandHelp(t *testing.T, cmds []*clibase.Cmd) {
+func TestCommandHelp(t *testing.T, cmds []*clibase.Cmd, cases []CommandHelpCase) {
 	ogColorProfile := lipgloss.ColorProfile()
 	// ANSI256 escape codes are far easier for humans to parse in a diff,
 	// but TrueColor is probably more popular with modern terminals.
@@ -47,33 +77,6 @@ func TestCommandHelp(t *testing.T, cmds []*clibase.Cmd) {
 	})
 	rootClient, replacements := prepareTestData(t)
 
-	type testCase struct {
-		name string
-		cmd  []string
-	}
-	tests := []testCase{
-		{
-			name: "coder --help",
-			cmd:  []string{"--help"},
-		},
-		{
-			name: "coder server --help",
-			cmd:  []string{"server", "--help"},
-		},
-		{
-			name: "coder agent --help",
-			cmd:  []string{"agent", "--help"},
-		},
-		{
-			name: "coder list --output json",
-			cmd:  []string{"list", "--output", "json"},
-		},
-		{
-			name: "coder users list --output json",
-			cmd:  []string{"users", "list", "--output", "json"},
-		},
-	}
-
 	rootCmd := new(cli.RootCmd)
 	root, err := rootCmd.Command(cmds)
 	require.NoError(t, err)
@@ -82,22 +85,22 @@ ExtractCommandPathsLoop:
 	for _, cp := range extractVisibleCommandPaths(nil, root.Children) {
 		name := fmt.Sprintf("coder %s --help", strings.Join(cp, " "))
 		cmd := append(cp, "--help")
-		for _, tt := range tests {
-			if tt.name == name {
+		for _, tt := range cases {
+			if tt.Name == name {
 				continue ExtractCommandPathsLoop
 			}
 		}
-		tests = append(tests, testCase{name: name, cmd: cmd})
+		cases = append(cases, CommandHelpCase{Name: name, Cmd: cmd})
 	}
 
-	for _, tt := range tests {
+	for _, tt := range cases {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			var outBuf bytes.Buffer
-			inv, cfg := New(t, tt.cmd...)
+			inv, cfg := New(t, tt.Cmd...)
 			inv.Stderr = &outBuf
 			inv.Stdout = &outBuf
 			inv.Environ.Set("CODER_URL", rootClient.URL.String())
@@ -118,9 +121,9 @@ ExtractCommandPathsLoop:
 			}
 
 			actual = NormalizeGoldenFile(t, actual)
-			goldenPath := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
+			goldenPath := filepath.Join("testdata", strings.Replace(tt.Name, " ", "_", -1)+".golden")
 			if *UpdateGoldenFiles {
-				t.Logf("update golden file for: %q: %s", tt.name, goldenPath)
+				t.Logf("update golden file for: %q: %s", tt.Name, goldenPath)
 				err = os.WriteFile(goldenPath, actual, 0o600)
 				require.NoError(t, err, "update golden file")
 			}

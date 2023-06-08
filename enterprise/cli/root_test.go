@@ -11,11 +11,6 @@ import (
 	"github.com/coder/coder/enterprise/cli"
 )
 
-func TestEnterpriseCommandHelp(t *testing.T) {
-	// Test with AGPL commands
-	clitest.TestCommandHelp(t, (&cli.RootCmd{}).EnterpriseSubcommands())
-}
-
 func newCLI(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
 	var root cli.RootCmd
 	cmd, err := root.Command(root.EnterpriseSubcommands())
