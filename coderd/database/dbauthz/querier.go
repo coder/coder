@@ -369,6 +369,11 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	return id, nil
 }
 
+func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
+	// No authz checks
+	return q.db.GetDefaultProxyConfig(ctx)
+}
+
 func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetDeploymentID(ctx)
