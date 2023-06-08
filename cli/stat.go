@@ -12,7 +12,7 @@ import (
 
 func (*RootCmd) stat() *clibase.Cmd {
 	defaultCols := []string{"host_cpu", "host_memory", "home_disk", "uptime"}
-	if ok := clistat.IsContainerized(); ok != nil && *ok {
+	if ok, err := clistat.IsContainerized(); err == nil && ok {
 		// If running in a container, we assume that users want to see these first. Prepend.
 		defaultCols = append([]string{"container_cpu", "container_memory"}, defaultCols...)
 	}
@@ -68,6 +68,19 @@ func (*RootCmd) stat() *clibase.Cmd {
 				return err
 			} else {
 				sr.Uptime = us
+			}
+
+			if ok, err := clistat.IsContainerized(); err == nil && ok {
+				if cs, err := s.ContainerCPU(); err != nil {
+					return err
+				} else {
+					sr.ContainerCPU = cs
+				}
+				if ms, err := s.ContainerMemory(); err != nil {
+					return err
+				} else {
+					sr.ContainerMemory = ms
+				}
 			}
 
 			out, err := formatter.Format(inv.Context(), []statsRow{sr})

@@ -1,16 +1,22 @@
 package clistat
 
 import (
-	"github.com/elastic/go-sysinfo"
-	"golang.org/x/xerrors"
+	"bufio"
+	"bytes"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
-	"tailscale.com/types/ptr"
 	"time"
+
+	"github.com/elastic/go-sysinfo"
+	"golang.org/x/xerrors"
+	"tailscale.com/types/ptr"
 
 	sysinfotypes "github.com/elastic/go-sysinfo/types"
 )
+
+const procOneCgroup = "/proc/1/cgroup"
 
 // Result is a generic result type for a statistic.
 // Total is the total amount of the resource available.
@@ -125,7 +131,7 @@ func (s *Statter) Uptime() (*Result, error) {
 		Total: nil, // Is time a finite quantity? For this purpose, no.
 	}
 
-	if ok := IsContainerized(); ok != nil && *ok {
+	if ok, err := IsContainerized(); err == nil && ok {
 		procStat, err := sysinfo.Process(1)
 		if err != nil {
 			return nil, xerrors.Errorf("get pid 1 info: %w", err)
@@ -152,11 +158,43 @@ func (s *Statter) ContainerMemory() (*Result, error) {
 }
 
 // IsContainerized returns whether the host is containerized.
-// This wraps the elastic/go-sysinfo library.
-func IsContainerized() *bool {
-	hi, err := sysinfo.Host()
+// This is adapted from https://github.com/elastic/go-sysinfo/tree/main/providers/linux/container.go#L31
+// with modifications to support Sysbox containers.
+func IsContainerized() (bool, error) {
+	data, err := os.ReadFile(procOneCgroup)
 	if err != nil {
-		return nil
+		if os.IsNotExist(err) { // how?
+			return false, nil
+		}
+		return false, xerrors.Errorf("read process cgroups: %w", err)
 	}
-	return hi.Info().Containerized
+
+	s := bufio.NewScanner(bytes.NewReader(data))
+	for s.Scan() {
+		line := s.Bytes()
+		if bytes.Contains(line, []byte("docker")) ||
+			bytes.Contains(line, []byte(".slice")) ||
+			bytes.Contains(line, []byte("lxc")) ||
+			bytes.Contains(line, []byte("kubepods")) {
+			return true, nil
+		}
+	}
+
+	// Last-ditch effort to detect Sysbox containers.
+	// Check if we have anything mounted as type sysboxfs in /proc/mounts
+	data, err = os.ReadFile("/proc/mounts")
+	if err != nil {
+		return false, xerrors.Errorf("read /proc/mounts: %w", err)
+	}
+
+	s = bufio.NewScanner(bytes.NewReader(data))
+	for s.Scan() {
+		line := s.Bytes()
+		if bytes.HasPrefix(line, []byte("sysboxfs")) {
+			return true, nil
+		}
+	}
+
+	// If we get here, we are _probably_ not running in a container.
+	return false, nil
 }
