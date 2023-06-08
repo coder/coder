@@ -219,6 +219,8 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			if sshConfigOpts.waitEnum != "auto" && skipProxyCommand {
+				// The wait option is applied to the ProxyCommand. If the user
+				// specifies skip-proxy-command, then wait cannot be applied.
 				return xerrors.Errorf("cannot specify both --skip-proxy-command and --wait")
 			}
 
