@@ -714,7 +714,7 @@ type stdioConn struct {
 	io.Writer
 }
 
-func (*stdioConn) Close() (err error) {
+func (c *stdioConn) Close() (err error) {
 	return nil
 }
 

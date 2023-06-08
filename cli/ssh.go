@@ -76,7 +76,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			if logDirPath != "" {
 				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
-					panic(err)
+					return xerrors.Errorf("generate nonce: %w", err)
 				}
 				logFilePath := filepath.Join(
 					logDirPath,
@@ -108,6 +108,19 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				// log HTTP requests
 				client.Logger = logger
 			}
+
+			// This WaitGroup solves for a race condition where we were logging
+			// while closing the log file in in a defer. It probably solves
+			// others too.
+			//
+			// Its position in this function is important. It must be after
+			// the logger is created but before any goroutines or wind-down
+			// defers (e.g. context cancels) are declared.
+			var wg sync.WaitGroup
+			defer func() {
+				cancel()
+				wg.Wait()
+			}()
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
@@ -168,12 +181,6 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			conn.AwaitReachable(ctx)
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
-
-			// This WaitGroup solves for a race condition where we were logging
-			// while closing the log file in in a defer. It probably solves
-			// others too.
-			var wg sync.WaitGroup
-			defer wg.Wait()
 
 			if stdio {
 				rawSSH, err := conn.SSH(ctx)
