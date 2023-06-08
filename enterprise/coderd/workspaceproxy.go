@@ -136,55 +136,9 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var updatedProxy database.WorkspaceProxy
 	if proxy.ID.String() == deploymentIDStr {
 		// User is editing the default primary proxy.
-		if req.Name != "" && req.Name != proxy.Name {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot update name of default primary proxy, did you mean to update the 'display name'?",
-				Validations: []codersdk.ValidationError{
-					{Field: "name", Detail: "Cannot update name of default primary proxy"},
-				},
-			})
-			return
-		}
-		if req.DisplayName == "" && req.Icon == "" {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "No update arguments provided. Nothing to do.",
-				Validations: []codersdk.ValidationError{
-					{Field: "display_name", Detail: "No value provided."},
-					{Field: "icon", Detail: "No value provided."},
-				},
-			})
-			return
-		}
-
-		args := database.UpsertDefaultProxyParams{
-			DisplayName: req.DisplayName,
-			IconUrl:     req.Icon,
-		}
-		if req.DisplayName == "" || req.Icon == "" {
-			// If the user has not specified an update value, use the existing value.
-			existing, err := api.Database.GetDefaultProxyConfig(ctx)
-			if err != nil {
-				httpapi.InternalServerError(rw, err)
-				return
-			}
-			if req.DisplayName == "" {
-				args.DisplayName = existing.DisplayName
-			}
-			if req.Icon == "" {
-				args.IconUrl = existing.IconUrl
-			}
-		}
-
-		err = api.Database.UpsertDefaultProxy(ctx, args)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
-		// Use the primary region to fetch the default proxy values.
-		updatedProxy, err = api.AGPL.PrimaryWorkspaceProxy(ctx)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
+		var ok bool
+		updatedProxy, ok = api.patchPrimaryWorkspaceProxy(req, rw, r)
+		if !ok {
 			return
 		}
 	} else {
@@ -219,6 +173,68 @@ func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 
 	// Update the proxy cache.
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
+}
+
+// patchPrimaryWorkspaceProxy handles the special case of updating the default
+func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw http.ResponseWriter, r *http.Request) (database.WorkspaceProxy, bool) {
+	var (
+		ctx   = r.Context()
+		proxy = httpmw.WorkspaceProxyParam(r)
+	)
+
+	// User is editing the default primary proxy.
+	if req.Name != "" && req.Name != proxy.Name {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot update name of default primary proxy, did you mean to update the 'display name'?",
+			Validations: []codersdk.ValidationError{
+				{Field: "name", Detail: "Cannot update name of default primary proxy"},
+			},
+		})
+		return database.WorkspaceProxy{}, false
+	}
+	if req.DisplayName == "" && req.Icon == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No update arguments provided. Nothing to do.",
+			Validations: []codersdk.ValidationError{
+				{Field: "display_name", Detail: "No value provided."},
+				{Field: "icon", Detail: "No value provided."},
+			},
+		})
+		return database.WorkspaceProxy{}, false
+	}
+
+	args := database.UpsertDefaultProxyParams{
+		DisplayName: req.DisplayName,
+		IconUrl:     req.Icon,
+	}
+	if req.DisplayName == "" || req.Icon == "" {
+		// If the user has not specified an update value, use the existing value.
+		existing, err := api.Database.GetDefaultProxyConfig(ctx)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return database.WorkspaceProxy{}, false
+		}
+		if req.DisplayName == "" {
+			args.DisplayName = existing.DisplayName
+		}
+		if req.Icon == "" {
+			args.IconUrl = existing.IconUrl
+		}
+	}
+
+	err := api.Database.UpsertDefaultProxy(ctx, args)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return database.WorkspaceProxy{}, false
+	}
+
+	// Use the primary region to fetch the default proxy values.
+	updatedProxy, err := api.AGPL.PrimaryWorkspaceProxy(ctx)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return database.WorkspaceProxy{}, false
+	}
+	return updatedProxy, true
 }
 
 // @Summary Delete workspace proxy
