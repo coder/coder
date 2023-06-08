@@ -93,6 +93,7 @@ coder wsproxy server
 ### Running from the Docker image
 
 Modify the entrypoint to
+
 ```bash
 entrypoint = ["/opt/coder", "wsproxy", "server"]
 ```
