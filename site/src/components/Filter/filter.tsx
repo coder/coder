@@ -23,6 +23,13 @@ import { BaseOption } from "./options"
 import debounce from "just-debounce-it"
 import MenuList from "@mui/material/MenuList"
 import { Loader } from "components/Loader/Loader"
+import Divider from "@mui/material/Divider"
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
+
+export type PresetFilter = {
+  name: string
+  query: string
+}
 
 type FilterValues = Record<string, string | undefined>
 
@@ -127,12 +134,16 @@ export const Filter = ({
   error,
   skeleton,
   options,
+  learnMoreLink,
+  presets,
 }: {
   filter: ReturnType<typeof useFilter>
   skeleton: ReactNode
   isLoading: boolean
+  learnMoreLink: string
   error?: unknown
   options?: ReactNode
+  presets: PresetFilter[]
 }) => {
   const shouldDisplayError = hasError(error) && isApiValidationError(error)
   const hasFilterQuery = filter.query !== ""
@@ -143,63 +154,160 @@ export const Filter = ({
   }, [filter.query])
 
   return (
-    <Box display="flex" sx={{ gap: 1, mb: 2 }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexWrap: ["wrap", undefined, "nowrap"],
+        gap: 1,
+        mb: 2,
+      }}
+    >
       {isLoading ? (
         skeleton
       ) : (
         <>
-          <TextField
-            fullWidth
-            error={shouldDisplayError}
-            helperText={
-              shouldDisplayError ? getValidationErrorMessage(error) : undefined
-            }
-            size="small"
-            InputProps={{
-              name: "query",
-              placeholder: "Search...",
-              value: searchQuery,
-              onChange: (e) => {
-                setSearchQuery(e.target.value)
-                filter.debounceUpdate(e.target.value)
-              },
-              sx: {
-                borderRadius: "6px",
-                "& input::placeholder": {
-                  color: (theme) => theme.palette.text.secondary,
+          <Box sx={{ display: "flex", width: "100%" }}>
+            <PresetMenu
+              onSelect={(query) => filter.update(query)}
+              presets={presets}
+              learnMoreLink={learnMoreLink}
+            />
+            <TextField
+              fullWidth
+              error={shouldDisplayError}
+              helperText={
+                shouldDisplayError
+                  ? getValidationErrorMessage(error)
+                  : undefined
+              }
+              size="small"
+              InputProps={{
+                "aria-label": "Filter",
+                name: "query",
+                placeholder: "Search...",
+                value: searchQuery,
+                onChange: (e) => {
+                  setSearchQuery(e.target.value)
+                  filter.debounceUpdate(e.target.value)
                 },
-              },
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchOutlined
-                    sx={{
-                      fontSize: 14,
-                      color: (theme) => theme.palette.text.secondary,
-                    }}
-                  />
-                </InputAdornment>
-              ),
-              endAdornment: hasFilterQuery && (
-                <InputAdornment position="end">
-                  <Tooltip title="Clear filter">
-                    <IconButton
-                      size="small"
-                      onClick={() => {
-                        filter.update("")
+                sx: {
+                  borderRadius: "6px",
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  marginLeft: "-1px",
+                  "&:hover": {
+                    zIndex: 2,
+                  },
+                  "& input::placeholder": {
+                    color: (theme) => theme.palette.text.secondary,
+                  },
+                  "& .MuiInputAdornment-root": {
+                    marginLeft: 0,
+                  },
+                },
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchOutlined
+                      sx={{
+                        fontSize: 14,
+                        color: (theme) => theme.palette.text.secondary,
                       }}
-                    >
-                      <CloseOutlined sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  </Tooltip>
-                </InputAdornment>
-              ),
-            }}
-          />
-
+                    />
+                  </InputAdornment>
+                ),
+                endAdornment: hasFilterQuery && (
+                  <InputAdornment position="end">
+                    <Tooltip title="Clear filter">
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          filter.update("")
+                        }}
+                      >
+                        <CloseOutlined sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
           {options}
         </>
       )}
     </Box>
+  )
+}
+
+const PresetMenu = ({
+  presets,
+  learnMoreLink,
+  onSelect,
+}: {
+  presets: PresetFilter[]
+  learnMoreLink: string
+  onSelect: (query: string) => void
+}) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const anchorRef = useRef<HTMLButtonElement>(null)
+
+  return (
+    <>
+      <Button
+        onClick={() => setIsOpen(true)}
+        ref={anchorRef}
+        sx={{
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
+          flexShrink: 0,
+          zIndex: 1,
+        }}
+        endIcon={<KeyboardArrowDown />}
+      >
+        Filters
+      </Button>
+      <Menu
+        id="filter-menu"
+        anchorEl={anchorRef.current}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "left",
+        }}
+        sx={{ "& .MuiMenu-paper": { py: 1 } }}
+      >
+        {presets.map((presetFilter) => (
+          <MenuItem
+            sx={{ fontSize: 14 }}
+            key={presetFilter.name}
+            onClick={() => {
+              onSelect(presetFilter.query)
+              setIsOpen(false)
+            }}
+          >
+            {presetFilter.name}
+          </MenuItem>
+        ))}
+        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
+        <MenuItem
+          component="a"
+          href={learnMoreLink}
+          target="_blank"
+          sx={{ fontSize: 13, fontWeight: 500 }}
+          onClick={() => {
+            setIsOpen(false)
+          }}
+        >
+          <OpenInNewOutlined sx={{ fontSize: "14px !important" }} />
+          View advanced filtering
+        </MenuItem>
+      </Menu>
+    </>
   )
 }
 

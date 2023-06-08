@@ -1,10 +1,9 @@
 import { FC } from "react"
 import Box from "@mui/material/Box"
-import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { Avatar, AvatarProps } from "components/Avatar/Avatar"
 import { Palette, PaletteColor } from "@mui/material/styles"
-import { UserFilterMenu, TemplateFilterMenu, StatusFilterMenu } from "./menus"
-import { UserOption, TemplateOption, StatusOption } from "./options"
+import { TemplateFilterMenu, StatusFilterMenu } from "./menus"
+import { TemplateOption, StatusOption } from "./options"
 import {
   Filter,
   FilterMenu,
@@ -14,6 +13,21 @@ import {
   SearchFieldSkeleton,
   useFilter,
 } from "components/Filter/filter"
+import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter"
+import { workspaceFilterQuery } from "utils/filters"
+
+const PRESET_FILTERS = [
+  { query: workspaceFilterQuery.me, name: "My workspaces" },
+  { query: workspaceFilterQuery.all, name: "All workspaces" },
+  {
+    query: workspaceFilterQuery.running,
+    name: "Running workspaces",
+  },
+  {
+    query: workspaceFilterQuery.failed,
+    name: "Failed workspaces",
+  },
+]
 
 export const WorkspacesFilter = ({
   filter,
@@ -30,9 +44,11 @@ export const WorkspacesFilter = ({
 }) => {
   return (
     <Filter
+      presets={PRESET_FILTERS}
       isLoading={menus.status.isInitializing}
       filter={filter}
       error={error}
+      learnMoreLink="https://coder.com/docs/v2/latest/workspaces#workspace-filtering"
       options={
         <>
           {menus.user && <UserMenu {...menus.user} />}
@@ -47,46 +63,6 @@ export const WorkspacesFilter = ({
           <MenuSkeleton />
           <MenuSkeleton />
         </>
-      }
-    />
-  )
-}
-
-const UserMenu = (menu: UserFilterMenu) => {
-  return (
-    <FilterSearchMenu
-      id="users-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <UserOptionItem option={menu.selectedOption} />
-        ) : (
-          "All users"
-        )
-      }
-    >
-      {(itemProps) => <UserOptionItem {...itemProps} />}
-    </FilterSearchMenu>
-  )
-}
-
-const UserOptionItem = ({
-  option,
-  isSelected,
-}: {
-  option: UserOption
-  isSelected?: boolean
-}) => {
-  return (
-    <OptionItem
-      option={option}
-      isSelected={isSelected}
-      left={
-        <UserAvatar
-          username={option.label}
-          avatarURL={option.avatarUrl}
-          sx={{ width: 16, height: 16, fontSize: 8 }}
-        />
       }
     />
   )

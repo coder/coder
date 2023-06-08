@@ -103,7 +103,7 @@ func loadEnabledFeatures(moduleDir string) (map[string]bool, hcl.Diagnostics) {
 
 	var found bool
 	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".tf") {
+		if !strings.HasSuffix(entry.Name(), ".tf") && !strings.HasSuffix(entry.Name(), ".tf.json") {
 			continue
 		}
 
@@ -131,7 +131,12 @@ func parseFeatures(hclFilepath string) (map[string]bool, bool, hcl.Diagnostics) 
 	}
 
 	parser := hclparse.NewParser()
-	parsedHCL, diags := parser.ParseHCLFile(hclFilepath)
+	var parsedHCL *hcl.File
+	if strings.HasSuffix(hclFilepath, ".tf.json") {
+		parsedHCL, diags = parser.ParseJSONFile(hclFilepath)
+	} else {
+		parsedHCL, diags = parser.ParseHCLFile(hclFilepath)
+	}
 	if diags.HasErrors() {
 		return flags, false, diags
 	}

@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/coder/terraform-provider-coder/provider"
 
+	"github.com/coder/coder/coderd/util/slice"
+	stringutil "github.com/coder/coder/coderd/util/strings"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -473,6 +476,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 		}
 	}
 
+	var duplicatedParamNames []string
 	parameters := make([]*proto.RichParameter, 0)
 	for _, resource := range orderedRichParametersResources(tfResourcesRichParameters, rawParameterNames) {
 		var param provider.Parameter
@@ -536,7 +540,29 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 				})
 			}
 		}
+
+		// Check if this parameter duplicates an existing parameter.
+		formattedName := fmt.Sprintf("%q", protoParam.Name)
+		if !slice.Contains(duplicatedParamNames, formattedName) &&
+			slice.ContainsCompare(parameters, protoParam, func(a, b *proto.RichParameter) bool {
+				return a.Name == b.Name
+			}) {
+			duplicatedParamNames = append(duplicatedParamNames, formattedName)
+		}
+
 		parameters = append(parameters, protoParam)
+	}
+
+	// Enforce that parameters be uniquely named.
+	if len(duplicatedParamNames) > 0 {
+		s := ""
+		if len(duplicatedParamNames) == 1 {
+			s = "s"
+		}
+		return nil, xerrors.Errorf(
+			"coder_parameter names must be unique but %s appear%s multiple times",
+			stringutil.JoinWithConjunction(duplicatedParamNames), s,
+		)
 	}
 
 	// A map is used to ensure we don't have duplicates!

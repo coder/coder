@@ -3060,6 +3060,7 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		Architecture:             arg.Architecture,
 		OperatingSystem:          arg.OperatingSystem,
 		Directory:                arg.Directory,
+		StartupScriptBehavior:    arg.StartupScriptBehavior,
 		StartupScript:            arg.StartupScript,
 		InstanceMetadata:         arg.InstanceMetadata,
 		ResourceMetadata:         arg.ResourceMetadata,

@@ -11,6 +11,7 @@ import {
 } from "components/Filter/filter"
 import { BaseOption } from "components/Filter/options"
 import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu"
+import { userFilterQuery } from "utils/filters"
 
 type StatusOption = BaseOption & {
   color: string
@@ -36,6 +37,11 @@ export const useStatusFilterMenu = ({
 
 export type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>
 
+const PRESET_FILTERS = [
+  { query: userFilterQuery.active, name: "Active users" },
+  { query: userFilterQuery.all, name: "All users" },
+]
+
 export const UsersFilter = ({
   filter,
   error,
@@ -49,6 +55,8 @@ export const UsersFilter = ({
 }) => {
   return (
     <Filter
+      presets={PRESET_FILTERS}
+      learnMoreLink="https://coder.com/docs/v2/latest/admin/users#user-filtering"
       isLoading={menus.status.isInitializing}
       filter={filter}
       error={error}

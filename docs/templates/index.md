@@ -210,8 +210,6 @@ PS. Notice how each step starts with `echo "..."` to provide feedback to the use
 
 Use the Coder agent's `startup_script_behavior` to change the behavior between `blocking` and `non-blocking` (default). The blocking behavior is recommended for most use cases because it allows the startup script to complete before the user accesses the workspace. For example, let's say you want to check out a very large repo in the startup script. If the startup script is non-blocking, the user may log in via SSH or open the IDE before the repo is fully checked out. This can lead to a poor user experience.
 
-Whichever behavior is enabled, the user can still choose to override it by specifying the appropriate flags (or environment variables) in the CLI when connecting to the workspace. For example, `coder ssh --no-wait` will connect to the workspace without waiting for the startup script to complete.
-
 ```hcl
 resource "coder_agent" "coder" {
   os   = "linux"
@@ -219,6 +217,18 @@ resource "coder_agent" "coder" {
   startup_script_behavior = "blocking"
   startup_script = "echo 'Starting...'"
 ```
+
+Whichever behavior is enabled, the user can still choose to override it by specifying the appropriate flags (or environment variables) in the CLI when connecting to the workspace. The behavior can be overridden by one of the following means:
+
+- Set an environment variable (for use with `ssh` or `coder ssh`):
+  - `export CODER_SSH_WAIT=true` (blocking)
+  - `export CODER_SSH_NO_WAIT=true` (non-blocking)
+- Use a flag with `coder ssh`:
+  - `coder ssh --wait my-workspace` (blocking)
+  - `coder ssh --no-wait my-workspace` (non-blocking)
+- Use a flag that configures all future `ssh` connections:
+  - `coder config-ssh --wait` (blocking)
+  - `coder config-ssh --no-wait` (non-blocking)
 
 ### Start/stop
 
@@ -416,23 +426,17 @@ Depending on the contents of the [startup script](https://registry.terraform.io/
 
 If you're trying to access your workspace and are unable to because the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running, it means the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option is set to blocking or you have enabled the `--wait` option (for e.g. `coder ssh` or `coder config-ssh`). In such an event, you can always access the workspace by using the web terminal, or via SSH using the `--no-wait` option. If the startup script is running longer than it should, or never completing, you can try to [debug the startup script](#debugging-the-startup-script) to resolve the issue. Alternatively, you can try to force the startup script to exit by terminating processes started by it or terminating the startup script itself (on Linux, `ps` and `kill` are useful tools).
 
-For tips on how to write a startup script that doesn't run forever, see the [`startup_script`](#startup_script) section.
+For tips on how to write a startup script that doesn't run forever, see the [`startup_script`](#startup_script) section. For more ways to override the startup script behavior, see the [`startup_script_behavior`](#startup_script_behavior) section.
 
 Template authors can also set the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option to non-blocking, which will allow users to access the workspace while the startup script is still running. Note that the workspace must be updated after changing this option.
 
-Useful commands:
-
-- `coder ssh --wait my-workspace` or `export CODER_SSH_WAIT=true; ssh coder.my-workspace`
-- `coder ssh --no-wait my-workspace` or `export CODER_SSH_NO_WAIT=true; ssh coder.my-workspace`
-- `coder config-ssh --wait` or `coder config-ssh --no-wait`
-
 #### Your workspace may be incomplete
 
-If you see a warning that your workspace may be incomplete, it means you should be aware that programs, files, or settings may be missing from your workspace. This can happen if the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status (see [startup script error](#startup-script-error)). No action is necessary, but you may want to check the [startup script logs](#debugging-the-startup-script) to see if there are any issues.
+If you see a warning that your workspace may be incomplete, it means you should be aware that programs, files, or settings may be missing from your workspace. This can happen if the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status (see [startup script error](#startup-script-error)). No action is necessary, but you may want to [start a new shell session](#session-was-started-before-the-startup-script-finished-web-terminal) after it has completed or check the [startup script logs](#debugging-the-startup-script) to see if there are any issues.
 
-#### Session was started before the startup script finished (web terminal)
+#### Session was started before the startup script finished
 
-They web terminal may show this message if it was started before the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) finished, but the startup script has since finished. This message can safely be dismissed, however, be aware that your preferred shell or dotfiles may not yet be activated for this shell session. You can either start a new session or source your dotfiles manually. Note that starting a new session means that commands running in the terminal will be terminated and you may lose unsaved work.
+The web terminal may show this message if it was started before the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) finished, but the startup script has since finished. This message can safely be dismissed, however, be aware that your preferred shell or dotfiles may not yet be activated for this shell session. You can either start a new session or source your dotfiles manually. Note that starting a new session means that commands running in the terminal will be terminated and you may lose unsaved work.
 
 Examples for activating your preferred shell or sourcing your dotfiles:
 

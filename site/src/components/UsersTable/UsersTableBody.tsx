@@ -37,6 +37,7 @@ interface UsersTableBodyProps {
   onSuspendUser: (user: TypesGen.User) => void
   onDeleteUser: (user: TypesGen.User) => void
   onListWorkspaces: (user: TypesGen.User) => void
+  onViewActivity: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (
@@ -55,6 +56,7 @@ export const UsersTableBody: FC<
   onSuspendUser,
   onDeleteUser,
   onListWorkspaces,
+  onViewActivity,
   onActivateUser,
   onResetUserPassword,
   onUpdateUserRoles,
@@ -184,13 +186,18 @@ export const UsersTableBody: FC<
                               disabled: user.id === actorID,
                             },
                             {
+                              label: t("resetPasswordMenuItem"),
+                              onClick: onResetUserPassword,
+                              disabled: false,
+                            },
+                            {
                               label: t("listWorkspacesMenuItem"),
                               onClick: onListWorkspaces,
                               disabled: false,
                             },
                             {
-                              label: t("resetPasswordMenuItem"),
-                              onClick: onResetUserPassword,
+                              label: "View activity",
+                              onClick: onViewActivity,
                               disabled: false,
                             },
                           )
