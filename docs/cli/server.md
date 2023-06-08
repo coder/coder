@@ -586,6 +586,17 @@ Serve prometheus metrics on the address defined by prometheus address.
 
 Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
 
+### --proxy-health-interval
+
+|             |                                                  |
+| ----------- | ------------------------------------------------ |
+| Type        | <code>duration</code>                            |
+| Environment | <code>$CODER_PROXY_HEALTH_INTERVAL</code>        |
+| YAML        | <code>networking.http.proxyHealthInterval</code> |
+| Default     | <code>1m0s</code>                                |
+
+The interval in which coderd should be checking the status of workspace proxies.
+
 ### --proxy-trusted-headers
 
 |             |                                             |

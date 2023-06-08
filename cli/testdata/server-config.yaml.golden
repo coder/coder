@@ -33,6 +33,9 @@ networking:
     # directly in the database.
     # (default: <unset>, type: bool)
     disablePasswordAuth: false
+    # The interval in which coderd should be checking the status of workspace proxies.
+    # (default: 1m0s, type: duration)
+    proxyHealthInterval: 1m0s
   # Configure TLS / HTTPS for your Coder deployment. If you're running
   #  Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
   #  secure link, you can safely ignore these settings.
