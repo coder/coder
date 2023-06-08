@@ -6,6 +6,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 )
 
+//nolint:tparallel,paralleltest
 func TestEnterpriseCommandHelp(t *testing.T) {
 	// Only test the enterprise commands
 	clitest.TestCommandHelp(t, (&RootCmd{}).enterpriseOnly(),

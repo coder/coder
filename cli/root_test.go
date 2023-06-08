@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 )
 
+//nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T) {
 	// Test with AGPL commands
 	clitest.TestCommandHelp(t, (&cli.RootCmd{}).AGPL(), clitest.DefaultCases())
