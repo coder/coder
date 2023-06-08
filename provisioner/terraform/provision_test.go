@@ -255,6 +255,31 @@ func TestProvision(t *testing.T) {
 			Apply: true,
 		},
 		{
+			Name: "single-resource-json",
+			Files: map[string]string{
+				"main.tf.json": `{
+					"resource": {
+						"null_resource": {
+							"A": [
+								{}
+							]
+						}
+					}
+				}`,
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "A",
+							Type: "null_resource",
+						}},
+					},
+				},
+			},
+			Apply: true,
+		},
+		{
 			Name: "bad-syntax-1",
 			Files: map[string]string{
 				"main.tf": `a`,
@@ -339,6 +364,88 @@ func TestProvision(t *testing.T) {
 								Name:         "Example",
 								Type:         "string",
 								DefaultValue: "foobar",
+							},
+						},
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "null_resource",
+						}},
+					},
+				},
+			},
+		},
+		{
+			Name: "rich-parameter-with-value-json",
+			Files: map[string]string{
+				"main.tf.json": `{
+					"data": {
+						"coder_parameter": {
+							"example": [
+								{
+									"default": "foobar",
+									"name": "Example",
+									"type": "string"
+								}
+							],
+							"sample": [
+								{
+									"default": "foobaz",
+									"name": "Sample",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"resource": {
+						"null_resource": {
+							"example": [
+								{
+									"triggers": {
+										"misc": "${data.coder_parameter.example.value}"
+									}
+								}
+							]
+						}
+					},
+					"terraform": [
+						{
+							"required_providers": [
+								{
+									"coder": {
+										"source": "coder/coder",
+										"version": "0.6.20"
+									}
+								}
+							]
+						}
+					]
+				}`,
+			},
+			Request: &proto.Provision_Plan{
+				RichParameterValues: []*proto.RichParameterValue{
+					{
+						Name:  "Example",
+						Value: "foobaz",
+					},
+					{
+						Name:  "Sample",
+						Value: "foofoo",
+					},
+				},
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:         "Example",
+								Type:         "string",
+								DefaultValue: "foobar",
+							},
+							{
+								Name:         "Sample",
+								Type:         "string",
+								DefaultValue: "foobaz",
 							},
 						},
 						Resources: []*proto.Resource{{

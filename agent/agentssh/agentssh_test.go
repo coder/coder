@@ -36,6 +36,7 @@ func TestNewServer_ServeClient(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
 	require.NoError(t, err)
+	defer s.Close()
 
 	// The assumption is that these are set before serving SSH connections.
 	s.AgentToken = func() string { return "" }
@@ -77,6 +78,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
 	require.NoError(t, err)
+	defer s.Close()
 
 	// The assumption is that these are set before serving SSH connections.
 	s.AgentToken = func() string { return "" }

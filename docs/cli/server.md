@@ -426,7 +426,7 @@ OIDC claim field to use as the email.
 | Environment | <code>$CODER_OIDC_GROUP_FIELD</code> |
 | YAML        | <code>oidc.groupField</code>         |
 
-Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.
+This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.
 
 ### --oidc-group-mapping
 

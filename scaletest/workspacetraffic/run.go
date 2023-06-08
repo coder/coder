@@ -19,8 +19,6 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/scaletest/harness"
 	"github.com/coder/coder/scaletest/loadtestutil"
-
-	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 type Runner struct {
@@ -143,15 +141,6 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	if rErr := <-rch; rErr != nil {
 		return xerrors.Errorf("read from pty: %w", rErr)
 	}
-
-	duration := time.Since(start)
-	logger.Info(ctx, "Test Results",
-		slog.F("duration", duration),
-		slog.F("bytes_read_total", promtest.ToFloat64(r.metrics.BytesReadTotal)),
-		slog.F("bytes_written_total", promtest.ToFloat64(r.metrics.BytesWrittenTotal)),
-		slog.F("read_errors_total", promtest.ToFloat64(r.metrics.ReadErrorsTotal)),
-		slog.F("write_errors_total", promtest.ToFloat64(r.metrics.WriteErrorsTotal)),
-	)
 
 	return nil
 }

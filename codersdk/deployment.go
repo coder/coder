@@ -953,7 +953,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "OIDC Group Field",
-			Description: "Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.",
+			Description: "This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.",
 			Flag:        "oidc-group-field",
 			Env:         "CODER_OIDC_GROUP_FIELD",
 			// This value is intentionally blank. If this is empty, then OIDC group
@@ -1170,7 +1170,7 @@ when required by your organization's security policy.`,
 		// ☢️ Dangerous settings
 		{
 			Name:        "DANGEROUS: Allow all CORs requests",
-			Description: "For security reasons, CORs requests are blocked. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
+			Description: "For security reasons, CORs requests are blocked except between workspace apps owned by the same user. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
 			Flag:        "dangerous-allow-cors-requests",
 			Env:         "CODER_DANGEROUS_ALLOW_CORS_REQUESTS",
 			Hidden:      true, // Hidden, should only be used by yarn dev server
