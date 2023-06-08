@@ -124,7 +124,7 @@ func (s *Statter) HostMemory() (*Result, error) {
 // by checking /proc/1/stat.
 func (s *Statter) Uptime() (*Result, error) {
 	r := &Result{
-		Unit:  "seconds",
+		Unit:  "minutes",
 		Total: nil, // Is time a finite quantity? For this purpose, no.
 	}
 
@@ -137,19 +137,9 @@ func (s *Statter) Uptime() (*Result, error) {
 		if err != nil {
 			return nil, xerrors.Errorf("get pid 1 stat: %w", err)
 		}
-		r.Used = time.Since(procInfo.StartTime).Seconds()
+		r.Used = time.Since(procInfo.StartTime).Minutes()
 		return r, nil
 	}
-	r.Used = s.hi.Info().Uptime().Seconds()
+	r.Used = s.hi.Info().Uptime().Minutes()
 	return r, nil
-}
-
-// ContainerCPU returns the CPU usage of the container.
-func (s *Statter) ContainerCPU() (*Result, error) {
-	return nil, xerrors.Errorf("not implemented")
-}
-
-// ContainerMemory returns the memory usage of the container.
-func (s *Statter) ContainerMemory() (*Result, error) {
-	return nil, xerrors.Errorf("not implemented")
 }
