@@ -246,8 +246,8 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 					Text:    "Icon URL:",
 					Default: "/emojis/1f5fa.png",
 					Validate: func(s string) error {
-						if !strings.HasPrefix(s, "/emojis/") {
-							return xerrors.New("icon must be a relative path to an emoji")
+						if !(strings.HasPrefix(s, "/emojis/") || strings.HasPrefix(s, "http")) {
+							return xerrors.New("icon must be a relative path to an emoji or a publicly hosted image URL")
 						}
 						return nil
 					},
@@ -297,7 +297,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 			Value:       clibase.StringOf(&proxyIcon),
 		},
 		clibase.Option{
-			Flag:        "no-prompts",
+			Flag:        "no-prompt",
 			Description: "Disable all input prompting, and fail if any required flags are missing.",
 			Value:       clibase.BoolOf(&noPrompts),
 		},
