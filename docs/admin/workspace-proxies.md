@@ -90,6 +90,13 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 coder wsproxy server
 ```
 
+### Running from the Docker image
+
+Modify the entrypoint to
+```bash
+entrypoint = ["/opt/coder", "wsproxy", "server"]
+```
+
 ### Selecting a proxy
 
 Users can navigate to their account settings to select a workspace proxy. Workspace proxy preferences are cached by the web browser. If a proxy goes offline, the session will fall back to the primary proxy. This could take up to 60 seconds.
