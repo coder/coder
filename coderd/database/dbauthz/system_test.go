@@ -25,6 +25,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			LoginType: database.LoginTypeGithub,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate).Returns(l)
 	}))
+	s.Run("UpsertDefaultProxy", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertDefaultProxyParams{}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate).Returns()
+	}))
 	s.Run("GetUserLinkByLinkedID", s.Subtest(func(db database.Store, check *expects) {
 		l := dbgen.UserLink(s.T(), db, database.UserLink{})
 		check.Args(l.LinkedID).Asserts(rbac.ResourceSystem, rbac.ActionRead).Returns(l)

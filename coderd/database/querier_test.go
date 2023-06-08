@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/migrations"
+	"github.com/coder/coder/testutil"
 )
 
 func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
@@ -256,4 +257,58 @@ func TestProxyByHostname(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDefaultProxy(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	depID := uuid.NewString()
+	err = db.InsertDeploymentID(ctx, depID)
+	require.NoError(t, err, "insert deployment id")
+
+	// Fetch empty proxy values
+	defProxy, err := db.GetDefaultProxyConfig(ctx)
+	require.NoError(t, err, "get def proxy")
+
+	require.Equal(t, defProxy.DisplayName, "Default")
+	require.Equal(t, defProxy.IconUrl, "/emojis/1f3e1.png")
+
+	// Set the proxy values
+	args := database.UpsertDefaultProxyParams{
+		DisplayName: "displayname",
+		IconUrl:     "/icon.png",
+	}
+	err = db.UpsertDefaultProxy(ctx, args)
+	require.NoError(t, err, "insert def proxy")
+
+	defProxy, err = db.GetDefaultProxyConfig(ctx)
+	require.NoError(t, err, "get def proxy")
+	require.Equal(t, defProxy.DisplayName, args.DisplayName)
+	require.Equal(t, defProxy.IconUrl, args.IconUrl)
+
+	// Upsert values
+	args = database.UpsertDefaultProxyParams{
+		DisplayName: "newdisplayname",
+		IconUrl:     "/newicon.png",
+	}
+	err = db.UpsertDefaultProxy(ctx, args)
+	require.NoError(t, err, "upsert def proxy")
+
+	defProxy, err = db.GetDefaultProxyConfig(ctx)
+	require.NoError(t, err, "get def proxy")
+	require.Equal(t, defProxy.DisplayName, args.DisplayName)
+	require.Equal(t, defProxy.IconUrl, args.IconUrl)
+
+	// Ensure other site configs are the same
+	found, err := db.GetDeploymentID(ctx)
+	require.NoError(t, err, "get deployment id")
+	require.Equal(t, depID, found)
 }
