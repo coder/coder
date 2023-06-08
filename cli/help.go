@@ -138,10 +138,12 @@ var usageTemplate = template.Must(
 			"useInstead": func(opt clibase.Option) string {
 				var sb strings.Builder
 				for i, s := range opt.UseInstead {
-					if i == len(opt.UseInstead)-1 {
-						_, _ = sb.WriteString(" and ")
-					} else if i > 0 {
-						_, _ = sb.WriteString(", ")
+					if i > 0 {
+						if i == len(opt.UseInstead)-1 {
+							_, _ = sb.WriteString(" and ")
+						} else {
+							_, _ = sb.WriteString(", ")
+						}
 					}
 					if s.Flag != "" {
 						_, _ = sb.WriteString("--")

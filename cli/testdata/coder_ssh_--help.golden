@@ -28,7 +28,8 @@ Start a shell into a workspace
           Enter workspace immediately after the agent has connected. This is the
           default if the template has configured the agent startup script
           behavior as non-blocking.
- DEPRECATED 
+          DEPRECATED: Use --wait instead.
+
       --stdio bool, $CODER_SSH_STDIO
           Specifies whether to emit SSH output over stdin/stdout.
 
