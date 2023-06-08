@@ -110,7 +110,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			}
 
 			// This WaitGroup solves for a race condition where we were logging
-			// while closing the log file in in a defer. It probably solves
+			// while closing the log file in a defer. It probably solves
 			// others too.
 			//
 			// Its position in this function is important. It must be after
