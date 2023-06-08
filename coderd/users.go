@@ -986,7 +986,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	// Ensure the username is valid. It's the caller's responsibility to ensure
 	// the username is valid and unique.
 	if usernameValid := httpapi.NameValid(req.Username); usernameValid != nil {
-		return database.User{}, uuid.Nil, xerrors.Errorf("invalid username: %w", usernameValid)
+		return database.User{}, uuid.Nil, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
 	}
 
 	var user database.User
