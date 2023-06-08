@@ -2,22 +2,17 @@ package cli
 
 import (
 	"fmt"
-	"runtime"
-	"strconv"
-	"strings"
+	"os"
 	"time"
 
-	"github.com/elastic/go-sysinfo"
-	sysinfotypes "github.com/elastic/go-sysinfo/types"
-	"tailscale.com/types/ptr"
-
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/clistat"
 	"github.com/coder/coder/cli/cliui"
 )
 
 func (*RootCmd) stat() *clibase.Cmd {
-	defaultCols := []string{"host_cpu", "host_memory", "disk"}
-	if isContainerized() {
+	defaultCols := []string{"host_cpu", "host_memory", "home_disk", "uptime"}
+	if ok := clistat.IsContainerized(); ok != nil && *ok {
 		// If running in a container, we assume that users want to see these first. Prepend.
 		defaultCols = append([]string{"container_cpu", "container_memory"}, defaultCols...)
 	}
@@ -41,26 +36,40 @@ func (*RootCmd) stat() *clibase.Cmd {
 			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
-			host, err := sysinfo.Host()
-			if err != nil {
+			var s *clistat.Statter
+			if st, err := clistat.New(clistat.WithSampleInterval(sampleInterval)); err != nil {
 				return err
+			} else {
+				s = st
 			}
-			sr := statsRow{}
-			if cs, err := statCPU(host, sampleInterval); err != nil {
+
+			var sr statsRow
+			if cs, err := s.HostCPU(); err != nil {
 				return err
 			} else {
 				sr.HostCPU = cs
 			}
-			if ms, err := statMem(host); err != nil {
+
+			if ms, err := s.HostMemory(); err != nil {
 				return err
 			} else {
 				sr.HostMemory = ms
 			}
-			if ds, err := statDisk(host); err != nil {
+
+			if home, err := os.UserHomeDir(); err != nil {
+				return err
+			} else if ds, err := s.Disk(home); err != nil {
 				return err
 			} else {
 				sr.Disk = ds
 			}
+
+			if us, err := s.Uptime(); err != nil {
+				return err
+			} else {
+				sr.Uptime = us
+			}
+
 			out, err := formatter.Format(inv.Context(), []statsRow{sr})
 			if err != nil {
 				return err
@@ -73,87 +82,11 @@ func (*RootCmd) stat() *clibase.Cmd {
 	return cmd
 }
 
-func statCPU(hi sysinfotypes.Host, interval time.Duration) (*stat, error) {
-	nproc := float64(runtime.NumCPU())
-	s := &stat{
-		Unit: "cores",
-	}
-	c1, err := hi.CPUTime()
-	if err != nil {
-		return nil, err
-	}
-	<-time.After(interval)
-	c2, err := hi.CPUTime()
-	if err != nil {
-		return nil, err
-	}
-	s.Total = ptr.To(nproc)
-	total := c2.Total() - c1.Total()
-	idle := c2.Idle - c1.Idle
-	used := total - idle
-	scaleFactor := nproc / total.Seconds()
-	s.Used = used.Seconds() * scaleFactor
-	return s, nil
-}
-
-func statMem(hi sysinfotypes.Host) (*stat, error) {
-	s := &stat{
-		Unit: "GB",
-	}
-	hm, err := hi.Memory()
-	if err != nil {
-		return nil, err
-	}
-	s.Total = ptr.To(float64(hm.Total) / 1024 / 1024 / 1024)
-	s.Used = float64(hm.Used) / 1024 / 1024 / 1024
-	return s, nil
-}
-
-func statDisk(hi sysinfotypes.Host) (*stat, error) {
-	s := &stat{
-		Unit: "GB",
-	}
-	return s, nil
-}
-
 type statsRow struct {
-	HostCPU         *stat `json:"host_cpu" table:"host_cpu,default_sort"`
-	HostMemory      *stat `json:"host_memory" table:"host_memory"`
-	Disk            *stat `json:"disk" table:"disk"`
-	LoadNorm        *stat `json:"load_norm" table:"load_norm"`
-	ContainerCPU    *stat `json:"container_cpu" table:"container_cpu"`
-	ContainerMemory *stat `json:"container_memory" table:"container_memory"`
-	Uptime          *stat `json:"uptime" table:"uptime"`
-}
-
-type stat struct {
-	Total *float64 `json:"total"`
-	Unit  string   `json:"unit"`
-	Used  float64  `json:"used"`
-}
-
-func (s *stat) String() string {
-	if s == nil {
-		return "-"
-	}
-	var sb strings.Builder
-	_, _ = sb.WriteString(strconv.FormatFloat(s.Used, 'f', 1, 64))
-	if s.Total != (*float64)(nil) {
-		_, _ = sb.WriteString("/")
-		_, _ = sb.WriteString(strconv.FormatFloat(*s.Total, 'f', 1, 64))
-	}
-	_, _ = sb.WriteString(" ")
-	if s.Unit != "" {
-		_, _ = sb.WriteString(s.Unit)
-	}
-	return sb.String()
-}
-
-func isContainerized() bool {
-	hi, err := sysinfo.Host()
-	if err != nil {
-		// If we can't get the host info, we have other issues.
-		panic(err)
-	}
-	return hi.Info().Containerized != nil && *hi.Info().Containerized
+	HostCPU         *clistat.Result `json:"host_cpu" table:"host_cpu,default_sort"`
+	HostMemory      *clistat.Result `json:"host_memory" table:"host_memory"`
+	Disk            *clistat.Result `json:"home_disk" table:"home_disk"`
+	ContainerCPU    *clistat.Result `json:"container_cpu" table:"container_cpu"`
+	ContainerMemory *clistat.Result `json:"container_memory" table:"container_memory"`
+	Uptime          *clistat.Result `json:"uptime" table:"uptime"`
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// This just tests that the statRow command is recognized and does not output
+// This just tests that the stat command is recognized and does not output
 // an empty string. Actually testing the output of the stats command is
 // fraught with all sorts of fun.
 func TestStatCmd(t *testing.T) {
@@ -45,13 +45,14 @@ func TestStatCmd(t *testing.T) {
 		require.NotEmpty(t, s)
 		require.Contains(t, s, "HOST CPU")
 		require.Contains(t, s, "HOST MEMORY")
-		require.Contains(t, s, "DISK")
+		require.Contains(t, s, "HOME DISK")
+		require.Contains(t, s, "UPTIME")
 	})
 	t.Run("Default", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
-		inv, _ := clitest.New(t, "stat", "--output=table")
+		inv, _ := clitest.New(t, "stat")
 		buf := new(bytes.Buffer)
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
@@ -60,6 +61,7 @@ func TestStatCmd(t *testing.T) {
 		require.NotEmpty(t, s)
 		require.Contains(t, s, "HOST CPU")
 		require.Contains(t, s, "HOST MEMORY")
-		require.Contains(t, s, "DISK")
+		require.Contains(t, s, "HOME DISK")
+		require.Contains(t, s, "UPTIME")
 	})
 }
