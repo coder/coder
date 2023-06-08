@@ -1947,6 +1947,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "daemons": 0,
       "force_cancel_interval": 0
     },
+    "proxy_health_status_interval": 0,
     "proxy_trusted_headers": ["string"],
     "proxy_trusted_origins": ["string"],
     "rate_limit": {
@@ -2273,6 +2274,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "daemons": 0,
     "force_cancel_interval": 0
   },
+  "proxy_health_status_interval": 0,
   "proxy_trusted_headers": ["string"],
   "proxy_trusted_origins": ["string"],
   "rate_limit": {
@@ -2389,6 +2391,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                               | false    |              |                                                                    |
 | `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                     | false    |              |                                                                    |
 | `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                   | false    |              |                                                                    |
+| `proxy_health_status_interval`       | integer                                                                                    | false    |              |                                                                    |
 | `proxy_trusted_headers`              | array of string                                                                            | false    |              |                                                                    |
 | `proxy_trusted_origins`              | array of string                                                                            | false    |              |                                                                    |
 | `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                       | false    |              |                                                                    |
