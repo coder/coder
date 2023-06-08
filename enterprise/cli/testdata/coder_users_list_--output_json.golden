@@ -1,0 +1,33 @@
+[
+  {
+    "id": "[first user ID]",
+    "username": "testuser",
+    "email": "testuser@coder.com",
+    "created_at": "[timestamp]",
+    "last_seen_at": "[timestamp]",
+    "status": "active",
+    "organization_ids": [
+      "[first org ID]"
+    ],
+    "roles": [
+      {
+        "name": "owner",
+        "display_name": "Owner"
+      }
+    ],
+    "avatar_url": ""
+  },
+  {
+    "id": "[second user ID]",
+    "username": "testuser2",
+    "email": "testuser2@coder.com",
+    "created_at": "[timestamp]",
+    "last_seen_at": "[timestamp]",
+    "status": "active",
+    "organization_ids": [
+      "[first org ID]"
+    ],
+    "roles": [],
+    "avatar_url": ""
+  }
+]
