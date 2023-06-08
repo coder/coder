@@ -29,7 +29,7 @@ func (s *Statter) Disk(path string) (*Result, error) {
 
 	var r Result
 	r.Total = ptr.To(float64(totalBytes) / 1024 / 1024 / 1024)
-	r.Used = ptr.To(float64(totalBytes-freeBytes) / 1024 / 1024 / 1024)
+	r.Used = float64(totalBytes-freeBytes) / 1024 / 1024 / 1024
 	r.Unit = "GB"
 	return &r, nil
 }
