@@ -10,7 +10,7 @@ on:
     branch:
       - nightly-gauntlet
 jobs:
-  test-go-race:
+  go-race:
     # While GitHub's toaster runners are likelier to flake, we want consistency
     # between this environment and the regular test environment for DataDog
     # statistics and to only show real workflow threats.
@@ -40,7 +40,7 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-  test-go-timing:
+  go-timing:
     # We run these tests with p=1 so we don't need a lot of compute.
     runs-on: "buildjet-2vcpu-ubuntu-2204"
     timeout-minutes: 10
