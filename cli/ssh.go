@@ -117,10 +117,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			// the logger is created but before any goroutines or wind-down
 			// defers (e.g. context cancels) are declared.
 			var wg sync.WaitGroup
-			defer func() {
-				cancel()
-				wg.Wait()
-			}()
+			defer wg.Wait()
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
@@ -192,7 +189,15 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					watchAndClose(ctx, rawSSH.Close, logger, client, workspace)
+					watchAndClose(ctx, func() error {
+						rawSSH.Close()
+						// If we don't close Stdin, the io.Copy below may
+						// block indefinitely on Stdin Read.
+						if rc, ok := inv.Stdin.(io.Closer); ok {
+							rc.Close()
+						}
+						return nil
+					}, logger, client, workspace)
 				}()
 
 				wg.Add(1)
