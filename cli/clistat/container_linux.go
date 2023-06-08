@@ -10,9 +10,11 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var isContainerizedCacheOK atomic.Bool
-var isContainerizedCacheErr atomic.Error
-var isContainerizedCacheOnce sync.Once
+var (
+	isContainerizedCacheOK   atomic.Bool
+	isContainerizedCacheErr  atomic.Error
+	isContainerizedCacheOnce sync.Once
+)
 
 // IsContainerized returns whether the host is containerized.
 // This is adapted from https://github.com/elastic/go-sysinfo/tree/main/providers/linux/container.go#L31
