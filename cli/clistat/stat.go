@@ -15,7 +15,7 @@ import (
 
 const procOneCgroup = "/proc/1/cgroup"
 
-var nproc = float64(runtime.NumCPU())
+var nproc = runtime.NumCPU()
 
 // Result is a generic result type for a statistic.
 // Total is the total amount of the resource available.
@@ -87,7 +87,7 @@ func New(opts ...Option) (*Statter, error) {
 func (s *Statter) HostCPU() (*Result, error) {
 	r := &Result{
 		Unit:  "cores",
-		Total: ptr.To(nproc),
+		Total: ptr.To(float64(nproc)),
 	}
 	c1, err := s.hi.CPUTime()
 	if err != nil {
@@ -101,7 +101,7 @@ func (s *Statter) HostCPU() (*Result, error) {
 	total := c2.Total() - c1.Total()
 	idle := c2.Idle - c1.Idle
 	used := total - idle
-	scaleFactor := nproc / total.Seconds()
+	scaleFactor := float64(nproc) / total.Seconds()
 	r.Used = used.Seconds() * scaleFactor
 	return r, nil
 }
