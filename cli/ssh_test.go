@@ -261,7 +261,7 @@ func TestSSH(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
-			// the build and agent to connect!
+			// the build and agent to connect.
 			agentClient := agentsdk.New(client.URL)
 			agentClient.SetSessionToken(agentToken)
 			agentCloser := agent.New(agent.Options{
@@ -714,7 +714,7 @@ type stdioConn struct {
 	io.Writer
 }
 
-func (c *stdioConn) Close() (err error) {
+func (*stdioConn) Close() (err error) {
 	return nil
 }
 
