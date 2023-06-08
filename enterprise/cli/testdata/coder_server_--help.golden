@@ -193,6 +193,10 @@ backed by Tailscale and WireGuard.
           The maximum lifetime duration users can specify when creating an API
           token.
 
+      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
+          The interval in which coderd should be checking the status of
+          workspace proxies.
+
       --session-duration duration, $CODER_SESSION_DURATION (default: 24h0m0s)
           The token expiry duration for browser sessions. Sessions may last
           longer if they are actively making requests, but this functionality
