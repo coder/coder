@@ -4,15 +4,31 @@ import (
 	"bufio"
 	"bytes"
 	"os"
+	"sync"
 
+	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 )
+
+var isContainerizedCacheOK atomic.Bool
+var isContainerizedCacheErr atomic.Error
+var isContainerizedCacheOnce sync.Once
 
 // IsContainerized returns whether the host is containerized.
 // This is adapted from https://github.com/elastic/go-sysinfo/tree/main/providers/linux/container.go#L31
 // with modifications to support Sysbox containers.
 // On non-Linux platforms, it always returns false.
-func IsContainerized() (bool, error) {
+// The result is only computed once and stored for subsequent calls.
+func IsContainerized() (ok bool, err error) {
+	isContainerizedCacheOnce.Do(func() {
+		ok, err = isContainerizedOnce()
+		isContainerizedCacheOK.Store(ok)
+		isContainerizedCacheErr.Store(err)
+	})
+	return isContainerizedCacheOK.Load(), isContainerizedCacheErr.Load()
+}
+
+func isContainerizedOnce() (bool, error) {
 	data, err := os.ReadFile(procOneCgroup)
 	if err != nil {
 		if os.IsNotExist(err) { // how?
