@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/coder/coder/testutil"
 	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 // UpdateGoldenFiles indicates golden files should be updated.
