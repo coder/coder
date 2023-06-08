@@ -529,7 +529,7 @@ update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden sc
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES)
-	go test ./cli -run="Test(EnterpriseCommandHelp|ServerYAML)" -update
+	go test ./cli -run="Test(EnterpriseCommandHelp)" -update
 	touch "$@"
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES)
