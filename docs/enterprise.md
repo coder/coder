@@ -14,6 +14,7 @@ trial](https://coder.com/trial).
 | Cost Control    | [Quotas](./admin/quotas.md)                                                   |     ❌      |     ✅     |
 | Cost Control    | [Max Workspace Autostop](./templates/#configure-max-workspace-autostop)       |     ❌      |     ✅     |
 | Deployment      | [High Availability](./admin/high-availability.md)                             |     ❌      |     ✅     |
+| Deployment      | [Multiple Git Providers](./admin/git-providers.md#multiple-git-providers-enterprise) |     ❌      |     ✅     |
 | Deployment      | [Appearance](./admin/appearance.md)                                           |     ❌      |     ✅     |
 | Deployment      | [Isolated Terraform Runners](./admin/provisioners.md)                         |     ❌      |     ✅     |
 | Deployment      | [Workspace Proxies](./admin/workspace-proxies.md)                             |     ❌      |     ✅     |
