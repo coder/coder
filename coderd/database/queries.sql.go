@@ -1528,8 +1528,6 @@ SELECT pg_advisory_xact_lock($1)
 //
 // This must be called from within a transaction. The lock will be automatically
 // released when the transaction ends.
-//
-// Use database.LockID() to generate a unique lock ID from a string.
 func (q *sqlQuerier) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	_, err := q.db.ExecContext(ctx, acquireLock, pgAdvisoryXactLock)
 	return err
@@ -1543,8 +1541,6 @@ SELECT pg_try_advisory_xact_lock($1)
 //
 // This must be called from within a transaction. The lock will be automatically
 // released when the transaction ends.
-//
-// Use database.LockID() to generate a unique lock ID from a string.
 func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {
 	row := q.db.QueryRowContext(ctx, tryAcquireLock, pgTryAdvisoryXactLock)
 	var pg_try_advisory_xact_lock bool
@@ -2200,6 +2196,59 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.TraceMetadata,
 	)
 	return i, err
+}
+
+const getHungProvisionerJobs = `-- name: GetHungProvisionerJobs :many
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
+FROM
+	provisioner_jobs
+WHERE
+	updated_at < $1
+	AND started_at IS NOT NULL
+	AND completed_at IS NULL
+`
+
+func (q *sqlQuerier) GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getHungProvisionerJobs, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJob
+	for rows.Next() {
+		var i ProvisionerJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CanceledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.Type,
+			&i.Input,
+			&i.WorkerID,
+			&i.FileID,
+			&i.Tags,
+			&i.ErrorCode,
+			&i.TraceMetadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one

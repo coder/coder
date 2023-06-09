@@ -96,3 +96,13 @@ SET
 	error_code = $5
 WHERE
 	id = $1;
+
+-- name: GetHungProvisionerJobs :many
+SELECT
+	*
+FROM
+	provisioner_jobs
+WHERE
+	updated_at < $1
+	AND started_at IS NOT NULL
+	AND completed_at IS NULL;

@@ -213,6 +213,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "http_address": "string",
     "in_memory_database": true,
+    "job_hang_detector_interval": 0,
     "logging": {
       "human": "string",
       "json": "string",

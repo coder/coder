@@ -124,6 +124,7 @@ type DeploymentValues struct {
 	// HTTPAddress is a string because it may be set to zero to disable.
 	HTTPAddress                     clibase.String                  `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval           clibase.Duration                `json:"autobuild_poll_interval,omitempty"`
+	JobHangDetectorInterval         clibase.Duration                `json:"job_hang_detector_interval,omitempty"`
 	DERP                            DERP                            `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                      PrometheusConfig                `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                           PprofConfig                     `json:"pprof,omitempty" typescript:",notnull"`
@@ -534,6 +535,16 @@ when required by your organization's security policy.`,
 			Default:     time.Minute.String(),
 			Value:       &c.AutobuildPollInterval,
 			YAML:        "autobuildPollInterval",
+		},
+		{
+			Name:        "Job Hang Detector Interval",
+			Description: "Interval to poll for hung jobs and automatically terminate them.",
+			Flag:        "job-hang-detector-interval",
+			Env:         "CODER_JOB_HANG_DETECTOR_INTERVAL",
+			Hidden:      true,
+			Default:     time.Minute.String(),
+			Value:       &c.JobHangDetectorInterval,
+			YAML:        "jobHangDetectorInterval",
 		},
 		httpAddress,
 		tlsBindAddress,

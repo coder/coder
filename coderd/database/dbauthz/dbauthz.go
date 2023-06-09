@@ -172,6 +172,25 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	// See unhanger package.
+	subjectHangDetector = rbac.Subject{
+		ID: uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Name:        "hangdetector",
+				DisplayName: "Hang Detector Daemon",
+				Site: rbac.Permissions(map[string][]rbac.Action{
+					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
+					rbac.ResourceTemplate.Type:  {rbac.ActionRead},
+					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemRestricted = rbac.Subject{
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -211,6 +230,12 @@ func AsProvisionerd(ctx context.Context) context.Context {
 // for autostart to function.
 func AsAutostart(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectAutostart)
+}
+
+// AsHangDetector returns a context with an actor that has permissions required
+// for unhanger.Detector to function.
+func AsHangDetector(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectHangDetector)
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions

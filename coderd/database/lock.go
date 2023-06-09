@@ -1,8 +1,10 @@
 package database
 
 // Well-known lock IDs for lock functions in the database. These should not
-// change. If locks are deprecated, they should be kept to avoid reusing the
-// same ID.
+// change. If locks are deprecated, they should be kept in this list to avoid
+// reusing the same ID.
 const (
-	LockIDDeploymentSetup = iota + 1
+	lockIDUnused          = iota
+	LockIDDeploymentSetup = iota
+	LockIDHangDetector    = iota
 )

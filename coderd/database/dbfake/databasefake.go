@@ -2556,6 +2556,19 @@ func (q *fakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUI
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	hungJobs := []database.ProvisionerJob{}
+	for _, provisionerJob := range q.provisionerJobs {
+		if provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(hungSince) {
+			hungJobs = append(hungJobs, provisionerJob)
+		}
+	}
+	return hungJobs, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
