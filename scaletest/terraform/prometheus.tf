@@ -1,10 +1,8 @@
 locals {
   prometheus_helm_repo             = "https://charts.bitnami.com/bitnami"
   prometheus_helm_chart            = "kube-prometheus"
-  prometheus_helm_version          = null // just use latest
   prometheus_exporter_helm_repo    = "https://prometheus-community.github.io/helm-charts"
   prometheus_exporter_helm_chart   = "prometheus-postgres-exporter"
-  prometheus_exporter_helm_version = null // use latest
   prometheus_release_name          = "prometheus"
   prometheus_exporter_release_name = "prometheus-postgres-exporter"
   prometheus_namespace             = "prometheus"
@@ -41,7 +39,6 @@ resource "helm_release" "prometheus-chart" {
   repository = local.prometheus_helm_repo
   chart      = local.prometheus_helm_chart
   name       = local.prometheus_release_name
-  version    = local.prometheus_helm_version
   namespace  = kubernetes_namespace.prometheus_namespace.metadata.0.name
   values = [<<EOF
 alertmanager:
