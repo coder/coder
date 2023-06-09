@@ -412,6 +412,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			derpMap, err := tailnet.NewDERPMap(
 				ctx, defaultRegion, cfg.DERP.Server.STUNAddresses,
 				cfg.DERP.Config.URL.String(), cfg.DERP.Config.Path.String(),
+				cfg.DERP.Config.DisableDirect.Value(),
 			)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)

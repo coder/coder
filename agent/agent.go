@@ -587,7 +587,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, manifest.DERPMap)
+		network, err = a.createTailnet(ctx, manifest.DERPMap, manifest.AllowDirectConnections)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -605,8 +605,9 @@ func (a *agent) run(ctx context.Context) error {
 
 		a.startReportingConnectionStats(ctx)
 	} else {
-		// Update the DERP map!
+		// Update the DERP map and allow/disallow direct connections.
 		network.SetDERPMap(manifest.DERPMap)
+		network.SetBlockEndpoints(!manifest.AllowDirectConnections)
 	}
 
 	a.logger.Debug(ctx, "running tailnet connection coordinator")
@@ -631,12 +632,13 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap, allowDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:  []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
-		DERPMap:    derpMap,
-		Logger:     a.logger.Named("tailnet"),
-		ListenPort: a.tailnetListenPort,
+		Addresses:      []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		DERPMap:        derpMap,
+		Logger:         a.logger.Named("tailnet"),
+		ListenPort:     a.tailnetListenPort,
+		BlockEndpoints: !allowDirectConnections,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

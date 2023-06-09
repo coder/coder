@@ -353,6 +353,14 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 }
 
+// SetBlockEndpoints sets whether or not to block P2P endpoints. This setting
+// will only apply to new peers.
+func (c *Conn) SetBlockEndpoints(blockEndpoints bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.blockEndpoints = blockEndpoints
+}
+
 // SetDERPRegionDialer updates the dialer to use for connecting to DERP regions.
 func (c *Conn) SetDERPRegionDialer(dialer func(ctx context.Context, region *tailcfg.DERPRegion) net.Conn) {
 	c.magicConn.SetDERPRegionDialer(dialer)

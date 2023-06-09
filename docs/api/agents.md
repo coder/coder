@@ -292,6 +292,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
 
 ```json
 {
+  "allow_direct_connections": true,
   "apps": [
     {
       "command": "string",
@@ -515,6 +516,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ```json
 {
+  "allow_direct_connections": true,
   "derp_map": {
     "omitDefaultRegions": true,
     "regions": {

@@ -15,10 +15,16 @@ import (
 
 // NewDERPMap constructs a DERPMap from a set of STUN addresses and optionally a remote
 // URL to fetch a mapping from e.g. https://controlplane.tailscale.com/derpmap/default.
-func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, remoteURL, localPath string) (*tailcfg.DERPMap, error) {
+//
+//nolint:revive
+func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, remoteURL, localPath string, allowSTUN bool) (*tailcfg.DERPMap, error) {
 	if remoteURL != "" && localPath != "" {
 		return nil, xerrors.New("a remote URL or local path must be specified, not both")
 	}
+	if !allowSTUN {
+		stunAddrs = nil
+	}
+
 	if region != nil {
 		for index, stunAddr := range stunAddrs {
 			host, rawPort, err := net.SplitHostPort(stunAddr)
@@ -74,5 +80,13 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		}
 		derpMap.Regions[region.RegionID] = region
 	}
+	if !allowSTUN {
+		for _, region := range derpMap.Regions {
+			for _, node := range region.Nodes {
+				node.STUNPort = -1
+			}
+		}
+	}
+
 	return derpMap, nil
 }

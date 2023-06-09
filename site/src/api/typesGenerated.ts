@@ -278,6 +278,7 @@ export interface DERP {
 
 // From codersdk/deployment.go
 export interface DERPConfig {
+  readonly disable_direct: boolean
   readonly url: string
   readonly path: string
 }
