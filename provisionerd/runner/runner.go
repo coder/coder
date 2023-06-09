@@ -537,6 +537,7 @@ func (r *Runner) heartbeatRoutine(ctx context.Context) {
 
 		resp, err := r.sendHeartbeat(ctx)
 		if err != nil {
+			// Calling Fail starts cancellation so the process will exit.
 			err = r.Fail(ctx, r.failedJobf("send periodic update: %s", err))
 			if err != nil {
 				r.logger.Error(ctx, "failed to call FailJob", slog.Error(err))
@@ -547,9 +548,9 @@ func (r *Runner) heartbeatRoutine(ctx context.Context) {
 			ticker.Reset(r.updateInterval)
 			continue
 		}
-		r.logger.Info(ctx, "attempting graceful cancelation")
+		r.logger.Info(ctx, "attempting graceful cancellation")
 		r.Cancel()
-		// Hard-cancel the job after a minute of pending cancelation.
+		// Mark the job as failed after a minute of pending cancellation.
 		timer := time.NewTimer(r.forceCancelInterval)
 		select {
 		case <-timer.C:

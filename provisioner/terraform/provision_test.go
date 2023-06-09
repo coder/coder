@@ -130,8 +130,7 @@ func TestProvision_Cancel(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
-				binaryPath:  binPath,
-				exitTimeout: time.Nanosecond,
+				binaryPath: binPath,
 			})
 
 			response, err := api.Provision(ctx)
@@ -184,6 +183,56 @@ func TestProvision_Cancel(t *testing.T) {
 			}
 			require.Equal(t, tt.wantLog, gotLog)
 		})
+	}
+}
+
+func TestProvision_CancelTimeout(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("This test uses interrupts and is not supported on Windows")
+	}
+
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, "terraform")
+
+	content := "#!/bin/sh\nset -eu\nsleep 15"
+	err := os.WriteFile(binPath, []byte(content), 0o755) //#nosec
+	require.NoError(t, err)
+
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{
+		binaryPath:  binPath,
+		exitTimeout: time.Second,
+	})
+
+	response, err := api.Provision(ctx)
+	require.NoError(t, err)
+	err = response.Send(&proto.Provision_Request{
+		Type: &proto.Provision_Request_Apply{
+			Apply: &proto.Provision_Apply{
+				Config: &proto.Provision_Config{
+					Directory: dir,
+					Metadata:  &proto.Provision_Metadata{},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = response.Send(&proto.Provision_Request{
+		Type: &proto.Provision_Request_Cancel{
+			Cancel: &proto.Provision_Cancel{},
+		},
+	})
+	require.NoError(t, err)
+
+	for {
+		msg, err := response.Recv()
+		require.NoError(t, err)
+
+		if c := msg.GetComplete(); c != nil {
+			require.Contains(t, c.Error, "killed")
+			break
+		}
 	}
 }
 

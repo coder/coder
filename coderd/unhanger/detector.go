@@ -19,9 +19,16 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-// HungJobDuration is the duration of time since the last update to a job before
-// it is considered hung.
-const HungJobDuration = 5 * time.Minute
+const (
+	// HungJobDuration is the duration of time since the last update to a job
+	// before it is considered hung.
+	HungJobDuration = 5 * time.Minute
+
+	// HungJobExitTimeout is the duration of time that provisioners should allow
+	// for a graceful exit upon cancellation due to failing to send an update to
+	// a job.
+	HungJobExitTimeout = 3 * time.Minute
+)
 
 // HungJobLogMessages are written to provisioner job logs when a job is hung and
 // terminated.
