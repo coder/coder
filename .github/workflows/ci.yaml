@@ -218,16 +218,16 @@ jobs:
             echo "cover=false" >> $GITHUB_OUTPUT
           fi
 
-          parallelism=8
+          PARALLEL_FLAG=""
           if [ "${{ matrix.os }}" == "windows-2019" ]; then
             # Windows appears more I/O bound, so we increase parallelism
             # to make better use of CPU.
-            parallelism=16
+            PARALLEL_FLAG="-parallel=16"
           fi
 
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- -parallel=$parallelism -short -failfast $COVERAGE_FLAGS
+            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
 
       - name: Print test stats
         if: success() || failure()
