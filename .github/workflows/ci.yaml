@@ -218,8 +218,18 @@ jobs:
             echo "cover=false" >> $GITHUB_OUTPUT
           fi
 
+          # By default Go will use the number of logical CPUs, which
+          # is a fine default.
+          PARALLEL_FLAG=""
+          if [ "${{ matrix.os }}" == "windows-2019" ]; then
+            # Windows appears more I/O bound, so we increase parallelism
+            # to make better use of CPU.
+            PARALLEL_FLAG="-parallel=16"
+          fi
+
           export TS_DEBUG_DISCO=true
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" --packages="./..." -- -parallel=8 -timeout=7m -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
+            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
 
       - name: Print test stats
         if: success() || failure()
@@ -227,13 +237,6 @@ jobs:
           # Artifacts are not available after rerunning a job,
           # so we need to print the test stats to the log.
           go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
-
-      - uses: actions/upload-artifact@v3
-        if: success() || failure()
-        with:
-          name: gotests-${{ matrix.os }}.xml
-          path: ./gotests.xml
-          retention-days: 30
 
       - uses: ./.github/actions/upload-datadog
         if: always()

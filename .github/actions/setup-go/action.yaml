@@ -8,8 +8,32 @@ runs:
       with:
         cache: true
         go-version: "1.20.5"
+
+    - name: Cache go
+      uses: buildjet/cache@v3
+      with:
+        # ~/go/pkg is the same across operating systems.
+        path: |
+          ~/go/pkg
+          ~/.cache/go-build
+          ~/AppData/Local/go-build
+          ~/Library/Caches/go-build
+        # Job name must be included in the key for effective
+        # test cache reuse.
+        key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ github.job }}-
+          go-${{ runner.os }}-
+          go-
+
     - name: Install gotestsum
       uses: jaxxstorm/action-install-gh-release@v1.10.0
       with:
         repo: gotestyourself/gotestsum
         tag: v1.9.0
+
+    # It isn't necessary that we ever do this, but it helps
+    # separate the "setup" from the "run" times.
+    - name: go mod download
+      shell: bash
+      run: go mod download -x
