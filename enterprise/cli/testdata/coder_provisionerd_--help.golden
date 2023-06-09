@@ -1,0 +1,9 @@
+Usage: coder provisionerd
+
+Manage provisioner daemons
+
+[1mSubcommands[0m
+    start    Run a provisioner daemon
+
+---
+Run `coder --help` for a list of global options.
