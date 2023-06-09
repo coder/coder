@@ -271,7 +271,9 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 
 			db := testSQLDB(t)
 
-			ctx := testutil.Context(t, testutil.WaitLong)
+			// This test occasionally timed out in CI, which is understandable
+			// considering the amount of migrations and fixtures we have.
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 			// Prepare database for stepping up.
 			err := migrations.Down(db)

@@ -55,7 +55,7 @@ Specify the directory containing SSH diagnostic log files.
 | Type        | <code>bool</code>               |
 | Environment | <code>$CODER_SSH_NO_WAIT</code> |
 
-Specifies whether to wait for a workspace to become ready before logging in (only applicable when the startup script behavior is blocking). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.
+Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.
 
 ### --stdio
 
@@ -65,6 +65,16 @@ Specifies whether to wait for a workspace to become ready before logging in (onl
 | Environment | <code>$CODER_SSH_STDIO</code> |
 
 Specifies whether to emit SSH output over stdin/stdout.
+
+### --wait
+
+|             |                              |
+| ----------- | ---------------------------- | --- | ------------ |
+| Type        | <code>enum[yes               | no  | auto]</code> |
+| Environment | <code>$CODER_SSH_WAIT</code> |
+| Default     | <code>auto</code>            |
+
+Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.
 
 ### --workspace-poll-interval
 

@@ -92,6 +92,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
+				Wait: false,
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)

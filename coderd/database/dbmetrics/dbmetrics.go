@@ -1518,3 +1518,17 @@ func (m metricsStore) GetAuthorizedUserCount(ctx context.Context, arg database.G
 	m.queryLatencies.WithLabelValues("GetAuthorizedUserCount").Observe(time.Since(start).Seconds())
 	return count, err
 }
+
+func (m metricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
+	start := time.Now()
+	err := m.s.UpsertDefaultProxy(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertDefaultProxy").Observe(time.Since(start).Seconds())
+	return err
+}
+
+func (m metricsStore) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
+	start := time.Now()
+	resp, err := m.s.GetDefaultProxyConfig(ctx)
+	m.queryLatencies.WithLabelValues("GetDefaultProxyConfig").Observe(time.Since(start).Seconds())
+	return resp, err
+}

@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -204,6 +205,16 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+	}
+
+	// Some routes expect a deployment ID, so just make sure one exists.
+	// Check first incase the caller already set up this database.
+	// nolint:gocritic // Setting up unit test data inside test helper
+	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(context.Background()))
+	if xerrors.Is(err, sql.ErrNoRows) || depID == "" {
+		// nolint:gocritic // Setting up unit test data inside test helper
+		err := options.Database.InsertDeploymentID(dbauthz.AsSystemRestricted(context.Background()), uuid.NewString())
+		require.NoError(t, err, "insert a deployment id")
 	}
 
 	if options.DeploymentValues == nil {
