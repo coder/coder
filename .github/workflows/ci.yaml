@@ -97,6 +97,7 @@ jobs:
               - '**'
             docs:
               - 'docs/**'
+              - 'README.md'
               # For testing:
               # - '.github/**'
             sh:
@@ -340,7 +341,7 @@ jobs:
       github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
       && needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    timeout-minutes: 30 
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
