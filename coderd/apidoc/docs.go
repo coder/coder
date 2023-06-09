@@ -5232,7 +5232,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter by DeletingAt time",
+                        "description": "Filter workspaces scheduled to be deleted by this time",
                         "name": "deleting_by",
                         "in": "query"
                     }

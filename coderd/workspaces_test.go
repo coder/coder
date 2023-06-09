@@ -1019,7 +1019,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 				SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 					if atomic.AddInt64(&setCalled, 1) == 2 {
-						require.Equal(t, inactivityTTL, options.InactivityTTL)
+						assert.Equal(t, inactivityTTL, options.InactivityTTL)
 					}
 					template.InactivityTTL = int64(options.InactivityTTL)
 					return template, nil
@@ -1044,8 +1044,8 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			InactivityTTLMillis: inactivityTTL.Milliseconds(),
 		})
 
-		require.NoError(t, err)
-		require.Equal(t, inactivityTTL.Milliseconds(), template.InactivityTTLMillis)
+		assert.NoError(t, err)
+		assert.Equal(t, inactivityTTL.Milliseconds(), template.InactivityTTLMillis)
 
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -1058,9 +1058,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			FilterQuery: fmt.Sprintf("deleting_by:%s", time.Now().Add(inactivityTTL).Format("2006-01-02")),
 		})
 
-		require.NoError(t, err)
-		require.Len(t, res.Workspaces, 1)
-		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+		assert.NoError(t, err)
+		assert.Len(t, res.Workspaces, 1)
+		assert.Equal(t, workspace.ID, res.Workspaces[0].ID)
 	})
 }
 

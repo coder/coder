@@ -79,9 +79,7 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 		Limit:  int32(page.Limit),
 	}
 
-	postFilter := PostFilter{
-		DeletingBy: nil,
-	}
+	var postFilter PostFilter
 
 	if query == "" {
 		return filter, postFilter, nil
@@ -115,8 +113,7 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.HasAgent = parser.String(values, "", "has-agent")
 
 	if _, ok := values["deleting_by"]; ok {
-		db := parser.Time(values, time.Time{}, "deleting_by", "2006-01-02")
-		postFilter.DeletingBy = ptr.Ref(db)
+		postFilter.DeletingBy = ptr.Ref(parser.Time(values, time.Time{}, "deleting_by", "2006-01-02"))
 	}
 
 	parser.ErrorExcessParams(values)

@@ -106,7 +106,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Param name query string false "Filter with partial-match by workspace name"
 // @Param status query string false "Filter by workspace status" Enums(pending,running,stopping,stopped,failed,canceling,canceled,deleted,deleting)
 // @Param has_agent query string false "Filter by agent status" Enums(connected,connecting,disconnected,timeout)
-// @Param deleting_by query string false "Filter by DeletingAt time"
+// @Param deleting_by query string false "Filter workspaces scheduled to be deleted by this time"
 // @Success 200 {object} codersdk.WorkspacesResponse
 // @Router /workspaces [get]
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
@@ -189,10 +189,11 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			// get the beginning of the day on which deletion is scheduled
-			truncatedDeletionAt := v.DeletingAt.Truncate(24 * time.Hour)
-			if v.DeletingAt != nil && (truncatedDeletionAt.Before(*postFilter.DeletingBy) || truncatedDeletionAt.Equal(*postFilter.DeletingBy)) {
-				filteredWorkspaces = append(filteredWorkspaces, v)
+			truncatedDeletionAt := time.Date(v.DeletingAt.Year(), v.DeletingAt.Month(), v.DeletingAt.Day(), 0, 0, 0, 0, v.DeletingAt.Location())
+			if truncatedDeletionAt.After(*postFilter.DeletingBy) {
+				continue
 			}
+			filteredWorkspaces = append(filteredWorkspaces, v)
 		}
 	}
 
