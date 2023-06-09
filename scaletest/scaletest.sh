@@ -85,7 +85,7 @@ if [[ -z "${SCALETEST_PROMETHEUS_REMOTE_WRITE_USER}" ]] || [[ -z "${SCALETEST_PR
 	echo "SCALETEST_PROMETHEUS_REMOTE_WRITE_USER or SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD not specified."
 	echo "No prometheus metrics will be collected!"
 	read -p "Continue (y/N)? " -n1 -r
-	if [[ "${REPLY}" != "y" ]]; then
+	if [[ "${REPLY}" != [yY] ]]; then
 		exit 1
 	fi
 fi
