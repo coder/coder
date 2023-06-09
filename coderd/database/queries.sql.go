@@ -7871,7 +7871,7 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, latest_build.template_version_id as template_version_id, COUNT(*) OVER () as count
 FROM
     workspaces
 JOIN
@@ -7881,6 +7881,7 @@ ON
 LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
+		workspace_builds.template_version_id,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
@@ -8081,6 +8082,7 @@ type GetWorkspacesRow struct {
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
 	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
+	TemplateVersionID uuid.UUID      `db:"template_version_id" json:"template_version_id"`
 	Count             int64          `db:"count" json:"count"`
 }
 
@@ -8117,6 +8119,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
+			&i.TemplateVersionID,
 			&i.Count,
 		); err != nil {
 			return nil, err

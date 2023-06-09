@@ -153,7 +153,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{usernameLabel, workspaceNameLabel}))
+	}, []string{usernameLabel, workspaceNameLabel, "template_name", "template_version"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err
@@ -225,6 +225,10 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			logger.Debug(ctx, "Agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 
+			// Need to define these ahead of time bc of the use of gotos below
+			var templateNamesByID map[uuid.UUID]string
+			var templateVersionNamesByID map[uuid.UUID]string
+
 			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 			})
@@ -233,30 +237,44 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				goto done
 			}
 
+			templateNamesByID, templateVersionNamesByID, err = getTemplatesAndVersionNamesFromWorkspaces(ctx, db, workspaceRows)
+			if err != nil {
+				logger.Error(ctx, "can't get template info", slog.Error(err))
+				goto done
+			}
+
 			for _, workspace := range workspaceRows {
+				templateName, found := templateNamesByID[workspace.TemplateID]
+				if !found {
+					templateName = "unknown"
+				}
+				templateVersionName, found := templateVersionNamesByID[workspace.TemplateID]
+				if !found {
+					templateVersionName = "unknown"
+				}
 				user, err := db.GetUserByID(ctx, workspace.OwnerID)
 				if err != nil {
 					logger.Error(ctx, "can't get user", slog.F("user_id", workspace.OwnerID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if err != nil {
 					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				if len(agents) == 0 {
 					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				for _, agent := range agents {
 					// Collect information about agents
-					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name, templateName, templateVersionName)
 
 					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
 					node := (*coordinator.Load()).Node(agent.ID)
@@ -323,6 +341,46 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		cancelFunc()
 		<-done
 	}, nil
+}
+
+func getTemplatesAndVersionNamesFromWorkspaces(ctx context.Context, db database.Store, workspaceRows []database.GetWorkspacesRow) (map[uuid.UUID]string, map[uuid.UUID]string, error) {
+	// Aggregate the used template and version IDs to minimize DB calls
+	usedTemplateIDs := map[uuid.UUID]struct{}{}
+	usedTemplateVersionIDs := map[uuid.UUID]struct{}{}
+	for _, workspace := range workspaceRows {
+		usedTemplateIDs[workspace.TemplateID] = struct{}{}
+		usedTemplateVersionIDs[workspace.TemplateVersionID] = struct{}{}
+	}
+	templatesToGet := make([]uuid.UUID, 0, len(usedTemplateIDs))
+	for id := range usedTemplateIDs {
+		templatesToGet = append(templatesToGet, id)
+	}
+	templateVersionsToGet := make([]uuid.UUID, 0, len(usedTemplateVersionIDs))
+	for id := range usedTemplateVersionIDs {
+		templateVersionsToGet = append(templateVersionsToGet, id)
+	}
+
+	templates, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+		IDs: templatesToGet,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	templateNamesByID := make(map[uuid.UUID]string, len(templates))
+	for _, template := range templates {
+		templateNamesByID[template.ID] = template.Name
+	}
+
+	versions, err := db.GetTemplateVersionsByIDs(ctx, templateVersionsToGet)
+	if err != nil {
+		return nil, nil, err
+	}
+	templateVersionNamesByID := make(map[uuid.UUID]string, len(versions))
+	for _, version := range versions {
+		templateVersionNamesByID[version.ID] = version.Name
+	}
+
+	return templateNamesByID, templateVersionNamesByID, nil
 }
 
 func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration) (func(), error) {

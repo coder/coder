@@ -75,7 +75,7 @@ WHERE
 
 -- name: GetWorkspaces :many
 SELECT
-	workspaces.*, COUNT(*) OVER () as count
+	workspaces.*, latest_build.template_version_id as template_version_id, COUNT(*) OVER () as count
 FROM
     workspaces
 JOIN
@@ -85,6 +85,7 @@ ON
 LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
+		workspace_builds.template_version_id,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
