@@ -630,7 +630,7 @@ test-postgres-docker:
 		--name test-postgres-docker \
 		--restart no \
 		--detach \
-		postgres:13 \
+		gcr.io/coder-dev-1/postgres:13 \
 		-c shared_buffers=1GB \
 		-c work_mem=1GB \
 		-c effective_cache_size=1GB \
