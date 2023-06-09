@@ -36,7 +36,9 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     ),
     description: Yup.string().max(
       MAX_DESCRIPTION_CHAR_LIMIT,
-      i18next.t("descriptionMaxError", { ns: "templateSettingsPage" }).toString(),
+      i18next
+        .t("descriptionMaxError", { ns: "templateSettingsPage" })
+        .toString(),
     ),
     allow_user_cancel_workspace_jobs: Yup.boolean(),
     icon: iconValidator,

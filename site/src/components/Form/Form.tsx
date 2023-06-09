@@ -118,8 +118,10 @@ export const FormFooter: FC<BaseFormFooterProps> = (props) => {
     />
   )
 }
-const getFlexDirection = ({ direction }: FormContextValue = {}): "row" | "column" =>
-      direction === "horizontal" ? "row" as const : "column" as const
+const getFlexDirection = ({ direction }: FormContextValue = {}):
+  | "row"
+  | "column" =>
+  direction === "horizontal" ? ("row" as const) : ("column" as const)
 
 const useStyles = makeStyles((theme) => ({
   form: {

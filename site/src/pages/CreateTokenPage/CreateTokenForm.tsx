@@ -81,8 +81,10 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
         title="Expiration"
         description={
           form.values.lifetime
-            ? `The token will expire on ${dayjs().add(form.values.lifetime, "days").utc().format("MMMM DD, YYYY")
-}`
+            ? `The token will expire on ${dayjs()
+                .add(form.values.lifetime, "days")
+                .utc()
+                .format("MMMM DD, YYYY")}`
             : "Please set a token expiration."
         }
         classes={{ sectionInfo: styles.formSectionInfo }}
@@ -144,11 +146,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
       <FormFooter
         onCancel={() => navigate("/settings/tokens")}
         isLoading={isCreating}
-        submitLabel={
-          creationFailed
-            ? "Retry"
-            : "Create token"
-        }
+        submitLabel={creationFailed ? "Retry" : "Create token"}
       />
     </HorizontalForm>
   )

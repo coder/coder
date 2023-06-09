@@ -77,7 +77,7 @@ export const useValidationSchemaForRichParameters = (
                       path: ctx.path,
                       message: t("validationNumberLesserThan", {
                         min: templateParameter.validation_min,
-                      }).toString() ,
+                      }).toString(),
                     })
                   }
                 } else if (

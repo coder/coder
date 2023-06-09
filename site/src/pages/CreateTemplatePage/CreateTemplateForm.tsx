@@ -71,26 +71,22 @@ const validationSchema = Yup.object({
   ),
   description: Yup.string().max(
     MAX_DESCRIPTION_CHAR_LIMIT,
-    "Please enter a description that is less than or equal to 128 characters."
+    "Please enter a description that is less than or equal to 128 characters.",
   ),
   icon: Yup.string().optional(),
   default_ttl_hours: Yup.number()
     .integer()
-    .min(
-      0,
-      "Default time until autostop must not be less than 0."
-    )
+    .min(0, "Default time until autostop must not be less than 0.")
     .max(
       24 * MAX_TTL_DAYS /* 7 days in hours */,
-      "Please enter a limit that is less than or equal to 168 hours (7 days)."
+      "Please enter a limit that is less than or equal to 168 hours (7 days).",
     ),
   max_ttl_hours: Yup.number()
     .integer()
-    .min(0,
-      "Maximum time until autostop must not be less than 0.")
+    .min(0, "Maximum time until autostop must not be less than 0.")
     .max(
       24 * MAX_TTL_DAYS /* 7 days in hours */,
-      "Please enter a limit that is less than or equal to 168 hours(7 days)."
+      "Please enter a limit that is less than or equal to 168 hours(7 days).",
     ),
 })
 
