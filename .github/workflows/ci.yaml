@@ -335,6 +335,8 @@ jobs:
 
   test-go-race:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v3
