@@ -113,10 +113,10 @@ jobs:
           echo "${{ toJSON(steps.filter )}}"
 
   gen:
-    timeout-minutes: 8
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.docs-only == 'false'
+    timeout-minutes: 8
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
 
@@ -181,6 +181,8 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
+    needs: changes
+    if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'buildjet-4vcpu-ubuntu-2204' ||  matrix.os == 'windows-2019' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -253,6 +255,8 @@ jobs:
           flags: unittest-go-${{ matrix.os }}
 
   test-go-pg:
+    needs: changes
+    if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
@@ -306,6 +310,8 @@ jobs:
           flags: unittest-go-postgres-linux
 
   test-go-race:
+    needs: changes
+    if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 25
     steps:
@@ -329,12 +335,12 @@ jobs:
 
   deploy:
     name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    timeout-minutes: 30
     needs: changes
     if: |
       github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
       && needs.changes.outputs.docs-only == 'false'
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    timeout-minutes: 30 
     permissions:
       contents: read
       id-token: write
@@ -422,6 +428,8 @@ jobs:
           retention-days: 7
 
   test-js:
+    needs: changes
+    if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
@@ -445,8 +453,7 @@ jobs:
           flags: unittest-js
 
   test-e2e:
-    needs:
-      - changes
+    needs: changes
     if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 20
@@ -488,10 +495,9 @@ jobs:
 
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
-    runs-on: ubuntu-latest
-    needs:
-      - changes
+    needs: changes
     if: needs.changes.outputs.ts == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
