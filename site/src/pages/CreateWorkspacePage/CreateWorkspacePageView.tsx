@@ -213,7 +213,7 @@ export const CreateWorkspacePageView: FC<
               <UserAutocomplete
                 value={props.owner}
                 onChange={props.setOwner}
-                label={t("ownerLabel")}
+                label={t("ownerLabel").toString()}
                 size="medium"
               />
             </FormFields>
@@ -291,7 +291,7 @@ export const CreateWorkspacePageView: FC<
         <FormFooter
           onCancel={props.onCancel}
           isLoading={props.creatingWorkspace}
-          submitLabel={t("createWorkspace")}
+          submitLabel={t("createWorkspace").toString()}
         />
       </HorizontalForm>
     </FullPageHorizontalForm>

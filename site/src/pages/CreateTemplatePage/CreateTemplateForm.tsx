@@ -71,25 +71,26 @@ const validationSchema = Yup.object({
   ),
   description: Yup.string().max(
     MAX_DESCRIPTION_CHAR_LIMIT,
-    i18next.t("form.error.descriptionMax", { ns: "createTemplatePage" }),
+    "Please enter a description that is less than or equal to 128 characters."
   ),
   icon: Yup.string().optional(),
   default_ttl_hours: Yup.number()
     .integer()
     .min(
       0,
-      i18next.t("form.error.defaultTTLMin", { ns: "templateSettingsPage" }),
+      "Default time until autostop must not be less than 0."
     )
     .max(
       24 * MAX_TTL_DAYS /* 7 days in hours */,
-      i18next.t("form.error.defaultTTLMax", { ns: "templateSettingsPage" }),
+      "Please enter a limit that is less than or equal to 168 hours (7 days)."
     ),
   max_ttl_hours: Yup.number()
     .integer()
-    .min(0, i18next.t("form.error.maxTTLMin", { ns: "templateSettingsPage" }))
+    .min(0,
+      "Maximum time until autostop must not be less than 0.")
     .max(
       24 * MAX_TTL_DAYS /* 7 days in hours */,
-      i18next.t("form.error.maxTTLMax", { ns: "templateSettingsPage" }),
+      "Please enter a limit that is less than or equal to 168 hours(7 days)."
     ),
 })
 
@@ -223,8 +224,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
     <HorizontalForm onSubmit={form.handleSubmit}>
       {/* General info */}
       <FormSection
-        title={t("form.generalInfo.title")}
-        description={t("form.generalInfo.description")}
+        title="General info"
+        description="The name is used to identify the template in URLs and the API. It must be unique within your organization."
       >
         <FormFields>
           {starterTemplate ? (
@@ -255,8 +256,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
 
       {/* Display info  */}
       <FormSection
-        title={t("form.displayInfo.title")}
-        description={t("form.displayInfo.description")}
+        title="Display info"
+        description="Give your template a friendly name, description, and icon."
       >
         <FormFields>
           <TextField
@@ -288,8 +289,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
 
       {/* Schedule */}
       <FormSection
-        title={t("form.schedule.title")}
-        description={t("form.schedule.description")}
+        title="Schedule"
+        description="Define when workspaces created from this template automatically stop."
       >
         <FormFields>
           <Stack direction="row" className={styles.ttlFields}>
@@ -384,8 +385,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
 
       {/* Operations */}
       <FormSection
-        title={t("form.operations.title")}
-        description={t("form.operations.description")}
+        title="Operations"
+        description="Regulate actions allowed on workspaces created from this template."
       >
         <FormFields>
           <label htmlFor="allow_user_cancel_workspace_jobs">
