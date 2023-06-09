@@ -375,7 +375,18 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 		return WorkspaceAgent{}, ReadBodyAsError(res)
 	}
 	var workspaceAgent WorkspaceAgent
-	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
+	err = json.NewDecoder(res.Body).Decode(&workspaceAgent)
+	if err != nil {
+		return WorkspaceAgent{}, err
+	}
+	// Backwards compatibility for cases where the API is older then the client.
+	if workspaceAgent.StartupScriptBehavior == "" {
+		workspaceAgent.StartupScriptBehavior = WorkspaceAgentStartupScriptBehaviorNonBlocking
+		if !workspaceAgent.LoginBeforeReady {
+			workspaceAgent.StartupScriptBehavior = WorkspaceAgentStartupScriptBehaviorBlocking
+		}
+	}
+	return workspaceAgent, nil
 }
 
 type IssueReconnectingPTYSignedTokenRequest struct {
