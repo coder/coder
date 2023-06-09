@@ -6,19 +6,30 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
 )
 
 //nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T) {
 	// Test with AGPL commands
-	clitest.TestCommandHelp(t, (&cli.RootCmd{}).AGPL(), clitest.DefaultCases())
+	getCmds := func(t *testing.T) *clibase.Cmd {
+		// Must return a fresh instance of cmds each time.
+
+		t.Helper()
+		var root cli.RootCmd
+		rootCmd, err := root.Command(root.AGPL())
+		require.NoError(t, err)
+
+		return rootCmd
+	}
+	clitest.TestCommandHelp(t, getCmds, clitest.DefaultCases())
 }
 
 func TestRoot(t *testing.T) {

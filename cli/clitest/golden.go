@@ -15,7 +15,6 @@ import (
 	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -65,7 +64,7 @@ func DefaultCases() []CommandHelpCase {
 // using golden files.
 //
 //nolint:tparallel,paralleltest
-func TestCommandHelp(t *testing.T, cmds []*clibase.Cmd, cases []CommandHelpCase) {
+func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *clibase.Cmd, cases []CommandHelpCase) {
 	ogColorProfile := lipgloss.ColorProfile()
 	// ANSI256 escape codes are far easier for humans to parse in a diff,
 	// but TrueColor is probably more popular with modern terminals.
@@ -75,9 +74,7 @@ func TestCommandHelp(t *testing.T, cmds []*clibase.Cmd, cases []CommandHelpCase)
 	})
 	rootClient, replacements := prepareTestData(t)
 
-	rootCmd := new(cli.RootCmd)
-	root, err := rootCmd.Command(cmds)
-	require.NoError(t, err)
+	root := getRoot(t)
 
 ExtractCommandPathsLoop:
 	for _, cp := range extractVisibleCommandPaths(nil, root.Children) {
@@ -98,7 +95,10 @@ ExtractCommandPathsLoop:
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			var outBuf bytes.Buffer
-			inv, cfg := New(t, tt.Cmd...)
+
+			caseCmd := getRoot(t)
+
+			inv, cfg := NewWithCommand(t, caseCmd, tt.Cmd...)
 			inv.Stderr = &outBuf
 			inv.Stdout = &outBuf
 			inv.Environ.Set("CODER_URL", rootClient.URL.String())
@@ -122,7 +122,7 @@ ExtractCommandPathsLoop:
 			goldenPath := filepath.Join("testdata", strings.Replace(tt.Name, " ", "_", -1)+".golden")
 			if *UpdateGoldenFiles {
 				t.Logf("update golden file for: %q: %s", tt.Name, goldenPath)
-				err = os.WriteFile(goldenPath, actual, 0o600)
+				err := os.WriteFile(goldenPath, actual, 0o600)
 				require.NoError(t, err, "update golden file")
 			}
 
