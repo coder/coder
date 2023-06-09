@@ -167,7 +167,6 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				ctx,
 				cfg.TLS.ClientCertFile.String(),
 				cfg.TLS.ClientKeyFile.String(),
-				cfg.TLS.ClientCAFile.String(),
 			)
 			if err != nil {
 				return xerrors.Errorf("configure http client: %w", err)

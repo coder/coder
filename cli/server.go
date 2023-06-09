@@ -308,7 +308,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				ctx,
 				cfg.TLS.ClientCertFile.String(),
 				cfg.TLS.ClientKeyFile.String(),
-				cfg.TLS.ClientCAFile.String(),
 			)
 			if err != nil {
 				return xerrors.Errorf("configure http client: %w", err)
@@ -1418,7 +1417,7 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 		return nil, nil //nolint:nilnil
 	}
 
-	err = configureCAPool(tlsClientCAFile, tlsConfig)
+	err = configureClientCAPool(tlsClientCAFile, tlsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -1426,7 +1425,19 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	return tlsConfig, nil
 }
 
-func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {
+func configureRootCAPool(tlsConfig *tls.Config) error {
+	// Note that there is no way to reload certificates so if we need that we
+	// would have to copy the implementation although there is different behavior
+	// on different operating systems so it could be a lot.
+	caPool, err := x509.SystemCertPool()
+	if err != nil {
+		return err
+	}
+	tlsConfig.RootCAs = caPool
+	return nil
+}
+
+func configureClientCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {
 	if tlsClientCAFile != "" {
 		caPool := x509.NewCertPool()
 		data, err := os.ReadFile(tlsClientCAFile)
@@ -1634,30 +1645,29 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	return connectionURL, ep.Stop, nil
 }
 
-func ConfigureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile string, tlsClientCAFile string) (context.Context, *http.Client, error) {
+func ConfigureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile string) (context.Context, *http.Client, error) {
+	tlsClientConfig := &tls.Config{} //nolint:gosec
+
 	if clientCertFile != "" && clientKeyFile != "" {
 		certificates, err := loadCertificates([]string{clientCertFile}, []string{clientKeyFile})
 		if err != nil {
 			return ctx, nil, err
 		}
-
-		tlsClientConfig := &tls.Config{ //nolint:gosec
-			Certificates: certificates,
-			NextProtos:   []string{"h2", "http/1.1"},
-		}
-		err = configureCAPool(tlsClientCAFile, tlsClientConfig)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		httpClient := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: tlsClientConfig,
-			},
-		}
-		return context.WithValue(ctx, oauth2.HTTPClient, httpClient), httpClient, nil
+		tlsClientConfig.Certificates = certificates
+		tlsClientConfig.NextProtos = []string{"h2", "http/1.1"}
 	}
-	return ctx, &http.Client{}, nil
+
+	err := configureRootCAPool(tlsClientConfig)
+	if err != nil {
+		return ctx, nil, err
+	}
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsClientConfig,
+		},
+	}
+	return context.WithValue(ctx, oauth2.HTTPClient, httpClient), httpClient, nil
 }
 
 // nolint:revive
