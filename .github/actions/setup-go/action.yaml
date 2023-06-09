@@ -7,7 +7,7 @@ runs:
     - uses: buildjet/setup-go@v4
       with:
         cache: true
-        go-version: "~1.20"
+        go-version: "1.20.5"
     - name: Install gotestsum
       uses: jaxxstorm/action-install-gh-release@v1.10.0
       with:

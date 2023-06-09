@@ -6,10 +6,6 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      go_version:
-        description: "Go version to use for building."
-        required: false
-        default: "1.20.4"
       dry_run:
         description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
         type: boolean
@@ -35,7 +31,7 @@ env:
   # For some reason, setup-go won't actually pick up a new patch version if
   # it has an old one cached. We need to manually specify the versions so we
   # can get the latest release. Never use "~1.xx" here!
-  CODER_GO_VERSION: "1.20.4"
+  CODER_GO_VERSION: "1.20.5"
 
 jobs:
   release:
@@ -98,10 +94,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: buildjet/setup-go@v4
-        with:
-          go-version: ${{ env.CODER_GO_VERSION }}
-          cache: true
+      - uses: ./.github/actions/setup-go
 
       - name: Cache Node
         id: cache-node

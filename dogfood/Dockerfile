@@ -8,7 +8,7 @@ FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.20.4
+ARG GO_VERSION=1.20.5
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -75,7 +75,7 @@ RUN mkdir --parents "$GOPATH" && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
 	go install github.com/golang/mock/mockgen@v1.6.0
 
-FROM alpine:3.16 as proto
+FROM alpine:3.18 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip

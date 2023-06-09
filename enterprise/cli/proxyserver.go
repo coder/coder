@@ -185,7 +185,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				cliui.Warnf(
 					inv.Stderr,
 					"The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
-					cliui.Styles.Field.Render(cfg.AccessURL.String()), reason,
+					cliui.DefaultStyles.Field.Render(cfg.AccessURL.String()), reason,
 				)
 			}
 
@@ -297,7 +297,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			case exitErr = <-errCh:
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			}

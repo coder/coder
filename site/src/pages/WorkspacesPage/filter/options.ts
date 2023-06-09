@@ -1,11 +1,4 @@
-export type BaseOption = {
-  label: string
-  value: string
-}
-
-export type OwnerOption = BaseOption & {
-  avatarUrl?: string
-}
+import { BaseOption } from "components/Filter/options"
 
 export type StatusOption = BaseOption & {
   color: string

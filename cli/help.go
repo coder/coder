@@ -127,13 +127,38 @@ var usageTemplate = template.Must(
 				return opt.Flag
 			},
 			"prettyHeader": func(s string) string {
-				return cliui.Styles.Bold.Render(s)
+				return cliui.DefaultStyles.Bold.Render(s)
 			},
 			"isEnterprise": func(opt clibase.Option) bool {
 				return opt.Annotations.IsSet("enterprise")
 			},
 			"isDeprecated": func(opt clibase.Option) bool {
 				return len(opt.UseInstead) > 0
+			},
+			"useInstead": func(opt clibase.Option) string {
+				var sb strings.Builder
+				for i, s := range opt.UseInstead {
+					if i > 0 {
+						if i == len(opt.UseInstead)-1 {
+							_, _ = sb.WriteString(" and ")
+						} else {
+							_, _ = sb.WriteString(", ")
+						}
+					}
+					if s.Flag != "" {
+						_, _ = sb.WriteString("--")
+						_, _ = sb.WriteString(s.Flag)
+					} else if s.FlagShorthand != "" {
+						_, _ = sb.WriteString("-")
+						_, _ = sb.WriteString(s.FlagShorthand)
+					} else if s.Env != "" {
+						_, _ = sb.WriteString("$")
+						_, _ = sb.WriteString(s.Env)
+					} else {
+						_, _ = sb.WriteString(s.Name)
+					}
+				}
+				return sb.String()
 			},
 			"formatLong": func(long string) string {
 				// We intentionally don't wrap here because it would misformat

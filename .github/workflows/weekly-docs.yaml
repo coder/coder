@@ -1,4 +1,4 @@
-name: Weekly Cron
+name: weekly-docs
 # runs every monday at 9 am
 on:
   schedule:

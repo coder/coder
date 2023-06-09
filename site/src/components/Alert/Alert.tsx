@@ -27,6 +27,7 @@ export const Alert: FC<AlertProps> = ({
     <Collapse in={open}>
       <MuiAlert
         {...alertProps}
+        sx={{ textAlign: "left", ...alertProps.sx }}
         severity={severity}
         action={
           <>

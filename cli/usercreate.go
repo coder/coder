@@ -71,16 +71,16 @@ func (r *RootCmd) userCreate() *clibase.Cmd {
 			}
 			_, _ = fmt.Fprintln(inv.Stderr, `A new user has been created!
 Share the instructions below to get them started.
-`+cliui.Styles.Placeholder.Render("—————————————————————————————————————————————————")+`
+`+cliui.DefaultStyles.Placeholder.Render("—————————————————————————————————————————————————")+`
 Download the Coder command line for your operating system:
 https://github.com/coder/coder/releases
 
-Run `+cliui.Styles.Code.Render("coder login "+client.URL.String())+` to authenticate.
+Run `+cliui.DefaultStyles.Code.Render("coder login "+client.URL.String())+` to authenticate.
 
-Your email is: `+cliui.Styles.Field.Render(email)+`
-Your password is: `+cliui.Styles.Field.Render(password)+`
+Your email is: `+cliui.DefaultStyles.Field.Render(email)+`
+Your password is: `+cliui.DefaultStyles.Field.Render(password)+`
 
-Create a workspace  `+cliui.Styles.Code.Render("coder create")+`!`)
+Create a workspace  `+cliui.DefaultStyles.Code.Render("coder create")+`!`)
 			return nil
 		},
 	}

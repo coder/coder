@@ -90,6 +90,19 @@ Coder stores macOS and Linux logs at the following locations:
 
 > Note: Logs are truncated once they reach 5MB in size.
 
+## Workspace filtering
+
+In the Coder UI, you can filter your workspaces using pre-defined filters or employing the Coder's filter query. Take a look at the following examples to understand how to use the Coder's filter query:
+
+- To find the workspaces that you own, use the filter `owner:me`.
+- To find workspaces that are currently running, use the filter `status:running`.
+
+The following filters are supported:
+
+- `owner` - Represents the `username` of the owner. You can also use `me` as a convenient alias for the logged-in user.
+- `template` - Specifies the name of the template.
+- `status` - Indicates the status of the workspace. For a list of supported statuses, please refer to the [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
+
 ---
 
 ## Up next

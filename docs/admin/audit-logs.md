@@ -37,7 +37,7 @@ The supported filters are:
 - `resource_id` - The ID of the resource.
 - `resource_target` - The name of the resource. Can be used instead of `resource_id`.
 - `action`- The action applied to a resource. You can [find here](https://pkg.go.dev/github.com/coder/coder/codersdk#AuditAction) all the actions that are supported.
-- `username` - The username of the user who triggered the action.
+- `username` - The username of the user who triggered the action. You can also use `me` as a convenient alias for the logged-in user.
 - `email` - The email of the user who triggered the action.
 - `date_from` - The inclusive start date with format `YYYY-MM-DD`.
 - `date_to` - The inclusive end date with format `YYYY-MM-DD`.

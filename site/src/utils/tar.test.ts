@@ -1,4 +1,4 @@
-import { TarReader, TarWriter, ITarFileInfo, TarFileType } from "./tar"
+import { TarReader, TarWriter, ITarFileInfo, TarFileTypeCodes } from "./tar"
 
 const mtime = 1666666666666
 
@@ -56,5 +56,5 @@ function verifyFile(
 
 function verifyFolder(info: ITarFileInfo, expected: { name: string }) {
   expect(info.name).toEqual(expected.name)
-  expect(info.type).toEqual(TarFileType.Dir)
+  expect(info.type).toEqual(TarFileTypeCodes.Dir)
 }

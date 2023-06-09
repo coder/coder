@@ -41,7 +41,7 @@ var errDuplicateKey = &pq.Error{
 
 // New returns an in-memory fake of the database.
 func New() database.Store {
-	return &fakeQuerier{
+	q := &fakeQuerier{
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:                   make([]database.APIKey, 0),
@@ -73,6 +73,9 @@ func New() database.Store {
 			locks:                     map[int64]struct{}{},
 		},
 	}
+	q.defaultProxyDisplayName = "Default"
+	q.defaultProxyIconURL = "/emojis/1f3e1.png"
+	return q
 }
 
 type rwMutex interface {
@@ -144,14 +147,16 @@ type data struct {
 
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
-	locks           map[int64]struct{}
-	deploymentID    string
-	derpMeshKey     string
-	lastUpdateCheck []byte
-	serviceBanner   []byte
-	logoURL         string
-	appSecurityKey  string
-	lastLicenseID   int32
+	locks                   map[int64]struct{}
+	deploymentID            string
+	derpMeshKey             string
+	lastUpdateCheck         []byte
+	serviceBanner           []byte
+	logoURL                 string
+	appSecurityKey          string
+	lastLicenseID           int32
+	defaultProxyDisplayName string
+	defaultProxyIconURL     string
 }
 
 func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
@@ -931,14 +936,9 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	users := make([]database.User, len(q.users))
 	copy(users, q.users)
 
-	// Database orders by created_at
+	// Database orders by username
 	slices.SortFunc(users, func(a, b database.User) bool {
-		if a.CreatedAt.Equal(b.CreatedAt) {
-			// Technically the postgres database also orders by uuid. So match
-			// that behavior
-			return a.ID.String() < b.ID.String()
-		}
-		return a.CreatedAt.Before(b.CreatedAt)
+		return strings.ToLower(a.Username) < strings.ToLower(b.Username)
 	})
 
 	// Filter out deleted since they should never be returned..
@@ -1168,81 +1168,67 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				return nil, xerrors.Errorf("get provisioner job: %w", err)
 			}
 
+			// This logic should match the logic in the workspace.sql file.
+			var statusMatch bool
 			switch database.WorkspaceStatus(arg.Status) {
 			case database.WorkspaceStatusPending:
-				if !job.StartedAt.Valid {
-					continue
-				}
-
+				statusMatch = isNull(job.StartedAt)
 			case database.WorkspaceStatusStarting:
-				if !job.StartedAt.Valid &&
-					!job.CanceledAt.Valid &&
-					job.CompletedAt.Valid &&
-					time.Since(job.UpdatedAt) > 30*time.Second ||
-					build.Transition != database.WorkspaceTransitionStart {
-					continue
-				}
+				statusMatch = isNotNull(job.StartedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.CompletedAt) &&
+					time.Since(job.UpdatedAt) < 30*time.Second &&
+					build.Transition == database.WorkspaceTransitionStart
 
 			case database.WorkspaceStatusRunning:
-				if !job.CompletedAt.Valid &&
-					job.CanceledAt.Valid &&
-					job.Error.Valid ||
-					build.Transition != database.WorkspaceTransitionStart {
-					continue
-				}
+				statusMatch = isNotNull(job.CompletedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.Error) &&
+					build.Transition == database.WorkspaceTransitionStart
 
 			case database.WorkspaceStatusStopping:
-				if !job.StartedAt.Valid &&
-					!job.CanceledAt.Valid &&
-					job.CompletedAt.Valid &&
-					time.Since(job.UpdatedAt) > 30*time.Second ||
-					build.Transition != database.WorkspaceTransitionStop {
-					continue
-				}
+				statusMatch = isNotNull(job.StartedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.CompletedAt) &&
+					time.Since(job.UpdatedAt) < 30*time.Second &&
+					build.Transition == database.WorkspaceTransitionStop
 
 			case database.WorkspaceStatusStopped:
-				if !job.CompletedAt.Valid &&
-					job.CanceledAt.Valid &&
-					job.Error.Valid ||
-					build.Transition != database.WorkspaceTransitionStop {
-					continue
-				}
-
+				statusMatch = isNotNull(job.CompletedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.Error) &&
+					build.Transition == database.WorkspaceTransitionStop
 			case database.WorkspaceStatusFailed:
-				if (!job.CanceledAt.Valid && !job.Error.Valid) ||
-					(!job.CompletedAt.Valid && !job.Error.Valid) {
-					continue
-				}
+				statusMatch = (isNotNull(job.CanceledAt) && isNotNull(job.Error)) ||
+					(isNotNull(job.CompletedAt) && isNotNull(job.Error))
 
 			case database.WorkspaceStatusCanceling:
-				if !job.CanceledAt.Valid && job.CompletedAt.Valid {
-					continue
-				}
+				statusMatch = isNotNull(job.CanceledAt) &&
+					isNull(job.CompletedAt)
 
 			case database.WorkspaceStatusCanceled:
-				if !job.CanceledAt.Valid && !job.CompletedAt.Valid {
-					continue
-				}
+				statusMatch = isNotNull(job.CanceledAt) &&
+					isNotNull(job.CompletedAt)
 
 			case database.WorkspaceStatusDeleted:
-				if !job.StartedAt.Valid &&
-					job.CanceledAt.Valid &&
-					!job.CompletedAt.Valid &&
-					time.Since(job.UpdatedAt) > 30*time.Second ||
-					build.Transition != database.WorkspaceTransitionDelete {
-					continue
-				}
+				statusMatch = isNotNull(job.StartedAt) &&
+					isNull(job.CanceledAt) &&
+					isNotNull(job.CompletedAt) &&
+					time.Since(job.UpdatedAt) < 30*time.Second &&
+					build.Transition == database.WorkspaceTransitionDelete &&
+					isNull(job.Error)
 
 			case database.WorkspaceStatusDeleting:
-				if !job.CompletedAt.Valid &&
-					job.CanceledAt.Valid &&
-					job.Error.Valid &&
-					build.Transition != database.WorkspaceTransitionDelete {
-					continue
-				}
+				statusMatch = isNull(job.CompletedAt) &&
+					isNull(job.CanceledAt) &&
+					isNull(job.Error) &&
+					build.Transition == database.WorkspaceTransitionDelete
 
 			default:
 				return nil, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
+			}
+			if !statusMatch {
+				continue
 			}
 		}
 
@@ -3079,6 +3065,7 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		Architecture:             arg.Architecture,
 		OperatingSystem:          arg.OperatingSystem,
 		Directory:                arg.Directory,
+		StartupScriptBehavior:    arg.StartupScriptBehavior,
 		StartupScript:            arg.StartupScript,
 		InstanceMetadata:         arg.InstanceMetadata,
 		ResourceMetadata:         arg.ResourceMetadata,
@@ -5178,4 +5165,27 @@ func (q *fakeQuerier) UpdateWorkspaceProxyDeleted(_ context.Context, arg databas
 		}
 	}
 	return sql.ErrNoRows
+}
+
+// isNull is only used in dbfake, so reflect is ok. Use this to make the logic
+// look more similar to the postgres.
+func isNull(v interface{}) bool {
+	return !isNotNull(v)
+}
+
+func isNotNull(v interface{}) bool {
+	return reflect.ValueOf(v).FieldByName("Valid").Bool()
+}
+
+func (q *fakeQuerier) GetDefaultProxyConfig(_ context.Context) (database.GetDefaultProxyConfigRow, error) {
+	return database.GetDefaultProxyConfigRow{
+		DisplayName: q.defaultProxyDisplayName,
+		IconUrl:     q.defaultProxyIconURL,
+	}, nil
+}
+
+func (q *fakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
+	q.defaultProxyDisplayName = arg.DisplayName
+	q.defaultProxyIconURL = arg.IconUrl
+	return nil
 }

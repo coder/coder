@@ -1,0 +1,19 @@
+Usage: coder provisionerd start [flags]
+
+Run a provisioner daemon
+
+[1mOptions[0m
+  -c, --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
+          Directory to store cached data.
+
+      --poll-interval duration, $CODER_PROVISIONERD_POLL_INTERVAL (default: 1s)
+          How often to poll for provisioner jobs.
+
+      --poll-jitter duration, $CODER_PROVISIONERD_POLL_JITTER (default: 100ms)
+          How much to jitter the poll interval by.
+
+  -t, --tag string-array, $CODER_PROVISIONERD_TAGS
+          Tags to filter provisioner jobs by.
+
+---
+Run `coder --help` for a list of global options.

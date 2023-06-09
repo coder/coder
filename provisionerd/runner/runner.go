@@ -88,6 +88,7 @@ type Runner struct {
 
 type Metrics struct {
 	ConcurrentJobs *prometheus.GaugeVec
+	NumDaemons     prometheus.Gauge
 	// JobTimings also counts the total amount of jobs.
 	JobTimings *prometheus.HistogramVec
 	// WorkspaceBuilds counts workspace build successes and failures.

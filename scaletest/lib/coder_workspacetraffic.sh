@@ -11,9 +11,13 @@ fi
 [[ -n ${VERBOSE:-} ]] && set -x
 
 LOADTEST_NAME="$1"
-CODER_TOKEN=$(./coder_shim.sh tokens create)
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+CODER_TOKEN=$("${PROJECT_ROOT}/scaletest/lib/coder_shim.sh" tokens create)
 CODER_URL="http://coder.coder-${LOADTEST_NAME}.svc.cluster.local"
-export KUBECONFIG="${PWD}/.coderv2/${LOADTEST_NAME}-cluster.kubeconfig"
+export KUBECONFIG="${PROJECT_ROOT}/scaletest/.coderv2/${LOADTEST_NAME}-cluster.kubeconfig"
+
+# Clean up any pre-existing pods
+kubectl -n "coder-${LOADTEST_NAME}" delete pod coder-scaletest-workspace-traffic --force || true
 
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
@@ -37,7 +41,7 @@ spec:
   - command:
     - sh
     - -c
-    - "curl -fsSL $CODER_URL/bin/coder-linux-amd64 -o /tmp/coder && chmod +x /tmp/coder && /tmp/coder --url=$CODER_URL --token=$CODER_TOKEN scaletest workspace-traffic"
+    - "curl -fsSL $CODER_URL/bin/coder-linux-amd64 -o /tmp/coder && chmod +x /tmp/coder && /tmp/coder --verbose --url=$CODER_URL --token=$CODER_TOKEN scaletest workspace-traffic --concurrency=0 --bytes-per-tick=4096 --tick-interval=100ms"
     env:
     - name: CODER_URL
       value: $CODER_URL

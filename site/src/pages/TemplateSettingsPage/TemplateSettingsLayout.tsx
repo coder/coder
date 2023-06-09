@@ -34,10 +34,13 @@ const fetchTemplateSettings = async (orgId: string, name: string) => {
   }
 }
 
+export const getTemplateQuery = (name: string) => ["template", name, "settings"]
+
 const useTemplate = (orgId: string, name: string) => {
   return useQuery({
-    queryKey: ["template", name, "settings"],
+    queryKey: getTemplateQuery(name),
     queryFn: () => fetchTemplateSettings(orgId, name),
+    keepPreviousData: true,
   })
 }
 

@@ -3,19 +3,18 @@ import "jest-canvas-mock"
 import WS from "jest-websocket-mock"
 import { rest } from "msw"
 import {
-  MockPrimaryWorkspaceProxy,
-  MockProxyLatencies,
+  MockUser,
   MockWorkspace,
   MockWorkspaceAgent,
-  MockWorkspaceProxies,
 } from "testHelpers/entities"
 import { TextDecoder, TextEncoder } from "util"
 import { ReconnectingPTYRequest } from "../../api/types"
-import { history, render } from "../../testHelpers/renderHelpers"
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
+} from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import TerminalPage, { Language } from "./TerminalPage"
-import { Route, Routes } from "react-router-dom"
-import { ProxyContext } from "contexts/ProxyContext"
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -35,56 +34,35 @@ Object.defineProperty(window, "TextEncoder", {
   value: TextEncoder,
 })
 
-const renderTerminal = () => {
-  // @emyrk using renderWithAuth would be best here, but I was unable to get it to work.
-  return render(
-    <Routes>
-      <Route
-        path="/:username/:workspace/terminal"
-        element={
-          <ProxyContext.Provider
-            value={{
-              proxyLatencies: MockProxyLatencies,
-              proxy: {
-                proxy: MockPrimaryWorkspaceProxy,
-                preferredPathAppURL: "",
-                preferredWildcardHostname: "",
-              },
-              proxies: MockWorkspaceProxies,
-              isFetched: true,
-              isLoading: false,
-              setProxy: jest.fn(),
-              clearProxy: jest.fn(),
-              refetchProxyLatencies: jest.fn(),
-            }}
-          >
-            <TerminalPage renderer="dom" />
-          </ProxyContext.Provider>
-        }
-      />
-    </Routes>,
-  )
+const renderTerminal = async (
+  route = `/${MockUser.username}/${MockWorkspace.name}/terminal`,
+) => {
+  const utils = renderWithAuth(<TerminalPage />, {
+    route,
+    path: "/:username/:workspace/terminal",
+  })
+  await waitForLoaderToBeRemoved()
+  return utils
 }
 
 const expectTerminalText = (container: HTMLElement, text: string) => {
-  return waitFor(() => {
-    const elements = container.getElementsByClassName("xterm-rows")
-    if (elements.length === 0) {
-      throw new Error("no xterm-rows")
-    }
-    const row = elements[0] as HTMLDivElement
-    if (!row.textContent) {
-      throw new Error("no text content")
-    }
-    expect(row.textContent).toContain(text)
-  })
+  return waitFor(
+    () => {
+      const elements = container.getElementsByClassName("xterm-rows")
+      if (elements.length === 0) {
+        throw new Error("no xterm-rows")
+      }
+      const row = elements[0] as HTMLDivElement
+      if (!row.textContent) {
+        throw new Error("no text content")
+      }
+      expect(row.textContent).toContain(text)
+    },
+    { timeout: 3_000 },
+  )
 }
 
 describe("TerminalPage", () => {
-  beforeEach(() => {
-    history.push(`/some-user/${MockWorkspace.name}/terminal`)
-  })
-
   it("shows an error if fetching workspace fails", async () => {
     // Given
     server.use(
@@ -97,7 +75,7 @@ describe("TerminalPage", () => {
     )
 
     // When
-    const { container } = renderTerminal()
+    const { container } = await renderTerminal()
 
     // Then
     await expectTerminalText(container, Language.workspaceErrorMessagePrefix)
@@ -112,7 +90,7 @@ describe("TerminalPage", () => {
     )
 
     // When
-    const { container } = renderTerminal()
+    const { container } = await renderTerminal()
 
     // Then
     await expectTerminalText(container, Language.websocketErrorMessagePrefix)
@@ -120,59 +98,58 @@ describe("TerminalPage", () => {
 
   it("renders data from the backend", async () => {
     // Given
-    const server = new WS(
-      "ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty",
+    const ws = new WS(
+      `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
     )
     const text = "something to render"
 
     // When
-    const { container } = renderTerminal()
+    const { container } = await renderTerminal()
 
     // Then
-    await server.connected
-    server.send(text)
+    await ws.connected
+    ws.send(text)
     await expectTerminalText(container, text)
-    server.close()
+    ws.close()
   })
 
   it("resizes on connect", async () => {
     // Given
-    const server = new WS(
-      "ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty",
+    const ws = new WS(
+      `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
     )
 
     // When
-    renderTerminal()
+    await renderTerminal()
 
     // Then
-    await server.connected
-    const msg = await server.nextMessage
+    await ws.connected
+    const msg = await ws.nextMessage
     const req: ReconnectingPTYRequest = JSON.parse(
       new TextDecoder().decode(msg as Uint8Array),
     )
 
     expect(req.height).toBeGreaterThan(0)
     expect(req.width).toBeGreaterThan(0)
-    server.close()
+    ws.close()
   })
 
   it("supports workspace.agent syntax", async () => {
     // Given
-    const server = new WS(
-      "ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty",
+    const ws = new WS(
+      `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
     )
     const text = "something to render"
 
     // When
-    history.push(
+    const { container } = await renderTerminal(
       `/some-user/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`,
     )
-    const { container } = renderTerminal()
 
     // Then
-    await server.connected
-    server.send(text)
+    await ws.connected
+    ws.send(text)
     await expectTerminalText(container, text)
-    server.close()
+    ws.close()
   })
 })

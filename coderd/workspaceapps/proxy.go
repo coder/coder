@@ -361,35 +361,34 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
-			if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
-				return
-			}
-
-			token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
-				Logger:              s.Logger,
-				SignedTokenProvider: s.SignedTokenProvider,
-				DashboardURL:        s.DashboardURL,
-				PathAppBaseURL:      s.AccessURL,
-				AppHostname:         s.Hostname,
-				AppRequest: Request{
-					AccessMethod:      AccessMethodSubdomain,
-					BasePath:          "/",
-					UsernameOrID:      app.Username,
-					WorkspaceNameOrID: app.WorkspaceName,
-					AgentNameOrID:     app.AgentName,
-					AppSlugOrPort:     app.AppSlugOrPort,
-				},
-				AppPath:  r.URL.Path,
-				AppQuery: r.URL.RawQuery,
-			})
-			if !ok {
-				return
-			}
-
-			// Use the passed in app middlewares before passing to the proxy
-			// app.
-			mws := chi.Middlewares(middlewares)
+			// Use the passed in app middlewares before checking authentication and
+			// passing to the proxy app.
+			mws := chi.Middlewares(append(middlewares, httpmw.WorkspaceAppCors(s.HostnameRegex, app)))
 			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
+					return
+				}
+
+				token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
+					Logger:              s.Logger,
+					SignedTokenProvider: s.SignedTokenProvider,
+					DashboardURL:        s.DashboardURL,
+					PathAppBaseURL:      s.AccessURL,
+					AppHostname:         s.Hostname,
+					AppRequest: Request{
+						AccessMethod:      AccessMethodSubdomain,
+						BasePath:          "/",
+						UsernameOrID:      app.Username,
+						WorkspaceNameOrID: app.WorkspaceName,
+						AgentNameOrID:     app.AgentName,
+						AppSlugOrPort:     app.AppSlugOrPort,
+					},
+					AppPath:  r.URL.Path,
+					AppQuery: r.URL.RawQuery,
+				})
+				if !ok {
+					return
+				}
 				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})

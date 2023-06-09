@@ -212,7 +212,7 @@ func TestExtractWorkspaceProxyParam(t *testing.T) {
 		routeContext.URLParams.Add("workspaceproxy", proxy.Name)
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
 
-		httpmw.ExtractWorkspaceProxyParam(db)(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		httpmw.ExtractWorkspaceProxyParam(db, uuid.NewString(), nil)(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.WorkspaceProxyParam(request)
 			successHandler.ServeHTTP(writer, request)
@@ -236,7 +236,7 @@ func TestExtractWorkspaceProxyParam(t *testing.T) {
 		routeContext.URLParams.Add("workspaceproxy", proxy.ID.String())
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
 
-		httpmw.ExtractWorkspaceProxyParam(db)(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		httpmw.ExtractWorkspaceProxyParam(db, uuid.NewString(), nil)(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.WorkspaceProxyParam(request)
 			successHandler.ServeHTTP(writer, request)
@@ -258,9 +258,44 @@ func TestExtractWorkspaceProxyParam(t *testing.T) {
 		routeContext.URLParams.Add("workspaceproxy", uuid.NewString())
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
 
-		httpmw.ExtractWorkspaceProxyParam(db)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractWorkspaceProxyParam(db, uuid.NewString(), nil)(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("FetchPrimary", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db           = dbfake.New()
+			r            = httptest.NewRequest("GET", "/", nil)
+			rw           = httptest.NewRecorder()
+			deploymentID = uuid.New()
+			primaryProxy = database.WorkspaceProxy{
+				ID:               deploymentID,
+				Name:             "primary",
+				DisplayName:      "Default",
+				Icon:             "Icon",
+				Url:              "Url",
+				WildcardHostname: "Wildcard",
+			}
+			fetchPrimary = func(ctx context.Context) (database.WorkspaceProxy, error) {
+				return primaryProxy, nil
+			}
+		)
+
+		routeContext := chi.NewRouteContext()
+		routeContext.URLParams.Add("workspaceproxy", deploymentID.String())
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
+
+		httpmw.ExtractWorkspaceProxyParam(db, deploymentID.String(), fetchPrimary)(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			// Checks that it exists on the context!
+			found := httpmw.WorkspaceProxyParam(request)
+			require.Equal(t, primaryProxy, found)
+			successHandler.ServeHTTP(writer, request)
+		})).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 }

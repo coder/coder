@@ -44,11 +44,6 @@ func TestRegions(t *testing.T) {
 		}
 
 		db, pubsub := dbtestutil.NewDB(t)
-		deploymentID := uuid.New()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		err := db.InsertDeploymentID(ctx, deploymentID.String())
-		require.NoError(t, err)
 
 		client := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -58,14 +53,18 @@ func TestRegions(t *testing.T) {
 				DeploymentValues: dv,
 			},
 		})
+
 		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		deploymentID, err := db.GetDeploymentID(ctx)
+		require.NoError(t, err, "get deployment ID")
 
 		regions, err := client.Regions(ctx)
 		require.NoError(t, err)
 
 		require.Len(t, regions, 1)
 		require.NotEqual(t, uuid.Nil, regions[0].ID)
-		require.Equal(t, regions[0].ID, deploymentID)
+		require.Equal(t, regions[0].ID.String(), deploymentID)
 		require.Equal(t, "primary", regions[0].Name)
 		require.Equal(t, "Default", regions[0].DisplayName)
 		require.NotEmpty(t, regions[0].IconURL)
@@ -89,11 +88,6 @@ func TestRegions(t *testing.T) {
 		}
 
 		db, pubsub := dbtestutil.NewDB(t)
-		deploymentID := uuid.New()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		err := db.InsertDeploymentID(ctx, deploymentID.String())
-		require.NoError(t, err)
 
 		client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -106,6 +100,9 @@ func TestRegions(t *testing.T) {
 		t.Cleanup(func() {
 			_ = closer.Close()
 		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		deploymentID, err := db.GetDeploymentID(ctx)
+		require.NoError(t, err, "get deployment ID")
 		_ = coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -131,7 +128,7 @@ func TestRegions(t *testing.T) {
 
 		// Region 0 is the primary	require.Len(t, regions, 1)
 		require.NotEqual(t, uuid.Nil, regions[0].ID)
-		require.Equal(t, regions[0].ID, deploymentID)
+		require.Equal(t, regions[0].ID.String(), deploymentID)
 		require.Equal(t, "primary", regions[0].Name)
 		require.Equal(t, "Default", regions[0].DisplayName)
 		require.NotEmpty(t, regions[0].IconURL)
@@ -325,7 +322,8 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err)
-		require.Len(t, proxies, 0)
+		// Default proxy is always there
+		require.Len(t, proxies, 1)
 	})
 }
 
@@ -387,11 +385,10 @@ func TestIssueSignedAppToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	proxyClient := wsproxysdk.New(client.URL)
-	proxyClient.SetSessionToken(proxyRes.ProxyToken)
-
 	t.Run("BadAppRequest", func(t *testing.T) {
 		t.Parallel()
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err = proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
@@ -412,6 +409,8 @@ func TestIssueSignedAppToken(t *testing.T) {
 	}
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err = proxyClient.IssueSignedAppToken(ctx, goodRequest)
@@ -420,6 +419,8 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	t.Run("OKHTML", func(t *testing.T) {
 		t.Parallel()
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		rw := httptest.NewRecorder()
 		ctx := testutil.Context(t, testutil.WaitLong)

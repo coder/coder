@@ -140,6 +140,12 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 				Name:      "jobs_current",
 				Help:      "The number of currently running provisioner jobs.",
 			}, []string{"provisioner"}),
+			NumDaemons: auto.NewGauge(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "num_daemons",
+				Help:      "The number of provisioner daemons.",
+			}),
 			JobTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
 				Namespace: "coderd",
 				Subsystem: "provisionerd",

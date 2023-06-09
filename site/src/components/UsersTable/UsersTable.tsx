@@ -27,6 +27,7 @@ export interface UsersTableProps {
   onActivateUser: (user: TypesGen.User) => void
   onDeleteUser: (user: TypesGen.User) => void
   onListWorkspaces: (user: TypesGen.User) => void
+  onViewActivity: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (
     user: TypesGen.User,
@@ -42,6 +43,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   onSuspendUser,
   onDeleteUser,
   onListWorkspaces,
+  onViewActivity,
   onActivateUser,
   onResetUserPassword,
   onUpdateUserRoles,
@@ -80,6 +82,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             onActivateUser={onActivateUser}
             onDeleteUser={onDeleteUser}
             onListWorkspaces={onListWorkspaces}
+            onViewActivity={onViewActivity}
             onResetUserPassword={onResetUserPassword}
             onSuspendUser={onSuspendUser}
             onUpdateUserRoles={onUpdateUserRoles}

@@ -86,7 +86,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 			if err != nil {
 				// Checking versions isn't a fatal error so we print a warning
 				// and proceed.
-				_, _ = fmt.Fprintln(inv.Stderr, cliui.Styles.Warn.Render(err.Error()))
+				_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Warn.Render(err.Error()))
 			}
 
 			hasInitialUser, err := client.HasFirstUser(inv.Context())
@@ -116,7 +116,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 						return xerrors.Errorf("get current user: %w", err)
 					}
 					username, err = cliui.Prompt(inv, cliui.PromptOptions{
-						Text:    "What " + cliui.Styles.Field.Render("username") + " would you like?",
+						Text:    "What " + cliui.DefaultStyles.Field.Render("username") + " would you like?",
 						Default: currentUser.Username,
 					})
 					if errors.Is(err, cliui.Canceled) {
@@ -129,7 +129,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 
 				if email == "" {
 					email, err = cliui.Prompt(inv, cliui.PromptOptions{
-						Text: "What's your " + cliui.Styles.Field.Render("email") + "?",
+						Text: "What's your " + cliui.DefaultStyles.Field.Render("email") + "?",
 						Validate: func(s string) error {
 							err := validator.New().Var(s, "email")
 							if err != nil {
@@ -148,7 +148,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 
 					for !matching {
 						password, err = cliui.Prompt(inv, cliui.PromptOptions{
-							Text:   "Enter a " + cliui.Styles.Field.Render("password") + ":",
+							Text:   "Enter a " + cliui.DefaultStyles.Field.Render("password") + ":",
 							Secret: true,
 							Validate: func(s string) error {
 								return userpassword.Validate(s)
@@ -158,7 +158,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 							return xerrors.Errorf("specify password prompt: %w", err)
 						}
 						confirm, err := cliui.Prompt(inv, cliui.PromptOptions{
-							Text:     "Confirm " + cliui.Styles.Field.Render("password") + ":",
+							Text:     "Confirm " + cliui.DefaultStyles.Field.Render("password") + ":",
 							Secret:   true,
 							Validate: cliui.ValidateNotEmpty,
 						})
@@ -168,7 +168,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 
 						matching = confirm == password
 						if !matching {
-							_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Error.Render("Passwords do not match"))
+							_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Error.Render("Passwords do not match"))
 						}
 					}
 				}
@@ -211,10 +211,10 @@ func (r *RootCmd) login() *clibase.Cmd {
 				}
 
 				_, _ = fmt.Fprintf(inv.Stdout,
-					cliui.Styles.Paragraph.Render(fmt.Sprintf("Welcome to Coder, %s! You're authenticated.", cliui.Styles.Keyword.Render(username)))+"\n")
+					cliui.DefaultStyles.Paragraph.Render(fmt.Sprintf("Welcome to Coder, %s! You're authenticated.", cliui.DefaultStyles.Keyword.Render(username)))+"\n")
 
 				_, _ = fmt.Fprintf(inv.Stdout,
-					cliui.Styles.Paragraph.Render("Get started by creating a template: "+cliui.Styles.Code.Render("coder templates init"))+"\n")
+					cliui.DefaultStyles.Paragraph.Render("Get started by creating a template: "+cliui.DefaultStyles.Code.Render("coder templates init"))+"\n")
 				return nil
 			}
 
@@ -264,7 +264,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				return xerrors.Errorf("write server url: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.Styles.Keyword.Render(resp.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.DefaultStyles.Keyword.Render(resp.Username))
 			return nil
 		},
 	}

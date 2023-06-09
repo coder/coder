@@ -426,7 +426,7 @@ OIDC claim field to use as the email.
 | Environment | <code>$CODER_OIDC_GROUP_FIELD</code> |
 | YAML        | <code>oidc.groupField</code>         |
 
-Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.
+This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.
 
 ### --oidc-group-mapping
 
@@ -585,6 +585,17 @@ Serve prometheus metrics on the address defined by prometheus address.
 | Default     | <code>3</code>                          |
 
 Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
+
+### --proxy-health-interval
+
+|             |                                                  |
+| ----------- | ------------------------------------------------ |
+| Type        | <code>duration</code>                            |
+| Environment | <code>$CODER_PROXY_HEALTH_INTERVAL</code>        |
+| YAML        | <code>networking.http.proxyHealthInterval</code> |
+| Default     | <code>1m0s</code>                                |
+
+The interval in which coderd should be checking the status of workspace proxies.
 
 ### --proxy-trusted-headers
 
