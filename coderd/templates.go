@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
 )
@@ -149,6 +150,19 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if !httpapi.Read(ctx, rw, r, &createTemplate) {
 		return
 	}
+
+	// Make a temporary struct to represent the template. This is used for
+	// auditing if any of the following checks fail. It will be overwritten when
+	// the template is inserted into the db.
+	templateAudit.New = database.Template{
+		OrganizationID: organization.ID,
+		Name:           createTemplate.Name,
+		Description:    createTemplate.Description,
+		CreatedBy:      apiKey.UserID,
+		Icon:           createTemplate.Icon,
+		DisplayName:    createTemplate.DisplayName,
+	}
+
 	_, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           createTemplate.Name,
@@ -170,6 +184,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+
 	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, createTemplate.VersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -188,6 +203,15 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 	templateVersionAudit.Old = templateVersion
+	if templateVersion.TemplateID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template version %s is already part of a template", createTemplate.VersionID),
+			Validations: []codersdk.ValidationError{
+				{Field: "template_version_id", Detail: "Template version is already part of a template"},
+			},
+		})
+		return
+	}
 
 	importJob, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -199,14 +223,22 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		defaultTTL time.Duration
-		maxTTL     time.Duration
+		defaultTTL    time.Duration
+		maxTTL        time.Duration
+		failureTTL    time.Duration
+		inactivityTTL time.Duration
 	)
 	if createTemplate.DefaultTTLMillis != nil {
 		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
 	}
 	if createTemplate.MaxTTLMillis != nil {
 		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
+	}
+	if createTemplate.FailureTTLMillis != nil {
+		failureTTL = time.Duration(*createTemplate.FailureTTLMillis) * time.Millisecond
+	}
+	if createTemplate.InactivityTTLMillis != nil {
+		inactivityTTL = time.Duration(*createTemplate.InactivityTTLMillis) * time.Millisecond
 	}
 
 	var validErrs []codersdk.ValidationError
@@ -219,6 +251,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if maxTTL != 0 && defaultTTL > maxTTL {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
 	}
+	if failureTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if inactivityTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
+	}
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid create template request.",
@@ -228,22 +266,14 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		allowUserCancelWorkspaceJobs bool
-		allowUserAutostart           = true
-		allowUserAutostop            = true
-	)
-	if createTemplate.AllowUserCancelWorkspaceJobs != nil {
-		allowUserCancelWorkspaceJobs = *createTemplate.AllowUserCancelWorkspaceJobs
-	}
-	if createTemplate.AllowUserAutostart != nil {
-		allowUserAutostart = *createTemplate.AllowUserAutostart
-	}
-	if createTemplate.AllowUserAutostop != nil {
-		allowUserAutostop = *createTemplate.AllowUserAutostop
-	}
+		dbTemplate database.Template
+		template   codersdk.Template
 
-	var dbTemplate database.Template
-	var template codersdk.Template
+		allowUserCancelWorkspaceJobs = ptr.NilToDefault(createTemplate.AllowUserCancelWorkspaceJobs, false)
+		allowUserAutostart           = ptr.NilToDefault(createTemplate.AllowUserAutostart, true)
+		allowUserAutostop            = ptr.NilToDefault(createTemplate.AllowUserAutostop, true)
+	)
+
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := database.Now()
 		dbTemplate, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
@@ -272,7 +302,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			UserAutostartEnabled: allowUserAutostart,
 			UserAutostopEnabled:  allowUserAutostop,
 			DefaultTTL:           defaultTTL,
-			MaxTTL:               maxTTL,
+			// Some of these values are enterprise-only, but the
+			// TemplateScheduleStore will handle avoiding setting them if
+			// unlicensed.
+			MaxTTL:        maxTTL,
+			FailureTTL:    failureTTL,
+			InactivityTTL: inactivityTTL,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)
@@ -298,23 +333,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Valid: true,
 		}
 		templateVersionAudit.New = newTemplateVersion
-
-		for _, parameterValue := range createTemplate.ParameterValues {
-			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
-				ID:                uuid.New(),
-				Name:              parameterValue.Name,
-				CreatedAt:         database.Now(),
-				UpdatedAt:         database.Now(),
-				Scope:             database.ParameterScopeTemplate,
-				ScopeID:           template.ID,
-				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
-				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
-			})
-			if err != nil {
-				return xerrors.Errorf("insert parameter value: %w", err)
-			}
-		}
 
 		createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, tx, []database.Template{dbTemplate})
 		if err != nil {
@@ -469,6 +487,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.MaxTTLMillis != 0 && req.DefaultTTLMillis > req.MaxTTLMillis {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
 	}
+	if req.FailureTTLMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if req.InactivityTTLMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
+	}
 
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -488,23 +512,16 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
-			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() {
+			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
+			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
+			req.InactivityTTLMillis == time.Duration(template.InactivityTTL).Milliseconds() {
 			return nil
 		}
 
-		// Update template metadata -- empty fields are not overwritten,
-		// except for display_name, icon, and default_ttl.
-		// The exception is required to clear content of these fields with UI.
+		// Users should not be able to clear the template name in the UI
 		name := req.Name
-		displayName := req.DisplayName
-		desc := req.Description
-		icon := req.Icon
-
 		if name == "" {
 			name = template.Name
-		}
-		if desc == "" {
-			desc = template.Description
 		}
 
 		var err error
@@ -512,9 +529,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			ID:                           template.ID,
 			UpdatedAt:                    database.Now(),
 			Name:                         name,
-			DisplayName:                  displayName,
-			Description:                  desc,
-			Icon:                         icon,
+			DisplayName:                  req.DisplayName,
+			Description:                  req.Description,
+			Icon:                         req.Icon,
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 		})
 		if err != nil {
@@ -523,8 +540,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
+		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
+		inactivityTTL := time.Duration(req.InactivityTTLMillis) * time.Millisecond
+
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			maxTTL != time.Duration(template.MaxTTL) ||
+			failureTTL != time.Duration(template.FailureTTL) ||
+			inactivityTTL != time.Duration(template.InactivityTTL) ||
 			req.AllowUserAutostart != template.AllowUserAutostart ||
 			req.AllowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, updated, schedule.TemplateScheduleOptions{
@@ -535,6 +557,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				UserAutostopEnabled:  req.AllowUserAutostop,
 				DefaultTTL:           defaultTTL,
 				MaxTTL:               maxTTL,
+				FailureTTL:           failureTTL,
+				InactivityTTL:        inactivityTTL,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)
@@ -573,15 +597,27 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
-// @Success 200 {object} codersdk.TemplateDAUsResponse
+// @Success 200 {object} codersdk.DAUsResponse
 // @Router /templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	resp, _ := api.metricsCache.TemplateDAUs(template.ID)
+	vals := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	tzOffset := p.Int(vals, 0, "tz_offset")
+	p.ErrorExcessParams(vals)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	_, resp, _ := api.metricsCache.TemplateDAUs(template.ID, tzOffset)
 	if resp == nil || resp.Entries == nil {
-		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.TemplateDAUsResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DAUsResponse{
 			Entries: []codersdk.DAUEntry{},
 		})
 		return
@@ -674,5 +710,7 @@ func (api *API) convertTemplate(
 		AllowUserAutostart:           template.AllowUserAutostart,
 		AllowUserAutostop:            template.AllowUserAutostop,
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+		FailureTTLMillis:             time.Duration(template.FailureTTL).Milliseconds(),
+		InactivityTTLMillis:          time.Duration(template.InactivityTTL).Milliseconds(),
 	}
 }

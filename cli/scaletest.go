@@ -14,8 +14,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -28,6 +33,7 @@ import (
 	"github.com/coder/coder/scaletest/harness"
 	"github.com/coder/coder/scaletest/reconnectingpty"
 	"github.com/coder/coder/scaletest/workspacebuild"
+	"github.com/coder/coder/scaletest/workspacetraffic"
 )
 
 const scaletestTracerName = "coder_scaletest"
@@ -42,6 +48,7 @@ func (r *RootCmd) scaletest() *clibase.Cmd {
 		Children: []*clibase.Cmd{
 			r.scaletestCleanup(),
 			r.scaletestCreateWorkspaces(),
+			r.scaletestWorkspaceTraffic(),
 		},
 	}
 
@@ -107,7 +114,10 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 	return tracerProvider, func(ctx context.Context) error {
 		var err error
 		closeTracingOnce.Do(func() {
-			err = closeTracing(ctx)
+			// Allow time to upload traces even if ctx is canceled
+			traceCtx, traceCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer traceCancel()
+			err = closeTracing(traceCtx)
 		})
 
 		return err
@@ -384,33 +394,9 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 			}
 
 			cliui.Infof(inv.Stdout, "Fetching scaletest workspaces...")
-			var (
-				pageNumber = 0
-				limit      = 100
-				workspaces []codersdk.Workspace
-			)
-			for {
-				page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-					Name:   "scaletest-",
-					Offset: pageNumber * limit,
-					Limit:  limit,
-				})
-				if err != nil {
-					return xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
-				}
-
-				pageNumber++
-				if len(page.Workspaces) == 0 {
-					break
-				}
-
-				pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
-				for _, w := range page.Workspaces {
-					if isScaleTestWorkspace(w) {
-						pageWorkspaces = append(pageWorkspaces, w)
-					}
-				}
-				workspaces = append(workspaces, pageWorkspaces...)
+			workspaces, err := getScaletestWorkspaces(ctx, client)
+			if err != nil {
+				return err
 			}
 
 			cliui.Errorf(inv.Stderr, "Found %d scaletest workspaces\n", len(workspaces))
@@ -441,33 +427,9 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 			}
 
 			cliui.Infof(inv.Stdout, "Fetching scaletest users...")
-			pageNumber = 0
-			limit = 100
-			var users []codersdk.User
-			for {
-				page, err := client.Users(ctx, codersdk.UsersRequest{
-					Search: "scaletest-",
-					Pagination: codersdk.Pagination{
-						Offset: pageNumber * limit,
-						Limit:  limit,
-					},
-				})
-				if err != nil {
-					return xerrors.Errorf("fetch scaletest users page %d: %w", pageNumber, err)
-				}
-
-				pageNumber++
-				if len(page.Users) == 0 {
-					break
-				}
-
-				pageUsers := make([]codersdk.User, 0, len(page.Users))
-				for _, u := range page.Users {
-					if isScaleTestUser(u) {
-						pageUsers = append(pageUsers, u)
-					}
-				}
-				users = append(users, pageUsers...)
+			users, err := getScaletestUsers(ctx, client)
+			if err != nil {
+				return err
 			}
 
 			cliui.Errorf(inv.Stderr, "Found %d scaletest users\n", len(users))
@@ -510,10 +472,8 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 
 func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	var (
-		count          int64
-		template       string
-		parametersFile string
-		parameters     []string // key=value
+		count    int64
+		template string
 
 		noPlan    bool
 		noCleanup bool
@@ -609,51 +569,11 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 				return xerrors.Errorf("get template version %q: %w", tpl.ActiveVersionID, err)
 			}
 
-			parameterSchemas, err := client.TemplateVersionSchema(ctx, templateVersion.ID)
-			if err != nil {
-				return xerrors.Errorf("get template version schema %q: %w", templateVersion.ID, err)
-			}
-
-			paramsMap := map[string]string{}
-			if parametersFile != "" {
-				fileMap, err := createParameterMapFromFile(parametersFile)
-				if err != nil {
-					return xerrors.Errorf("read parameters file %q: %w", parametersFile, err)
-				}
-
-				paramsMap = fileMap
-			}
-
-			for _, p := range parameters {
-				parts := strings.SplitN(p, "=", 2)
-				if len(parts) != 2 {
-					return xerrors.Errorf("invalid parameter %q", p)
-				}
-
-				paramsMap[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-			}
-
-			params := []codersdk.CreateParameterRequest{}
-			for _, p := range parameterSchemas {
-				value, ok := paramsMap[p.Name]
-				if !ok {
-					value = ""
-				}
-
-				params = append(params, codersdk.CreateParameterRequest{
-					Name:              p.Name,
-					SourceValue:       value,
-					SourceScheme:      codersdk.ParameterSourceSchemeData,
-					DestinationScheme: p.DefaultDestinationScheme,
-				})
-			}
-
 			// Do a dry-run to ensure the template and parameters are valid
 			// before we start creating users and workspaces.
 			if !noPlan {
 				dryRun, err := client.CreateTemplateVersionDryRun(ctx, templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-					WorkspaceName:   "scaletest",
-					ParameterValues: params,
+					WorkspaceName: "scaletest",
 				})
 				if err != nil {
 					return xerrors.Errorf("start dry run workspace creation: %w", err)
@@ -683,10 +603,11 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			}
 			defer func() {
 				// Allow time for traces to flush even if command context is
-				// canceled.
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-				_ = closeTracing(ctx)
+				// canceled. This is a no-op if tracing is not enabled.
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
@@ -704,8 +625,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 						OrganizationID: me.OrganizationIDs[0],
 						// UserID is set by the test automatically.
 						Request: codersdk.CreateWorkspaceRequest{
-							TemplateID:      tpl.ID,
-							ParameterValues: params,
+							TemplateID: tpl.ID,
 						},
 						NoWaitForAgents: noWaitForAgents,
 					},
@@ -800,17 +720,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 				return xerrors.Errorf("cleanup tests: %w", err)
 			}
 
-			// Upload traces.
-			if tracingEnabled {
-				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
-				ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-				defer cancel()
-				err := closeTracing(ctx)
-				if err != nil {
-					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
-				}
-			}
-
 			if res.TotalFail > 0 {
 				return xerrors.New("load test failed, see above for more details")
 			}
@@ -834,18 +743,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Env:           "CODER_SCALETEST_TEMPLATE",
 			Description:   "Required: Name or ID of the template to use for workspaces.",
 			Value:         clibase.StringOf(&template),
-		},
-		{
-			Flag:        "parameters-file",
-			Env:         "CODER_SCALETEST_PARAMETERS_FILE",
-			Description: "Path to a YAML file containing the parameters to use for each workspace.",
-			Value:       clibase.StringOf(&parametersFile),
-		},
-		{
-			Flag:        "parameter",
-			Env:         "CODER_SCALETEST_PARAMETERS",
-			Description: "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value.",
-			Value:       clibase.StringArrayOf(&parameters),
 		},
 		{
 			Flag:        "no-plan",
@@ -947,6 +844,188 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	return cmd
 }
 
+func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
+	var (
+		tickInterval               time.Duration
+		bytesPerTick               int64
+		scaletestPrometheusAddress string
+		scaletestPrometheusWait    time.Duration
+
+		client          = &codersdk.Client{}
+		tracingFlags    = &scaletestTracingFlags{}
+		strategy        = &scaletestStrategyFlags{}
+		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
+		output          = &scaletestOutputFlags{}
+	)
+
+	cmd := &clibase.Cmd{
+		Use:   "workspace-traffic",
+		Short: "Generate traffic to scaletest workspaces through coderd",
+		Middleware: clibase.Chain(
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
+			reg := prometheus.NewRegistry()
+			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
+
+			logger := slog.Make(sloghuman.Sink(io.Discard))
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), scaletestPrometheusAddress, "prometheus")
+			defer prometheusSrvClose()
+
+			// Bypass rate limiting
+			client.HTTPClient = &http.Client{
+				Transport: &headerTransport{
+					transport: http.DefaultTransport,
+					header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
+					},
+				},
+			}
+
+			workspaces, err := getScaletestWorkspaces(inv.Context(), client)
+			if err != nil {
+				return err
+			}
+
+			if len(workspaces) == 0 {
+				return xerrors.Errorf("no scaletest workspaces exist")
+			}
+
+			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
+			if err != nil {
+				return xerrors.Errorf("create tracer provider: %w", err)
+			}
+			defer func() {
+				// Allow time for traces to flush even if command context is
+				// canceled. This is a no-op if tracing is not enabled.
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+					// Wait for prometheus metrics to be scraped
+					_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", scaletestPrometheusWait)
+					<-time.After(scaletestPrometheusWait)
+				}
+			}()
+			tracer := tracerProvider.Tracer(scaletestTracerName)
+
+			outputs, err := output.parse()
+			if err != nil {
+				return xerrors.Errorf("could not parse --output flags")
+			}
+
+			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
+			for idx, ws := range workspaces {
+				var (
+					agentID   uuid.UUID
+					agentName string
+					name      = "workspace-traffic"
+					id        = strconv.Itoa(idx)
+				)
+
+				for _, res := range ws.LatestBuild.Resources {
+					if len(res.Agents) == 0 {
+						continue
+					}
+					agentID = res.Agents[0].ID
+					agentName = res.Agents[0].Name
+				}
+
+				if agentID == uuid.Nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "WARN: skipping workspace %s: no agent\n", ws.Name)
+					continue
+				}
+
+				// Setup our workspace agent connection.
+				config := workspacetraffic.Config{
+					AgentID:        agentID,
+					AgentName:      agentName,
+					BytesPerTick:   bytesPerTick,
+					Duration:       strategy.timeout,
+					TickInterval:   tickInterval,
+					WorkspaceName:  ws.Name,
+					WorkspaceOwner: ws.OwnerName,
+					Registry:       reg,
+				}
+
+				if err := config.Validate(); err != nil {
+					return xerrors.Errorf("validate config: %w", err)
+				}
+				var runner harness.Runnable = workspacetraffic.NewRunner(client, config, metrics)
+				if tracingEnabled {
+					runner = &runnableTraceWrapper{
+						tracer:   tracer,
+						spanName: fmt.Sprintf("%s/%s", name, id),
+						runner:   runner,
+					}
+				}
+
+				th.AddRun(name, id, runner)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "Running load test...")
+			testCtx, testCancel := strategy.toContext(ctx)
+			defer testCancel()
+			err = th.Run(testCtx)
+			if err != nil {
+				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
+			}
+
+			res := th.Results()
+			for _, o := range outputs {
+				err = o.write(res, inv.Stdout)
+				if err != nil {
+					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
+				}
+			}
+
+			if res.TotalFail > 0 {
+				return xerrors.New("load test failed, see above for more details")
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Options = []clibase.Option{
+		{
+			Flag:        "bytes-per-tick",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
+			Default:     "1024",
+			Description: "How much traffic to generate per tick.",
+			Value:       clibase.Int64Of(&bytesPerTick),
+		},
+		{
+			Flag:        "tick-interval",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_TICK_INTERVAL",
+			Default:     "100ms",
+			Description: "How often to send traffic.",
+			Value:       clibase.DurationOf(&tickInterval),
+		},
+		{
+			Flag:        "scaletest-prometheus-address",
+			Env:         "CODER_SCALETEST_PROMETHEUS_ADDRESS",
+			Default:     "0.0.0.0:21112",
+			Description: "Address on which to expose scaletest Prometheus metrics.",
+			Value:       clibase.StringOf(&scaletestPrometheusAddress),
+		},
+		{
+			Flag:        "scaletest-prometheus-wait",
+			Env:         "CODER_SCALETEST_PROMETHEUS_WAIT",
+			Default:     "5s",
+			Description: "How long to wait before exiting in order to allow Prometheus metrics to be scraped.",
+			Value:       clibase.DurationOf(&scaletestPrometheusWait),
+		},
+	}
+
+	tracingFlags.attach(&cmd.Options)
+	strategy.attach(&cmd.Options)
+	cleanupStrategy.attach(&cmd.Options)
+	output.attach(&cmd.Options)
+
+	return cmd
+}
+
 type runnableTraceWrapper struct {
 	tracer   trace.Tracer
 	spanName string
@@ -1022,4 +1101,73 @@ func isScaleTestUser(user codersdk.User) bool {
 func isScaleTestWorkspace(workspace codersdk.Workspace) bool {
 	return strings.HasPrefix(workspace.OwnerName, "scaletest-") ||
 		strings.HasPrefix(workspace.Name, "scaletest-")
+}
+
+func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client) ([]codersdk.Workspace, error) {
+	var (
+		pageNumber = 0
+		limit      = 100
+		workspaces []codersdk.Workspace
+	)
+
+	for {
+		page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name:   "scaletest-",
+			Offset: pageNumber * limit,
+			Limit:  limit,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
+		}
+
+		pageNumber++
+		if len(page.Workspaces) == 0 {
+			break
+		}
+
+		pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
+		for _, w := range page.Workspaces {
+			if isScaleTestWorkspace(w) {
+				pageWorkspaces = append(pageWorkspaces, w)
+			}
+		}
+		workspaces = append(workspaces, pageWorkspaces...)
+	}
+	return workspaces, nil
+}
+
+func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk.User, error) {
+	var (
+		pageNumber = 0
+		limit      = 100
+		users      []codersdk.User
+	)
+
+	for {
+		page, err := client.Users(ctx, codersdk.UsersRequest{
+			Search: "scaletest-",
+			Pagination: codersdk.Pagination{
+				Offset: pageNumber * limit,
+				Limit:  limit,
+			},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("fetch scaletest users page %d: %w", pageNumber, err)
+		}
+
+		pageNumber++
+		if len(page.Users) == 0 {
+			break
+		}
+
+		pageUsers := make([]codersdk.User, 0, len(page.Users))
+		for _, u := range page.Users {
+			if isScaleTestUser(u) {
+				pageUsers = append(pageUsers, u)
+			}
+		}
+		users = append(users, pageUsers...)
+	}
+
+	return users, nil
 }

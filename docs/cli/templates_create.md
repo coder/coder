@@ -30,13 +30,23 @@ Specify a default TTL for workspaces created from this template.
 
 Specify the directory to create from, use '-' to read tar from stdin.
 
-### --parameter-file
+### --failure-ttl
 
-|      |                     |
-| ---- | ------------------- |
-| Type | <code>string</code> |
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0h</code>       |
 
-Specify a file path with parameter values.
+Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).
+
+### --inactivity-ttl
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>0h</code>       |
+
+Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).
 
 ### --provisioner-tag
 

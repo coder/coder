@@ -167,11 +167,13 @@ func TestTemplateEdit(t *testing.T) {
 
 		// Test the cli command.
 		displayName := "New Display Name 789"
+		description := "New Description ABC"
 		icon := "/icons/new-icon.png"
 		cmdArgs := []string{
 			"templates",
 			"edit",
 			template.Name,
+			"--description", description,
 			"--display-name", displayName,
 			"--icon", icon,
 		}
@@ -186,8 +188,8 @@ func TestTemplateEdit(t *testing.T) {
 		// Assert that the template metadata changed.
 		updated, err := client.Template(context.Background(), template.ID)
 		require.NoError(t, err)
-		assert.Equal(t, template.Name, updated.Name)             // doesn't change
-		assert.Equal(t, initialDescription, updated.Description) // doesn't change
+		assert.Equal(t, template.Name, updated.Name) // doesn't change
+		assert.Equal(t, description, updated.Description)
 		assert.Equal(t, displayName, updated.DisplayName)
 		assert.Equal(t, icon, updated.Icon)
 	})
@@ -234,9 +236,9 @@ func TestTemplateEdit(t *testing.T) {
 		require.NoError(t, err)
 		// Properties don't change
 		assert.Equal(t, template.Name, updated.Name)
-		assert.Equal(t, template.Description, updated.Description)
 		// These properties are removed, as the API considers it as "delete" request
 		// See: https://github.com/coder/coder/issues/5066
+		assert.Equal(t, "", updated.Description)
 		assert.Equal(t, "", updated.Icon)
 		assert.Equal(t, "", updated.DisplayName)
 	})
@@ -451,6 +453,8 @@ func TestTemplateEdit(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.MaxTTLMillis = nil
+				ctr.FailureTTLMillis = nil
+				ctr.InactivityTTLMillis = nil
 			})
 
 			// Test the cli command with --allow-user-autostart.
@@ -494,6 +498,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
+			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
+			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
 		})
 
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
@@ -580,6 +586,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
+			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
+			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
 		})
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
@@ -670,6 +678,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
+			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
+			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
 		})
 	})
 }

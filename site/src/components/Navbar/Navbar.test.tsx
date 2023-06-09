@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import { App } from "app"
-import { Language } from "components/NavbarView/NavbarView"
+import { Language } from "./NavbarView"
 import { rest } from "msw"
 import {
   MockEntitlementsWithAuditLog,

@@ -108,7 +108,6 @@ data "coder_workspace" "me" {}
 resource "coder_agent" "main" {
   os                     = "linux"
   arch                   = "amd64"
-  login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
     set -e
@@ -117,18 +116,6 @@ resource "coder_agent" "main" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
-
-  metadata {
-    key          = "disk"
-    display_name = "Disk Usage"
-    interval     = 600 # every 10 minutes
-    timeout      = 30  # df can take a while on large filesystems
-    script       = <<-EOT
-      #!/bin/bash
-      set -e
-      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
-    EOT
-  }
 }
 
 # code-server

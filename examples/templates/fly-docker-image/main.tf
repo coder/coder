@@ -277,7 +277,6 @@ resource "coder_app" "code-server" {
 resource "coder_agent" "main" {
   arch                   = data.coder_provisioner.me.arch
   os                     = "linux"
-  login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
     set -e
@@ -285,10 +284,11 @@ resource "coder_agent" "main" {
     code-server --auth none >/tmp/code-server.log 2>&1 &
     # Set the hostname to the workspace name
     sudo hostname -b "${data.coder_workspace.me.name}-fly"
+    echo "127.0.0.1  ${data.coder_workspace.me.name}-fly" | sudo tee -a /etc/hosts
     # Install the Fly CLI and add it to the PATH
     curl -L https://fly.io/install.sh | sh
-    echo "export PATH=$PATH:/home/coder/.fly/bin" >> ~/.bashrc
-    source ~/.bashrc
+    echo "export PATH=$PATH:/home/coder/.fly/bin" >> /home/coder/.bashrc
+    source /home/coder/.bashrc
   EOT
 
   metadata {
@@ -321,7 +321,7 @@ resource "coder_agent" "main" {
     script       = <<-EOT
       #!/bin/bash
       set -e
-      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
+      df | awk '$NF=="/home/coder" {printf "%s", $5}'
     EOT
   }
 }

@@ -1,9 +1,9 @@
-import IconButton from "@material-ui/core/IconButton"
-import InputAdornment from "@material-ui/core/InputAdornment"
-import { makeStyles } from "@material-ui/core/styles"
-import TextField, { TextFieldProps } from "@material-ui/core/TextField"
-import VisibilityOffOutlined from "@material-ui/icons/VisibilityOffOutlined"
-import VisibilityOutlined from "@material-ui/icons/VisibilityOutlined"
+import IconButton from "@mui/material/IconButton"
+import InputAdornment from "@mui/material/InputAdornment"
+import { makeStyles } from "@mui/styles"
+import TextField, { TextFieldProps } from "@mui/material/TextField"
+import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined"
+import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined"
 import { useCallback, useState, FC, PropsWithChildren } from "react"
 
 type PasswordFieldProps = Omit<TextFieldProps, "InputProps" | "type">

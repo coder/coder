@@ -1,16 +1,19 @@
-import Button from "@material-ui/core/Button"
-import IconButton from "@material-ui/core/IconButton"
-import { makeStyles, Theme } from "@material-ui/core/styles"
-import Tooltip from "@material-ui/core/Tooltip"
-import CreateIcon from "@material-ui/icons/AddOutlined"
-import BuildIcon from "@material-ui/icons/BuildOutlined"
-import PreviewIcon from "@material-ui/icons/VisibilityOutlined"
+import Button from "@mui/material/Button"
+import IconButton from "@mui/material/IconButton"
+import { makeStyles } from "@mui/styles"
+import Tooltip from "@mui/material/Tooltip"
+import CreateIcon from "@mui/icons-material/AddOutlined"
+import BuildIcon from "@mui/icons-material/BuildOutlined"
+import PreviewIcon from "@mui/icons-material/VisibilityOutlined"
 import {
   ProvisionerJobLog,
   Template,
   TemplateVersion,
+  TemplateVersionVariable,
+  VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated"
+import { Alert } from "components/Alert/Alert"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
@@ -36,12 +39,14 @@ import {
   RenameFileDialog,
 } from "./FileDialog"
 import { FileTreeView } from "./FileTreeView"
+import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog"
 import { MonacoEditor } from "./MonacoEditor"
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog"
 import {
   getStatus,
   TemplateVersionStatusBadge,
 } from "./TemplateVersionStatusBadge"
+import { Theme } from "@mui/material/styles"
 
 export interface TemplateVersionEditorProps {
   template: Template
@@ -58,7 +63,11 @@ export interface TemplateVersionEditorProps {
   onCancelPublish: () => void
   publishingError: unknown
   isAskingPublishParameters: boolean
+  isPromptingMissingVariables: boolean
   isPublishing: boolean
+  missingVariables?: TemplateVersionVariable[]
+  onSubmitMissingVariableValues: (values: VariableValue[]) => void
+  onCancelSubmitMissingVariableValues: () => void
 }
 
 const topbarHeight = 80
@@ -91,6 +100,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   isPublishing,
   buildLogs,
   resources,
+  isPromptingMissingVariables,
+  missingVariables,
+  onSubmitMissingVariableValues,
+  onCancelSubmitMissingVariableValues,
 }) => {
   const [selectedTab, setSelectedTab] = useState(() => {
     // If resources are provided, show them by default!
@@ -143,7 +156,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       return
     }
     if (
-      previousVersion.current.job.status === "running" &&
+      ["running", "pending"].includes(previousVersion.current.job.status) &&
       templateVersion.job.status === "succeeded"
     ) {
       setSelectedTab(1)
@@ -193,8 +206,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
             <Button
               title="Build template (Ctrl + Enter)"
-              size="small"
-              variant="outlined"
               disabled={disablePreview}
               onClick={() => {
                 triggerPreview()
@@ -204,6 +215,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             </Button>
 
             <Button
+              variant="contained"
               title={
                 dirty
                   ? "You have edited files! Run another build before updating."
@@ -211,7 +223,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   ? "Something"
                   : ""
               }
-              size="small"
               disabled={dirty || disableUpdate}
               onClick={onPublish}
             >
@@ -227,7 +238,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               <div className={styles.sidebarActions}>
                 <Tooltip title="Create File" placement="top">
                   <IconButton
-                    size="small"
                     aria-label="Create File"
                     onClick={(event) => {
                       setCreateFileOpen(true)
@@ -363,22 +373,21 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   selectedTab === 0 ? "" : "hidden"
                 }`}
               >
-                {buildLogs && (
+                {templateVersion.job.error && (
+                  <Alert severity="error">{templateVersion.job.error}</Alert>
+                )}
+
+                {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
                     templateEditorPane
                     hideTimestamps
                     logs={buildLogs}
                   />
                 )}
-                {templateVersion.job.error && (
-                  <div className={styles.buildLogError}>
-                    {templateVersion.job.error}
-                  </div>
-                )}
               </div>
 
               <div
-                className={`${styles.panel} ${styles.resources} ${
+                className={`${styles.panel} ${
                   selectedTab === 1 ? "" : "hidden"
                 }`}
               >
@@ -409,6 +418,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         onConfirm={onConfirmPublish}
         isPublishing={isPublishing}
         defaultName={templateVersion.name}
+      />
+
+      <MissingTemplateVariablesDialog
+        open={isPromptingMissingVariables}
+        onClose={onCancelSubmitMissingVariableValues}
+        onSubmit={onSubmitMissingVariableValues}
+        missingVariables={missingVariables}
       />
     </>
   )
@@ -560,7 +576,7 @@ const useStyles = makeStyles<
     top: 0,
     background: theme.palette.background.default,
     borderBottom: `1px solid ${theme.palette.divider}`,
-    color: theme.palette.text.hint,
+    color: theme.palette.text.primary,
     textTransform: "uppercase",
     fontSize: 12,
 
@@ -570,13 +586,8 @@ const useStyles = makeStyles<
   },
   buildLogs: {
     display: "flex",
-    flexDirection: "column-reverse",
+    flexDirection: "column",
     overflowY: "auto",
-  },
-  buildLogError: {
-    whiteSpace: "pre-wrap",
-  },
-  resources: {
-    // padding: 16,
+    gap: theme.spacing(1),
   },
 }))

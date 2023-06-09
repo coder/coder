@@ -1,5 +1,5 @@
-import makeStyles from "@material-ui/core/styles/makeStyles"
-import TextField from "@material-ui/core/TextField"
+import makeStyles from "@mui/styles/makeStyles"
+import TextField from "@mui/material/TextField"
 import { Maybe } from "components/Conditionals/Maybe"
 import { ChangeEvent, useState, PropsWithChildren, FC } from "react"
 import { useTranslation } from "react-i18next"
@@ -41,23 +41,29 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       </Maybe>
       <p>{t("deleteDialog.confirm", { entity })}</p>
 
-      <TextField
-        fullWidth
-        InputLabelProps={{
-          shrink: true,
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (confirmed) {
+            onConfirm()
+          }
         }}
-        autoFocus
-        className={styles.textField}
-        name="confirmation"
-        autoComplete="off"
-        id="confirmation"
-        placeholder={name}
-        value={nameValue}
-        onChange={handleChange}
-        label={t("deleteDialog.confirmLabel", { entity })}
-        error={hasError}
-        helperText={hasError && t("deleteDialog.incorrectName", { entity })}
-      />
+      >
+        <TextField
+          fullWidth
+          autoFocus
+          className={styles.textField}
+          name="confirmation"
+          autoComplete="off"
+          id="confirmation"
+          placeholder={name}
+          value={nameValue}
+          onChange={handleChange}
+          label={t("deleteDialog.confirmLabel", { entity })}
+          error={hasError}
+          helperText={hasError && t("deleteDialog.incorrectName", { entity })}
+        />
+      </form>
     </>
   )
 

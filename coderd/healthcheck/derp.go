@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
@@ -21,16 +20,20 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
+
+	"github.com/coder/coder/coderd/util/ptr"
 )
 
 type DERPReport struct {
-	mu      sync.Mutex
 	Healthy bool `json:"healthy"`
 
 	Regions map[int]*DERPRegionReport `json:"regions"`
 
 	Netcheck     *netcheck.Report `json:"netcheck"`
+	NetcheckErr  error            `json:"netcheck_err"`
 	NetcheckLogs []string         `json:"netcheck_logs"`
+
+	Error error `json:"error"`
 }
 
 type DERPRegionReport struct {
@@ -39,6 +42,7 @@ type DERPRegionReport struct {
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*DERPNodeReport   `json:"node_reports"`
+	Error       error               `json:"error"`
 }
 type DERPNodeReport struct {
 	mu            sync.Mutex
@@ -47,11 +51,13 @@ type DERPNodeReport struct {
 	Healthy bool              `json:"healthy"`
 	Node    *tailcfg.DERPNode `json:"node"`
 
-	CanExchangeMessages bool          `json:"can_exchange_messages"`
-	RoundTripPing       time.Duration `json:"round_trip_ping"`
-	UsesWebsocket       bool          `json:"uses_websocket"`
-	ClientLogs          [][]string    `json:"client_logs"`
-	ClientErrs          [][]error     `json:"client_errs"`
+	ServerInfo          derp.ServerInfoMessage `json:"node_info"`
+	CanExchangeMessages bool                   `json:"can_exchange_messages"`
+	RoundTripPing       time.Duration          `json:"round_trip_ping"`
+	UsesWebsocket       bool                   `json:"uses_websocket"`
+	ClientLogs          [][]string             `json:"client_logs"`
+	ClientErrs          [][]error              `json:"client_errs"`
+	Error               error                  `json:"error"`
 
 	STUN DERPStunReport `json:"stun"`
 }
@@ -66,69 +72,79 @@ type DERPReportOptions struct {
 	DERPMap *tailcfg.DERPMap
 }
 
-func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) error {
+func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 	r.Healthy = true
 	r.Regions = map[int]*DERPRegionReport{}
 
-	eg, ctx := errgroup.WithContext(ctx)
+	wg := &sync.WaitGroup{}
+	mu := sync.Mutex{}
 
+	wg.Add(len(opts.DERPMap.Regions))
 	for _, region := range opts.DERPMap.Regions {
-		region := region
-		eg.Go(func() error {
-			regionReport := DERPRegionReport{
+		var (
+			region       = region
+			regionReport = DERPRegionReport{
 				Region: region,
 			}
+		)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if err := recover(); err != nil {
+					regionReport.Error = xerrors.Errorf("%v", err)
+				}
+			}()
 
-			err := regionReport.Run(ctx)
-			if err != nil {
-				return xerrors.Errorf("run region report: %w", err)
-			}
+			regionReport.Run(ctx)
 
-			r.mu.Lock()
+			mu.Lock()
 			r.Regions[region.RegionID] = &regionReport
 			if !regionReport.Healthy {
 				r.Healthy = false
 			}
-			r.mu.Unlock()
-			return nil
-		})
+			mu.Unlock()
+		}()
 	}
 
 	ncLogf := func(format string, args ...interface{}) {
-		r.mu.Lock()
+		mu.Lock()
 		r.NetcheckLogs = append(r.NetcheckLogs, fmt.Sprintf(format, args...))
-		r.mu.Unlock()
+		mu.Unlock()
 	}
 	nc := &netcheck.Client{
 		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil),
 		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
 	}
-	ncReport, err := nc.GetReport(ctx, opts.DERPMap)
-	if err != nil {
-		return xerrors.Errorf("run netcheck: %w", err)
-	}
-	r.Netcheck = ncReport
+	r.Netcheck, r.NetcheckErr = nc.GetReport(ctx, opts.DERPMap)
 
-	return eg.Wait()
+	wg.Wait()
 }
 
-func (r *DERPRegionReport) Run(ctx context.Context) error {
+func (r *DERPRegionReport) Run(ctx context.Context) {
 	r.Healthy = true
 	r.NodeReports = []*DERPNodeReport{}
-	eg, ctx := errgroup.WithContext(ctx)
 
+	wg := &sync.WaitGroup{}
+
+	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
-		node := node
-		eg.Go(func() error {
-			nodeReport := DERPNodeReport{
+		var (
+			node       = node
+			nodeReport = DERPNodeReport{
 				Node:    node,
 				Healthy: true,
 			}
+		)
 
-			err := nodeReport.Run(ctx)
-			if err != nil {
-				return xerrors.Errorf("run node report: %w", err)
-			}
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if err := recover(); err != nil {
+					nodeReport.Error = xerrors.Errorf("%v", err)
+				}
+			}()
+
+			nodeReport.Run(ctx)
 
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport)
@@ -136,11 +152,10 @@ func (r *DERPRegionReport) Run(ctx context.Context) error {
 				r.Healthy = false
 			}
 			r.mu.Unlock()
-			return nil
-		})
+		}()
 	}
 
-	return eg.Wait()
+	wg.Wait()
 }
 
 func (r *DERPNodeReport) derpURL() *url.URL {
@@ -159,15 +174,26 @@ func (r *DERPNodeReport) derpURL() *url.URL {
 	return derpURL
 }
 
-func (r *DERPNodeReport) Run(ctx context.Context) error {
+func (r *DERPNodeReport) Run(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	r.ClientLogs = [][]string{}
 	r.ClientErrs = [][]error{}
 
-	r.doExchangeMessage(ctx)
-	r.doSTUNTest(ctx)
+	wg := &sync.WaitGroup{}
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		r.doExchangeMessage(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		r.doSTUNTest(ctx)
+	}()
+
+	wg.Wait()
 
 	// We can't exchange messages with the node,
 	if (!r.CanExchangeMessages && !r.Node.STUNOnly) ||
@@ -179,7 +205,6 @@ func (r *DERPNodeReport) Run(ctx context.Context) error {
 		r.STUN.Error != nil {
 		r.Healthy = false
 	}
-	return nil
 }
 
 func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
@@ -187,8 +212,13 @@ func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
 		return
 	}
 
-	var peerKey atomic.Pointer[key.NodePublic]
-	eg, ctx := errgroup.WithContext(ctx)
+	var (
+		peerKey  atomic.Pointer[key.NodePublic]
+		lastSent atomic.Pointer[time.Time]
+	)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	wg := &sync.WaitGroup{}
 
 	receive, receiveID, err := r.derpClient(ctx, r.derpURL())
 	if err != nil {
@@ -196,51 +226,64 @@ func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
 	}
 	defer receive.Close()
 
-	eg.Go(func() error {
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
 		defer receive.Close()
 
 		pkt, err := r.recvData(receive)
 		if err != nil {
 			r.writeClientErr(receiveID, xerrors.Errorf("recv derp message: %w", err))
-			return err
+			return
 		}
 
 		if *peerKey.Load() != pkt.Source {
 			r.writeClientErr(receiveID, xerrors.Errorf("received pkt from unknown peer: %s", pkt.Source.ShortString()))
-			return err
+			return
 		}
 
-		t, err := time.Parse(time.RFC3339Nano, string(pkt.Data))
-		if err != nil {
-			r.writeClientErr(receiveID, xerrors.Errorf("parse time from peer: %w", err))
-			return err
-		}
+		t := lastSent.Load()
 
 		r.mu.Lock()
 		r.CanExchangeMessages = true
-		r.RoundTripPing = time.Since(t)
+		r.RoundTripPing = time.Since(*t)
 		r.mu.Unlock()
-		return nil
-	})
-	eg.Go(func() error {
+
+		cancel()
+	}()
+	go func() {
+		defer wg.Done()
 		send, sendID, err := r.derpClient(ctx, r.derpURL())
 		if err != nil {
-			return err
+			return
 		}
 		defer send.Close()
 
 		key := send.SelfPublicKey()
 		peerKey.Store(&key)
 
-		err = send.Send(receive.SelfPublicKey(), []byte(time.Now().Format(time.RFC3339Nano)))
-		if err != nil {
-			r.writeClientErr(sendID, xerrors.Errorf("send derp message: %w", err))
-			return err
-		}
-		return nil
-	})
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 
-	_ = eg.Wait()
+		var iter uint8
+		for {
+			lastSent.Store(ptr.Ref(time.Now()))
+			err = send.Send(receive.SelfPublicKey(), []byte{iter})
+			if err != nil {
+				r.writeClientErr(sendID, xerrors.Errorf("send derp message: %w", err))
+				return
+			}
+			iter++
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+
+	wg.Wait()
 }
 
 func (r *DERPNodeReport) doSTUNTest(ctx context.Context) {
@@ -384,7 +427,7 @@ func (r *DERPNodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*der
 	return client, id, nil
 }
 
-func (*DERPNodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, error) {
+func (r *DERPNodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, error) {
 	for {
 		msg, err := client.Recv()
 		if err != nil {
@@ -394,6 +437,10 @@ func (*DERPNodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, e
 		switch msg := msg.(type) {
 		case derp.ReceivedPacket:
 			return msg, nil
+		case derp.ServerInfoMessage:
+			r.mu.Lock()
+			r.ServerInfo = msg
+			r.mu.Unlock()
 		default:
 			// Drop all others!
 		}

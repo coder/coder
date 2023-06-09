@@ -1,14 +1,6 @@
 import { createGroup } from "api/api"
-import {
-  ApiError,
-  getErrorMessage,
-  hasApiFieldErrors,
-  isApiError,
-  mapApiErrorToFieldErrors,
-} from "api/errors"
 import { CreateGroupRequest, Group } from "api/typesGenerated"
-import { displayError } from "components/GlobalSnackbar/utils"
-import { createMachine } from "xstate"
+import { createMachine, assign } from "xstate"
 
 export const createGroupMachine = createMachine(
   {
@@ -16,7 +8,7 @@ export const createGroupMachine = createMachine(
     schema: {
       context: {} as {
         organizationId: string
-        createGroupFormErrors?: unknown
+        error?: unknown
       },
       services: {} as {
         createGroup: {
@@ -45,37 +37,23 @@ export const createGroupMachine = createMachine(
             target: "idle",
             actions: ["onCreate"],
           },
-          onError: [
-            {
-              target: "idle",
-              cond: "hasFieldErrors",
-              actions: ["assignCreateGroupFormErrors"],
-            },
-            {
-              target: "idle",
-              actions: ["displayCreateGroupError"],
-            },
-          ],
+          onError: {
+            target: "idle",
+            actions: ["assignError"],
+          },
         },
       },
     },
   },
   {
-    guards: {
-      hasFieldErrors: (_, event) =>
-        isApiError(event.data) && hasApiFieldErrors(event.data),
-    },
     services: {
       createGroup: ({ organizationId }, { data }) =>
         createGroup(organizationId, data),
     },
     actions: {
-      displayCreateGroupError: (_, { data }) => {
-        const message = getErrorMessage(data, "Error on creating the group.")
-        displayError(message)
-      },
-      assignCreateGroupFormErrors: (_, event) =>
-        mapApiErrorToFieldErrors((event.data as ApiError).response.data),
+      assignError: assign({
+        error: (_, event) => event.data,
+      }),
     },
   },
 )

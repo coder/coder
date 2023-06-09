@@ -96,12 +96,12 @@ func Is404Error(err error) bool {
 // Convenience error functions don't take contexts since their responses are
 // static, it doesn't make much sense to trace them.
 
+var ResourceNotFoundResponse = codersdk.Response{Message: "Resource not found or you do not have access to this resource"}
+
 // ResourceNotFound is intentionally vague. All 404 responses should be identical
 // to prevent leaking existence of resources.
 func ResourceNotFound(rw http.ResponseWriter) {
-	Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
-		Message: "Resource not found or you do not have access to this resource",
-	})
+	Write(context.Background(), rw, http.StatusNotFound, ResourceNotFoundResponse)
 }
 
 func Forbidden(rw http.ResponseWriter) {
@@ -136,24 +136,40 @@ func RouteNotFound(rw http.ResponseWriter) {
 // marshaling, such as the number of elements in an array, which could help us
 // spot routes that need to be paginated.
 func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
+	// Pretty up JSON when testing.
+	if flag.Lookup("test.v") != nil {
+		WriteIndent(ctx, rw, status, response)
+		return
+	}
+
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	buf := &bytes.Buffer{}
-	enc := json.NewEncoder(buf)
+	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+	rw.WriteHeader(status)
+
+	enc := json.NewEncoder(rw)
 	enc.SetEscapeHTML(true)
-	// Pretty up JSON when testing.
-	if flag.Lookup("test.v") != nil {
-		enc.SetIndent("", "\t")
-	}
+
 	err := enc.Encode(response)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
+	_, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)
-	_, err = rw.Write(buf.Bytes())
+
+	enc := json.NewEncoder(rw)
+	enc.SetEscapeHTML(true)
+	enc.SetIndent("", "\t")
+
+	err := enc.Encode(response)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return

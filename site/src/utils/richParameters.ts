@@ -15,8 +15,11 @@ export const selectInitialRichParametersValues = (
   }
 
   templateParameters.forEach((parameter) => {
+    let parameterValue = parameter.default_value
+
     if (parameter.options.length > 0) {
-      let parameterValue = parameter.options[0].value
+      parameterValue = parameterValue ?? parameter.options[0].value
+
       if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
         parameterValue = defaultValuesFromQuery[parameter.name]
       }
@@ -29,7 +32,6 @@ export const selectInitialRichParametersValues = (
       return
     }
 
-    let parameterValue = parameter.default_value
     if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
       parameterValue = defaultValuesFromQuery[parameter.name]
     }
@@ -67,6 +69,30 @@ export const useValidationSchemaForRichParameters = (
             switch (templateParameter.type) {
               case "number":
                 if (
+                  templateParameter.validation_min &&
+                  !templateParameter.validation_max
+                ) {
+                  if (Number(val) < templateParameter.validation_min) {
+                    return ctx.createError({
+                      path: ctx.path,
+                      message: t("validationNumberLesserThan", {
+                        min: templateParameter.validation_min,
+                      }),
+                    })
+                  }
+                } else if (
+                  !templateParameter.validation_min &&
+                  templateParameter.validation_max
+                ) {
+                  if (templateParameter.validation_max < Number(val)) {
+                    return ctx.createError({
+                      path: ctx.path,
+                      message: t("validationNumberGreaterThan", {
+                        max: templateParameter.validation_max,
+                      }),
+                    })
+                  }
+                } else if (
                   templateParameter.validation_min &&
                   templateParameter.validation_max
                 ) {

@@ -9,7 +9,6 @@ import (
 
 func (r *RootCmd) update() *clibase.Cmd {
 	var (
-		parameterFile     string
 		richParameterFile string
 		alwaysPrompt      bool
 	)
@@ -38,14 +37,8 @@ func (r *RootCmd) update() *clibase.Cmd {
 				return nil
 			}
 
-			var existingParams []codersdk.Parameter
 			var existingRichParams []codersdk.WorkspaceBuildParameter
 			if !alwaysPrompt {
-				existingParams, err = client.Parameters(inv.Context(), codersdk.ParameterWorkspace, workspace.ID)
-				if err != nil {
-					return nil
-				}
-
 				existingRichParams, err = client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
 				if err != nil {
 					return nil
@@ -54,8 +47,6 @@ func (r *RootCmd) update() *clibase.Cmd {
 
 			buildParams, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Template:           template,
-				ExistingParams:     existingParams,
-				ParameterFile:      parameterFile,
 				ExistingRichParams: existingRichParams,
 				RichParameterFile:  richParameterFile,
 				NewWorkspaceName:   workspace.Name,
@@ -70,7 +61,6 @@ func (r *RootCmd) update() *clibase.Cmd {
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID:   template.ActiveVersionID,
 				Transition:          codersdk.WorkspaceTransitionStart,
-				ParameterValues:     buildParams.parameters,
 				RichParameterValues: buildParams.richParameters,
 			})
 			if err != nil {
@@ -98,12 +88,6 @@ func (r *RootCmd) update() *clibase.Cmd {
 			Description: "Always prompt all parameters. Does not pull parameter values from existing workspace.",
 
 			Value: clibase.BoolOf(&alwaysPrompt),
-		},
-		{
-			Flag:        "parameter-file",
-			Description: "Specify a file path with parameter values.",
-			Env:         "CODER_PARAMETER_FILE",
-			Value:       clibase.StringOf(&parameterFile),
 		},
 		{
 			Flag:        "rich-parameter-file",

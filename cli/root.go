@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -25,7 +27,9 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gobwas/httphead"
 	"github.com/mattn/go-isatty"
+	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
@@ -33,12 +37,13 @@ import (
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/gitauth"
+	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
 var (
-	Caret = cliui.Styles.Prompt.String()
+	Caret = cliui.DefaultStyles.Prompt.String()
 
 	// Applied as annotations to workspace commands
 	// so they display in a separated "help" section.
@@ -87,11 +92,12 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 
 		// Workspace Commands
 		r.configSSH(),
-		r.rename(),
-		r.ping(),
 		r.create(),
 		r.deleteWorkspace(),
 		r.list(),
+		r.ping(),
+		r.rename(),
+		r.scaletest(),
 		r.schedules(),
 		r.show(),
 		r.speedtest(),
@@ -100,13 +106,11 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.stop(),
 		r.update(),
 		r.restart(),
-		r.parameters(),
 
 		// Hidden
-		r.workspaceAgent(),
-		r.scaletest(),
 		r.gitssh(),
 		r.vscodeSSH(),
+		r.workspaceAgent(),
 	}
 }
 
@@ -365,6 +369,13 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:         globalGroup,
 		},
 		{
+			Flag:        "debug-http",
+			Description: "Debug codersdk HTTP requests.",
+			Value:       clibase.BoolOf(&r.debugHTTP),
+			Group:       globalGroup,
+			Hidden:      true,
+		},
+		{
 			Flag:        config.FlagName,
 			Env:         "CODER_CONFIG_DIR",
 			Description: "Path to the global `coder` config directory.",
@@ -412,9 +423,46 @@ type RootCmd struct {
 	forceTTY     bool
 	noOpen       bool
 	verbose      bool
+	debugHTTP    bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
+}
+
+func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
+	var topts []telemetry.CLIOption
+	for _, opt := range inv.Command.FullOptions() {
+		if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
+			continue
+		}
+		topts = append(topts, telemetry.CLIOption{
+			Name:        opt.Name,
+			ValueSource: string(opt.ValueSource),
+		})
+	}
+	ti := telemetry.CLIInvocation{
+		Command:   inv.Command.FullName(),
+		Options:   topts,
+		InvokedAt: time.Now(),
+	}
+
+	byt, err := json.Marshal(ti)
+	if err != nil {
+		// Should be impossible
+		panic(err)
+	}
+
+	// Per https://stackoverflow.com/questions/686217/maximum-on-http-header-values,
+	// we don't want to send headers that are too long.
+	s := base64.StdEncoding.EncodeToString(byt)
+	if len(s) > 4096 {
+		return
+	}
+
+	client.ExtraHeaders.Set(
+		codersdk.CLITelemetryHeader,
+		s,
+	)
 }
 
 // InitClient sets client to a new client.
@@ -427,7 +475,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 		panic("root is nil")
 	}
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(i *clibase.Invocation) error {
+		return func(inv *clibase.Invocation) error {
 			conf := r.createConfig()
 			var err error
 			if r.clientURL == nil || r.clientURL.String() == "" {
@@ -456,13 +504,21 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 					return err
 				}
 			}
-
-			err = r.setClient(client, r.clientURL)
+			err = r.setClient(
+				client, r.clientURL,
+			)
 			if err != nil {
 				return err
 			}
 
+			addTelemetryHeader(client, inv)
+
 			client.SetSessionToken(r.token)
+
+			if r.debugHTTP {
+				client.PlainLogger = os.Stderr
+				client.LogBodies = true
+			}
 
 			// We send these requests in parallel to minimize latency.
 			var (
@@ -470,31 +526,31 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				warningErr = make(chan error)
 			)
 			go func() {
-				versionErr <- r.checkVersions(i, client)
+				versionErr <- r.checkVersions(inv, client)
 				close(versionErr)
 			}()
 
 			go func() {
-				warningErr <- r.checkWarnings(i, client)
+				warningErr <- r.checkWarnings(inv, client)
 				close(warningErr)
 			}()
 
 			if err = <-versionErr; err != nil {
 				// Just log the error here. We never want to fail a command
 				// due to a pre-run.
-				_, _ = fmt.Fprintf(i.Stderr,
-					cliui.Styles.Warn.Render("check versions error: %s"), err)
-				_, _ = fmt.Fprintln(i.Stderr)
+				_, _ = fmt.Fprintf(inv.Stderr,
+					cliui.DefaultStyles.Warn.Render("check versions error: %s"), err)
+				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
 			if err = <-warningErr; err != nil {
 				// Same as above
-				_, _ = fmt.Fprintf(i.Stderr,
-					cliui.Styles.Warn.Render("check entitlement warnings error: %s"), err)
-				_, _ = fmt.Fprintln(i.Stderr)
+				_, _ = fmt.Fprintf(inv.Stderr,
+					cliui.DefaultStyles.Warn.Render("check entitlement warnings error: %s"), err)
+				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
-			return next(i)
+			return next(inv)
 		}
 	}
 }
@@ -504,16 +560,17 @@ func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 		transport: http.DefaultTransport,
 		header:    http.Header{},
 	}
-	for _, header := range r.header {
-		parts := strings.SplitN(header, "=", 2)
-		if len(parts) < 2 {
-			return xerrors.Errorf("split header %q had less than two parts", header)
-		}
-		transport.header.Add(parts[0], parts[1])
-	}
 	client.URL = serverURL
 	client.HTTPClient = &http.Client{
 		Transport: transport,
+	}
+	client.ExtraHeaders = make(http.Header)
+	for _, hd := range r.header {
+		k, v, ok := httphead.ParseHeaderLine([]byte(hd))
+		if !ok {
+			return xerrors.Errorf("invalid header: %s", hd)
+		}
+		client.ExtraHeaders.Add(string(k), string(v))
 	}
 	return nil
 }
@@ -620,17 +677,20 @@ type example struct {
 // formatExamples formats the examples as width wrapped bulletpoint
 // descriptions with the command underneath.
 func formatExamples(examples ...example) string {
-	wrap := cliui.Styles.Wrap.Copy()
-	wrap.PaddingLeft(4)
 	var sb strings.Builder
+
+	padStyle := cliui.DefaultStyles.Wrap.Copy().PaddingLeft(4)
 	for i, e := range examples {
 		if len(e.Description) > 0 {
-			_, _ = sb.WriteString("  - " + wrap.Render(e.Description + ":")[4:] + "\n\n    ")
+			wordwrap.WrapString(e.Description, 80)
+			_, _ = sb.WriteString(
+				"  - " + padStyle.Render(e.Description + ":")[4:] + "\n\n    ",
+			)
 		}
-		// We add 1 space here because `cliui.Styles.Code` adds an extra
+		// We add 1 space here because `cliui.DefaultStyles.Code` adds an extra
 		// space. This makes the code block align at an even 2 or 6
 		// spaces for symmetry.
-		_, _ = sb.WriteString(" " + cliui.Styles.Code.Render(fmt.Sprintf("$ %s", e.Command)))
+		_, _ = sb.WriteString(" " + cliui.DefaultStyles.Code.Render(fmt.Sprintf("$ %s", e.Command)))
 		if i < len(examples)-1 {
 			_, _ = sb.WriteString("\n\n")
 		}
@@ -668,7 +728,7 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) 
 	}
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
-		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
+		warn := cliui.DefaultStyles.Warn.Copy().Align(lipgloss.Left)
 		_, _ = fmt.Fprintf(i.Stderr, warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
 		_, _ = fmt.Fprintln(i.Stderr)
 	}
@@ -687,7 +747,7 @@ func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) 
 	entitlements, err := client.Entitlements(ctx)
 	if err == nil {
 		for _, w := range entitlements.Warnings {
-			_, _ = fmt.Fprintln(i.Stderr, cliui.Styles.Warn.Render(w))
+			_, _ = fmt.Fprintln(i.Stderr, cliui.DefaultStyles.Warn.Render(w))
 		}
 	}
 	return nil

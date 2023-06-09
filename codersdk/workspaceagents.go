@@ -76,6 +76,20 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 	WorkspaceAgentLifecycleOff,
 }
 
+// WorkspaceAgentStartupScriptBehavior defines whether or not the startup script
+// should be considered blocking or non-blocking. The blocking behavior means
+// that the agent will not be considered ready until the startup script has
+// completed and, for example, SSH connections will wait for the agent to be
+// ready (can be overridden).
+//
+// Presently, non-blocking is the default, but this may change in the future.
+type WorkspaceAgentStartupScriptBehavior string
+
+const (
+	WorkspaceAgentStartupScriptBehaviorBlocking    WorkspaceAgentStartupScriptBehavior = "blocking"
+	WorkspaceAgentStartupScriptBehaviorNonBlocking WorkspaceAgentStartupScriptBehavior = "non-blocking"
+)
+
 type WorkspaceAgentMetadataResult struct {
 	CollectedAt time.Time `json:"collected_at" format:"date-time"`
 	// Age is the number of seconds since the metadata was collected.
@@ -127,12 +141,14 @@ type WorkspaceAgent struct {
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
-	// LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
-	LoginBeforeReady bool `json:"login_before_ready"`
+	// Deprecated: Use StartupScriptBehavior instead.
+	LoginBeforeReady      bool                                `json:"login_before_ready"`
+	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
 	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	StartupScriptTimeoutSeconds  int32  `json:"startup_script_timeout_seconds"`
-	ShutdownScript               string `json:"shutdown_script,omitempty"`
-	ShutdownScriptTimeoutSeconds int32  `json:"shutdown_script_timeout_seconds"`
+	StartupScriptTimeoutSeconds  int32          `json:"startup_script_timeout_seconds"`
+	ShutdownScript               string         `json:"shutdown_script,omitempty"`
+	ShutdownScriptTimeoutSeconds int32          `json:"shutdown_script_timeout_seconds"`
+	Subsystem                    AgentSubsystem `json:"subsystem"`
 }
 
 type DERPRegion struct {
@@ -200,18 +216,12 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	coordinateHeaders := make(http.Header)
+	tokenHeader := SessionTokenHeader
+	if c.SessionTokenHeader != "" {
+		tokenHeader = c.SessionTokenHeader
 	}
-	jar.SetCookies(coordinateURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
-	httpClient := &http.Client{
-		Jar:       jar,
-		Transport: c.HTTPClient.Transport,
-	}
+	coordinateHeaders.Set(tokenHeader, c.SessionToken())
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		if err != nil {
@@ -227,7 +237,8 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 			options.Logger.Debug(ctx, "connecting")
 			// nolint:bodyclose
 			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
-				HTTPClient: httpClient,
+				HTTPClient: c.HTTPClient,
+				HTTPHeader: coordinateHeaders,
 				// Need to disable compression to avoid a data-race.
 				CompressionMode: websocket.CompressionDisabled,
 			})
@@ -367,32 +378,78 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
 }
 
+type IssueReconnectingPTYSignedTokenRequest struct {
+	// URL is the URL of the reconnecting-pty endpoint you are connecting to.
+	URL     string    `json:"url" validate:"required"`
+	AgentID uuid.UUID `json:"agentID" format:"uuid" validate:"required"`
+}
+
+type IssueReconnectingPTYSignedTokenResponse struct {
+	SignedToken string `json:"signed_token"`
+}
+
+func (c *Client) IssueReconnectingPTYSignedToken(ctx context.Context, req IssueReconnectingPTYSignedTokenRequest) (IssueReconnectingPTYSignedTokenResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/applications/reconnecting-pty-signed-token", req)
+	if err != nil {
+		return IssueReconnectingPTYSignedTokenResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return IssueReconnectingPTYSignedTokenResponse{}, ReadBodyAsError(res)
+	}
+	var resp IssueReconnectingPTYSignedTokenResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// @typescript-ignore:WorkspaceAgentReconnectingPTYOpts
+type WorkspaceAgentReconnectingPTYOpts struct {
+	AgentID   uuid.UUID
+	Reconnect uuid.UUID
+	Width     uint16
+	Height    uint16
+	Command   string
+
+	// SignedToken is an optional signed token from the
+	// issue-reconnecting-pty-signed-token endpoint. If set, the session token
+	// on the client will not be sent.
+	SignedToken string
+}
+
 // WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.
 // It communicates using `agent.ReconnectingPTYRequest` marshaled as JSON.
 // Responses are PTY output that can be rendered.
-func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, reconnect uuid.UUID, height, width uint16, command string) (net.Conn, error) {
-	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty", agentID))
+func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentReconnectingPTYOpts) (net.Conn, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty", opts.AgentID))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := serverURL.Query()
-	q.Set("reconnect", reconnect.String())
-	q.Set("height", strconv.Itoa(int(height)))
-	q.Set("width", strconv.Itoa(int(width)))
-	q.Set("command", command)
+	q.Set("reconnect", opts.Reconnect.String())
+	q.Set("width", strconv.Itoa(int(opts.Width)))
+	q.Set("height", strconv.Itoa(int(opts.Height)))
+	q.Set("command", opts.Command)
+	// If we're using a signed token, set the query parameter.
+	if opts.SignedToken != "" {
+		q.Set(SignedAppTokenQueryParameter, opts.SignedToken)
+	}
 	serverURL.RawQuery = q.Encode()
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
-	httpClient := &http.Client{
-		Jar:       jar,
-		Transport: c.HTTPClient.Transport,
+	// If we're not using a signed token, we need to set the session token as a
+	// cookie.
+	httpClient := c.HTTPClient
+	if opts.SignedToken == "" {
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			return nil, xerrors.Errorf("create cookie jar: %w", err)
+		}
+		jar.SetCookies(serverURL, []*http.Cookie{{
+			Name:  SessionTokenCookie,
+			Value: c.SessionToken(),
+		}})
+		httpClient = &http.Client{
+			Jar:       jar,
+			Transport: c.HTTPClient.Transport,
+		}
 	}
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
@@ -512,3 +569,9 @@ type WorkspaceAgentStartupLog struct {
 	Output    string    `json:"output"`
 	Level     LogLevel  `json:"level"`
 }
+
+type AgentSubsystem string
+
+const (
+	AgentSubsystemEnvbox AgentSubsystem = "envbox"
+)

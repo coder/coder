@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/go-jose/go-jose/v3"
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/codersdk"
 )
 
 const (
@@ -51,6 +53,10 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 // We use a single key for both operations to avoid having to store and manage
 // two keys.
 type SecurityKey [96]byte
+
+func (k SecurityKey) String() string {
+	return hex.EncodeToString(k[:])
+}
 
 func (k SecurityKey) signingKey() []byte {
 	return k[:64]
@@ -216,4 +222,41 @@ func (k SecurityKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	}
 
 	return payload.APIKey, nil
+}
+
+// FromRequest returns the signed token from the request, if it exists and is
+// valid. The caller must check that the token matches the request.
+func FromRequest(r *http.Request, key SecurityKey) (*SignedToken, bool) {
+	// Get the token string from the request. We usually use a cookie for this,
+	// but for web terminal we also support a query parameter to support
+	// cross-domain terminal access.
+	tokenStr := ""
+	tokenCookie, cookieErr := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
+	if cookieErr == nil {
+		tokenStr = tokenCookie.Value
+	} else {
+		tokenStr = r.URL.Query().Get(codersdk.SignedAppTokenQueryParameter)
+	}
+
+	if tokenStr != "" {
+		token, err := key.VerifySignedToken(tokenStr)
+		if err == nil {
+			req := token.Request.Normalize()
+			if cookieErr != nil && req.AccessMethod != AccessMethodTerminal {
+				// The request must be a terminal request if we're using a
+				// query parameter.
+				return nil, false
+			}
+
+			err := req.Validate()
+			if err == nil {
+				// The request has a valid signed app token, which is a valid
+				// token signed by us. The caller must check that it matches
+				// the request.
+				return &token, true
+			}
+		}
+	}
+
+	return nil, false
 }

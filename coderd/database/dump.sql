@@ -99,6 +99,11 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_proxy'
 );
 
+CREATE TYPE startup_script_behavior AS ENUM (
+    'blocking',
+    'non-blocking'
+);
+
 CREATE TYPE user_status AS ENUM (
     'active',
     'suspended'
@@ -116,6 +121,12 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'off'
 );
 
+CREATE TYPE workspace_agent_subsystem AS ENUM (
+    'envbuilder',
+    'envbox',
+    'none'
+);
+
 CREATE TYPE workspace_app_health AS ENUM (
     'disabled',
     'initializing',
@@ -128,6 +139,34 @@ CREATE TYPE workspace_transition AS ENUM (
     'stop',
     'delete'
 );
+
+CREATE FUNCTION delete_deleted_user_api_keys() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+BEGIN
+	IF (NEW.deleted) THEN
+		DELETE FROM api_keys
+		WHERE user_id = OLD.id;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION insert_apikey_fail_if_user_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+BEGIN
+	IF (NEW.user_id IS NOT NULL) THEN
+		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
+			RAISE EXCEPTION 'Cannot create API key for deleted user';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$;
 
 CREATE TABLE api_keys (
     id text NOT NULL,
@@ -318,7 +357,8 @@ CREATE TABLE provisioner_jobs (
     worker_id uuid,
     file_id uuid NOT NULL,
     tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL,
-    error_code text
+    error_code text,
+    trace_metadata jsonb
 );
 
 CREATE TABLE replicas (
@@ -350,8 +390,8 @@ CREATE TABLE template_version_parameters (
     icon text NOT NULL,
     options jsonb DEFAULT '[]'::jsonb NOT NULL,
     validation_regex text NOT NULL,
-    validation_min integer NOT NULL,
-    validation_max integer NOT NULL,
+    validation_min integer,
+    validation_max integer,
     validation_error text DEFAULT ''::text NOT NULL,
     validation_monotonic text DEFAULT ''::text NOT NULL,
     required boolean DEFAULT true NOT NULL,
@@ -449,7 +489,9 @@ CREATE TABLE templates (
     allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL,
     max_ttl bigint DEFAULT '0'::bigint NOT NULL,
     allow_user_autostart boolean DEFAULT true NOT NULL,
-    allow_user_autostop boolean DEFAULT true NOT NULL
+    allow_user_autostop boolean DEFAULT true NOT NULL,
+    failure_ttl bigint DEFAULT 0 NOT NULL,
+    inactivity_ttl bigint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -559,13 +601,14 @@ CREATE TABLE workspace_agents (
     troubleshooting_url text DEFAULT ''::text NOT NULL,
     motd_file text DEFAULT ''::text NOT NULL,
     lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
-    login_before_ready boolean DEFAULT true NOT NULL,
     startup_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
     shutdown_script character varying(65534),
     shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     startup_logs_length integer DEFAULT 0 NOT NULL,
     startup_logs_overflowed boolean DEFAULT false NOT NULL,
+    subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL,
+    startup_script_behavior startup_script_behavior DEFAULT 'non-blocking'::startup_script_behavior NOT NULL,
     CONSTRAINT max_startup_logs_length CHECK ((startup_logs_length <= 1048576))
 );
 
@@ -579,8 +622,6 @@ COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace c
 
 COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
 
-COMMENT ON COLUMN workspace_agents.login_before_ready IS 'If true, the agent will not prevent login before it is ready (e.g. startup script is still executing).';
-
 COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
 
 COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
@@ -592,6 +633,8 @@ COMMENT ON COLUMN workspace_agents.shutdown_script_timeout_seconds IS 'The numbe
 COMMENT ON COLUMN workspace_agents.startup_logs_length IS 'Total length of startup logs';
 
 COMMENT ON COLUMN workspace_agents.startup_logs_overflowed IS 'Whether the startup logs overflowed in length';
+
+COMMENT ON COLUMN workspace_agents.startup_script_behavior IS 'When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -647,12 +690,19 @@ CREATE TABLE workspace_proxies (
     wildcard_hostname text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    deleted boolean NOT NULL
+    deleted boolean NOT NULL,
+    token_hashed_secret bytea NOT NULL
 );
+
+COMMENT ON COLUMN workspace_proxies.icon IS 'Expects an emoji character. (/emojis/1f1fa-1f1f8.png)';
 
 COMMENT ON COLUMN workspace_proxies.url IS 'Full url including scheme of the proxy api url: https://us.example.com';
 
 COMMENT ON COLUMN workspace_proxies.wildcard_hostname IS 'Hostname with the wildcard for subdomain based app hosting: *.us.example.com';
+
+COMMENT ON COLUMN workspace_proxies.deleted IS 'Boolean indicator of a deleted workspace proxy. Proxies are soft-deleted.';
+
+COMMENT ON COLUMN workspace_proxies.token_hashed_secret IS 'Hashed secret is used to authenticate the workspace proxy using a session token.';
 
 CREATE TABLE workspace_resource_metadata (
     workspace_resource_id uuid NOT NULL,
@@ -882,11 +932,15 @@ CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (au
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
-CREATE UNIQUE INDEX workspace_proxies_name_idx ON workspace_proxies USING btree (name) WHERE (deleted = false);
+CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
+
+CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_api_keys();
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

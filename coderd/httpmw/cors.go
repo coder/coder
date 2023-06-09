@@ -1,0 +1,61 @@
+package httpmw
+
+import (
+	"net/http"
+	"net/url"
+	"regexp"
+
+	"github.com/go-chi/cors"
+
+	"github.com/coder/coder/coderd/httpapi"
+)
+
+//nolint:revive
+func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler {
+	if len(origins) == 0 {
+		// The default behavior is '*', so putting the empty string defaults to
+		// the secure behavior of blocking CORs requests.
+		origins = []string{""}
+	}
+	if allowAll {
+		origins = []string{"*"}
+	}
+	return cors.Handler(cors.Options{
+		AllowedOrigins: origins,
+		// We only need GET for latency requests
+		AllowedMethods: []string{http.MethodOptions, http.MethodGet},
+		AllowedHeaders: []string{"Accept", "Content-Type", "X-LATENCY-CHECK", "X-CSRF-TOKEN"},
+		// Do not send any cookies
+		AllowCredentials: false,
+	})
+}
+
+func WorkspaceAppCors(regex *regexp.Regexp, app httpapi.ApplicationURL) func(next http.Handler) http.Handler {
+	return cors.Handler(cors.Options{
+		AllowOriginFunc: func(r *http.Request, rawOrigin string) bool {
+			origin, err := url.Parse(rawOrigin)
+			if rawOrigin == "" || origin.Host == "" || err != nil {
+				return false
+			}
+			subdomain, ok := httpapi.ExecuteHostnamePattern(regex, origin.Host)
+			if !ok {
+				return false
+			}
+			originApp, err := httpapi.ParseSubdomainAppURL(subdomain)
+			if err != nil {
+				return false
+			}
+			return ok && originApp.Username == app.Username
+		},
+		AllowedMethods: []string{
+			http.MethodHead,
+			http.MethodGet,
+			http.MethodPost,
+			http.MethodPut,
+			http.MethodPatch,
+			http.MethodDelete,
+		},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: true,
+	})
+}

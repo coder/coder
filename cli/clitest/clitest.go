@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/config"
@@ -39,7 +41,7 @@ func New(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
 
 type logWriter struct {
 	prefix string
-	t      *testing.T
+	log    slog.Logger
 }
 
 func (l *logWriter) Write(p []byte) (n int, err error) {
@@ -47,8 +49,9 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 	if trimmed == "" {
 		return len(p), nil
 	}
-	l.t.Log(
-		l.prefix + ": " + trimmed,
+	l.log.Info(
+		context.Background(),
+		l.prefix+": "+trimmed,
 	)
 	return len(p), nil
 }
@@ -57,12 +60,13 @@ func NewWithCommand(
 	t *testing.T, cmd *clibase.Cmd, args ...string,
 ) (*clibase.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
+	logger := slogtest.Make(t, nil)
 	i := &clibase.Invocation{
 		Command: cmd,
 		Args:    append([]string{"--global-config", string(configDir)}, args...),
 		Stdin:   io.LimitReader(nil, 0),
-		Stdout:  (&logWriter{prefix: "stdout", t: t}),
-		Stderr:  (&logWriter{prefix: "stderr", t: t}),
+		Stdout:  (&logWriter{prefix: "stdout", log: logger}),
+		Stderr:  (&logWriter{prefix: "stderr", log: logger}),
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 
@@ -127,15 +131,23 @@ func extractTar(t *testing.T, data []byte, directory string) {
 	}
 }
 
-// Start runs the command in a goroutine and cleans it up when
-// the test completed.
+// Start runs the command in a goroutine and cleans it up when the test
+// completed.
 func Start(t *testing.T, inv *clibase.Invocation) {
 	t.Helper()
 
 	closeCh := make(chan struct{})
+	// StartWithWaiter adds its own `t.Cleanup`, so we need to be sure it's added
+	// before ours.
+	waiter := StartWithWaiter(t, inv)
+	t.Cleanup(func() {
+		waiter.Cancel()
+		<-closeCh
+	})
+
 	go func() {
 		defer close(closeCh)
-		err := StartWithWaiter(t, inv).Wait()
+		err := waiter.Wait()
 		switch {
 		case errors.Is(err, context.Canceled):
 			return
@@ -143,10 +155,6 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 			assert.NoError(t, err)
 		}
 	}()
-
-	t.Cleanup(func() {
-		<-closeCh
-	})
 }
 
 // Run runs the command and asserts that there is no error.
@@ -160,9 +168,14 @@ func Run(t *testing.T, inv *clibase.Invocation) {
 type ErrorWaiter struct {
 	waitOnce    sync.Once
 	cachedError error
+	cancelFunc  context.CancelFunc
 
 	c <-chan error
 	t *testing.T
+}
+
+func (w *ErrorWaiter) Cancel() {
+	w.cancelFunc()
 }
 
 func (w *ErrorWaiter) Wait() error {
@@ -170,7 +183,7 @@ func (w *ErrorWaiter) Wait() error {
 		var ok bool
 		w.cachedError, ok = <-w.c
 		if !ok {
-			panic("unexpoected channel close")
+			panic("unexpected channel close")
 		}
 	})
 	return w.cachedError
@@ -196,18 +209,18 @@ func (w *ErrorWaiter) RequireAs(want interface{}) {
 	require.ErrorAs(w.t, w.Wait(), want)
 }
 
-// StartWithWaiter runs the command in a goroutine but returns the error
-// instead of asserting it. This is useful for testing error cases.
+// StartWithWaiter runs the command in a goroutine but returns the error instead
+// of asserting it. This is useful for testing error cases.
 func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 	t.Helper()
-
-	errCh := make(chan error, 1)
-
-	var cleaningUp atomic.Bool
 
 	var (
 		ctx    = inv.Context()
 		cancel func()
+
+		cleaningUp atomic.Bool
+		errCh      = make(chan error, 1)
+		doneCh     = make(chan struct{})
 	)
 	if _, ok := ctx.Deadline(); !ok {
 		ctx, cancel = context.WithDeadline(ctx, time.Now().Add(testutil.WaitMedium))
@@ -218,12 +231,13 @@ func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 	inv = inv.WithContext(ctx)
 
 	go func() {
+		defer close(doneCh)
 		defer close(errCh)
 		err := inv.Run()
 		if cleaningUp.Load() && errors.Is(err, context.DeadlineExceeded) {
-			// If we're cleaning up, this error is likely related to the
-			// CLI teardown process. E.g., the server could be slow to shut
-			// down Postgres.
+			// If we're cleaning up, this error is likely related to the CLI
+			// teardown process. E.g., the server could be slow to shut down
+			// Postgres.
 			t.Logf("command %q timed out during test cleanup", inv.Command.FullName())
 		}
 		// Whether or not this fails the test is left to the caller.
@@ -235,7 +249,7 @@ func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 	t.Cleanup(func() {
 		cancel()
 		cleaningUp.Store(true)
-		<-errCh
+		<-doneCh
 	})
-	return &ErrorWaiter{c: errCh, t: t}
+	return &ErrorWaiter{c: errCh, t: t, cancelFunc: cancel}
 }

@@ -39,7 +39,15 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 ```json
 {
+  "access_url": {
+    "error": null,
+    "healthy": true,
+    "healthz_response": "string",
+    "reachable": true,
+    "status_code": 0
+  },
   "derp": {
+    "error": null,
     "healthy": true,
     "netcheck": {
       "captivePortal": "string",
@@ -71,15 +79,18 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
       "udp": true,
       "upnP": "string"
     },
+    "netcheck_err": null,
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
+        "error": null,
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "error": null,
             "healthy": true,
             "node": {
               "certName": "string",
@@ -94,6 +105,10 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "stunonly": true,
               "stunport": 0,
               "stuntestIP": "string"
+            },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
             },
             "round_trip_ping": 0,
             "stun": {
@@ -129,12 +144,14 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
         }
       },
       "property2": {
+        "error": null,
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "error": null,
             "healthy": true,
             "node": {
               "certName": "string",
@@ -149,6 +166,10 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "stunonly": true,
               "stunport": 0,
               "stuntestIP": "string"
+            },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
             },
             "round_trip_ping": 0,
             "stun": {
@@ -185,8 +206,17 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
       }
     }
   },
-  "pass": true,
-  "time": "string"
+  "failing_sections": ["string"],
+  "healthy": true,
+  "time": "string",
+  "websocket": {
+    "error": null,
+    "healthy": true,
+    "response": {
+      "body": "string",
+      "code": 0
+    }
+  }
 }
 ```
 

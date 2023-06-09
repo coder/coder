@@ -1,10 +1,10 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
-import GroupAdd from "@material-ui/icons/GroupAddOutlined"
-import PersonAdd from "@material-ui/icons/PersonAddOutlined"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import { makeStyles } from "@mui/styles"
+import GroupAdd from "@mui/icons-material/GroupAddOutlined"
+import PersonAdd from "@mui/icons-material/PersonAddOutlined"
 import { useMachine } from "@xstate/react"
-import { USERS_LINK } from "components/NavbarView/NavbarView"
+import { USERS_LINK } from "components/Navbar/NavbarView"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { usePermissions } from "hooks/usePermissions"
@@ -37,7 +37,6 @@ export const UsersLayout: FC = () => {
               {canCreateUser &&
                 authMethods.context.authMethods?.password.enabled && (
                   <Button
-                    variant="outlined"
                     onClick={() => {
                       navigate("/users/create")
                     }}
@@ -47,14 +46,8 @@ export const UsersLayout: FC = () => {
                   </Button>
                 )}
               {canCreateGroup && isTemplateRBACEnabled && (
-                <Link
-                  underline="none"
-                  component={RouterLink}
-                  to="/groups/create"
-                >
-                  <Button variant="outlined" startIcon={<GroupAdd />}>
-                    Create group
-                  </Button>
+                <Link component={RouterLink} to="/groups/create">
+                  <Button startIcon={<GroupAdd />}>Create group</Button>
                 </Link>
               )}
             </>

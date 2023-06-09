@@ -1,8 +1,8 @@
-import TextField from "@material-ui/core/TextField"
+import TextField from "@mui/material/TextField"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
 import { ChangeEvent, FC, useState } from "react"
-import Typography from "@material-ui/core/Typography"
+import Typography from "@mui/material/Typography"
 import { allowedExtensions, isAllowedFile } from "utils/templateVersion"
 import { FileTree, isFolder, validatePath } from "utils/filetree"
 
@@ -80,9 +80,6 @@ export const CreateFileDialog: FC<{
             value={pathValue}
             onChange={handleChange}
             label="File Path"
-            InputLabelProps={{
-              shrink: true,
-            }}
           />
         </Stack>
       }

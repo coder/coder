@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
       time: "06:00"
       timezone: "America/Chicago"
     labels: []
@@ -28,7 +28,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
       time: "06:00"
       timezone: "America/Chicago"
     commit-message:
@@ -40,12 +40,29 @@ updates:
         update-types:
           - version-update:semver-patch
 
+  # Update our Dockerfile.
+  - package-ecosystem: "docker"
+    directory: "/scripts/"
+    schedule:
+      interval: "weekly"
+      time: "06:00"
+      timezone: "America/Chicago"
+    commit-message:
+      prefix: "chore"
+    labels: []
+    ignore:
+      # We need to coordinate terraform updates with the version hardcoded in
+      # our Go code.
+      - dependency-name: "terraform"
+
   - package-ecosystem: "npm"
     directory: "/site/"
     schedule:
       interval: "monthly"
       time: "06:00"
       timezone: "America/Chicago"
+    reviewers:
+      - "coder/ts"
     commit-message:
       prefix: "chore"
     labels: []
@@ -71,4 +88,27 @@ updates:
     labels: []
     ignore:
       # We likely want to update this ourselves.
+      - dependency-name: "coder/coder"
+
+  # Update dogfood.
+  - package-ecosystem: "docker"
+    directory: "/dogfood/"
+    schedule:
+      interval: "weekly"
+      time: "06:00"
+      timezone: "America/Chicago"
+    commit-message:
+      prefix: "chore"
+    labels: []
+
+  - package-ecosystem: "terraform"
+    directory: "/dogfood/"
+    schedule:
+      interval: "weekly"
+      time: "06:00"
+      timezone: "America/Chicago"
+    commit-message:
+      prefix: "chore"
+    labels: []
+    ignore:
       - dependency-name: "coder/coder"

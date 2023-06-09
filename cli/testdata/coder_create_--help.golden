@@ -3,9 +3,6 @@ Usage: coder create [flags] [name]
 Create a workspace
 
 [1mOptions[0m
-      --parameter-file string, $CODER_PARAMETER_FILE
-          Specify a file path with parameter values.
-
       --rich-parameter-file string, $CODER_RICH_PARAMETER_FILE
           Specify a file path with values for rich parameters defined in the
           template.

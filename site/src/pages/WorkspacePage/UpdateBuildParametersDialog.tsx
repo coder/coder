@@ -1,8 +1,8 @@
-import { makeStyles } from "@material-ui/core/styles"
-import Dialog from "@material-ui/core/Dialog"
-import DialogContent from "@material-ui/core/DialogContent"
-import DialogContentText from "@material-ui/core/DialogContentText"
-import DialogTitle from "@material-ui/core/DialogTitle"
+import { makeStyles } from "@mui/styles"
+import Dialog from "@mui/material/Dialog"
+import DialogContent from "@mui/material/DialogContent"
+import DialogContentText from "@mui/material/DialogContentText"
+import DialogTitle from "@mui/material/DialogTitle"
 import { DialogProps } from "components/Dialogs/Dialog"
 import { FC } from "react"
 import { getFormHelpers } from "utils/formUtils"
@@ -18,8 +18,8 @@ import {
   useValidationSchemaForRichParameters,
 } from "utils/richParameters"
 import * as Yup from "yup"
-import DialogActions from "@material-ui/core/DialogActions"
-import Button from "@material-ui/core/Button"
+import DialogActions from "@mui/material/DialogActions"
+import Button from "@mui/material/Button"
 import { useTranslation } from "react-i18next"
 
 export type UpdateBuildParametersDialogProps = DialogProps & {
@@ -102,12 +102,7 @@ export const UpdateBuildParametersDialog: FC<
         </VerticalForm>
       </DialogContent>
       <DialogActions disableSpacing className={styles.dialogActions}>
-        <Button
-          fullWidth
-          type="button"
-          variant="outlined"
-          onClick={dialogProps.onClose}
-        >
+        <Button fullWidth type="button" onClick={dialogProps.onClose}>
           Cancel
         </Button>
         <Button color="primary" fullWidth type="submit" form="updateParameters">

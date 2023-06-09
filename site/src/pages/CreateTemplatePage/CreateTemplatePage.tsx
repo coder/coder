@@ -1,6 +1,5 @@
 import { useMachine } from "@xstate/react"
 import { isApiValidationError } from "api/errors"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
@@ -14,6 +13,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
 import { createTemplateMachine } from "xServices/createTemplate/createTemplateXService"
 import { CreateTemplateForm } from "./CreateTemplateForm"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 const CreateTemplatePage: FC = () => {
   const { t } = useTranslation("createTemplatePage")
@@ -33,15 +33,8 @@ const CreateTemplatePage: FC = () => {
     },
   })
 
-  const {
-    starterTemplate,
-    parameters,
-    error,
-    file,
-    jobError,
-    jobLogs,
-    variables,
-  } = state.context
+  const { starterTemplate, error, file, jobError, jobLogs, variables } =
+    state.context
   const shouldDisplayForm = !state.hasTag("loading")
   const { entitlements } = useDashboard()
   const allowAdvancedScheduling =
@@ -64,7 +57,7 @@ const CreateTemplatePage: FC = () => {
 
         <Stack spacing={6}>
           <Maybe condition={Boolean(error && !isApiValidationError(error))}>
-            <AlertBanner error={error} severity="error" />
+            <ErrorAlert error={error} />
           </Maybe>
 
           {shouldDisplayForm && (
@@ -75,7 +68,6 @@ const CreateTemplatePage: FC = () => {
               starterTemplate={starterTemplate}
               isSubmitting={state.hasTag("submitting")}
               variables={variables}
-              parameters={parameters}
               onCancel={onCancel}
               onSubmit={(data) => {
                 send({

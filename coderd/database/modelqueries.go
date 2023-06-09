@@ -80,6 +80,8 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.MaxTTL,
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
+			&i.FailureTTL,
+			&i.InactivityTTL,
 		); err != nil {
 			return nil, err
 		}

@@ -2,8 +2,14 @@ import react from "@vitejs/plugin-react"
 import path from "path"
 import { defineConfig, PluginOption } from "vite"
 import { visualizer } from "rollup-plugin-visualizer"
+import checker from "vite-plugin-checker"
 
-const plugins: PluginOption[] = [react()]
+const plugins: PluginOption[] = [
+  react(),
+  checker({
+    typescript: true,
+  }),
+]
 
 if (process.env.STATS !== undefined) {
   plugins.push(
@@ -20,7 +26,8 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "./out"),
     // We need to keep the /bin folder and GITKEEP files
     emptyOutDir: false,
-    sourcemap: process.env.NODE_ENV === "development",
+    // 'hidden' works like true except that the corresponding sourcemap comments in the bundled files are suppressed
+    sourcemap: "hidden",
   },
   define: {
     "process.env": {
@@ -33,9 +40,27 @@ export default defineConfig({
     port: process.env.PORT ? Number(process.env.PORT) : 8080,
     proxy: {
       "/api": {
-        target: process.env.CODER_HOST || "http://localhost:3000",
         ws: true,
+        changeOrigin: true,
+        target: process.env.CODER_HOST || "http://localhost:3000",
         secure: process.env.NODE_ENV === "production",
+        configure: (proxy) => {
+          // Vite does not catch socket errors, and stops the webserver.
+          // As /startup-logs endpoint can return HTTP 4xx status, we need to embrace
+          // Vite with a custom error handler to prevent from quitting.
+          proxy.on("proxyReqWs", (proxyReq, req, socket) => {
+            if (process.env.NODE_ENV === "development") {
+              proxyReq.setHeader(
+                "origin",
+                process.env.CODER_HOST || "http://localhost:3000",
+              )
+            }
+
+            socket.on("error", (error) => {
+              console.error(error)
+            })
+          })
+        },
       },
       "/swagger": {
         target: process.env.CODER_HOST || "http://localhost:3000",
@@ -48,6 +73,7 @@ export default defineConfig({
       api: path.resolve(__dirname, "./src/api"),
       components: path.resolve(__dirname, "./src/components"),
       hooks: path.resolve(__dirname, "./src/hooks"),
+      contexts: path.resolve(__dirname, "./src/contexts"),
       i18n: path.resolve(__dirname, "./src/i18n"),
       pages: path.resolve(__dirname, "./src/pages"),
       testHelpers: path.resolve(__dirname, "./src/testHelpers"),

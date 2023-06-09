@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/testutil"
 )
 
@@ -30,18 +32,95 @@ func (w fakeObject) RBACObject() Object {
 	}
 }
 
+// objectBomb is a wrapper around an Objecter that calls a function when
+// RBACObject is called.
+type objectBomb struct {
+	Objecter
+	bomb func()
+}
+
+func (o *objectBomb) RBACObject() Object {
+	o.bomb()
+	return o.Objecter.RBACObject()
+}
+
 func TestFilterError(t *testing.T) {
 	t.Parallel()
-	auth := NewAuthorizer(prometheus.NewRegistry())
-	subject := Subject{
-		ID:     uuid.NewString(),
-		Roles:  RoleNames{},
-		Groups: []string{},
-		Scope:  ScopeAll,
-	}
+	_ = objectBomb{}
 
-	_, err := Filter(context.Background(), auth, subject, ActionRead, []Object{ResourceUser, ResourceWorkspace})
-	require.ErrorContains(t, err, "object types must be uniform")
+	t.Run("DifferentResourceTypes", func(t *testing.T) {
+		t.Parallel()
+
+		auth := NewAuthorizer(prometheus.NewRegistry())
+		subject := Subject{
+			ID:     uuid.NewString(),
+			Roles:  RoleNames{},
+			Groups: []string{},
+			Scope:  ScopeAll,
+		}
+
+		_, err := Filter(context.Background(), auth, subject, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+		require.ErrorContains(t, err, "object types must be uniform")
+	})
+
+	t.Run("CancelledContext", func(t *testing.T) {
+		t.Parallel()
+
+		auth := &MockAuthorizer{
+			AuthorizeFunc: func(ctx context.Context, subject Subject, action Action, object Object) error {
+				// Authorize func always returns nil, unless the context is canceled.
+				return ctx.Err()
+			},
+		}
+
+		subject := Subject{
+			ID: uuid.NewString(),
+			Roles: RoleNames{
+				RoleOwner(),
+			},
+			Groups: []string{},
+			Scope:  ScopeAll,
+		}
+
+		t.Run("SmallSet", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			objects := []Objecter{
+				ResourceUser,
+				ResourceUser,
+				&objectBomb{
+					Objecter: ResourceUser,
+					bomb:     cancel,
+				},
+				ResourceUser,
+			}
+
+			_, err := Filter(ctx, auth, subject, ActionRead, objects)
+			require.ErrorIs(t, err, context.Canceled)
+		})
+
+		// Triggers Prepared Authorize
+		t.Run("LargeSet", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			objects := make([]Objecter, 100)
+			for i := 0; i < 100; i++ {
+				objects[i] = ResourceUser
+			}
+			objects[20] = &objectBomb{
+				Objecter: ResourceUser,
+				bomb:     cancel,
+			}
+
+			_, err := Filter(ctx, auth, subject, ActionRead, objects)
+			require.ErrorIs(t, err, context.Canceled)
+		})
+	})
 }
 
 // TestFilter ensures the filter acts the same as an individual authorize.
@@ -170,14 +249,15 @@ func TestFilter(t *testing.T) {
 			localObjects := make([]fakeObject, len(objects))
 			copy(localObjects, objects)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
 			auth := NewAuthorizer(prometheus.NewRegistry())
 
 			if actor.Scope == nil {
 				// Default to ScopeAll
 				actor.Scope = ScopeAll
 			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
 			// Run auth 1 by 1
 			var allowedCount int
@@ -1044,4 +1124,43 @@ func must[T any](value T, err error) T {
 		panic(err)
 	}
 	return value
+}
+
+type MockAuthorizer struct {
+	AuthorizeFunc func(context.Context, Subject, Action, Object) error
+}
+
+var _ Authorizer = (*MockAuthorizer)(nil)
+
+func (d *MockAuthorizer) Authorize(ctx context.Context, s Subject, a Action, o Object) error {
+	return d.AuthorizeFunc(ctx, s, a, o)
+}
+
+func (d *MockAuthorizer) Prepare(_ context.Context, subject Subject, action Action, _ string) (PreparedAuthorized, error) {
+	return &mockPreparedAuthorizer{
+		Original: d,
+		Subject:  subject,
+		Action:   action,
+	}, nil
+}
+
+var _ PreparedAuthorized = (*mockPreparedAuthorizer)(nil)
+
+// fakePreparedAuthorizer is the prepared version of a FakeAuthorizer. It will
+// return the same error as the original FakeAuthorizer.
+type mockPreparedAuthorizer struct {
+	sync.RWMutex
+	Original *MockAuthorizer
+	Subject  Subject
+	Action   Action
+}
+
+func (f *mockPreparedAuthorizer) Authorize(ctx context.Context, object Object) error {
+	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
+}
+
+// CompileToSQL returns a compiled version of the authorizer that will work for
+// in memory databases. This fake version will not work against a SQL database.
+func (*mockPreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	return "not a valid sql string", nil
 }

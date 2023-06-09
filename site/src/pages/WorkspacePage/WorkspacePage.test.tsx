@@ -18,7 +18,11 @@ import {
   MockCanceledWorkspace,
   MockDeletingWorkspace,
   MockDeletedWorkspace,
+  MockWorkspaceWithDeletion,
   MockBuilds,
+  MockTemplateVersion3,
+  MockUser,
+  MockEntitlementsWithScheduling,
 } from "testHelpers/entities"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
@@ -35,6 +39,10 @@ const { t } = i18next
 const renderWorkspacePage = async () => {
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([])
+  jest.spyOn(api, "watchStartupLogs").mockImplementation((_, options) => {
+    options.onDone()
+    return new WebSocket("")
+  })
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
@@ -98,7 +106,7 @@ describe("WorkspacePage", () => {
     await renderWorkspacePage()
 
     // open the workspace action popover so we have access to all available ctas
-    const trigger = screen.getByTestId("workspace-actions-button")
+    const trigger = screen.getByTestId("workspace-options-button")
     await user.click(trigger)
     const buttonText = t("actionButton.delete", { ns: "workspacePage" })
 
@@ -151,6 +159,48 @@ describe("WorkspacePage", () => {
     )
   })
 
+  it("requests a stop when the user presses Restart", async () => {
+    const stopWorkspaceMock = jest
+      .spyOn(api, "stopWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
+
+    // Render
+    await renderWorkspacePage()
+
+    // Actions
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId("workspace-restart-button"))
+    const confirmButton = await screen.findByTestId("confirm-button")
+    await user.click(confirmButton)
+
+    // Assertions
+    await waitFor(() => {
+      expect(stopWorkspaceMock).toBeCalled()
+    })
+  })
+
+  it("requests a stop without confirmation when the user presses Restart", async () => {
+    const stopWorkspaceMock = jest
+      .spyOn(api, "stopWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
+    window.localStorage.setItem(
+      `${MockUser.id}_ignoredWarnings`,
+      JSON.stringify({ restart: new Date().toISOString() }),
+    )
+
+    // Render
+    await renderWorkspacePage()
+
+    // Actions
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId("workspace-restart-button"))
+
+    // Assertions
+    await waitFor(() => {
+      expect(stopWorkspaceMock).toBeCalled()
+    })
+  })
+
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
       rest.get(
@@ -168,7 +218,7 @@ describe("WorkspacePage", () => {
 
     const workspaceActions = screen.getByTestId("workspace-actions")
     const cancelButton = within(workspaceActions).getByRole("button", {
-      name: "cancel action",
+      name: "Cancel",
     })
 
     await userEvent.setup().click(cancelButton)
@@ -177,22 +227,32 @@ describe("WorkspacePage", () => {
   })
 
   it("requests an update when the user presses Update", async () => {
+    // Mocks
     jest
       .spyOn(api, "getWorkspaceByOwnerAndName")
       .mockResolvedValueOnce(MockOutdatedWorkspace)
+
     const updateWorkspaceMock = jest
       .spyOn(api, "updateWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
 
-    await testButton(
-      t("actionButton.update", { ns: "workspacePage" }),
-      updateWorkspaceMock,
-    )
+    // Render
+    await renderWorkspacePage()
+
+    // Actions
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId("workspace-update-button"))
+    const confirmButton = await screen.findByTestId("confirm-button")
+    await user.click(confirmButton)
+
+    // Assertions
+    await waitFor(() => {
+      expect(updateWorkspaceMock).toBeCalled()
+    })
   })
 
   it("updates the parameters when they are missing during update", async () => {
-    // Setup mocks
-    const user = userEvent.setup()
+    // Mocks
     jest
       .spyOn(api, "getWorkspaceByOwnerAndName")
       .mockResolvedValueOnce(MockOutdatedWorkspace)
@@ -204,23 +264,24 @@ describe("WorkspacePage", () => {
           MockTemplateVersionParameter2,
         ]),
       )
-    // Render page and wait for it to be loaded
-    renderWithAuth(<WorkspacePage />, {
-      route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
-      path: "/@:username/:workspace",
-    })
-    await waitForLoaderToBeRemoved()
-    // Click on the update button
-    const workspaceActions = screen.getByTestId("workspace-actions")
-    await user.click(
-      within(workspaceActions).getByRole("button", { name: "Update" }),
-    )
+
+    // Render
+    await renderWorkspacePage()
+
+    // Actions
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId("workspace-update-button"))
+    const confirmButton = await screen.findByTestId("confirm-button")
+    await user.click(confirmButton)
+
+    // The update was called
     await waitFor(() => {
       expect(api.updateWorkspace).toBeCalled()
-      // We want to clear this mock to use it later
       updateWorkspaceSpy.mockClear()
     })
-    // Fill the parameters and send the form
+
+    // After trying to update, a new dialog asking for missed parameters should
+    // be displayed and filled
     const dialog = await screen.findByTestId("dialog")
     const firstParameterInput = within(dialog).getByLabelText(
       MockTemplateVersionParameter1.name,
@@ -235,6 +296,7 @@ describe("WorkspacePage", () => {
     await user.clear(secondParameterInput)
     await user.type(secondParameterInput, "2")
     await user.click(within(dialog).getByRole("button", { name: "Update" }))
+
     // Check if the update was called using the values from the form
     await waitFor(() => {
       expect(api.updateWorkspace).toBeCalledWith(MockOutdatedWorkspace, [
@@ -313,6 +375,13 @@ describe("WorkspacePage", () => {
     )
   })
 
+  it("shows the Impending deletion status when the workspace is impending deletion", async () => {
+    jest
+      .spyOn(api, "getEntitlements")
+      .mockResolvedValue(MockEntitlementsWithScheduling)
+    await testStatus(MockWorkspaceWithDeletion, "Impending deletion")
+  })
+
   it("shows the timeline build", async () => {
     await renderWorkspacePage()
     const table = await screen.findByTestId("builds-table")
@@ -323,5 +392,19 @@ describe("WorkspacePage", () => {
       // Added +1 because of the date row
       expect(rows).toHaveLength(MockBuilds.length + 1)
     })
+  })
+
+  it("shows the template warning", async () => {
+    server.use(
+      rest.get(
+        "/api/v2/templateversions/:templateVersionId",
+        async (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json(MockTemplateVersion3))
+        },
+      ),
+    )
+
+    await renderWorkspacePage()
+    await screen.findByTestId("error-unsupported-workspaces")
   })
 })

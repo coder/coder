@@ -77,7 +77,7 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 
 			// Confirm deletion of the template.
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))),
+				Text:      fmt.Sprintf("Delete these templates: %s?", cliui.DefaultStyles.Code.Render(strings.Join(templateNames, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
 			})
@@ -91,7 +91,7 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 					return xerrors.Errorf("delete template %q: %w", template.Name, err)
 				}
 
-				_, _ = fmt.Fprintln(inv.Stdout, "Deleted template "+cliui.Styles.Code.Render(template.Name)+" at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")
+				_, _ = fmt.Fprintln(inv.Stdout, "Deleted template "+cliui.DefaultStyles.Code.Render(template.Name)+" at "+cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")
 			}
 
 			return nil

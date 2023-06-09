@@ -22,12 +22,11 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
 	"github.com/coder/coder/testutil"
 )
 
@@ -174,7 +173,7 @@ func Test_readBodyAsError(t *testing.T) {
 	}
 
 	longResponse := ""
-	for i := 0; i < 2000; i++ {
+	for i := 0; i < 4000; i++ {
 		longResponse += "a"
 	}
 
@@ -258,7 +257,7 @@ func Test_readBodyAsError(t *testing.T) {
 
 				assert.Contains(t, sdkErr.Response.Message, "unexpected non-JSON response")
 
-				expected := longResponse[0:1024] + "..."
+				expected := longResponse[0:2048] + "..."
 				assert.Equal(t, expected, sdkErr.Response.Detail)
 			},
 		},

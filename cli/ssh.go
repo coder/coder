@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,6 +24,9 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -30,6 +34,7 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/retry"
 )
 
 var (
@@ -37,6 +42,7 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
+//nolint:gocyclo
 func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
 		stdio          bool
@@ -44,7 +50,10 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		forwardGPG     bool
 		identityAgent  string
 		wsPollInterval time.Duration
+		waitEnum       string
 		noWait         bool
+		logDir         string
+		logToFile      bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -55,13 +64,88 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *clibase.Invocation) (retErr error) {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
+
+			logger := slog.Make() // empty logger
+			defer func() {
+				if retErr != nil {
+					// catch and log all returned errors so we see them in the
+					// log file (if there is one)
+					logger.Error(ctx, "command exit", slog.Error(retErr))
+				}
+			}()
+			if logToFile {
+				// we need a way to ensure different ssh invocations don't clobber
+				// each other's logs. Date-time strings will likely have collisions
+				// in unit tests and/or scripts unless we extend precision out to
+				// sub-millisecond, which seems unwieldy.  A simple 5-character random
+				// string will do it, since the operating system already tracks
+				// dates and times for file IO.
+				qual, err := cryptorand.String(5)
+				if err != nil {
+					return xerrors.Errorf("generate random qualifier: %w", err)
+				}
+				logPth := path.Join(logDir, fmt.Sprintf("coder-ssh-%s.log", qual))
+				logFile, err := os.Create(logPth)
+				if err != nil {
+					return xerrors.Errorf("error opening %s for logging: %w", logPth, err)
+				}
+				logger = slog.Make(sloghuman.Sink(logFile))
+				defer logFile.Close()
+				if r.verbose {
+					logger = logger.Leveled(slog.LevelDebug)
+				}
+
+				// log HTTP requests
+				client.Logger = logger
+			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
+			}
+
+			// Select the startup script behavior based on template configuration or flags.
+			var wait bool
+			switch waitEnum {
+			case "yes":
+				wait = true
+			case "no":
+				wait = false
+			case "auto":
+				switch workspaceAgent.StartupScriptBehavior {
+				case codersdk.WorkspaceAgentStartupScriptBehaviorBlocking:
+					wait = true
+				case codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking:
+					wait = false
+				default:
+					return xerrors.Errorf("unknown startup script behavior %q", workspaceAgent.StartupScriptBehavior)
+				}
+			default:
+				return xerrors.Errorf("unknown wait value %q", waitEnum)
+			}
+			// The `--no-wait` flag is deprecated, but for now, check it.
+			if noWait {
+				wait = false
+			}
+
+			templateVersion, err := client.TemplateVersion(ctx, workspace.LatestBuild.TemplateVersionID)
+			if err != nil {
+				return err
+			}
+
+			var unsupportedWorkspace bool
+			for _, warning := range templateVersion.Warnings {
+				if warning == codersdk.TemplateVersionWarningUnsupportedWorkspaces {
+					unsupportedWorkspace = true
+					break
+				}
+			}
+
+			if unsupportedWorkspace && isTTYErr(inv) {
+				_, _ = fmt.Fprintln(inv.Stderr, "👋 Your workspace uses legacy parameters which are not supported anymore. Contact your administrator for assistance.")
 			}
 
 			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
@@ -76,7 +160,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
-				NoWait: noWait,
+				Wait: wait,
 			})
 			if err != nil {
 				if xerrors.Is(err, context.Canceled) {
@@ -91,9 +175,11 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				// We don't print the error because cliui.Agent does that for us.
 			}
 
-			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{})
+			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
+				Logger: logger,
+			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("dial agent: %w", err)
 			}
 			defer conn.Close()
 			conn.AwaitReachable(ctx)
@@ -103,35 +189,57 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			if stdio {
 				rawSSH, err := conn.SSH(ctx)
 				if err != nil {
-					return err
+					return xerrors.Errorf("connect SSH: %w", err)
 				}
 				defer rawSSH.Close()
+				go watchAndClose(ctx, rawSSH.Close, logger, client, workspace)
 
 				go func() {
-					_, _ = io.Copy(inv.Stdout, rawSSH)
+					// Ensure stdout copy closes incase stdin is closed
+					// unexpectedly. Typically we wouldn't worry about
+					// this since OpenSSH should kill the proxy command.
+					defer rawSSH.Close()
+
+					_, err := io.Copy(rawSSH, inv.Stdin)
+					if err != nil {
+						logger.Error(ctx, "copy stdin error", slog.Error(err))
+					} else {
+						logger.Debug(ctx, "copy stdin complete")
+					}
 				}()
-				_, _ = io.Copy(rawSSH, inv.Stdin)
+				_, err = io.Copy(inv.Stdout, rawSSH)
+				if err != nil {
+					logger.Error(ctx, "copy stdout error", slog.Error(err))
+				} else {
+					logger.Debug(ctx, "copy stdout complete")
+				}
 				return nil
 			}
 
 			sshClient, err := conn.SSHClient(ctx)
 			if err != nil {
-				return err
+				return xerrors.Errorf("ssh client: %w", err)
 			}
 			defer sshClient.Close()
 
 			sshSession, err := sshClient.NewSession()
 			if err != nil {
-				return err
+				return xerrors.Errorf("ssh session: %w", err)
 			}
 			defer sshSession.Close()
-
-			// Ensure context cancellation is propagated to the
-			// SSH session, e.g. to cancel `Wait()` at the end.
-			go func() {
-				<-ctx.Done()
-				_ = sshSession.Close()
-			}()
+			go watchAndClose(
+				ctx,
+				func() error {
+					err := sshSession.Close()
+					logger.Debug(ctx, "session close", slog.Error(err))
+					err = sshClient.Close()
+					logger.Debug(ctx, "client close", slog.Error(err))
+					return nil
+				},
+				logger,
+				client,
+				workspace,
+			)
 
 			if identityAgent == "" {
 				identityAgent = os.Getenv("SSH_AUTH_SOCK")
@@ -193,7 +301,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 
 			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
 			if err != nil {
-				return err
+				return xerrors.Errorf("request pty: %w", err)
 			}
 
 			sshSession.Stdin = inv.Stdin
@@ -202,7 +310,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 
 			err = sshSession.Shell()
 			if err != nil {
-				return err
+				return xerrors.Errorf("start shell: %w", err)
 			}
 
 			// Put cancel at the top of the defer stack to initiate
@@ -225,11 +333,18 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if errors.Is(err, &gossh.ExitMissingError{}) {
 					return xerrors.New("SSH connection ended unexpectedly")
 				}
-				return err
+				return xerrors.Errorf("session ended: %w", err)
 			}
 
 			return nil
 		},
+	}
+	waitOption := clibase.Option{
+		Flag:        "wait",
+		Env:         "CODER_SSH_WAIT",
+		Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
+		Default:     "auto",
+		Value:       clibase.EnumOf(&waitEnum, "yes", "no", "auto"),
 	}
 	cmd.Options = clibase.OptionSet{
 		{
@@ -265,14 +380,96 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Default:     "1m",
 			Value:       clibase.DurationOf(&wsPollInterval),
 		},
+		waitOption,
 		{
 			Flag:        "no-wait",
 			Env:         "CODER_SSH_NO_WAIT",
-			Description: "Specifies whether to wait for a workspace to become ready before logging in (only applicable when the login before ready option has not been enabled). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.",
+			Description: "Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.",
 			Value:       clibase.BoolOf(&noWait),
+			UseInstead:  []clibase.Option{waitOption},
+		},
+		{
+			Flag:        "log-dir",
+			Default:     os.TempDir(),
+			Description: "Specify the location for the log files.",
+			Env:         "CODER_SSH_LOG_DIR",
+			Value:       clibase.StringOf(&logDir),
+		},
+		{
+			Flag:          "log-to-file",
+			FlagShorthand: "l",
+			Env:           "CODER_SSH_LOG_TO_FILE",
+			Description:   "Enable diagnostic logging to file.",
+			Value:         clibase.BoolOf(&logToFile),
 		},
 	}
 	return cmd
+}
+
+// watchAndClose ensures closer is called if the context is canceled or
+// the workspace reaches the stopped state.
+//
+// Watching the stopped state is a work-around for cases
+// where the agent is not gracefully shut down and the
+// connection is left open. If, for instance, the networking
+// is stopped before the agent is shut down, the disconnect
+// will usually not propagate.
+//
+// See: https://github.com/coder/coder/issues/6180
+func watchAndClose(ctx context.Context, closer func() error, logger slog.Logger, client *codersdk.Client, workspace codersdk.Workspace) {
+	// Ensure session is ended on both context cancellation
+	// and workspace stop.
+	defer func() {
+		err := closer()
+		if err != nil {
+			logger.Error(ctx, "error closing session", slog.Error(err))
+		}
+	}()
+
+startWatchLoop:
+	for {
+		logger.Debug(ctx, "(re)connecting to the coder server to watch workspace events.")
+		var wsWatch <-chan codersdk.Workspace
+		var err error
+		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
+			wsWatch, err = client.WatchWorkspace(ctx, workspace.ID)
+			if err == nil {
+				break
+			}
+			if ctx.Err() != nil {
+				logger.Info(ctx, "context expired", slog.Error(ctx.Err()))
+				return
+			}
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Info(ctx, "context expired", slog.Error(ctx.Err()))
+				return
+			case w, ok := <-wsWatch:
+				if !ok {
+					continue startWatchLoop
+				}
+
+				// Transitioning to stop or delete could mean that
+				// the agent will still gracefully stop. If a new
+				// build is starting, there's no reason to wait for
+				// the agent, it should be long gone.
+				if workspace.LatestBuild.ID != w.LatestBuild.ID && w.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
+					logger.Info(ctx, "new build started")
+					return
+				}
+				// Note, we only react to the stopped state here because we
+				// want to give the agent a chance to gracefully shut down
+				// during "stopping".
+				if w.LatestBuild.Status == codersdk.WorkspaceStatusStopped {
+					logger.Info(ctx, "workspace stopped")
+					return
+				}
+			}
+		}
+	}
 }
 
 // getWorkspaceAgent returns the workspace and agent selected using either the
@@ -285,7 +482,7 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 		err            error
 	)
 
-	workspace, err = namedWorkspace(inv.Context(), client, workspaceParts[0])
+	workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
@@ -295,6 +492,11 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
 		err := cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+		// Fetch up-to-date build information after completion.
+		workspace.LatestBuild, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}

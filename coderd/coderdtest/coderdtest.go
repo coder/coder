@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -107,7 +108,7 @@ type Options struct {
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 
-	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
@@ -137,7 +138,7 @@ type Options struct {
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
-func New(t *testing.T, options *Options) *codersdk.Client {
+func New(t testing.TB, options *Options) *codersdk.Client {
 	client, _ := newWithCloser(t, options)
 	return client
 }
@@ -162,12 +163,12 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 // upon thee. Even the io.Closer that is exposed here shouldn't be exposed
 // and is a temporary measure while the API to register provisioners is ironed
 // out.
-func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+func newWithCloser(t testing.TB, options *Options) (*codersdk.Client, io.Closer) {
 	client, closer, _ := NewWithAPI(t, options)
 	return client, closer
 }
 
-func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.CancelFunc, *url.URL, *coderd.Options) {
+func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.CancelFunc, *url.URL, *coderd.Options) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -190,14 +191,30 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.Authorizer == nil {
-		options.Authorizer = &RecordingAuthorizer{
-			Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
+		defAuth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+		if _, ok := t.(*testing.T); ok {
+			options.Authorizer = &RecordingAuthorizer{
+				Wrapped: defAuth,
+			}
+		} else {
+			// In benchmarks, the recording authorizer greatly skews results.
+			options.Authorizer = defAuth
 		}
 	}
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+	}
+
+	// Some routes expect a deployment ID, so just make sure one exists.
+	// Check first incase the caller already set up this database.
+	// nolint:gocritic // Setting up unit test data inside test helper
+	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(context.Background()))
+	if xerrors.Is(err, sql.ErrNoRows) || depID == "" {
+		// nolint:gocritic // Setting up unit test data inside test helper
+		err := options.Database.InsertDeploymentID(dbauthz.AsSystemRestricted(context.Background()), uuid.NewString())
+		require.NoError(t, err, "insert a deployment id")
 	}
 
 	if options.DeploymentValues == nil {
@@ -359,7 +376,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 // NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
 // Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
 // Do not expose the API or wrath shall descend upon thee.
-func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
+func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -384,7 +401,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 // NewProvisionerDaemon launches a provisionerd instance configured to work
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
-func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
+func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -465,7 +482,7 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
-func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirstUserResponse {
+func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirstUserResponse {
 	resp, err := client.CreateFirstUser(context.Background(), FirstUserParams)
 	require.NoError(t, err)
 
@@ -591,9 +608,8 @@ func CreateWorkspaceBuild(
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
-		Name:        randomUsername(t),
-		Description: randomUsername(t),
-		VersionID:   version,
+		Name:      randomUsername(t),
+		VersionID: version,
 	}
 	for _, mut := range mutators {
 		mut(&req)
@@ -1070,7 +1086,12 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 func randomUsername(t testing.TB) string {
 	suffix, err := cryptorand.String(3)
 	require.NoError(t, err)
-	return strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-") + "-" + suffix
+	suffix = "-" + suffix
+	n := strings.ReplaceAll(namesgenerator.GetRandomName(10), "_", "-") + suffix
+	if len(n) > 32 {
+		n = n[:32-len(suffix)] + suffix
+	}
+	return n
 }
 
 // Used to easily create an HTTP transport!
@@ -1107,7 +1128,7 @@ sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
 QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
 
-func DeploymentValues(t *testing.T) *codersdk.DeploymentValues {
+func DeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	var cfg codersdk.DeploymentValues
 	opts := cfg.Options()
 	err := opts.SetDefaults()

@@ -3,6 +3,7 @@ import dayjs from "dayjs"
 import * as Types from "./types"
 import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
+import { delay } from "utils/delay"
 
 // Adds 304 for the default axios validateStatus function
 // https://github.com/axios/axios#handling-errors Check status here
@@ -238,15 +239,6 @@ export const getTemplateVersion = async (
   return response.data
 }
 
-export const getTemplateVersionSchema = async (
-  versionId: string,
-): Promise<TypesGen.ParameterSchema[]> => {
-  const response = await axios.get<TypesGen.ParameterSchema[]>(
-    `/api/v2/templateversions/${versionId}/schema`,
-  )
-  return response.data
-}
-
 export const getTemplateVersionResources = async (
   versionId: string,
 ): Promise<TypesGen.WorkspaceResource[]> => {
@@ -330,15 +322,6 @@ export const getTemplateVersionGitAuth = async (
 ): Promise<TypesGen.TemplateVersionGitAuth[]> => {
   const response = await axios.get(
     `/api/v2/templateversions/${versionId}/gitauth`,
-  )
-  return response.data
-}
-
-export const getTemplateVersionParameters = async (
-  versionId: string,
-): Promise<TypesGen.ComputedParameter[]> => {
-  const response = await axios.get(
-    `/api/v2/templateversions/${versionId}/parameters`,
   )
   return response.data
 }
@@ -476,6 +459,35 @@ export const getWorkspaceByOwnerAndName = async (
   return response.data
 }
 
+export function waitForBuild(build: TypesGen.WorkspaceBuild) {
+  return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
+    void (async () => {
+      let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined
+
+      while (
+        !["succeeded", "canceled"].some((status) =>
+          latestJobInfo?.status.includes(status),
+        )
+      ) {
+        const { job } = await getWorkspaceBuildByNumber(
+          build.workspace_owner_name,
+          build.workspace_name,
+          String(build.build_number),
+        )
+        latestJobInfo = job
+
+        if (latestJobInfo.status === "failed") {
+          return reject(latestJobInfo)
+        }
+
+        await delay(1000)
+      }
+
+      return res(latestJobInfo)
+    })()
+  })
+}
+
 export const postWorkspaceBuild = async (
   workspaceId: string,
   data: TypesGen.CreateWorkspaceBuildRequest,
@@ -489,12 +501,12 @@ export const postWorkspaceBuild = async (
 
 export const startWorkspace = (
   workspaceId: string,
-  templateVersionID: string,
+  templateVersionId: string,
   logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
-    template_version_id: templateVersionID,
+    template_version_id: templateVersionId,
     log_level: logLevel,
   })
 export const stopWorkspace = (
@@ -505,6 +517,7 @@ export const stopWorkspace = (
     transition: "stop",
     log_level: logLevel,
   })
+
 export const deleteWorkspace = (
   workspaceId: string,
   logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
@@ -521,6 +534,22 @@ export const cancelWorkspaceBuild = async (
     `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
   )
   return response.data
+}
+
+export const restartWorkspace = async (workspace: TypesGen.Workspace) => {
+  const stopBuild = await stopWorkspace(workspace.id)
+  const awaitedStopBuild = await waitForBuild(stopBuild)
+
+  // If the restart is canceled halfway through, make sure we bail
+  if (awaitedStopBuild?.status === "canceled") {
+    return
+  }
+
+  const startBuild = await startWorkspace(
+    workspace.id,
+    workspace.latest_build.template_version_id,
+  )
+  await waitForBuild(startBuild)
 }
 
 export const cancelTemplateVersionBuild = async (
@@ -779,16 +808,18 @@ export const getAuditLogs = async (
 
 export const getTemplateDAUs = async (
   templateId: string,
-): Promise<TypesGen.TemplateDAUsResponse> => {
+): Promise<TypesGen.DAUsResponse> => {
   const response = await axios.get(`/api/v2/templates/${templateId}/daus`)
   return response.data
 }
 
-export const getDeploymentDAUs =
-  async (): Promise<TypesGen.DeploymentDAUsResponse> => {
-    const response = await axios.get(`/api/v2/insights/daus`)
-    return response.data
-  }
+export const getDeploymentDAUs = async (
+  // Default to user's local timezone
+  offset = new Date().getTimezoneOffset() / 60,
+): Promise<TypesGen.DAUsResponse> => {
+  const response = await axios.get(`/api/v2/insights/daus?tz_offset=${offset}`)
+  return response.data
+}
 
 export const getTemplateACL = async (
   templateId: string,
@@ -897,6 +928,14 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   return response.data
 }
 
+export const getWorkspaceProxies =
+  async (): Promise<TypesGen.RegionsResponse> => {
+    const response = await axios.get<TypesGen.RegionsResponse>(
+      `/api/v2/regions`,
+    )
+    return response.data
+  }
+
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {
     const response = await axios.get(`/api/v2/appearance`)
@@ -964,6 +1003,37 @@ export const getWorkspaceBuildParameters = async (
     `/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
   )
   return response.data
+}
+type Claims = {
+  license_expires?: number
+  account_type?: string
+  account_id?: string
+  trial: boolean
+  all_features: boolean
+  version: number
+  features: Record<string, number>
+  require_telemetry?: boolean
+}
+
+export type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
+  claims: Claims
+  expires_at: string
+}
+
+export const getLicenses = async (): Promise<GetLicensesResponse[]> => {
+  const response = await axios.get(`/api/v2/licenses`)
+  return response.data
+}
+
+export const createLicense = async (
+  data: TypesGen.AddLicenseRequest,
+): Promise<TypesGen.AddLicenseRequest> => {
+  const response = await axios.post(`/api/v2/licenses`, data)
+  return response.data
+}
+
+export const removeLicense = async (licenseId: number): Promise<void> => {
+  await axios.delete(`/api/v2/licenses/${licenseId}`)
 }
 
 export class MissingBuildParameters extends Error {
@@ -1057,15 +1127,19 @@ const getMissingParameters = (
   const requiredParameters: TypesGen.TemplateVersionParameter[] = []
 
   templateParameters.forEach((p) => {
-    // Legacy parameters should be required. So we can migrate them.
-    const isLegacy = p.legacy_variable_name === undefined
+    // Legacy parameters should not be required. Backend can just migrate them.
+    const isLegacy = p.legacy_variable_name !== undefined
     // It is mutable and required. Mutable values can be changed after so we
     // don't need to ask them if they are not required.
     const isMutableAndRequired = p.mutable && p.required
     // Is immutable, so we can check if it is its first time on the build
     const isImmutable = !p.mutable
 
-    if (isLegacy || isMutableAndRequired || isImmutable) {
+    if (isLegacy) {
+      return
+    }
+
+    if (isMutableAndRequired || isImmutable) {
       requiredParameters.push(p)
       return
     }
@@ -1106,25 +1180,117 @@ export const watchAgentMetadata = (agentId: string): EventSource => {
   )
 }
 
-export const watchBuildLogs = (
+type WatchBuildLogsByTemplateVersionIdOptions = {
+  after?: number
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void
+  onDone: () => void
+  onError: (error: Error) => void
+}
+export const watchBuildLogsByTemplateVersionId = (
   versionId: string,
-  onMessage: (log: TypesGen.ProvisionerJobLog) => void,
+  {
+    onMessage,
+    onDone,
+    onError,
+    after,
+  }: WatchBuildLogsByTemplateVersionIdOptions,
 ) => {
-  return new Promise<void>((resolve, reject) => {
-    const proto = location.protocol === "https:" ? "wss:" : "ws:"
-    const socket = new WebSocket(
-      `${proto}//${location.host}/api/v2/templateversions/${versionId}/logs?follow=true`,
-    )
-    socket.binaryType = "blob"
-    socket.addEventListener("message", (event) =>
-      onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
-    )
-    socket.addEventListener("error", () => {
-      reject(new Error("Connection for logs failed."))
-    })
-    socket.addEventListener("close", () => {
-      // When the socket closes, logs have finished streaming!
-      resolve()
-    })
+  const searchParams = new URLSearchParams({ follow: "true" })
+  if (after !== undefined) {
+    searchParams.append("after", after.toString())
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:"
+  const socket = new WebSocket(
+    `${proto}//${
+      location.host
+    }/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
+  )
+  socket.binaryType = "blob"
+  socket.addEventListener("message", (event) =>
+    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+  )
+  socket.addEventListener("error", () => {
+    onError(new Error("Connection for logs failed."))
+    socket.close()
   })
+  socket.addEventListener("close", () => {
+    // When the socket closes, logs have finished streaming!
+    onDone()
+  })
+  return socket
+}
+
+type WatchStartupLogsOptions = {
+  after: number
+  onMessage: (logs: TypesGen.WorkspaceAgentStartupLog[]) => void
+  onDone: () => void
+  onError: (error: Error) => void
+}
+
+export const watchStartupLogs = (
+  agentId: string,
+  { after, onMessage, onDone, onError }: WatchStartupLogsOptions,
+) => {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:"
+  const socket = new WebSocket(
+    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/startup-logs?follow&after=${after}`,
+  )
+  socket.binaryType = "blob"
+  socket.addEventListener("message", (event) => {
+    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentStartupLog[]
+    onMessage(logs)
+  })
+  socket.addEventListener("error", () => {
+    onError(new Error("socket errored"))
+  })
+  socket.addEventListener("close", () => {
+    onDone()
+  })
+
+  return socket
+}
+
+type WatchBuildLogsByBuildIdOptions = {
+  after?: number
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void
+  onDone: () => void
+  onError: (error: Error) => void
+}
+export const watchBuildLogsByBuildId = (
+  buildId: string,
+  { onMessage, onDone, onError, after }: WatchBuildLogsByBuildIdOptions,
+) => {
+  const searchParams = new URLSearchParams({ follow: "true" })
+  if (after !== undefined) {
+    searchParams.append("after", after.toString())
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:"
+  const socket = new WebSocket(
+    `${proto}//${
+      location.host
+    }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
+  )
+  socket.binaryType = "blob"
+  socket.addEventListener("message", (event) =>
+    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+  )
+  socket.addEventListener("error", () => {
+    onError(new Error("Connection for logs failed."))
+    socket.close()
+  })
+  socket.addEventListener("close", () => {
+    // When the socket closes, logs have finished streaming!
+    onDone()
+  })
+  return socket
+}
+
+export const issueReconnectingPTYSignedToken = async (
+  params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
+): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
+  const response = await axios.post(
+    "/api/v2/applications/reconnecting-pty-signed-token",
+    params,
+  )
+  return response.data
 }

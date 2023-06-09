@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
+	"github.com/coder/coder/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/enterprise/derpmesh"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/enterprise/tailnet"
@@ -52,9 +53,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
-		AGPL:                   coderd.New(options.Options),
-		Options:                options,
-		cancelEntitlementsLoop: cancelFunc,
+		ctx:    ctx,
+		cancel: cancelFunc,
+
+		AGPL:    coderd.New(options.Options),
+		Options: options,
 	}
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
@@ -69,8 +72,18 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		RedirectToLogin: false,
 	})
 
+	deploymentID, err := options.Database.GetDeploymentID(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get deployment ID: %w", err)
+	}
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
+		// /regions overrides the AGPL /regions endpoint
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/regions", api.regions)
+		})
 		r.Route("/replicas", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.replicas)
@@ -81,21 +94,42 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
+		r.Route("/applications/reconnecting-pty-signed-token", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Post("/", api.reconnectingPTYSignedToken)
+		})
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
-				apiKeyMiddleware,
 				api.moonsEnabledMW,
 			)
-			r.Post("/", api.postWorkspaceProxy)
-			r.Get("/", api.workspaceProxies)
-			// TODO: Add specific workspace proxy endpoints.
-			// r.Route("/{proxyName}", func(r chi.Router) {
-			//	r.Use(
-			//		httpmw.ExtractWorkspaceProxyByNameParam(api.Database),
-			//	)
-			//
-			//	r.Get("/", api.workspaceProxyByName)
-			// })
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Post("/", api.postWorkspaceProxy)
+				r.Get("/", api.workspaceProxies)
+			})
+			r.Route("/me", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
+						DB:       options.Database,
+						Optional: false,
+					}),
+				)
+				r.Post("/issue-signed-app-token", api.workspaceProxyIssueSignedAppToken)
+				r.Post("/register", api.workspaceProxyRegister)
+				r.Post("/goingaway", api.workspaceProxyGoingAway)
+			})
+			r.Route("/{workspaceproxy}", func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+					httpmw.ExtractWorkspaceProxyParam(api.Database, deploymentID, api.AGPL.PrimaryWorkspaceProxy),
+				)
+
+				r.Get("/", api.workspaceProxy)
+				r.Patch("/", api.patchWorkspaceProxy)
+				r.Delete("/", api.deleteWorkspaceProxy)
+			})
 		})
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
@@ -196,7 +230,6 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		RootCAs:      meshRootCA,
 		ServerName:   options.AccessURL.Hostname(),
 	}
-	var err error
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
 		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
@@ -207,6 +240,28 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
 	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
+
+	if api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
+		// Proxy health is a moon feature.
+		api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
+			Interval:   options.ProxyHealthInterval,
+			DB:         api.Database,
+			Logger:     options.Logger.Named("proxyhealth"),
+			Client:     api.HTTPClient,
+			Prometheus: api.PrometheusRegistry,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("initialize proxy health: %w", err)
+		}
+		go api.ProxyHealth.Run(ctx)
+		// Force the initial loading of the cache. Do this in a go routine in case
+		// the calls to the workspace proxies hang and this takes some time.
+		go api.forceWorkspaceProxyHealthUpdate(ctx)
+
+		// Use proxy health to return the healthy workspace proxy hostnames.
+		f := api.ProxyHealth.ProxyHosts
+		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
+	}
 
 	err = api.updateEntitlements(ctx)
 	if err != nil {
@@ -231,6 +286,7 @@ type Options struct {
 	DERPServerRegionID     int
 
 	EntitlementsUpdateInterval time.Duration
+	ProxyHealthInterval        time.Duration
 	Keys                       map[string]ed25519.PublicKey
 }
 
@@ -238,18 +294,24 @@ type API struct {
 	AGPL *coderd.API
 	*Options
 
+	// ctx is canceled immediately on shutdown, it can be used to abort
+	// interruptible tasks.
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	// Detects multiple Coder replicas running at the same time.
 	replicaManager *replicasync.Manager
 	// Meshes DERP connections from multiple replicas.
 	derpMesh *derpmesh.Mesh
+	// ProxyHealth checks the reachability of all workspace proxies.
+	ProxyHealth *proxyhealth.ProxyHealth
 
-	cancelEntitlementsLoop func()
-	entitlementsMu         sync.RWMutex
-	entitlements           codersdk.Entitlements
+	entitlementsMu sync.RWMutex
+	entitlements   codersdk.Entitlements
 }
 
 func (api *API) Close() error {
-	api.cancelEntitlementsLoop()
+	api.cancel()
 	_ = api.replicaManager.Close()
 	_ = api.derpMesh.Close()
 	return api.AGPL.Close()
@@ -339,7 +401,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
-		coordinator := agpltailnet.NewCoordinator()
+		coordinator := agpltailnet.NewCoordinator(api.Logger)
 		if enabled {
 			haCoordinator, err := tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			if err != nil {

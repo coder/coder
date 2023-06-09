@@ -47,6 +47,8 @@ type RenderWithAuthOptions = {
   extraRoutes?: RouteObject[]
   // The same as extraRoutes but for routes that don't require authentication
   nonAuthenticatedRoutes?: RouteObject[]
+  // In case you want to render a layout inside of it
+  children?: RouteObject["children"]
 }
 
 export function renderWithAuth(
@@ -56,17 +58,13 @@ export function renderWithAuth(
     route = "/",
     extraRoutes = [],
     nonAuthenticatedRoutes = [],
+    children,
   }: RenderWithAuthOptions = {},
 ) {
   const routes: RouteObject[] = [
     {
       element: <RequireAuth />,
-      children: [
-        {
-          element: <DashboardLayout />,
-          children: [{ path, element }, ...extraRoutes],
-        },
-      ],
+      children: [{ path, element, children }, ...extraRoutes],
     },
     ...nonAuthenticatedRoutes,
   ]

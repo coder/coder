@@ -1,6 +1,6 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { useMachine } from "@xstate/react"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Alert } from "components/Alert/Alert"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Loader } from "components/Loader/Loader"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
@@ -22,6 +22,7 @@ import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
 } from "./formToRequest"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 const getAutostart = (workspace: TypesGen.Workspace) =>
   scheduleToAutostart(workspace.autostart_schedule)
@@ -30,7 +31,7 @@ const getAutostop = (workspace: TypesGen.Workspace) =>
 
 const useStyles = makeStyles((theme) => ({
   topMargin: {
-    marginTop: `${theme.spacing(3)}px`,
+    marginTop: theme.spacing(3),
   },
   pageHeader: {
     paddingTop: 0,
@@ -75,13 +76,10 @@ export const WorkspaceSchedulePage: FC = () => {
       </PageHeader>
       {(scheduleState.hasTag("loading") || !template) && <Loader />}
       {scheduleState.matches("error") && (
-        <AlertBanner
-          severity="error"
-          error={checkPermissionsError || getTemplateError}
-        />
+        <ErrorAlert error={checkPermissionsError || getTemplateError} />
       )}
       {permissions && !permissions.updateWorkspace && (
-        <AlertBanner severity="error" error={Error(t("forbiddenError"))} />
+        <Alert severity="error">{t("forbiddenError")}</Alert>
       )}
       {template &&
         workspace &&

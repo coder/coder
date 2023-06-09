@@ -1,17 +1,17 @@
-import Tooltip from "@material-ui/core/Tooltip"
-import { makeStyles } from "@material-ui/core/styles"
+import Tooltip from "@mui/material/Tooltip"
+import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { useTranslation } from "react-i18next"
-import WarningRounded from "@material-ui/icons/WarningRounded"
+import WarningRounded from "@mui/icons-material/WarningRounded"
 import {
   HelpPopover,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/Tooltips/HelpTooltip"
 import { useRef, useState } from "react"
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,
@@ -252,44 +252,39 @@ const OffLifecycle: React.FC = () => {
 const ConnectedStatus: React.FC<{
   agent: WorkspaceAgent
 }> = ({ agent }) => {
-  // NOTE(mafredri): Keep this behind feature flag for the time-being,
-  // if login_before_ready is false, the user has updated to
-  // terraform-provider-coder v0.6.10 and opted in to the functionality.
-  //
-  // Remove check once documentation is in place and we do a breaking
-  // release indicating startup script behavior has changed.
-  // https://github.com/coder/coder/issues/5749
-  if (agent.login_before_ready) {
-    return <ReadyLifecycle />
+  switch (agent.startup_script_behavior) {
+    case "non-blocking":
+      return <ReadyLifecycle />
+    case "blocking":
+      return (
+        <ChooseOne>
+          <Cond condition={agent.lifecycle_state === "ready"}>
+            <ReadyLifecycle />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "start_timeout"}>
+            <StartTimeoutLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "start_error"}>
+            <StartErrorLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "shutting_down"}>
+            <ShuttingDownLifecycle />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
+            <ShutdownTimeoutLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "shutdown_error"}>
+            <ShutdownErrorLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "off"}>
+            <OffLifecycle />
+          </Cond>
+          <Cond>
+            <StartingLifecycle />
+          </Cond>
+        </ChooseOne>
+      )
   }
-  return (
-    <ChooseOne>
-      <Cond condition={agent.lifecycle_state === "ready"}>
-        <ReadyLifecycle />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "start_timeout"}>
-        <StartTimeoutLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "start_error"}>
-        <StartErrorLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "shutting_down"}>
-        <ShuttingDownLifecycle />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
-        <ShutdownTimeoutLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "shutdown_error"}>
-        <ShutdownErrorLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "off"}>
-        <OffLifecycle />
-      </Cond>
-      <Cond>
-        <StartingLifecycle />
-      </Cond>
-    </ChooseOne>
-  )
 }
 
 const DisconnectedStatus: React.FC = () => {
@@ -391,6 +386,7 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(1),
     height: theme.spacing(1),
     borderRadius: "100%",
+    flexShrink: 0,
   },
 
   connected: {
@@ -421,17 +417,15 @@ const useStyles = makeStyles((theme) => ({
 
   timeoutWarning: {
     color: theme.palette.warning.light,
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
+    width: theme.spacing(2),
+    height: theme.spacing(2),
     position: "relative",
-    top: theme.spacing(1),
   },
 
   errorWarning: {
     color: theme.palette.error.main,
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
+    width: theme.spacing(2),
+    height: theme.spacing(2),
     position: "relative",
-    top: theme.spacing(1),
   },
 }))

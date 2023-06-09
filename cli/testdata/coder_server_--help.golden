@@ -90,6 +90,9 @@ Use a YAML configuration file when your server launch become unwieldy.
       --prometheus-address host:port, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
           The bind address to serve prometheus metrics.
 
+      --prometheus-collect-agent-stats bool, $CODER_PROMETHEUS_COLLECT_AGENT_STATS
+          Collect agent stats (may increase charges for metrics storage).
+
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
 
@@ -165,8 +168,8 @@ backed by Tailscale and WireGuard.
           Region name that for the embedded DERP server.
 
       --derp-server-stun-addresses string-array, $CODER_DERP_SERVER_STUN_ADDRESSES (default: stun.l.google.com:19302)
-          Addresses for STUN servers to establish P2P connections. Set empty to
-          disable P2P connections.
+          Addresses for STUN servers to establish P2P connections. Use special
+          value 'disable' to turn off STUN.
 
 [1mNetworking / HTTP Options[0m 
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
@@ -189,6 +192,10 @@ backed by Tailscale and WireGuard.
       --max-token-lifetime duration, $CODER_MAX_TOKEN_LIFETIME (default: 876600h0m0s)
           The maximum lifetime duration users can specify when creating an API
           token.
+
+      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
+          The interval in which coderd should be checking the status of
+          workspace proxies.
 
       --session-duration duration, $CODER_SESSION_DURATION (default: 24h0m0s)
           The token expiry duration for browser sessions. Sessions may last
@@ -293,8 +300,8 @@ can safely ignore these settings.
           OIDC claim field to use as the email.
 
       --oidc-group-field string, $CODER_OIDC_GROUP_FIELD
-          Change the OIDC default 'groups' claim field. By default, will be
-          'groups' if present in the oidc scopes argument.
+          This field must be set if using the group sync feature and the scope
+          name is not 'groups'. Set to the claim to be used for groups.
 
       --oidc-group-mapping struct[map[string]string], $CODER_OIDC_GROUP_MAPPING (default: {})
           A map of OIDC group IDs and the group in Coder it should map to. This

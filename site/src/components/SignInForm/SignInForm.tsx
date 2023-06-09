@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { FormikTouched } from "formik"
 import { FC, useState } from "react"
 import { AuthMethods } from "../../api/typesGenerated"
@@ -7,9 +7,10 @@ import { Maybe } from "../Conditionals/Maybe"
 import { PasswordSignInForm } from "./PasswordSignInForm"
 import { OAuthSignInForm } from "./OAuthSignInForm"
 import { BuiltInAuthFormValues } from "./SignInForm.types"
-import Button from "@material-ui/core/Button"
-import EmailIcon from "@material-ui/icons/EmailOutlined"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import Button from "@mui/material/Button"
+import EmailIcon from "@mui/icons-material/EmailOutlined"
+import { Alert } from "components/Alert/Alert"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export const Language = {
   emailLabel: "Email",
@@ -100,7 +101,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       </h1>
       <Maybe condition={error !== undefined}>
         <div className={styles.error}>
-          <AlertBanner severity="error" error={error} />
+          <ErrorAlert error={error} />
         </div>
       </Maybe>
       <Maybe condition={passwordEnabled && showPasswordAuth}>
@@ -126,10 +127,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       </Maybe>
 
       <Maybe condition={!passwordEnabled && !oAuthEnabled}>
-        <AlertBanner
-          severity="error"
-          text="No authentication methods configured!"
-        />
+        <Alert severity="error">No authentication methods configured!</Alert>
       </Maybe>
 
       <Maybe condition={passwordEnabled && !showPasswordAuth}>
@@ -141,8 +139,8 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
 
         <Button
           fullWidth
+          size="large"
           onClick={() => setShowPasswordAuth(true)}
-          variant="outlined"
           startIcon={<EmailIcon className={styles.icon} />}
         >
           {loginPageTranslation.t("showPassword")}

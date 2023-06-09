@@ -57,7 +57,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 				apiKey, ok := APIKeyOptional(r)
 				if !ok {
 					if redirectToLoginOnMe {
-						RedirectToLogin(rw, r, SignedOutErrorMessage)
+						RedirectToLogin(rw, r, nil, SignedOutErrorMessage)
 						return
 					}
 

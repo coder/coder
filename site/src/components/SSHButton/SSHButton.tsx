@@ -1,7 +1,6 @@
-import Button from "@material-ui/core/Button"
-import Popover from "@material-ui/core/Popover"
-import { makeStyles } from "@material-ui/core/styles"
-import CloudIcon from "@material-ui/icons/CloudOutlined"
+import Popover from "@mui/material/Popover"
+import { makeStyles } from "@mui/styles"
+import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { useRef, useState } from "react"
 import { CodeExample } from "../CodeExample/CodeExample"
 import { Stack } from "../Stack/Stack"
@@ -35,17 +34,15 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
 
   return (
     <>
-      <Button
-        className={styles.button}
-        startIcon={<CloudIcon />}
-        size="small"
+      <SecondaryAgentButton
         ref={anchorRef}
         onClick={() => {
           setIsOpen(true)
         }}
       >
         SSH
-      </Button>
+      </SecondaryAgentButton>
+
       <Popover
         classes={{ paper: styles.popoverPaper }}
         id={id}
@@ -108,9 +105,7 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
-    padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(
-      3,
-    )}px`,
+    padding: `${theme.spacing(2)} ${theme.spacing(3)} ${theme.spacing(3)}`,
     width: theme.spacing(38),
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.25),
@@ -126,14 +121,5 @@ const useStyles = makeStyles((theme) => ({
 
   textHelper: {
     fontWeight: 400,
-  },
-
-  button: {
-    whiteSpace: "nowrap",
-    backgroundColor: theme.palette.background.default,
-
-    "&:hover": {
-      backgroundColor: `${theme.palette.background.default} !important`,
-    },
   },
 }))

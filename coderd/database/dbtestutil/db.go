@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/coderd/database/postgres"
 )
 
-func NewDB(t *testing.T) (database.Store, database.Pubsub) {
+func NewDB(t testing.TB) (database.Store, database.Pubsub) {
 	t.Helper()
 
 	db := dbfake.New()

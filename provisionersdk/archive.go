@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/util/xio"
 )
 
 const (
@@ -15,15 +17,17 @@ const (
 	TemplateArchiveLimit = 1 << 20
 )
 
-func dirHasExt(dir string, ext string) (bool, error) {
+func dirHasExt(dir string, exts ...string) (bool, error) {
 	dirEnts, err := os.ReadDir(dir)
 	if err != nil {
 		return false, err
 	}
 
 	for _, fi := range dirEnts {
-		if strings.HasSuffix(fi.Name(), ext) {
-			return true, nil
+		for _, ext := range exts {
+			if strings.HasSuffix(fi.Name(), ext) {
+				return true, nil
+			}
 		}
 	}
 
@@ -32,11 +36,12 @@ func dirHasExt(dir string, ext string) (bool, error) {
 
 // Tar archives a Terraform directory.
 func Tar(w io.Writer, directory string, limit int64) error {
+	// The total bytes written must be under the limit, so use -1
+	w = xio.NewLimitWriter(w, limit-1)
 	tarWriter := tar.NewWriter(w)
-	totalSize := int64(0)
 
-	const tfExt = ".tf"
-	hasTf, err := dirHasExt(directory, tfExt)
+	tfExts := []string{".tf", ".tf.json"}
+	hasTf, err := dirHasExt(directory, tfExts...)
 	if err != nil {
 		return err
 	}
@@ -50,7 +55,7 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		// useless.
 		return xerrors.Errorf(
 			"%s is not a valid template since it has no %s files",
-			absPath, tfExt,
+			absPath, tfExts,
 		)
 	}
 
@@ -73,7 +78,9 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		if err != nil {
 			return err
 		}
-		if strings.HasPrefix(rel, ".") || strings.HasPrefix(filepath.Base(rel), ".") {
+		// We want to allow .terraform.lock.hcl files to be archived. This
+		// allows provider plugins to be cached.
+		if (strings.HasPrefix(rel, ".") || strings.HasPrefix(filepath.Base(rel), ".")) && filepath.Base(rel) != ".terraform.lock.hcl" {
 			if fileInfo.IsDir() && rel != "." {
 				// Don't archive hidden files!
 				return filepath.SkipDir
@@ -93,22 +100,26 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		if !fileInfo.Mode().IsRegular() {
 			return nil
 		}
+
 		data, err := os.Open(file)
 		if err != nil {
 			return err
 		}
 		defer data.Close()
-		wrote, err := io.Copy(tarWriter, data)
+		_, err = io.Copy(tarWriter, data)
 		if err != nil {
+			if xerrors.Is(err, xio.ErrLimitReached) {
+				return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
+			}
 			return err
 		}
-		totalSize += wrote
-		if limit != 0 && totalSize >= limit {
-			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
-		}
+
 		return data.Close()
 	})
 	if err != nil {
+		if xerrors.Is(err, xio.ErrLimitReached) {
+			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
+		}
 		return err
 	}
 	err = tarWriter.Flush()

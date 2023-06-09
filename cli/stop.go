@@ -47,7 +47,7 @@ func (r *RootCmd) stop() *clibase.Cmd {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been stopped at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been stopped at %s!\n", cliui.DefaultStyles.Keyword.Render(workspace.Name), cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}

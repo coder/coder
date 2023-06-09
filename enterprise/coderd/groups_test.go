@@ -6,11 +6,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/pointer"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
@@ -149,8 +149,8 @@ func TestPatchGroup(t *testing.T) {
 
 		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name:           "bye",
-			AvatarURL:      pointer.String("https://google.com"),
-			QuotaAllowance: pointer.Int(20),
+			AvatarURL:      ptr.Ref("https://google.com"),
+			QuotaAllowance: ptr.Ref(20),
 		})
 		require.NoError(t, err)
 		require.Equal(t, "bye", group.Name)
@@ -314,7 +314,7 @@ func TestPatchGroup(t *testing.T) {
 
 		group1, err = client.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
 			Name:      group2.Name,
-			AvatarURL: pointer.String("https://google.com"),
+			AvatarURL: ptr.Ref("https://google.com"),
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)

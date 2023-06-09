@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { Sidebar } from "./Sidebar"
 import { Stack } from "components/Stack/Stack"
 import { createContext, FC, Suspense, useContext } from "react"
@@ -11,15 +11,16 @@ import { checkAuthorization, getTemplateByName } from "api/api"
 import { useQuery } from "@tanstack/react-query"
 import { useOrganizationId } from "hooks/useOrganizationId"
 
-const templatePermissions = (templateId: string) => ({
-  canUpdateTemplate: {
-    object: {
-      resource_type: "template",
-      resource_id: templateId,
+const templatePermissions = (templateId: string) =>
+  ({
+    canUpdateTemplate: {
+      object: {
+        resource_type: "template",
+        resource_id: templateId,
+      },
+      action: "update",
     },
-    action: "update",
-  },
-})
+  } as const)
 
 const fetchTemplateSettings = async (orgId: string, name: string) => {
   const template = await getTemplateByName(orgId, name)
@@ -33,10 +34,13 @@ const fetchTemplateSettings = async (orgId: string, name: string) => {
   }
 }
 
+export const getTemplateQuery = (name: string) => ["template", name, "settings"]
+
 const useTemplate = (orgId: string, name: string) => {
   return useQuery({
-    queryKey: ["template", name, "settings"],
+    queryKey: getTemplateQuery(name),
     queryFn: () => fetchTemplateSettings(orgId, name),
+    keepPreviousData: true,
   })
 }
 

@@ -1,5 +1,5 @@
 import { useRef, useState, FC } from "react"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { getDisplayVersionStatus } from "utils/workspace"
 import { AgentOutdatedTooltip } from "components/Tooltips/AgentOutdatedTooltip"
@@ -13,13 +13,10 @@ export const AgentVersion: FC<{
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "version-outdated-popover" : undefined
-  const { displayVersion, outdated } = getDisplayVersionStatus(
-    agent.version,
-    serverVersion,
-  )
+  const { outdated } = getDisplayVersionStatus(agent.version, serverVersion)
 
   if (!outdated) {
-    return <span>{displayVersion}</span>
+    return <span>Updated</span>
   }
 
   return (
@@ -32,7 +29,7 @@ export const AgentVersion: FC<{
         onMouseLeave={() => setIsOpen(false)}
         className={styles.trigger}
       >
-        Agent Outdated
+        Outdated
       </span>
       <AgentOutdatedTooltip
         id={id}

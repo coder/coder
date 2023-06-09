@@ -11,6 +11,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
@@ -24,65 +25,35 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
 
 // Run runs the entire workspace app test suite against deployments minted
 // by the provided factory.
-func Run(t *testing.T, factory DeploymentFactory) {
-	setupProxyTest := func(t *testing.T, opts *DeploymentOptions) *AppDetails {
+//
+// appHostIsPrimary is true if the app host is also the primary coder API
+// server. This disables any tests that test API passthrough or rely on the
+// app server not being the API server.
+// nolint:revive
+func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
+	setupProxyTest := func(t *testing.T, opts *DeploymentOptions) *Details {
 		return setupProxyTestWithFactory(t, factory, opts)
 	}
 
 	t.Run("ReconnectingPTY", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
-			// This might be our implementation, or ConPTY itself.
-			// It's difficult to find extensive tests for it, so
-			// it seems like it could be either.
+			// This might be our implementation, or ConPTY itself.  It's
+			// difficult to find extensive tests for it, so it seems like it
+			// could be either.
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
-		appDetails := setupProxyTest(t, nil)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// Run the test against the path app hostname since that's where the
-		// reconnecting-pty proxy server we want to test is mounted.
-		client := codersdk.New(appDetails.PathAppBaseURL)
-		client.SetSessionToken(appDetails.Client.SessionToken())
-
-		conn, err := client.WorkspaceAgentReconnectingPTY(ctx, appDetails.Agent.ID, uuid.New(), 80, 80, "/bin/bash")
-		require.NoError(t, err)
-		defer conn.Close()
-
-		// First attempt to resize the TTY.
-		// The websocket will close if it fails!
-		data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-			Height: 250,
-			Width:  250,
-		})
-		require.NoError(t, err)
-		_, err = conn.Write(data)
-		require.NoError(t, err)
-		bufRead := bufio.NewReader(conn)
-
-		// Brief pause to reduce the likelihood that we send keystrokes while
-		// the shell is simultaneously sending a prompt.
-		time.Sleep(100 * time.Millisecond)
-
-		data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-			Data: "echo test\r\n",
-		})
-		require.NoError(t, err)
-		_, err = conn.Write(data)
-		require.NoError(t, err)
-
-		expectLine := func(matcher func(string) bool) {
+		expectLine := func(t *testing.T, r *bufio.Reader, matcher func(string) bool) {
 			for {
-				line, err := bufRead.ReadString('\n')
+				line, err := r.ReadString('\n')
 				require.NoError(t, err)
 				if matcher(line) {
 					break
@@ -96,8 +67,112 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			return strings.Contains(line, "test") && !strings.Contains(line, "echo")
 		}
 
-		expectLine(matchEchoCommand)
-		expectLine(matchEchoOutput)
+		t.Run("OK", func(t *testing.T) {
+			appDetails := setupProxyTest(t, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Run the test against the path app hostname since that's where the
+			// reconnecting-pty proxy server we want to test is mounted.
+			client := appDetails.AppClient(t)
+			conn, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+				AgentID:   appDetails.Agent.ID,
+				Reconnect: uuid.New(),
+				Height:    80,
+				Width:     80,
+				Command:   "/bin/bash",
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			// First attempt to resize the TTY.
+			// The websocket will close if it fails!
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Height: 250,
+				Width:  250,
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+			bufRead := bufio.NewReader(conn)
+
+			// Brief pause to reduce the likelihood that we send keystrokes while
+			// the shell is simultaneously sending a prompt.
+			time.Sleep(100 * time.Millisecond)
+
+			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "echo test\r\n",
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+
+			expectLine(t, bufRead, matchEchoCommand)
+			expectLine(t, bufRead, matchEchoOutput)
+		})
+
+		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
+			t.Parallel()
+			if appHostIsPrimary {
+				t.Skip("Tickets are not used for terminal requests on the primary.")
+			}
+
+			appDetails := setupProxyTest(t, nil)
+
+			u := *appDetails.PathAppBaseURL
+			if u.Scheme == "http" {
+				u.Scheme = "ws"
+			} else {
+				u.Scheme = "wss"
+			}
+			u.Path = fmt.Sprintf("/api/v2/workspaceagents/%s/pty", appDetails.Agent.ID.String())
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			issueRes, err := appDetails.SDKClient.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+				URL:     u.String(),
+				AgentID: appDetails.Agent.ID,
+			})
+			require.NoError(t, err)
+
+			// Make an unauthenticated client.
+			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
+			conn, err := unauthedAppClient.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+				AgentID:     appDetails.Agent.ID,
+				Reconnect:   uuid.New(),
+				Height:      80,
+				Width:       80,
+				Command:     "/bin/bash",
+				SignedToken: issueRes.SignedToken,
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			// First attempt to resize the TTY.
+			// The websocket will close if it fails!
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Height: 250,
+				Width:  250,
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+			bufRead := bufio.NewReader(conn)
+
+			// Brief pause to reduce the likelihood that we send keystrokes while
+			// the shell is simultaneously sending a prompt.
+			time.Sleep(100 * time.Millisecond)
+
+			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "echo test\r\n",
+			})
+			require.NoError(t, err)
+			_, err = conn.Write(data)
+			require.NoError(t, err)
+
+			expectLine(t, bufRead, matchEchoCommand)
+			expectLine(t, bufRead, matchEchoOutput)
+		})
 	})
 
 	t.Run("WorkspaceAppsProxyPath", func(t *testing.T) {
@@ -115,7 +190,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, appDetails.PathAppURL(appDetails.OwnerApp).String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -124,40 +199,79 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			require.Contains(t, string(body), "Path-based applications are disabled")
 		})
 
-		t.Run("LoginWithoutAuth", func(t *testing.T) {
+		t.Run("LoginWithoutAuthOnPrimary", func(t *testing.T) {
 			t.Parallel()
 
-			// Clone the client to strip auth.
-			unauthedClient := codersdk.New(appDetails.Client.URL)
-			unauthedClient.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
+			if !appHostIsPrimary {
+				t.Skip("This test only applies when testing apps on the primary.")
 			}
+
+			unauthedClient := appDetails.AppClient(t)
+			unauthedClient.SetSessionToken("")
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, unauthedClient, http.MethodGet, appDetails.PathAppURL(appDetails.OwnerApp).String(), nil)
+			u := appDetails.PathAppURL(appDetails.Apps.Owner).String()
+			resp, err := requestWithRetries(ctx, t, unauthedClient, http.MethodGet, u, nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 			loc, err := resp.Location()
 			require.NoError(t, err)
 			require.True(t, loc.Query().Has("message"))
 			require.True(t, loc.Query().Has("redirect"))
 		})
 
-		t.Run("NoAccessShould404", func(t *testing.T) {
+		t.Run("LoginWithoutAuthOnProxy", func(t *testing.T) {
 			t.Parallel()
 
-			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.Client, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-			userClient.HTTPClient.CheckRedirect = appDetails.Client.HTTPClient.CheckRedirect
-			userClient.HTTPClient.Transport = appDetails.Client.HTTPClient.Transport
+			if appHostIsPrimary {
+				t.Skip("This test only applies when testing apps on workspace proxies.")
+			}
+
+			unauthedClient := appDetails.AppClient(t)
+			unauthedClient.SetSessionToken("")
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, userClient, http.MethodGet, appDetails.PathAppURL(appDetails.OwnerApp).String(), nil)
+			u := appDetails.PathAppURL(appDetails.Apps.Owner)
+			resp, err := requestWithRetries(ctx, t, unauthedClient, http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+			loc, err := resp.Location()
+			require.NoError(t, err)
+			require.Equal(t, appDetails.SDKClient.URL.Host, loc.Host)
+			require.Equal(t, "/api/v2/applications/auth-redirect", loc.Path)
+
+			redirectURIStr := loc.Query().Get("redirect_uri")
+			require.NotEmpty(t, redirectURIStr)
+			redirectURI, err := url.Parse(redirectURIStr)
+			require.NoError(t, err)
+
+			require.Equal(t, u.Scheme, redirectURI.Scheme)
+			require.Equal(t, u.Host, redirectURI.Host)
+			// TODO(@dean): I have no idea how but the trailing slash on this
+			// request is getting stripped.
+			require.Equal(t, u.Path, redirectURI.Path+"/")
+			require.Equal(t, u.RawQuery, redirectURI.RawQuery)
+		})
+
+		t.Run("NoAccessShould404", func(t *testing.T) {
+			t.Parallel()
+
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken(userClient.SessionToken())
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -169,9 +283,9 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.PathAppURL(appDetails.OwnerApp)
+			u := appDetails.PathAppURL(appDetails.Apps.Owner)
 			u.Path = strings.TrimSuffix(u.Path, "/")
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -183,9 +297,9 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.PathAppURL(appDetails.OwnerApp)
+			u := appDetails.PathAppURL(appDetails.Apps.Owner)
 			u.RawQuery = ""
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -200,8 +314,8 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.PathAppURL(appDetails.OwnerApp)
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+			u := appDetails.PathAppURL(appDetails.Apps.Owner)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
@@ -220,9 +334,8 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			require.Equal(t, appTokenCookie.Path, u.Path, "incorrect path on app token cookie")
 
 			// Ensure the signed app token cookie is valid.
-			appTokenClient := codersdk.New(appDetails.Client.URL)
-			appTokenClient.HTTPClient.CheckRedirect = appDetails.Client.HTTPClient.CheckRedirect
-			appTokenClient.HTTPClient.Transport = appDetails.Client.HTTPClient.Transport
+			appTokenClient := appDetails.AppClient(t)
+			appTokenClient.SetSessionToken("")
 			appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
 			require.NoError(t, err)
 			appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
@@ -242,10 +355,10 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			app := appDetails.OwnerApp
+			app := appDetails.Apps.Owner
 			app.Username = codersdk.Me
 
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, appDetails.PathAppURL(app).String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(app).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -261,7 +374,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, appDetails.PathAppURL(appDetails.OwnerApp).String(), nil, func(r *http.Request) {
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil, func(r *http.Request) {
 				r.Header.Set("Cf-Connecting-IP", "1.1.1.1")
 			})
 			require.NoError(t, err)
@@ -279,7 +392,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := appDetails.Client.Request(ctx, http.MethodGet, appDetails.PathAppURL(appDetails.FakeApp).String(), nil)
+			resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Fake).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusBadGateway, resp.StatusCode)
@@ -291,7 +404,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := appDetails.Client.Request(ctx, http.MethodGet, appDetails.PathAppURL(appDetails.PortApp).String(), nil)
+			resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Port).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			// TODO(@deansheather): This should be 400. There's a todo in the
@@ -309,190 +422,191 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			appDetails := setupProxyTest(t, nil)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			// Get the current user and API key.
-			user, err := appDetails.Client.User(ctx, codersdk.Me)
-			require.NoError(t, err)
-			currentAPIKey, err := appDetails.Client.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(appDetails.Client.SessionToken(), "-")[0])
-			require.NoError(t, err)
-
-			// Try to load the application without authentication.
-			subdomain := fmt.Sprintf("%s--%s--%s--%s", proxyTestAppNameOwner, proxyTestAgentName, appDetails.Workspace.Name, user.Username)
-			u, err := url.Parse(fmt.Sprintf("http://%s.%s/test", subdomain, proxyTestSubdomain))
-			require.NoError(t, err)
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-			require.NoError(t, err)
-
-			var resp *http.Response
-			resp, err = doWithRetries(t, appDetails.Client, req)
-			require.NoError(t, err)
-			resp.Body.Close()
-
-			// Check that the Location is correct.
-			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-			gotLocation, err := resp.Location()
-			require.NoError(t, err)
-			require.Equal(t, appDetails.Client.URL.Host, gotLocation.Host)
-			require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
-			require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
-
-			// Load the application auth-redirect endpoint.
-			resp, err = requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
-				"redirect_uri", u.String(),
-			))
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-			gotLocation, err = resp.Location()
-			require.NoError(t, err)
-
-			// Copy the query parameters and then check equality.
-			u.RawQuery = gotLocation.RawQuery
-			require.Equal(t, u, gotLocation)
-
-			// Verify the API key is set.
-			var encryptedAPIKey string
-			for k, v := range gotLocation.Query() {
-				// The query parameter may change dynamically in the future and is
-				// not exported, so we just use a fuzzy check instead.
-				if strings.Contains(k, "api_key") {
-					encryptedAPIKey = v[0]
-				}
-			}
-			require.NotEmpty(t, encryptedAPIKey, "no API key was set in the query parameters")
-
-			// Decrypt the API key by following the request.
-			t.Log("navigating to: ", gotLocation.String())
-			req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
-			require.NoError(t, err)
-			resp, err = doWithRetries(t, appDetails.Client, req)
-			require.NoError(t, err)
-			resp.Body.Close()
-			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-			cookies := resp.Cookies()
-			require.Len(t, cookies, 1)
-			apiKey := cookies[0].Value
-
-			// Fetch the API key.
-			apiKeyInfo, err := appDetails.Client.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(apiKey, "-")[0])
-			require.NoError(t, err)
-			require.Equal(t, user.ID, apiKeyInfo.UserID)
-			require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
-			require.WithinDuration(t, currentAPIKey.ExpiresAt, apiKeyInfo.ExpiresAt, 5*time.Second)
-			require.EqualValues(t, currentAPIKey.LifetimeSeconds, apiKeyInfo.LifetimeSeconds)
-
-			// Verify the API key permissions
-			appClient := codersdk.New(appDetails.Client.URL)
-			appClient.SetSessionToken(apiKey)
-			appClient.HTTPClient.CheckRedirect = appDetails.Client.HTTPClient.CheckRedirect
-			appClient.HTTPClient.Transport = appDetails.Client.HTTPClient.Transport
-
-			var (
-				canCreateApplicationConnect = "can-create-application_connect"
-				canReadUserMe               = "can-read-user-me"
-			)
-			authRes, err := appClient.AuthCheck(ctx, codersdk.AuthorizationRequest{
-				Checks: map[string]codersdk.AuthorizationCheck{
-					canCreateApplicationConnect: {
-						Object: codersdk.AuthorizationObject{
-							ResourceType:   "application_connect",
-							OwnerID:        "me",
-							OrganizationID: appDetails.FirstUser.OrganizationID.String(),
-						},
-						Action: "create",
-					},
-					canReadUserMe: {
-						Object: codersdk.AuthorizationObject{
-							ResourceType: "user",
-							OwnerID:      "me",
-							ResourceID:   appDetails.FirstUser.UserID.String(),
-						},
-						Action: "read",
-					},
-				},
-			})
-			require.NoError(t, err)
-
-			require.True(t, authRes[canCreateApplicationConnect])
-			require.False(t, authRes[canReadUserMe])
-
-			// Load the application page with the API key set.
-			gotLocation, err = resp.Location()
-			require.NoError(t, err)
-			t.Log("navigating to: ", gotLocation.String())
-			req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
-			require.NoError(t, err)
-			req.Header.Set(codersdk.SessionTokenHeader, apiKey)
-			resp, err = doWithRetries(t, appDetails.Client, req)
-			require.NoError(t, err)
-			resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-		})
-
-		t.Run("VerifyRedirectURI", func(t *testing.T) {
-			t.Parallel()
-
-			appDetails := setupProxyTest(t, nil)
-
 			cases := []struct {
-				name            string
-				redirectURI     string
-				status          int
-				messageContains string
+				name         string
+				appURL       *url.URL
+				verifyCookie func(t *testing.T, c *http.Cookie)
 			}{
 				{
-					name:            "NoRedirectURI",
-					redirectURI:     "",
-					status:          http.StatusBadRequest,
-					messageContains: "Missing redirect_uri query parameter",
+					name:   "Subdomain",
+					appURL: appDetails.SubdomainAppURL(appDetails.Apps.Owner),
+					verifyCookie: func(t *testing.T, c *http.Cookie) {
+						// TODO(@dean): fix these asserts, they don't seem to
+						// work. I wonder if Go strips the domain from the
+						// cookie object if it's invalid or something.
+						// domain := strings.SplitN(appDetails.Options.AppHost, ".", 2)
+						// require.Equal(t, "."+domain[1], c.Domain, "incorrect domain on app token cookie")
+					},
 				},
 				{
-					name:            "InvalidURI",
-					redirectURI:     "not a url",
-					status:          http.StatusBadRequest,
-					messageContains: "Invalid redirect_uri query parameter",
-				},
-				{
-					name:            "NotMatchAppHostname",
-					redirectURI:     "https://app--agent--workspace--user.not-a-match.com",
-					status:          http.StatusBadRequest,
-					messageContains: "The redirect_uri query parameter must be a valid app subdomain",
-				},
-				{
-					name:            "InvalidAppURL",
-					redirectURI:     "https://not-an-app." + proxyTestSubdomain,
-					status:          http.StatusBadRequest,
-					messageContains: "The redirect_uri query parameter must be a valid app subdomain",
+					name:   "Path",
+					appURL: appDetails.PathAppURL(appDetails.Apps.Owner),
+					verifyCookie: func(t *testing.T, c *http.Cookie) {
+						// TODO(@dean): fix these asserts, they don't seem to
+						// work. I wonder if Go strips the domain from the
+						// cookie object if it's invalid or something.
+						// require.Equal(t, "", c.Domain, "incorrect domain on app token cookie")
+					},
 				},
 			}
 
 			for _, c := range cases {
 				c := c
+
+				if c.name == "Path" && appHostIsPrimary {
+					// Workspace application auth does not apply to path apps
+					// served from the primary access URL as no smuggling needs
+					// to take place (they're already logged in with a session
+					// token).
+					continue
+				}
+
 				t.Run(c.name, func(t *testing.T) {
 					t.Parallel()
 
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 					defer cancel()
 
-					resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, "/api/v2/applications/auth-redirect", nil,
-						codersdk.WithQueryParam("redirect_uri", c.redirectURI),
-					)
+					// Get the current user and API key.
+					user, err := appDetails.SDKClient.User(ctx, codersdk.Me)
+					require.NoError(t, err)
+					currentAPIKey, err := appDetails.SDKClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(appDetails.SDKClient.SessionToken(), "-")[0])
+					require.NoError(t, err)
+
+					appClient := appDetails.AppClient(t)
+					appClient.SetSessionToken("")
+
+					// Try to load the application without authentication.
+					u := c.appURL
+					u.Path = path.Join(u.Path, "/test")
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+					require.NoError(t, err)
+
+					var resp *http.Response
+					resp, err = doWithRetries(t, appClient, req)
+					require.NoError(t, err)
+
+					if !assert.Equal(t, http.StatusSeeOther, resp.StatusCode) {
+						dump, err := httputil.DumpResponse(resp, true)
+						require.NoError(t, err)
+						t.Log(string(dump))
+					}
+					resp.Body.Close()
+
+					// Check that the Location is correct.
+					gotLocation, err := resp.Location()
+					require.NoError(t, err)
+					// This should always redirect to the primary access URL.
+					require.Equal(t, appDetails.SDKClient.URL.Host, gotLocation.Host)
+					require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
+					require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
+
+					// Load the application auth-redirect endpoint.
+					resp, err = requestWithRetries(ctx, t, appDetails.SDKClient, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
+						"redirect_uri", u.String(),
+					))
 					require.NoError(t, err)
 					defer resp.Body.Close()
-					require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+					require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+					gotLocation, err = resp.Location()
+					require.NoError(t, err)
+
+					// Copy the query parameters and then check equality.
+					u.RawQuery = gotLocation.RawQuery
+					require.Equal(t, u, gotLocation)
+
+					// Verify the API key is set.
+					encryptedAPIKey := gotLocation.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam)
+					require.NotEmpty(t, encryptedAPIKey, "no API key was set in the query parameters")
+
+					// Decrypt the API key by following the request.
+					t.Log("navigating to: ", gotLocation.String())
+					req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
+					require.NoError(t, err)
+					resp, err = doWithRetries(t, appClient, req)
+					require.NoError(t, err)
+					resp.Body.Close()
+					require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+
+					cookies := resp.Cookies()
+					var cookie *http.Cookie
+					for _, c := range cookies {
+						if c.Name == codersdk.DevURLSessionTokenCookie {
+							cookie = c
+							break
+						}
+					}
+					require.NotNil(t, cookie, "no app session token cookie was set")
+					c.verifyCookie(t, cookie)
+					apiKey := cookie.Value
+
+					// Fetch the API key from the API.
+					apiKeyInfo, err := appDetails.SDKClient.APIKeyByID(ctx, appDetails.FirstUser.UserID.String(), strings.Split(apiKey, "-")[0])
+					require.NoError(t, err)
+					require.Equal(t, user.ID, apiKeyInfo.UserID)
+					require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
+					require.WithinDuration(t, currentAPIKey.ExpiresAt, apiKeyInfo.ExpiresAt, 5*time.Second)
+					require.EqualValues(t, currentAPIKey.LifetimeSeconds, apiKeyInfo.LifetimeSeconds)
+
+					// Verify the API key permissions
+					appTokenAPIClient := codersdk.New(appDetails.SDKClient.URL)
+					appTokenAPIClient.SetSessionToken(apiKey)
+					appTokenAPIClient.HTTPClient.CheckRedirect = appDetails.SDKClient.HTTPClient.CheckRedirect
+					appTokenAPIClient.HTTPClient.Transport = appDetails.SDKClient.HTTPClient.Transport
+
+					var (
+						canCreateApplicationConnect = "can-create-application_connect"
+						canReadUserMe               = "can-read-user-me"
+					)
+					authRes, err := appTokenAPIClient.AuthCheck(ctx, codersdk.AuthorizationRequest{
+						Checks: map[string]codersdk.AuthorizationCheck{
+							canCreateApplicationConnect: {
+								Object: codersdk.AuthorizationObject{
+									ResourceType:   "application_connect",
+									OwnerID:        "me",
+									OrganizationID: appDetails.FirstUser.OrganizationID.String(),
+								},
+								Action: "create",
+							},
+							canReadUserMe: {
+								Object: codersdk.AuthorizationObject{
+									ResourceType: "user",
+									OwnerID:      "me",
+									ResourceID:   appDetails.FirstUser.UserID.String(),
+								},
+								Action: "read",
+							},
+						},
+					})
+					require.NoError(t, err)
+
+					require.True(t, authRes[canCreateApplicationConnect])
+					require.False(t, authRes[canReadUserMe])
+
+					// Load the application page with the API key set.
+					gotLocation, err = resp.Location()
+					require.NoError(t, err)
+					t.Log("navigating to: ", gotLocation.String())
+					req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
+					require.NoError(t, err)
+					req.Header.Set(codersdk.SessionTokenHeader, apiKey)
+					resp, err = doWithRetries(t, appClient, req)
+					require.NoError(t, err)
+					resp.Body.Close()
+					require.Equal(t, http.StatusOK, resp.StatusCode)
 				})
 			}
 		})
 	})
 
-	// This test ensures that the subdomain handler does nothing if --app-hostname
-	// is not set by the admin.
+	// This test ensures that the subdomain handler does nothing if
+	// --app-hostname is not set by the admin.
 	t.Run("WorkspaceAppsProxySubdomainPassthrough", func(t *testing.T) {
 		t.Parallel()
-
+		if !appHostIsPrimary {
+			t.Skip("app hostname does not serve API")
+		}
 		// No Hostname set.
 		appDetails := setupProxyTest(t, &DeploymentOptions{
 			AppHost:              "",
@@ -503,8 +617,10 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		uri := fmt.Sprintf("http://app--agent--workspace--username.%s/api/v2/users/me", proxyTestSubdomain)
-		resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, uri, nil)
+		u := *appDetails.SDKClient.URL
+		u.Host = "app--agent--workspace--username.test.coder.com"
+		u.Path = "/api/v2/users/me"
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -535,7 +651,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			host := strings.Replace(appDetails.Options.AppHost, "*", "not-an-app-subdomain", 1)
 			uri := fmt.Sprintf("http://%s/api/v2/users/me", host)
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, uri, nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, uri, nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -555,14 +671,14 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		t.Run("NoAccessShould401", func(t *testing.T) {
 			t.Parallel()
 
-			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.Client, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-			userClient.HTTPClient.CheckRedirect = appDetails.Client.HTTPClient.CheckRedirect
-			userClient.HTTPClient.Transport = appDetails.Client.HTTPClient.Transport
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken(userClient.SessionToken())
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, userClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.OwnerApp).String(), nil)
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Owner).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -574,17 +690,17 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 			u.Path = ""
 			u.RawQuery = ""
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 			loc, err := resp.Location()
 			require.NoError(t, err)
-			require.Equal(t, appDetails.SubdomainAppURL(appDetails.OwnerApp).Path, loc.Path)
+			require.Equal(t, appDetails.SubdomainAppURL(appDetails.Apps.Owner).Path, loc.Path)
 		})
 
 		t.Run("RedirectsWithQuery", func(t *testing.T) {
@@ -593,16 +709,16 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 			u.RawQuery = ""
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 			loc, err := resp.Location()
 			require.NoError(t, err)
-			require.Equal(t, appDetails.SubdomainAppURL(appDetails.OwnerApp).RawQuery, loc.RawQuery)
+			require.Equal(t, appDetails.SubdomainAppURL(appDetails.Apps.Owner).RawQuery, loc.RawQuery)
 		})
 
 		t.Run("Proxies", func(t *testing.T) {
@@ -611,8 +727,8 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
@@ -630,10 +746,9 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			require.NotNil(t, appTokenCookie, "no signed token cookie in response")
 			require.Equal(t, appTokenCookie.Path, "/", "incorrect path on signed token cookie")
 
-			// Ensure the session token cookie is valid.
-			appTokenClient := codersdk.New(appDetails.Client.URL)
-			appTokenClient.HTTPClient.CheckRedirect = appDetails.Client.HTTPClient.CheckRedirect
-			appTokenClient.HTTPClient.Transport = appDetails.Client.HTTPClient.Transport
+			// Ensure the signed app token cookie is valid.
+			appTokenClient := appDetails.AppClient(t)
+			appTokenClient.SetSessionToken("")
 			appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
 			require.NoError(t, err)
 			appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
@@ -653,7 +768,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, appDetails.SubdomainAppURL(appDetails.PortApp).String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
@@ -668,7 +783,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			resp, err := appDetails.Client.Request(ctx, http.MethodGet, appDetails.SubdomainAppURL(appDetails.FakeApp).String(), nil)
+			resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Fake).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusBadGateway, resp.StatusCode)
@@ -680,9 +795,9 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			app := appDetails.PortApp
+			app := appDetails.Apps.Port
 			app.AppSlugOrPort = strconv.Itoa(codersdk.WorkspaceAgentMinimumListeningPort - 1)
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, appDetails.SubdomainAppURL(app).String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.SubdomainAppURL(app).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -704,10 +819,10 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 			t.Logf("url: %s", u)
 
-			resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
@@ -727,19 +842,19 @@ func Run(t *testing.T, factory DeploymentFactory) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+				u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 				// Replace the -suffix with nothing.
 				u.Host = strings.Replace(u.Host, "-suffix", "", 1)
 				t.Logf("url: %s", u)
 
-				resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+				resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 				require.NoError(t, err)
 				defer resp.Body.Close()
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				// It's probably rendering the dashboard, so only ensure that the body
-				// doesn't match.
+				// It's probably rendering the dashboard or a 404 page, so only
+				// ensure that the body doesn't match.
 				require.NotContains(t, string(body), proxyTestAppBody)
 			})
 
@@ -749,12 +864,12 @@ func Run(t *testing.T, factory DeploymentFactory) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				u := appDetails.SubdomainAppURL(appDetails.OwnerApp)
+				u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
 				// Replace the -suffix with something else.
 				u.Host = strings.Replace(u.Host, "-suffix", "-not-suffix", 1)
 				t.Logf("url: %s", u)
 
-				resp, err := requestWithRetries(ctx, t, appDetails.Client, http.MethodGet, u.String(), nil)
+				resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
 				require.NoError(t, err)
 				defer resp.Body.Close()
 				body, err := io.ReadAll(resp.Body)
@@ -770,7 +885,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 	t.Run("AppSharing", func(t *testing.T) {
 		t.Parallel()
 
-		setup := func(t *testing.T, allowPathAppSharing, allowSiteOwnerAccess bool) (appDetails *AppDetails, workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, ownerClient *codersdk.Client, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
+		setup := func(t *testing.T, allowPathAppSharing, allowSiteOwnerAccess bool) (appDetails *Details, workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, ownerClient *codersdk.Client, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
 			//nolint:gosec
 			const password = "SomeSecurePassword!"
 
@@ -786,7 +901,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			// Create a template-admin user in the same org. We don't use an owner
 			// since they have access to everything.
-			ownerClient = appDetails.Client
+			ownerClient = appDetails.SDKClient
 			user, err := ownerClient.CreateUser(ctx, codersdk.CreateUserRequest{
 				Email:          "user@coder.com",
 				Username:       "user",
@@ -814,7 +929,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			// Create workspace.
 			port := appServer(t)
-			workspace, _ = createWorkspaceWithApps(t, client, user.OrganizationIDs[0], user, proxyTestSubdomainRaw, port)
+			workspace, _ = createWorkspaceWithApps(t, client, user.OrganizationIDs[0], user, port)
 
 			// Verify that the apps have the correct sharing levels set.
 			workspaceBuild, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
@@ -869,7 +984,7 @@ func Run(t *testing.T, factory DeploymentFactory) {
 			return appDetails, workspace, agnt, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth
 		}
 
-		verifyAccess := func(t *testing.T, appDetails *AppDetails, isPathApp bool, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
+		verifyAccess := func(t *testing.T, appDetails *Details, isPathApp bool, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
 			t.Helper()
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -877,29 +992,24 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 			// If the client has a session token, we also want to check that a
 			// scoped key works.
-			clients := []*codersdk.Client{client}
+			sessionTokens := []string{client.SessionToken()}
 			if client.SessionToken() != "" {
 				token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 					Scope: codersdk.APIKeyScopeApplicationConnect,
 				})
 				require.NoError(t, err)
 
-				scopedClient := codersdk.New(client.URL)
-				scopedClient.SetSessionToken(token.Key)
-				scopedClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
-				scopedClient.HTTPClient.Transport = client.HTTPClient.Transport
-
-				clients = append(clients, scopedClient)
+				sessionTokens = append(sessionTokens, token.Key)
 			}
 
-			for i, client := range clients {
+			for i, sessionToken := range sessionTokens {
 				msg := fmt.Sprintf("client %d", i)
 
 				app := App{
-					AppSlugOrPort: appName,
-					AgentName:     agentName,
-					WorkspaceName: workspaceName,
 					Username:      username,
+					WorkspaceName: workspaceName,
+					AgentName:     agentName,
+					AppSlugOrPort: appName,
 					Query:         proxyTestAppQuery,
 				}
 				u := appDetails.SubdomainAppURL(app)
@@ -907,6 +1017,8 @@ func Run(t *testing.T, factory DeploymentFactory) {
 					u = appDetails.PathAppURL(app)
 				}
 
+				client := appDetails.AppClient(t)
+				client.SetSessionToken(sessionToken)
 				res, err := requestWithRetries(ctx, t, client, http.MethodGet, u.String(), nil)
 				require.NoError(t, err, msg)
 
@@ -918,12 +1030,12 @@ func Run(t *testing.T, factory DeploymentFactory) {
 
 				if !shouldHaveAccess {
 					if shouldRedirectToLogin {
-						assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "should not have access, expected temporary redirect. "+msg)
+						assert.Equal(t, http.StatusSeeOther, res.StatusCode, "should not have access, expected See Other redirect. "+msg)
 						location, err := res.Location()
 						require.NoError(t, err, msg)
 
 						expectedPath := "/login"
-						if !isPathApp {
+						if !isPathApp || !appHostIsPrimary {
 							expectedPath = "/api/v2/applications/auth-redirect"
 						}
 						assert.Equal(t, expectedPath, location.Path, "should not have access, expected redirect to applicable login endpoint. "+msg)
@@ -1103,11 +1215,11 @@ func Run(t *testing.T, factory DeploymentFactory) {
 		}{
 			{
 				name: "ProxyPath",
-				u:    appDetails.PathAppURL(appDetails.OwnerApp),
+				u:    appDetails.PathAppURL(appDetails.Apps.Owner),
 			},
 			{
 				name: "ProxySubdomain",
-				u:    appDetails.SubdomainAppURL(appDetails.OwnerApp),
+				u:    appDetails.SubdomainAppURL(appDetails.Apps.Owner),
 			},
 		}
 
@@ -1132,9 +1244,9 @@ func Run(t *testing.T, factory DeploymentFactory) {
 				// server.
 				secWebSocketKey := "test-dean-was-here"
 				req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
+				req.Header.Set(codersdk.SessionTokenHeader, appDetails.SDKClient.SessionToken())
 
-				req.Header.Set(codersdk.SessionTokenHeader, appDetails.Client.SessionToken())
-				resp, err := doWithRetries(t, appDetails.Client, req)
+				resp, err := doWithRetries(t, appDetails.AppClient(t), req)
 				require.NoError(t, err)
 				defer resp.Body.Close()
 

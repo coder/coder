@@ -15,61 +15,70 @@ To support any infrastructure and software stack, Coder provides a generic appro
 
 1. Modify your template to auto-clone repos:
 
-   - If you want the template to clone a specific git repo
+> The id in the template's `coder_git_auth` data source must match the `CODER_GITAUTH_0_ID` in the Coder deployment configuration.
 
-     ```hcl
-     # Require git authentication to use this template
-     data "coder_git_auth" "github" {
-         id = "github"
-     }
+- If you want the template to clone a specific git repo
 
-     resource "coder_agent" "dev" {
-         # ...
-         dir = "~/coder"
-         startup_script =<<EOF
+  ```hcl
+  # Require git authentication to use this template
+  data "coder_git_auth" "github" {
+      id = "primary-github"
+  }
 
-         # Clone repo from GitHub
-         if [ ! -d "coder" ]
-         then
-             git clone https://github.com/coder/coder
-         fi
+  resource "coder_agent" "dev" {
+      # ...
+      dir = "~/coder"
+      startup_script =<<EOF
 
-         EOF
-     }
-     ```
+      # Clone repo from GitHub
+      if [ ! -d "coder" ]
+      then
+          git clone https://github.com/coder/coder
+      fi
 
-   - If you want the template to support any repository via [parameters](./parameters.md)
+      EOF
+  }
+  ```
 
-     ```hcl
-     # Require git authentication to use this template
-     data "coder_git_auth" "github" {
-         id = "github"
-     }
+  > Note: The `dir` attribute can be set in multiple ways, for example:
+  >
+  > - `~/coder`
+  > - `/home/coder/coder`
+  > - `coder` (relative to the home directory)
 
-     # Prompt the user for the git repo URL
-     data "coder_parameter" "git_repo" {
-         name     = "Git repository"
-         default  = "https://github.com/coder/coder"
-     }
+- If you want the template to support any repository via [parameters](./parameters.md)
 
-     locals {
-         folder_name = try(element(split("/", data.coder_parameter.git_repo.value), length(split("/", data.coder_parameter.git_repo.value)) - 1), "")
-     }
+  ```hcl
+  # Require git authentication to use this template
+  data "coder_git_auth" "github" {
+      id = "primary-github"
+  }
 
-     resource "coder_agent" "dev" {
-         # ...
-         dir = "~/${local.folder_name}"
-         startup_script =<<EOF
+  # Prompt the user for the git repo URL
+  data "coder_parameter" "git_repo" {
+      name          = "git_repo"
+      display_name  = "Git repository"
+      default       = "https://github.com/coder/coder"
+  }
 
-         # Clone repo from GitHub
-         if [ ! -d "${local.folder_name}" ]
-         then
-             git clone ${data.coder_parameter.git_repo.value}
-         fi
+  locals {
+      folder_name = try(element(split("/", data.coder_parameter.git_repo.value), length(split("/", data.coder_parameter.git_repo.value)) - 1), "")
+  }
 
-         EOF
-     }
-     ```
+  resource "coder_agent" "dev" {
+      # ...
+      dir = "~/${local.folder_name}"
+      startup_script =<<EOF
+
+      # Clone repo from GitHub
+      if [ ! -d "${local.folder_name}" ]
+      then
+          git clone ${data.coder_parameter.git_repo.value}
+      fi
+
+      EOF
+  }
+  ```
 
 1. Embed the "Open in Coder" button with Markdown
 
@@ -84,7 +93,7 @@ To support any infrastructure and software stack, Coder provides a generic appro
    This can be used to pre-fill the git repo URL, disk size, image, etc.
 
    ```md
-   [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?param.Git%20repository=https://github.com/coder/slog&param.Home%20Disk%20Size%20%28GB%29=20)
+   [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?param.git_repo=https://github.com/coder/slog&param.home_disk_size%20%28GB%29=20)
    ```
 
    ![Pre-filled parameters](../images/templates/pre-filled-parameters.png)

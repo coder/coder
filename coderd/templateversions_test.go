@@ -124,12 +124,6 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			FileID:        file.ID,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
-			ParameterValues: []codersdk.CreateParameterRequest{{
-				Name:              "example",
-				SourceValue:       "value",
-				SourceScheme:      codersdk.ParameterSourceSchemeData,
-				DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
-			}},
 		})
 		require.NoError(t, err)
 		require.Equal(t, "bananas", version.Name)
@@ -138,6 +132,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Len(t, auditor.AuditLogs(), 2)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
 	})
+
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -292,153 +287,6 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 				assert.Empty(t, version.Job.Error) &&
 				version.Job.Status == codersdk.ProvisionerJobCanceling
 		}, testutil.WaitShort, testutil.IntervalFast)
-	})
-}
-
-func TestTemplateVersionSchema(t *testing.T) {
-	t.Parallel()
-	t.Run("ListRunning", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.TemplateVersionSchema(ctx, version.ID)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-	t.Run("List", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name: "example",
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
-				},
-			}},
-			ProvisionApply: echo.ProvisionComplete,
-		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		schemas, err := client.TemplateVersionSchema(ctx, version.ID)
-		require.NoError(t, err)
-		require.NotNil(t, schemas)
-		require.Len(t, schemas, 1)
-	})
-	t.Run("ListContains", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                 "example",
-							ValidationTypeSystem: proto.ParameterSchema_HCL,
-							ValidationValueType:  "string",
-							ValidationCondition:  `contains(["first", "second"], var.example)`,
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
-				},
-			}},
-			ProvisionApply: echo.ProvisionComplete,
-		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		schemas, err := client.TemplateVersionSchema(ctx, version.ID)
-		require.NoError(t, err)
-		require.NotNil(t, schemas)
-		require.Len(t, schemas, 1)
-		require.Equal(t, []string{"first", "second"}, schemas[0].ValidationContains)
-	})
-}
-
-func TestTemplateVersionParameters(t *testing.T) {
-	t.Parallel()
-	t.Run("ListRunning", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.TemplateVersionParameters(ctx, version.ID)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-	t.Run("List", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{
-							{
-								Name:           "example",
-								RedisplayValue: true,
-								DefaultSource: &proto.ParameterSource{
-									Scheme: proto.ParameterSource_DATA,
-									Value:  "hello",
-								},
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-							{
-								Name:           "abcd",
-								RedisplayValue: true,
-								DefaultSource: &proto.ParameterSource{
-									Scheme: proto.ParameterSource_DATA,
-									Value:  "world",
-								},
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-						},
-					},
-				},
-			}},
-			ProvisionApply: echo.ProvisionComplete,
-		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		params, err := client.TemplateVersionParameters(ctx, version.ID)
-		require.NoError(t, err)
-		require.NotNil(t, params)
-		require.Len(t, params, 2)
-		require.Equal(t, "hello", params[0].SourceValue)
-		require.Equal(t, "world", params[1].SourceValue)
 	})
 }
 
@@ -756,9 +604,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		defer cancel()
 
 		// Create template version dry-run
-		job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-			ParameterValues: []codersdk.CreateParameterRequest{},
-		})
+		job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 		require.NoError(t, err)
 
 		// Fetch template version dry-run
@@ -814,9 +660,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-			ParameterValues: []codersdk.CreateParameterRequest{},
-		})
+		_, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
@@ -857,9 +701,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			defer cancel()
 
 			// Create the dry-run
-			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-				ParameterValues: []codersdk.CreateParameterRequest{},
-			})
+			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 			require.NoError(t, err)
 			require.Equal(t, codersdk.ProvisionerJobPending, job.Status)
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
@@ -880,9 +722,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			defer cancel()
 
 			// Create the dry-run
-			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-				ParameterValues: []codersdk.CreateParameterRequest{},
-			})
+			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
@@ -932,9 +772,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			defer cancel()
 
 			// Create the dry-run
-			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-				ParameterValues: []codersdk.CreateParameterRequest{},
-			})
+			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 			require.NoError(t, err)
 
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
@@ -971,6 +809,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		i := i
 		eg.Go(func() error {
 			templateVersion, err := client.CreateTemplateVersion(egCtx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+				Name:          uuid.NewString(),
 				TemplateID:    template.ID,
 				FileID:        file.ID,
 				StorageMethod: codersdk.ProvisionerStorageMethodFile,

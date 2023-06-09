@@ -1,4 +1,7 @@
-import { makeStyles } from "@material-ui/core/styles"
+import Button from "@mui/material/Button"
+import { makeStyles, useTheme } from "@mui/styles"
+import WarningIcon from "@mui/icons-material/ErrorOutlineRounded"
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { useMachine } from "@xstate/react"
 import { portForwardURL } from "components/PortForwardButton/PortForwardButton"
 import { Stack } from "components/Stack/Stack"
@@ -14,6 +17,14 @@ import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { pageTitle } from "../../utils/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
+import { useProxy } from "contexts/ProxyContext"
+import { combineClasses } from "utils/combineClasses"
+import Box from "@mui/material/Box"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { Region } from "api/typesGenerated"
+import { getLatencyColor } from "utils/latency"
+import Popover from "@mui/material/Popover"
+import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -21,41 +32,10 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
-const useReloading = (isDisconnected: boolean) => {
-  const [status, setStatus] = useState<"reloading" | "notReloading">(
-    "notReloading",
-  )
-
-  // Retry connection on key press when it is disconnected
-  useEffect(() => {
-    if (!isDisconnected) {
-      return
-    }
-
-    const keyDownHandler = () => {
-      setStatus("reloading")
-      window.location.reload()
-    }
-
-    document.addEventListener("keydown", keyDownHandler)
-
-    return () => {
-      document.removeEventListener("keydown", keyDownHandler)
-    }
-  }, [isDisconnected])
-
-  return {
-    status,
-  }
-}
-
-const TerminalPage: FC<
-  React.PropsWithChildren<{
-    readonly renderer?: XTerm.RendererType
-  }>
-> = ({ renderer }) => {
+const TerminalPage: FC = () => {
   const navigate = useNavigate()
   const styles = useStyles()
+  const { proxy } = useProxy()
   const { username, workspace: workspaceName } = useParams()
   const xtermRef = useRef<HTMLDivElement>(null)
   const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null)
@@ -76,6 +56,7 @@ const TerminalPage: FC<
       workspaceName: workspaceNameParts?.[0],
       username: username,
       command: command,
+      baseURL: proxy.preferredPathAppURL,
     },
     actions: {
       readMessage: (_, event) => {
@@ -97,14 +78,30 @@ const TerminalPage: FC<
     workspaceAgentError,
     workspaceAgent,
     websocketError,
-    applicationsHost,
   } = terminalState.context
   const reloading = useReloading(isDisconnected)
+  const shouldDisplayStartupWarning = workspaceAgent
+    ? ["starting", "starting_timeout"].includes(workspaceAgent.lifecycle_state)
+    : false
+  const shouldDisplayStartupError = workspaceAgent
+    ? workspaceAgent.lifecycle_state === "start_error"
+    : false
+  const dashboard = useDashboard()
+  const proxyContext = useProxy()
+  const selectedProxy = proxyContext.proxy.proxy
+  const latency = selectedProxy
+    ? proxyContext.proxyLatencies[selectedProxy.id]
+    : undefined
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
     (uri: string) => {
-      if (!workspaceAgent || !workspace || !username || !applicationsHost) {
+      if (
+        !workspaceAgent ||
+        !workspace ||
+        !username ||
+        !proxy.preferredWildcardHostname
+      ) {
         return
       }
 
@@ -132,7 +129,7 @@ const TerminalPage: FC<
         }
         open(
           portForwardURL(
-            applicationsHost,
+            proxy.preferredWildcardHostname,
             parseInt(url.port),
             workspaceAgent.name,
             workspace.name,
@@ -143,7 +140,7 @@ const TerminalPage: FC<
         open(uri)
       }
     },
-    [workspaceAgent, workspace, username, applicationsHost],
+    [workspaceAgent, workspace, username, proxy.preferredWildcardHostname],
   )
 
   // Create the terminal!
@@ -159,7 +156,6 @@ const TerminalPage: FC<
       theme: {
         background: colors.gray[16],
       },
-      rendererType: renderer,
     })
     const fitAddon = new FitAddon()
     setFitAddon(fitAddon)
@@ -197,7 +193,7 @@ const TerminalPage: FC<
       window.removeEventListener("resize", listener)
       terminal.dispose()
     }
-  }, [renderer, sendEvent, xtermRef, handleWebLink])
+  }, [sendEvent, xtermRef, handleWebLink])
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found
@@ -309,12 +305,190 @@ const TerminalPage: FC<
           </Stack>
         )}
       </div>
-      <div className={styles.terminal} ref={xtermRef} data-testid="terminal" />
+      {shouldDisplayStartupError && (
+        <div
+          className={combineClasses([styles.alert, styles.alertError])}
+          role="alert"
+        >
+          <WarningIcon className={styles.alertIcon} />
+          <div>
+            <div className={styles.alertTitle}>Startup script failed</div>
+            <div className={styles.alertMessage}>
+              You can continue using this terminal, but something may be missing
+              or not fully set up.
+            </div>
+          </div>
+        </div>
+      )}
+      <Box display="flex" flexDirection="column" height="100vh">
+        {shouldDisplayStartupWarning && (
+          <div className={styles.alert} role="alert">
+            <WarningIcon className={styles.alertIcon} />
+            <div>
+              <div className={styles.alertTitle}>
+                Startup script is still running
+              </div>
+              <div className={styles.alertMessage}>
+                You can continue using this terminal, but something may be
+                missing or not fully set up.
+              </div>
+            </div>
+            <div className={styles.alertActions}>
+              <Button
+                startIcon={<RefreshOutlined />}
+                size="small"
+                onClick={() => {
+                  // By redirecting the user without the session in the URL we
+                  // create a new one
+                  window.location.href = window.location.pathname
+                }}
+              >
+                Refresh session
+              </Button>
+            </div>
+          </div>
+        )}
+        <div
+          className={styles.terminal}
+          ref={xtermRef}
+          data-testid="terminal"
+        />
+        {dashboard.experiments.includes("moons") &&
+          selectedProxy &&
+          latency && (
+            <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
+          )}
+      </Box>
     </>
   )
 }
 
-export default TerminalPage
+const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
+  const theme = useTheme()
+  const color = getLatencyColor(theme, latency)
+  const anchorRef = useRef<HTMLButtonElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <Box
+      sx={{
+        padding: (theme) => theme.spacing(1, 2),
+        background: (theme) => theme.palette.background.paper,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        fontSize: 12,
+        borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+      }}
+    >
+      <Box
+        ref={anchorRef}
+        component="button"
+        aria-label="Terminal latency"
+        aria-haspopup="true"
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        sx={{
+          background: "none",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          border: 0,
+        }}
+      >
+        <Box
+          sx={{
+            height: 6,
+            width: 6,
+            backgroundColor: color,
+            border: 0,
+            borderRadius: 9999,
+          }}
+        />
+        <ProxyStatusLatency latency={latency} />
+      </Box>
+      <Popover
+        id="latency-popover"
+        disableRestoreFocus
+        anchorEl={anchorRef.current}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        sx={{
+          pointerEvents: "none",
+          "& .MuiPaper-root": {
+            padding: (theme) => theme.spacing(1, 2),
+            marginTop: -1,
+          },
+        }}
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+      >
+        <Box
+          sx={{
+            fontSize: 13,
+            color: (theme) => theme.palette.text.secondary,
+            fontWeight: 500,
+          }}
+        >
+          Selected proxy
+        </Box>
+        <Box
+          sx={{ fontSize: 14, display: "flex", gap: 3, alignItems: "center" }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box width={12} height={12} lineHeight={0}>
+              <Box
+                component="img"
+                src={proxy.icon_url}
+                alt=""
+                sx={{ objectFit: "contain" }}
+                width="100%"
+                height="100%"
+              />
+            </Box>
+            {proxy.display_name}
+          </Box>
+          <ProxyStatusLatency latency={latency} />
+        </Box>
+      </Popover>
+    </Box>
+  )
+}
+
+const useReloading = (isDisconnected: boolean) => {
+  const [status, setStatus] = useState<"reloading" | "notReloading">(
+    "notReloading",
+  )
+
+  // Retry connection on key press when it is disconnected
+  useEffect(() => {
+    if (!isDisconnected) {
+      return
+    }
+
+    const keyDownHandler = () => {
+      setStatus("reloading")
+      window.location.reload()
+    }
+
+    document.addEventListener("keydown", keyDownHandler)
+
+    return () => {
+      document.removeEventListener("keydown", keyDownHandler)
+    }
+  }, [isDisconnected])
+
+  return {
+    status,
+  }
+}
 
 const useStyles = makeStyles((theme) => ({
   overlay: {
@@ -346,8 +520,9 @@ const useStyles = makeStyles((theme) => ({
   },
   terminal: {
     width: "100vw",
-    height: "100vh",
     overflow: "hidden",
+    backgroundColor: theme.palette.background.paper,
+    flex: 1,
     // These styles attempt to mimic the VS Code scrollbar.
     "& .xterm": {
       padding: 4,
@@ -370,4 +545,35 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: "rgba(255, 255, 255, 0.18)",
     },
   },
+  alert: {
+    display: "flex",
+    background: theme.palette.background.paperLight,
+    alignItems: "center",
+    padding: theme.spacing(2),
+    gap: theme.spacing(2),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    ...theme.typography.body2,
+  },
+  alertIcon: {
+    color: theme.palette.warning.light,
+    fontSize: theme.spacing(3),
+  },
+  alertError: {
+    "& $alertIcon": {
+      color: theme.palette.error.light,
+    },
+  },
+  alertTitle: {
+    fontWeight: 600,
+    color: theme.palette.text.primary,
+  },
+  alertMessage: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+  alertActions: {
+    marginLeft: "auto",
+  },
 }))
+
+export default TerminalPage

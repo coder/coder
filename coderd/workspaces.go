@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -20,12 +20,12 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/searchquery"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/coderd/wsbuilder"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -396,77 +396,12 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template version.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, templateVersion.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template version parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting template version parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	err = codersdk.ValidateNewWorkspaceParameters(templateVersionParameters, createWorkspace.RichParameterValues)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Error validating workspace build parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	templateVersionJob, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template version job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	templateVersionJobStatus := convertProvisionerJob(templateVersionJob).Status
-	switch templateVersionJobStatus {
-	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
-		httpapi.Write(ctx, rw, http.StatusNotAcceptable, codersdk.Response{
-			Message: fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
-		})
-		return
-	case codersdk.ProvisionerJobFailed:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("The provided template version %q has failed to import. You cannot create workspaces using it!", templateVersion.Name),
-		})
-		return
-	case codersdk.ProvisionerJobCanceled:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The provided template version was canceled during import. You cannot create workspaces using it!",
-		})
-		return
-	}
-
-	tags := provisionerdserver.MutateTags(user.ID, templateVersionJob.Tags)
 	var (
-		provisionerJob database.ProvisionerJob
-		workspaceBuild database.WorkspaceBuild
+		provisionerJob *database.ProvisionerJob
+		workspaceBuild *database.WorkspaceBuild
 	)
 	err = api.Database.InTx(func(db database.Store) error {
 		now := database.Now()
-		workspaceBuildID := uuid.New()
 		// Workspaces are created without any versions.
 		workspace, err = db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID:                uuid.New(),
@@ -485,84 +420,26 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
 		}
-		for _, parameterValue := range createWorkspace.ParameterValues {
-			// If the value is empty, we don't want to save it on database so
-			// Terraform can use the default value
-			if parameterValue.SourceValue == "" {
-				continue
-			}
 
-			_, err = db.InsertParameterValue(ctx, database.InsertParameterValueParams{
-				ID:                uuid.New(),
-				Name:              parameterValue.Name,
-				CreatedAt:         now,
-				UpdatedAt:         now,
-				Scope:             database.ParameterScopeWorkspace,
-				ScopeID:           workspace.ID,
-				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
-				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
+		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart).
+			Reason(database.BuildReasonInitiator).
+			Initiator(apiKey.UserID).
+			ActiveVersion().
+			RichParameterValues(createWorkspace.RichParameterValues)
+		workspaceBuild, provisionerJob, err = builder.Build(
+			ctx, db, func(action rbac.Action, object rbac.Objecter) bool {
+				return api.Authorize(r, action, object)
 			})
-			if err != nil {
-				return xerrors.Errorf("insert parameter value: %w", err)
-			}
-		}
-
-		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-			WorkspaceBuildID: workspaceBuildID,
-		})
-		if err != nil {
-			return xerrors.Errorf("marshal provision job: %w", err)
-		}
-		provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:             uuid.New(),
-			CreatedAt:      now,
-			UpdatedAt:      now,
-			InitiatorID:    apiKey.UserID,
-			OrganizationID: template.OrganizationID,
-			Provisioner:    template.Provisioner,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			StorageMethod:  templateVersionJob.StorageMethod,
-			FileID:         templateVersionJob.FileID,
-			Input:          input,
-			Tags:           tags,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-		workspaceBuild, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:                workspaceBuildID,
-			CreatedAt:         now,
-			UpdatedAt:         now,
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			InitiatorID:       apiKey.UserID,
-			Transition:        database.WorkspaceTransitionStart,
-			JobID:             provisionerJob.ID,
-			BuildNumber:       1,           // First build!
-			Deadline:          time.Time{}, // provisionerd will set this upon success
-			Reason:            database.BuildReasonInitiator,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace build: %w", err)
-		}
-
-		names := make([]string, 0, len(createWorkspace.RichParameterValues))
-		values := make([]string, 0, len(createWorkspace.RichParameterValues))
-		for _, param := range createWorkspace.RichParameterValues {
-			names = append(names, param.Name)
-			values = append(values, param.Value)
-		}
-		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
-			WorkspaceBuildID: workspaceBuildID,
-			Name:             names,
-			Value:            values,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace build parameters: %w", err)
-		}
-		return nil
+		return err
 	}, nil)
+	var bldErr wsbuilder.BuildError
+	if xerrors.As(err, &bldErr) {
+		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
+			Message: bldErr.Message,
+			Detail:  bldErr.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating workspace.",
@@ -583,14 +460,14 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Workspaces:      []telemetry.Workspace{telemetry.ConvertWorkspace(workspace)},
-		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(workspaceBuild)},
+		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(*workspaceBuild)},
 	})
 
 	users := []database.User{user, initiator}
 	apiBuild, err := api.convertWorkspaceBuild(
-		workspaceBuild,
+		*workspaceBuild,
 		workspace,
-		provisionerJob,
+		*provisionerJob,
 		users,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
@@ -1136,15 +1013,6 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 			&owner,
 		))
 	}
-	sort.Slice(apiWorkspaces, func(i, j int) bool {
-		iw := apiWorkspaces[i]
-		jw := apiWorkspaces[j]
-		if jw.LastUsedAt.IsZero() && iw.LastUsedAt.IsZero() {
-			return iw.Name < jw.Name
-		}
-		return iw.LastUsedAt.After(jw.LastUsedAt)
-	})
-
 	return apiWorkspaces, nil
 }
 
@@ -1159,7 +1027,10 @@ func convertWorkspace(
 		autostartSchedule = &workspace.AutostartSchedule.String
 	}
 
-	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	var (
+		ttlMillis  = convertWorkspaceTTLMillis(workspace.Ttl)
+		deletingAt = calculateDeletingAt(workspace, template, workspaceBuild)
+	)
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -1178,6 +1049,7 @@ func convertWorkspace(
 		AutostartSchedule:                    autostartSchedule,
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
+		DeletingAt:                           deletingAt,
 	}
 }
 
@@ -1188,6 +1060,19 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 
 	millis := time.Duration(i.Int64).Milliseconds()
 	return &millis
+}
+
+// Calculate the time of the upcoming workspace deletion, if applicable; otherwise, return nil.
+// Workspaces may have impending deletions if InactivityTTL feature is turned on and the workspace is inactive.
+func calculateDeletingAt(workspace database.Workspace, template database.Template, build codersdk.WorkspaceBuild) *time.Time {
+	inactiveStatuses := []codersdk.WorkspaceStatus{codersdk.WorkspaceStatusStopped, codersdk.WorkspaceStatusCanceled, codersdk.WorkspaceStatusFailed, codersdk.WorkspaceStatusDeleted}
+	isInactive := slices.Contains(inactiveStatuses, build.Status)
+	// If InactivityTTL is turned off (set to 0) or if the workspace is active, there is no impending deletion
+	if template.InactivityTTL == 0 || !isInactive {
+		return nil
+	}
+
+	return ptr.Ref(workspace.LastUsedAt.Add(time.Duration(template.InactivityTTL) * time.Nanosecond))
 }
 
 func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Duration) (sql.NullInt64, error) {

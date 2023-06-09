@@ -347,8 +347,9 @@ func TestTemplatesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -601,6 +602,90 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, defaultTTL.Milliseconds(), got.DefaultTTLMillis)
 			require.Zero(t, got.MaxTTLMillis)
+		})
+	})
+
+	t.Run("CleanupTTLs", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			failureTTL    = 7 * 24 * time.Hour
+			inactivityTTL = 180 * 24 * time.Hour
+		)
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			var setCalled int64
+			client := coderdtest.New(t, &coderdtest.Options{
+				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+						if atomic.AddInt64(&setCalled, 1) == 2 {
+							require.Equal(t, failureTTL, options.FailureTTL)
+							require.Equal(t, inactivityTTL, options.InactivityTTL)
+						}
+						template.FailureTTL = int64(options.FailureTTL)
+						template.InactivityTTL = int64(options.InactivityTTL)
+						return template, nil
+					},
+				},
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.FailureTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
+				ctr.InactivityTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Name:                         template.Name,
+				DisplayName:                  template.DisplayName,
+				Description:                  template.Description,
+				Icon:                         template.Icon,
+				DefaultTTLMillis:             0,
+				MaxTTLMillis:                 0,
+				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+				FailureTTLMillis:             failureTTL.Milliseconds(),
+				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
+			})
+			require.NoError(t, err)
+
+			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
+			require.Equal(t, failureTTL.Milliseconds(), got.FailureTTLMillis)
+			require.Equal(t, inactivityTTL.Milliseconds(), got.InactivityTTLMillis)
+		})
+
+		t.Run("IgnoredUnlicensed", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.FailureTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
+				ctr.InactivityTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Name:                         template.Name,
+				DisplayName:                  template.DisplayName,
+				Description:                  template.Description,
+				Icon:                         template.Icon,
+				DefaultTTLMillis:             template.DefaultTTLMillis,
+				MaxTTLMillis:                 template.MaxTTLMillis,
+				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+				FailureTTLMillis:             failureTTL.Milliseconds(),
+				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
+			})
+			require.NoError(t, err)
+			require.Zero(t, got.FailureTTLMillis)
+			require.Zero(t, got.InactivityTTLMillis)
 		})
 	})
 
@@ -893,10 +978,10 @@ func TestTemplateMetrics(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	daus, err := client.TemplateDAUs(context.Background(), template.ID)
+	daus, err := client.TemplateDAUs(context.Background(), template.ID, codersdk.TimezoneOffsetHour(time.UTC))
 	require.NoError(t, err)
 
-	require.Equal(t, &codersdk.TemplateDAUsResponse{
+	require.Equal(t, &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{},
 	}, daus, "no DAUs when stats are empty")
 
@@ -916,7 +1001,7 @@ func TestTemplateMetrics(t *testing.T) {
 	require.NoError(t, err)
 	_ = sshConn.Close()
 
-	wantDAUs := &codersdk.TemplateDAUsResponse{
+	wantDAUs := &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
 				Date:   time.Now().UTC().Truncate(time.Hour * 24),
@@ -925,14 +1010,14 @@ func TestTemplateMetrics(t *testing.T) {
 		},
 	}
 	require.Eventuallyf(t, func() bool {
-		daus, err = client.TemplateDAUs(ctx, template.ID)
+		daus, err = client.TemplateDAUs(ctx, template.ID, codersdk.TimezoneOffsetHour(time.UTC))
 		require.NoError(t, err)
 		return len(daus.Entries) > 0
 	},
 		testutil.WaitShort, testutil.IntervalFast,
 		"template daus never loaded",
 	)
-	gotDAUs, err := client.TemplateDAUs(ctx, template.ID)
+	gotDAUs, err := client.TemplateDAUs(ctx, template.ID, codersdk.TimezoneOffsetHour(time.UTC))
 	require.NoError(t, err)
 	require.Equal(t, gotDAUs, wantDAUs)
 

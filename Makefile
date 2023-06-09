@@ -420,6 +420,7 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 gen: \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \
+	coderd/database/dbmock/store.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
@@ -441,6 +442,7 @@ gen/mark-fresh:
 	files="\
 		coderd/database/dump.sql \
 		coderd/database/querier.go \
+		coderd/database/dbmock/store.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		site/src/api/typesGenerated.ts \
@@ -475,6 +477,10 @@ coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/dat
 # Generates Go code for querying the database.
 coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go
 	./coderd/database/generate.sh
+
+
+coderd/database/dbmock/store.go: coderd/database/db.go coderd/database/querier.go
+	go generate ./coderd/database/dbmock/
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \
@@ -515,7 +521,7 @@ docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go 
 	cd site
 	yarn run format:write:only ../docs/admin/audit-logs.md
 
-coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo docs/manifest.json coderd/rbac/object_gen.go
+coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) coderd/database/querier.go .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
 	yarn run --cwd=site format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
@@ -526,7 +532,7 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl
 	go test ./cli -run="Test(CommandHelp|ServerYAML)" -update
 	touch "$@"
 
-helm/tests/testdata/.gen-golden: $(wildcard helm/tests/testdata/*.golden) $(GO_SRC_FILES)
+helm/tests/testdata/.gen-golden: $(wildcard helm/tests/testdata/*.yaml) $(wildcard helm/tests/testdata/*.golden) $(GO_SRC_FILES)
 	go test ./helm/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 
@@ -595,7 +601,7 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 	done < "$<"
 
 test: test-clean
-	gotestsum -- -v -short ./...
+	gotestsum --format standard-quiet -- -v -short ./...
 .PHONY: test
 
 # When updating -timeout for this test, keep in sync with
@@ -608,9 +614,8 @@ test-postgres: test-clean test-postgres-docker
 		--jsonfile="gotests.json" \
 		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
-		-parallel=4 \
 		-coverpkg=./... \
-		-count=1 -race -failfast
+		-failfast
 .PHONY: test-postgres
 
 test-postgres-docker:
@@ -627,6 +632,8 @@ test-postgres-docker:
 		--detach \
 		postgres:13 \
 		-c shared_buffers=1GB \
+		-c work_mem=1GB \
+		-c effective_cache_size=1GB \
 		-c max_connections=1000 \
 		-c fsync=off \
 		-c synchronous_commit=off \

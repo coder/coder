@@ -30,9 +30,9 @@ import (
 var WorkspaceAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
 
 const (
-	WorkspaceAgentSSHPort             = 1
-	WorkspaceAgentReconnectingPTYPort = 2
-	WorkspaceAgentSpeedtestPort       = 3
+	WorkspaceAgentSSHPort             = tailnet.WorkspaceAgentSSHPort
+	WorkspaceAgentReconnectingPTYPort = tailnet.WorkspaceAgentReconnectingPTYPort
+	WorkspaceAgentSpeedtestPort       = tailnet.WorkspaceAgentSpeedtestPort
 	// WorkspaceAgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
 	// gathering agent statistics.
 	WorkspaceAgentHTTPAPIServerPort = 4
@@ -165,9 +165,9 @@ type WorkspaceAgentReconnectingPTYInit struct {
 // to pipe data to a PTY.
 // @typescript-ignore ReconnectingPTYRequest
 type ReconnectingPTYRequest struct {
-	Data   string `json:"data"`
-	Height uint16 `json:"height"`
-	Width  uint16 `json:"width"`
+	Data   string `json:"data,omitempty"`
+	Height uint16 `json:"height,omitempty"`
+	Width  uint16 `json:"width,omitempty"`
 }
 
 // ReconnectingPTY spawns a new reconnecting terminal session.

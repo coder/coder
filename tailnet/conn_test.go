@@ -165,3 +165,33 @@ func TestTailnet(t *testing.T) {
 		w2.Close()
 	})
 }
+
+// TestConn_PreferredDERP tests that we only trigger the NodeCallback when we have a preferred DERP server.
+func TestConn_PreferredDERP(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	derpMap := tailnettest.RunDERPAndSTUN(t)
+	conn, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		Logger:    logger.Named("w1"),
+		DERPMap:   derpMap,
+	})
+	require.NoError(t, err)
+	defer func() {
+		err := conn.Close()
+		require.NoError(t, err)
+	}()
+	// buffer channel so callback doesn't block
+	nodes := make(chan *tailnet.Node, 50)
+	conn.SetNodeCallback(func(node *tailnet.Node) {
+		nodes <- node
+	})
+	select {
+	case node := <-nodes:
+		require.Equal(t, 1, node.PreferredDERP)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for node")
+	}
+}

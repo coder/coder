@@ -1,7 +1,6 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
-import EditIcon from "@material-ui/icons/Edit"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import Button from "@mui/material/Button"
+import Link from "@mui/material/Link"
+import EditIcon from "@mui/icons-material/Edit"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
 import {
@@ -18,6 +17,7 @@ import { useTranslation } from "react-i18next"
 import { Link as RouterLink } from "react-router-dom"
 import { createDayString } from "utils/createDayString"
 import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface TemplateVersionPageViewProps {
   /**
@@ -25,7 +25,6 @@ export interface TemplateVersionPageViewProps {
    */
   versionName: string
   templateName: string
-  canEdit: boolean
   tab: UseTabResult
   context: TemplateVersionMachineContext
 }
@@ -35,7 +34,6 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   tab,
   versionName,
   templateName,
-  canEdit,
 }) => {
   const { currentFiles, error, currentVersion, previousFiles } = context
   const { t } = useTranslation("templateVersionPage")
@@ -44,17 +42,12 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
     <Margins>
       <PageHeader
         actions={
-          canEdit ? (
-            <Link
-              underline="none"
-              component={RouterLink}
-              to={`/templates/${templateName}/versions/${versionName}/edit`}
-            >
-              <Button variant="outlined" startIcon={<EditIcon />}>
-                Edit
-              </Button>
-            </Link>
-          ) : undefined
+          <Link
+            component={RouterLink}
+            to={`/templates/${templateName}/versions/${versionName}/edit`}
+          >
+            <Button startIcon={<EditIcon />}>Edit</Button>
+          </Link>
         }
       >
         <PageHeaderCaption>{t("header.caption")}</PageHeaderCaption>
@@ -64,7 +57,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
       {!currentFiles && !error && <Loader />}
 
       <Stack spacing={4}>
-        {Boolean(error) && <AlertBanner severity="error" error={error} />}
+        {Boolean(error) && <ErrorAlert error={error} />}
         {currentVersion && currentFiles && (
           <>
             <Stats>

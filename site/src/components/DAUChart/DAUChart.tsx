@@ -1,5 +1,5 @@
-import { Theme } from "@material-ui/core/styles"
-import useTheme from "@material-ui/styles/useTheme"
+import { Theme } from "@mui/material/styles"
+import useTheme from "@mui/styles/useTheme"
 import * as TypesGen from "api/typesGenerated"
 import {
   CategoryScale,
@@ -38,7 +38,7 @@ ChartJS.register(
 )
 
 export interface DAUChartProps {
-  daus: TypesGen.TemplateDAUsResponse | TypesGen.DeploymentDAUsResponse
+  daus: TypesGen.DAUsResponse
 }
 export const Language = {
   loadingText: "DAU stats are loading. Check back later.",

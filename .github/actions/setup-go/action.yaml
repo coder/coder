@@ -1,0 +1,15 @@
+name: "Setup Go"
+description: |
+  Sets up the Go environment for tests, builds, etc.
+runs:
+  using: "composite"
+  steps:
+    - uses: buildjet/setup-go@v4
+      with:
+        cache: true
+        go-version: "1.20.5"
+    - name: Install gotestsum
+      uses: jaxxstorm/action-install-gh-release@v1.10.0
+      with:
+        repo: gotestyourself/gotestsum
+        tag: v1.9.0

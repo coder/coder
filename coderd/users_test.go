@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -285,7 +286,7 @@ func TestDeleteUser(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authz := coderdtest.AssertRBAC(t, api, client)
 
-		_, another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		anotherClient, another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		err := client.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
 		// Attempt to create a user with the same email and username, and delete them again.
@@ -298,6 +299,13 @@ func TestDeleteUser(t *testing.T) {
 		require.NoError(t, err)
 		err = client.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
+
+		// IMPORTANT: assert that the deleted user's session is no longer valid.
+		_, err = anotherClient.User(context.Background(), codersdk.Me)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 
 		// RBAC checks
 		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceUser)
@@ -471,21 +479,49 @@ func TestPostUsers(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
-	t.Run("Create", func(t *testing.T) {
+	t.Run("CreateWithoutOrg", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
-		user := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for user create
 		numLogs++ // add an audit log for login
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			OrganizationID: user.OrganizationID,
+		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:    "another@user.org",
+			Username: "someone-else",
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-2].Action)
+
+		require.Len(t, user.OrganizationIDs, 1)
+		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		numLogs := len(auditor.AuditLogs())
+
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		numLogs++ // add an audit log for user create
+		numLogs++ // add an audit log for login
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: firstUser.OrganizationID,
 			Email:          "another@user.org",
 			Username:       "someone-else",
 			Password:       "SomeSecurePassword!",
@@ -495,6 +531,9 @@ func TestPostUsers(t *testing.T) {
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
 		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-2].Action)
+
+		require.Len(t, user.OrganizationIDs, 1)
+		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
 	})
 
 	t.Run("LastSeenAt", func(t *testing.T) {
@@ -1514,6 +1553,9 @@ func TestPaginatedUsers(t *testing.T) {
 				email = fmt.Sprintf("%d@gmail.com", i)
 				username = fmt.Sprintf("specialuser%d", i)
 			}
+			if i%3 == 0 {
+				username = strings.ToUpper(username)
+			}
 			// One side effect of having to use the api vs the db calls directly, is you cannot
 			// mock time. Ideally I could pass in mocked times and space these users out.
 			//
@@ -1540,10 +1582,7 @@ func TestPaginatedUsers(t *testing.T) {
 	err = eg.Wait()
 	require.NoError(t, err, "create users failed")
 
-	// Sorting the users will sort by (created_at, uuid). This is to handle
-	// the off case that created_at is identical for 2 users.
-	// This is a really rare case in production, but does happen in unit tests
-	// due to the fake database being in memory and exceptionally quick.
+	// Sorting the users will sort by username.
 	sortUsers(allUsers)
 	sortUsers(specialUsers)
 
@@ -1570,7 +1609,6 @@ func TestPaginatedUsers(t *testing.T) {
 		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
 		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
 	}
-	//nolint:paralleltest // Does not detect range value.
 	for _, tt := range tests {
 		tt := tt
 		t.Run(fmt.Sprintf("%s %d", tt.name, tt.limit), func(t *testing.T) {
@@ -1659,9 +1697,21 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 // sortUsers sorts by (created_at, id)
 func sortUsers(users []codersdk.User) {
 	sort.Slice(users, func(i, j int) bool {
-		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
-			return users[i].ID.String() < users[j].ID.String()
-		}
-		return users[i].CreatedAt.Before(users[j].CreatedAt)
+		return strings.ToLower(users[i].Username) < strings.ToLower(users[j].Username)
 	})
+}
+
+func BenchmarkUsersMe(b *testing.B) {
+	client := coderdtest.New(b, nil)
+	_ = coderdtest.CreateFirstUser(b, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := client.User(ctx, codersdk.Me)
+		require.NoError(b, err)
+	}
 }

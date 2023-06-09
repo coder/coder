@@ -140,6 +140,12 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 				Name:      "jobs_current",
 				Help:      "The number of currently running provisioner jobs.",
 			}, []string{"provisioner"}),
+			NumDaemons: auto.NewGauge(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "num_daemons",
+				Help:      "The number of provisioner daemons.",
+			}),
 			JobTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
 				Namespace: "coderd",
 				Subsystem: "provisionerd",
@@ -337,6 +343,9 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 
+	if len(job.TraceMetadata) > 0 {
+		ctx = tracing.MetadataToContext(ctx, job.TraceMetadata)
+	}
 	ctx, span := p.tracer.Start(ctx, tracing.FuncName(), trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd"),
 		attribute.String("job_id", job.JobId),

@@ -87,6 +87,19 @@ export const TemplateVersionEditorPage: FC = () => {
           }
           resources={editorState.context.resources}
           buildLogs={editorState.context.buildLogs}
+          isPromptingMissingVariables={editorState.matches("promptVariables")}
+          missingVariables={editorState.context.missingVariables}
+          onSubmitMissingVariableValues={(values) => {
+            sendEvent({
+              type: "SET_MISSING_VARIABLE_VALUES",
+              values,
+            })
+          }}
+          onCancelSubmitMissingVariableValues={() => {
+            sendEvent({
+              type: "CANCEL_MISSING_VARIABLE_VALUES",
+            })
+          }}
         />
       )}
     </>

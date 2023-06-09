@@ -1,9 +1,9 @@
-import Table from "@material-ui/core/Table"
-import TableBody from "@material-ui/core/TableBody"
-import TableCell from "@material-ui/core/TableCell"
-import TableContainer from "@material-ui/core/TableContainer"
-import TableHead from "@material-ui/core/TableHead"
-import TableRow from "@material-ui/core/TableRow"
+import Table from "@mui/material/Table"
+import TableBody from "@mui/material/TableBody"
+import TableCell from "@mui/material/TableCell"
+import TableContainer from "@mui/material/TableContainer"
+import TableHead from "@mui/material/TableHead"
+import TableRow from "@mui/material/TableRow"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
@@ -27,6 +27,7 @@ export interface UsersTableProps {
   onActivateUser: (user: TypesGen.User) => void
   onDeleteUser: (user: TypesGen.User) => void
   onListWorkspaces: (user: TypesGen.User) => void
+  onViewActivity: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (
     user: TypesGen.User,
@@ -42,6 +43,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   onSuspendUser,
   onDeleteUser,
   onListWorkspaces,
+  onViewActivity,
   onActivateUser,
   onResetUserPassword,
   onUpdateUserRoles,
@@ -80,6 +82,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             onActivateUser={onActivateUser}
             onDeleteUser={onDeleteUser}
             onListWorkspaces={onListWorkspaces}
+            onViewActivity={onViewActivity}
             onResetUserPassword={onResetUserPassword}
             onSuspendUser={onSuspendUser}
             onUpdateUserRoles={onUpdateUserRoles}

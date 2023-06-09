@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/armon/circbuf"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
@@ -60,9 +60,12 @@ type Options struct {
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
-	AgentPorts             map[int]string
+	IgnorePorts            map[int]string
 	SSHMaxTimeout          time.Duration
 	TailnetListenPort      uint16
+	Subsystem              codersdk.AgentSubsystem
+
+	PrometheusRegistry *prometheus.Registry
 }
 
 type Client interface {
@@ -76,7 +79,12 @@ type Client interface {
 	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
 }
 
-func New(options Options) io.Closer {
+type Agent interface {
+	HTTPDebug() http.Handler
+	io.Closer
+}
+
+func New(options Options) Agent {
 	if options.ReconnectingPTYTimeout == 0 {
 		options.ReconnectingPTYTimeout = 5 * time.Minute
 	}
@@ -97,6 +105,12 @@ func New(options Options) io.Closer {
 			return "", nil
 		}
 	}
+
+	prometheusRegistry := options.PrometheusRegistry
+	if prometheusRegistry == nil {
+		prometheusRegistry = prometheus.NewRegistry()
+	}
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
 		tailnetListenPort:      options.TailnetListenPort,
@@ -112,9 +126,13 @@ func New(options Options) io.Closer {
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		ignorePorts:            options.AgentPorts,
+		ignorePorts:            options.IgnorePorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 		sshMaxTimeout:          options.SSHMaxTimeout,
+		subsystem:              options.Subsystem,
+
+		prometheusRegistry: prometheusRegistry,
+		metrics:            newAgentMetrics(prometheusRegistry),
 	}
 	a.init(ctx)
 	return a
@@ -132,6 +150,7 @@ type agent struct {
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
 	ignorePorts map[int]string
+	subsystem   codersdk.AgentSubsystem
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -158,10 +177,13 @@ type agent struct {
 	latestStat    atomic.Pointer[agentsdk.Stats]
 
 	connCountReconnectingPTY atomic.Int64
+
+	prometheusRegistry *prometheus.Registry
+	metrics            *agentMetrics
 }
 
 func (a *agent) init(ctx context.Context) {
-	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.sshMaxTimeout)
+	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, a.sshMaxTimeout, "")
 	if err != nil {
 		panic(err)
 	}
@@ -206,25 +228,32 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	var out bytes.Buffer
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
-		// the server to the time the server received the result to protect
-		// against clock skew.
+		// coderd to the time of server receipt to solve clock skew.
 		//
 		// In the future, the server may accept the timestamp from the agent
-		// if it is certain the clocks are in sync.
+		// if it can guarantee the clocks are synchronized.
 		CollectedAt: time.Now(),
 	}
-	cmd, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
+	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
 	if err != nil {
-		result.Error = err.Error()
+		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
 	}
+	cmd := cmdPty.AsExec()
 
 	cmd.Stdout = &out
 	cmd.Stderr = &out
+	cmd.Stdin = io.LimitReader(nil, 0)
 
-	// The error isn't mutually exclusive with useful output.
-	err = cmd.Run()
+	// We split up Start and Wait instead of calling Run so that we can return a more precise error.
+	err = cmd.Start()
+	if err != nil {
+		result.Error = fmt.Sprintf("start cmd: %+v", err)
+		return result
+	}
 
+	// This error isn't mutually exclusive with useful output.
+	err = cmd.Wait()
 	const bufLimit = 10 << 10
 	if out.Len() > bufLimit {
 		err = errors.Join(
@@ -234,8 +263,12 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		out.Truncate(bufLimit)
 	}
 
+	// Important: if the command times out, we may see a misleading error like
+	// "exit status 1", so it's important to include the context error.
+	err = errors.Join(err, ctx.Err())
+
 	if err != nil {
-		result.Error = err.Error()
+		result.Error = fmt.Sprintf("run cmd: %+v", err)
 	}
 	result.Value = out.String()
 	return result
@@ -473,6 +506,7 @@ func (a *agent) run(ctx context.Context) error {
 	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
 		Version:           buildinfo.Version(),
 		ExpandedDirectory: manifest.Directory,
+		Subsystem:         a.subsystem,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
@@ -648,6 +682,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				}
 				break
 			}
+			logger.Debug(ctx, "accepted conn", slog.F("remote", conn.RemoteAddr().String()))
 			wg.Add(1)
 			closed := make(chan struct{})
 			go func() {
@@ -676,6 +711,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				var msg codersdk.WorkspaceAgentReconnectingPTYInit
 				err = json.Unmarshal(data, &msg)
 				if err != nil {
+					logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
 					return
 				}
 				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
@@ -826,10 +862,11 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 		}()
 	}
 
-	cmd, err := a.sshServer.CreateCommand(ctx, script, nil)
+	cmdPty, err := a.sshServer.CreateCommand(ctx, script, nil)
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)
 	}
+	cmd := cmdPty.AsExec()
 	cmd.Stdout = writer
 	cmd.Stderr = writer
 	err = cmd.Run()
@@ -961,12 +998,14 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan str
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
+	a.metrics.connectionsTotal.Add(1)
 
 	a.connCountReconnectingPTY.Add(1)
 	defer a.connCountReconnectingPTY.Add(-1)
 
 	connectionID := uuid.NewString()
 	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
+	logger.Debug(ctx, "starting handler")
 
 	defer func() {
 		if err := retErr; err != nil {
@@ -999,6 +1038,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		// Empty command will default to the users shell!
 		cmd, err := a.sshServer.CreateCommand(ctx, msg.Command, nil)
 		if err != nil {
+			a.metrics.reconnectingPTYErrors.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)
 		}
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
@@ -1011,6 +1051,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
+			a.metrics.reconnectingPTYErrors.WithLabelValues("start_command").Add(1)
 			return xerrors.Errorf("start command: %w", err)
 		}
 
@@ -1027,27 +1068,22 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			circularBuffer: circularBuffer,
 		}
 		a.reconnectingPTYs.Store(msg.ID, rpty)
-		go func() {
-			// CommandContext isn't respected for Windows PTYs right now,
-			// so we need to manually track the lifecycle.
-			// When the context has been completed either:
-			// 1. The timeout completed.
-			// 2. The parent context was canceled.
-			<-ctx.Done()
-			_ = process.Kill()
-		}()
-		go func() {
-			// If the process dies randomly, we should
-			// close the pty.
-			_ = process.Wait()
-			rpty.Close()
-		}()
+		// We don't need to separately monitor for the process exiting.
+		// When it exits, our ptty.OutputReader() will return EOF after
+		// reading all process output.
 		if err = a.trackConnGoroutine(func() {
 			buffer := make([]byte, 1024)
 			for {
-				read, err := rpty.ptty.Output().Read(buffer)
+				read, err := rpty.ptty.OutputReader().Read(buffer)
 				if err != nil {
 					// When the PTY is closed, this is triggered.
+					// Error is typically a benign EOF, so only log for debugging.
+					if errors.Is(err, io.EOF) {
+						logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
+					} else {
+						logger.Warn(ctx, "unable to read pty output, command exited?", slog.Error(err))
+						a.metrics.reconnectingPTYErrors.WithLabelValues("output_reader").Add(1)
+					}
 					break
 				}
 				part := buffer[:read]
@@ -1059,8 +1095,16 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 					break
 				}
 				rpty.activeConnsMutex.Lock()
-				for _, conn := range rpty.activeConns {
-					_, _ = conn.Write(part)
+				for cid, conn := range rpty.activeConns {
+					_, err = conn.Write(part)
+					if err != nil {
+						logger.Warn(ctx,
+							"error writing to active conn",
+							slog.F("other_conn_id", cid),
+							slog.Error(err),
+						)
+						a.metrics.reconnectingPTYErrors.WithLabelValues("write").Add(1)
+					}
 				}
 				rpty.activeConnsMutex.Unlock()
 			}
@@ -1079,6 +1123,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	if err != nil {
 		// We can continue after this, it's not fatal!
 		logger.Error(ctx, "resize", slog.Error(err))
+		a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 	}
 	// Write any previously stored data for the TTY.
 	rpty.circularBufferMutex.RLock()
@@ -1091,6 +1136,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	// while also holding circularBufferMutex seems dangerous.
 	_, err = conn.Write(prevBuf)
 	if err != nil {
+		a.metrics.reconnectingPTYErrors.WithLabelValues("write").Add(1)
 		return xerrors.Errorf("write buffer to conn: %w", err)
 	}
 	// Multiple connections to the same TTY are permitted.
@@ -1138,9 +1184,10 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			logger.Warn(ctx, "read conn", slog.Error(err))
 			return nil
 		}
-		_, err = rpty.ptty.Input().Write([]byte(req.Data))
+		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
 			logger.Warn(ctx, "write to pty", slog.Error(err))
+			a.metrics.reconnectingPTYErrors.WithLabelValues("input_writer").Add(1)
 			return nil
 		}
 		// Check if a resize needs to happen!
@@ -1151,6 +1198,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		if err != nil {
 			// We can continue after this, it's not fatal!
 			logger.Error(ctx, "resize", slog.Error(err))
+			a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 		}
 	}
 }
@@ -1183,7 +1231,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		var mu sync.Mutex
 		status := a.network.Status()
 		durations := []float64{}
-		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+		pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
 		for nodeID, peer := range status.Peer {
 			if !peer.Active {
@@ -1199,7 +1247,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				duration, _, _, err := a.network.Ping(ctx, addresses[0].Addr())
+				duration, _, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
 				if err != nil {
 					return
 				}
@@ -1221,11 +1269,14 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		// Convert from microseconds to milliseconds.
 		stats.ConnectionMedianLatencyMS /= 1000
 
-		lastStat := a.latestStat.Load()
-		if lastStat != nil && reflect.DeepEqual(lastStat, stats) {
-			a.logger.Info(ctx, "skipping stat because nothing changed")
-			return
-		}
+		// Collect agent metrics.
+		// Agent metrics are changing all the time, so there is no need to perform
+		// reflect.DeepEqual to see if stats should be transferred.
+
+		metricsCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+		defer cancelFunc()
+		stats.Metrics = a.collectMetrics(metricsCtx)
+
 		a.latestStat.Store(stats)
 
 		select {
@@ -1265,6 +1316,27 @@ func (a *agent) isClosed() bool {
 	default:
 		return false
 	}
+}
+
+func (a *agent) HTTPDebug() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		a.closeMutex.Lock()
+		network := a.network
+		a.closeMutex.Unlock()
+
+		if network == nil {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("network is not ready yet"))
+			return
+		}
+
+		if r.URL.Path == "/debug/magicsock" {
+			network.MagicsockServeHTTPDebug(w, r)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte("404 not found"))
+		}
+	})
 }
 
 func (a *agent) Close() error {
@@ -1358,7 +1430,7 @@ type reconnectingPTY struct {
 	circularBuffer      *circbuf.Buffer
 	circularBufferMutex sync.RWMutex
 	timeout             *time.Timer
-	ptty                pty.PTY
+	ptty                pty.PTYCmd
 }
 
 // Close ends all connections to the reconnecting
@@ -1407,5 +1479,19 @@ func expandDirectory(dir string) (string, error) {
 		}
 		dir = filepath.Join(home, dir[1:])
 	}
-	return os.ExpandEnv(dir), nil
+	dir = os.ExpandEnv(dir)
+
+	if !filepath.IsAbs(dir) {
+		home, err := userHomeDir()
+		if err != nil {
+			return "", err
+		}
+		dir = filepath.Join(home, dir)
+	}
+	return dir, nil
 }
+
+// EnvAgentSubsystem is the environment variable used to denote the
+// specialized environment in which the agent is running
+// (e.g. envbox, envbuilder).
+const EnvAgentSubsystem = "CODER_AGENT_SUBSYSTEM"

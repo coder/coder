@@ -32,6 +32,7 @@ site/e2e/test-results/*
 site/e2e/states/*.json
 site/playwright-report/*
 site/.swc
+site/dist/
 
 # Make target for updating golden files (any dir).
 .gen-golden
@@ -50,11 +51,18 @@ site/stats/
 *.lock.hcl
 .terraform/
 
-/.coderv2/*
+**/.coderv2/*
 **/__debug_bin
 
 # direnv
 .envrc
+*.test
+
+# Loadtesting
+./scaletest/terraform/.terraform
+./scaletest/terraform/.terraform.lock.hcl
+scaletest/terraform/secrets.tfvars
+.terraform.tfstate.*
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.

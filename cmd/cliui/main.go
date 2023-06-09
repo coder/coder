@@ -29,7 +29,7 @@ func main() {
 		Use: "prompt",
 		Handler: func(inv *clibase.Invocation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:    "What is our " + cliui.Styles.Field.Render("company name") + "?",
+				Text:    "What is our " + cliui.DefaultStyles.Field.Render("company name") + "?",
 				Default: "acme-corp",
 				Validate: func(s string) error {
 					if !strings.EqualFold(s, "coder") {

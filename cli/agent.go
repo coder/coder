@@ -18,24 +18,36 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"tailscale.com/util/clientmetric"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"cdr.dev/slog/sloggers/slogjson"
+	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
 func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	var (
-		auth              string
-		logDir            string
-		pprofAddress      string
-		noReap            bool
-		sshMaxTimeout     time.Duration
-		tailnetListenPort int64
+		auth                string
+		logDir              string
+		pprofAddress        string
+		noReap              bool
+		sshMaxTimeout       time.Duration
+		tailnetListenPort   int64
+		prometheusAddress   string
+		debugAddress        string
+		slogHumanPath       string
+		slogJSONPath        string
+		slogStackdriverPath string
 	)
 	cmd := &clibase.Cmd{
 		Use:   "agent",
@@ -46,9 +58,50 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			agentPorts := map[int]string{}
+			var (
+				ignorePorts = map[int]string{}
+				isLinux     = runtime.GOOS == "linux"
 
-			isLinux := runtime.GOOS == "linux"
+				sinks      = []slog.Sink{}
+				logClosers = []func() error{}
+			)
+			defer func() {
+				for _, closer := range logClosers {
+					_ = closer()
+				}
+			}()
+
+			addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
+				switch loc {
+				case "":
+					// Do nothing.
+
+				case "/dev/stderr":
+					sinks = append(sinks, sinkFn(inv.Stderr))
+
+				case "/dev/stdout":
+					sinks = append(sinks, sinkFn(inv.Stdout))
+
+				default:
+					fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+					if err != nil {
+						return xerrors.Errorf("open log file %q: %w", loc, err)
+					}
+					sinks = append(sinks, sinkFn(fi))
+					logClosers = append(logClosers, fi.Close)
+				}
+				return nil
+			}
+
+			if err := addSinkIfProvided(sloghuman.Sink, slogHumanPath); err != nil {
+				return xerrors.Errorf("add human sink: %w", err)
+			}
+			if err := addSinkIfProvided(slogjson.Sink, slogJSONPath); err != nil {
+				return xerrors.Errorf("add json sink: %w", err)
+			}
+			if err := addSinkIfProvided(slogstackdriver.Sink, slogStackdriverPath); err != nil {
+				return xerrors.Errorf("add stackdriver sink: %w", err)
+			}
 
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
@@ -56,9 +109,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				logWriter := &lumberjack.Logger{
 					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
+					// Without this, rotated logs will never be deleted.
+					MaxBackups: 1,
 				}
 				defer logWriter.Close()
-				logger := slog.Make(sloghuman.Sink(inv.Stderr), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+
+				sinks = append(sinks, sloghuman.Sink(logWriter))
+				logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
@@ -95,12 +152,15 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ljLogger := &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
+				// Without this, rotated logs will never be deleted.
+				MaxBackups: 1,
 			}
 			defer ljLogger.Close()
 			logWriter := &closeWriter{w: ljLogger}
 			defer logWriter.Close()
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+			sinks = append(sinks, sloghuman.Sink(logWriter))
+			logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "starting agent",
@@ -121,9 +181,16 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			_ = pprof.Handler
 			pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
 			defer pprofSrvClose()
-			// Do a best effort here. If this fails, it's not a big deal.
-			if port, err := urlPort(pprofAddress); err == nil {
-				agentPorts[port] = "pprof"
+			if port, err := extractPort(pprofAddress); err == nil {
+				ignorePorts[port] = "pprof"
+			}
+
+			if port, err := extractPort(prometheusAddress); err == nil {
+				ignorePorts[port] = "prometheus"
+			}
+
+			if port, err := extractPort(debugAddress); err == nil {
+				ignorePorts[port] = "debug"
 			}
 
 			// exchangeToken returns a session token.
@@ -187,7 +254,9 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
-			closer := agent.New(agent.Options{
+			prometheusRegistry := prometheus.NewRegistry()
+			subsystem := inv.Environ.Get(agent.EnvAgentSubsystem)
+			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
 				LogDir:            logDir,
@@ -206,11 +275,21 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				EnvironmentVariables: map[string]string{
 					"GIT_ASKPASS": executablePath,
 				},
-				AgentPorts:    agentPorts,
+				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
+				Subsystem:     codersdk.AgentSubsystem(subsystem),
+
+				PrometheusRegistry: prometheusRegistry,
 			})
+
+			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
+			defer prometheusSrvClose()
+
+			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
+			defer debugSrvClose()
+
 			<-ctx.Done()
-			return closer.Close()
+			return agnt.Close()
 		},
 	}
 
@@ -256,6 +335,44 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Env:         "CODER_AGENT_TAILNET_LISTEN_PORT",
 			Description: "Specify a static port for Tailscale to use for listening.",
 			Value:       clibase.Int64Of(&tailnetListenPort),
+		},
+		{
+			Flag:        "prometheus-address",
+			Default:     "127.0.0.1:2112",
+			Env:         "CODER_AGENT_PROMETHEUS_ADDRESS",
+			Value:       clibase.StringOf(&prometheusAddress),
+			Description: "The bind address to serve Prometheus metrics.",
+		},
+		{
+			Flag:        "debug-address",
+			Default:     "127.0.0.1:2113",
+			Env:         "CODER_AGENT_DEBUG_ADDRESS",
+			Value:       clibase.StringOf(&debugAddress),
+			Description: "The bind address to serve a debug HTTP server.",
+		},
+		{
+			Name:        "Human Log Location",
+			Description: "Output human-readable logs to a given file.",
+			Flag:        "log-human",
+			Env:         "CODER_AGENT_LOGGING_HUMAN",
+			Default:     "/dev/stderr",
+			Value:       clibase.StringOf(&slogHumanPath),
+		},
+		{
+			Name:        "JSON Log Location",
+			Description: "Output JSON logs to a given file.",
+			Flag:        "log-json",
+			Env:         "CODER_AGENT_LOGGING_JSON",
+			Default:     "",
+			Value:       clibase.StringOf(&slogJSONPath),
+		},
+		{
+			Name:        "Stackdriver Log Location",
+			Description: "Output Stackdriver compatible logs to a given file.",
+			Flag:        "log-stackdriver",
+			Env:         "CODER_AGENT_LOGGING_STACKDRIVER",
+			Default:     "",
+			Value:       clibase.StringOf(&slogStackdriverPath),
 		},
 	}
 
@@ -342,4 +459,27 @@ func urlPort(u string) (int, error) {
 		}
 	}
 	return -1, xerrors.Errorf("invalid port: %s", u)
+}
+
+func prometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+
+		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
+		clientmetric.WritePrometheusExpositionFormat(w)
+
+		metricFamilies, err := prometheusRegistry.Gather()
+		if err != nil {
+			logger.Error(context.Background(), "Prometheus handler can't gather metric families", slog.Error(err))
+			return
+		}
+
+		for _, metricFamily := range metricFamilies {
+			_, err = expfmt.MetricFamilyToText(w, metricFamily)
+			if err != nil {
+				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
+				return
+			}
+		}
+	})
 }

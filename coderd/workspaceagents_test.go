@@ -876,7 +876,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 			}},
 		})
 		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
-		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	})
 	t.Run("AuthorizedCallback", func(t *testing.T) {
 		t.Parallel()
@@ -1271,18 +1271,6 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	check := func(want codersdk.WorkspaceAgentMetadataResult, got codersdk.WorkspaceAgentMetadata) {
 		require.Equal(t, want.Value, got.Result.Value)
 		require.Equal(t, want.Error, got.Result.Error)
-
-		if testutil.InCI() && (runtime.GOOS == "windows" || testutil.InRaceMode()) {
-			// Avoid testing timings when flake chance is high.
-			return
-		}
-		require.WithinDuration(t, got.Result.CollectedAt, want.CollectedAt, time.Second)
-		ageImpliedNow := got.Result.CollectedAt.Add(time.Duration(got.Result.Age) * time.Second)
-		// We use a long WithinDuration to tolerate slow CI, but we're still making sure
-		// that Age is within the ballpark.
-		require.WithinDuration(
-			t, time.Now(), ageImpliedNow, time.Second*10,
-		)
 	}
 
 	wantMetadata1 := codersdk.WorkspaceAgentMetadataResult{
@@ -1337,4 +1325,86 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	unknownKeyMetadata := wantMetadata1
 	err = agentClient.PostMetadata(ctx, "unknown", unknownKeyMetadata)
 	require.NoError(t, err)
+}
+
+func TestWorkspaceAgent_Startup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		const (
+			expectedVersion   = "v1.2.3"
+			expectedDir       = "/home/coder"
+			expectedSubsystem = codersdk.AgentSubsystemEnvbox
+		)
+
+		err := agentClient.PostStartup(ctx, agentsdk.PostStartupRequest{
+			Version:           expectedVersion,
+			ExpandedDirectory: expectedDir,
+			Subsystem:         expectedSubsystem,
+		})
+		require.NoError(t, err)
+
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		wsagent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
+		require.NoError(t, err)
+		require.Equal(t, expectedVersion, wsagent.Version)
+		require.Equal(t, expectedDir, wsagent.ExpandedDirectory)
+		require.Equal(t, expectedSubsystem, wsagent.Subsystem)
+	})
+
+	t.Run("InvalidSemver", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		err := agentClient.PostStartup(ctx, agentsdk.PostStartupRequest{
+			Version: "1.2.3",
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+	})
 }

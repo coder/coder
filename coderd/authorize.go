@@ -25,7 +25,7 @@ func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action
 		h.Logger.Error(r.Context(), "filter failed",
 			slog.Error(err),
 			slog.F("user_id", roles.Actor.ID),
-			slog.F("username", roles.Username),
+			slog.F("username", roles.ActorName),
 			slog.F("roles", roles.Actor.SafeRoleNames()),
 			slog.F("scope", roles.Actor.SafeScopeName()),
 			slog.F("route", r.URL.Path),
@@ -77,8 +77,8 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 		// in the early days
 		logger.Warn(r.Context(), "unauthorized",
 			slog.F("roles", roles.Actor.SafeRoleNames()),
-			slog.F("user_id", roles.Actor.ID),
-			slog.F("username", roles.Username),
+			slog.F("actor_id", roles.Actor.ID),
+			slog.F("actor_name", roles.ActorName),
 			slog.F("scope", roles.Actor.SafeScopeName()),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
@@ -129,7 +129,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	api.Logger.Debug(ctx, "check-auth",
 		slog.F("my_id", httpmw.APIKey(r).UserID),
 		slog.F("got_id", auth.Actor.ID),
-		slog.F("name", auth.Username),
+		slog.F("name", auth.ActorName),
 		slog.F("roles", auth.Actor.SafeRoleNames()),
 		slog.F("scope", auth.Actor.SafeScopeName()),
 	)

@@ -20,8 +20,6 @@ import {
   TemplateVariableField,
 } from "components/TemplateVariableField/TemplateVariableField"
 
-export const getValidationSchema = (): Yup.AnyObjectSchema => Yup.object()
-
 export interface TemplateVariablesForm {
   templateVersion: TemplateVersion
   templateVariables: TemplateVersionVariable[]
@@ -98,8 +96,8 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
                 templateVersionVariable={templateVariable}
                 initialValue={initialUserVariableValues[index].value}
                 disabled={isSubmitting}
-                onChange={(value) => {
-                  form.setFieldValue("user_variable_values." + index, {
+                onChange={async (value) => {
+                  await form.setFieldValue("user_variable_values." + index, {
                     name: templateVariable.name,
                     value: value,
                   })

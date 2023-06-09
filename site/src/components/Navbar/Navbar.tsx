@@ -4,7 +4,8 @@ import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { useMe } from "hooks/useMe"
 import { usePermissions } from "hooks/usePermissions"
 import { FC } from "react"
-import { NavbarView } from "../NavbarView/NavbarView"
+import { NavbarView } from "./NavbarView"
+import { useProxy } from "contexts/ProxyContext"
 
 export const Navbar: FC = () => {
   const { appearance, buildInfo } = useDashboard()
@@ -16,6 +17,8 @@ export const Navbar: FC = () => {
     featureVisibility["audit_log"] && Boolean(permissions.viewAuditLog)
   const canViewDeployment = Boolean(permissions.viewDeploymentValues)
   const onSignOut = () => authSend("SIGN_OUT")
+  const proxyContextValue = useProxy()
+  const dashboard = useDashboard()
 
   return (
     <NavbarView
@@ -26,6 +29,9 @@ export const Navbar: FC = () => {
       onSignOut={onSignOut}
       canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}
+      proxyContextValue={
+        dashboard.experiments.includes("moons") ? proxyContextValue : undefined
+      }
     />
   )
 }

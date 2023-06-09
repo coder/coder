@@ -68,8 +68,19 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 func TestRegoInputValue(t *testing.T) {
 	t.Parallel()
 
+	// Expand all roles and make sure we have a good copy.
+	// This is because these tests modify the roles, and we don't want to
+	// modify the original roles.
+	roles, err := RoleNames{RoleOrgMember(uuid.New()), RoleOrgAdmin(uuid.New()), RoleMember()}.Expand()
+	require.NoError(t, err, "failed to expand roles")
+	for i := range roles {
+		// If all cached values are nil, then the role will not use
+		// the shared cached value.
+		roles[i].cachedRegoValue = nil
+	}
+
 	actor := Subject{
-		Roles:  RoleNames{RoleOrgMember(uuid.New()), RoleOrgAdmin(uuid.New()), RoleMember()},
+		Roles:  Roles(roles),
 		ID:     uuid.NewString(),
 		Scope:  ScopeAll,
 		Groups: []string{uuid.NewString(), uuid.NewString(), uuid.NewString()},
@@ -206,13 +217,13 @@ func TestRoleByName(t *testing.T) {
 			{Role: builtInRoles[userAdmin]("")},
 			{Role: builtInRoles[auditor]("")},
 
-			{Role: builtInRoles[orgAdmin](uuid.New().String())},
-			{Role: builtInRoles[orgAdmin](uuid.New().String())},
-			{Role: builtInRoles[orgAdmin](uuid.New().String())},
+			{Role: builtInRoles[orgAdmin]("4592dac5-0945-42fd-828d-a903957d3dbb")},
+			{Role: builtInRoles[orgAdmin]("24c100c5-1920-49c0-8c38-1b640ac4b38c")},
+			{Role: builtInRoles[orgAdmin]("4a00f697-0040-4079-b3ce-d24470281a62")},
 
-			{Role: builtInRoles[orgMember](uuid.New().String())},
-			{Role: builtInRoles[orgMember](uuid.New().String())},
-			{Role: builtInRoles[orgMember](uuid.New().String())},
+			{Role: builtInRoles[orgMember]("3293c50e-fa5d-414f-a461-01112a4dfb6f")},
+			{Role: builtInRoles[orgMember]("f88dd23d-bdbd-469d-b82e-36ee06c3d1e1")},
+			{Role: builtInRoles[orgMember]("02cfd2a5-016c-4d8d-8290-301f5f18023d")},
 		}
 
 		for _, c := range testCases {

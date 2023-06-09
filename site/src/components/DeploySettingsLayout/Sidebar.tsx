@@ -1,9 +1,10 @@
-import { makeStyles } from "@material-ui/core/styles"
-import Brush from "@material-ui/icons/Brush"
-import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
-import LockRounded from "@material-ui/icons/LockOutlined"
-import Globe from "@material-ui/icons/PublicOutlined"
-import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
+import { makeStyles } from "@mui/styles"
+import Brush from "@mui/icons-material/Brush"
+import LaunchOutlined from "@mui/icons-material/LaunchOutlined"
+import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined"
+import LockRounded from "@mui/icons-material/LockOutlined"
+import Globe from "@mui/icons-material/PublicOutlined"
+import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined"
 import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
 import { ElementType, PropsWithChildren, ReactNode, FC } from "react"
@@ -47,6 +48,12 @@ export const Sidebar: React.FC = () => {
         icon={<SidebarNavItemIcon icon={LaunchOutlined} />}
       >
         General
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="licenses"
+        icon={<SidebarNavItemIcon icon={ApprovalIcon} />}
+      >
+        Licenses
       </SidebarNavItem>
       <SidebarNavItem
         href="appearance"

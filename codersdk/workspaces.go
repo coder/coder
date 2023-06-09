@@ -34,6 +34,10 @@ type Workspace struct {
 	AutostartSchedule                    *string        `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64         `json:"ttl_ms,omitempty"`
 	LastUsedAt                           time.Time      `json:"last_used_at" format:"date-time"`
+
+	// DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.
+	// Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.
+	DeletingAt *time.Time `json:"deleting_at" format:"date-time"`
 }
 
 type WorkspacesRequest struct {
@@ -63,7 +67,6 @@ type CreateWorkspaceBuildRequest struct {
 	// ParameterValues are optional. It will write params to the 'workspace' scope.
 	// This will overwrite any existing parameters with the same name.
 	// This will not delete old params not included in this list.
-	ParameterValues     []CreateParameterRequest  `json:"parameter_values,omitempty"`
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 
 	// Log level changes the default logging verbosity of a provider ("info" if empty).

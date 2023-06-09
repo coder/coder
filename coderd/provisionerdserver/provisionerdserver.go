@@ -17,6 +17,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
@@ -25,14 +27,15 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/coderd/apikey"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
@@ -55,9 +58,11 @@ type Server struct {
 	Database              database.Store
 	Pubsub                database.Pubsub
 	Telemetry             telemetry.Reporter
+	Tracer                trace.Tracer
 	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
 	Auditor               *atomic.Pointer[audit.Auditor]
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	DeploymentValues      *codersdk.DeploymentValues
 
 	AcquireJobDebounce time.Duration
 	OIDCConfig         httpmw.OAuth2Config
@@ -129,12 +134,22 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		return nil, failJob(fmt.Sprintf("get user: %s", err))
 	}
 
-	protoJob := &proto.AcquiredJob{
-		JobId:       job.ID.String(),
-		CreatedAt:   job.CreatedAt.UnixMilli(),
-		Provisioner: string(job.Provisioner),
-		UserName:    user.Username,
+	jobTraceMetadata := map[string]string{}
+	if job.TraceMetadata.Valid {
+		err := json.Unmarshal(job.TraceMetadata.RawMessage, &jobTraceMetadata)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("unmarshal metadata: %s", err))
+		}
 	}
+
+	protoJob := &proto.AcquiredJob{
+		JobId:         job.ID.String(),
+		CreatedAt:     job.CreatedAt.UnixMilli(),
+		Provisioner:   string(job.Provisioner),
+		UserName:      user.Username,
+		TraceMetadata: jobTraceMetadata,
+	}
+
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		var input WorkspaceProvisionJob
@@ -179,27 +194,20 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			}
 		}
 
-		// Compute parameters for the workspace to consume.
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			TemplateImportJobID: templateVersion.JobID,
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			WorkspaceID: uuid.NullUUID{
-				UUID:  workspace.ID,
-				Valid: true,
-			},
-		}, nil)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
+		var sessionToken string
+		switch workspaceBuild.Transition {
+		case database.WorkspaceTransitionStart:
+			sessionToken, err = server.regenerateSessionToken(ctx, owner, workspace)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("regenerate session token: %s", err))
+			}
+		case database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete:
+			err = deleteSessionToken(ctx, server.Database, workspace)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("delete session token: %s", err))
+			}
 		}
 
-		// Convert types to their corresponding protobuf types.
-		protoParameters, err := convertComputedParameterValues(parameters)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
-		}
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
@@ -257,7 +265,6 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				WorkspaceBuildId:    workspaceBuild.ID.String(),
 				WorkspaceName:       workspace.Name,
 				State:               workspaceBuild.ProvisionerState,
-				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				VariableValues:      asVariableValues(templateVariables),
 				GitAuthProviders:    gitAuthProviders,
@@ -272,6 +279,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 					WorkspaceOwnerId:              owner.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
+					WorkspaceOwnerSessionToken:    sessionToken,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -292,26 +300,8 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
 		}
 
-		// Compute parameters for the dry-run to consume.
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			TemplateImportJobID:       templateVersion.JobID,
-			TemplateID:                templateVersion.TemplateID,
-			WorkspaceID:               uuid.NullUUID{},
-			AdditionalParameterValues: input.ParameterValues,
-		}, nil)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
-		}
-
-		// Convert types to their corresponding protobuf types.
-		protoParameters, err := convertComputedParameterValues(parameters)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
-		}
-
 		protoJob.Type = &proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
 				VariableValues:      asVariableValues(templateVariables),
 				Metadata: &sdkproto.Provision_Metadata{
@@ -411,6 +401,9 @@ func (server *Server) includeLastVariableValues(ctx context.Context, templateVer
 }
 
 func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	ctx, span := server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(request.JobId)
@@ -442,6 +435,9 @@ func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuot
 }
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+	ctx, span := server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	parsedID, err := uuid.Parse(request.JobId)
@@ -500,13 +496,13 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		// everything from that point.
 		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
-		data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{
+		data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{
 			CreatedAfter: lowestID - 1,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal: %w", err)
 		}
-		err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(parsedID), data)
+		err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(parsedID), data)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("publish job log: %w", err)
@@ -580,97 +576,15 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		}, nil
 	}
 
-	if len(request.ParameterSchemas) > 0 {
-		for index, protoParameter := range request.ParameterSchemas {
-			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
-			if err != nil {
-				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
-			}
-
-			parameterSchema := database.InsertParameterSchemaParams{
-				ID:                   uuid.New(),
-				CreatedAt:            database.Now(),
-				JobID:                job.ID,
-				Name:                 protoParameter.Name,
-				Description:          protoParameter.Description,
-				RedisplayValue:       protoParameter.RedisplayValue,
-				ValidationError:      protoParameter.ValidationError,
-				ValidationCondition:  protoParameter.ValidationCondition,
-				ValidationValueType:  protoParameter.ValidationValueType,
-				ValidationTypeSystem: validationTypeSystem,
-
-				DefaultSourceScheme:      database.ParameterSourceSchemeNone,
-				DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
-
-				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
-				AllowOverrideSource:      protoParameter.AllowOverrideSource,
-
-				Index: int32(index),
-			}
-
-			// It's possible a parameter doesn't define a default source!
-			if protoParameter.DefaultSource != nil {
-				parameterSourceScheme, err := convertParameterSourceScheme(protoParameter.DefaultSource.Scheme)
-				if err != nil {
-					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
-				}
-				parameterSchema.DefaultSourceScheme = parameterSourceScheme
-				parameterSchema.DefaultSourceValue = protoParameter.DefaultSource.Value
-			}
-
-			// It's possible a parameter doesn't define a default destination!
-			if protoParameter.DefaultDestination != nil {
-				parameterDestinationScheme, err := convertParameterDestinationScheme(protoParameter.DefaultDestination.Scheme)
-				if err != nil {
-					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
-				}
-				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
-			}
-
-			_, err = server.Database.InsertParameterSchema(ctx, parameterSchema)
-			if err != nil {
-				return nil, xerrors.Errorf("insert parameter schema: %w", err)
-			}
-		}
-
-		var templateID uuid.NullUUID
-		if job.Type == database.ProvisionerJobTypeTemplateVersionImport {
-			templateVersion, err := server.Database.GetTemplateVersionByJobID(ctx, job.ID)
-			if err != nil {
-				return nil, xerrors.Errorf("get template version by job id: %w", err)
-			}
-			templateID = templateVersion.TemplateID
-		}
-
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			TemplateImportJobID: job.ID,
-			TemplateID:          templateID,
-		}, nil)
-		if err != nil {
-			return nil, xerrors.Errorf("compute parameters: %w", err)
-		}
-		// Convert parameters to the protobuf type.
-		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
-		for _, computedParameter := range parameters {
-			converted, err := convertComputedParameterValue(computedParameter)
-			if err != nil {
-				return nil, xerrors.Errorf("convert parameter: %s", err)
-			}
-			protoParameters = append(protoParameters, converted)
-		}
-
-		return &proto.UpdateJobResponse{
-			Canceled:        job.CanceledAt.Valid,
-			ParameterValues: protoParameters,
-		}, nil
-	}
-
 	return &proto.UpdateJobResponse{
 		Canceled: job.CanceledAt.Valid,
 	}, nil
 }
 
 func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
+	ctx, span := server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(failJob.JobId)
@@ -806,11 +720,11 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		}
 	}
 
-	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
+	data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal job log: %w", err)
 	}
-	err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(jobID), data)
+	err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
 		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
@@ -822,6 +736,9 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 //
 //nolint:gocyclo
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
+	ctx, span := server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(completed.JobId)
@@ -876,6 +793,21 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return nil, xerrors.Errorf("marshal parameter options: %w", err)
 			}
+
+			var validationMin, validationMax sql.NullInt32
+			if richParameter.ValidationMin != nil {
+				validationMin = sql.NullInt32{
+					Int32: *richParameter.ValidationMin,
+					Valid: true,
+				}
+			}
+			if richParameter.ValidationMax != nil {
+				validationMax = sql.NullInt32{
+					Int32: *richParameter.ValidationMax,
+					Valid: true,
+				}
+			}
+
 			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
 				TemplateVersionID:   input.TemplateVersionID,
 				Name:                richParameter.Name,
@@ -888,8 +820,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				Options:             options,
 				ValidationRegex:     richParameter.ValidationRegex,
 				ValidationError:     richParameter.ValidationError,
-				ValidationMin:       richParameter.ValidationMin,
-				ValidationMax:       richParameter.ValidationMax,
+				ValidationMin:       validationMin,
+				ValidationMax:       validationMax,
 				ValidationMonotonic: richParameter.ValidationMonotonic,
 				Required:            richParameter.Required,
 				LegacyVariableName:  richParameter.LegacyVariableName,
@@ -1178,11 +1110,11 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			reflect.TypeOf(completed.Type).String())
 	}
 
-	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
+	data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal job log: %w", err)
 	}
-	err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(jobID), data)
+	err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
 		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
@@ -1190,6 +1122,12 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 	server.Logger.Debug(ctx, "CompleteJob done", slog.F("job_id", jobID))
 	return &proto.Empty{}, nil
+}
+
+func (server *Server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return server.Tracer.Start(ctx, name, append(opts, trace.WithAttributes(
+		semconv.ServiceNameKey.String("coderd.provisionerd"),
+	))...)
 }
 
 func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
@@ -1249,6 +1187,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
+		// Set the default in case it was not provided (e.g. echo provider).
+		if prAgent.GetStartupScriptBehavior() == "" {
+			prAgent.StartupScriptBehavior = string(codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking)
+		}
+
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                   agentID,
@@ -1269,7 +1212,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			ConnectionTimeoutSeconds:    prAgent.GetConnectionTimeoutSeconds(),
 			TroubleshootingURL:          prAgent.GetTroubleshootingUrl(),
 			MOTDFile:                    prAgent.GetMotdFile(),
-			LoginBeforeReady:            prAgent.GetLoginBeforeReady(),
+			StartupScriptBehavior:       database.StartupScriptBehavior(prAgent.GetStartupScriptBehavior()),
 			StartupScriptTimeoutSeconds: prAgent.GetStartupScriptTimeoutSeconds(),
 			ShutdownScript: sql.NullString{
 				String: prAgent.ShutdownScript,
@@ -1378,6 +1321,64 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	return nil
 }
 
+func workspaceSessionTokenName(workspace database.Workspace) string {
+	return fmt.Sprintf("%s_%s_session_token", workspace.OwnerID, workspace.ID)
+}
+
+func (server *Server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {
+	newkey, sessionToken, err := apikey.Generate(apikey.CreateParams{
+		UserID:           user.ID,
+		LoginType:        user.LoginType,
+		DeploymentValues: server.DeploymentValues,
+		TokenName:        workspaceSessionTokenName(workspace),
+		LifetimeSeconds:  int64(server.DeploymentValues.MaxTokenLifetime.Value().Seconds()),
+	})
+	if err != nil {
+		return "", xerrors.Errorf("generate API key: %w", err)
+	}
+
+	err = server.Database.InTx(func(tx database.Store) error {
+		err := deleteSessionToken(ctx, tx, workspace)
+		if err != nil {
+			return xerrors.Errorf("delete session token: %w", err)
+		}
+
+		_, err = tx.InsertAPIKey(ctx, newkey)
+		if err != nil {
+			return xerrors.Errorf("insert API key: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return "", xerrors.Errorf("create API key: %w", err)
+	}
+
+	return sessionToken, nil
+}
+
+func deleteSessionToken(ctx context.Context, db database.Store, workspace database.Workspace) error {
+	err := db.InTx(func(tx database.Store) error {
+		key, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+			UserID:    workspace.OwnerID,
+			TokenName: workspaceSessionTokenName(workspace),
+		})
+		if err == nil {
+			err = tx.DeleteAPIKeyByID(ctx, key.ID)
+		}
+
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get api key by name: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		return xerrors.Errorf("in tx: %w", err)
+	}
+
+	return nil
+}
+
 // obtainOIDCAccessToken returns a valid OpenID Connect access token
 // for the user if it's able to obtain one, otherwise it returns an empty string.
 func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig httpmw.OAuth2Config, userID uuid.UUID) (string, error) {
@@ -1421,37 +1422,6 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig ht
 	}
 
 	return link.OAuthAccessToken, nil
-}
-
-func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {
-	switch typeSystem {
-	case sdkproto.ParameterSchema_None:
-		return database.ParameterTypeSystemNone, nil
-	case sdkproto.ParameterSchema_HCL:
-		return database.ParameterTypeSystemHCL, nil
-	default:
-		return database.ParameterTypeSystem(""), xerrors.Errorf("unknown type system: %d", typeSystem)
-	}
-}
-
-func convertParameterSourceScheme(sourceScheme sdkproto.ParameterSource_Scheme) (database.ParameterSourceScheme, error) {
-	switch sourceScheme {
-	case sdkproto.ParameterSource_DATA:
-		return database.ParameterSourceSchemeData, nil
-	default:
-		return database.ParameterSourceScheme(""), xerrors.Errorf("unknown parameter source scheme: %d", sourceScheme)
-	}
-}
-
-func convertParameterDestinationScheme(destinationScheme sdkproto.ParameterDestination_Scheme) (database.ParameterDestinationScheme, error) {
-	switch destinationScheme {
-	case sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE:
-		return database.ParameterDestinationSchemeEnvironmentVariable, nil
-	case sdkproto.ParameterDestination_PROVISIONER_VARIABLE:
-		return database.ParameterDestinationSchemeProvisionerVariable, nil
-	default:
-		return database.ParameterDestinationScheme(""), xerrors.Errorf("unknown parameter destination scheme: %d", destinationScheme)
-	}
 }
 
 func convertLogLevel(logLevel sdkproto.LogLevel) (database.LogLevel, error) {
@@ -1505,37 +1475,6 @@ func convertVariableValues(variableValues []codersdk.VariableValue) []*sdkproto.
 	return protoVariableValues
 }
 
-func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sdkproto.ParameterValue, error) {
-	protoParameters := make([]*sdkproto.ParameterValue, len(parameters))
-	for i, computedParameter := range parameters {
-		converted, err := convertComputedParameterValue(computedParameter)
-		if err != nil {
-			return nil, xerrors.Errorf("convert parameter: %w", err)
-		}
-		protoParameters[i] = converted
-	}
-
-	return protoParameters, nil
-}
-
-func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.ParameterValue, error) {
-	var scheme sdkproto.ParameterDestination_Scheme
-	switch param.DestinationScheme {
-	case database.ParameterDestinationSchemeEnvironmentVariable:
-		scheme = sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE
-	case database.ParameterDestinationSchemeProvisionerVariable:
-		scheme = sdkproto.ParameterDestination_PROVISIONER_VARIABLE
-	default:
-		return nil, xerrors.Errorf("unrecognized destination scheme: %q", param.DestinationScheme)
-	}
-
-	return &sdkproto.ParameterValue{
-		DestinationScheme: scheme,
-		Name:              param.Name,
-		Value:             param.SourceValue,
-	}, nil
-}
-
 func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkproto.WorkspaceTransition, error) {
 	switch transition {
 	case database.WorkspaceTransitionStart:
@@ -1578,21 +1517,7 @@ type WorkspaceProvisionJob struct {
 type TemplateVersionDryRunJob struct {
 	TemplateVersionID   uuid.UUID                          `json:"template_version_id"`
 	WorkspaceName       string                             `json:"workspace_name"`
-	ParameterValues     []database.ParameterValue          `json:"parameter_values"`
 	RichParameterValues []database.WorkspaceBuildParameter `json:"rich_parameter_values"`
-}
-
-// ProvisionerJobLogsNotifyMessage is the payload published on
-// the provisioner job logs notify channel.
-type ProvisionerJobLogsNotifyMessage struct {
-	CreatedAfter int64 `json:"created_after"`
-	EndOfLogs    bool  `json:"end_of_logs,omitempty"`
-}
-
-// ProvisionerJobLogsNotifyChannel is the PostgreSQL NOTIFY channel
-// to publish updates to job logs on.
-func ProvisionerJobLogsNotifyChannel(jobID uuid.UUID) string {
-	return fmt.Sprintf("provisioner-log-logs:%s", jobID)
 }
 
 func asVariableValues(templateVariables []database.TemplateVersionVariable) []*sdkproto.VariableValue {

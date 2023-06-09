@@ -195,7 +195,7 @@ func TestSessionExpiry(t *testing.T) {
 	}
 }
 
-func TestAPIKey(t *testing.T) {
+func TestAPIKey_OK(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -205,4 +205,21 @@ func TestAPIKey(t *testing.T) {
 	res, err := client.CreateAPIKey(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
+}
+
+func TestAPIKey_Deleted(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	_, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	require.NoError(t, client.DeleteUser(context.Background(), anotherUser.ID))
+
+	// Attempt to create an API key for the deleted user. This should fail.
+	_, err := client.CreateAPIKey(ctx, anotherUser.Username)
+	require.Error(t, err)
+	var apiErr *codersdk.Error
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 }

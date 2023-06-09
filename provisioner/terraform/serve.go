@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/cli/safeexec"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -26,6 +28,7 @@ type ServeOptions struct {
 	// CachePath must not be used by multiple processes at once.
 	CachePath string
 	Logger    slog.Logger
+	Tracer    trace.Tracer
 
 	// ExitTimeout defines how long we will wait for a running Terraform
 	// command to exit (cleanly) if the provision was stopped. This only
@@ -89,6 +92,9 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			options.BinaryPath = absoluteBinary
 		}
 	}
+	if options.Tracer == nil {
+		options.Tracer = trace.NewNoopTracerProvider().Tracer("noop")
+	}
 	if options.ExitTimeout == 0 {
 		options.ExitTimeout = defaultExitTimeout
 	}
@@ -97,6 +103,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		binaryPath:  options.BinaryPath,
 		cachePath:   options.CachePath,
 		logger:      options.Logger,
+		tracer:      options.Tracer,
 		exitTimeout: options.ExitTimeout,
 	}, options.ServeOptions)
 }
@@ -106,11 +113,19 @@ type server struct {
 	binaryPath  string
 	cachePath   string
 	logger      slog.Logger
+	tracer      trace.Tracer
 	exitTimeout time.Duration
+}
+
+func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return s.tracer.Start(ctx, name, append(opts, trace.WithAttributes(
+		semconv.ServiceNameKey.String("coderd.provisionerd.terraform"),
+	))...)
 }
 
 func (s *server) executor(workdir string) *executor {
 	return &executor{
+		server:     s,
 		mut:        s.execMut,
 		binaryPath: s.binaryPath,
 		cachePath:  s.cachePath,

@@ -51,10 +51,6 @@ type CreateTemplateVersionRequest struct {
 	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	ProvisionerTags map[string]string        `json:"tags"`
 
-	// ParameterValues allows for additional parameters to be provided
-	// during the dry-run provision stage.
-	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
-
 	UserVariableValues []VariableValue `json:"user_variable_values,omitempty"`
 }
 
@@ -82,8 +78,7 @@ type CreateTemplateRequest struct {
 	// This is required on creation to enable a user-flow of validating a
 	// template works. There is no reason the data-model cannot support empty
 	// templates, but it doesn't make sense for users.
-	VersionID       uuid.UUID                `json:"template_version_id" validate:"required" format:"uuid"`
-	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+	VersionID uuid.UUID `json:"template_version_id" validate:"required" format:"uuid"`
 
 	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
@@ -106,6 +101,13 @@ type CreateTemplateRequest struct {
 	// false, the DefaultTTL will always be used. This can only be disabled when
 	// using an enterprise license.
 	AllowUserAutostop *bool `json:"allow_user_autostop"`
+
+	// FailureTTLMillis allows optionally specifying the max lifetime before Coder
+	// stops all resources for failed workspaces created from this template.
+	FailureTTLMillis *int64 `json:"failure_ttl_ms,omitempty"`
+	// InactivityTTLMillis allows optionally specifying the max lifetime before Coder
+	// deletes inactive workspaces created from this template.
+	InactivityTTLMillis *int64 `json:"inactivity_ttl_ms,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -116,7 +118,6 @@ type CreateWorkspaceRequest struct {
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	ParameterValues     []CreateParameterRequest  `json:"parameter_values,omitempty"`
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 }
 

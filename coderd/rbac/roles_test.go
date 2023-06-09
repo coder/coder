@@ -356,7 +356,8 @@ func TestRolePermissions(t *testing.T) {
 
 func TestIsOrgRole(t *testing.T) {
 	t.Parallel()
-	randomUUID := uuid.New()
+	randomUUID, err := uuid.Parse("cad8c09d-c099-4ec7-9263-7d52b1a3997a")
+	require.NoError(t, err)
 
 	testCases := []struct {
 		RoleName string

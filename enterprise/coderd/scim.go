@@ -71,10 +71,6 @@ func (api *API) scimGetUsers(rw http.ResponseWriter, r *http.Request) {
 // This is done to always force Okta to try and create the user, this way we
 // don't need to implement fetching users twice.
 //
-// scimGetUsers intentionally always returns no users. This is done to always force
-// Okta to try and create each user individually, this way we don't need to
-// implement fetching users twice.
-//
 // @Summary SCIM 2.0: Get user by ID
 // @ID scim-get-user-by-id
 // @Security CoderSessionToken
@@ -156,11 +152,41 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The username is a required property in Coder. We make a best-effort
+	// attempt at using what the claims provide, but if that fails we will
+	// generate a random username.
+	usernameValid := httpapi.NameValid(sUser.UserName)
+	if usernameValid != nil {
+		// If no username is provided, we can default to use the email address.
+		// This will be converted in the from function below, so it's safe
+		// to keep the domain.
+		if sUser.UserName == "" {
+			sUser.UserName = email
+		}
+		sUser.UserName = httpapi.UsernameFrom(sUser.UserName)
+	}
+
+	var organizationID uuid.UUID
+	//nolint:gocritic
+	organizations, err := api.Database.GetOrganizations(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		_ = handlerutil.WriteError(rw, err)
+		return
+	}
+
+	if len(organizations) > 0 {
+		// Add the user to the first organization. Once multi-organization
+		// support is added, we should enable a configuration map of user
+		// email to organization.
+		organizationID = organizations[0].ID
+	}
+
 	//nolint:gocritic // needed for SCIM
 	user, _, err := api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
-			Username: sUser.UserName,
-			Email:    email,
+			Username:       sUser.UserName,
+			Email:          email,
+			OrganizationID: organizationID,
 		},
 		LoginType: database.LoginTypeOIDC,
 	})

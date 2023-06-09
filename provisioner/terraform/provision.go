@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/terraform-provider-coder/provider"
@@ -17,6 +18,9 @@ import (
 
 // Provision executes `terraform apply` or `terraform plan` for dry runs.
 func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
+	ctx, span := s.startTrace(stream.Context(), tracing.FuncName())
+	defer span.End()
+
 	request, err := stream.Recv()
 	if err != nil {
 		return err
@@ -42,7 +46,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	// Create a context for graceful cancellation bound to the stream
 	// context. This ensures that we will perform graceful cancellation
 	// even on connection loss.
-	ctx, cancel := context.WithCancel(stream.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// Create a separate context for forcefull cancellation not tied to
@@ -136,7 +140,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
 	s.logger.Debug(ctx, "ran initialization")
-	env, err := provisionEnv(config, request.GetPlan().GetParameterValues(), request.GetPlan().GetRichParameterValues(), request.GetPlan().GetGitAuthProviders())
+	env, err := provisionEnv(config, request.GetPlan().GetRichParameterValues(), request.GetPlan().GetGitAuthProviders())
 	if err != nil {
 		return err
 	}
@@ -189,23 +193,13 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 
 func planVars(plan *proto.Provision_Plan) ([]string, error) {
 	vars := []string{}
-	for _, param := range plan.ParameterValues {
-		switch param.DestinationScheme {
-		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
-			continue
-		case proto.ParameterDestination_PROVISIONER_VARIABLE:
-			vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
-		default:
-			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
-		}
-	}
 	for _, variable := range plan.VariableValues {
 		vars = append(vars, fmt.Sprintf("%s=%s", variable.Name, variable.Value))
 	}
 	return vars, nil
 }
 
-func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue, richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider) ([]string, error) {
+func provisionEnv(config *proto.Provision_Config, richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider) ([]string, error) {
 	env := safeEnviron()
 	env = append(env,
 		"CODER_AGENT_URL="+config.Metadata.CoderUrl,
@@ -216,19 +210,10 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 		"CODER_WORKSPACE_OWNER_OIDC_ACCESS_TOKEN="+config.Metadata.WorkspaceOwnerOidcAccessToken,
 		"CODER_WORKSPACE_ID="+config.Metadata.WorkspaceId,
 		"CODER_WORKSPACE_OWNER_ID="+config.Metadata.WorkspaceOwnerId,
+		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+config.Metadata.WorkspaceOwnerSessionToken,
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
-	}
-	for _, param := range params {
-		switch param.DestinationScheme {
-		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
-			env = append(env, fmt.Sprintf("%s=%s", param.Name, param.Value))
-		case proto.ParameterDestination_PROVISIONER_VARIABLE:
-			continue
-		default:
-			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
-		}
 	}
 	for _, param := range richParams {
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)

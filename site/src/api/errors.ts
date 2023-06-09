@@ -24,29 +24,18 @@ export type ApiError = AxiosError<ApiErrorResponse> & {
 }
 
 export const isApiError = (err: unknown): err is ApiError => {
-  if (axios.isAxiosError(err)) {
-    const response = err.response?.data
-    if (!response) {
-      return false
-    }
-
-    return (
-      typeof response.message === "string" &&
-      (typeof response.errors === "undefined" || Array.isArray(response.errors))
-    )
-  }
-
-  return false
+  return axios.isAxiosError(err) && err.response !== undefined
 }
 
-/**
- * ApiErrors contain useful error messages in their response body. They contain an overall message
- * and may also contain errors for specific form fields.
- * @param error ApiError
- * @returns true if the ApiError contains error messages for specific form fields.
- */
 export const hasApiFieldErrors = (error: ApiError): boolean =>
   Array.isArray(error.response.data.validations)
+
+export const isApiValidationError = (error: unknown): error is ApiError => {
+  return isApiError(error) && hasApiFieldErrors(error)
+}
+
+export const hasError = (error: unknown) =>
+  error !== undefined && error !== null
 
 export const mapApiErrorToFieldErrors = (
   apiErrorResponse: ApiErrorResponse,
@@ -61,10 +50,6 @@ export const mapApiErrorToFieldErrors = (
   }
 
   return result
-}
-
-export const isApiValidationError = (error: unknown): error is ApiError => {
-  return isApiError(error) && hasApiFieldErrors(error)
 }
 
 /**
@@ -105,5 +90,5 @@ export const getErrorDetail = (
   isApiError(error)
     ? error.response.data.detail
     : error instanceof Error
-    ? error.stack
+    ? `Please check the developer console for more details.`
     : null

@@ -70,17 +70,22 @@ type RichSelectOptions struct {
 // RichSelect displays a list of user options including name and description.
 func RichSelect(inv *clibase.Invocation, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
 	opts := make([]string, len(richOptions.Options))
+	var defaultOpt string
 	for i, option := range richOptions.Options {
 		line := option.Name
 		if len(option.Description) > 0 {
 			line += ": " + option.Description
 		}
 		opts[i] = line
+
+		if option.Value == richOptions.Default {
+			defaultOpt = line
+		}
 	}
 
 	selected, err := Select(inv, SelectOptions{
 		Options:    opts,
-		Default:    richOptions.Default,
+		Default:    defaultOpt,
 		Size:       richOptions.Size,
 		HideSearch: richOptions.HideSearch,
 	})

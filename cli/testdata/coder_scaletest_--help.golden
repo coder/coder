@@ -10,6 +10,7 @@ Run a scale test against the Coder API
                          online. Optionally runs a command inside each
                          workspace, and connects to the workspace over
                          WireGuard.
+    workspace-traffic    Generate traffic to scaletest workspaces through coderd
 
 ---
 Run `coder --help` for a list of global options.

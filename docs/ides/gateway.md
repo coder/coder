@@ -6,7 +6,7 @@ Gateway can connect to a Coder workspace by using Coder's Gateway plugin or manu
 
 ## Using Coder's JetBrains Gateway Plugin
 
-> The Coder plugin is an alpha state. If you experience problems, please [create a GitHub issue](https://github.com/coder/coder/issues) or share in [our Discord channel](https://discord.gg/coder).
+> If you experience problems, please [create a GitHub issue](https://github.com/coder/coder/issues) or share in [our Discord channel](https://discord.gg/coder).
 
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
 1. Open Gateway and click the gear icon at the bottom left and then "Settings"
@@ -24,9 +24,60 @@ Gateway can connect to a Coder workspace by using Coder's Gateway plugin or manu
    ![Gateway Select IDE](../images/gateway/plugin-ide-list.png)
    ![Gateway IDE Opened](../images/gateway/gateway-intellij-opened.png)
 
-> Note the JetBrains IDE is remotely installed into `~/. cache/JetBrains/RemoteDev/dist`
+> Note the JetBrains IDE is remotely installed into `~/.cache/JetBrains/RemoteDev/dist`
 
-## Creating a new JetBrains Gateway Connection
+### Configuring the Gateway plugin to use internal certificates
+
+When attempting to connect to a Coder deployment that uses internally signed certificates,
+you may receive the following error in Gateway:
+
+```console
+Failed to configure connection to https://coder.internal.enterprise/: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+```
+
+To resolve this issue, you will need to add Coder's certificate to the Java trust store
+present on your local machine. Here is the default location of the trust store for
+each OS:
+
+```console
+# Linux
+<Gateway installation directory>/jbr/lib/security/cacerts
+
+# macOS
+<Gateway installation directory>/jbr/lib/security/cacerts
+/Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
+
+# Windows
+C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts
+%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
+```
+
+To add the certificate to the keystore, you can use the `keytool` utility that ships
+with Java:
+
+```console
+keytool -import -alias coder -file <certificate> -keystore /path/to/trust/store
+```
+
+You can use `keytool` that ships with the JetBrains Gateway installation.
+Windows example:
+
+```powershell
+& 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/bin/keytool.exe' 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jre/lib/security/cacerts' -import -alias coder -file <cert>
+
+# command for Toolbox installation
+& '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\apps\Gateway\ch-0\<VERSION>\jbr\bin\keytool.exe' '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts' -import -alias coder -file <cert>
+```
+
+macOS example:
+
+```sh
+keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
+```
+
+## Manually Configuring A JetBrains Gateway Connection
+
+> This is in lieu of using Coder's Gateway plugin which automatically performs these steps.
 
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
 1. [Configure the `coder` CLI](../ides.md#ssh-configuration)
@@ -57,3 +108,20 @@ Gateway can connect to a Coder workspace by using Coder's Gateway plugin or manu
    > Note the JetBrains IDE is remotely installed into `~/. cache/JetBrains/RemoteDev/dist`
 1. Click "Download and Start IDE" to connect.
    ![Gateway IDE Opened](../images/gateway/gateway-intellij-opened.png)
+
+## Using an existing JetBrains installation in the workspace
+
+If you would like to use an existing JetBrains IDE in a Coder workspace (or you
+are air-gapped, and cannot reach jetbrains.com), run the following script in the
+JetBrains IDE directory to point the default Gateway directory to the IDE
+directory. This step must be done before configuring Gateway.
+
+```sh
+cd /opt/idea/bin
+./remote-dev-server.sh registerBackendLocationForGateway
+```
+
+> Gateway only works with paid versions of JetBrains IDEs so the script will not be located in the `bin` directory of JetBrains Community editions.
+
+[Here is the JetBrains article](https://www.jetbrains.com/help/idea/remote-development-troubleshooting.html#setup:~:text=Can%20I%20point%20Remote%20Development%20to%20an%20existing%20IDE%20on%20my%20remote%20server%3F%20Is%20it%20possible%20to%20install%20IDE%20manually%3F)
+explaining this IDE specification.

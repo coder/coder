@@ -8,7 +8,7 @@ services:
       - "7080:7080"
     environment:
       CODER_PG_CONNECTION_URL: "postgresql://${POSTGRES_USER:-username}:${POSTGRES_PASSWORD:-password}@database/${POSTGRES_DB:-coder}?sslmode=disable"
-      CODER_ADDRESS: "0.0.0.0:7080"
+      CODER_HTTP_ADDRESS: "0.0.0.0:7080"
       # You'll need to set CODER_ACCESS_URL to an IP or domain
       # that workspaces can reach. This cannot be localhost
       # or 127.0.0.1 for non-Docker templates!

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -32,8 +34,9 @@ func TestNewServer_ServeClient(t *testing.T) {
 
 	ctx := context.Background()
 	logger := slogtest.Make(t, nil)
-	s, err := agentssh.NewServer(ctx, logger, 0)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
 	require.NoError(t, err)
+	defer s.Close()
 
 	// The assumption is that these are set before serving SSH connections.
 	s.AgentToken = func() string { return "" }
@@ -50,6 +53,7 @@ func TestNewServer_ServeClient(t *testing.T) {
 	}()
 
 	c := sshClient(t, ln.Addr().String())
+
 	var b bytes.Buffer
 	sess, err := c.NewSession()
 	sess.Stdout = &b
@@ -72,8 +76,9 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	s, err := agentssh.NewServer(ctx, logger, 0)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
 	require.NoError(t, err)
+	defer s.Close()
 
 	// The assumption is that these are set before serving SSH connections.
 	s.AgentToken = func() string { return "" }

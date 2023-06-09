@@ -5,15 +5,18 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
@@ -24,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
@@ -59,6 +63,8 @@ func TestAcquireJob(t *testing.T) {
 			AcquireJobDebounce:    time.Hour,
 			Auditor:               mockAuditor(),
 			TemplateScheduleStore: testTemplateScheduleStore(),
+			Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
+			DeploymentValues:      &codersdk.DeploymentValues{},
 		}
 		job, err := srv.AcquireJob(context.Background(), nil)
 		require.NoError(t, err)
@@ -100,6 +106,10 @@ func TestAcquireJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		gitAuthProvider := "github"
+		// Set the max session token lifetime so we can assert we
+		// create an API key with an expiration within the bounds of the
+		// deployment config.
+		srv.DeploymentValues.MaxTokenLifetime = clibase.Duration(time.Hour)
 		srv.GitAuthConfigs = []*gitauth.Config{{
 			ID:           gitAuthProvider,
 			OAuth2Config: &testutil.OAuth2Config{},
@@ -190,12 +200,16 @@ func TestAcquireJob(t *testing.T) {
 			})),
 		})
 
-		published := make(chan struct{})
-		closeSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-			close(published)
+		startPublished := make(chan struct{})
+		var closed bool
+		closeStartSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
+			if !closed {
+				close(startPublished)
+				closed = true
+			}
 		})
 		require.NoError(t, err)
-		defer closeSubscribe()
+		defer closeStartSubscribe()
 
 		var job *proto.AcquiredJob
 
@@ -209,16 +223,25 @@ func TestAcquireJob(t *testing.T) {
 			}
 		}
 
-		<-published
+		<-startPublished
 
 		got, err := json.Marshal(job.Type)
 		require.NoError(t, err)
+
+		// Validate that a session token is generated during the job.
+		sessionToken := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
+		require.NotEmpty(t, sessionToken)
+		toks := strings.Split(sessionToken, "-")
+		require.Len(t, toks, 2, "invalid api key")
+		key, err := srv.Database.GetAPIKeyByID(ctx, toks[0])
+		require.NoError(t, err)
+		require.Equal(t, int64(srv.DeploymentValues.MaxTokenLifetime.Value().Seconds()), key.LifetimeSeconds)
+		require.WithinDuration(t, time.Now().Add(srv.DeploymentValues.MaxTokenLifetime.Value()), key.ExpiresAt, time.Minute)
 
 		want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId: build.ID.String(),
 				WorkspaceName:    workspace.Name,
-				ParameterValues:  []*sdkproto.ParameterValue{},
 				VariableValues: []*sdkproto.VariableValue{
 					{
 						Name:      "first",
@@ -245,13 +268,59 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerId:              user.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               version.Name,
+					WorkspaceOwnerSessionToken:    sessionToken,
 				},
 			},
 		})
 		require.NoError(t, err)
 
 		require.JSONEq(t, string(want), string(got))
+
+		// Assert that we delete the session token whenever
+		// a stop is issued.
+		stopbuild := dbgen.WorkspaceBuild(t, srv.Database, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			BuildNumber:       2,
+			JobID:             uuid.New(),
+			TemplateVersionID: version.ID,
+			Transition:        database.WorkspaceTransitionStop,
+			Reason:            database.BuildReasonInitiator,
+		})
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+			ID:            stopbuild.ID,
+			InitiatorID:   user.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			FileID:        file.ID,
+			Type:          database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: stopbuild.ID,
+			})),
+		})
+
+		stopPublished := make(chan struct{})
+		closeStopSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
+			close(stopPublished)
+		})
+		require.NoError(t, err)
+		defer closeStopSubscribe()
+
+		// Grab jobs until we find the workspace build job. There is also
+		// an import version job that we need to ignore.
+		job, err = srv.AcquireJob(ctx, nil)
+		require.NoError(t, err)
+		_, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_)
+		require.True(t, ok, "acquired job not a workspace build?")
+
+		<-stopPublished
+
+		// Validate that a session token is deleted during a stop job.
+		sessionToken = job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
+		require.Empty(t, sessionToken)
+		_, err = srv.Database.GetAPIKeyByID(ctx, key.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
+
 	t.Run("TemplateVersionDryRun", func(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
@@ -269,7 +338,6 @@ func TestAcquireJob(t *testing.T) {
 			Input: must(json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
 				TemplateVersionID: version.ID,
 				WorkspaceName:     "testing",
-				ParameterValues:   []database.ParameterValue{},
 			})),
 		})
 
@@ -281,7 +349,6 @@ func TestAcquireJob(t *testing.T) {
 
 		want, err := json.Marshal(&proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				ParameterValues: []*sdkproto.ParameterValue{},
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:      srv.AccessURL.String(),
 					WorkspaceName: "testing",
@@ -459,7 +526,7 @@ func TestUpdateJob(t *testing.T) {
 
 		published := make(chan struct{})
 
-		closeListener, err := srv.Pubsub.Subscribe(provisionerdserver.ProvisionerJobLogsNotifyChannel(job), func(_ context.Context, _ []byte) {
+		closeListener, err := srv.Pubsub.Subscribe(provisionersdk.ProvisionerJobLogsNotifyChannel(job), func(_ context.Context, _ []byte) {
 			close(published)
 		})
 		require.NoError(t, err)
@@ -707,7 +774,7 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 		defer closeWorkspaceSubscribe()
 		publishedLogs := make(chan struct{})
-		closeLogsSubscribe, err := srv.Pubsub.Subscribe(provisionerdserver.ProvisionerJobLogsNotifyChannel(job.ID), func(_ context.Context, _ []byte) {
+		closeLogsSubscribe, err := srv.Pubsub.Subscribe(provisionersdk.ProvisionerJobLogsNotifyChannel(job.ID), func(_ context.Context, _ []byte) {
 			close(publishedLogs)
 		})
 		require.NoError(t, err)
@@ -1013,7 +1080,7 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 				defer closeWorkspaceSubscribe()
 				publishedLogs := make(chan struct{})
-				closeLogsSubscribe, err := srv.Pubsub.Subscribe(provisionerdserver.ProvisionerJobLogsNotifyChannel(job.ID), func(_ context.Context, _ []byte) {
+				closeLogsSubscribe, err := srv.Pubsub.Subscribe(provisionersdk.ProvisionerJobLogsNotifyChannel(job.ID), func(_ context.Context, _ []byte) {
 					close(publishedLogs)
 				})
 				require.NoError(t, err)
@@ -1202,6 +1269,8 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 		Telemetry:             telemetry.NewNoop(),
 		Auditor:               mockAuditor(),
 		TemplateScheduleStore: testTemplateScheduleStore(),
+		Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
+		DeploymentValues:      &codersdk.DeploymentValues{},
 	}
 }
 

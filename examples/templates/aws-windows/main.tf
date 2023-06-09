@@ -156,10 +156,9 @@ data "aws_ami" "windows" {
 }
 
 resource "coder_agent" "main" {
-  arch               = "amd64"
-  auth               = "aws-instance-identity"
-  os                 = "windows"
-  login_before_ready = false
+  arch = "amd64"
+  auth = "aws-instance-identity"
+  os   = "windows"
 }
 
 locals {

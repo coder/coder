@@ -959,6 +959,64 @@ func AllResourceTypeValues() []ResourceType {
 	}
 }
 
+type StartupScriptBehavior string
+
+const (
+	StartupScriptBehaviorBlocking    StartupScriptBehavior = "blocking"
+	StartupScriptBehaviorNonBlocking StartupScriptBehavior = "non-blocking"
+)
+
+func (e *StartupScriptBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StartupScriptBehavior(s)
+	case string:
+		*e = StartupScriptBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StartupScriptBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullStartupScriptBehavior struct {
+	StartupScriptBehavior StartupScriptBehavior
+	Valid                 bool // Valid is true if StartupScriptBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStartupScriptBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.StartupScriptBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StartupScriptBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStartupScriptBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StartupScriptBehavior), nil
+}
+
+func (e StartupScriptBehavior) Valid() bool {
+	switch e {
+	case StartupScriptBehaviorBlocking,
+		StartupScriptBehaviorNonBlocking:
+		return true
+	}
+	return false
+}
+
+func AllStartupScriptBehaviorValues() []StartupScriptBehavior {
+	return []StartupScriptBehavior{
+		StartupScriptBehaviorBlocking,
+		StartupScriptBehaviorNonBlocking,
+	}
+}
+
 type UserStatus string
 
 const (
@@ -1093,6 +1151,67 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 		WorkspaceAgentLifecycleStateShutdownTimeout,
 		WorkspaceAgentLifecycleStateShutdownError,
 		WorkspaceAgentLifecycleStateOff,
+	}
+}
+
+type WorkspaceAgentSubsystem string
+
+const (
+	WorkspaceAgentSubsystemEnvbuilder WorkspaceAgentSubsystem = "envbuilder"
+	WorkspaceAgentSubsystemEnvbox     WorkspaceAgentSubsystem = "envbox"
+	WorkspaceAgentSubsystemNone       WorkspaceAgentSubsystem = "none"
+)
+
+func (e *WorkspaceAgentSubsystem) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentSubsystem(s)
+	case string:
+		*e = WorkspaceAgentSubsystem(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentSubsystem: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentSubsystem struct {
+	WorkspaceAgentSubsystem WorkspaceAgentSubsystem
+	Valid                   bool // Valid is true if WorkspaceAgentSubsystem is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentSubsystem) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentSubsystem, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentSubsystem.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentSubsystem) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentSubsystem), nil
+}
+
+func (e WorkspaceAgentSubsystem) Valid() bool {
+	switch e {
+	case WorkspaceAgentSubsystemEnvbuilder,
+		WorkspaceAgentSubsystemEnvbox,
+		WorkspaceAgentSubsystemNone:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentSubsystemValues() []WorkspaceAgentSubsystem {
+	return []WorkspaceAgentSubsystem{
+		WorkspaceAgentSubsystemEnvbuilder,
+		WorkspaceAgentSubsystemEnvbox,
+		WorkspaceAgentSubsystemNone,
 	}
 }
 
@@ -1380,6 +1499,7 @@ type ProvisionerJob struct {
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
 	ErrorCode      sql.NullString           `db:"error_code" json:"error_code"`
+	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
 }
 
 type ProvisionerJobLog struct {
@@ -1435,7 +1555,9 @@ type Template struct {
 	// Allow users to specify an autostart schedule for workspaces (enterprise).
 	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
 	// Allow users to specify custom autostop values for workspaces (enterprise).
-	AllowUserAutostop bool `db:"allow_user_autostop" json:"allow_user_autostop"`
+	AllowUserAutostop bool  `db:"allow_user_autostop" json:"allow_user_autostop"`
+	FailureTTL        int64 `db:"failure_ttl" json:"failure_ttl"`
+	InactivityTTL     int64 `db:"inactivity_ttl" json:"inactivity_ttl"`
 }
 
 type TemplateVersion struct {
@@ -1471,9 +1593,9 @@ type TemplateVersionParameter struct {
 	// Validation: regex pattern
 	ValidationRegex string `db:"validation_regex" json:"validation_regex"`
 	// Validation: minimum length of value
-	ValidationMin int32 `db:"validation_min" json:"validation_min"`
+	ValidationMin sql.NullInt32 `db:"validation_min" json:"validation_min"`
 	// Validation: maximum length of value
-	ValidationMax int32 `db:"validation_max" json:"validation_max"`
+	ValidationMax sql.NullInt32 `db:"validation_max" json:"validation_max"`
 	// Validation: error displayed when the regex does not match.
 	ValidationError string `db:"validation_error" json:"validation_error"`
 	// Validation: consecutive values preserve the monotonic order
@@ -1571,8 +1693,6 @@ type WorkspaceAgent struct {
 	MOTDFile string `db:"motd_file" json:"motd_file"`
 	// The current lifecycle state reported by the workspace agent.
 	LifecycleState WorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
-	// If true, the agent will not prevent login before it is ready (e.g. startup script is still executing).
-	LoginBeforeReady bool `db:"login_before_ready" json:"login_before_ready"`
 	// The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
 	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 	// The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder
@@ -1584,7 +1704,10 @@ type WorkspaceAgent struct {
 	// Total length of startup logs
 	StartupLogsLength int32 `db:"startup_logs_length" json:"startup_logs_length"`
 	// Whether the startup logs overflowed in length
-	StartupLogsOverflowed bool `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
+	StartupLogsOverflowed bool                    `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
+	Subsystem             WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
+	// When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.
+	StartupScriptBehavior StartupScriptBehavior `db:"startup_script_behavior" json:"startup_script_behavior"`
 }
 
 type WorkspaceAgentMetadatum struct {
@@ -1674,14 +1797,18 @@ type WorkspaceProxy struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Name        string    `db:"name" json:"name"`
 	DisplayName string    `db:"display_name" json:"display_name"`
-	Icon        string    `db:"icon" json:"icon"`
+	// Expects an emoji character. (/emojis/1f1fa-1f1f8.png)
+	Icon string `db:"icon" json:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
 	Url string `db:"url" json:"url"`
 	// Hostname with the wildcard for subdomain based app hosting: *.us.example.com
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	Deleted          bool      `db:"deleted" json:"deleted"`
+	// Boolean indicator of a deleted workspace proxy. Proxies are soft-deleted.
+	Deleted bool `db:"deleted" json:"deleted"`
+	// Hashed secret is used to authenticate the workspace proxy using a session token.
+	TokenHashedSecret []byte `db:"token_hashed_secret" json:"token_hashed_secret"`
 }
 
 type WorkspaceResource struct {

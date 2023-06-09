@@ -483,6 +483,28 @@ type Stats struct {
 	// SessionCountSSH is the number of connections received by an agent
 	// that are normal, non-tagged SSH sessions.
 	SessionCountSSH int64 `json:"session_count_ssh"`
+
+	// Metrics collected by the agent
+	Metrics []AgentMetric `json:"metrics"`
+}
+
+type AgentMetricType string
+
+const (
+	AgentMetricTypeCounter AgentMetricType = "counter"
+	AgentMetricTypeGauge   AgentMetricType = "gauge"
+)
+
+type AgentMetric struct {
+	Name   string             `json:"name" validate:"required"`
+	Type   AgentMetricType    `json:"type" validate:"required" enums:"counter,gauge"`
+	Value  float64            `json:"value" validate:"required"`
+	Labels []AgentMetricLabel `json:"labels,omitempty"`
+}
+
+type AgentMetricLabel struct {
+	Name  string `json:"name" validate:"required"`
+	Value string `json:"value" validate:"required"`
 }
 
 type StatsResponse struct {
@@ -528,8 +550,9 @@ func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) er
 }
 
 type PostStartupRequest struct {
-	Version           string `json:"version"`
-	ExpandedDirectory string `json:"expanded_directory"`
+	Version           string                  `json:"version"`
+	ExpandedDirectory string                  `json:"expanded_directory"`
+	Subsystem         codersdk.AgentSubsystem `json:"subsystem"`
 }
 
 func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error {

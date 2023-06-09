@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@mui/styles"
 import { Stack } from "components/Stack/Stack"
 import { PropsWithChildren, FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
@@ -18,6 +18,24 @@ export const EntitledBadge: FC = () => {
   return (
     <span className={combineClasses([styles.badge, styles.enabledBadge])}>
       Entitled
+    </span>
+  )
+}
+
+export const HealthyBadge: FC = () => {
+  const styles = useStyles()
+  return (
+    <span className={combineClasses([styles.badge, styles.enabledBadge])}>
+      Healthy
+    </span>
+  )
+}
+
+export const NotHealthyBadge: FC = () => {
+  const styles = useStyles()
+  return (
+    <span className={combineClasses([styles.badge, styles.errorBadge])}>
+      Unhealthy
     </span>
   )
 }
@@ -90,6 +108,11 @@ const useStyles = makeStyles((theme) => ({
   enabledBadge: {
     border: `1px solid ${theme.palette.success.light}`,
     backgroundColor: theme.palette.success.dark,
+  },
+
+  errorBadge: {
+    border: `1px solid ${theme.palette.error.light}`,
+    backgroundColor: theme.palette.error.dark,
   },
 
   disabledBadge: {

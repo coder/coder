@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/open-policy-agent/opa/topdown"
@@ -16,6 +17,8 @@ import (
 )
 
 var _ database.Store = (*querier)(nil)
+
+const wrapname = "dbauthz.querier"
 
 // NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
 // response when the user is not authorized.
@@ -89,7 +92,7 @@ type querier struct {
 func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) database.Store {
 	// If the underlying db store is already a querier, return it.
 	// Do not double wrap.
-	if _, ok := db.(*querier); ok {
+	if slices.Contains(db.Wrappers(), wrapname) {
 		return db
 	}
 	return &querier{
@@ -97,6 +100,10 @@ func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) data
 		auth: authorizer,
 		log:  logger,
 	}
+}
+
+func (q *querier) Wrappers() []string {
+	return append(q.db.Wrappers(), wrapname)
 }
 
 // authorizeContext is a helper function to authorize an action on an object.
@@ -138,13 +145,15 @@ var (
 					rbac.ResourceUser.Type:      {rbac.ActionRead},
 					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:  {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceAPIKey.Type:    {rbac.WildcardSymbol},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
-	}
+	}.WithCachedASTValue()
+
 	subjectAutostart = rbac.Subject{
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -161,7 +170,8 @@ var (
 			},
 		}),
 		Scope: rbac.ScopeAll,
-	}
+	}.WithCachedASTValue()
+
 	subjectSystemRestricted = rbac.Subject{
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -180,13 +190,15 @@ var (
 					rbac.ResourceUser.Type:               {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
+					rbac.ResourceWorkspaceExecution.Type: {rbac.ActionCreate},
+					rbac.ResourceWorkspaceProxy.Type:     {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
-	}
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required

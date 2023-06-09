@@ -149,6 +149,7 @@ const docTemplate = `{
                 ],
                 "summary": "Get applications host",
                 "operationId": "get-applications-host",
+                "deprecated": true,
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -156,6 +157,48 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AppHostResponse"
                         }
                     }
+                }
+            }
+        },
+        "/applications/reconnecting-pty-signed-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Applications Enterprise"
+                ],
+                "summary": "Issue signed app token for reconnecting PTY",
+                "operationId": "issue-signed-app-token-for-reconnecting-pty",
+                "parameters": [
+                    {
+                        "description": "Issue reconnecting PTY signed token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IssueReconnectingPTYSignedTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -381,6 +424,34 @@ const docTemplate = `{
                             "$ref": "#/definitions/healthcheck.Report"
                         }
                     }
+                }
+            }
+        },
+        "/debug/ws": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Websocket Test",
+                "operationId": "debug-info-websocket-test",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -704,7 +775,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.DeploymentDAUsResponse"
+                            "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
                 }
@@ -1524,7 +1595,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/parameters/{scope}/{id}": {
+        "/regions": {
             "get": {
                 "security": [
                     {
@@ -1535,151 +1606,15 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Parameters"
+                    "WorkspaceProxies"
                 ],
-                "summary": "Get parameters",
-                "operationId": "get-parameters",
-                "parameters": [
-                    {
-                        "enum": [
-                            "template",
-                            "workspace",
-                            "import_job"
-                        ],
-                        "type": "string",
-                        "description": "Scope",
-                        "name": "scope",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
+                "summary": "Get site-wide regions for workspace connections",
+                "operationId": "get-site-wide-regions-for-workspace-connections",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Parameter"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Parameters"
-                ],
-                "summary": "Create parameter",
-                "operationId": "create-parameter",
-                "parameters": [
-                    {
-                        "description": "Parameter request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                        }
-                    },
-                    {
-                        "enum": [
-                            "template",
-                            "workspace",
-                            "import_job"
-                        ],
-                        "type": "string",
-                        "description": "Scope",
-                        "name": "scope",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Parameter"
-                        }
-                    }
-                }
-            }
-        },
-        "/parameters/{scope}/{id}/{name}": {
-            "delete": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Parameters"
-                ],
-                "summary": "Delete parameter",
-                "operationId": "delete-parameter",
-                "parameters": [
-                    {
-                        "enum": [
-                            "template",
-                            "workspace",
-                            "import_job"
-                        ],
-                        "type": "string",
-                        "description": "Scope",
-                        "name": "scope",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
+                            "$ref": "#/definitions/codersdk.RegionsResponse"
                         }
                     }
                 }
@@ -2056,7 +1991,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateDAUsResponse"
+                            "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
                 }
@@ -2668,14 +2603,11 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get parameters by template version",
-                "operationId": "get-parameters-by-template-version",
+                "summary": "Removed: Get parameters by template version",
+                "operationId": "removed-get-parameters-by-template-version",
                 "parameters": [
                     {
                         "type": "string",
@@ -2688,13 +2620,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/parameter.ComputedValue"
-                            }
-                        }
+                        "description": "OK"
                     }
                 }
             }
@@ -2782,14 +2708,11 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get schema by template version",
-                "operationId": "get-schema-by-template-version",
+                "summary": "Removed: Get schema by template version",
+                "operationId": "removed-get-schema-by-template-version",
                 "parameters": [
                     {
                         "type": "string",
@@ -2802,13 +2725,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ParameterSchema"
-                            }
-                        }
+                        "description": "OK"
                     }
                 }
             }
@@ -5000,7 +4917,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Enterprise"
                 ],
                 "summary": "Create workspace proxy",
                 "operationId": "create-workspace-proxy",
@@ -5018,6 +4935,231 @@ const docTemplate = `{
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceproxies/me/goingaway": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Workspace proxy going away",
+                "operationId": "workspace-proxy-going-away",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/me/issue-signed-app-token": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Issue signed workspace app token",
+                "operationId": "issue-signed-workspace-app-token",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workspaceapps.IssueTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.IssueSignedAppTokenResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/me/register": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Register workspace proxy",
+                "operationId": "register-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Issue signed app token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.RegisterWorkspaceProxyResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/{workspaceproxy}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxy",
+                "operationId": "get-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete workspace proxy",
+                "operationId": "delete-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update workspace proxy",
+                "operationId": "update-workspace-proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Proxy ID or name",
+                        "name": "workspaceproxy",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchWorkspaceProxy"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
@@ -5469,6 +5611,65 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.AgentMetric": {
+            "type": "object",
+            "required": [
+                "name",
+                "type",
+                "value"
+            ],
+            "properties": {
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetricLabel"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "counter",
+                        "gauge"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agentsdk.AgentMetricType"
+                        }
+                    ]
+                },
+                "value": {
+                    "type": "number"
+                }
+            }
+        },
+        "agentsdk.AgentMetricLabel": {
+            "type": "object",
+            "required": [
+                "name",
+                "value"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.AgentMetricType": {
+            "type": "string",
+            "enum": [
+                "counter",
+                "gauge"
+            ],
+            "x-enum-varnames": [
+                "AgentMetricTypeCounter",
+                "AgentMetricTypeGauge"
+            ]
+        },
         "agentsdk.AuthenticateResponse": {
             "type": "object",
             "properties": {
@@ -5635,6 +5836,9 @@ const docTemplate = `{
                 "expanded_directory": {
                     "type": "string"
                 },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
+                },
                 "version": {
                     "type": "string"
                 }
@@ -5670,6 +5874,13 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "integer"
+                    }
+                },
+                "metrics": {
+                    "description": "Metrics collected by the agent",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.AgentMetric"
                     }
                 },
                 "rx_bytes": {
@@ -6068,6 +6279,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentSubsystem": {
+            "type": "string",
+            "enum": [
+                "envbox"
+            ],
+            "x-enum-varnames": [
+                "AgentSubsystemEnvbox"
+            ]
+        },
         "codersdk.AppHostResponse": {
             "type": "object",
             "properties": {
@@ -6321,6 +6541,10 @@ const docTemplate = `{
         "codersdk.BuildInfoResponse": {
             "type": "object",
             "properties": {
+                "dashboard_url": {
+                    "description": "DashboardURL is the URL to hit the deployment's dashboard.\nFor external workspace proxies, this is the coderd they are connected\nto.",
+                    "type": "string"
+                },
                 "external_url": {
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
@@ -6328,6 +6552,9 @@ const docTemplate = `{
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
+                },
+                "workspace_proxy": {
+                    "type": "boolean"
                 }
             }
         },
@@ -6404,52 +6631,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.CreateParameterRequest": {
-            "description": "CreateParameterRequest is a structure used to create a new parameter value for a scope.",
-            "type": "object",
-            "required": [
-                "destination_scheme",
-                "name",
-                "source_scheme",
-                "source_value"
-            ],
-            "properties": {
-                "copy_from_parameter": {
-                    "description": "CloneID allows copying the value of another parameter.\nThe other param must be related to the same template_id for this to\nsucceed.\nNo other fields are required if using this, as all fields will be copied\nfrom the other parameter.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "destination_scheme": {
-                    "enum": [
-                        "none",
-                        "environment_variable",
-                        "provisioner_variable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterDestinationScheme"
-                        }
-                    ]
-                },
-                "name": {
-                    "type": "string"
-                },
-                "source_scheme": {
-                    "enum": [
-                        "none",
-                        "data"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterSourceScheme"
-                        }
-                    ]
-                },
-                "source_value": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.CreateTemplateRequest": {
             "type": "object",
             "required": [
@@ -6481,9 +6662,17 @@ const docTemplate = `{
                     "description": "DisplayName is the displayed name of the template.",
                     "type": "string"
                 },
+                "failure_ttl_ms": {
+                    "description": "FailureTTLMillis allows optionally specifying the max lifetime before Coder\nstops all resources for failed workspaces created from this template.",
+                    "type": "integer"
+                },
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
+                },
+                "inactivity_ttl_ms": {
+                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\ndeletes inactive workspaces created from this template.",
+                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
@@ -6492,12 +6681,6 @@ const docTemplate = `{
                 "name": {
                     "description": "Name is the name of the template.",
                     "type": "string"
-                },
-                "parameter_values": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
                 },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
@@ -6509,12 +6692,6 @@ const docTemplate = `{
         "codersdk.CreateTemplateVersionDryRunRequest": {
             "type": "object",
             "properties": {
-                "parameter_values": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
-                },
                 "rich_parameter_values": {
                     "type": "array",
                     "items": {
@@ -6548,13 +6725,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                },
-                "parameter_values": {
-                    "description": "ParameterValues allows for additional parameters to be provided\nduring the dry-run provision stage.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
                 },
                 "provisioner": {
                     "type": "string",
@@ -6679,7 +6849,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "organization_id",
                 "password",
                 "username"
             ],
@@ -6724,14 +6893,8 @@ const docTemplate = `{
                     "description": "Orphan may be set for the Destroy transition.",
                     "type": "boolean"
                 },
-                "parameter_values": {
-                    "description": "ParameterValues are optional. It will write params to the 'workspace' scope.\nThis will overwrite any existing parameters with the same name.\nThis will not delete old params not included in this list.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
-                },
                 "rich_parameter_values": {
+                    "description": "ParameterValues are optional. It will write params to the 'workspace' scope.\nThis will overwrite any existing parameters with the same name.\nThis will not delete old params not included in this list.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
@@ -6764,6 +6927,9 @@ const docTemplate = `{
         },
         "codersdk.CreateWorkspaceProxyRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "display_name": {
                     "type": "string"
@@ -6772,12 +6938,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
-                },
-                "url": {
-                    "type": "string"
-                },
-                "wildcard_hostname": {
                     "type": "string"
                 }
             }
@@ -6795,14 +6955,8 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "parameter_values": {
-                    "description": "ParameterValues allows for additional parameters to be provided\nduring the initial provision.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
-                },
                 "rich_parameter_values": {
+                    "description": "ParameterValues allows for additional parameters to be provided\nduring the initial provision.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
@@ -6826,6 +6980,20 @@ const docTemplate = `{
                 "date": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.DAUsResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DAUEntry"
+                    }
+                },
+                "tz_hour_offset": {
+                    "type": "integer"
                 }
             }
         },
@@ -6891,6 +7059,9 @@ const docTemplate = `{
         "codersdk.DangerousConfig": {
             "type": "object",
             "properties": {
+                "allow_all_cors": {
+                    "type": "boolean"
+                },
                 "allow_path_app_sharing": {
                     "type": "boolean"
                 },
@@ -6909,17 +7080,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/clibase.Option"
-                    }
-                }
-            }
-        },
-        "codersdk.DeploymentDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
                     }
                 }
             }
@@ -7049,6 +7209,9 @@ const docTemplate = `{
                 "provisioner": {
                     "$ref": "#/definitions/codersdk.ProvisionerConfig"
                 },
+                "proxy_health_status_interval": {
+                    "type": "integer"
+                },
                 "proxy_trusted_headers": {
                     "type": "array",
                     "items": {
@@ -7165,12 +7328,14 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "template_editor",
-                "moons"
+                "moons",
+                "workspace_actions",
+                "workspace_filter"
             ],
             "x-enum-varnames": [
-                "ExperimentTemplateEditor",
-                "ExperimentMoons"
+                "ExperimentMoons",
+                "ExperimentWorkspaceActions",
+                "ExperimentWorkspaceFilter"
             ]
         },
         "codersdk.Feature": {
@@ -7323,6 +7488,31 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "URL specifies the endpoint to check for the app health.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenRequest": {
+            "type": "object",
+            "required": [
+                "agentID",
+                "url"
+            ],
+            "properties": {
+                "agentID": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "url": {
+                    "description": "URL is the URL of the reconnecting-pty endpoint you are connecting to.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.IssueReconnectingPTYSignedTokenResponse": {
+            "type": "object",
+            "properties": {
+                "signed_token": {
                     "type": "string"
                 }
             }
@@ -7620,188 +7810,38 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.Parameter": {
-            "description": "Parameter represents a set value for the scope.",
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "destination_scheme": {
-                    "enum": [
-                        "none",
-                        "environment_variable",
-                        "provisioner_variable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterDestinationScheme"
-                        }
-                    ]
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "scope": {
-                    "enum": [
-                        "template",
-                        "workspace",
-                        "import_job"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterScope"
-                        }
-                    ]
-                },
-                "scope_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "source_scheme": {
-                    "enum": [
-                        "none",
-                        "data"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterSourceScheme"
-                        }
-                    ]
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
-        },
-        "codersdk.ParameterDestinationScheme": {
-            "type": "string",
-            "enum": [
-                "none",
-                "environment_variable",
-                "provisioner_variable"
-            ],
-            "x-enum-varnames": [
-                "ParameterDestinationSchemeNone",
-                "ParameterDestinationSchemeEnvironmentVariable",
-                "ParameterDestinationSchemeProvisionerVariable"
-            ]
-        },
-        "codersdk.ParameterSchema": {
-            "type": "object",
-            "properties": {
-                "allow_override_destination": {
-                    "type": "boolean"
-                },
-                "allow_override_source": {
-                    "type": "boolean"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "default_destination_scheme": {
-                    "enum": [
-                        "none",
-                        "environment_variable",
-                        "provisioner_variable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterDestinationScheme"
-                        }
-                    ]
-                },
-                "default_refresh": {
-                    "type": "string"
-                },
-                "default_source_scheme": {
-                    "enum": [
-                        "none",
-                        "data"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterSourceScheme"
-                        }
-                    ]
-                },
-                "default_source_value": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "job_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "redisplay_value": {
-                    "type": "boolean"
-                },
-                "validation_condition": {
-                    "type": "string"
-                },
-                "validation_contains": {
-                    "description": "This is a special array of items provided if the validation condition\nexplicitly states the value must be one of a set.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "validation_error": {
-                    "type": "string"
-                },
-                "validation_type_system": {
-                    "type": "string"
-                },
-                "validation_value_type": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.ParameterScope": {
-            "type": "string",
-            "enum": [
-                "template",
-                "workspace",
-                "import_job"
-            ],
-            "x-enum-varnames": [
-                "ParameterTemplate",
-                "ParameterWorkspace",
-                "ParameterImportJob"
-            ]
-        },
-        "codersdk.ParameterSourceScheme": {
-            "type": "string",
-            "enum": [
-                "none",
-                "data"
-            ],
-            "x-enum-varnames": [
-                "ParameterSourceSchemeNone",
-                "ParameterSourceSchemeData"
-            ]
-        },
         "codersdk.PatchTemplateVersionRequest": {
             "type": "object",
             "properties": {
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.PatchWorkspaceProxy": {
+            "type": "object",
+            "required": [
+                "display_name",
+                "icon",
+                "id",
+                "name"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "regenerate_token": {
+                    "type": "boolean"
                 }
             }
         },
@@ -7821,6 +7861,9 @@ const docTemplate = `{
             "properties": {
                 "address": {
                     "$ref": "#/definitions/clibase.HostPort"
+                },
+                "collect_agent_stats": {
+                    "type": "boolean"
                 },
                 "enable": {
                     "type": "boolean"
@@ -8020,6 +8063,40 @@ const docTemplate = `{
                 "ProvisionerStorageMethodFile"
             ]
         },
+        "codersdk.ProxyHealthReport": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "description": "Errors are problems that prevent the workspace proxy from being healthy",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "warnings": {
+                    "description": "Warnings do not prevent the workspace proxy from being healthy, but\nshould be addressed.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.ProxyHealthStatus": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "unreachable",
+                "unhealthy",
+                "unregistered"
+            ],
+            "x-enum-varnames": [
+                "ProxyHealthy",
+                "ProxyUnreachable",
+                "ProxyUnhealthy",
+                "ProxyUnregistered"
+            ]
+        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -8091,6 +8168,46 @@ const docTemplate = `{
                 },
                 "disable_all": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.Region": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path_app_url": {
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.RegionsResponse": {
+            "type": "object",
+            "properties": {
+                "regions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Region"
+                    }
                 }
             }
         },
@@ -8361,12 +8478,19 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "failure_ttl_ms": {
+                    "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "type": "integer"
+                },
                 "icon": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "inactivity_ttl_ms": {
+                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",
@@ -8395,17 +8519,6 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {
                 "$ref": "#/definitions/codersdk.TransitionStats"
-            }
-        },
-        "codersdk.TemplateDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
-                    }
-                }
             }
         },
         "codersdk.TemplateExample": {
@@ -8554,6 +8667,15 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "DEPRECATED_PARAMETERS"
+                        ],
+                        "$ref": "#/definitions/codersdk.TemplateVersionWarning"
+                    }
                 }
             }
         },
@@ -8691,6 +8813,15 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.TemplateVersionWarning": {
+            "type": "string",
+            "enum": [
+                "UNSUPPORTED_WORKSPACES"
+            ],
+            "x-enum-varnames": [
+                "TemplateVersionWarningUnsupportedWorkspaces"
+            ]
         },
         "codersdk.TokenConfig": {
             "type": "object",
@@ -8969,6 +9100,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "deleting_at": {
+                    "description": "DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.\nWorkspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -9083,7 +9219,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 },
                 "login_before_ready": {
-                    "description": "LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
+                    "description": "Deprecated: Use StartupScriptBehavior instead.",
                     "type": "boolean"
                 },
                 "name": {
@@ -9111,12 +9247,18 @@ const docTemplate = `{
                 "startup_script": {
                     "type": "string"
                 },
+                "startup_script_behavior": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentStartupScriptBehavior"
+                },
                 "startup_script_timeout_seconds": {
                     "description": "StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.",
                     "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
+                },
+                "subsystem": {
+                    "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "troubleshooting_url": {
                     "type": "string"
@@ -9228,6 +9370,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentStartupScriptBehavior": {
+            "type": "string",
+            "enum": [
+                "blocking",
+                "non-blocking"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentStartupScriptBehaviorBlocking",
+                "WorkspaceAgentStartupScriptBehaviorNonBlocking"
+            ]
         },
         "codersdk.WorkspaceAgentStatus": {
             "type": "string",
@@ -9503,6 +9656,9 @@ const docTemplate = `{
                 "deleted": {
                     "type": "boolean"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "icon": {
                     "type": "string"
                 },
@@ -9513,9 +9669,13 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
+                "status": {
+                    "description": "Status is the latest status check of the proxy. This will be empty for deleted\nproxies. This value can be used to determine if a workspace proxy is healthy\nand ready to use.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxyStatus"
+                        }
+                    ]
                 },
                 "updated_at": {
                     "type": "string",
@@ -9528,6 +9688,26 @@ const docTemplate = `{
                 "wildcard_hostname": {
                     "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceProxyStatus": {
+            "type": "object",
+            "properties": {
+                "checked_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "report": {
+                    "description": "Report provides more information about the health of the workspace proxy.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProxyHealthReport"
+                        }
+                    ]
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ProxyHealthStatus"
                 }
             }
         },
@@ -9666,42 +9846,36 @@ const docTemplate = `{
                 }
             }
         },
-        "database.ParameterDestinationScheme": {
-            "type": "string",
-            "enum": [
-                "none",
-                "environment_variable",
-                "provisioner_variable"
-            ],
-            "x-enum-varnames": [
-                "ParameterDestinationSchemeNone",
-                "ParameterDestinationSchemeEnvironmentVariable",
-                "ParameterDestinationSchemeProvisionerVariable"
-            ]
+        "derp.ServerInfoMessage": {
+            "type": "object",
+            "properties": {
+                "tokenBucketBytesBurst": {
+                    "description": "TokenBucketBytesBurst is how many bytes the server will\nallow to burst, temporarily violating\nTokenBucketBytesPerSecond.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                },
+                "tokenBucketBytesPerSecond": {
+                    "description": "TokenBucketBytesPerSecond is how many bytes per second the\nserver says it will accept, including all framing bytes.\n\nZero means unspecified. There might be a limit, but the\nclient need not try to respect it.",
+                    "type": "integer"
+                }
+            }
         },
-        "database.ParameterScope": {
-            "type": "string",
-            "enum": [
-                "template",
-                "import_job",
-                "workspace"
-            ],
-            "x-enum-varnames": [
-                "ParameterScopeTemplate",
-                "ParameterScopeImportJob",
-                "ParameterScopeWorkspace"
-            ]
-        },
-        "database.ParameterSourceScheme": {
-            "type": "string",
-            "enum": [
-                "none",
-                "data"
-            ],
-            "x-enum-varnames": [
-                "ParameterSourceSchemeNone",
-                "ParameterSourceSchemeData"
-            ]
+        "healthcheck.AccessURLReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "healthz_response": {
+                    "type": "string"
+                },
+                "reachable": {
+                    "type": "boolean"
+                },
+                "status_code": {
+                    "type": "integer"
+                }
+            }
         },
         "healthcheck.DERPNodeReport": {
             "type": "object",
@@ -9725,11 +9899,15 @@ const docTemplate = `{
                         }
                     }
                 },
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
                 "node": {
                     "$ref": "#/definitions/tailcfg.DERPNode"
+                },
+                "node_info": {
+                    "$ref": "#/definitions/derp.ServerInfoMessage"
                 },
                 "round_trip_ping": {
                     "type": "integer"
@@ -9745,6 +9923,7 @@ const docTemplate = `{
         "healthcheck.DERPRegionReport": {
             "type": "object",
             "properties": {
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
@@ -9762,12 +9941,14 @@ const docTemplate = `{
         "healthcheck.DERPReport": {
             "type": "object",
             "properties": {
+                "error": {},
                 "healthy": {
                     "type": "boolean"
                 },
                 "netcheck": {
                     "$ref": "#/definitions/netcheck.Report"
                 },
+                "netcheck_err": {},
                 "netcheck_logs": {
                     "type": "array",
                     "items": {
@@ -9797,16 +9978,51 @@ const docTemplate = `{
         "healthcheck.Report": {
             "type": "object",
             "properties": {
+                "access_url": {
+                    "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
-                "pass": {
+                "failing_sections": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "healthy": {
                     "description": "Healthy is true if the report returns no errors.",
                     "type": "boolean"
                 },
                 "time": {
                     "description": "Time is the time the report was generated at.",
                     "type": "string"
+                },
+                "websocket": {
+                    "$ref": "#/definitions/healthcheck.WebsocketReport"
+                }
+            }
+        },
+        "healthcheck.WebsocketReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "response": {
+                    "$ref": "#/definitions/healthcheck.WebsocketResponse"
+                }
+            }
+        },
+        "healthcheck.WebsocketResponse": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "code": {
+                    "type": "integer"
                 }
             }
         },
@@ -9896,44 +10112,6 @@ const docTemplate = `{
                 },
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
-                    "type": "string"
-                }
-            }
-        },
-        "parameter.ComputedValue": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "default_source_value": {
-                    "type": "boolean"
-                },
-                "destination_scheme": {
-                    "$ref": "#/definitions/database.ParameterDestinationScheme"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "schema_id": {
-                    "type": "string"
-                },
-                "scope": {
-                    "$ref": "#/definitions/database.ParameterScope"
-                },
-                "scope_id": {
-                    "type": "string"
-                },
-                "source_scheme": {
-                    "$ref": "#/definitions/database.ParameterSourceScheme"
-                },
-                "source_value": {
-                    "type": "string"
-                },
-                "updated_at": {
                     "type": "string"
                 }
             }
@@ -10053,6 +10231,103 @@ const docTemplate = `{
         },
         "url.Userinfo": {
             "type": "object"
+        },
+        "workspaceapps.AccessMethod": {
+            "type": "string",
+            "enum": [
+                "path",
+                "subdomain",
+                "terminal"
+            ],
+            "x-enum-varnames": [
+                "AccessMethodPath",
+                "AccessMethodSubdomain",
+                "AccessMethodTerminal"
+            ]
+        },
+        "workspaceapps.IssueTokenRequest": {
+            "type": "object",
+            "properties": {
+                "app_hostname": {
+                    "description": "AppHostname is the optional hostname for subdomain apps on the external\nproxy. It must start with an asterisk.",
+                    "type": "string"
+                },
+                "app_path": {
+                    "description": "AppPath is the path of the user underneath the app base path.",
+                    "type": "string"
+                },
+                "app_query": {
+                    "description": "AppQuery is the query parameters the user provided in the app request.",
+                    "type": "string"
+                },
+                "app_request": {
+                    "$ref": "#/definitions/workspaceapps.Request"
+                },
+                "path_app_base_url": {
+                    "description": "PathAppBaseURL is required.",
+                    "type": "string"
+                },
+                "session_token": {
+                    "description": "SessionToken is the session token provided by the user.",
+                    "type": "string"
+                }
+            }
+        },
+        "workspaceapps.Request": {
+            "type": "object",
+            "properties": {
+                "access_method": {
+                    "$ref": "#/definitions/workspaceapps.AccessMethod"
+                },
+                "agent_name_or_id": {
+                    "description": "AgentNameOrID is not required if the workspace has only one agent.",
+                    "type": "string"
+                },
+                "app_slug_or_port": {
+                    "type": "string"
+                },
+                "base_path": {
+                    "description": "BasePath of the app. For path apps, this is the path prefix in the router\nfor this particular app. For subdomain apps, this should be \"/\". This is\nused for setting the cookie path.",
+                    "type": "string"
+                },
+                "username_or_id": {
+                    "description": "For the following fields, if the AccessMethod is AccessMethodTerminal,\nthen only AgentNameOrID may be set and it must be a UUID. The other\nfields must be left blank.",
+                    "type": "string"
+                },
+                "workspace_name_or_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.IssueSignedAppTokenResponse": {
+            "type": "object",
+            "properties": {
+                "signed_token_str": {
+                    "description": "SignedTokenStr should be set as a cookie on the response.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "description": "AccessURL that hits the workspace proxy api.",
+                    "type": "string"
+                },
+                "wildcard_hostname": {
+                    "description": "WildcardHostname that the workspace proxy api is serving for subdomain apps.",
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.RegisterWorkspaceProxyResponse": {
+            "type": "object",
+            "properties": {
+                "app_security_key": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {

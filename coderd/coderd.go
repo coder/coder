@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,14 +37,17 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
 
-	// Used to serve the Swagger endpoint
+	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/codersdk/agentsdk"
+
+	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/dbmetrics"
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -126,7 +130,7 @@ type Options struct {
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey     workspaceapps.SecurityKey
-	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
@@ -146,6 +150,8 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
+
+	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
 }
 
 // @title Coder API
@@ -171,6 +177,11 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 
+	// Safety check: if we're not running a unit test, we *must* have a Prometheus registry.
+	if options.PrometheusRegistry == nil && flag.Lookup("test.v") == nil {
+		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
+	}
+
 	if options.DeploymentValues.DisableOwnerWorkspaceExec {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
 			NoOwnerWorkspaceExec: true,
@@ -179,6 +190,10 @@ func New(options *Options) *API {
 
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+	}
+	// The below are no-ops if already wrapped.
+	if options.PrometheusRegistry != nil {
+		options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 	}
 	options.Database = dbauthz.New(
 		options.Database,
@@ -221,7 +236,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewCoordinator()
+		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
 	}
 	if options.DERPServer == nil {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
@@ -231,6 +246,9 @@ func New(options *Options) *API {
 	}
 	if options.SSHConfig.HostnamePrefix == "" {
 		options.SSHConfig.HostnamePrefix = "coder."
+	}
+	if options.TracerProvider == nil {
+		options.TracerProvider = trace.NewNoopTracerProvider()
 	}
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(ctx context.Context, _ database.Store, id uuid.UUID, groups []string) error {
@@ -248,9 +266,11 @@ func New(options *Options) *API {
 		options.TemplateScheduleStore.Store(&v)
 	}
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
-				DERPMap: options.DERPMap.Clone(),
+				AccessURL: options.AccessURL,
+				DERPMap:   options.DERPMap.Clone(),
+				APIKey:    apiKey,
 			})
 		}
 	}
@@ -290,8 +310,8 @@ func New(options *Options) *API {
 		OIDC:   options.OIDCConfig,
 	}
 
-	r := chi.NewRouter()
 	ctx, cancel := context.WithCancel(context.Background())
+	r := chi.NewRouter()
 	api := &API{
 		ctx:    ctx,
 		cancel: cancel,
@@ -340,16 +360,18 @@ func New(options *Options) *API {
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: options.Logger.Named("workspaceapps"),
 
-		DashboardURL:     api.AccessURL,
-		AccessURL:        api.AccessURL,
-		Hostname:         api.AppHostname,
-		HostnameRegex:    api.AppHostnameRegex,
-		DeploymentValues: options.DeploymentValues,
-		RealIPConfig:     options.RealIPConfig,
+		DashboardURL:  api.AccessURL,
+		AccessURL:     api.AccessURL,
+		Hostname:      api.AppHostname,
+		HostnameRegex: api.AppHostnameRegex,
+		RealIPConfig:  options.RealIPConfig,
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		WorkspaceConnCache:  api.workspaceAgentCache,
 		AppSecurityKey:      options.AppSecurityKey,
+
+		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -367,6 +389,14 @@ func New(options *Options) *API {
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
 	})
+	// Same as the first but it's optional.
+	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    true,
+	})
 
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
@@ -374,22 +404,24 @@ func New(options *Options) *API {
 
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
+	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
 	r.Use(
 		httpmw.Recover(api.Logger),
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
-		httpmw.AttachAuthzCache,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
-		httpmw.Prometheus(options.PrometheusRegistry),
+		prometheusMW,
 		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
 		// it is, it will serve that application.
 		//
-		// Workspace apps do their own auth and must be BEFORE the auth
-		// middleware.
-		api.workspaceAppServer.SubdomainAppMW(apiRateLimiter),
+		// Workspace apps do their own auth and CORS and must be BEFORE the auth
+		// and CORS middleware.
+		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
+		cors,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -431,7 +463,7 @@ func New(options *Options) *API {
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
-					apiKeyMiddleware,
+					apiKeyMiddlewareRedirect,
 				)
 				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
 			})
@@ -445,12 +477,18 @@ func New(options *Options) *API {
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
+			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
 		r.Get("/", apiRoot)
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
-		r.Get("/buildinfo", buildInfo)
+		r.Get("/buildinfo", buildInfo(api.AccessURL))
+		// /regions is overridden in the enterprise version
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/regions", api.regions)
+		})
 		r.Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
@@ -514,14 +552,6 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Post("/", api.postParameter)
-			r.Get("/", api.parameters)
-			r.Route("/{name}", func(r chi.Router) {
-				r.Delete("/", api.deleteParameter)
-			})
-		})
 		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -545,8 +575,10 @@ func New(options *Options) *API {
 			r.Get("/", api.templateVersion)
 			r.Patch("/", api.patchTemplateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
-			r.Get("/schema", api.templateVersionSchema)
-			r.Get("/parameters", api.templateVersionParameters)
+			// Old agents may expect a non-error response from /schema and /parameters endpoints.
+			// The idea is to return an empty [], so that the coder CLI won't get blocked accidentally.
+			r.Get("/schema", templateVersionSchemaDeprecated)
+			r.Get("/parameters", templateVersionParametersDeprecated)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/gitauth", api.templateVersionGitAuth)
 			r.Get("/variables", api.templateVersionVariables)
@@ -661,7 +693,14 @@ func New(options *Options) *API {
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
-					apiKeyMiddleware,
+					// Allow either API key or external workspace proxy auth and require it.
+					apiKeyMiddlewareOptional,
+					httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
+						DB:       options.Database,
+						Optional: true,
+					}),
+					httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
+
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
@@ -754,6 +793,7 @@ func New(options *Options) *API {
 
 			r.Get("/coordinator", api.debugCoordinator)
 			r.Get("/health", api.debugDeploymentHealth)
+			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
 		})
 	})
 
@@ -766,7 +806,31 @@ func New(options *Options) *API {
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	}
 
-	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
+	// Add CSP headers to all static assets and pages. CSP headers only affect
+	// browsers, so these don't make sense on api routes.
+	cspMW := httpmw.CSPHeaders(func() []string {
+		if api.DeploymentValues.Dangerous.AllowAllCors {
+			// In this mode, allow all external requests
+			return []string{"*"}
+		}
+		if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
+			return (*f)()
+		}
+		// By default we do not add extra websocket connections to the CSP
+		return []string{}
+	})
+	r.NotFound(cspMW(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP))).ServeHTTP)
+
+	// This must be before all middleware to improve the response time.
+	// So make a new router, and mount the old one as the root.
+	rootRouter := chi.NewRouter()
+	// This is the only route we add before all the middleware.
+	// We want to time the latency of the request, so any middleware will
+	// interfere with that timing.
+	rootRouter.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
+	rootRouter.Mount("/", r)
+	api.RootHandler = rootRouter
+
 	return api
 }
 
@@ -786,7 +850,12 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
+	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
+	// for header reasons.
+	WorkspaceProxyHostsFn atomic.Pointer[func() []string]
+	// TemplateScheduleStore is a pointer to an atomic pointer because this is
+	// passed to another struct, and we want them all to be the same reference.
+	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -812,6 +881,7 @@ type API struct {
 	Experiments codersdk.Experiments
 
 	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
+	healthCheckCache atomic.Pointer[healthcheck.Report]
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -835,7 +905,12 @@ func (api *API) Close() error {
 }
 
 func compressHandler(h http.Handler) http.Handler {
-	cmp := middleware.NewCompressor(5,
+	level := 5
+	if flag.Lookup("test.v") != nil {
+		level = 1
+	}
+
+	cmp := middleware.NewCompressor(level,
 		"text/*",
 		"application/*",
 		"image/*",
@@ -857,6 +932,7 @@ func compressHandler(h http.Handler) http.Handler {
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
 func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce time.Duration) (client proto.DRPCProvisionerDaemonClient, err error) {
+	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := provisionersdk.MemTransportPipe()
 	defer func() {
 		if err != nil {
@@ -896,24 +972,28 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Provisioners:          daemon.Provisioners,
 		GitAuthConfigs:        api.GitAuthConfigs,
 		Telemetry:             api.Telemetry,
+		Tracer:                tracer,
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,
 		Auditor:               &api.Auditor,
 		TemplateScheduleStore: api.TemplateScheduleStore,
 		AcquireJobDebounce:    debounce,
 		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		DeploymentValues:      api.DeploymentValues,
 	})
 	if err != nil {
 		return nil, err
 	}
-	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
-		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
-				return
-			}
-			api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+		drpcserver.Options{
+			Log: func(err error) {
+				if xerrors.Is(err, io.EOF) {
+					return
+				}
+				api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+			},
 		},
-	})
+	)
 	go func() {
 		err := server.Serve(ctx, serverSession)
 		if err != nil && !xerrors.Is(err, io.EOF) {

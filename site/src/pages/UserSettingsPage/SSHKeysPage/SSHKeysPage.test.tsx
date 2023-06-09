@@ -4,7 +4,7 @@ import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage"
 import { Language as SSHKeysPageViewLanguage } from "./SSHKeysPageView"
 import { i18n } from "i18n"
-import { MockGitSSHKey } from "testHelpers/entities"
+import { MockGitSSHKey, mockApiError } from "testHelpers/entities"
 
 const { t } = i18n
 
@@ -66,7 +66,11 @@ describe("SSH keys Page", () => {
         // Wait to the ssh be rendered on the screen
         await screen.findByText(MockGitSSHKey.public_key)
 
-        jest.spyOn(API, "regenerateUserSSHKey").mockRejectedValueOnce({})
+        jest.spyOn(API, "regenerateUserSSHKey").mockRejectedValueOnce(
+          mockApiError({
+            message: "Error regenerating SSH key",
+          }),
+        )
 
         // Click on the "Regenerate" button to display the confirm dialog
         const regenerateButton = screen.getByRole("button", {
@@ -85,7 +89,7 @@ describe("SSH keys Page", () => {
         fireEvent.click(confirmButton)
 
         // Check if the error message is displayed
-        await screen.findByText(SSHKeysPageViewLanguage.errorRegenerateSSHKey)
+        await screen.findByText("Error regenerating SSH key")
 
         // Check if the API was called correctly
         expect(API.regenerateUserSSHKey).toBeCalledTimes(1)

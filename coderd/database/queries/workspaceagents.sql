@@ -57,7 +57,7 @@ INSERT INTO
 		connection_timeout_seconds,
 		troubleshooting_url,
 		motd_file,
-		login_before_ready,
+		startup_script_behavior,
 		startup_script_timeout_seconds,
 		shutdown_script,
 		shutdown_script_timeout_seconds
@@ -82,7 +82,8 @@ UPDATE
 	workspace_agents
 SET
 	version = $2,
-	expanded_directory = $3
+	expanded_directory = $3,
+	subsystem = $4
 WHERE
 	id = $1;
 

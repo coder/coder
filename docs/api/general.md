@@ -53,8 +53,10 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 
 ```json
 {
+  "dashboard_url": "string",
   "external_url": "string",
-  "version": "string"
+  "version": "string",
+  "workspace_proxy": true
 }
 ```
 
@@ -159,6 +161,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "sshconfigOptions": ["string"]
     },
     "dangerous": {
+      "allow_all_cors": true,
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
     },
@@ -271,6 +274,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "host": "string",
         "port": "string"
       },
+      "collect_agent_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -279,6 +283,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "daemons": 0,
       "force_cancel_interval": 0
     },
+    "proxy_health_status_interval": 0,
     "proxy_trusted_headers": ["string"],
     "proxy_trusted_origins": ["string"],
     "rate_limit": {
@@ -506,7 +511,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["template_editor"]
+["moons"]
 ```
 
 ### Responses

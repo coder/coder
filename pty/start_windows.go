@@ -17,7 +17,7 @@ import (
 
 // Allocates a PTY and starts the specified command attached to it.
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session#creating-the-hosted-process
-func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
+func startPty(cmd *Cmd, opt ...StartOption) (_ PTYCmd, _ Process, retErr error) {
 	var opts startOptions
 	for _, o := range opt {
 		o(&opts)
@@ -45,11 +45,18 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	pty, err := newPty(opts.ptyOpts...)
+
+	winPty, err := newPty(opts.ptyOpts...)
 	if err != nil {
 		return nil, nil, err
 	}
-	winPty := pty.(*ptyWindows)
+	defer func() {
+		if retErr != nil {
+			// we hit some error finishing setup; close pty, so
+			// we don't leak the kernel resources associated with it
+			_ = winPty.Close()
+		}
+	}()
 	if winPty.opts.sshReq != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_TTY=%s", winPty.Name()))
 	}
@@ -95,9 +102,37 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
 	wp := &windowsProcess{
 		cmdDone: make(chan any),
 		proc:    process,
+		pw:      winPty,
+	}
+	defer func() {
+		if retErr != nil {
+			// if we later error out, kill the process since
+			// the caller will have no way to interact with it
+			_ = process.Kill()
+		}
+	}()
+
+	// Now that we've started the command, and passed the pseudoconsole to it,
+	// close the output write and input read files, so that the other process
+	// has the only handles to them.  Once the process closes the console, there
+	// will be no open references and the OS kernel returns an error when trying
+	// to read or write to our end.  Without this, reading from the process
+	// output will block until they are closed.
+	errO := winPty.outputWrite.Close()
+	winPty.outputWrite = nil
+	errI := winPty.inputRead.Close()
+	winPty.inputRead = nil
+	if errO != nil {
+		return nil, nil, errO
+	}
+	if errI != nil {
+		return nil, nil, errI
 	}
 	go wp.waitInternal()
-	return pty, wp, nil
+	if cmd.Context != nil {
+		go wp.killOnContext(cmd.Context)
+	}
+	return winPty, wp, nil
 }
 
 // Taken from: https://github.com/microsoft/hcsshim/blob/7fbdca16f91de8792371ba22b7305bf4ca84170a/internal/exec/exec.go#L476

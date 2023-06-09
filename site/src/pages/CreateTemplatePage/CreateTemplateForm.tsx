@@ -1,14 +1,12 @@
-import Checkbox from "@material-ui/core/Checkbox"
-import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
+import Checkbox from "@mui/material/Checkbox"
+import { makeStyles } from "@mui/styles"
+import TextField from "@mui/material/TextField"
 import {
-  ParameterSchema,
   ProvisionerJobLog,
   Template,
   TemplateExample,
   TemplateVersionVariable,
 } from "api/typesGenerated"
-import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import {
   TemplateUpload,
@@ -16,7 +14,7 @@ import {
 } from "pages/CreateTemplatePage/TemplateUpload"
 import { useFormik } from "formik"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
-import { FC } from "react"
+import { FC, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import {
   nameValidator,
@@ -31,7 +29,7 @@ import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { LazyIconField } from "components/IconField/LazyIconField"
 import { Maybe } from "components/Conditionals/Maybe"
 import i18next from "i18next"
-import Link from "@material-ui/core/Link"
+import Link from "@mui/material/Link"
 import {
   HorizontalForm,
   FormSection,
@@ -112,7 +110,6 @@ const defaultInitialValues: CreateTemplateData = {
 type GetInitialValuesParams = {
   fromExample?: TemplateExample
   fromCopy?: Template
-  parameters?: ParameterSchema[]
   variables?: TemplateVersionVariable[]
   allowAdvancedScheduling: boolean
 }
@@ -122,7 +119,6 @@ const getInitialValues = ({
   fromCopy,
   allowAdvancedScheduling,
   variables,
-  parameters,
 }: GetInitialValuesParams) => {
   let initialValues = defaultInitialValues
 
@@ -166,16 +162,6 @@ const getInitialValues = ({
     })
   }
 
-  if (parameters) {
-    parameters.forEach((parameter) => {
-      if (!initialValues.parameter_values_by_name) {
-        initialValues.parameter_values_by_name = {}
-      }
-      initialValues.parameter_values_by_name[parameter.name] =
-        parameter.default_source_value
-    })
-  }
-
   return initialValues
 }
 
@@ -185,7 +171,6 @@ export interface CreateTemplateFormProps {
   isSubmitting: boolean
   upload: TemplateUploadProps
   starterTemplate?: TemplateExample
-  parameters?: ParameterSchema[]
   variables?: TemplateVersionVariable[]
   error?: unknown
   jobError?: string
@@ -199,7 +184,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   onSubmit,
   starterTemplate,
   copiedTemplate,
-  parameters,
   variables,
   isSubmitting,
   upload,
@@ -215,7 +199,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
       fromExample: starterTemplate,
       fromCopy: copiedTemplate,
       variables,
-      parameters,
     }),
     validationSchema,
     onSubmit,
@@ -223,6 +206,18 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error)
   const { t } = useTranslation("createTemplatePage")
   const { t: commonT } = useTranslation("common")
+
+  useEffect(() => {
+    if (error) {
+      window.scrollTo(0, 0)
+    }
+  }, [error])
+
+  useEffect(() => {
+    if (jobError) {
+      window.scrollTo(0, document.body.scrollHeight)
+    }
+  }, [logs, jobError])
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -254,7 +249,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             fullWidth
             required
             label={t("form.fields.name")}
-            variant="outlined"
           />
         </FormFields>
       </FormSection>
@@ -270,7 +264,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             disabled={isSubmitting}
             fullWidth
             label={t("form.fields.displayName")}
-            variant="outlined"
           />
 
           <TextField
@@ -280,7 +273,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             multiline
             fullWidth
             label={t("form.fields.description")}
-            variant="outlined"
           />
 
           <LazyIconField
@@ -289,7 +281,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             onChange={onChangeTrimmed(form)}
             fullWidth
             label={t("form.fields.icon")}
-            variant="outlined"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
         </FormFields>
@@ -314,7 +305,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               onChange={onChangeTrimmed(form)}
               fullWidth
               label={t("form.fields.autostop")}
-              variant="outlined"
               type="number"
             />
 
@@ -339,7 +329,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               disabled={isSubmitting || !allowAdvancedScheduling}
               fullWidth
               label={t("form.fields.maxTTL")}
-              variant="outlined"
               type="number"
             />
           </Stack>
@@ -348,7 +337,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               <Checkbox
                 id="allow_user_autostart"
                 size="small"
-                color="primary"
                 disabled={isSubmitting || !allowAdvancedScheduling}
                 onChange={async () => {
                   await form.setFieldValue(
@@ -369,7 +357,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               <Checkbox
                 id="allow-user-autostop"
                 size="small"
-                color="primary"
                 disabled={isSubmitting || !allowAdvancedScheduling}
                 onChange={async () => {
                   await form.setFieldValue(
@@ -404,7 +391,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           <label htmlFor="allow_user_cancel_workspace_jobs">
             <Stack direction="row" spacing={1}>
               <Checkbox
-                color="primary"
                 id="allow_user_cancel_workspace_jobs"
                 name="allow_user_cancel_workspace_jobs"
                 disabled={isSubmitting}
@@ -419,7 +405,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   spacing={0.5}
                   className={styles.optionText}
                 >
-                  {t("form.fields.allowUsersToCancel")}
+                  <strong>{t("form.fields.allowUsersToCancel")}</strong>
 
                   <HelpTooltip>
                     <HelpTooltipText>
@@ -435,30 +421,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           </label>
         </FormFields>
       </FormSection>
-
-      {/* Parameters */}
-      {parameters && parameters.length > 0 && (
-        <FormSection
-          title={t("form.parameters.title")}
-          description={t("form.parameters.description")}
-        >
-          <FormFields>
-            {parameters.map((schema) => (
-              <ParameterInput
-                schema={schema}
-                disabled={isSubmitting}
-                key={schema.id}
-                onChange={async (value) => {
-                  await form.setFieldValue(
-                    `parameter_values_by_name.${schema.name}`,
-                    value,
-                  )
-                }}
-              />
-            ))}
-          </FormFields>
-        </FormSection>
-      )}
 
       {/* Variables */}
       {variables && variables.length > 0 && (

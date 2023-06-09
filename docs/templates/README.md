@@ -4,8 +4,7 @@ Templates are written in [Terraform](https://www.terraform.io/) and describe the
 infrastructure for workspaces (e.g., docker_container, aws_instance,
 kubernetes_pod).
 
-In most cases, a small group of users (team leads or Coder administrators) [have
-permissions](./admin/users.md#roles) to create and manage templates. Then, other
+In most cases, a small group of users (team leads or Coder administrators) [have permissions](../admin/users.md#roles) to create and manage templates. Then, other
 users provision their [workspaces](../workspaces.md) from templates using the UI
 or CLI.
 
@@ -76,7 +75,7 @@ To control cost, specify a maximum time to live flag for a template in hours or
 minutes.
 
 ```sh
-coder templates create my-template --ttl 4h
+coder templates create my-template --default-ttl 4h
 ```
 
 ## Customize templates
@@ -195,7 +194,7 @@ the Coder server runs an additional [terraform apply](https://www.terraform.io/c
 informing the Coder provider that the workspace has a new transition state.
 
 This template sample has one persistent resource (docker volume) and one
-ephemeral resource (docker image).
+ephemeral resource (docker container).
 
 ```hcl
 data "coder_workspace" "me" {
@@ -245,8 +244,12 @@ resource "kubernetes_pod" "podName" {
 
 ### Edit templates
 
-You can edit a template using the coder CLI. Only [template admins and
+You can edit a template using the coder CLI or the UI. Only [template admins and
 owners](../admin/users.md) can edit a template.
+
+Using the UI, navigate to the template page, click on the menu, and select "Edit files". In the template editor, you create, edit and remove files. Before publishing a new template version, you can test your modifications by clicking the "Build template" button. Newly published template versions automatically become the default version selection when creating a workspace.
+
+> **Tip**: Even without publishing a version as active, you can still use it to create a workspace before making it the default for everybody in your organization. This may help you debug new changes without impacting others.
 
 Using the CLI, login to Coder and run the following command to edit a single
 template:
@@ -403,7 +406,7 @@ resource "coder_agent" "main" {
 ## Template permissions (enterprise)
 
 Template permissions can be used to give users and groups access to specific
-templates. [Learn more about RBAC](./admin/rbac.md).
+templates. [Learn more about RBAC](../admin/rbac.md) to learn how to manage
 
 ## Community Templates
 
@@ -415,4 +418,4 @@ You can see a list of community templates by our users
 - Learn about [Authentication & Secrets](./authentication.md)
 - Learn about [Change Management](./change-management.md)
 - Learn about [Resource Metadata](./resource-metadata.md)
-- Learn about [Workspaces](./workspaces.md)
+- Learn about [Workspaces](../workspaces.md)

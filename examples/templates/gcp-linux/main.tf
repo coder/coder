@@ -79,7 +79,6 @@ resource "coder_agent" "main" {
   auth                   = "google-instance-identity"
   arch                   = "amd64"
   os                     = "linux"
-  login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
     set -e

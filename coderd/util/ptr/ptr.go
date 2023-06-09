@@ -17,10 +17,19 @@ func NilOrEmpty(s *string) bool {
 	return s == nil || *s == ""
 }
 
-// NilToEmpty coalesces a nil str to the empty string.
-func NilToEmpty(s *string) string {
+// NilToEmpty coalesces a nil value to the empty value.
+func NilToEmpty[T any](s *T) T {
+	var def T
 	if s == nil {
-		return ""
+		return def
+	}
+	return *s
+}
+
+// NilToDefault coalesces a nil value to the provided default value.
+func NilToDefault[T any](s *T, def T) T {
+	if s == nil {
+		return def
 	}
 	return *s
 }

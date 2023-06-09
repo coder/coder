@@ -8,7 +8,7 @@ FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.20
+ARG GO_VERSION=1.20.5
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -32,9 +32,9 @@ RUN mkdir --parents "$GOPATH" && \
 	# goimports for updating imports
 	go install golang.org/x/tools/cmd/goimports@v0.1.7 && \
 	# protoc-gen-go is needed to build sysbox from source
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26 && \
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
 	# drpc support for v2
-	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26 && \
+	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33 && \
 	# migrate for migration support for v2
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
@@ -72,9 +72,10 @@ RUN mkdir --parents "$GOPATH" && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.30.6 && \
-	mv /tmp/bin/yq /tmp/bin/yq4
+	mv /tmp/bin/yq /tmp/bin/yq4 && \
+	go install github.com/golang/mock/mockgen@v1.6.0
 
-FROM alpine:3.16 as proto
+FROM alpine:3.18 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
@@ -212,21 +213,21 @@ RUN systemctl enable \
 
 # Install tools with published releases, where that is the
 # preferred/recommended installation method.
-ARG CLOUD_SQL_PROXY_VERSION=1.26.0 \
+ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	DIVE_VERSION=0.10.0 \
-	DOCKER_GCR_VERSION=2.1.0 \
-	GOLANGCI_LINT_VERSION=1.51.0 \
-	GRYPE_VERSION=0.24.0 \
-	HELM_VERSION=3.8.0 \
-	KUBE_LINTER_VERSION=0.2.5 \
+	DOCKER_GCR_VERSION=2.1.8 \
+	GOLANGCI_LINT_VERSION=1.52.2 \
+	GRYPE_VERSION=0.61.1 \
+	HELM_VERSION=3.12.0 \
+	KUBE_LINTER_VERSION=0.6.3 \
 	KUBECTX_VERSION=0.9.4 \
-	STRIPE_VERSION=1.7.4 \
-	TERRAGRUNT_VERSION=0.34.1 \
-	TRIVY_VERSION=0.23.0
+	STRIPE_VERSION=1.14.5 \
+	TERRAGRUNT_VERSION=0.45.11 \
+	TRIVY_VERSION=0.41.0
 
 # cloud_sql_proxy, for connecting to cloudsql instances
 # the upstream go.mod prevents this from being installed with go install
-RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_proxy "https://storage.googleapis.com/cloudsql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud_sql_proxy.linux.amd64" && \
+RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_proxy "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud-sql-proxy.linux.amd64" && \
 	chmod a=rx /usr/local/bin/cloud_sql_proxy && \
 	# dive for scanning image layer utilization metrics in CI
 	curl --silent --show-error --location "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.tar.gz" | \
@@ -246,8 +247,7 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-amd64/helm && \
 	# kube-linter for linting Kubernetes objects, including those
 	# that Helm generates from our charts
-	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- kube-linter && \
+	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux" --output /usr/local/bin/kube-linter && \
 	# kubens and kubectx for managing Kubernetes namespaces and contexts
 	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \

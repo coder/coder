@@ -32,6 +32,17 @@ func (pf *templateUploadFlags) option() clibase.Option {
 	}
 }
 
+func (pf *templateUploadFlags) setWorkdir(wd string) {
+	if wd == "" {
+		return
+	}
+	if pf.directory == "" || pf.directory == "." {
+		pf.directory = wd
+	} else if !filepath.IsAbs(pf.directory) {
+		pf.directory = filepath.Join(wd, pf.directory)
+	}
+}
+
 func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
@@ -62,7 +73,7 @@ func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.
 
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = inv.Stdout
-	spin.Suffix = cliui.Styles.Keyword.Render(" Uploading directory...")
+	spin.Suffix = cliui.DefaultStyles.Keyword.Render(" Uploading directory...")
 	spin.Start()
 	defer spin.Stop()
 
@@ -98,12 +109,13 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 	var (
 		versionName     string
 		provisioner     string
-		parameterFile   string
+		workdir         string
 		variablesFile   string
 		variables       []string
 		alwaysPrompt    bool
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
+		activate        bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -114,6 +126,8 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			uploadFlags.setWorkdir(workdir)
+
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
@@ -139,13 +153,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			job, _, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
+			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Name:            versionName,
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
 				FileID:          resp.ID,
-				ParameterFile:   parameterFile,
 				VariablesFile:   variablesFile,
 				Variables:       variables,
 				Template:        &template,
@@ -160,32 +173,36 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-				ID: job.ID,
-			})
-			if err != nil {
-				return err
+			if activate {
+				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+					ID: job.ID,
+				})
+				if err != nil {
+					return err
+				}
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
 
 	cmd.Options = clibase.OptionSet{
 		{
-			Flag:          "test.provisioner",
-			FlagShorthand: "p",
-			Description:   "Customize the provisioner backend.",
-			Default:       "terraform",
-			Value:         clibase.StringOf(&provisioner),
+			Flag:        "test.provisioner",
+			Description: "Customize the provisioner backend.",
+			Default:     "terraform",
+			Value:       clibase.StringOf(&provisioner),
 			// This is for testing!
 			Hidden: true,
 		},
 		{
-			Flag:        "parameter-file",
-			Description: "Specify a file path with parameter values.",
-			Value:       clibase.StringOf(&parameterFile),
+			Flag:        "test.workdir",
+			Description: "Customize the working directory.",
+			Default:     "",
+			Value:       clibase.StringOf(&workdir),
+			// This is for testing!
+			Hidden: true,
 		},
 		{
 			Flag:        "variables-file",
@@ -211,6 +228,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Flag:        "always-prompt",
 			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
 			Value:       clibase.BoolOf(&alwaysPrompt),
+		},
+		{
+			Flag:        "activate",
+			Description: "Whether the new template will be marked active.",
+			Default:     "true",
+			Value:       clibase.BoolOf(&activate),
 		},
 		cliui.SkipPromptOption(),
 		uploadFlags.option(),

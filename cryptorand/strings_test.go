@@ -91,7 +91,6 @@ func TestStringCharset(t *testing.T) {
 		},
 	}
 
-	//nolint:paralleltest
 	for _, test := range tests {
 		test := test
 		t.Run(test.Name, func(t *testing.T) {

@@ -95,7 +95,6 @@ test("Create template with variables", async () => {
   )
   expect(API.createTemplateVersion).toHaveBeenCalledWith(MockOrganization.id, {
     file_id: MockProvisionerJob.file_id,
-    parameter_values: [],
     provisioner: "terraform",
     storage_method: "file",
     tags: {},

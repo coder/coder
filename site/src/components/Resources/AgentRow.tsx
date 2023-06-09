@@ -1,13 +1,12 @@
-import Link from "@material-ui/core/Link"
-import Popover from "@material-ui/core/Popover"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
-import PlayCircleOutlined from "@material-ui/icons/PlayCircleFilledOutlined"
-import VisibilityOffOutlined from "@material-ui/icons/VisibilityOffOutlined"
-import VisibilityOutlined from "@material-ui/icons/VisibilityOutlined"
-import { Skeleton } from "@material-ui/lab"
+import Popover from "@mui/material/Popover"
+import { makeStyles, useTheme } from "@mui/styles"
+import Skeleton from "@mui/material/Skeleton"
 import { useMachine } from "@xstate/react"
-import { AppLinkSkeleton } from "components/AppLink/AppLinkSkeleton"
-import { Maybe } from "components/Conditionals/Maybe"
+import CodeOutlined from "@mui/icons-material/CodeOutlined"
+import {
+  CloseDropdown,
+  OpenDropdown,
+} from "components/DropdownArrows/DropdownArrows"
 import { LogLine, logLineHeight } from "components/Logs/Logs"
 import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
@@ -20,11 +19,12 @@ import {
   useRef,
   useState,
 } from "react"
-import { useTranslation } from "react-i18next"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { FixedSizeList as List, ListOnScrollProps } from "react-window"
+import { colors } from "theme/colors"
+import { combineClasses } from "utils/combineClasses"
 import {
   LineWithID,
   workspaceAgentLogsMachine,
@@ -40,20 +40,20 @@ import { Stack } from "../Stack/Stack"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentLatency } from "./AgentLatency"
 import { AgentMetadata } from "./AgentMetadata"
-import { AgentStatus } from "./AgentStatus"
 import { AgentVersion } from "./AgentVersion"
+import { AgentStatus } from "./AgentStatus"
+import Collapse from "@mui/material/Collapse"
+import { useProxy } from "contexts/ProxyContext"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
   workspace: Workspace
-  applicationsHost: string | undefined
   showApps: boolean
   hideSSHButton?: boolean
   sshPrefix?: string
   hideVSCodeDesktopButton?: boolean
   serverVersion: string
   onUpdateAgent: () => void
-
   storybookStartupLogs?: LineWithID[]
   storybookAgentMetadata?: WorkspaceAgentMetadata[]
 }
@@ -61,7 +61,6 @@ export interface AgentRowProps {
 export const AgentRow: FC<AgentRowProps> = ({
   agent,
   workspace,
-  applicationsHost,
   showApps,
   hideSSHButton,
   hideVSCodeDesktopButton,
@@ -72,7 +71,6 @@ export const AgentRow: FC<AgentRowProps> = ({
   sshPrefix,
 }) => {
   const styles = useStyles()
-  const { t } = useTranslation("agent")
   const [logsMachine, sendLogsEvent] = useMachine(workspaceAgentLogsMachine, {
     context: { agentID: agent.id },
     services: process.env.STORYBOOK
@@ -87,12 +85,17 @@ export const AgentRow: FC<AgentRowProps> = ({
       : undefined,
   })
   const theme = useTheme()
-  const startupScriptAnchorRef = useRef<HTMLLinkElement>(null)
+  const startupScriptAnchorRef = useRef<HTMLButtonElement>(null)
   const [startupScriptOpen, setStartupScriptOpen] = useState(false)
-
+  const hasAppsToDisplay = !hideVSCodeDesktopButton || agent.apps.length > 0
+  const shouldDisplayApps =
+    showApps &&
+    ((agent.status === "connected" && hasAppsToDisplay) ||
+      agent.status === "connecting")
   const hasStartupFeatures =
     Boolean(agent.startup_logs_length) ||
     Boolean(logsMachine.context.startupLogs?.length)
+  const { proxy } = useProxy()
 
   const [showStartupLogs, setShowStartupLogs] = useState(
     agent.lifecycle_state !== "ready" && hasStartupFeatures,
@@ -111,10 +114,10 @@ export const AgentRow: FC<AgentRowProps> = ({
   useEffect(() => {
     // We only want to fetch logs when they are actually shown,
     // otherwise we can make a lot of requests that aren't necessary.
-    if (showStartupLogs) {
+    if (showStartupLogs && logsMachine.can("FETCH_STARTUP_LOGS")) {
       sendLogsEvent("FETCH_STARTUP_LOGS")
     }
-  }, [sendLogsEvent, showStartupLogs])
+  }, [logsMachine, sendLogsEvent, showStartupLogs])
   const logListRef = useRef<List>(null)
   const logListDivRef = useRef<HTMLDivElement>(null)
   const startupLogs = useMemo(() => {
@@ -167,303 +170,434 @@ export const AgentRow: FC<AgentRowProps> = ({
 
   return (
     <Stack
-      direction="column"
       key={agent.id}
+      direction="column"
       spacing={0}
-      className={styles.agentWrapper}
+      className={combineClasses([
+        styles.agentRow,
+        styles[`agentRow-${agent.status}`],
+        styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
+      ])}
     >
-      <Stack
-        direction="row"
-        alignItems="center"
-        className={styles.agentRow}
-        spacing={4}
-        style={{
-          justifyContent: "none",
-          alignItems: "center",
-        }}
-      >
-        <div className={styles.agentStatusWrapper}>
-          <AgentStatus agent={agent} />
-        </div>
-        <div
-          style={{
-            flex: 1,
-          }}
-        >
-          <Stack
-            direction="row"
-            alignItems="center"
-            style={{
-              width: "100%",
-              justifyContent: "space-between",
-            }}
-          >
-            <Stack direction="row" alignItems="baseline">
-              <div>
-                <div className={styles.agentName}>{agent.name}</div>
-                <Stack
-                  direction="row"
-                  alignItems="baseline"
-                  className={styles.agentData}
-                  spacing={1}
-                >
+      <div className={styles.agentInfo}>
+        <div className={styles.agentNameAndStatus}>
+          <div className={styles.agentNameAndInfo}>
+            <AgentStatus agent={agent} />
+            <div className={styles.agentName}>{agent.name}</div>
+            <Stack
+              direction="row"
+              spacing={2}
+              alignItems="baseline"
+              className={styles.agentDescription}
+            >
+              {agent.status === "connected" && (
+                <>
                   <span className={styles.agentOS}>
                     {agent.operating_system}
                   </span>
-
-                  <Maybe condition={agent.status === "connected"}>
-                    <AgentVersion
-                      agent={agent}
-                      serverVersion={serverVersion}
-                      onUpdate={onUpdateAgent}
-                    />
-                  </Maybe>
-
+                  <AgentVersion
+                    agent={agent}
+                    serverVersion={serverVersion}
+                    onUpdate={onUpdateAgent}
+                  />
                   <AgentLatency agent={agent} />
-
-                  <Maybe condition={agent.status === "connecting"}>
-                    <Skeleton width={160} variant="text" />
-                    <Skeleton width={36} variant="text" />
-                  </Maybe>
-
-                  <Maybe condition={agent.status === "timeout"}>
-                    {t("unableToConnect")}
-                  </Maybe>
-                </Stack>
-              </div>
-            </Stack>
-
-            <Stack
-              direction="row"
-              alignItems="center"
-              spacing={0.5}
-              wrap="wrap"
-              maxWidth="750px"
-            >
-              {showApps && agent.status === "connected" && (
+                </>
+              )}
+              {agent.status === "connecting" && (
                 <>
-                  {agent.apps.map((app) => (
-                    <AppLink
-                      key={app.slug}
-                      appsHost={applicationsHost}
-                      app={app}
-                      agent={agent}
-                      workspace={workspace}
-                    />
-                  ))}
+                  <Skeleton width={160} variant="text" />
+                  <Skeleton width={36} variant="text" />
+                </>
+              )}
+            </Stack>
+          </div>
+        </div>
 
-                  <TerminalLink
+        {agent.status === "connected" && (
+          <div className={styles.agentButtons}>
+            {shouldDisplayApps && (
+              <>
+                {!hideVSCodeDesktopButton && (
+                  <VSCodeDesktopButton
+                    userName={workspace.owner_name}
                     workspaceName={workspace.name}
                     agentName={agent.name}
-                    userName={workspace.owner_name}
+                    folderPath={agent.expanded_directory}
                   />
-                  {!hideSSHButton && (
-                    <SSHButton
-                      workspaceName={workspace.name}
-                      agentName={agent.name}
-                      sshPrefix={sshPrefix}
-                    />
-                  )}
-                  {!hideVSCodeDesktopButton && (
-                    <VSCodeDesktopButton
-                      userName={workspace.owner_name}
-                      workspaceName={workspace.name}
-                      agentName={agent.name}
-                      folderPath={agent.expanded_directory}
-                    />
-                  )}
-                  {applicationsHost !== undefined &&
-                    applicationsHost !== "" && (
-                      <PortForwardButton
-                        host={applicationsHost}
-                        workspaceName={workspace.name}
-                        agentId={agent.id}
-                        agentName={agent.name}
-                        username={workspace.owner_name}
-                      />
-                    )}
-                </>
-              )}
-              {showApps && agent.status === "connecting" && (
-                <>
-                  <AppLinkSkeleton width={84} />
-                  <AppLinkSkeleton width={112} />
-                </>
-              )}
-            </Stack>
-          </Stack>
-          <AgentMetadata
-            storybookMetadata={storybookAgentMetadata}
-            agent={agent}
-          />
-          {hasStartupFeatures && (
-            <Stack
-              direction="row"
-              alignItems="baseline"
-              spacing={1}
-              className={styles.startupLinks}
-            >
-              <Link
-                className={styles.startupLink}
-                variant="body2"
-                onClick={() => {
-                  setShowStartupLogs(!showStartupLogs)
-                }}
-              >
-                {showStartupLogs ? (
-                  <VisibilityOffOutlined />
-                ) : (
-                  <VisibilityOutlined />
                 )}
-                {showStartupLogs ? "Hide" : "Show"} Startup Logs
-              </Link>
+                {agent.apps.map((app) => (
+                  <AppLink
+                    key={app.slug}
+                    app={app}
+                    agent={agent}
+                    workspace={workspace}
+                  />
+                ))}
+              </>
+            )}
 
-              {agent.startup_script && (
-                <Link
-                  className={styles.startupLink}
-                  variant="body2"
-                  ref={startupScriptAnchorRef}
-                  onClick={() => {
-                    setStartupScriptOpen(!startupScriptOpen)
-                  }}
-                >
-                  <PlayCircleOutlined />
-                  View Startup Script
-                </Link>
-              )}
-
-              <Popover
-                classes={{
-                  paper: styles.startupScriptPopover,
-                }}
-                open={startupScriptOpen}
-                onClose={() => setStartupScriptOpen(false)}
-                anchorEl={startupScriptAnchorRef.current}
-                anchorOrigin={{
-                  vertical: "bottom",
-                  horizontal: "left",
-                }}
-                transformOrigin={{
-                  vertical: "top",
-                  horizontal: "left",
-                }}
-              >
-                <div>
-                  <SyntaxHighlighter
-                    style={darcula}
-                    language="shell"
-                    showLineNumbers
-                    // Use inline styles does not work correctly
-                    // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
-                    codeTagProps={{ style: {} }}
-                    customStyle={{
-                      background: theme.palette.background.default,
-                      maxWidth: 600,
-                      margin: 0,
-                    }}
-                  >
-                    {agent.startup_script || ""}
-                  </SyntaxHighlighter>
-                </div>
-              </Popover>
-            </Stack>
-          )}
-        </div>
-      </Stack>
-      {showStartupLogs && (
-        <AutoSizer disableHeight>
-          {({ width }) => (
-            <List
-              ref={logListRef}
-              innerRef={logListDivRef}
-              height={256}
-              itemCount={startupLogs.length}
-              itemSize={logLineHeight}
-              width={width}
-              className={styles.startupLogs}
-              onScroll={handleLogScroll}
-            >
-              {({ index, style }) => (
-                <LogLine
-                  line={startupLogs[index]}
-                  number={index + 1}
-                  style={style}
+            <TerminalLink
+              workspaceName={workspace.name}
+              agentName={agent.name}
+              userName={workspace.owner_name}
+            />
+            {!hideSSHButton && (
+              <SSHButton
+                workspaceName={workspace.name}
+                agentName={agent.name}
+                sshPrefix={sshPrefix}
+              />
+            )}
+            {proxy.preferredWildcardHostname &&
+              proxy.preferredWildcardHostname !== "" && (
+                <PortForwardButton
+                  host={proxy.preferredWildcardHostname}
+                  workspaceName={workspace.name}
+                  agentId={agent.id}
+                  agentName={agent.name}
+                  username={workspace.owner_name}
                 />
               )}
-            </List>
-          )}
-        </AutoSizer>
+          </div>
+        )}
+
+        {agent.status === "connecting" && (
+          <div className={styles.agentButtons}>
+            <Skeleton
+              width={80}
+              height={32}
+              variant="rectangular"
+              className={styles.buttonSkeleton}
+            />
+            <Skeleton
+              width={110}
+              height={32}
+              variant="rectangular"
+              className={styles.buttonSkeleton}
+            />
+          </div>
+        )}
+      </div>
+
+      <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
+
+      {hasStartupFeatures && (
+        <div className={styles.logsPanel}>
+          <Collapse in={showStartupLogs}>
+            <AutoSizer disableHeight>
+              {({ width }) => (
+                <List
+                  ref={logListRef}
+                  innerRef={logListDivRef}
+                  height={256}
+                  itemCount={startupLogs.length}
+                  itemSize={logLineHeight}
+                  width={width}
+                  className={styles.startupLogs}
+                  onScroll={handleLogScroll}
+                >
+                  {({ index, style }) => (
+                    <LogLine
+                      line={startupLogs[index]}
+                      number={index + 1}
+                      style={style}
+                    />
+                  )}
+                </List>
+              )}
+            </AutoSizer>
+          </Collapse>
+
+          <div className={styles.logsPanelButtons}>
+            {showStartupLogs ? (
+              <button
+                className={combineClasses([
+                  styles.logsPanelButton,
+                  styles.toggleLogsButton,
+                ])}
+                onClick={() => {
+                  setShowStartupLogs((v) => !v)
+                }}
+              >
+                <CloseDropdown />
+                Hide startup logs
+              </button>
+            ) : (
+              <button
+                className={combineClasses([
+                  styles.logsPanelButton,
+                  styles.toggleLogsButton,
+                ])}
+                onClick={() => {
+                  setShowStartupLogs((v) => !v)
+                }}
+              >
+                <OpenDropdown />
+                Show startup logs
+              </button>
+            )}
+
+            <button
+              className={combineClasses([
+                styles.logsPanelButton,
+                styles.scriptButton,
+              ])}
+              ref={startupScriptAnchorRef}
+              onClick={() => {
+                setStartupScriptOpen(!startupScriptOpen)
+              }}
+            >
+              <CodeOutlined />
+              Startup script
+            </button>
+
+            <Popover
+              classes={{
+                paper: styles.startupScriptPopover,
+              }}
+              open={startupScriptOpen}
+              onClose={() => setStartupScriptOpen(false)}
+              anchorEl={startupScriptAnchorRef.current}
+            >
+              <div>
+                <SyntaxHighlighter
+                  style={darcula}
+                  language="shell"
+                  showLineNumbers
+                  // Use inline styles does not work correctly
+                  // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
+                  codeTagProps={{ style: {} }}
+                  customStyle={{
+                    background: theme.palette.background.default,
+                    maxWidth: 600,
+                    margin: 0,
+                  }}
+                >
+                  {agent.startup_script || ""}
+                </SyntaxHighlighter>
+              </div>
+            </Popover>
+          </div>
+        </div>
       )}
     </Stack>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  agentWrapper: {
-    "&:not(:last-child)": {
-      borderBottom: `1px solid ${theme.palette.divider}`,
-    },
-  },
-
   agentRow: {
-    padding: theme.spacing(3, 4),
     backgroundColor: theme.palette.background.paperLight,
     fontSize: 16,
-  },
+    borderLeft: `2px solid ${theme.palette.text.secondary}`,
 
-  startupLinks: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(2),
-    marginTop: theme.spacing(0.5),
-  },
-
-  startupLink: {
-    cursor: "pointer",
-    display: "flex",
-    gap: 4,
-    alignItems: "center",
-    userSelect: "none",
-    whiteSpace: "nowrap",
-
-    "& svg": {
-      width: 12,
-      height: 12,
+    "&:not(:first-of-type)": {
+      borderTop: `2px solid ${theme.palette.divider}`,
     },
+  },
+
+  "agentRow-connected": {
+    borderLeftColor: theme.palette.success.light,
+  },
+
+  "agentRow-disconnected": {
+    borderLeftColor: theme.palette.text.secondary,
+  },
+
+  "agentRow-connecting": {
+    borderLeftColor: theme.palette.info.light,
+  },
+
+  "agentRow-timeout": {
+    borderLeftColor: theme.palette.warning.light,
+  },
+
+  "agentRow-lifecycle-created": {},
+
+  "agentRow-lifecycle-starting": {
+    borderLeftColor: theme.palette.info.light,
+  },
+
+  "agentRow-lifecycle-ready": {
+    borderLeftColor: theme.palette.success.light,
+  },
+
+  "agentRow-lifecycle-start_timeout": {
+    borderLeftColor: theme.palette.warning.light,
+  },
+
+  "agentRow-lifecycle-start_error": {
+    borderLeftColor: theme.palette.error.light,
+  },
+
+  "agentRow-lifecycle-shutting_down": {
+    borderLeftColor: theme.palette.info.light,
+  },
+
+  "agentRow-lifecycle-shutdown_timeout": {
+    borderLeftColor: theme.palette.warning.light,
+  },
+
+  "agentRow-lifecycle-shutdown_error": {
+    borderLeftColor: theme.palette.error.light,
+  },
+
+  "agentRow-lifecycle-off": {
+    borderLeftColor: theme.palette.text.secondary,
+  },
+
+  agentInfo: {
+    padding: theme.spacing(2, 4),
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(6),
+    flexWrap: "wrap",
+
+    [theme.breakpoints.down("md")]: {
+      gap: theme.spacing(2),
+    },
+  },
+
+  agentNameAndInfo: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(3),
+    flexWrap: "wrap",
+
+    [theme.breakpoints.down("md")]: {
+      gap: theme.spacing(1.5),
+    },
+  },
+
+  agentButtons: {
+    display: "flex",
+    gap: theme.spacing(1),
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    flex: 1,
+
+    [theme.breakpoints.down("md")]: {
+      marginLeft: 0,
+      justifyContent: "flex-start",
+    },
+  },
+
+  agentDescription: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
   },
 
   startupLogs: {
     maxHeight: 256,
-    background: theme.palette.background.default,
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    backgroundColor: theme.palette.background.paper,
+    paddingTop: theme.spacing(2),
+
+    // We need this to be able to apply the padding top from startupLogs
+    "& > div": {
+      position: "relative",
+    },
   },
 
   startupScriptPopover: {
     backgroundColor: theme.palette.background.default,
   },
 
-  agentStatusWrapper: {
-    width: theme.spacing(4.5),
+  agentNameAndStatus: {
     display: "flex",
-    justifyContent: "center",
+    alignItems: "center",
+    gap: theme.spacing(4),
+
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+    },
   },
 
   agentName: {
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    maxWidth: 260,
     fontWeight: 600,
+    fontSize: theme.spacing(2),
+    flexShrink: 0,
+    width: "fit-content",
+
+    [theme.breakpoints.down("md")]: {
+      overflow: "unset",
+    },
+  },
+
+  agentDataGroup: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: theme.spacing(6),
+  },
+
+  agentData: {
+    display: "flex",
+    flexDirection: "column",
+    fontSize: 12,
+
+    "& > *:first-of-type": {
+      fontWeight: 500,
+      color: theme.palette.text.secondary,
+    },
+  },
+
+  logsPanel: {
+    borderTop: `1px solid ${theme.palette.divider}`,
+  },
+
+  logsPanelButtons: {
+    display: "flex",
+  },
+
+  logsPanelButton: {
+    textAlign: "left",
+    background: "transparent",
+    border: 0,
+    fontFamily: "inherit",
+    padding: theme.spacing(1.5, 4),
+    color: theme.palette.text.secondary,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1),
+    whiteSpace: "nowrap",
+
+    "&:hover": {
+      color: theme.palette.text.primary,
+      backgroundColor: colors.gray[14],
+    },
+
+    "& svg": {
+      color: "inherit",
+    },
+  },
+
+  toggleLogsButton: {
+    width: "100%",
+  },
+
+  buttonSkeleton: {
+    borderRadius: 4,
+  },
+
+  agentErrorMessage: {
+    fontSize: 12,
+    fontWeight: 400,
+    marginTop: theme.spacing(0.5),
+    color: theme.palette.warning.light,
+  },
+
+  scriptButton: {
+    "& svg": {
+      width: theme.spacing(2),
+      height: theme.spacing(2),
+    },
   },
 
   agentOS: {
     textTransform: "capitalize",
-  },
-
-  agentData: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.5),
-  },
-
-  agentStartupLogs: {
-    maxHeight: 200,
-    display: "flex",
-    flexDirection: "column-reverse",
   },
 }))

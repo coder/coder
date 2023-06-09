@@ -18,9 +18,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-security
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  CODER_GO_VERSION: "1.20.5"
+
 jobs:
   codeql:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
 
@@ -29,21 +32,7 @@ jobs:
         with:
           languages: go, javascript
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "~1.20"
-
-      - name: Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
-          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
+      - uses: ./.github/actions/setup-go
 
       # Workaround to prevent CodeQL from building the dashboard.
       - name: Remove Makefile
@@ -65,30 +54,17 @@ jobs:
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
   trivy:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v4
-        with:
-          go-version: "~1.20"
-
-      - name: Go Cache Paths
-        id: go-cache-paths
-        run: |
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      - name: Go Mod Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
-          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
+      - uses: ./.github/actions/setup-go
 
       - name: Cache Node
         id: cache-node
-        uses: actions/cache@v3
+        uses: buildjet/cache@v3
         with:
           path: |
             **/node_modules
@@ -102,10 +78,12 @@ jobs:
           curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
+      - name: Install mockgen
+        run: go install github.com/golang/mock/mockgen@v1.6.0
       - name: Install protoc-gen-go
-        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
       - name: Install protoc-gen-go-drpc
-        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
       - name: Install Protoc
         run: |
           # protoc must be in lockstep with our dogfood Dockerfile or the
@@ -140,7 +118,7 @@ jobs:
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@1f0aa582c8c8f5f7639610d6d38baddfea4fdcee
+        uses: aquasecurity/trivy-action@e5f43133f6e8736992c9f3c1b3296e24b37e17f2
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif
@@ -163,7 +141,7 @@ jobs:
       - name: Send Slack notification on failure
         if: ${{ failure() }}
         run: |
-          msg="❌ CodeQL Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          msg="❌ Trivy Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           curl \
             -qfsSL \
             -X POST \
