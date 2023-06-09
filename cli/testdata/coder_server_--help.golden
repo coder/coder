@@ -193,6 +193,10 @@ backed by Tailscale and WireGuard.
           The maximum lifetime duration users can specify when creating an API
           token.
 
+      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
+          The interval in which coderd should be checking the status of
+          workspace proxies.
+
       --session-duration duration, $CODER_SESSION_DURATION (default: 24h0m0s)
           The token expiry duration for browser sessions. Sessions may last
           longer if they are actively making requests, but this functionality
@@ -296,8 +300,8 @@ can safely ignore these settings.
           OIDC claim field to use as the email.
 
       --oidc-group-field string, $CODER_OIDC_GROUP_FIELD
-          Change the OIDC default 'groups' claim field. By default, will be
-          'groups' if present in the oidc scopes argument.
+          This field must be set if using the group sync feature and the scope
+          name is not 'groups'. Set to the claim to be used for groups.
 
       --oidc-group-mapping struct[map[string]string], $CODER_OIDC_GROUP_MAPPING (default: {})
           A map of OIDC group IDs and the group in Coder it should map to. This

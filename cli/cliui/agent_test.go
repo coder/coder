@@ -140,7 +140,7 @@ func TestAgent_StartupTimeout(t *testing.T) {
 				},
 				FetchInterval: time.Millisecond,
 				WarnInterval:  time.Millisecond,
-				NoWait:        false,
+				Wait:          true,
 			})
 			return err
 		},
@@ -199,7 +199,7 @@ func TestAgent_StartErrorExit(t *testing.T) {
 				},
 				FetchInterval: time.Millisecond,
 				WarnInterval:  60 * time.Second,
-				NoWait:        false,
+				Wait:          true,
 			})
 			return err
 		},
@@ -255,7 +255,7 @@ func TestAgent_NoWait(t *testing.T) {
 				},
 				FetchInterval: time.Millisecond,
 				WarnInterval:  time.Second,
-				NoWait:        true,
+				Wait:          false,
 			})
 			return err
 		},
@@ -325,7 +325,7 @@ func TestAgent_StartupScriptBehaviorNonBlocking(t *testing.T) {
 				},
 				FetchInterval: time.Millisecond,
 				WarnInterval:  time.Second,
-				NoWait:        false,
+				Wait:          true,
 			})
 			return err
 		},

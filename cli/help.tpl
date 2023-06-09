@@ -43,7 +43,7 @@ Usage: {{.FullUsage}}
         {{- with $option.Description }}
             {{- $desc := $option.Description }}
 {{ indent $desc 10 }}
-{{- if isDeprecated $option }} DEPRECATED {{ end }}
+{{- if isDeprecated $option }}{{ indent (printf "DEPRECATED: Use %s instead." (useInstead $option)) 10 }}{{ end }}
         {{- end -}}
     {{- end }}
 {{- end }}

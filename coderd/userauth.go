@@ -675,6 +675,12 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// This conditional is purely to warn the user they might have misconfigured their OIDC
+	// configuration.
+	if _, groupClaimExists := claims["groups"]; !usingGroups && groupClaimExists {
+		api.Logger.Debug(ctx, "'groups' claim was returned, but 'oidc-group-field' is not set, check your coder oidc settings.")
+	}
+
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.

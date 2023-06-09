@@ -221,14 +221,14 @@ resource "coder_agent" "coder" {
 Whichever behavior is enabled, the user can still choose to override it by specifying the appropriate flags (or environment variables) in the CLI when connecting to the workspace. The behavior can be overridden by one of the following means:
 
 - Set an environment variable (for use with `ssh` or `coder ssh`):
-  - `export CODER_SSH_WAIT=true` (blocking)
-  - `export CODER_SSH_NO_WAIT=true` (non-blocking)
+  - `export CODER_SSH_WAIT=yes` (blocking)
+  - `export CODER_SSH_WAIT=no` (non-blocking)
 - Use a flag with `coder ssh`:
-  - `coder ssh --wait my-workspace` (blocking)
-  - `coder ssh --no-wait my-workspace` (non-blocking)
-- Use a flag that configures all future `ssh` connections:
-  - `coder config-ssh --wait` (blocking)
-  - `coder config-ssh --no-wait` (non-blocking)
+  - `coder ssh --wait=yes my-workspace` (blocking)
+  - `coder ssh --wait=no my-workspace` (non-blocking)
+- Use a flag to configure all future `ssh` connections:
+  - `coder config-ssh --wait=yes` (blocking)
+  - `coder config-ssh --wait=no` (non-blocking)
 
 ### Start/stop
 
@@ -424,7 +424,7 @@ Depending on the contents of the [startup script](https://registry.terraform.io/
 
 #### Unable to access workspace, startup script is still running
 
-If you're trying to access your workspace and are unable to because the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running, it means the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option is set to blocking or you have enabled the `--wait` option (for e.g. `coder ssh` or `coder config-ssh`). In such an event, you can always access the workspace by using the web terminal, or via SSH using the `--no-wait` option. If the startup script is running longer than it should, or never completing, you can try to [debug the startup script](#debugging-the-startup-script) to resolve the issue. Alternatively, you can try to force the startup script to exit by terminating processes started by it or terminating the startup script itself (on Linux, `ps` and `kill` are useful tools).
+If you're trying to access your workspace and are unable to because the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running, it means the [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior) option is set to blocking or you have enabled the `--wait=yes` option (for e.g. `coder ssh` or `coder config-ssh`). In such an event, you can always access the workspace by using the web terminal, or via SSH using the `--wait=no` option. If the startup script is running longer than it should, or never completing, you can try to [debug the startup script](#debugging-the-startup-script) to resolve the issue. Alternatively, you can try to force the startup script to exit by terminating processes started by it or terminating the startup script itself (on Linux, `ps` and `kill` are useful tools).
 
 For tips on how to write a startup script that doesn't run forever, see the [`startup_script`](#startup_script) section. For more ways to override the startup script behavior, see the [`startup_script_behavior`](#startup_script_behavior) section.
 
