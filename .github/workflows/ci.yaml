@@ -561,7 +561,7 @@ jobs:
 
   required:
     runs-on: ubuntu-latest
-    needs: [test-go, test-go-psql, test-js]
+    needs: [test-go, test-go-pg, test-js]
     # allow this job to run even if the previous jobs are skipped
     if: |
       always() &&
