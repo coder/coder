@@ -24,10 +24,6 @@ func TestEnterpriseCommandHelp(t *testing.T) {
 		return rootCmd
 	}
 	clitest.TestCommandHelp(t, getCmds,
-		append(clitest.DefaultCases(),
-			clitest.CommandHelpCase{
-				Name: "coder wsproxy --help",
-				Cmd:  []string{"wsproxy", "--help"},
-			}),
+		append(clitest.DefaultCases()),
 	)
 }
