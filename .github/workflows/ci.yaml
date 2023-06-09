@@ -223,11 +223,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: buildjet/setup-go@v4
-        with:
-          cache: false
-          go-version: ${{ env.CODER_GO_VERSION }}
-
       - uses: ./.github/actions/setup-go
 
       - uses: hashicorp/setup-terraform@v2
@@ -457,8 +452,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install node_modules
-        run: ./scripts/yarn_install.sh
+      - uses: ./.github/actions/setup-node
 
       - run: yarn test:ci --max-workers $(nproc)
         working-directory: site
