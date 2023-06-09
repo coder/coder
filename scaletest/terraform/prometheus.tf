@@ -104,7 +104,7 @@ prometheus:
 resource "kubernetes_secret" "prometheus-postgres-password" {
   type = "kubernetes.io/basic-auth"
   metadata {
-    name = "prometheus-postgres"
+    name      = "prometheus-postgres"
     namespace = kubernetes_namespace.prometheus_namespace.metadata.0.name
   }
   data = {
@@ -116,9 +116,9 @@ resource "kubernetes_secret" "prometheus-postgres-password" {
 # Install Prometheus Postgres exporter helm chart
 resource "helm_release" "prometheus-exporter-chart" {
   repository = local.prometheus_exporter_helm_repo
-  chart = local.prometheus_exporter_helm_chart
-  name = local.prometheus_exporter_release_name
-  namespace = local.prometheus_namespace
+  chart      = local.prometheus_exporter_helm_chart
+  name       = local.prometheus_exporter_release_name
+  namespace  = local.prometheus_namespace
   values = [<<EOF
 affinity:
   nodeAffinity:
