@@ -20,9 +20,9 @@ runs:
 
     - uses: buildjet/cache@v3
       with:
-        # This cache includes $GOCACHE, which is used for
-        # test caching.
-        path: ~/.cache
-        key: buildjet-gocache-${{ hashFiles('**/*.go') }}
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg
+        key: go-${{ hashFiles('**/*.go', 'go.**') }}
         restore-keys: |
-          buildjet-gocache-
+          go-
