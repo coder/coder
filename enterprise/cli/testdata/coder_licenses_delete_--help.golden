@@ -1,0 +1,8 @@
+Usage: coder licenses delete <id>
+
+Delete license by ID
+
+Aliases: del, rm
+
+---
+Run `coder --help` for a list of global options.

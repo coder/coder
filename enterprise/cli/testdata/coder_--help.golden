@@ -1,0 +1,50 @@
+Usage: coder [global-flags] <subcommand>
+
+Coder v0.0.0-devel — A tool for provisioning self-hosted development environments with Terraform.
+  - Start a Coder server:                                                       
+
+     [40m [0m[91;40m$ coder server[0m[40m [0m
+
+  - Get started by creating a template from an example:                         
+
+     [40m [0m[91;40m$ coder templates init[0m[40m [0m
+
+[1mSubcommands[0m
+    features           List Enterprise features
+    groups             Manage groups
+    licenses           Add, delete, and list licenses
+    provisionerd       Manage provisioner daemons
+    server             Start a Coder server
+
+[1mGlobal Options[0m 
+Global options are applied to all commands. They can be set using environment
+variables or flags.
+
+      --debug-options bool
+          Print all options, how they're set, then exit.
+
+      --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
+          Path to the global `coder` config directory.
+
+      --header string-array, $CODER_HEADER
+          Additional HTTP headers added to all requests. Provide as key=value.
+          Can be specified multiple times.
+
+      --no-feature-warning bool, $CODER_NO_FEATURE_WARNING
+          Suppress warnings about unlicensed features.
+
+      --no-version-warning bool, $CODER_NO_VERSION_WARNING
+          Suppress warning when client and server versions do not match.
+
+      --token string, $CODER_SESSION_TOKEN
+          Specify an authentication token. For security reasons setting
+          CODER_SESSION_TOKEN is preferred.
+
+      --url url, $CODER_URL
+          URL to a deployment.
+
+  -v, --verbose bool, $CODER_VERBOSE
+          Enable verbose output.
+
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new
