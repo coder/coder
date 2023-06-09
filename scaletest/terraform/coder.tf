@@ -34,11 +34,11 @@ resource "kubernetes_namespace" "coder_namespace" {
   ]
 }
 
-resource "random_password" "postgres-admin-password" {
+resource "random_password" "coder-postgres-password" {
   length = 12
 }
 
-resource "random_password" "coder-postgres-password" {
+resource "random_password" "prometheus-postgres-password" {
   length = 12
 }
 
