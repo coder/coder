@@ -84,31 +84,25 @@ Valid `share` values include `owner` - private to the user, `authenticated` - ac
 
 ![Port forwarding from an app in the UI](../images/coderapp-port-forward.png)
 
-## SSH
+### Cross-origin resource sharing (CORS)
 
-First, [configure SSH](../ides.md#ssh-configuration) on your
-local machine. Then, use `ssh` to forward like so:
+When forwarding via the dashboard, Coder automatically sets headers that allow
+requests between separately forwarded applications belonging to the same user.
 
-```console
-ssh -L 8080:localhost:8000 coder.myworkspace
-```
+When forwarding through other methods the application itself will need to set
+its own CORS headers if they are being forwarded through different origins since
+Coder does not intercept these cases. See below for the required headers.
 
-You can read more on SSH port forwarding [here](https://www.ssh.com/academy/ssh/tunneling/example).
+#### Authentication
 
-## Cross-origin resource sharing (CORS)
-
-Coder automatically sets headers that allow requests between separately
-forwarded applications belonging to the same user.
-
-### Authentication
-
-Since forwarded ports are private, cross-origin requests must include
-credentials (set `credentials: "include"` if using `fetch`) or the requests
-cannot be authenticated and you will see an error resembling the following:
+Since ports forwarded through the dashboard are private, cross-origin requests
+must include credentials (set `credentials: "include"` if using `fetch`) or the
+requests cannot be authenticated and you will see an error resembling the
+following:
 
 > Access to fetch at 'https://dev.coder.com/api/v2/applications/auth-redirect' from origin 'https://8000--dev--user--apps.dev.coder.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
 
-### Headers
+#### Headers
 
 Below is a list of the cross-origin headers Coder sets with example values:
 
@@ -126,17 +120,18 @@ The allowed origin will be set to the origin provided by the browser if the
 users are identical. Credentials are allowed and the allowed methods and headers
 will echo whatever the request sends.
 
-### Configuration
+#### Configuration
 
 These cross-origin headers are not configurable by administrative settings.
 
 Applications can set their own headers which will override the defaults but this
-will only apply to non-preflight requests. Preflight requests are never sent to
-applications and thus cannot be modified by them. Read more about the difference
-between simple requests and requests that trigger preflights
+will only apply to non-preflight requests. Preflight requests through the
+dashboard are never sent to applications and thus cannot be modified by
+them. Read more about the difference between simple requests and requests that
+trigger preflights
 [here](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests).
 
-### Allowed by default
+#### Allowed by default
 
 <table class="tg">
 <thead>
@@ -199,3 +194,14 @@ between simple requests and requests that trigger preflights
 </table>
 
 > '\*' means `credentials: "include"` is required
+
+## SSH
+
+First, [configure SSH](../ides.md#ssh-configuration) on your
+local machine. Then, use `ssh` to forward like so:
+
+```console
+ssh -L 8080:localhost:8000 coder.myworkspace
+```
+
+You can read more on SSH port forwarding [here](https://www.ssh.com/academy/ssh/tunneling/example).
