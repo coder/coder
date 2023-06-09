@@ -17,10 +17,14 @@ runs:
           ~/.cache/go-build
           ~/AppData/Local/go-build
           ~/Library/Caches/go-build
-        key: go-${{ runner.os }}-${{ hashFiles('**/*.go', 'go.**') }}
+        # Job name must be included in the key for effective
+        # test cache reuse.
+        key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
         restore-keys: |
-          go-${{ runner.os }}
-    
+          go-${{ runner.os }}-${{ github.job }}-
+          go-${{ runner.os }}-
+          go-
+
     - name: Install gotestsum
       uses: jaxxstorm/action-install-gh-release@v1.10.0
       with:
@@ -31,4 +35,4 @@ runs:
     # separate the "setup" from the "run" times.
     - name: go mod download
       shell: bash
-      run: go mod download
+      run: go mod download -x

@@ -238,13 +238,6 @@ jobs:
           # so we need to print the test stats to the log.
           go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
-      - uses: actions/upload-artifact@v3
-        if: success() || failure()
-        with:
-          name: gotests-${{ matrix.os }}.xml
-          path: ./gotests.xml
-          retention-days: 30
-
       - uses: ./.github/actions/upload-datadog
         if: always()
         with:
