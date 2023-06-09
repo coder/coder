@@ -86,7 +86,7 @@ if [[ -z "${SCALETEST_PROMETHEUS_REMOTE_WRITE_USER}" ]] || [[ -z "${SCALETEST_PR
 	echo "No prometheus metrics will be collected!"
 	read -pr "Continue (y/N)? " choice
 	case "$choice" in
-	y | Y | yes | YES) ;;
+	y|Y|yes|YES) ;;
 	*) exit 1 ;;
 	esac
 fi
