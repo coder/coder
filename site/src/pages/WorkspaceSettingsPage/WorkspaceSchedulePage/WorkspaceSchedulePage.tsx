@@ -118,7 +118,7 @@ export const WorkspaceSchedulePage: FC = () => {
         title={t("dialogTitle")}
         description={t("dialogDescription")}
         confirmText={t("restart")}
-        cancelText={t("applyLater")}
+        cancelText={t("applyLater").toString()}
         hideCancel={false}
         onConfirm={() => {
           scheduleSend("RESTART_WORKSPACE")
