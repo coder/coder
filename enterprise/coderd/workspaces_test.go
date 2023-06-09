@@ -2,13 +2,16 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
@@ -68,5 +71,58 @@ func TestCreateWorkspace(t *testing.T) {
 
 		_, err = client1.CreateWorkspace(ctx, user.OrganizationID, user1.ID.String(), req)
 		require.Error(t, err)
+	})
+}
+
+func TestWorkspacesFiltering(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FilterQueryHasDeletingByAndLicensed", func(t *testing.T) {
+		t.Parallel()
+
+		inactivityTTL := 1 * 24 * time.Hour
+
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// update template with inactivity ttl
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			InactivityTTLMillis: inactivityTTL.Milliseconds(),
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, inactivityTTL.Milliseconds(), template.InactivityTTLMillis)
+
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// stop build so workspace is inactive
+		stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, stopBuild.ID)
+
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			// adding a second to time.Now() to give some buffer in case test runs quickly
+			FilterQuery: fmt.Sprintf("deleting_by:%s", time.Now().Add(time.Second).Add(inactivityTTL).Format("2006-01-02")),
+		})
+		assert.NoError(t, err)
+		assert.Len(t, res.Workspaces, 1)
+		assert.Equal(t, workspace.ID, res.Workspaces[0].ID)
 	})
 }

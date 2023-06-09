@@ -1009,7 +1009,8 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		}, testutil.IntervalMedium, "agent status timeout")
 	})
 
-	t.Run("FilterQueryHasDeletingBy", func(t *testing.T) {
+	t.Run("FilterQueryHasDeletingByAndUnlicensed", func(t *testing.T) {
+		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
 		t.Parallel()
 		inactivityTTL := 1 * 24 * time.Hour
 		var setCalled int64
@@ -1059,8 +1060,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Len(t, res.Workspaces, 1)
-		assert.Equal(t, workspace.ID, res.Workspaces[0].ID)
+		// we are expecting that no workspaces are returned as user is unlicensed
+		// and template.InactivityTTL should be 0
+		assert.Len(t, res.Workspaces, 0)
 	})
 }
 
