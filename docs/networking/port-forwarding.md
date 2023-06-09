@@ -94,3 +94,108 @@ ssh -L 8080:localhost:8000 coder.myworkspace
 ```
 
 You can read more on SSH port forwarding [here](https://www.ssh.com/academy/ssh/tunneling/example).
+
+## Cross-origin resource sharing (CORS)
+
+Coder automatically sets headers that allow requests between separately
+forwarded applications belonging to the same user.
+
+### Authentication
+
+Since forwarded ports are private, cross-origin requests must include
+credentials (set `credentials: "include"` if using `fetch`) or the requests
+cannot be authenticated and you will see an error resembling the following:
+
+> Access to fetch at 'https://dev.coder.com/api/v2/applications/auth-redirect' from origin 'https://8000--dev--user--apps.dev.coder.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+
+### Headers
+
+Below is a list of the cross-origin headers Coder sets with example values:
+
+```
+access-control-allow-credentials: true
+access-control-allow-methods: PUT
+access-control-allow-headers: X-Custom-Header
+access-control-allow-origin: https://8000--dev--user--apps.dev.coder.com
+vary: Origin
+vary: Access-Control-Request-Method
+vary: Access-Control-Request-Headers
+```
+
+The allowed origin will be set to the origin provided by the browser if the
+users are identical. Credentials are allowed and the allowed methods and headers
+will echo whatever the request sends.
+
+### Configuration
+
+These cross-origin headers are not configurable by administrative settings.
+
+Applications can set their own headers which will override the defaults but this
+will only apply to non-preflight requests. Preflight requests are never sent to
+applications and thus cannot be modified by them. Read more about the difference
+between simple requests and requests that trigger preflights
+[here](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests).
+
+### Allowed by default
+
+<table class="tg">
+<thead>
+  <tr>
+    <th class="tg-0pky" rowspan="2"></th>
+    <th class="tg-0pky" rowspan="3"></th>
+    <th class="tg-0pky">From</th>
+    <th class="tg-0pky" colspan="3">Alice</th>
+    <th class="tg-0pky">Bob</th>
+  </tr>
+  <tr>
+    <th class="tg-0pky" rowspan="2"></th>
+    <th class="tg-0pky">Workspace 1</th>
+    <th class="tg-0pky" colspan="2">Workspace 2</th>
+    <th class="tg-0pky">Workspace 3</th>
+  </tr>
+  <tr>
+    <th class="tg-0pky">To</th>
+    <th class="tg-0pky">App A</th>
+    <th class="tg-0pky">App B</th>
+    <th class="tg-0pky">App C</th>
+    <th class="tg-0pky">App D</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td class="tg-0pky" rowspan="3">Alice</td>
+    <td class="tg-0pky" rowspan="2">Workspace 1</td>
+    <td class="tg-0pky">App A</td>
+    <td class="tg-0pky">✅</td>
+    <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
+    <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
+    <td class="tg-0pky">❌</td>
+  </tr>
+  <tr>
+    <td class="tg-0pky">App B</td>
+    <td class="tg-0pky">✅*</td>
+    <td class="tg-0pky">✅</td>
+    <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
+    <td class="tg-0pky">❌</td>
+  </tr>
+  <tr>
+    <td class="tg-0pky">Workspace 2</td>
+    <td class="tg-0pky">App C</td>
+    <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
+    <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
+    <td class="tg-0pky">✅</td>
+    <td class="tg-0pky">❌</td>
+  </tr>
+  <tr>
+    <td class="tg-0pky">Bob</td>
+    <td class="tg-0pky">Workspace 3</td>
+    <td class="tg-0pky">App D</td>
+    <td class="tg-0pky">❌</td>
+    <td class="tg-0pky">❌</td>
+    <td class="tg-0pky">❌</td>
+    <td class="tg-0pky">✅</td>
+  </tr>
+</tbody>
+</table>
+
+> '\*' means `credentials: "include"` is required
