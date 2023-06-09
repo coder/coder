@@ -23,7 +23,5 @@ func TestEnterpriseCommandHelp(t *testing.T) {
 
 		return rootCmd
 	}
-	clitest.TestCommandHelp(t, getCmds,
-		append(clitest.DefaultCases()),
-	)
+	clitest.TestCommandHelp(t, getCmds, clitest.DefaultCases())
 }
