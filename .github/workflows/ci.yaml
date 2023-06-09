@@ -218,6 +218,8 @@ jobs:
             echo "cover=false" >> $GITHUB_OUTPUT
           fi
 
+          # By default Go will use the number of logical CPUs, which
+          # is a fine default.
           PARALLEL_FLAG=""
           if [ "${{ matrix.os }}" == "windows-2019" ]; then
             # Windows appears more I/O bound, so we increase parallelism

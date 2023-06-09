@@ -4,6 +4,10 @@ description: |
 runs:
   using: "composite"
   steps:
+    - shell: bash
+      run: |
+        # Aids in debugging
+        go env
     - uses: buildjet/setup-go@v4
       with:
         cache: true
@@ -13,3 +17,12 @@ runs:
       with:
         repo: gotestyourself/gotestsum
         tag: v1.9.0
+
+    - uses: buildjet/cache@v3
+      with:
+        # This cache includes $GOCACHE, which is used for
+        # test caching.
+        path: ~/.cache
+        key: buildjet-gocache-${{ hashFiles('**/*.go') }}
+        restore-keys: |
+          buildjet-gocache-
