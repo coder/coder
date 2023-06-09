@@ -90,13 +90,13 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 coder wsproxy server
 ```
 
-### Running from the Docker image
+### Running in Docker
 
-Modify the default entrypoint to run the workspace proxy.
+Modify the default entrypoint to run a workspace proxy server instead of a regular Coder server.
 
 #### Docker Compose
 
-change the provided [`docker-compose.yml`](https://github.com/coder/coder/blob/main/docker-compose.yaml) file to include the workspace proxy.
+Change the provided [`docker-compose.yml`](https://github.com/coder/coder/blob/main/docker-compose.yaml) file to include a custom entrypoint:
 
 ```diff
   image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
@@ -121,11 +121,3 @@ ENTRYPOINT ["/opt/coder", "wsproxy", "server"]
 Users can navigate to their account settings to select a workspace proxy. Workspace proxy preferences are cached by the web browser. If a proxy goes offline, the session will fall back to the primary proxy. This could take up to 60 seconds.
 
 ![Workspace proxy picker](../images/admin/workspace-proxy-picker.png)
-
-```
-
-```
-
-```
-
-```
