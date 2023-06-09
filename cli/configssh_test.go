@@ -482,11 +482,31 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			args: []string{"--yes"},
 		},
 		{
+			name: "Serialize supported flags",
+			wantConfig: wantConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :wait=yes",
+					"# :ssh-host-prefix=coder-test.",
+					"#",
+					headerEnd,
+					"",
+				}, "\n"),
+			},
+			args: []string{
+				"--yes",
+				"--wait=yes",
+				"--ssh-host-prefix", "coder-test.",
+			},
+		},
+		{
 			name: "Do not prompt for new options when prev opts flag is set",
 			writeConfig: writeConfig{
 				ssh: strings.Join([]string{
 					headerStart,
 					"# Last config-ssh options:",
+					"# :wait=no",
 					"# :ssh-option=ForwardAgent=yes",
 					"#",
 					headerEnd,
@@ -497,6 +517,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				ssh: strings.Join([]string{
 					headerStart,
 					"# Last config-ssh options:",
+					"# :wait=no",
 					"# :ssh-option=ForwardAgent=yes",
 					"#",
 					headerEnd,
@@ -589,8 +610,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			clitest.SetupConfig(t, client, root)
 
 			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			pty.Attach(inv)
 			done := tGo(t, func() {
 				err := inv.Run()
 				if !tt.wantErr {

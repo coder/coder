@@ -7212,6 +7212,9 @@ const docTemplate = `{
                 "provisioner": {
                     "$ref": "#/definitions/codersdk.ProvisionerConfig"
                 },
+                "proxy_health_status_interval": {
+                    "type": "integer"
+                },
                 "proxy_trusted_headers": {
                     "type": "array",
                     "items": {

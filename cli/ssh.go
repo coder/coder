@@ -42,6 +42,7 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
+//nolint:gocyclo
 func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
 		stdio          bool
@@ -49,6 +50,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		forwardGPG     bool
 		identityAgent  string
 		wsPollInterval time.Duration
+		waitEnum       string
 		noWait         bool
 		logDir         string
 		logToFile      bool
@@ -105,6 +107,30 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				return err
 			}
 
+			// Select the startup script behavior based on template configuration or flags.
+			var wait bool
+			switch waitEnum {
+			case "yes":
+				wait = true
+			case "no":
+				wait = false
+			case "auto":
+				switch workspaceAgent.StartupScriptBehavior {
+				case codersdk.WorkspaceAgentStartupScriptBehaviorBlocking:
+					wait = true
+				case codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking:
+					wait = false
+				default:
+					return xerrors.Errorf("unknown startup script behavior %q", workspaceAgent.StartupScriptBehavior)
+				}
+			default:
+				return xerrors.Errorf("unknown wait value %q", waitEnum)
+			}
+			// The `--no-wait` flag is deprecated, but for now, check it.
+			if noWait {
+				wait = false
+			}
+
 			templateVersion, err := client.TemplateVersion(ctx, workspace.LatestBuild.TemplateVersionID)
 			if err != nil {
 				return err
@@ -134,7 +160,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
-				NoWait: noWait,
+				Wait: wait,
 			})
 			if err != nil {
 				if xerrors.Is(err, context.Canceled) {
@@ -313,6 +339,13 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			return nil
 		},
 	}
+	waitOption := clibase.Option{
+		Flag:        "wait",
+		Env:         "CODER_SSH_WAIT",
+		Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
+		Default:     "auto",
+		Value:       clibase.EnumOf(&waitEnum, "yes", "no", "auto"),
+	}
 	cmd.Options = clibase.OptionSet{
 		{
 			Flag:        "stdio",
@@ -347,11 +380,13 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Default:     "1m",
 			Value:       clibase.DurationOf(&wsPollInterval),
 		},
+		waitOption,
 		{
 			Flag:        "no-wait",
 			Env:         "CODER_SSH_NO_WAIT",
-			Description: "Specifies whether to wait for a workspace to become ready before logging in (only applicable when the startup script behavior is blocking). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.",
+			Description: "Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.",
 			Value:       clibase.BoolOf(&noWait),
+			UseInstead:  []clibase.Option{waitOption},
 		},
 		{
 			Flag:        "log-dir",

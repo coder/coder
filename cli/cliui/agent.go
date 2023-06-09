@@ -27,7 +27,7 @@ type AgentOptions struct {
 	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
 	FetchInterval time.Duration
 	WarnInterval  time.Duration
-	NoWait        bool // If true, don't wait for the agent to be ready.
+	Wait          bool // If true, wait for the agent to be ready (startup script).
 }
 
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
@@ -96,7 +96,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	// we do this just before starting the spinner to avoid needless
 	// spinning.
 	if agent.Status == codersdk.WorkspaceAgentConnected &&
-		agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorBlocking && opts.NoWait {
+		agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorBlocking && !opts.Wait {
 		showMessage()
 		return nil
 	}
@@ -140,7 +140,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			// NOTE(mafredri): Once we have access to the workspace agent's
 			// startup script logs, we can show them here.
 			// https://github.com/coder/coder/issues/2957
-			if agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorBlocking && !opts.NoWait {
+			if agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorBlocking && opts.Wait {
 				switch agent.LifecycleState {
 				case codersdk.WorkspaceAgentLifecycleReady:
 					return nil
@@ -183,7 +183,7 @@ func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *messag
 		Prompt: "Don't panic, your workspace is booting up!",
 	}
 	defer func() {
-		if agent.Status == codersdk.WorkspaceAgentConnected && opts.NoWait {
+		if agent.Status == codersdk.WorkspaceAgentConnected && !opts.Wait {
 			m.Spin = ""
 		}
 		if m.Spin != "" {
@@ -225,7 +225,7 @@ func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *messag
 	case codersdk.WorkspaceAgentConnected:
 		m.Spin = fmt.Sprintf("Waiting for %s to become ready...", DefaultStyles.Field.Render(agent.Name))
 		m.Prompt = "Don't panic, your workspace agent has connected and the workspace is getting ready!"
-		if opts.NoWait {
+		if !opts.Wait {
 			m.Prompt = "Your workspace is still getting ready, it may be in an incomplete state."
 		}
 

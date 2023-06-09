@@ -186,6 +186,10 @@ func (w WorkspaceProxy) RBACObject() rbac.Object {
 		WithID(w.ID)
 }
 
+func (w WorkspaceProxy) IsPrimary() bool {
+	return w.Name == "primary"
+}
+
 func (f File) RBACObject() rbac.Object {
 	return rbac.ResourceFile.
 		WithID(f.ID).

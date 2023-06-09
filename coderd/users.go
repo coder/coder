@@ -983,6 +983,12 @@ type CreateUserRequest struct {
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, uuid.UUID, error) {
+	// Ensure the username is valid. It's the caller's responsibility to ensure
+	// the username is valid and unique.
+	if usernameValid := httpapi.NameValid(req.Username); usernameValid != nil {
+		return database.User{}, uuid.Nil, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
+	}
+
 	var user database.User
 	return user, req.OrganizationID, store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)

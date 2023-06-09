@@ -335,6 +335,12 @@ func (s *MethodTestSuite) TestLicense() {
 	s.Run("GetDeploymentID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts().Returns("")
 	}))
+	s.Run("GetDefaultProxyConfig", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts().Returns(database.GetDefaultProxyConfigRow{
+			DisplayName: "Default",
+			IconUrl:     "/emojis/1f3e1.png",
+		})
+	}))
 	s.Run("GetLogoURL", s.Subtest(func(db database.Store, check *expects) {
 		err := db.UpsertLogoURL(context.Background(), "value")
 		require.NoError(s.T(), err)

@@ -231,7 +231,7 @@ CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder.
 
-To enable group sync, ensure that the `groups` claim is set. If group sync is
+To enable group sync, ensure that the `groups` claim is set by adding the correct scope to request. If group sync is
 enabled, the user's groups will be controlled by the OIDC provider. This means
 manual group additions/removals will be overwritten on the next login.
 
@@ -240,6 +240,15 @@ manual group additions/removals will be overwritten on the next login.
 CODER_OIDC_SCOPES=openid,profile,email,groups
 # as a flag
 --oidc-scopes openid,profile,email,groups
+```
+
+With the `groups` scope requested, we also need to map the `groups` claim name. Coder recommends using `groups` for the claim name. This step is necessary if your **scope's name** is something other than `groups`.
+
+```console
+# as an environment variable
+CODER_OIDC_GROUP_FIELD=groups
+# as a flag
+--oidc-group-field groups
 ```
 
 On login, users will automatically be assigned to groups that have matching

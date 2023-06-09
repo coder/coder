@@ -1519,6 +1519,20 @@ func (m metricsStore) GetAuthorizedUserCount(ctx context.Context, arg database.G
 	return count, err
 }
 
+func (m metricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
+	start := time.Now()
+	err := m.s.UpsertDefaultProxy(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertDefaultProxy").Observe(time.Since(start).Seconds())
+	return err
+}
+
+func (m metricsStore) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
+	start := time.Now()
+	resp, err := m.s.GetDefaultProxyConfig(ctx)
+	m.queryLatencies.WithLabelValues("GetDefaultProxyConfig").Observe(time.Since(start).Seconds())
+	return resp, err
+}
+
 func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
 	start := time.Now()
 	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
