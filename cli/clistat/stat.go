@@ -7,15 +7,12 @@ import (
 	"time"
 
 	"github.com/elastic/go-sysinfo"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 	"tailscale.com/types/ptr"
 
 	sysinfotypes "github.com/elastic/go-sysinfo/types"
 )
-
-const procOneCgroup = "/proc/1/cgroup"
-
-var nproc = runtime.NumCPU()
 
 // Result is a generic result type for a statistic.
 // Total is the total amount of the resource available.
@@ -50,7 +47,9 @@ func (r *Result) String() string {
 // It is a thin wrapper around the elastic/go-sysinfo library.
 type Statter struct {
 	hi             sysinfotypes.Host
+	fs             afero.Fs
 	sampleInterval time.Duration
+	nproc          int
 }
 
 type Option func(*Statter)
@@ -62,6 +61,13 @@ func WithSampleInterval(d time.Duration) Option {
 	}
 }
 
+// WithFS sets the fs for the statter.
+func WithFS(fs afero.Fs) Option {
+	return func(s *Statter) {
+		s.fs = fs
+	}
+}
+
 func New(opts ...Option) (*Statter, error) {
 	hi, err := sysinfo.Host()
 	if err != nil {
@@ -69,7 +75,9 @@ func New(opts ...Option) (*Statter, error) {
 	}
 	s := &Statter{
 		hi:             hi,
+		fs:             afero.NewReadOnlyFs(afero.NewOsFs()),
 		sampleInterval: 100 * time.Millisecond,
+		nproc:          runtime.NumCPU(),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -87,7 +95,7 @@ func New(opts ...Option) (*Statter, error) {
 func (s *Statter) HostCPU() (*Result, error) {
 	r := &Result{
 		Unit:  "cores",
-		Total: ptr.To(float64(nproc)),
+		Total: ptr.To(float64(s.nproc)),
 	}
 	c1, err := s.hi.CPUTime()
 	if err != nil {
@@ -101,7 +109,7 @@ func (s *Statter) HostCPU() (*Result, error) {
 	total := c2.Total() - c1.Total()
 	idle := c2.Idle - c1.Idle
 	used := total - idle
-	scaleFactor := float64(nproc) / total.Seconds()
+	scaleFactor := float64(s.nproc) / total.Seconds()
 	r.Used = used.Seconds() * scaleFactor
 	return r, nil
 }
@@ -129,7 +137,7 @@ func (s *Statter) Uptime() (*Result, error) {
 		Total: nil, // Is time a finite quantity? For this purpose, no.
 	}
 
-	if ok, err := IsContainerized(); err == nil && ok {
+	if ok, err := IsContainerized(s.fs); err == nil && ok {
 		procStat, err := sysinfo.Process(1)
 		if err != nil {
 			return nil, xerrors.Errorf("get pid 1 info: %w", err)

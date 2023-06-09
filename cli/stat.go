@@ -5,14 +5,17 @@ import (
 	"os"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clistat"
 	"github.com/coder/coder/cli/cliui"
 )
 
 func (*RootCmd) stat() *clibase.Cmd {
+	fs := afero.NewReadOnlyFs(afero.NewOsFs())
 	defaultCols := []string{"host_cpu", "host_memory", "home_disk", "uptime"}
-	if ok, err := clistat.IsContainerized(); err == nil && ok {
+	if ok, err := clistat.IsContainerized(fs); err == nil && ok {
 		// If running in a container, we assume that users want to see these first. Prepend.
 		defaultCols = append([]string{"container_cpu", "container_memory"}, defaultCols...)
 	}
@@ -36,51 +39,55 @@ func (*RootCmd) stat() *clibase.Cmd {
 			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
-			var s *clistat.Statter
-			if st, err := clistat.New(clistat.WithSampleInterval(sampleInterval)); err != nil {
+			st, err := clistat.New(clistat.WithSampleInterval(sampleInterval), clistat.WithFS(fs))
+			if err != nil {
 				return err
-			} else {
-				s = st
 			}
 
+			// Host-level stats
 			var sr statsRow
-			if cs, err := s.HostCPU(); err != nil {
+			cs, err := st.HostCPU()
+			if err != nil {
 				return err
-			} else {
-				sr.HostCPU = cs
 			}
+			sr.HostCPU = cs
 
-			if ms, err := s.HostMemory(); err != nil {
+			ms, err := st.HostMemory()
+			if err != nil {
 				return err
-			} else {
-				sr.HostMemory = ms
 			}
+			sr.HostMemory = ms
 
-			if home, err := os.UserHomeDir(); err != nil {
+			home, err := os.UserHomeDir()
+			if err != nil {
 				return err
-			} else if ds, err := s.Disk(home); err != nil {
-				return err
-			} else {
-				sr.Disk = ds
 			}
-
-			if us, err := s.Uptime(); err != nil {
+			ds, err := st.Disk(home)
+			if err != nil {
 				return err
-			} else {
-				sr.Uptime = us
 			}
+			sr.Disk = ds
 
-			if ok, err := clistat.IsContainerized(); err == nil && ok {
-				if cs, err := s.ContainerCPU(); err != nil {
+			// Uptime is calculated either based on the host or the container, depending.
+			us, err := st.Uptime()
+			if err != nil {
+				return err
+			}
+			sr.Uptime = us
+
+			// Container-only stats.
+			if ok, err := clistat.IsContainerized(fs); err == nil && ok {
+				cs, err := st.ContainerCPU()
+				if err != nil {
 					return err
-				} else {
-					sr.ContainerCPU = cs
 				}
-				if ms, err := s.ContainerMemory(); err != nil {
+				sr.ContainerCPU = cs
+
+				ms, err := st.ContainerMemory()
+				if err != nil {
 					return err
-				} else {
-					sr.ContainerMemory = ms
 				}
+				sr.ContainerMemory = ms
 			}
 
 			out, err := formatter.Format(inv.Context(), []statsRow{sr})

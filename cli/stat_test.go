@@ -15,8 +15,10 @@ import (
 
 // This just tests that the stat command is recognized and does not output
 // an empty string. Actually testing the output of the stats command is
-// fraught with all sorts of fun.
+// fraught with all sorts of fun. Some more detailed testing of the stats
+// output is performed in the tests in the clistat package.
 func TestStatCmd(t *testing.T) {
+	t.Parallel()
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 )
@@ -16,32 +17,37 @@ var (
 	isContainerizedCacheOnce sync.Once
 )
 
+const (
+	procOneCgroup = "/proc/1/cgroup"
+	procMounts    = "/proc/mounts"
+)
+
 // IsContainerized returns whether the host is containerized.
 // This is adapted from https://github.com/elastic/go-sysinfo/tree/main/providers/linux/container.go#L31
 // with modifications to support Sysbox containers.
 // On non-Linux platforms, it always returns false.
 // The result is only computed once and stored for subsequent calls.
-func IsContainerized() (ok bool, err error) {
+func IsContainerized(fs afero.Fs) (ok bool, err error) {
 	isContainerizedCacheOnce.Do(func() {
-		ok, err = isContainerizedOnce()
+		ok, err = isContainerizedOnce(fs)
 		isContainerizedCacheOK.Store(ok)
 		isContainerizedCacheErr.Store(err)
 	})
 	return isContainerizedCacheOK.Load(), isContainerizedCacheErr.Load()
 }
 
-func isContainerizedOnce() (bool, error) {
-	data, err := os.ReadFile(procOneCgroup)
+func isContainerizedOnce(fs afero.Fs) (bool, error) {
+	cgData, err := afero.ReadFile(fs, procOneCgroup)
 	if err != nil {
-		if os.IsNotExist(err) { // how?
-			return false, nil
+		if os.IsNotExist(err) {
+			return false, nil // how?
 		}
-		return false, xerrors.Errorf("read process cgroups: %w", err)
+		return false, xerrors.Errorf("read file %s: %w", procOneCgroup, err)
 	}
 
-	s := bufio.NewScanner(bytes.NewReader(data))
-	for s.Scan() {
-		line := s.Bytes()
+	scn := bufio.NewScanner(bytes.NewReader(cgData))
+	for scn.Scan() {
+		line := scn.Bytes()
 		if bytes.Contains(line, []byte("docker")) ||
 			bytes.Contains(line, []byte(".slice")) ||
 			bytes.Contains(line, []byte("lxc")) ||
@@ -52,15 +58,18 @@ func isContainerizedOnce() (bool, error) {
 
 	// Last-ditch effort to detect Sysbox containers.
 	// Check if we have anything mounted as type sysboxfs in /proc/mounts
-	data, err = os.ReadFile("/proc/mounts")
+	mountsData, err := afero.ReadFile(fs, procMounts)
 	if err != nil {
-		return false, xerrors.Errorf("read /proc/mounts: %w", err)
+		if os.IsNotExist(err) {
+			return false, nil // how??
+		}
+		return false, xerrors.Errorf("read file %s: %w", procMounts, err)
 	}
 
-	s = bufio.NewScanner(bytes.NewReader(data))
-	for s.Scan() {
-		line := s.Bytes()
-		if bytes.HasPrefix(line, []byte("sysboxfs")) {
+	scn = bufio.NewScanner(bytes.NewReader(mountsData))
+	for scn.Scan() {
+		line := scn.Bytes()
+		if bytes.Contains(line, []byte("sysboxfs")) {
 			return true, nil
 		}
 	}

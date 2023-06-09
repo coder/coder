@@ -10,7 +10,7 @@ import (
 
 // Disk returns the disk usage of the given path.
 // If path is empty, it returns the usage of the root directory.
-func (s *Statter) Disk(path string) (*Result, error) {
+func (*Statter) Disk(path string) (*Result, error) {
 	if path == "" {
 		path = "/"
 	}

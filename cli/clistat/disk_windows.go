@@ -7,7 +7,7 @@ import (
 
 // Disk returns the disk usage of the given path.
 // If path is empty, it defaults to C:\
-func (s *Statter) Disk(path string) (*Result, error) {
+func (*Statter) Disk(path string) (*Result, error) {
 	if path == "" {
 		path = `C:\`
 	}
