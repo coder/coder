@@ -45,18 +45,6 @@ func DefaultCases() []CommandHelpCase {
 			Name: "coder server --help",
 			Cmd:  []string{"server", "--help"},
 		},
-		{
-			Name: "coder agent --help",
-			Cmd:  []string{"agent", "--help"},
-		},
-		{
-			Name: "coder list --output json",
-			Cmd:  []string{"list", "--output", "json"},
-		},
-		{
-			Name: "coder users list --output json",
-			Cmd:  []string{"users", "list", "--output", "json"},
-		},
 	}
 }
 

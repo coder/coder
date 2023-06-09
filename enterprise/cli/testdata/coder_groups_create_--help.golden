@@ -1,77 +1,10 @@
-Usage: coder [global-flags] <subcommand>
+Usage: coder groups create [flags] <name>
 
-Coder v0.0.0-devel — A tool for provisioning self-hosted development environments with Terraform.
-  - Start a Coder server:                                                       
+Create a user group
 
-     [40m [0m[91;40m$ coder server[0m[40m [0m
-
-  - Get started by creating a template from an example:                         
-
-     [40m [0m[91;40m$ coder templates init[0m[40m [0m
-
-[1mSubcommands[0m
-    config-ssh        Add an SSH Host entry for your workspaces "ssh
-                      coder.workspace"
-    create            Create a workspace
-    delete            Delete a workspace
-    dotfiles          Personalize your workspace by applying a canonical
-                      dotfiles repository
-    list              List workspaces
-    login             Authenticate with Coder deployment
-    logout            Unauthenticate your local session
-    ping              Ping a workspace
-    port-forward      Forward ports from machine to a workspace
-    publickey         Output your Coder public key used for Git operations
-    rename            Rename a workspace
-    reset-password    Directly connect to the database to reset a user's
-                      password
-    restart           Restart a workspace
-    scaletest         Run a scale test against the Coder API
-    schedule          Schedule automated start and stop times for workspaces
-    server            Start a Coder server
-    show              Display details of a workspace's resources and agents
-    speedtest         Run upload and download tests from your machine to a
-                      workspace
-    ssh               Start a shell into a workspace
-    start             Start a workspace
-    state             Manually manage Terraform state to fix broken workspaces
-    stop              Stop a workspace
-    templates         Manage templates
-    tokens            Manage personal access tokens
-    update            Will update and start a given workspace if it is out of
-                      date
-    users             Manage users
-    version           Show coder version
-
-[1mGlobal Options[0m 
-Global options are applied to all commands. They can be set using environment
-variables or flags.
-
-      --debug-options bool
-          Print all options, how they're set, then exit.
-
-      --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
-          Path to the global `coder` config directory.
-
-      --header string-array, $CODER_HEADER
-          Additional HTTP headers added to all requests. Provide as key=value.
-          Can be specified multiple times.
-
-      --no-feature-warning bool, $CODER_NO_FEATURE_WARNING
-          Suppress warnings about unlicensed features.
-
-      --no-version-warning bool, $CODER_NO_VERSION_WARNING
-          Suppress warning when client and server versions do not match.
-
-      --token string, $CODER_SESSION_TOKEN
-          Specify an authentication token. For security reasons setting
-          CODER_SESSION_TOKEN is preferred.
-
-      --url url, $CODER_URL
-          URL to a deployment.
-
-  -v, --verbose bool, $CODER_VERBOSE
-          Enable verbose output.
+[1mOptions[0m
+  -u, --avatar-url string, $CODER_AVATAR_URL
+          Set an avatar for a group.
 
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

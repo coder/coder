@@ -29,7 +29,20 @@ func TestCommandHelp(t *testing.T) {
 
 		return rootCmd
 	}
-	clitest.TestCommandHelp(t, getCmds, clitest.DefaultCases())
+	clitest.TestCommandHelp(t, getCmds, append(clitest.DefaultCases(),
+		clitest.CommandHelpCase{
+			Name: "coder agent --help",
+			Cmd:  []string{"agent", "--help"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder list --output json",
+			Cmd:  []string{"list", "--output", "json"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder users list --output json",
+			Cmd:  []string{"users", "list", "--output", "json"},
+		},
+	))
 }
 
 func TestRoot(t *testing.T) {
