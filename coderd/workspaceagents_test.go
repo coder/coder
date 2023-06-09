@@ -1294,7 +1294,13 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		// We can't trust the order of the updates due to timers and debounces,
 		// so let's check a few times once more.
 		for i := 0; i < 2 && (want.Value != got.Result.Value || want.Error != got.Result.Error); i++ {
-			recvUpdate()
+			update = recvUpdate()
+			for _, m := range update {
+				if m.Description.Key == got.Description.Key {
+					got = m
+					break
+				}
+			}
 		}
 		ok1 := assert.Equal(t, want.Value, got.Result.Value)
 		ok2 := assert.Equal(t, want.Error, got.Result.Error)
