@@ -1461,7 +1461,6 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 		case <-senderClosed:
 			return
 		case <-refreshTicker.C:
-			break
 		}
 
 		// Avoid spamming the DB with reads we know there are no updates. We want

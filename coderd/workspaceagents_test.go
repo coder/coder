@@ -1268,11 +1268,6 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	var update []codersdk.WorkspaceAgentMetadata
 
-	check := func(want codersdk.WorkspaceAgentMetadataResult, got codersdk.WorkspaceAgentMetadata) {
-		require.Equal(t, want.Value, got.Result.Value)
-		require.Equal(t, want.Error, got.Result.Error)
-	}
-
 	wantMetadata1 := codersdk.WorkspaceAgentMetadataResult{
 		CollectedAt: time.Now(),
 		Value:       "bar",
@@ -1285,11 +1280,26 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	recvUpdate := func() []codersdk.WorkspaceAgentMetadata {
 		select {
+		case <-ctx.Done():
+			t.Fatalf("context done: %v", ctx.Err())
 		case err := <-errors:
 			t.Fatalf("error watching metadata: %v", err)
-			return nil
 		case update := <-updates:
 			return update
+		}
+		return nil
+	}
+
+	check := func(want codersdk.WorkspaceAgentMetadataResult, got codersdk.WorkspaceAgentMetadata) {
+		// We can't trust the order of the updates due to timers and debounces,
+		// so let's check a few times once more.
+		for i := 0; i < 2 && (want.Value != got.Result.Value || want.Error != got.Result.Error); i++ {
+			recvUpdate()
+		}
+		ok1 := assert.Equal(t, want.Value, got.Result.Value)
+		ok2 := assert.Equal(t, want.Error, got.Result.Error)
+		if !ok1 || !ok2 {
+			require.FailNow(t, "check failed")
 		}
 	}
 
