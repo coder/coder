@@ -582,7 +582,7 @@ jobs:
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
           if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
-            echo "One of the required checks have failed or has been cancelled"
+            echo "One of the required checks has failed or has been cancelled"
             exit 1
           fi
 
