@@ -36,11 +36,10 @@ runs:
       with:
         path: |
           ${{ steps.get_cache_dirs.outputs.go-mod-cache }}}
-        key: gomodcache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/go.sum') }}
+        key: gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.job }}
         restore-keys: |
-          gomodcache-${{ runner.os }}-${{ github.job }}-
+          gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
           gomodcache-${{ runner.os }}-
-          gomodcache-
 
     - name: Cache $GOCACHE
       uses: buildjet/cache@v3
@@ -53,7 +52,6 @@ runs:
         restore-keys: |
           gocache-${{ runner.os }}-${{ github.job }}-
           gocache-${{ runner.os }}-
-          gocache-
 
     - name: Install gotestsum
       shell: bash
