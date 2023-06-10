@@ -402,11 +402,17 @@ else
 endif
 .PHONY: fmt/shfmt
 
-lint: lint/shellcheck lint/go
+lint: lint/shellcheck lint/go lint/ts lint/helm lint/agpl
 .PHONY: lint
+
+lint/ts:
+	cd site
+	yarn && yarn lint
+.PHONY: lint/ts
 
 lint/go:
 	./scripts/check_enterprise_imports.sh
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
 	golangci-lint run
 .PHONY: lint/go
 
@@ -415,6 +421,15 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 	echo "--- shellcheck"
 	shellcheck --external-sources $(SHELL_SRC_FILES)
 .PHONY: lint/shellcheck
+
+lint/helm:
+	cd helm
+	make lint
+.PHONY: lint/helm
+
+lint/agpl:
+	./scripts/check_enterprise_imports.sh
+.PHONY: lint/agpl
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \

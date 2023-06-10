@@ -200,7 +200,6 @@ issues:
   max-same-issues: 0
 
 run:
-  concurrency: 4
   skip-dirs:
     - node_modules
   skip-files:

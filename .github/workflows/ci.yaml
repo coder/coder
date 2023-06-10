@@ -93,7 +93,8 @@ jobs:
           echo "${{ toJSON(steps.filter )}}"
 
   lint:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    # golangci-lint is heavily parallelizable.
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-32vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -102,7 +103,7 @@ jobs:
 
       - uses: ./.github/actions/setup-node
 
-      # Check for any typos!
+      # Check for any typos
       - name: Check for typos
         uses: crate-ci/typos@v1.14.12
         with:
@@ -115,28 +116,16 @@ jobs:
           cargo install typos-cli
           typos -c .github/workflows/typos.toml -w"
 
-      # Check for Go linting errors!
-      - name: install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
 
-      - name: make lint
-        run: |
-          make --output-sync -j lint
-
-      # Make sure the Helm chart is linted!
+      # Needed for helm chart linting
       - name: Install helm
         uses: azure/setup-helm@v3
         with:
           version: v3.9.2
 
-      - name: Lint Helm chart
+      - name: make lint
         run: |
-          cd helm
-          make lint
-
-      # Ensure AGPL and Enterprise are separated!
-      - name: Check for AGPL code importing Enterprise...
-        run: ./scripts/check_enterprise_imports.sh
+          make --output-sync -j lint
 
   gen:
     timeout-minutes: 8
