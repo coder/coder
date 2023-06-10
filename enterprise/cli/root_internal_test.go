@@ -3,8 +3,9 @@ package cli
 import (
 	"testing"
 
-	"github.com/coder/coder/cli"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/cli"
 
 	"github.com/coder/coder/cli/clibase"
 
