@@ -69,7 +69,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
-      aria-label={t("formAriaLabel")}
+      aria-label={t("formAriaLabel").toString()}
     >
       {templateVariables.map((templateVariable, index) => {
         let fieldHelpers
@@ -175,7 +175,7 @@ const ValidationSchemaForTemplateVariables = (
             if (!val || val.length === 0) {
               return ctx.createError({
                 path: ctx.path,
-                message: t("validationRequiredVariable"),
+                message: t("validationRequiredVariable").toString(),
               })
             }
           }

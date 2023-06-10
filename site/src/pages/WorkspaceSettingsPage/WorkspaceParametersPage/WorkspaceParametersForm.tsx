@@ -77,8 +77,8 @@ export const WorkspaceParametersForm: FC<{
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
       {mutableParameters.length > 0 && (
         <FormSection
-          title={t("parameters")}
-          description={t("parametersDescription")}
+          title={t("parameters").toString()}
+          description={t("parametersDescription").toString()}
         >
           <FormFields>
             {mutableParameters.map((parameter, index) => (

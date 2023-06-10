@@ -36,7 +36,9 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     ),
     description: Yup.string().max(
       MAX_DESCRIPTION_CHAR_LIMIT,
-      i18next.t("descriptionMaxError", { ns: "templateSettingsPage" }),
+      i18next
+        .t("descriptionMaxError", { ns: "templateSettingsPage" })
+        .toString(),
     ),
     allow_user_cancel_workspace_jobs: Yup.boolean(),
     icon: iconValidator,
@@ -82,11 +84,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
-      aria-label={t("formAriaLabel")}
+      aria-label={t("formAriaLabel").toString()}
     >
       <FormSection
-        title={t("generalInfo.title")}
-        description={t("generalInfo.description")}
+        title={t("generalInfo.title").toString()}
+        description={t("generalInfo.description").toString()}
       >
         <FormFields>
           <TextField
@@ -101,8 +103,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       </FormSection>
 
       <FormSection
-        title={t("displayInfo.title")}
-        description={t("displayInfo.description")}
+        title={t("displayInfo.title").toString()}
+        description={t("displayInfo.description").toString()}
       >
         <FormFields>
           <TextField
@@ -133,8 +135,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       </FormSection>
 
       <FormSection
-        title={t("operations.title")}
-        description={t("operations.description")}
+        title={t("operations.title").toString()}
+        description={t("operations.description").toString()}
       >
         <label htmlFor="allow_user_cancel_workspace_jobs">
           <Stack direction="row" spacing={1}>

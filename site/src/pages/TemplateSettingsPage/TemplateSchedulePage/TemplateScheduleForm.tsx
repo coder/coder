@@ -52,17 +52,27 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
     default_ttl_ms: Yup.number()
       .integer()
-      .min(0, i18next.t("defaultTTLMinError", { ns: "templateSettingsPage" }))
+      .min(
+        0,
+        i18next
+          .t("defaultTTLMinError", { ns: "templateSettingsPage" })
+          .toString(),
+      )
       .max(
         24 * MAX_TTL_DAYS /* 7 days in hours */,
-        i18next.t("defaultTTLMaxError", { ns: "templateSettingsPage" }),
+        i18next
+          .t("defaultTTLMaxError", { ns: "templateSettingsPage" })
+          .toString(),
       ),
     max_ttl_ms: Yup.number()
       .integer()
-      .min(0, i18next.t("maxTTLMinError", { ns: "templateSettingsPage" }))
+      .min(
+        0,
+        i18next.t("maxTTLMinError", { ns: "templateSettingsPage" }).toString(),
+      )
       .max(
         24 * MAX_TTL_DAYS /* 7 days in hours */,
-        i18next.t("maxTTLMaxError", { ns: "templateSettingsPage" }),
+        i18next.t("maxTTLMaxError", { ns: "templateSettingsPage" }).toString(),
       ),
     failure_ttl_ms: Yup.number()
       .min(0, "Failure cleanup days must not be less than 0.")
@@ -214,11 +224,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
-      aria-label={t("formAriaLabel")}
+      aria-label={t("formAriaLabel").toString()}
     >
       <FormSection
-        title={t("schedule.title")}
-        description={t("schedule.description")}
+        title={t("schedule.title").toString()}
+        description={t("schedule.description").toString()}
       >
         <Stack direction="row" className={styles.ttlFields}>
           <TextField

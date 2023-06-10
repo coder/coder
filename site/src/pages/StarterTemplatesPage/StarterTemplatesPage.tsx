@@ -17,7 +17,7 @@ const StarterTemplatesPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(t("title"))}</title>
+        <title>{pageTitle(t("title").toString())}</title>
       </Helmet>
 
       <StarterTemplatesPageView context={state.context} />

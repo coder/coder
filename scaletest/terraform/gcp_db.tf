@@ -51,3 +51,13 @@ resource "google_sql_user" "coder" {
   # required for postgres, otherwise user fails to delete
   deletion_policy = "ABANDON"
 }
+
+resource "google_sql_user" "prometheus" {
+  project  = var.project_id
+  instance = google_sql_database_instance.db.id
+  name     = "${var.name}-prometheus"
+  type     = "BUILT_IN"
+  password = random_password.prometheus-postgres-password.result
+  # required for postgres, otherwise user fails to delete
+  deletion_policy = "ABANDON"
+}
