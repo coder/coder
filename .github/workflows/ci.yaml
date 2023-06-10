@@ -100,11 +100,14 @@ jobs:
 
       - uses: ./.github/actions/setup-go
 
+      - uses: ./.github/actions/setup-node
+
       # Check for any typos!
       - name: Check for typos
         uses: crate-ci/typos@v1.14.12
         with:
           config: .github/workflows/typos.toml
+
       - name: Fix the typos
         if: ${{ failure() }}
         run: |
@@ -113,28 +116,20 @@ jobs:
           typos -c .github/workflows/typos.toml -w"
 
       # Check for Go linting errors!
-      - name: Lint Go
-        uses: golangci/golangci-lint-action@v3.5.0
-        with:
-          version: v1.52.2
+      - name: install golangci-lint
+        run: go install github.com/golangci/golangci-lint@v1.53.2
 
-      - name: Lint shell scripts
-        uses: ludeeus/action-shellcheck@2.0.0
-        env:
-          SHELLCHECK_OPTS: --external-sources
-        with:
-          ignore: node_modules
+      - name: make lint
+        run: |
+          make --output-sync -j lint
 
-      - uses: ./.github/actions/setup-node
-      - name: Lint TypeScript
-        run: yarn lint
-        working-directory: site
 
       # Make sure the Helm chart is linted!
       - name: Install helm
         uses: azure/setup-helm@v3
         with:
           version: v3.9.2
+
       - name: Lint Helm chart
         run: |
           cd helm
