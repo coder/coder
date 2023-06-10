@@ -75,6 +75,14 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 					logger.Error(ctx, "command exit", slog.Error(retErr))
 				}
 			}()
+
+			// This WaitGroup solves for a race condition where we were logging
+			// while closing the log file in a defer. It probably solves
+			// others too.
+			var wg sync.WaitGroup
+			wg.Add(1)
+			defer wg.Done()
+
 			if logDirPath != "" {
 				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
@@ -100,7 +108,10 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
 				}
-				defer logFile.Close()
+				go func() {
+					wg.Wait()
+					logFile.Close()
+				}()
 
 				logger = slog.Make(sloghuman.Sink(logFile))
 				if r.verbose {
@@ -110,16 +121,6 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				// log HTTP requests
 				client.Logger = logger
 			}
-
-			// This WaitGroup solves for a race condition where we were logging
-			// while closing the log file in a defer. It probably solves
-			// others too.
-			//
-			// Its position in this function is important. It must be after
-			// the logger is created but before any goroutines or wind-down
-			// defers (e.g. context cancels) are declared.
-			var wg sync.WaitGroup
-			defer wg.Wait()
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
@@ -216,13 +217,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				go func() {
 					defer wg.Done()
 					watchAndClose(ctx, func() error {
-						rawSSH.Close()
-						// If we don't close Stdin, the io.Copy below may
-						// block indefinitely on Stdin Read.
-						if rc, ok := inv.Stdin.(io.Closer); ok {
-							rc.Close()
-						}
-						return nil
+						return rawSSH.Close()
 					}, logger, client, workspace)
 				}()
 
