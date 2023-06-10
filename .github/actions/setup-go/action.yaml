@@ -23,15 +23,30 @@ runs:
         cache: false
         go-version: ${{ inputs.version }}
 
-    - name: Cache go
+    - name: Get cache dirs
+      id: get_cache_dirs
+      shell: bash
+      run: |
+        echo "::set-output name=go-mod-cache::$(go env GOMODCACHE)"
+        echo "::set-output name=go-cache::$(go env GOCACHE)"
+    # We split up GOMODCACHE from GOCACHE because the latter must be invalidated
+    # on code change, but the former can be kept.
+    - name: Cache $GOMODCACHE
       uses: buildjet/cache@v3
       with:
-        # ~/go/pkg is the same across operating systems.
         path: |
-          ~/go/pkg
-          ~/.cache/go-build
-          ~/AppData/Local/go-build
-          ~/Library/Caches/go-build
+          ${{ steps.get_cache_dirs.outputs.go-mod-cache }}}
+        key: gomodcache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          gomodcache-${{ runner.os }}-${{ github.job }}-
+          gomodcache-${{ runner.os }}-
+          gomodcache-
+
+    - name: Cache $GOCACHE
+      uses: buildjet/cache@v3
+      with:
+        path: |
+          ${{ steps.get_cache_dirs.outputs.go-cache }}}
         # Job name must be included in the key for effective
         # test cache reuse.
         key: gocache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
