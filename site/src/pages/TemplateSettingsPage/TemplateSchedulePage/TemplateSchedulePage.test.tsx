@@ -157,7 +157,7 @@ describe("TemplateSchedulePage", () => {
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
-      t("defaultTTLMaxError", { ns: "templateSettingsPage" }),
+      t("defaultTTLMaxError", { ns: "templateSettingsPage" }).toString(),
     )
   })
 

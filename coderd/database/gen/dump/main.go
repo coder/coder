@@ -68,7 +68,7 @@ func main() {
 			"run",
 			"--rm",
 			"--network=host",
-			fmt.Sprintf("postgres:%d", minimumPostgreSQLVersion),
+			fmt.Sprintf("gcr.io/coder-dev-1/postgres:%d", minimumPostgreSQLVersion),
 		}, cmdArgs...)
 	}
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) //#nosec

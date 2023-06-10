@@ -11,7 +11,7 @@ import { render } from "testHelpers/renderHelpers"
 import { screen } from "@testing-library/react"
 import { i18n } from "i18n"
 
-const t = (str: string, variables?: Record<string, unknown>) =>
+const t = (str: string, variables: Record<string, unknown>) =>
   i18n.t<string>(str, variables)
 
 const getByTextContent = (text: string) => {
