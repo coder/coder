@@ -266,7 +266,7 @@ jobs:
           go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
       - uses: ./.github/actions/upload-datadog
-        if: always()
+        if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
@@ -313,15 +313,8 @@ jobs:
           # so we need to print the test stats to the log.
           go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
-      - uses: actions/upload-artifact@v3
-        if: success() || failure()
-        with:
-          name: gotests-postgres.xml
-          path: ./gotests.xml
-          retention-days: 30
-
       - uses: ./.github/actions/upload-datadog
-        if: always()
+        if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
