@@ -219,7 +219,9 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 						rawSSH.Close()
 						// If we don't close Stdin, the io.Copy below may
 						// block indefinitely on Stdin Read.
-						_ = inv.CloseStdin()
+						if rc, ok := inv.Stdin.(io.Closer); ok {
+							rc.Close()
+						}
 						return nil
 					}, logger, client, workspace)
 				}()

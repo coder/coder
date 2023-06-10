@@ -381,16 +381,6 @@ func (inv *Invocation) run(state *runState) error {
 	return nil
 }
 
-// CloseStdin closes the invocation's Stdin if it is an io.Closer.
-func (inv *Invocation) CloseStdin() error {
-	// If we don't close Stdin, the io.Copy below may
-	// block indefinitely on Stdin Read.
-	if rc, ok := inv.Stdin.(io.Closer); ok {
-		return rc.Close()
-	}
-	return nil
-}
-
 type RunCommandError struct {
 	Cmd *Cmd
 	Err error
