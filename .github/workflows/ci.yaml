@@ -566,11 +566,9 @@ jobs:
   required:
     runs-on: ubuntu-latest
     needs: [gen, test-go, test-go-pg, test-go-race, test-js]
-    # Allow this job to run even if the needed jobs fail or are skipped, only
-    # avoid running this job if the needed jobs are cancelled.
-    if: |
-      always() &&
-      !contains(needs.*.result, 'cancelled')
+    # Allow this job to run even if the needed jobs fail, are skipped or
+    # cancelled.
+    if: always()
     steps:
       - name: Ensure required checks
         run: |
@@ -580,10 +578,11 @@ jobs:
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
           echo "- test-go-race: ${{ needs.test-go-race.result }}"
           echo "- test-js: ${{ needs.test-js.result }}"
-
           echo
-          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
-            echo "One of the required checks have failed"
+
+          # We allow skipped jobs to pass, but not failed or cancelled jobs.
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One of the required checks have failed or has been cancelled"
             exit 1
           fi
 
