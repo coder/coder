@@ -24,11 +24,11 @@ runs:
         go-version: ${{ inputs.version }}
 
     - name: Get cache dirs
-      id: get_cache_dirs
       shell: bash
       run: |
-        echo "go-mod-cache=$(go env GOMODCACHE)" >> $GITHUB_ENV
-        echo "go-cache=$(go env GOCACHE)" >> $GITHUB_ENV
+        set -x
+        echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_ENV
+        echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_ENV
 
     # We split up GOMODCACHE from GOCACHE because the latter must be invalidated
     # on code change, but the former can be kept.
