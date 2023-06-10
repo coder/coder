@@ -1,14 +1,27 @@
 name: "Setup Go"
 description: |
   Sets up the Go environment for tests, builds, etc.
+inputs:
+  version:
+    description: "The Go version to use."
+    default: "1.20.5"
 runs:
   using: "composite"
   steps:
+    - name: Cache go toolchain
+      uses: buildjet/cache@v3
+      with:
+        path: |
+          ${{ env.RUNNER_TOOL_CACHE }}/go/${{ inputs.version }}
+        key: gotoolchain-${{ runner.os }}-${{ inputs.version }}
+        restore-keys: |
+          gotoolchain-${{ runner.os }}-
+
     - uses: buildjet/setup-go@v4
       with:
         # We do our own caching for implementation clarity.
         cache: false
-        go-version: "1.20.5"
+        go-version: ${{ inputs.version }}
 
     - name: Cache go
       uses: buildjet/cache@v3
@@ -21,11 +34,11 @@ runs:
           ~/Library/Caches/go-build
         # Job name must be included in the key for effective
         # test cache reuse.
-        key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
+        key: gocache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
         restore-keys: |
-          go-${{ runner.os }}-${{ github.job }}-
-          go-${{ runner.os }}-
-          go-
+          gocache-${{ runner.os }}-${{ github.job }}-
+          gocache-${{ runner.os }}-
+          gocache-
 
     - name: Install gotestsum
       uses: jaxxstorm/action-install-gh-release@v1.10.0
