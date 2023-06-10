@@ -17,7 +17,7 @@ runs:
       uses: buildjet/cache@v3
       with:
         path: |
-          ${{ env.RUNNER_TOOL_CACHE }}/go/${{ inputs.version }}
+          ${{ env.AGENT_TOOLSDIRECTORY }}/go/${{ inputs.version }}
         key: gotoolchain-${{ runner.os }}-${{ inputs.version }}
         restore-keys: |
           gotoolchain-${{ runner.os }}-
