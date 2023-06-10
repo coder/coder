@@ -104,6 +104,7 @@ jobs:
 
       - name: Get golangci-lint cache dir
         run: |
+	        go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
