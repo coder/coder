@@ -27,6 +27,11 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
 
+func TestBroken(t *testing.T) {
+	t.Parallel()
+	t.Fatal("broken test")
+}
+
 func TestBuildInfo(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
