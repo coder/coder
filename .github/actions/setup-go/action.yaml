@@ -27,15 +27,16 @@ runs:
       id: get_cache_dirs
       shell: bash
       run: |
-        echo "::set-output name=go-mod-cache::$(go env GOMODCACHE)"
-        echo "::set-output name=go-cache::$(go env GOCACHE)"
+        echo "go-mod-cache=$(go env GOMODCACHE)" >> $GITHUB_ENV
+        echo "go-cache=$(go env GOCACHE)" >> $GITHUB_ENV
+
     # We split up GOMODCACHE from GOCACHE because the latter must be invalidated
     # on code change, but the former can be kept.
     - name: Cache $GOMODCACHE
       uses: buildjet/cache@v3
       with:
         path: |
-          ${{ steps.get_cache_dirs.outputs.go-mod-cache }}}
+          ${{ env.GOMODCACHE }}}
         key: gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.job }}
         restore-keys: |
           gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
@@ -45,7 +46,7 @@ runs:
       uses: buildjet/cache@v3
       with:
         path: |
-          ${{ steps.get_cache_dirs.outputs.go-cache }}}
+          ${{ env.GOCACHE }}}
         # Job name must be included in the key for effective
         # test cache reuse.
         key: gocache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
