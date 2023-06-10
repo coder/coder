@@ -524,6 +524,13 @@ func (c *Conn) DERPMap() *tailcfg.DERPMap {
 	return c.netMap.DERPMap
 }
 
+// BlockEndpoints returns whether or not P2P is blocked.
+func (c *Conn) BlockEndpoints() bool {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.blockEndpoints
+}
+
 // AwaitReachable pings the provided IP continually until the
 // address is reachable. It's the callers responsibility to provide
 // a timeout, otherwise this function will block forever.

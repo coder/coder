@@ -94,6 +94,10 @@ func TestNewDERPMap(t *testing.T) {
 						{
 							STUNPort: 12345,
 						},
+						{
+							STUNOnly: true,
+							STUNPort: 54321,
+						},
 					},
 				},
 			},
@@ -113,9 +117,12 @@ func TestNewDERPMap(t *testing.T) {
 
 		require.Len(t, derpMap.Regions[1].Nodes, 1)
 		require.EqualValues(t, -1, derpMap.Regions[1].Nodes[0].STUNPort)
+		// The STUNOnly node should get removed.
 		require.Len(t, derpMap.Regions[2].Nodes, 2)
 		require.EqualValues(t, -1, derpMap.Regions[2].Nodes[0].STUNPort)
+		require.False(t, derpMap.Regions[2].Nodes[0].STUNOnly)
 		require.EqualValues(t, -1, derpMap.Regions[2].Nodes[1].STUNPort)
+		require.False(t, derpMap.Regions[2].Nodes[1].STUNOnly)
 		// We don't add any nodes ourselves if STUN is disabled.
 		require.Len(t, derpMap.Regions[3].Nodes, 1)
 		// ... but we still remove the STUN port from existing nodes in the

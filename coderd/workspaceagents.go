@@ -172,7 +172,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		StartupScriptTimeout:   time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
 		ShutdownScript:         apiAgent.ShutdownScript,
 		ShutdownScriptTimeout:  time.Duration(apiAgent.ShutdownScriptTimeoutSeconds) * time.Second,
-		AllowDirectConnections: api.DeploymentValues.DERP.Config.DisableDirect.Value(),
+		AllowDirectConnections: !api.DeploymentValues.DERP.Config.DisableDirect.Value(),
 		Metadata:               convertWorkspaceAgentMetadataDesc(metadata),
 	})
 }
@@ -736,7 +736,7 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
 		DERPMap:                api.DERPMap,
-		AllowDirectConnections: api.DeploymentValues.DERP.Config.DisableDirect.Value(),
+		AllowDirectConnections: !api.DeploymentValues.DERP.Config.DisableDirect.Value(),
 	})
 }
 

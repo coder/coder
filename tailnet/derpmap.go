@@ -82,9 +82,14 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 	}
 	if !allowSTUN {
 		for _, region := range derpMap.Regions {
+			newNodes := make([]*tailcfg.DERPNode, 0, len(region.Nodes))
 			for _, node := range region.Nodes {
 				node.STUNPort = -1
+				if !node.STUNOnly {
+					newNodes = append(newNodes, node)
+				}
 			}
+			region.Nodes = newNodes
 		}
 	}
 
