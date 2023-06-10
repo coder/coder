@@ -80,6 +80,8 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		}
 		derpMap.Regions[region.RegionID] = region
 	}
+	// Remove all STUNPorts from DERPy nodes, and fully remove all STUNOnly
+	// nodes.
 	if !allowSTUN {
 		for _, region := range derpMap.Regions {
 			newNodes := make([]*tailcfg.DERPNode, 0, len(region.Nodes))
