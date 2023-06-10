@@ -93,8 +93,7 @@ jobs:
           echo "${{ toJSON(steps.filter )}}"
 
   lint:
-    # golangci-lint is heavily parallelizable.
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-32vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -116,7 +115,6 @@ jobs:
           cargo install typos-cli
           typos -c .github/workflows/typos.toml -w"
 
-
       # Needed for helm chart linting
       - name: Install helm
         uses: azure/setup-helm@v3
@@ -125,7 +123,7 @@ jobs:
 
       - name: make lint
         run: |
-          make --output-sync -j lint
+          make --output-sync=line -j lint
 
   gen:
     timeout-minutes: 8

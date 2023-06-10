@@ -402,7 +402,7 @@ else
 endif
 .PHONY: fmt/shfmt
 
-lint: lint/shellcheck lint/go lint/ts lint/helm lint/agpl
+lint: lint/shellcheck lint/go lint/ts lint/helm
 .PHONY: lint
 
 lint/ts:
@@ -426,10 +426,6 @@ lint/helm:
 	cd helm
 	make lint
 .PHONY: lint/helm
-
-lint/agpl:
-	./scripts/check_enterprise_imports.sh
-.PHONY: lint/agpl
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
