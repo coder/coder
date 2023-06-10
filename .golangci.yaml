@@ -199,9 +199,6 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
 
-  new: true
-  new-from-rev: origin/main
-
 run:
   skip-dirs:
     - node_modules

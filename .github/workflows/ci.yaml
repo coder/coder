@@ -102,6 +102,20 @@ jobs:
 
       - uses: ./.github/actions/setup-node
 
+      - name: Get golangci-lint cache dir
+        run: |
+          dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
+          echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
+
+      - name: golangci-lint cache
+        uses: buildjet/cache@v3
+        with:
+          path: |
+            ${{ env.LINT_CACHE_DIR }}
+          key: golangci-lint-${{ runner.os }}-${{ hashFiles('**/*.go') }}
+          restore-keys: |
+            golangci-lint-${{ runner.os }}-
+
       # Check for any typos
       - name: Check for typos
         uses: crate-ci/typos@v1.14.12
