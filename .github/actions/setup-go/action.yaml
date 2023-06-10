@@ -36,7 +36,7 @@ runs:
       uses: buildjet/cache@v3
       with:
         path: |
-          ${{ env.GOMODCACHE }}}
+          ${{ env.GOMODCACHE }}
         key: gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.job }}
         restore-keys: |
           gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
