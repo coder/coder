@@ -204,7 +204,7 @@ run:
     - node_modules
   skip-files:
     - scripts/rules.go
-  timeout: 5m
+  timeout: 10m
 
 # Over time, add more and more linters from
 # https://golangci-lint.run/usage/linters/ as the code improves.

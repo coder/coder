@@ -46,7 +46,7 @@ runs:
       uses: buildjet/cache@v3
       with:
         path: |
-          ${{ env.GOCACHE }}}
+          ${{ env.GOCACHE }}
         # Job name must be included in the key for effective
         # test cache reuse.
         key: gocache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
