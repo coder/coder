@@ -8,11 +8,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: dump env
-      shell: bash
-      run: |
-        env
-
     - name: Cache go toolchain
       uses: buildjet/cache@v3
       with:
