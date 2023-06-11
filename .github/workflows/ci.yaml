@@ -104,7 +104,7 @@ jobs:
 
       - name: Get golangci-lint cache dir
         run: |
-	        go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
@@ -555,6 +555,8 @@ jobs:
       - name: Ensure required checks
         run: |
           echo "Checking required checks"
+          echo "- fmt: ${{ needs.fmt.result }}"
+          echo "- lint: ${{ needs.lint.result }}"
           echo "- gen: ${{ needs.gen.result }}"
           echo "- test-go: ${{ needs.test-go.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
