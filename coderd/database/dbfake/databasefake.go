@@ -4380,6 +4380,24 @@ func (q *fakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 	return database.Group{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) DeleteGitAuthLink(_ context.Context, arg database.DeleteGitAuthLinkParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, link := range q.gitAuthLinks {
+		if link.ProviderID != arg.ProviderID {
+			continue
+		}
+		if link.UserID != arg.UserID {
+			continue
+		}
+		q.gitAuthLinks[index] = q.gitAuthLinks[len(q.gitAuthLinks)-1]
+		q.gitAuthLinks = q.gitAuthLinks[:len(q.gitAuthLinks)-1]
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -4909,6 +4927,21 @@ func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 	}
 
 	return nil
+}
+
+func (q *fakeQuerier) DeleteUserLinkByLinkedID(ctx context.Context, linkedID string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, link := range q.userLinks {
+		if link.LinkedID != linkedID {
+			continue
+		}
+		q.userLinks[index] = q.userLinks[len(q.userLinks)-1]
+		q.userLinks = q.userLinks[:len(q.userLinks)-1]
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {

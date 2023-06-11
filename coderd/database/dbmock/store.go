@@ -110,6 +110,20 @@ func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(arg0, a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), arg0, arg1)
 }
 
+// DeleteGitAuthLink mocks base method.
+func (m *MockStore) DeleteGitAuthLink(arg0 context.Context, arg1 database.DeleteGitAuthLinkParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteGitAuthLink", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteGitAuthLink indicates an expected call of DeleteGitAuthLink.
+func (mr *MockStoreMockRecorder) DeleteGitAuthLink(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteGitAuthLink", reflect.TypeOf((*MockStore)(nil).DeleteGitAuthLink), arg0, arg1)
+}
+
 // DeleteGitSSHKey mocks base method.
 func (m *MockStore) DeleteGitSSHKey(arg0 context.Context, arg1 uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -235,6 +249,20 @@ func (m *MockStore) DeleteReplicasUpdatedBefore(arg0 context.Context, arg1 time.
 func (mr *MockStoreMockRecorder) DeleteReplicasUpdatedBefore(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicasUpdatedBefore", reflect.TypeOf((*MockStore)(nil).DeleteReplicasUpdatedBefore), arg0, arg1)
+}
+
+// DeleteUserLinkByLinkedID mocks base method.
+func (m *MockStore) DeleteUserLinkByLinkedID(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserLinkByLinkedID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserLinkByLinkedID indicates an expected call of DeleteUserLinkByLinkedID.
+func (mr *MockStoreMockRecorder) DeleteUserLinkByLinkedID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserLinkByLinkedID", reflect.TypeOf((*MockStore)(nil).DeleteUserLinkByLinkedID), arg0, arg1)
 }
 
 // GetAPIKeyByID mocks base method.

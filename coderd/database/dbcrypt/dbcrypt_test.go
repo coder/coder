@@ -3,6 +3,7 @@ package dbcrypt_test
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"io"
 	"sync/atomic"
 	"testing"
@@ -69,7 +70,7 @@ func TestUserLinks(t *testing.T) {
 		initCipher(t, cipher)
 
 		link, err = crypt.GetUserLinkByLinkedID(ctx, link.LinkedID)
-		require.ErrorIs(t, err, dbcrypt.ErrInvalidCipher)
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 
 	t.Run("GetUserLinkByUserIDLoginType", func(t *testing.T) {
@@ -95,7 +96,7 @@ func TestUserLinks(t *testing.T) {
 			UserID:    link.UserID,
 			LoginType: link.LoginType,
 		})
-		require.ErrorIs(t, err, dbcrypt.ErrInvalidCipher)
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
 
@@ -164,7 +165,7 @@ func TestGitAuthLinks(t *testing.T) {
 			UserID:     link.UserID,
 			ProviderID: link.ProviderID,
 		})
-		require.ErrorIs(t, err, dbcrypt.ErrInvalidCipher)
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
 

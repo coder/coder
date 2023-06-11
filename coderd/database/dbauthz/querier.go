@@ -1113,6 +1113,10 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 	return q.db.InsertUserLink(ctx, arg)
 }
 
+func (q *querier) DeleteUserLinkByLinkedID(ctx context.Context, linkedID string) error {
+	return deleteQ(q.log, q.auth, q.db.GetUserLinkByLinkedID, q.db.DeleteUserLinkByLinkedID)(ctx, linkedID)
+}
+
 func (q *querier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
@@ -1199,6 +1203,15 @@ func (q *querier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSH
 
 func (q *querier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
 	return fetch(q.log, q.auth, q.db.GetGitAuthLink)(ctx, arg)
+}
+
+func (q *querier) DeleteGitAuthLink(ctx context.Context, arg database.DeleteGitAuthLinkParams) error {
+	return deleteQ(q.log, q.auth, func(ctx context.Context, arg database.DeleteGitAuthLinkParams) (database.GitAuthLink, error) {
+		return q.db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+			ProviderID: arg.ProviderID,
+			UserID:     arg.UserID,
+		})
+	}, q.db.DeleteGitAuthLink)(ctx, arg)
 }
 
 func (q *querier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {

@@ -17,10 +17,6 @@ import (
 // If it is encrypted but a key is not provided, an error is returned.
 const MagicPrefix = "dbcrypt-"
 
-// ErrInvalidCipher is returned when an invalid cipher is provided
-// for the encrypted data.
-var ErrInvalidCipher = xerrors.New("an invalid encryption cipher was provided for the encrypted data")
-
 type Options struct {
 	// ExternalTokenCipher is an optional cipher that is used
 	// to encrypt/decrypt user link and git auth link tokens. If this is nil,
@@ -56,7 +52,9 @@ func (db *dbCrypt) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (
 	if err != nil {
 		return database.UserLink{}, err
 	}
-	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
+	return link, db.decryptFields(func() error {
+		return db.Store.DeleteUserLinkByLinkedID(ctx, linkedID)
+	}, &link.OAuthAccessToken, &link.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) GetUserLinkByUserIDLoginType(ctx context.Context, params database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
@@ -64,7 +62,9 @@ func (db *dbCrypt) GetUserLinkByUserIDLoginType(ctx context.Context, params data
 	if err != nil {
 		return database.UserLink{}, err
 	}
-	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
+	return link, db.decryptFields(func() error {
+		return db.Store.DeleteUserLinkByLinkedID(ctx, link.LinkedID)
+	}, &link.OAuthAccessToken, &link.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) InsertUserLink(ctx context.Context, params database.InsertUserLinkParams) (database.UserLink, error) {
@@ -96,7 +96,12 @@ func (db *dbCrypt) GetGitAuthLink(ctx context.Context, params database.GetGitAut
 	if err != nil {
 		return database.GitAuthLink{}, err
 	}
-	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
+	return link, db.decryptFields(func() error {
+		return db.Store.DeleteGitAuthLink(ctx, database.DeleteGitAuthLinkParams{
+			ProviderID: params.ProviderID,
+			UserID:     params.UserID,
+		})
+	}, &link.OAuthAccessToken, &link.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) UpdateGitAuthLink(ctx context.Context, params database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
@@ -130,7 +135,15 @@ func (db *dbCrypt) encryptFields(fields ...*string) error {
 
 // decryptFields decrypts the given fields in place.
 // If the value fails to decrypt, sql.ErrNoRows will be returned.
-func (db *dbCrypt) decryptFields(fields ...*string) error {
+func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error {
+	delete := func() error {
+		err := deleteFn()
+		if err != nil {
+			return xerrors.Errorf("delete encrypted row: %w", err)
+		}
+		return sql.ErrNoRows
+	}
+
 	cipherPtr := db.ExternalTokenCipher.Load()
 	// If no cipher is loaded, then we don't need to encrypt or decrypt anything!
 	if cipherPtr == nil {
@@ -139,7 +152,9 @@ func (db *dbCrypt) decryptFields(fields ...*string) error {
 				continue
 			}
 			if strings.HasPrefix(*field, MagicPrefix) {
-				return ErrInvalidCipher
+				// If we have a magic prefix but encryption is disabled,
+				// we should delete the row.
+				return delete()
 			}
 		}
 		return nil
@@ -156,7 +171,8 @@ func (db *dbCrypt) decryptFields(fields ...*string) error {
 
 		decrypted, err := cipher.Decrypt([]byte((*field)[len(MagicPrefix):]))
 		if err != nil {
-			return xerrors.Errorf("%w: %s", ErrInvalidCipher, err)
+			// If the encryption key changed, we should delete the row.
+			return delete()
 		}
 		*field = string(decrypted)
 	}
