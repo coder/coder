@@ -1,11 +1,15 @@
 package main
 
 import (
+	"go/format"
+	"go/token"
 	"log"
 	"os"
 
 	"github.com/dave/dst"
 	"github.com/dave/dst/decorator"
+	"github.com/dave/dst/decorator/resolver/goast"
+	"github.com/dave/dst/decorator/resolver/guess"
 	"golang.org/x/xerrors"
 )
 
@@ -27,11 +31,13 @@ func run() error {
 	}
 	declByName := map[string]*dst.FuncDecl{}
 
-	dbfake, err := os.ReadFile("../../dbfake/dbfake.go")
+	dbfake, err := os.ReadFile("./dbfake/dbfake.go")
 	if err != nil {
 		return xerrors.Errorf("read dbfake: %w", err)
 	}
-	f, err := decorator.Parse(dbfake)
+
+	// Required to preserve imports!
+	f, err := decorator.NewDecoratorWithImports(token.NewFileSet(), "dbfake", goast.New()).Parse(dbfake)
 	if err != nil {
 		return xerrors.Errorf("parse dbfake: %w", err)
 	}
@@ -64,7 +70,13 @@ func run() error {
 			// Not implemented!
 			decl = &dst.FuncDecl{
 				Name: dst.NewIdent(fn.Name),
-				Type: fn.Func,
+				Type: &dst.FuncType{
+					Func:       true,
+					TypeParams: fn.Func.TypeParams,
+					Params:     fn.Func.Params,
+					Results:    fn.Func.Results,
+					Decs:       fn.Func.Decs,
+				},
 				Recv: &dst.FieldList{
 					List: []*dst.Field{{
 						Names: []*dst.Ident{dst.NewIdent("q")},
@@ -81,7 +93,7 @@ func run() error {
 					Decs: dst.BlockStmtDecorations{
 						Lbrace: dst.Decorations{
 							"\n",
-							"// Implement me!",
+							"// Not implemented",
 						},
 					},
 				},
@@ -90,18 +102,20 @@ func run() error {
 		f.Decls = append(f.Decls, decl)
 	}
 
-	file, err := os.OpenFile("../../dbfake/dbfake.go", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	file, err := os.OpenFile("./dbfake/dbfake.go", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755)
 	if err != nil {
 		return xerrors.Errorf("open dbfake: %w", err)
 	}
 	defer file.Close()
 
-	err = decorator.Fprint(file, f)
+	// Required to preserve imports!
+	restorer := decorator.NewRestorerWithImports("dbfake", guess.New())
+	restored, err := restorer.RestoreFile(f)
 	if err != nil {
-		return xerrors.Errorf("write dbfake: %w", err)
+		return xerrors.Errorf("restore dbfake: %w", err)
 	}
-
-	return nil
+	err = format.Node(file, restorer.Fset, restored)
+	return err
 }
 
 type storeMethod struct {
@@ -110,7 +124,7 @@ type storeMethod struct {
 }
 
 func readStoreInterface() ([]storeMethod, error) {
-	querier, err := os.ReadFile("../../querier.go")
+	querier, err := os.ReadFile("./querier.go")
 	if err != nil {
 		return nil, xerrors.Errorf("read querier: %w", err)
 	}
@@ -150,6 +164,23 @@ func readStoreInterface() ([]storeMethod, error) {
 		if !ok {
 			continue
 		}
+
+		for _, t := range []*dst.FieldList{funcType.Params, funcType.Results} {
+			if t == nil {
+				continue
+			}
+			for _, f := range t.List {
+				ident, ok := f.Type.(*dst.Ident)
+				if !ok {
+					continue
+				}
+				if !ident.IsExported() {
+					continue
+				}
+				ident.Path = "github.com/coder/coder/coderd/database"
+			}
+		}
+
 		funcs = append(funcs, storeMethod{
 			Name: method.Names[0].Name,
 			Func: funcType,
