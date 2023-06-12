@@ -386,10 +386,3 @@ func TestSearchUsers(t *testing.T) {
 		})
 	}
 }
-
-func must[T any](value T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return value
-}
