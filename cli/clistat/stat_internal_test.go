@@ -113,7 +113,6 @@ func TestStatter(t *testing.T) {
 
 			t.Run("ContainerMemory", func(t *testing.T) {
 				t.Parallel()
-				t.Skip("not implemented")
 				mem, err := s.ContainerMemory()
 				require.NoError(t, err)
 				assert.NotNil(t, mem)
@@ -146,7 +145,6 @@ func TestStatter(t *testing.T) {
 
 			t.Run("ContainerMemory", func(t *testing.T) {
 				t.Parallel()
-				t.Skip("not implemented")
 				mem, err := s.ContainerMemory()
 				require.NoError(t, err)
 				assert.NotNil(t, mem)
