@@ -179,6 +179,7 @@ export interface CreateTemplateRequest {
   readonly allow_user_autostop?: boolean
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
+  readonly disable_everyone_group_access: boolean
 }
 
 // From codersdk/templateversions.go
