@@ -50,7 +50,7 @@ endif
 # Note, all find statements should be written with `.` or `./path` as
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
-	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path './site/out/*' \) -prune \)
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path './site/out/*' -o -path './coderd/apidoc/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES = $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go')
 # All the shell files in the repo, excluding ignored files.
@@ -522,7 +522,7 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	cd site
 	yarn run format:write:only ../docs/admin/prometheus.md
 
-docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
+docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES)
 	BASE_PATH="." go run ./scripts/clidocgen
 	cd site
 	yarn run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json
