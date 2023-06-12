@@ -1894,6 +1894,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
     "experiments": ["string"],
+    "external_token_encryption_key": "string",
     "git_auth": {
       "value": [
         {
@@ -2239,6 +2240,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "disable_path_apps": true,
   "disable_session_expiry_refresh": true,
   "experiments": ["string"],
+  "external_token_encryption_key": "string",
   "git_auth": {
     "value": [
       {
@@ -2429,6 +2431,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                            | false    |              |                                                                    |
+| `external_token_encryption_key`      | string                                                                                     | false    |              |                                                                    |
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
 | `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
 | `in_memory_database`                 | boolean                                                                                    | false    |              |                                                                    |

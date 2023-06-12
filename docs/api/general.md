@@ -196,6 +196,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
     "experiments": ["string"],
+    "external_token_encryption_key": "string",
     "git_auth": {
       "value": [
         {
