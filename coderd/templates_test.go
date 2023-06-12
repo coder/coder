@@ -66,7 +66,6 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		assert.Equal(t, expected.Name, got.Name)
 		assert.Equal(t, expected.Description, got.Description)
 
-		x := auditor.AuditLogs()
 		require.Len(t, auditor.AuditLogs(), 3)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[1].Action)
