@@ -27,13 +27,6 @@ import (
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
-// FakeDatabase is helpful for knowing if the underlying db is an in memory fake
-// database. This is only in the databasefake package, so will only be used
-// by unit tests.
-type FakeDatabase interface {
-	IsFakeDB()
-}
-
 var errDuplicateKey = &pq.Error{
 	Code:    "23505",
 	Message: "duplicate key value violates unique constraint",
@@ -218,7 +211,6 @@ func validateDatabaseType(args interface{}) error {
 	return nil
 }
 
-func (fakeQuerier) IsFakeDB() {}
 func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
