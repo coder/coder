@@ -114,7 +114,7 @@ jobs:
 
       # Check for Go linting errors!
       - name: Lint Go
-        uses: golangci/golangci-lint-action@v3.5.0
+        uses: golangci/golangci-lint-action@v3.6.0
         with:
           version: v1.52.2
 
