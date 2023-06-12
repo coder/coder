@@ -183,7 +183,7 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   fmt:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Checkout
