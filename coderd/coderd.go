@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/dbmetrics"
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -129,7 +130,7 @@ type Options struct {
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey     workspaceapps.SecurityKey
-	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
@@ -176,6 +177,11 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 
+	// Safety check: if we're not running a unit test, we *must* have a Prometheus registry.
+	if options.PrometheusRegistry == nil && flag.Lookup("test.v") == nil {
+		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
+	}
+
 	if options.DeploymentValues.DisableOwnerWorkspaceExec {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
 			NoOwnerWorkspaceExec: true,
@@ -184,6 +190,10 @@ func New(options *Options) *API {
 
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+	}
+	// The below are no-ops if already wrapped.
+	if options.PrometheusRegistry != nil {
+		options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 	}
 	options.Database = dbauthz.New(
 		options.Database,
@@ -256,10 +266,11 @@ func New(options *Options) *API {
 		options.TemplateScheduleStore.Store(&v)
 	}
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				AccessURL: options.AccessURL,
 				DERPMap:   options.DERPMap.Clone(),
+				APIKey:    apiKey,
 			})
 		}
 	}
@@ -394,22 +405,23 @@ func New(options *Options) *API {
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
+	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
 	r.Use(
-		cors,
 		httpmw.Recover(api.Logger),
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
-		httpmw.Prometheus(options.PrometheusRegistry),
+		prometheusMW,
 		// SubdomainAppMW checks if the first subdomain is a valid app URL. If
 		// it is, it will serve that application.
 		//
-		// Workspace apps do their own auth and must be BEFORE the auth
-		// middleware.
+		// Workspace apps do their own auth and CORS and must be BEFORE the auth
+		// and CORS middleware.
 		api.workspaceAppServer.HandleSubdomain(apiRateLimiter),
+		cors,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -465,6 +477,7 @@ func New(options *Options) *API {
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
 			apiRateLimiter,
+			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
 		r.Get("/", apiRoot)
 		// All CSP errors will be logged
@@ -539,14 +552,6 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Post("/", api.postParameter)
-			r.Get("/", api.parameters)
-			r.Route("/{name}", func(r chi.Router) {
-				r.Delete("/", api.deleteParameter)
-			})
-		})
 		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -570,8 +575,10 @@ func New(options *Options) *API {
 			r.Get("/", api.templateVersion)
 			r.Patch("/", api.patchTemplateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
-			r.Get("/schema", api.templateVersionSchema)
-			r.Get("/parameters", api.templateVersionParameters)
+			// Old agents may expect a non-error response from /schema and /parameters endpoints.
+			// The idea is to return an empty [], so that the coder CLI won't get blocked accidentally.
+			r.Get("/schema", templateVersionSchemaDeprecated)
+			r.Get("/parameters", templateVersionParametersDeprecated)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/gitauth", api.templateVersionGitAuth)
 			r.Get("/variables", api.templateVersionVariables)
@@ -786,6 +793,7 @@ func New(options *Options) *API {
 
 			r.Get("/coordinator", api.debugCoordinator)
 			r.Get("/health", api.debugDeploymentHealth)
+			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
 		})
 	})
 
@@ -819,7 +827,7 @@ func New(options *Options) *API {
 	// This is the only route we add before all the middleware.
 	// We want to time the latency of the request, so any middleware will
 	// interfere with that timing.
-	rootRouter.Get("/latency-check", cors(LatencyCheck(options.DeploymentValues.Dangerous.AllowAllCors.Value(), api.AccessURL)).ServeHTTP)
+	rootRouter.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
 	rootRouter.Mount("/", r)
 	api.RootHandler = rootRouter
 
@@ -873,6 +881,7 @@ type API struct {
 	Experiments codersdk.Experiments
 
 	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
+	healthCheckCache atomic.Pointer[healthcheck.Report]
 }
 
 // Close waits for all WebSocket connections to drain before returning.

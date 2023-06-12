@@ -45,7 +45,9 @@ const (
 // sshConfigOptions represents options that can be stored and read
 // from the coder config in ~/.ssh/coder.
 type sshConfigOptions struct {
-	sshOptions []string
+	waitEnum       string
+	userHostPrefix string
+	sshOptions     []string
 }
 
 // addOptions expects options in the form of "option=value" or "option value".
@@ -100,10 +102,19 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 	sort.Strings(opt1)
 	opt2 := slices.Clone(other.sshOptions)
 	sort.Strings(opt2)
-	return slices.Equal(opt1, opt2)
+	if !slices.Equal(opt1, opt2) {
+		return false
+	}
+	return o.waitEnum == other.waitEnum && o.userHostPrefix == other.userHostPrefix
 }
 
 func (o sshConfigOptions) asList() (list []string) {
+	if o.waitEnum != "auto" {
+		list = append(list, fmt.Sprintf("wait: %s", o.waitEnum))
+	}
+	if o.userHostPrefix != "" {
+		list = append(list, fmt.Sprintf("ssh-host-prefix: %s", o.userHostPrefix))
+	}
 	for _, opt := range o.sshOptions {
 		list = append(list, fmt.Sprintf("ssh-option: %s", opt))
 	}
@@ -178,6 +189,7 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
+//nolint:gocyclo
 func (r *RootCmd) configSSH() *clibase.Cmd {
 	var (
 		sshConfigFile    string
@@ -185,7 +197,6 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		usePreviousOpts  bool
 		dryRun           bool
 		skipProxyCommand bool
-		userHostPrefix   string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -207,6 +218,12 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			if sshConfigOpts.waitEnum != "auto" && skipProxyCommand {
+				// The wait option is applied to the ProxyCommand. If the user
+				// specifies skip-proxy-command, then wait cannot be applied.
+				return xerrors.Errorf("cannot specify both --skip-proxy-command and --wait")
+			}
+
 			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(inv.Context(), client)
 
 			out := inv.Stdout
@@ -295,7 +312,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 					// Selecting "no" will use the last config.
 					sshConfigOpts = *lastConfig
 				} else {
-					changes = append(changes, "Use new SSH options")
+					changes = append(changes, "Use new options")
 				}
 				// Only print when prompts are shown.
 				if yes, _ := inv.ParsedFlags().GetBool("yes"); !yes {
@@ -336,9 +353,9 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 				coderdConfig.HostnamePrefix = "coder."
 			}
 
-			if userHostPrefix != "" {
+			if sshConfigOpts.userHostPrefix != "" {
 				// Override with user flag.
-				coderdConfig.HostnamePrefix = userHostPrefix
+				coderdConfig.HostnamePrefix = sshConfigOpts.userHostPrefix
 			}
 
 			// Ensure stable sorting of output.
@@ -363,13 +380,20 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 					}
 
 					if !skipProxyCommand {
+						flags := ""
+						if sshConfigOpts.waitEnum != "auto" {
+							flags += " --wait=" + sshConfigOpts.waitEnum
+						}
 						defaultOptions = append(defaultOptions, fmt.Sprintf(
-							"ProxyCommand %s --global-config %s ssh --stdio %s",
-							escapedCoderBinary, escapedGlobalConfig, workspaceHostname,
+							"ProxyCommand %s --global-config %s ssh --stdio%s %s",
+							escapedCoderBinary, escapedGlobalConfig, flags, workspaceHostname,
 						))
 					}
 
-					var configOptions sshConfigOptions
+					// Create a copy of the options so we can modify them.
+					configOptions := sshConfigOpts
+					configOptions.sshOptions = nil
+
 					// Add standard options.
 					err := configOptions.addOptions(defaultOptions...)
 					if err != nil {
@@ -505,9 +529,16 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		},
 		{
 			Flag:        "ssh-host-prefix",
-			Env:         "",
+			Env:         "CODER_CONFIGSSH_SSH_HOST_PREFIX",
 			Description: "Override the default host prefix.",
-			Value:       clibase.StringOf(&userHostPrefix),
+			Value:       clibase.StringOf(&sshConfigOpts.userHostPrefix),
+		},
+		{
+			Flag:        "wait",
+			Env:         "CODER_CONFIGSSH_WAIT", // Not to be mixed with CODER_SSH_WAIT.
+			Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
+			Default:     "auto",
+			Value:       clibase.EnumOf(&sshConfigOpts.waitEnum, "yes", "no", "auto"),
 		},
 		cliui.SkipPromptOption(),
 	}
@@ -524,12 +555,22 @@ func sshConfigWriteSectionHeader(w io.Writer, addNewline bool, o sshConfigOption
 	_, _ = fmt.Fprint(w, nl+sshStartToken+"\n")
 	_, _ = fmt.Fprint(w, sshConfigSectionHeader)
 	_, _ = fmt.Fprint(w, sshConfigDocsHeader)
-	if len(o.sshOptions) > 0 {
-		_, _ = fmt.Fprint(w, sshConfigOptionsHeader)
-		for _, opt := range o.sshOptions {
-			_, _ = fmt.Fprintf(w, "# :%s=%s\n", "ssh-option", opt)
-		}
+
+	var ow strings.Builder
+	if o.waitEnum != "auto" {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "wait", o.waitEnum)
 	}
+	if o.userHostPrefix != "" {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-host-prefix", o.userHostPrefix)
+	}
+	for _, opt := range o.sshOptions {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "ssh-option", opt)
+	}
+	if ow.Len() > 0 {
+		_, _ = fmt.Fprint(w, sshConfigOptionsHeader)
+		_, _ = fmt.Fprint(w, ow.String())
+	}
+
 	_, _ = fmt.Fprint(w, "#\n")
 }
 
@@ -538,6 +579,9 @@ func sshConfigWriteSectionEnd(w io.Writer) {
 }
 
 func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
+	// Default values.
+	o.waitEnum = "auto"
+
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		line := s.Text()
@@ -545,6 +589,10 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 			line = strings.TrimPrefix(line, "# :")
 			parts := strings.SplitN(line, "=", 2)
 			switch parts[0] {
+			case "wait":
+				o.waitEnum = parts[1]
+			case "ssh-host-prefix":
+				o.userHostPrefix = parts[1]
 			case "ssh-option":
 				o.sshOptions = append(o.sshOptions, parts[1])
 			default:

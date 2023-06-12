@@ -6,60 +6,8 @@ import (
 	"strings"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 )
-
-func ParameterSchema(inv *clibase.Invocation, parameterSchema codersdk.ParameterSchema) (string, error) {
-	_, _ = fmt.Fprintln(inv.Stdout, Styles.Bold.Render("var."+parameterSchema.Name))
-	if parameterSchema.Description != "" {
-		_, _ = fmt.Fprintln(inv.Stdout, "  "+strings.TrimSpace(strings.Join(strings.Split(parameterSchema.Description, "\n"), "\n  "))+"\n")
-	}
-
-	var err error
-	var options []string
-	if parameterSchema.ValidationCondition != "" {
-		options, _, err = parameter.Contains(parameterSchema.ValidationCondition)
-		if err != nil {
-			return "", err
-		}
-	}
-	var value string
-	if len(options) > 0 {
-		// Move the cursor up a single line for nicer display!
-		_, _ = fmt.Fprint(inv.Stdout, "\033[1A")
-		value, err = Select(inv, SelectOptions{
-			Options:    options,
-			Default:    parameterSchema.DefaultSourceValue,
-			HideSearch: true,
-		})
-		if err == nil {
-			_, _ = fmt.Fprintln(inv.Stdout)
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+Styles.Prompt.String()+Styles.Field.Render(value))
-		}
-	} else {
-		text := "Enter a value"
-		if parameterSchema.DefaultSourceValue != "" {
-			text += fmt.Sprintf(" (default: %q)", parameterSchema.DefaultSourceValue)
-		}
-		text += ":"
-
-		value, err = Prompt(inv, PromptOptions{
-			Text: Styles.Bold.Render(text),
-		})
-		value = strings.TrimSpace(value)
-	}
-	if err != nil {
-		return "", err
-	}
-
-	// If they didn't specify anything, use the default value if set.
-	if len(options) == 0 && value == "" {
-		value = parameterSchema.DefaultSourceValue
-	}
-
-	return value, nil
-}
 
 func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
 	label := templateVersionParameter.Name
@@ -67,7 +15,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 		label = templateVersionParameter.DisplayName
 	}
 
-	_, _ = fmt.Fprintln(inv.Stdout, Styles.Bold.Render(label))
+	_, _ = fmt.Fprintln(inv.Stdout, DefaultStyles.Bold.Render(label))
 	if templateVersionParameter.DescriptionPlaintext != "" {
 		_, _ = fmt.Fprintln(inv.Stdout, "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")
 	}
@@ -92,7 +40,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 			}
 
 			_, _ = fmt.Fprintln(inv.Stdout)
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+Styles.Prompt.String()+Styles.Field.Render(strings.Join(values, ", ")))
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+DefaultStyles.Prompt.String()+DefaultStyles.Field.Render(strings.Join(values, ", ")))
 			value = string(v)
 		}
 	} else if len(templateVersionParameter.Options) > 0 {
@@ -106,7 +54,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 		})
 		if err == nil {
 			_, _ = fmt.Fprintln(inv.Stdout)
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+Styles.Prompt.String()+Styles.Field.Render(richParameterOption.Name))
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+DefaultStyles.Prompt.String()+DefaultStyles.Field.Render(richParameterOption.Name))
 			value = richParameterOption.Value
 		}
 	} else {
@@ -117,7 +65,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 		text += ":"
 
 		value, err = Prompt(inv, PromptOptions{
-			Text: Styles.Bold.Render(text),
+			Text: DefaultStyles.Bold.Render(text),
 			Validate: func(value string) error {
 				return validateRichPrompt(value, templateVersionParameter)
 			},

@@ -2,7 +2,7 @@ import MenuItem from "@mui/material/MenuItem"
 import Menu from "@mui/material/Menu"
 import { makeStyles } from "@mui/styles"
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined"
-import { FC, ReactNode, useRef, useState } from "react"
+import { FC, Fragment, ReactNode, useRef, useState } from "react"
 import { WorkspaceStatus } from "api/typesGenerated"
 import {
   ActionLoadingButton,
@@ -104,7 +104,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
       {!isRestarting &&
         actionsByStatus.map((action) => (
-          <span key={action}>{buttonMapping[action]}</span>
+          <Fragment key={action}>{buttonMapping[action]}</Fragment>
         ))}
       {canCancel && <CancelButton handleAction={handleCancel} />}
       <div>

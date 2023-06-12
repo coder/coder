@@ -127,3 +127,33 @@ variable "workspace_image" {
   description = "Image and tag to use for workspaces."
   default     = "docker.io/codercom/enterprise-minimal:ubuntu"
 }
+
+variable "prometheus_remote_write_user" {
+  description = "Username for Prometheus remote write."
+  default     = ""
+}
+
+variable "prometheus_remote_write_password" {
+  description = "Password for Prometheus remote write."
+  default     = ""
+}
+
+variable "prometheus_remote_write_url" {
+  description = "URL for Prometheus remote write. Defaults to stats.dev.c8s.io"
+  default     = "https://stats.dev.c8s.io:9443/api/v1/write"
+}
+
+variable "prometheus_remote_write_insecure_skip_verify" {
+  description = "Skip TLS verification for Prometheus remote write."
+  default     = true
+}
+
+variable "prometheus_remote_write_metrics_regex" {
+  description = "Allowlist regex of metrics for Prometheus remote write."
+  default     = ".*"
+}
+
+variable "prometheus_remote_write_send_interval" {
+  description = "Prometheus remote write interval."
+  default     = "15s"
+}

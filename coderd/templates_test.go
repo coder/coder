@@ -978,10 +978,10 @@ func TestTemplateMetrics(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	daus, err := client.TemplateDAUs(context.Background(), template.ID)
+	daus, err := client.TemplateDAUs(context.Background(), template.ID, codersdk.TimezoneOffsetHour(time.UTC))
 	require.NoError(t, err)
 
-	require.Equal(t, &codersdk.TemplateDAUsResponse{
+	require.Equal(t, &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{},
 	}, daus, "no DAUs when stats are empty")
 
@@ -1001,7 +1001,7 @@ func TestTemplateMetrics(t *testing.T) {
 	require.NoError(t, err)
 	_ = sshConn.Close()
 
-	wantDAUs := &codersdk.TemplateDAUsResponse{
+	wantDAUs := &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
 				Date:   time.Now().UTC().Truncate(time.Hour * 24),
@@ -1010,14 +1010,14 @@ func TestTemplateMetrics(t *testing.T) {
 		},
 	}
 	require.Eventuallyf(t, func() bool {
-		daus, err = client.TemplateDAUs(ctx, template.ID)
+		daus, err = client.TemplateDAUs(ctx, template.ID, codersdk.TimezoneOffsetHour(time.UTC))
 		require.NoError(t, err)
 		return len(daus.Entries) > 0
 	},
 		testutil.WaitShort, testutil.IntervalFast,
 		"template daus never loaded",
 	)
-	gotDAUs, err := client.TemplateDAUs(ctx, template.ID)
+	gotDAUs, err := client.TemplateDAUs(ctx, template.ID, codersdk.TimezoneOffsetHour(time.UTC))
 	require.NoError(t, err)
 	require.Equal(t, gotDAUs, wantDAUs)
 

@@ -112,13 +112,25 @@ to log in and manage templates.
    > [values.yaml](https://github.com/coder/coder/blob/main/helm/values.yaml)
    > file directly.
 
-   If you are deploying Coder on AWS EKS and service is set to LoadBalancer, the load balancer external IP will be stuck in a pending status unless sessionAffinity is set to None.
+   If you are deploying Coder on AWS EKS and service is set to `LoadBalancer`, AWS will default to the Classic load balancer. The load balancer external IP will be stuck in a pending status unless sessionAffinity is set to None.
 
    ```yaml
    coder:
      service:
        type: LoadBalancer
        sessionAffinity: None
+   ```
+
+   AWS however recommends a Network load balancer in lieu of the Classic load balancer. Use the following `values.yaml` settings to request a Network load balancer:
+
+   ```yaml
+   coder:
+      service:
+      externalTrafficPolicy: Local
+      sessionAffinity: None
+      annotations: {
+         service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    }
    ```
 
 1. Run the following command to install the chart in your cluster.
@@ -164,9 +176,9 @@ Cloud's log management system if you are using managed Kubernetes.
 Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart. If you do not have a domain set up,
 this should be the IP address of Coder's LoadBalancer (`kubectl get svc -n coder`).
 
-See [troubleshooting templates](../templates/README.md#troubleshooting-templates) for more steps.
+See [troubleshooting templates](../templates/index.md#troubleshooting-templates) for more steps.
 
 ## Next steps
 
 - [Configuring Coder](../admin/configure.md)
-- [Templates](../templates/README.md)
+- [Templates](../templates/index.md)

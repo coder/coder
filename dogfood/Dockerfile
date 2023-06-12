@@ -8,7 +8,7 @@ FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.20.4
+ARG GO_VERSION=1.20.5
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -32,9 +32,9 @@ RUN mkdir --parents "$GOPATH" && \
 	# goimports for updating imports
 	go install golang.org/x/tools/cmd/goimports@v0.1.7 && \
 	# protoc-gen-go is needed to build sysbox from source
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26 && \
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
 	# drpc support for v2
-	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26 && \
+	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33 && \
 	# migrate for migration support for v2
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
@@ -75,7 +75,7 @@ RUN mkdir --parents "$GOPATH" && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
 	go install github.com/golang/mock/mockgen@v1.6.0
 
-FROM alpine:3.16 as proto
+FROM alpine:3.18 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
@@ -216,7 +216,7 @@ RUN systemctl enable \
 ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	DIVE_VERSION=0.10.0 \
 	DOCKER_GCR_VERSION=2.1.8 \
-	GOLANGCI_LINT_VERSION=1.51.0 \
+	GOLANGCI_LINT_VERSION=1.52.2 \
 	GRYPE_VERSION=0.61.1 \
 	HELM_VERSION=3.12.0 \
 	KUBE_LINTER_VERSION=0.6.3 \

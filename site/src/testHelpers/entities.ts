@@ -1,8 +1,8 @@
-import { withDefaultFeatures } from "./../api/api"
+import { withDefaultFeatures, GetLicensesResponse } from "api/api"
 import { FieldError } from "api/errors"
 import { everyOneGroup } from "utils/groups"
-import * as Types from "../api/types"
-import * as TypesGen from "../api/typesGenerated"
+import * as Types from "api/types"
+import * as TypesGen from "api/typesGenerated"
 import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 import { TemplateVersionFiles } from "utils/templateVersion"
@@ -16,14 +16,16 @@ export const MockOrganization: TypesGen.Organization = {
   updated_at: "",
 }
 
-export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
+export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
+  tz_hour_offset: 0,
   entries: [
     { date: "2022-08-27T00:00:00Z", amount: 1 },
     { date: "2022-08-29T00:00:00Z", amount: 2 },
     { date: "2022-08-30T00:00:00Z", amount: 1 },
   ],
 }
-export const MockDeploymentDAUResponse: TypesGen.DeploymentDAUsResponse = {
+export const MockDeploymentDAUResponse: TypesGen.DAUsResponse = {
+  tz_hour_offset: 0,
   entries: [
     { date: "2022-08-27T00:00:00Z", amount: 1 },
     { date: "2022-08-29T00:00:00Z", amount: 2 },
@@ -350,7 +352,7 @@ export const MockTemplateVersion3: TypesGen.TemplateVersion = {
   name: "test-version-3",
   readme: "README",
   created_by: MockUser,
-  warnings: ["DEPRECATED_PARAMETERS"],
+  warnings: ["UNSUPPORTED_WORKSPACES"],
 }
 
 export const MockTemplate: TypesGen.Template = {
@@ -496,7 +498,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
   lifecycle_state: "starting",
-  login_before_ready: false,
+  login_before_ready: false, // Deprecated.
+  startup_script_behavior: "blocking",
   startup_logs_length: 0,
   startup_logs_overflowed: false,
   startup_script_timeout_seconds: 120,
@@ -995,7 +998,6 @@ export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
-  parameter_values: [],
   template_id: "test-template",
   rich_parameter_values: [
     {
@@ -1400,6 +1402,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 export const MockExperiments: TypesGen.Experiment[] = [
   "workspace_actions",
   "moons",
+  "workspace_filter",
 ]
 
 export const MockAuditLog: TypesGen.AuditLog = {
@@ -1603,71 +1606,6 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
   value: "5",
 }
 
-export const MockParameterSchema: TypesGen.ParameterSchema = {
-  id: "000000",
-  job_id: "000000",
-  allow_override_destination: false,
-  allow_override_source: true,
-  created_at: "",
-  default_destination_scheme: "none",
-  default_refresh: "",
-  default_source_scheme: "data",
-  default_source_value: "default-value",
-  name: "parameter name",
-  description: "Some description!",
-  redisplay_value: false,
-  validation_condition: "",
-  validation_contains: [],
-  validation_error: "",
-  validation_type_system: "",
-  validation_value_type: "",
-}
-
-export const mockParameterSchema = (
-  partial: Partial<TypesGen.ParameterSchema>,
-): TypesGen.ParameterSchema => {
-  return {
-    ...MockParameterSchema,
-    ...partial,
-  }
-}
-
-export const MockParameterSchemas: TypesGen.ParameterSchema[] = [
-  mockParameterSchema({
-    name: "region",
-    default_source_value: "🏈 US Central",
-    description: "Where would you like your workspace to live?",
-    redisplay_value: true,
-    validation_contains: [
-      "🏈 US Central",
-      "⚽ Brazil East",
-      "💶 EU West",
-      "🦘 Australia South",
-    ],
-  }),
-  mockParameterSchema({
-    name: "instance_size",
-    default_source_value: "Big",
-    description: "How large should you instance be?",
-    validation_contains: ["Small", "Medium", "Big"],
-    redisplay_value: true,
-  }),
-  mockParameterSchema({
-    name: "instance_size",
-    default_source_value: "Big",
-    description: "How large should your instance be?",
-    validation_contains: ["Small", "Medium", "Big"],
-    redisplay_value: true,
-  }),
-  mockParameterSchema({
-    name: "disable_docker",
-    description: "Disable Docker?",
-    validation_value_type: "bool",
-    default_source_value: "false",
-    redisplay_value: true,
-  }),
-]
-
 export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
   id: "github",
   type: "github",
@@ -1730,5 +1668,47 @@ export const MockStartupLogs: TypesGen.WorkspaceAgentStartupLog[] = [
     created_at: "2023-05-04T11:30:42.593686Z",
     output: "Installing v4.8.3 of the amd64 release from GitHub.",
     level: "info",
+  },
+]
+
+export const MockLicenseResponse: GetLicensesResponse[] = [
+  {
+    id: 1,
+    uploaded_at: "1660104000",
+    expires_at: "3420244800", // expires on 5/20/2078
+    uuid: "1",
+    claims: {
+      trial: false,
+      all_features: true,
+      version: 1,
+      features: {},
+      license_expires: 3420244800,
+    },
+  },
+  {
+    id: 1,
+    uploaded_at: "1660104000",
+    expires_at: "1660104000", // expired on 8/10/2022
+    uuid: "1",
+    claims: {
+      trial: false,
+      all_features: true,
+      version: 1,
+      features: {},
+      license_expires: 1660104000,
+    },
+  },
+  {
+    id: 1,
+    uploaded_at: "1682346425",
+    expires_at: "1682346425", // expired on 4/24/2023
+    uuid: "1",
+    claims: {
+      trial: false,
+      all_features: true,
+      version: 1,
+      features: {},
+      license_expires: 1682346425,
+    },
   },
 ]

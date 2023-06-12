@@ -109,6 +109,7 @@ func Test_Runner(t *testing.T) {
 
 //nolint:paralleltest // Measures timing as part of the test.
 func Test_Runner_Timing(t *testing.T) {
+	testutil.SkipIfNotTiming(t)
 	//nolint:paralleltest
 	t.Run("Direct+Hold", func(t *testing.T) {
 		client, agentID := setupRunnerTest(t)

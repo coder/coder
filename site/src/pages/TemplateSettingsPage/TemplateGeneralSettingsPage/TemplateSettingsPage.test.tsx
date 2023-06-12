@@ -107,7 +107,7 @@ describe("TemplateSettingsPage", () => {
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
-      t("descriptionMaxError", { ns: "templateSettingsPage" }),
+      t("descriptionMaxError", { ns: "templateSettingsPage" }).toString(),
     )
   })
 })

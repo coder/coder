@@ -65,6 +65,7 @@ func (r *RootCmd) server() *clibase.Cmd {
 			DERPServerRelayAddress: options.DeploymentValues.DERP.Server.RelayURL.String(),
 			DERPServerRegionID:     int(options.DeploymentValues.DERP.Server.RegionID.Value()),
 			Options:                options,
+			ProxyHealthInterval:    options.DeploymentValues.ProxyHealthStatusInterval.Value(),
 		}
 
 		if options.DeploymentValues.ExternalTokenEncryptionKey.Value() != "" {

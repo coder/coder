@@ -20,6 +20,9 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 	"tailscale.com/util/clientmetric"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
@@ -55,9 +58,50 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			ignorePorts := map[int]string{}
+			var (
+				ignorePorts = map[int]string{}
+				isLinux     = runtime.GOOS == "linux"
 
-			isLinux := runtime.GOOS == "linux"
+				sinks      = []slog.Sink{}
+				logClosers = []func() error{}
+			)
+			defer func() {
+				for _, closer := range logClosers {
+					_ = closer()
+				}
+			}()
+
+			addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
+				switch loc {
+				case "":
+					// Do nothing.
+
+				case "/dev/stderr":
+					sinks = append(sinks, sinkFn(inv.Stderr))
+
+				case "/dev/stdout":
+					sinks = append(sinks, sinkFn(inv.Stdout))
+
+				default:
+					fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+					if err != nil {
+						return xerrors.Errorf("open log file %q: %w", loc, err)
+					}
+					sinks = append(sinks, sinkFn(fi))
+					logClosers = append(logClosers, fi.Close)
+				}
+				return nil
+			}
+
+			if err := addSinkIfProvided(sloghuman.Sink, slogHumanPath); err != nil {
+				return xerrors.Errorf("add human sink: %w", err)
+			}
+			if err := addSinkIfProvided(slogjson.Sink, slogJSONPath); err != nil {
+				return xerrors.Errorf("add json sink: %w", err)
+			}
+			if err := addSinkIfProvided(slogstackdriver.Sink, slogStackdriverPath); err != nil {
+				return xerrors.Errorf("add stackdriver sink: %w", err)
+			}
 
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
@@ -65,48 +109,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				logWriter := &lumberjack.Logger{
 					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
+					// Without this, rotated logs will never be deleted.
+					MaxBackups: 1,
 				}
 				defer logWriter.Close()
 
-				sinks := []slog.Sink{sloghuman.Sink(logWriter)}
-				closers := []func() error{}
-				addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
-					switch loc {
-					case "":
-
-					case "/dev/stdout":
-						sinks = append(sinks, sinkFn(inv.Stdout))
-
-					case "/dev/stderr":
-						sinks = append(sinks, sinkFn(inv.Stderr))
-
-					default:
-						fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
-						if err != nil {
-							return xerrors.Errorf("open log file %q: %w", loc, err)
-						}
-						closers = append(closers, fi.Close)
-						sinks = append(sinks, sinkFn(fi))
-					}
-					return nil
-				}
-
-				if err := addSinkIfProvided(sloghuman.Sink, slogHumanPath); err != nil {
-					return xerrors.Errorf("add human sink: %w", err)
-				}
-				if err := addSinkIfProvided(slogjson.Sink, slogJSONPath); err != nil {
-					return xerrors.Errorf("add json sink: %w", err)
-				}
-				if err := addSinkIfProvided(slogstackdriver.Sink, slogStackdriverPath); err != nil {
-					return xerrors.Errorf("add stackdriver sink: %w", err)
-				}
-
+				sinks = append(sinks, sloghuman.Sink(logWriter))
 				logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
-				defer func() {
-					for _, closer := range closers {
-						_ = closer()
-					}
-				}()
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
@@ -143,12 +152,15 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			ljLogger := &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
+				// Without this, rotated logs will never be deleted.
+				MaxBackups: 1,
 			}
 			defer ljLogger.Close()
 			logWriter := &closeWriter{w: ljLogger}
 			defer logWriter.Close()
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+			sinks = append(sinks, sloghuman.Sink(logWriter))
+			logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "starting agent",
@@ -173,8 +185,6 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				ignorePorts[port] = "pprof"
 			}
 
-			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(), prometheusAddress, "prometheus")
-			defer prometheusSrvClose()
 			if port, err := extractPort(prometheusAddress); err == nil {
 				ignorePorts[port] = "prometheus"
 			}
@@ -244,6 +254,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
+			prometheusRegistry := prometheus.NewRegistry()
 			subsystem := inv.Environ.Get(agent.EnvAgentSubsystem)
 			agnt := agent.New(agent.Options{
 				Client:            client,
@@ -267,7 +278,12 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
 				Subsystem:     codersdk.AgentSubsystem(subsystem),
+
+				PrometheusRegistry: prometheusRegistry,
 			})
+
+			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
+			defer prometheusSrvClose()
 
 			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
 			defer debugSrvClose()
@@ -445,11 +461,25 @@ func urlPort(u string) (int, error) {
 	return -1, xerrors.Errorf("invalid port: %s", u)
 }
 
-func prometheusMetricsHandler() http.Handler {
-	// We don't have any other internal metrics so far, so it's safe to expose metrics this way.
-	// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
+func prometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
+
+		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
 		clientmetric.WritePrometheusExpositionFormat(w)
+
+		metricFamilies, err := prometheusRegistry.Gather()
+		if err != nil {
+			logger.Error(context.Background(), "Prometheus handler can't gather metric families", slog.Error(err))
+			return
+		}
+
+		for _, metricFamily := range metricFamilies {
+			_, err = expfmt.MetricFamilyToText(w, metricFamily)
+			if err != nil {
+				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
+				return
+			}
+		}
 	})
 }

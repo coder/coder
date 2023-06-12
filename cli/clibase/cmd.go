@@ -145,6 +145,16 @@ func (c *Cmd) FullUsage() string {
 	return strings.Join(uses, " ")
 }
 
+// FullOptions returns the options of the command and its parents.
+func (c *Cmd) FullOptions() OptionSet {
+	var opts OptionSet
+	if c.Parent != nil {
+		opts = append(opts, c.Parent.FullOptions()...)
+	}
+	opts = append(opts, c.Options...)
+	return opts
+}
+
 // Invoke creates a new invocation of the command, with
 // stdio discarded.
 //
@@ -437,6 +447,19 @@ func (inv *Invocation) Run() (err error) {
 			err = xerrors.Errorf("panic recovered for %s: %v", inv.Command.FullName(), r)
 			panic(err)
 		}
+	}()
+	// We close Stdin to prevent deadlocks, e.g. when the command
+	// has ended but an io.Copy is still reading from Stdin.
+	defer func() {
+		if inv.Stdin == nil {
+			return
+		}
+		rc, ok := inv.Stdin.(io.ReadCloser)
+		if !ok {
+			return
+		}
+		e := rc.Close()
+		err = errors.Join(err, e)
 	}()
 	err = inv.run(&runState{
 		allArgs: inv.Args,

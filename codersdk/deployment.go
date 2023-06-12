@@ -166,6 +166,7 @@ type DeploymentValues struct {
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
+	ProxyHealthStatusInterval       clibase.Duration                `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -956,7 +957,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "OIDC Group Field",
-			Description: "Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.",
+			Description: "This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.",
 			Flag:        "oidc-group-field",
 			Env:         "CODER_OIDC_GROUP_FIELD",
 			// This value is intentionally blank. If this is empty, then OIDC group
@@ -1173,7 +1174,7 @@ when required by your organization's security policy.`,
 		// ☢️ Dangerous settings
 		{
 			Name:        "DANGEROUS: Allow all CORs requests",
-			Description: "For security reasons, CORs requests are blocked. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
+			Description: "For security reasons, CORs requests are blocked except between workspace apps owned by the same user. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
 			Flag:        "dangerous-allow-cors-requests",
 			Env:         "CODER_DANGEROUS_ALLOW_CORS_REQUESTS",
 			Hidden:      true, // Hidden, should only be used by yarn dev server
@@ -1507,6 +1508,16 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "", // empty string means pick best server
 			Hidden:      true,
 		},
+		{
+			Name:        "Proxy Health Check Interval",
+			Description: "The interval in which coderd should be checking the status of workspace proxies.",
+			Flag:        "proxy-health-interval",
+			Env:         "CODER_PROXY_HEALTH_INTERVAL",
+			Default:     (time.Minute).String(),
+			Value:       &c.ProxyHealthStatusInterval,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "proxyHealthInterval",
+		},
 	}
 	return opts
 }
@@ -1692,6 +1703,9 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
+	// New workspace filter
+	ExperimentWorkspaceFilter Experiment = "workspace_filter"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1700,7 +1714,9 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsAll = Experiments{
+	ExperimentWorkspaceFilter,
+}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.
@@ -1730,12 +1746,48 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 	return exp, json.NewDecoder(res.Body).Decode(&exp)
 }
 
-type DeploymentDAUsResponse struct {
-	Entries []DAUEntry `json:"entries"`
+type DAUsResponse struct {
+	Entries      []DAUEntry `json:"entries"`
+	TZHourOffset int        `json:"tz_hour_offset"`
 }
 
-func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil)
+type DAUEntry struct {
+	Date   time.Time `json:"date" format:"date-time"`
+	Amount int       `json:"amount"`
+}
+
+type DAURequest struct {
+	TZHourOffset int
+}
+
+func (d DAURequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("tz_offset", strconv.Itoa(d.TZHourOffset))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+func TimezoneOffsetHour(loc *time.Location) int {
+	if loc == nil {
+		// Default to UTC time to be consistent across all callers.
+		loc = time.UTC
+	}
+	_, offsetSec := time.Now().In(loc).Zone()
+	// Convert to hours
+	return offsetSec / 60 / 60
+}
+
+func (c *Client) DeploymentDAUsLocalTZ(ctx context.Context) (*DAUsResponse, error) {
+	return c.DeploymentDAUs(ctx, TimezoneOffsetHour(time.Local))
+}
+
+// DeploymentDAUs requires a tzOffset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local) for the
+// local timezone.
+func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil, DAURequest{
+		TZHourOffset: tzOffset,
+	}.asRequestOption())
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
@@ -1745,7 +1797,7 @@ func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, e
 		return nil, ReadBodyAsError(res)
 	}
 
-	var resp DeploymentDAUsResponse
+	var resp DAUsResponse
 	return &resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

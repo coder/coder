@@ -412,34 +412,40 @@ WHERE
 			action = $6 :: audit_action
 		ELSE true
 	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $7 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $7
+		ELSE true
+	END
 	-- Filter by username
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			users.username = $7
+		WHEN $8 :: text != '' THEN
+			user_id = (SELECT id FROM users WHERE lower(username) = lower($8) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			users.email = $8
+		WHEN $9 :: text != '' THEN
+			users.email = $9
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" >= $9
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $10
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" <= $10
+		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $11
 		ELSE true
 	END
     -- Filter by build_reason
     AND CASE
-	    WHEN $11::text != '' THEN
-            workspace_builds.reason::text = $11
+	    WHEN $12::text != '' THEN
+            workspace_builds.reason::text = $12
         ELSE true
     END
 ORDER BY
@@ -457,6 +463,7 @@ type GetAuditLogsOffsetParams struct {
 	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
 	ResourceTarget string    `db:"resource_target" json:"resource_target"`
 	Action         string    `db:"action" json:"action"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
 	Username       string    `db:"username" json:"username"`
 	Email          string    `db:"email" json:"email"`
 	DateFrom       time.Time `db:"date_from" json:"date_from"`
@@ -499,6 +506,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.ResourceID,
 		arg.ResourceTarget,
 		arg.Action,
+		arg.UserID,
 		arg.Username,
 		arg.Email,
 		arg.DateFrom,
@@ -1949,358 +1957,6 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
-const getParameterSchemasCreatedAfter = `-- name: GetParameterSchemasCreatedAfter :many
-SELECT id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index FROM parameter_schemas WHERE created_at > $1
-`
-
-func (q *sqlQuerier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]ParameterSchema, error) {
-	rows, err := q.db.QueryContext(ctx, getParameterSchemasCreatedAfter, createdAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ParameterSchema
-	for rows.Next() {
-		var i ParameterSchema
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.JobID,
-			&i.Name,
-			&i.Description,
-			&i.DefaultSourceScheme,
-			&i.DefaultSourceValue,
-			&i.AllowOverrideSource,
-			&i.DefaultDestinationScheme,
-			&i.AllowOverrideDestination,
-			&i.DefaultRefresh,
-			&i.RedisplayValue,
-			&i.ValidationError,
-			&i.ValidationCondition,
-			&i.ValidationTypeSystem,
-			&i.ValidationValueType,
-			&i.Index,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertParameterSchema = `-- name: InsertParameterSchema :one
-INSERT INTO
-	parameter_schemas (
-		id,
-		created_at,
-		job_id,
-		"name",
-		description,
-		default_source_scheme,
-		default_source_value,
-		allow_override_source,
-		default_destination_scheme,
-		allow_override_destination,
-		default_refresh,
-		redisplay_value,
-		validation_error,
-		validation_condition,
-		validation_type_system,
-		validation_value_type,
-		index
-	)
-VALUES
-	(
-		$1,
-		$2,
-		$3,
-		$4,
-		$5,
-		$6,
-		$7,
-		$8,
-		$9,
-		$10,
-		$11,
-		$12,
-		$13,
-		$14,
-		$15,
-		$16,
-		$17
-	) RETURNING id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index
-`
-
-type InsertParameterSchemaParams struct {
-	ID                       uuid.UUID                  `db:"id" json:"id"`
-	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
-	JobID                    uuid.UUID                  `db:"job_id" json:"job_id"`
-	Name                     string                     `db:"name" json:"name"`
-	Description              string                     `db:"description" json:"description"`
-	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
-	DefaultSourceValue       string                     `db:"default_source_value" json:"default_source_value"`
-	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
-	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
-	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
-	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
-	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
-	ValidationError          string                     `db:"validation_error" json:"validation_error"`
-	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
-	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
-	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
-	Index                    int32                      `db:"index" json:"index"`
-}
-
-func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error) {
-	row := q.db.QueryRowContext(ctx, insertParameterSchema,
-		arg.ID,
-		arg.CreatedAt,
-		arg.JobID,
-		arg.Name,
-		arg.Description,
-		arg.DefaultSourceScheme,
-		arg.DefaultSourceValue,
-		arg.AllowOverrideSource,
-		arg.DefaultDestinationScheme,
-		arg.AllowOverrideDestination,
-		arg.DefaultRefresh,
-		arg.RedisplayValue,
-		arg.ValidationError,
-		arg.ValidationCondition,
-		arg.ValidationTypeSystem,
-		arg.ValidationValueType,
-		arg.Index,
-	)
-	var i ParameterSchema
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.JobID,
-		&i.Name,
-		&i.Description,
-		&i.DefaultSourceScheme,
-		&i.DefaultSourceValue,
-		&i.AllowOverrideSource,
-		&i.DefaultDestinationScheme,
-		&i.AllowOverrideDestination,
-		&i.DefaultRefresh,
-		&i.RedisplayValue,
-		&i.ValidationError,
-		&i.ValidationCondition,
-		&i.ValidationTypeSystem,
-		&i.ValidationValueType,
-		&i.Index,
-	)
-	return i, err
-}
-
-const deleteParameterValueByID = `-- name: DeleteParameterValueByID :exec
-DELETE FROM
-	parameter_values
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteParameterValueByID, id)
-	return err
-}
-
-const getParameterValueByScopeAndName = `-- name: GetParameterValueByScopeAndName :one
-SELECT
-	id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
-FROM
-	parameter_values
-WHERE
-	scope = $1
-	AND scope_id = $2
-	AND NAME = $3
-LIMIT
-	1
-`
-
-type GetParameterValueByScopeAndNameParams struct {
-	Scope   ParameterScope `db:"scope" json:"scope"`
-	ScopeID uuid.UUID      `db:"scope_id" json:"scope_id"`
-	Name    string         `db:"name" json:"name"`
-}
-
-func (q *sqlQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg GetParameterValueByScopeAndNameParams) (ParameterValue, error) {
-	row := q.db.QueryRowContext(ctx, getParameterValueByScopeAndName, arg.Scope, arg.ScopeID, arg.Name)
-	var i ParameterValue
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Scope,
-		&i.ScopeID,
-		&i.Name,
-		&i.SourceScheme,
-		&i.SourceValue,
-		&i.DestinationScheme,
-	)
-	return i, err
-}
-
-const insertParameterValue = `-- name: InsertParameterValue :one
-INSERT INTO
-	parameter_values (
-		id,
-		"name",
-		created_at,
-		updated_at,
-		scope,
-		scope_id,
-		source_scheme,
-		source_value,
-		destination_scheme
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
-`
-
-type InsertParameterValueParams struct {
-	ID                uuid.UUID                  `db:"id" json:"id"`
-	Name              string                     `db:"name" json:"name"`
-	CreatedAt         time.Time                  `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time                  `db:"updated_at" json:"updated_at"`
-	Scope             ParameterScope             `db:"scope" json:"scope"`
-	ScopeID           uuid.UUID                  `db:"scope_id" json:"scope_id"`
-	SourceScheme      ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
-	SourceValue       string                     `db:"source_value" json:"source_value"`
-	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
-}
-
-func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParameterValueParams) (ParameterValue, error) {
-	row := q.db.QueryRowContext(ctx, insertParameterValue,
-		arg.ID,
-		arg.Name,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.Scope,
-		arg.ScopeID,
-		arg.SourceScheme,
-		arg.SourceValue,
-		arg.DestinationScheme,
-	)
-	var i ParameterValue
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Scope,
-		&i.ScopeID,
-		&i.Name,
-		&i.SourceScheme,
-		&i.SourceValue,
-		&i.DestinationScheme,
-	)
-	return i, err
-}
-
-const parameterValue = `-- name: ParameterValue :one
-SELECT id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme FROM
-	parameter_values
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (ParameterValue, error) {
-	row := q.db.QueryRowContext(ctx, parameterValue, id)
-	var i ParameterValue
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Scope,
-		&i.ScopeID,
-		&i.Name,
-		&i.SourceScheme,
-		&i.SourceValue,
-		&i.DestinationScheme,
-	)
-	return i, err
-}
-
-const parameterValues = `-- name: ParameterValues :many
-SELECT
-	id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
-FROM
-	parameter_values
-WHERE
-  	CASE
-		  WHEN cardinality($1 :: parameter_scope[]) > 0 THEN
-				  scope = ANY($1 :: parameter_scope[])
-		  ELSE true
-	END
-    AND CASE
-		WHEN cardinality($2 :: uuid[]) > 0 THEN
-			scope_id = ANY($2 :: uuid[])
-		ELSE true
-	END
-  	AND CASE
-		WHEN cardinality($3 :: uuid[]) > 0 THEN
-			id = ANY($3 :: uuid[])
-		ELSE true
-	END
-  	AND CASE
-		  WHEN cardinality($4 :: text[]) > 0 THEN
-				  "name" = ANY($4 :: text[])
-		  ELSE true
-	END
-`
-
-type ParameterValuesParams struct {
-	Scopes   []ParameterScope `db:"scopes" json:"scopes"`
-	ScopeIds []uuid.UUID      `db:"scope_ids" json:"scope_ids"`
-	IDs      []uuid.UUID      `db:"ids" json:"ids"`
-	Names    []string         `db:"names" json:"names"`
-}
-
-func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error) {
-	rows, err := q.db.QueryContext(ctx, parameterValues,
-		pq.Array(arg.Scopes),
-		pq.Array(arg.ScopeIds),
-		pq.Array(arg.IDs),
-		pq.Array(arg.Names),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ParameterValue
-	for rows.Next() {
-		var i ParameterValue
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Scope,
-			&i.ScopeID,
-			&i.Name,
-			&i.SourceScheme,
-			&i.SourceValue,
-			&i.DestinationScheme,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
 	id, created_at, updated_at, name, provisioners, replica_id, tags
@@ -3394,6 +3050,24 @@ func (q *sqlQuerier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getDefaultProxyConfig = `-- name: GetDefaultProxyConfig :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'default_proxy_display_name'), 'Default') :: text AS display_name,
+	COALESCE((SELECT value FROM site_configs WHERE key = 'default_proxy_icon_url'), '/emojis/1f3e1.png') :: text AS icon_url
+`
+
+type GetDefaultProxyConfigRow struct {
+	DisplayName string `db:"display_name" json:"display_name"`
+	IconUrl     string `db:"icon_url" json:"icon_url"`
+}
+
+func (q *sqlQuerier) GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error) {
+	row := q.db.QueryRowContext(ctx, getDefaultProxyConfig)
+	var i GetDefaultProxyConfigRow
+	err := row.Scan(&i.DisplayName, &i.IconUrl)
+	return i, err
+}
+
 const getDeploymentID = `-- name: GetDeploymentID :one
 SELECT value FROM site_configs WHERE key = 'deployment_id'
 `
@@ -3463,6 +3137,29 @@ ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing
 
 func (q *sqlQuerier) UpsertAppSecurityKey(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertAppSecurityKey, value)
+	return err
+}
+
+const upsertDefaultProxy = `-- name: UpsertDefaultProxy :exec
+INSERT INTO site_configs (key, value)
+VALUES
+    ('default_proxy_display_name', $1 :: text),
+    ('default_proxy_icon_url', $2 :: text)
+ON CONFLICT
+    (key)
+DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
+`
+
+type UpsertDefaultProxyParams struct {
+	DisplayName string `db:"display_name" json:"display_name"`
+	IconUrl     string `db:"icon_url" json:"icon_url"`
+}
+
+// The default proxy is implied and not actually stored in the database.
+// So we need to store it's configuration here for display purposes.
+// The functional values are immutable and controlled implicitly.
+func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error {
+	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconUrl)
 	return err
 }
 
@@ -4178,8 +3875,8 @@ type InsertTemplateVersionParameterParams struct {
 	Icon                string          `db:"icon" json:"icon"`
 	Options             json.RawMessage `db:"options" json:"options"`
 	ValidationRegex     string          `db:"validation_regex" json:"validation_regex"`
-	ValidationMin       int32           `db:"validation_min" json:"validation_min"`
-	ValidationMax       int32           `db:"validation_max" json:"validation_max"`
+	ValidationMin       sql.NullInt32   `db:"validation_min" json:"validation_min"`
+	ValidationMax       sql.NullInt32   `db:"validation_max" json:"validation_max"`
 	ValidationError     string          `db:"validation_error" json:"validation_error"`
 	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
 	Required            bool            `db:"required" json:"required"`
@@ -5155,11 +4852,11 @@ WHERE
 		-- duplicating or missing data.
 		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
-			-- The query is ordered by the created_at field, so select all
+			-- The query is ordered by the username field, so select all
 			-- rows after the cursor.
-			(created_at, id) > (
+			(LOWER(username)) > (
 				SELECT
-					created_at, id
+					LOWER(username)
 				FROM
 					users
 				WHERE
@@ -5195,9 +4892,8 @@ WHERE
 	END
 	-- End of filters
 ORDER BY
-	-- Deterministic and consistent ordering of all users, even if they share
-	-- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET $5
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	LOWER(username) ASC OFFSET $5
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF($6 :: int, 0)
@@ -5579,7 +5275,7 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) err
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior
 FROM
 	workspace_agents
 WHERE
@@ -5615,7 +5311,6 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
 		&i.LifecycleState,
-		&i.LoginBeforeReady,
 		&i.StartupScriptTimeoutSeconds,
 		&i.ExpandedDirectory,
 		&i.ShutdownScript,
@@ -5623,13 +5318,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.StartupLogsLength,
 		&i.StartupLogsOverflowed,
 		&i.Subsystem,
+		&i.StartupScriptBehavior,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior
 FROM
 	workspace_agents
 WHERE
@@ -5663,7 +5359,6 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
 		&i.LifecycleState,
-		&i.LoginBeforeReady,
 		&i.StartupScriptTimeoutSeconds,
 		&i.ExpandedDirectory,
 		&i.ShutdownScript,
@@ -5671,13 +5366,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.StartupLogsLength,
 		&i.StartupLogsOverflowed,
 		&i.Subsystem,
+		&i.StartupScriptBehavior,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior
 FROM
 	workspace_agents
 WHERE
@@ -5713,7 +5409,6 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
 		&i.LifecycleState,
-		&i.LoginBeforeReady,
 		&i.StartupScriptTimeoutSeconds,
 		&i.ExpandedDirectory,
 		&i.ShutdownScript,
@@ -5721,6 +5416,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.StartupLogsLength,
 		&i.StartupLogsOverflowed,
 		&i.Subsystem,
+		&i.StartupScriptBehavior,
 	)
 	return i, err
 }
@@ -5815,7 +5511,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg 
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior
 FROM
 	workspace_agents
 WHERE
@@ -5855,7 +5551,6 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.TroubleshootingURL,
 			&i.MOTDFile,
 			&i.LifecycleState,
-			&i.LoginBeforeReady,
 			&i.StartupScriptTimeoutSeconds,
 			&i.ExpandedDirectory,
 			&i.ShutdownScript,
@@ -5863,6 +5558,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.StartupLogsLength,
 			&i.StartupLogsOverflowed,
 			&i.Subsystem,
+			&i.StartupScriptBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -5878,7 +5574,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -5914,7 +5610,6 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.TroubleshootingURL,
 			&i.MOTDFile,
 			&i.LifecycleState,
-			&i.LoginBeforeReady,
 			&i.StartupScriptTimeoutSeconds,
 			&i.ExpandedDirectory,
 			&i.ShutdownScript,
@@ -5922,6 +5617,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.StartupLogsLength,
 			&i.StartupLogsOverflowed,
 			&i.Subsystem,
+			&i.StartupScriptBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -5938,7 +5634,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 
 const getWorkspaceAgentsInLatestBuildByWorkspaceID = `-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceID :many
 SELECT
-	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.startup_script, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.login_before_ready, workspace_agents.startup_script_timeout_seconds, workspace_agents.expanded_directory, workspace_agents.shutdown_script, workspace_agents.shutdown_script_timeout_seconds, workspace_agents.startup_logs_length, workspace_agents.startup_logs_overflowed, workspace_agents.subsystem
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.startup_script, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.startup_script_timeout_seconds, workspace_agents.expanded_directory, workspace_agents.shutdown_script, workspace_agents.shutdown_script_timeout_seconds, workspace_agents.startup_logs_length, workspace_agents.startup_logs_overflowed, workspace_agents.subsystem, workspace_agents.startup_script_behavior
 FROM
 	workspace_agents
 JOIN
@@ -5990,7 +5686,6 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Co
 			&i.TroubleshootingURL,
 			&i.MOTDFile,
 			&i.LifecycleState,
-			&i.LoginBeforeReady,
 			&i.StartupScriptTimeoutSeconds,
 			&i.ExpandedDirectory,
 			&i.ShutdownScript,
@@ -5998,6 +5693,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Co
 			&i.StartupLogsLength,
 			&i.StartupLogsOverflowed,
 			&i.Subsystem,
+			&i.StartupScriptBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -6032,13 +5728,13 @@ INSERT INTO
 		connection_timeout_seconds,
 		troubleshooting_url,
 		motd_file,
-		login_before_ready,
+		startup_script_behavior,
 		startup_script_timeout_seconds,
 		shutdown_script,
 		shutdown_script_timeout_seconds
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -6059,7 +5755,7 @@ type InsertWorkspaceAgentParams struct {
 	ConnectionTimeoutSeconds     int32                 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
 	TroubleshootingURL           string                `db:"troubleshooting_url" json:"troubleshooting_url"`
 	MOTDFile                     string                `db:"motd_file" json:"motd_file"`
-	LoginBeforeReady             bool                  `db:"login_before_ready" json:"login_before_ready"`
+	StartupScriptBehavior        StartupScriptBehavior `db:"startup_script_behavior" json:"startup_script_behavior"`
 	StartupScriptTimeoutSeconds  int32                 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 	ShutdownScript               sql.NullString        `db:"shutdown_script" json:"shutdown_script"`
 	ShutdownScriptTimeoutSeconds int32                 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
@@ -6084,7 +5780,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		arg.ConnectionTimeoutSeconds,
 		arg.TroubleshootingURL,
 		arg.MOTDFile,
-		arg.LoginBeforeReady,
+		arg.StartupScriptBehavior,
 		arg.StartupScriptTimeoutSeconds,
 		arg.ShutdownScript,
 		arg.ShutdownScriptTimeoutSeconds,
@@ -6114,7 +5810,6 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
 		&i.LifecycleState,
-		&i.LoginBeforeReady,
 		&i.StartupScriptTimeoutSeconds,
 		&i.ExpandedDirectory,
 		&i.ShutdownScript,
@@ -6122,6 +5817,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.StartupLogsLength,
 		&i.StartupLogsOverflowed,
 		&i.Subsystem,
+		&i.StartupScriptBehavior,
 	)
 	return i, err
 }
@@ -6361,7 +6057,7 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 
 const getDeploymentDAUs = `-- name: GetDeploymentDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast($1::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats
@@ -6378,8 +6074,8 @@ type GetDeploymentDAUsRow struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context) ([]GetDeploymentDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs)
+func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]GetDeploymentDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs, tzOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -6454,7 +6150,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, creat
 
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
 SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
+	(created_at at TIME ZONE cast($2::integer as text))::date as date,
 	user_id
 FROM
 	workspace_agent_stats
@@ -6467,13 +6163,18 @@ ORDER BY
 	date ASC
 `
 
+type GetTemplateDAUsParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	TzOffset   int32     `db:"tz_offset" json:"tz_offset"`
+}
+
 type GetTemplateDAUsRow struct {
 	Date   time.Time `db:"date" json:"date"`
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, templateID)
+func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, arg.TemplateID, arg.TzOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -8198,7 +7899,11 @@ const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
 FROM
-	workspaces
+    workspaces
+JOIN
+    users
+ON
+    workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
@@ -8274,10 +7979,12 @@ WHERE
 					latest_build.canceled_at IS NULL AND
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'delete'::workspace_transition
+					latest_build.transition = 'delete'::workspace_transition AND
+					-- If the error field is not null, the status is 'failed'
+					latest_build.error IS NULL
 
 				WHEN $2 = 'deleting' THEN
-					latest_build.completed_at IS NOT NULL AND
+					latest_build.completed_at IS NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.error IS NULL AND
 					latest_build.transition = 'delete'::workspace_transition
@@ -8359,7 +8066,12 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	last_used_at DESC
+	(latest_build.completed_at IS NOT NULL AND
+		latest_build.canceled_at IS NULL AND
+		latest_build.error IS NULL AND
+		latest_build.transition = 'start'::workspace_transition) DESC,
+	LOWER(users.username) ASC,
+	LOWER(name) ASC
 LIMIT
 	CASE
 		WHEN $11 :: integer > 0 THEN

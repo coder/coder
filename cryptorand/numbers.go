@@ -185,17 +185,6 @@ again:
 	return f, nil
 }
 
-// Bool returns a random true/false value as a bool.
-func Bool() (bool, error) {
-	i, err := Uint64()
-	if err != nil {
-		return false, err
-	}
-
-	// True if the least significant bit is 1
-	return i&1 == 1, nil
-}
-
 // Duration returns a random time.Duration value
 func Duration() (time.Duration, error) {
 	i, err := Int63()

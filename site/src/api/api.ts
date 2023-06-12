@@ -239,15 +239,6 @@ export const getTemplateVersion = async (
   return response.data
 }
 
-export const getTemplateVersionSchema = async (
-  versionId: string,
-): Promise<TypesGen.ParameterSchema[]> => {
-  const response = await axios.get<TypesGen.ParameterSchema[]>(
-    `/api/v2/templateversions/${versionId}/schema`,
-  )
-  return response.data
-}
-
 export const getTemplateVersionResources = async (
   versionId: string,
 ): Promise<TypesGen.WorkspaceResource[]> => {
@@ -331,15 +322,6 @@ export const getTemplateVersionGitAuth = async (
 ): Promise<TypesGen.TemplateVersionGitAuth[]> => {
   const response = await axios.get(
     `/api/v2/templateversions/${versionId}/gitauth`,
-  )
-  return response.data
-}
-
-export const getTemplateVersionParameters = async (
-  versionId: string,
-): Promise<TypesGen.ComputedParameter[]> => {
-  const response = await axios.get(
-    `/api/v2/templateversions/${versionId}/parameters`,
   )
   return response.data
 }
@@ -826,16 +808,18 @@ export const getAuditLogs = async (
 
 export const getTemplateDAUs = async (
   templateId: string,
-): Promise<TypesGen.TemplateDAUsResponse> => {
+): Promise<TypesGen.DAUsResponse> => {
   const response = await axios.get(`/api/v2/templates/${templateId}/daus`)
   return response.data
 }
 
-export const getDeploymentDAUs =
-  async (): Promise<TypesGen.DeploymentDAUsResponse> => {
-    const response = await axios.get(`/api/v2/insights/daus`)
-    return response.data
-  }
+export const getDeploymentDAUs = async (
+  // Default to user's local timezone
+  offset = new Date().getTimezoneOffset() / 60,
+): Promise<TypesGen.DAUsResponse> => {
+  const response = await axios.get(`/api/v2/insights/daus?tz_offset=${offset}`)
+  return response.data
+}
 
 export const getTemplateACL = async (
   templateId: string,

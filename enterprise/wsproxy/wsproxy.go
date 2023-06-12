@@ -193,6 +193,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// The primary coderd dashboard needs to make some GET requests to
 	// the workspace proxies to check latency.
 	corsMW := httpmw.Cors(opts.AllowAllCors, opts.DashboardURL.String())
+	prometheusMW := httpmw.Prometheus(s.PrometheusRegistry)
 
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)
@@ -205,7 +206,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		httpmw.Logger(s.Logger),
-		httpmw.Prometheus(s.PrometheusRegistry),
+		prometheusMW,
 		corsMW,
 
 		// HandleSubdomain is a middleware that handles all requests to the
@@ -258,7 +259,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// See coderd/coderd.go for why we need this.
 	rootRouter := chi.NewRouter()
 	// Make sure to add the cors middleware to the latency check route.
-	rootRouter.Get("/latency-check", corsMW(coderd.LatencyCheck(opts.AllowAllCors, s.DashboardURL, s.AppServer.AccessURL)).ServeHTTP)
+	rootRouter.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(coderd.LatencyCheck())).ServeHTTP)
 	rootRouter.Mount("/", r)
 	s.Handler = rootRouter
 

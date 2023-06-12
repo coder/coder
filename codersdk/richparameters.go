@@ -78,12 +78,22 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		return nil
 	}
 
+	var min, max int
+	if richParameter.ValidationMin != nil {
+		min = int(*richParameter.ValidationMin)
+	}
+	if richParameter.ValidationMax != nil {
+		max = int(*richParameter.ValidationMax)
+	}
+
 	validation := &provider.Validation{
-		Min:       int(richParameter.ValidationMin),
-		Max:       int(richParameter.ValidationMax),
-		Regex:     richParameter.ValidationRegex,
-		Error:     richParameter.ValidationError,
-		Monotonic: string(richParameter.ValidationMonotonic),
+		Min:         min,
+		Max:         max,
+		MinDisabled: richParameter.ValidationMin == nil,
+		MaxDisabled: richParameter.ValidationMax == nil,
+		Regex:       richParameter.ValidationRegex,
+		Error:       richParameter.ValidationError,
+		Monotonic:   string(richParameter.ValidationMonotonic),
 	}
 	return validation.Valid(richParameter.Type, value)
 }
@@ -111,7 +121,8 @@ func parameterValuesAsArray(options []TemplateVersionParameterOption) []string {
 
 func validationEnabled(param TemplateVersionParameter) bool {
 	return len(param.ValidationRegex) > 0 ||
-		(param.ValidationMin != 0 && param.ValidationMax != 0) ||
+		param.ValidationMin != nil ||
+		param.ValidationMax != nil ||
 		len(param.ValidationMonotonic) > 0 ||
 		param.Type == "bool" || // boolean type doesn't have any custom validation rules, but the value must be checked (true/false).
 		param.Type == "list(string)" // list(string) type doesn't have special validation, but we need to check if this is a correct list.
@@ -122,8 +133,7 @@ func validationEnabled(param TemplateVersionParameter) bool {
 // correctly validates.
 // @typescript-ignore ParameterResolver
 type ParameterResolver struct {
-	Legacy []Parameter
-	Rich   []WorkspaceBuildParameter
+	Rich []WorkspaceBuildParameter
 }
 
 // ValidateResolve checks the provided value, v, against the parameter, p, and the previous build.  If v is nil, it also
@@ -162,17 +172,6 @@ func (r *ParameterResolver) findLastValue(p TemplateVersionParameter) *Workspace
 	for _, rp := range r.Rich {
 		if rp.Name == p.Name {
 			return &rp
-		}
-	}
-	// For migration purposes, we also support using a legacy variable
-	if p.LegacyVariableName != "" {
-		for _, lp := range r.Legacy {
-			if lp.Name == p.LegacyVariableName {
-				return &WorkspaceBuildParameter{
-					Name:  p.Name,
-					Value: lp.SourceValue,
-				}
-			}
 		}
 	}
 	return nil

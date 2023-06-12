@@ -19,14 +19,14 @@ import Link from "@mui/material/Link"
 // connected:ready, connected:shutting_down, connected:shutdown_timeout,
 // connected:shutdown_error, connected:off.
 
-const ReadyLifecycle: React.FC = () => {
+const ReadyLifecycle = () => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
   return (
     <div
       role="status"
-      aria-label={t("agentStatus.connected.ready")}
+      aria-label={t("agentStatus.connected.ready") || "Ready"}
       className={combineClasses([styles.status, styles.connected])}
     />
   )
@@ -34,13 +34,12 @@ const ReadyLifecycle: React.FC = () => {
 
 const StartingLifecycle: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.connected.starting")}>
+    <Tooltip title="Starting...">
       <div
         role="status"
-        aria-label={t("agentStatus.connected.starting")}
+        aria-label="Starting..."
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
@@ -135,13 +134,12 @@ const StartErrorLifecycle: React.FC<{
 
 const ShuttingDownLifecycle: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.connected.shuttingDown")}>
+    <Tooltip title="Stopping...">
       <div
         role="status"
-        aria-label={t("agentStatus.connected.shuttingDown")}
+        aria-label="Stopping..."
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
@@ -236,13 +234,12 @@ const ShutdownErrorLifecycle: React.FC<{
 
 const OffLifecycle: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.connected.off")}>
+    <Tooltip title="Stopped">
       <div
         role="status"
-        aria-label={t("agentStatus.connected.off")}
+        aria-label="Stopped"
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
@@ -252,55 +249,49 @@ const OffLifecycle: React.FC = () => {
 const ConnectedStatus: React.FC<{
   agent: WorkspaceAgent
 }> = ({ agent }) => {
-  // NOTE(mafredri): Keep this behind feature flag for the time-being,
-  // if login_before_ready is false, the user has updated to
-  // terraform-provider-coder v0.6.10 and opted in to the functionality.
-  //
-  // Remove check once documentation is in place and we do a breaking
-  // release indicating startup script behavior has changed.
-  // https://github.com/coder/coder/issues/5749
-  if (agent.login_before_ready) {
-    return <ReadyLifecycle />
+  switch (agent.startup_script_behavior) {
+    case "non-blocking":
+      return <ReadyLifecycle />
+    case "blocking":
+      return (
+        <ChooseOne>
+          <Cond condition={agent.lifecycle_state === "ready"}>
+            <ReadyLifecycle />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "start_timeout"}>
+            <StartTimeoutLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "start_error"}>
+            <StartErrorLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "shutting_down"}>
+            <ShuttingDownLifecycle />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
+            <ShutdownTimeoutLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "shutdown_error"}>
+            <ShutdownErrorLifecycle agent={agent} />
+          </Cond>
+          <Cond condition={agent.lifecycle_state === "off"}>
+            <OffLifecycle />
+          </Cond>
+          <Cond>
+            <StartingLifecycle />
+          </Cond>
+        </ChooseOne>
+      )
   }
-  return (
-    <ChooseOne>
-      <Cond condition={agent.lifecycle_state === "ready"}>
-        <ReadyLifecycle />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "start_timeout"}>
-        <StartTimeoutLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "start_error"}>
-        <StartErrorLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "shutting_down"}>
-        <ShuttingDownLifecycle />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
-        <ShutdownTimeoutLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "shutdown_error"}>
-        <ShutdownErrorLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "off"}>
-        <OffLifecycle />
-      </Cond>
-      <Cond>
-        <StartingLifecycle />
-      </Cond>
-    </ChooseOne>
-  )
 }
 
 const DisconnectedStatus: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.disconnected")}>
+    <Tooltip title="Disconnected">
       <div
         role="status"
-        aria-label={t("agentStatus.disconnected")}
+        aria-label="Disconnected"
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
@@ -309,13 +300,12 @@ const DisconnectedStatus: React.FC = () => {
 
 const ConnectingStatus: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.connecting")}>
+    <Tooltip title="Connecting...">
       <div
         role="status"
-        aria-label={t("agentStatus.connecting")}
+        aria-label="Connecting..."
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>

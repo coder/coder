@@ -83,6 +83,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		RedirectToLogin: false,
 	})
 
+	deploymentID, err := options.Database.GetDeploymentID(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get deployment ID: %w", err)
+	}
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
@@ -129,7 +134,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Route("/{workspaceproxy}", func(r chi.Router) {
 				r.Use(
 					apiKeyMiddleware,
-					httpmw.ExtractWorkspaceProxyParam(api.Database),
+					httpmw.ExtractWorkspaceProxyParam(api.Database, deploymentID, api.AGPL.PrimaryWorkspaceProxy),
 				)
 
 				r.Get("/", api.workspaceProxy)
@@ -236,7 +241,6 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		RootCAs:      meshRootCA,
 		ServerName:   options.AccessURL.Hostname(),
 	}
-	var err error
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
 		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,

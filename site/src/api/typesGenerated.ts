@@ -139,12 +139,6 @@ export interface BuildInfoResponse {
   readonly workspace_proxy: boolean
 }
 
-// From codersdk/parameters.go
-export interface ComputedParameter extends Parameter {
-  readonly schema_id: string
-  readonly default_source_value: boolean
-}
-
 // From codersdk/users.go
 export interface CreateFirstUserRequest {
   readonly email: string
@@ -171,15 +165,6 @@ export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/parameters.go
-export interface CreateParameterRequest {
-  readonly copy_from_parameter?: string
-  readonly name: string
-  readonly source_value: string
-  readonly source_scheme: ParameterSourceScheme
-  readonly destination_scheme: ParameterDestinationScheme
-}
-
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
   readonly name: string
@@ -187,7 +172,6 @@ export interface CreateTemplateRequest {
   readonly description?: string
   readonly icon?: string
   readonly template_version_id: string
-  readonly parameter_values?: CreateParameterRequest[]
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
@@ -200,7 +184,6 @@ export interface CreateTemplateRequest {
 // From codersdk/templateversions.go
 export interface CreateTemplateVersionDryRunRequest {
   readonly workspace_name: string
-  readonly parameter_values: CreateParameterRequest[]
   readonly rich_parameter_values: WorkspaceBuildParameter[]
   readonly user_variable_values?: VariableValue[]
 }
@@ -214,7 +197,6 @@ export interface CreateTemplateVersionRequest {
   readonly example_id?: string
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
-  readonly parameter_values?: CreateParameterRequest[]
   readonly user_variable_values?: VariableValue[]
 }
 
@@ -251,7 +233,6 @@ export interface CreateWorkspaceBuildRequest {
   readonly dry_run?: boolean
   readonly state?: string
   readonly orphan?: boolean
-  readonly parameter_values?: CreateParameterRequest[]
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
   readonly log_level?: ProvisionerLogLevel
 }
@@ -269,14 +250,24 @@ export interface CreateWorkspaceRequest {
   readonly name: string
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
-  readonly parameter_values?: CreateParameterRequest[]
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
 }
 
-// From codersdk/templates.go
+// From codersdk/deployment.go
 export interface DAUEntry {
   readonly date: string
   readonly amount: number
+}
+
+// From codersdk/deployment.go
+export interface DAURequest {
+  readonly TZHourOffset: number
+}
+
+// From codersdk/deployment.go
+export interface DAUsResponse {
+  readonly entries: DAUEntry[]
+  readonly tz_hour_offset: number
 }
 
 // From codersdk/deployment.go
@@ -313,11 +304,6 @@ export interface DangerousConfig {
   readonly allow_path_app_sharing: boolean
   readonly allow_path_app_site_owner_access: boolean
   readonly allow_all_cors: boolean
-}
-
-// From codersdk/deployment.go
-export interface DeploymentDAUsResponse {
-  readonly entries: DAUEntry[]
 }
 
 // From codersdk/deployment.go
@@ -383,6 +369,7 @@ export interface DeploymentValues {
   readonly config_ssh?: SSHConfig
   readonly wgtunnel_host?: string
   readonly disable_owner_workspace_exec?: boolean
+  readonly proxy_health_status_interval?: number
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.YAMLConfigPath")
   readonly config?: string
   readonly write_config?: boolean
@@ -578,40 +565,6 @@ export interface Pagination {
   readonly after_id?: string
   readonly limit?: number
   readonly offset?: number
-}
-
-// From codersdk/parameters.go
-export interface Parameter {
-  readonly id: string
-  readonly scope: ParameterScope
-  readonly scope_id: string
-  readonly name: string
-  readonly source_scheme: ParameterSourceScheme
-  readonly destination_scheme: ParameterDestinationScheme
-  readonly created_at: string
-  readonly updated_at: string
-  readonly source_value: string
-}
-
-// From codersdk/parameters.go
-export interface ParameterSchema {
-  readonly id: string
-  readonly created_at: string
-  readonly job_id: string
-  readonly name: string
-  readonly description: string
-  readonly default_source_scheme: ParameterSourceScheme
-  readonly default_source_value: string
-  readonly allow_override_source: boolean
-  readonly default_destination_scheme: ParameterDestinationScheme
-  readonly allow_override_destination: boolean
-  readonly default_refresh: string
-  readonly redisplay_value: boolean
-  readonly validation_error: string
-  readonly validation_condition: string
-  readonly validation_type_system: string
-  readonly validation_value_type: string
-  readonly validation_contains?: string[]
 }
 
 // From codersdk/groups.go
@@ -863,11 +816,6 @@ export type TemplateBuildTimeStats = Record<
   WorkspaceTransition,
   TransitionStats
 >
-
-// From codersdk/templates.go
-export interface TemplateDAUsResponse {
-  readonly entries: DAUEntry[]
-}
 
 // From codersdk/templates.go
 export interface TemplateExample {
@@ -1146,6 +1094,7 @@ export interface WorkspaceAgent {
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
   readonly login_before_ready: boolean
+  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
@@ -1386,8 +1335,12 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons" | "workspace_actions"
-export const Experiments: Experiment[] = ["moons", "workspace_actions"]
+export type Experiment = "moons" | "workspace_actions" | "workspace_filter"
+export const Experiments: Experiment[] = [
+  "moons",
+  "workspace_actions",
+  "workspace_filter",
+]
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1447,33 +1400,6 @@ export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
 // From codersdk/apikey.go
 export type LoginType = "github" | "oidc" | "password" | "token"
 export const LoginTypes: LoginType[] = ["github", "oidc", "password", "token"]
-
-// From codersdk/parameters.go
-export type ParameterDestinationScheme =
-  | "environment_variable"
-  | "none"
-  | "provisioner_variable"
-export const ParameterDestinationSchemes: ParameterDestinationScheme[] = [
-  "environment_variable",
-  "none",
-  "provisioner_variable",
-]
-
-// From codersdk/parameters.go
-export type ParameterScope = "import_job" | "template" | "workspace"
-export const ParameterScopes: ParameterScope[] = [
-  "import_job",
-  "template",
-  "workspace",
-]
-
-// From codersdk/parameters.go
-export type ParameterSourceScheme = "data" | "none"
-export const ParameterSourceSchemes: ParameterSourceScheme[] = ["data", "none"]
-
-// From codersdk/parameters.go
-export type ParameterTypeSystem = "hcl" | "none"
-export const ParameterTypeSystems: ParameterTypeSystem[] = ["hcl", "none"]
 
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobStatus =
@@ -1602,9 +1528,9 @@ export type TemplateRole = "" | "admin" | "use"
 export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 
 // From codersdk/templateversions.go
-export type TemplateVersionWarning = "DEPRECATED_PARAMETERS"
+export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
 export const TemplateVersionWarnings: TemplateVersionWarning[] = [
-  "DEPRECATED_PARAMETERS",
+  "UNSUPPORTED_WORKSPACES",
 ]
 
 // From codersdk/users.go
@@ -1640,6 +1566,11 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "start_timeout",
   "starting",
 ]
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking"
+export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] =
+  ["blocking", "non-blocking"]
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus =

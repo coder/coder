@@ -30,7 +30,7 @@
     "stopping": "Stopping...",
     "deleting": "Deleting...",
     "settings": "Settings",
-    "retryDebugMode": "Try again in debug mode"
+    "retryDebugMode": "Try in debug mode"
   },
   "disabledButton": {
     "canceling": "Canceling",

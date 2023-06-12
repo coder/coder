@@ -4,9 +4,9 @@
 
 Workspace proxies provide low-latency experiences for geo-distributed teams.
 
-Coder's networking does a best effort to make direct connections to a workspace. In situations where this is not possible, such as [dashboard connections](../networking/README.md#dashboard-connections), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
+Coder's networking does a best effort to make direct connections to a workspace. In situations where this is not possible, such as connections via the web terminal and [web IDEs](../ides/web-ides.md), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
 
-A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over ssh, a workspace app, port forwarding, etc.
+A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over SSH, a workspace app, port forwarding, etc. Dashboard connections and API calls (e.g. the workspaces list) are not served over workspace proxies.
 
 ![ProxyDiagram](../images/workspaceproxy/proxydiagram.png)
 
@@ -90,10 +90,34 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 coder wsproxy server
 ```
 
+### Running in Docker
+
+Modify the default entrypoint to run a workspace proxy server instead of a regular Coder server.
+
+#### Docker Compose
+
+Change the provided [`docker-compose.yml`](https://github.com/coder/coder/blob/main/docker-compose.yaml) file to include a custom entrypoint:
+
+```diff
+  image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
++ entrypoint: /opt/coder wsproxy server
+```
+
+#### Docker run
+
+```bash
+docker run --rm -it --entrypoint /opt/coder ghcr.io/coder/coder:latest wsproxy server
+```
+
+#### Custom Dockerfile
+
+```Dockerfile
+FROM ghcr.io/coder/coder:latest
+ENTRYPOINT ["/opt/coder", "wsproxy", "server"]
+```
+
 ### Selecting a proxy
 
 Users can navigate to their account settings to select a workspace proxy. Workspace proxy preferences are cached by the web browser. If a proxy goes offline, the session will fall back to the primary proxy. This could take up to 60 seconds.
 
 ![Workspace proxy picker](../images/admin/workspace-proxy-picker.png)
-
-> In a future release, Coder will automatically pick the closest workspace proxy for each user, based on browser ping.

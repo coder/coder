@@ -208,6 +208,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 		proxyName   string
 		displayName string
 		proxyIcon   string
+		noPrompts   bool
 		formatter   = newUpdateProxyResponseFormatter()
 	)
 
@@ -221,8 +222,43 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
+			var err error
+			if proxyName == "" && !noPrompts {
+				proxyName, err = cliui.Prompt(inv, cliui.PromptOptions{
+					Text: "Proxy Name:",
+				})
+				if err != nil {
+					return err
+				}
+			}
+			if displayName == "" && !noPrompts {
+				displayName, err = cliui.Prompt(inv, cliui.PromptOptions{
+					Text:    "Display Name:",
+					Default: proxyName,
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			if proxyIcon == "" && !noPrompts {
+				proxyIcon, err = cliui.Prompt(inv, cliui.PromptOptions{
+					Text:    "Icon URL:",
+					Default: "/emojis/1f5fa.png",
+					Validate: func(s string) error {
+						if !(strings.HasPrefix(s, "/emojis/") || strings.HasPrefix(s, "http")) {
+							return xerrors.New("icon must be a relative path to an emoji or a publicly hosted image URL")
+						}
+						return nil
+					},
+				})
+				if err != nil {
+					return err
+				}
+			}
+
 			if proxyName == "" {
-				return xerrors.Errorf("proxy name is required")
+				return xerrors.New("proxy name is required")
 			}
 
 			resp, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
@@ -259,6 +295,11 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 			Flag:        "icon",
 			Description: "Display icon of the proxy.",
 			Value:       clibase.StringOf(&proxyIcon),
+		},
+		clibase.Option{
+			Flag:        "no-prompt",
+			Description: "Disable all input prompting, and fail if any required flags are missing.",
+			Value:       clibase.BoolOf(&noPrompts),
 		},
 	)
 	return cmd
@@ -355,8 +396,11 @@ func newUpdateProxyResponseFormatter() *updateProxyResponseFormatter {
 				if !ok {
 					return nil, xerrors.Errorf("unexpected type %T", data)
 				}
-				return fmt.Sprintf("Workspace Proxy %q created successfully. Save this token, it will not be shown again."+
-					"\nToken: %s", response.Proxy.Name, response.ProxyToken), nil
+
+				return fmt.Sprintf("Workspace Proxy %q updated successfully.\n"+
+					cliui.DefaultStyles.Placeholder.Render("—————————————————————————————————————————————————")+"\n"+
+					"Save this authentication token, it will not be shown again.\n"+
+					"Token: %s\n", response.Proxy.Name, response.ProxyToken), nil
 			}),
 			cliui.JSONFormat(),
 			// Table formatter expects a slice, make a slice of one.

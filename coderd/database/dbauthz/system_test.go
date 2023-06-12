@@ -3,6 +3,7 @@ package dbauthz_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			LinkedID:  l.LinkedID,
 			LoginType: database.LoginTypeGithub,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate).Returns(l)
+	}))
+	s.Run("UpsertDefaultProxy", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertDefaultProxyParams{}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("GetUserLinkByLinkedID", s.Subtest(func(db database.Store, check *expects) {
 		l := dbgen.UserLink(s.T(), db, database.UserLink{})
@@ -133,10 +137,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("DeleteOldWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionDelete)
 	}))
-	s.Run("GetParameterSchemasCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.ParameterSchema(s.T(), db, database.ParameterSchema{CreatedAt: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).Asserts(rbac.ResourceSystem, rbac.ActionRead)
-	}))
 	s.Run("GetProvisionerJobsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: add provisioner job resource type
 		_ = dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{CreatedAt: time.Now().Add(-time.Hour)})
@@ -215,7 +215,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentParams{
-			ID: uuid.New(),
+			ID:                    uuid.New(),
+			StartupScriptBehavior: database.StartupScriptBehaviorNonBlocking,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {
@@ -244,7 +245,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			StartedAt: sql.NullTime{Valid: false},
 		})
-		check.Args(database.AcquireProvisionerJobParams{Types: []database.ProvisionerType{j.Provisioner}}).
+		check.Args(database.AcquireProvisionerJobParams{Types: []database.ProvisionerType{j.Provisioner}, Tags: must(json.Marshal(j.Tags))}).
 			Asserts( /*rbac.ResourceSystem, rbac.ActionUpdate*/ )
 	}))
 	s.Run("UpdateProvisionerJobWithCompleteByID", s.Subtest(func(db database.Store, check *expects) {
@@ -295,14 +296,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.InsertWorkspaceResourceParams{
 			ID:         r.ID,
 			Transition: database.WorkspaceTransitionStart,
-		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
-	}))
-	s.Run("InsertParameterSchema", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertParameterSchemaParams{
-			ID:                       uuid.New(),
-			DefaultSourceScheme:      database.ParameterSourceSchemeNone,
-			DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
-			ValidationTypeSystem:     database.ParameterTypeSystemNone,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
 }

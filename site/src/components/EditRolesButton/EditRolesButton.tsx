@@ -77,7 +77,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
         ref={anchorRef}
         size="small"
         className={styles.editButton}
-        title={t("editUserRolesTooltip")}
+        title={t("editUserRolesTooltip") || ""}
         onClick={() => setIsOpen(true)}
       >
         <EditSquare />
@@ -101,7 +101,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
         <fieldset
           className={styles.fieldset}
           disabled={isLoading}
-          title={t("fieldSetRolesTooltip")}
+          title={t("fieldSetRolesTooltip") || ""}
         >
           <Stack className={styles.options} spacing={3}>
             {roles.map((role) => (

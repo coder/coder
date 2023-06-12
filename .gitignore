@@ -58,4 +58,5 @@ site/stats/
 # Loadtesting
 ./scaletest/terraform/.terraform
 ./scaletest/terraform/.terraform.lock.hcl
-terraform.tfstate.*
+scaletest/terraform/secrets.tfvars
+.terraform.tfstate.*

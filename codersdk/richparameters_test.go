@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -72,8 +73,8 @@ func TestParameterResolver_ValidateResolve_PrevInvalid(t *testing.T) {
 	p := codersdk.TemplateVersionParameter{
 		Name:          "n",
 		Type:          "number",
-		ValidationMax: 10,
-		ValidationMin: 1,
+		ValidationMax: ptr.Ref(int32(10)),
+		ValidationMin: ptr.Ref(int32(1)),
 	}
 	v, err := uut.ValidateResolve(p, nil)
 	require.Error(t, err)
@@ -89,8 +90,8 @@ func TestParameterResolver_ValidateResolve_DefaultInvalid(t *testing.T) {
 	p := codersdk.TemplateVersionParameter{
 		Name:          "n",
 		Type:          "number",
-		ValidationMax: 10,
-		ValidationMin: 1,
+		ValidationMax: ptr.Ref(int32(10)),
+		ValidationMin: ptr.Ref(int32(1)),
 		DefaultValue:  "11",
 	}
 	v, err := uut.ValidateResolve(p, nil)
@@ -134,45 +135,6 @@ func TestParameterResolver_ValidateResolve_Immutable(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Equal(t, "", v)
-}
-
-func TestParameterResolver_ValidateResolve_Legacy(t *testing.T) {
-	t.Parallel()
-	uut := codersdk.ParameterResolver{
-		Legacy: []codersdk.Parameter{
-			{Name: "l", SourceValue: "5"},
-			{Name: "n", SourceValue: "6"},
-		},
-	}
-	p := codersdk.TemplateVersionParameter{
-		Name:               "n",
-		Type:               "number",
-		Required:           true,
-		LegacyVariableName: "l",
-	}
-	v, err := uut.ValidateResolve(p, nil)
-	require.NoError(t, err)
-	require.Equal(t, "5", v)
-}
-
-func TestParameterResolver_ValidateResolve_PreferRichOverLegacy(t *testing.T) {
-	t.Parallel()
-	uut := codersdk.ParameterResolver{
-		Rich: []codersdk.WorkspaceBuildParameter{{Name: "n", Value: "7"}},
-		Legacy: []codersdk.Parameter{
-			{Name: "l", SourceValue: "5"},
-			{Name: "n", SourceValue: "6"},
-		},
-	}
-	p := codersdk.TemplateVersionParameter{
-		Name:               "n",
-		Type:               "number",
-		Required:           true,
-		LegacyVariableName: "l",
-	}
-	v, err := uut.ValidateResolve(p, nil)
-	require.NoError(t, err)
-	require.Equal(t, "7", v)
 }
 
 func TestRichParameterValidation(t *testing.T) {
@@ -221,19 +183,31 @@ func TestRichParameterValidation(t *testing.T) {
 
 		numberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10))},
+			{Name: boolParameterName, Type: "bool", Mutable: true},
+		}
+
+		numberRichParametersMinOnly := []codersdk.TemplateVersionParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(5))},
+			{Name: boolParameterName, Type: "bool", Mutable: true},
+		}
+
+		numberRichParametersMaxOnly := []codersdk.TemplateVersionParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMax: ptr.Ref(int32(5))},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		monotonicIncreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10, ValidationMonotonic: "increasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10)), ValidationMonotonic: "increasing"},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		monotonicDecreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10, ValidationMonotonic: "decreasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10)), ValidationMonotonic: "decreasing"},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
@@ -269,6 +243,14 @@ func TestRichParameterValidation(t *testing.T) {
 			{numberParameterName, "3", true, numberRichParameters},
 			{numberParameterName, "10", true, numberRichParameters},
 			{numberParameterName, "11", false, numberRichParameters},
+
+			{numberParameterName, "4", false, numberRichParametersMinOnly},
+			{numberParameterName, "5", true, numberRichParametersMinOnly},
+			{numberParameterName, "6", true, numberRichParametersMinOnly},
+
+			{numberParameterName, "4", true, numberRichParametersMaxOnly},
+			{numberParameterName, "5", true, numberRichParametersMaxOnly},
+			{numberParameterName, "6", false, numberRichParametersMaxOnly},
 
 			{numberParameterName, "6", false, monotonicIncreasingNumberRichParameters},
 			{numberParameterName, "7", true, monotonicIncreasingNumberRichParameters},

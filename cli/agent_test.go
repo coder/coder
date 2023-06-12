@@ -53,7 +53,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		pty := ptytest.New(t).Attach(inv)
 
 		clitest.Start(t, inv)
-		pty.ExpectMatch("starting agent")
+		ctx := inv.Context()
+		pty.ExpectMatchContext(ctx, "starting agent")
 
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
@@ -99,8 +100,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			//nolint:revive,staticcheck
 			context.WithValue(inv.Context(), "azure-client", metadataClient),
 		)
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := inv.Context()
 		clitest.Start(t, inv)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		workspace, err := client.Workspace(ctx, workspace.ID)
@@ -112,7 +112,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
-		require.True(t, dialer.AwaitReachable(context.Background()))
+		require.True(t, dialer.AwaitReachable(ctx))
 	})
 
 	t.Run("AWS", func(t *testing.T) {
@@ -153,17 +153,18 @@ func TestWorkspaceAgent(t *testing.T) {
 			context.WithValue(inv.Context(), "aws-client", metadataClient),
 		)
 		clitest.Start(t, inv)
+		ctx := inv.Context()
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		workspace, err := client.Workspace(inv.Context(), workspace.ID)
+		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := client.DialWorkspaceAgent(inv.Context(), resources[0].Agents[0].ID, nil)
+		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
-		require.True(t, dialer.AwaitReachable(context.Background()))
+		require.True(t, dialer.AwaitReachable(ctx))
 	})
 
 	t.Run("GoogleCloud", func(t *testing.T) {
@@ -204,7 +205,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		clitest.Start(t,
 			inv.WithContext(
 				//nolint:revive,staticcheck
-				context.WithValue(context.Background(), "gcp-client", metadataClient),
+				context.WithValue(inv.Context(), "gcp-client", metadataClient),
 			),
 		)
 
@@ -220,7 +221,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
-		require.True(t, dialer.AwaitReachable(context.Background()))
+		require.True(t, dialer.AwaitReachable(ctx))
 		sshClient, err := dialer.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
@@ -269,7 +270,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		pty := ptytest.New(t).Attach(inv)
 
 		clitest.Start(t, inv)
-		pty.ExpectMatch("starting agent")
+		pty.ExpectMatchContext(inv.Context(), "starting agent")
 
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		require.Len(t, resources, 1)

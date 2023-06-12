@@ -14,8 +14,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -467,10 +472,8 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 
 func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	var (
-		count          int64
-		template       string
-		parametersFile string
-		parameters     []string // key=value
+		count    int64
+		template string
 
 		noPlan    bool
 		noCleanup bool
@@ -566,51 +569,11 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 				return xerrors.Errorf("get template version %q: %w", tpl.ActiveVersionID, err)
 			}
 
-			parameterSchemas, err := client.TemplateVersionSchema(ctx, templateVersion.ID)
-			if err != nil {
-				return xerrors.Errorf("get template version schema %q: %w", templateVersion.ID, err)
-			}
-
-			paramsMap := map[string]string{}
-			if parametersFile != "" {
-				fileMap, err := createParameterMapFromFile(parametersFile)
-				if err != nil {
-					return xerrors.Errorf("read parameters file %q: %w", parametersFile, err)
-				}
-
-				paramsMap = fileMap
-			}
-
-			for _, p := range parameters {
-				parts := strings.SplitN(p, "=", 2)
-				if len(parts) != 2 {
-					return xerrors.Errorf("invalid parameter %q", p)
-				}
-
-				paramsMap[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-			}
-
-			params := []codersdk.CreateParameterRequest{}
-			for _, p := range parameterSchemas {
-				value, ok := paramsMap[p.Name]
-				if !ok {
-					value = ""
-				}
-
-				params = append(params, codersdk.CreateParameterRequest{
-					Name:              p.Name,
-					SourceValue:       value,
-					SourceScheme:      codersdk.ParameterSourceSchemeData,
-					DestinationScheme: p.DefaultDestinationScheme,
-				})
-			}
-
 			// Do a dry-run to ensure the template and parameters are valid
 			// before we start creating users and workspaces.
 			if !noPlan {
 				dryRun, err := client.CreateTemplateVersionDryRun(ctx, templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-					WorkspaceName:   "scaletest",
-					ParameterValues: params,
+					WorkspaceName: "scaletest",
 				})
 				if err != nil {
 					return xerrors.Errorf("start dry run workspace creation: %w", err)
@@ -662,8 +625,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 						OrganizationID: me.OrganizationIDs[0],
 						// UserID is set by the test automatically.
 						Request: codersdk.CreateWorkspaceRequest{
-							TemplateID:      tpl.ID,
-							ParameterValues: params,
+							TemplateID: tpl.ID,
 						},
 						NoWaitForAgents: noWaitForAgents,
 					},
@@ -783,18 +745,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Value:         clibase.StringOf(&template),
 		},
 		{
-			Flag:        "parameters-file",
-			Env:         "CODER_SCALETEST_PARAMETERS_FILE",
-			Description: "Path to a YAML file containing the parameters to use for each workspace.",
-			Value:       clibase.StringOf(&parametersFile),
-		},
-		{
-			Flag:        "parameter",
-			Env:         "CODER_SCALETEST_PARAMETERS",
-			Description: "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value.",
-			Value:       clibase.StringArrayOf(&parameters),
-		},
-		{
 			Flag:        "no-plan",
 			Env:         "CODER_SCALETEST_NO_PLAN",
 			Description: `Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.`,
@@ -896,8 +846,11 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
-		tickInterval    time.Duration
-		bytesPerTick    int64
+		tickInterval               time.Duration
+		bytesPerTick               int64
+		scaletestPrometheusAddress string
+		scaletestPrometheusWait    time.Duration
+
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
@@ -913,6 +866,12 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
+			reg := prometheus.NewRegistry()
+			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
+
+			logger := slog.Make(sloghuman.Sink(io.Discard))
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), scaletestPrometheusAddress, "prometheus")
+			defer prometheusSrvClose()
 
 			// Bypass rate limiting
 			client.HTTPClient = &http.Client{
@@ -943,6 +902,9 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
 				if err := closeTracing(ctx); err != nil {
 					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+					// Wait for prometheus metrics to be scraped
+					_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", scaletestPrometheusWait)
+					<-time.After(scaletestPrometheusWait)
 				}
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
@@ -955,9 +917,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 			for idx, ws := range workspaces {
 				var (
-					agentID uuid.UUID
-					name    = "workspace-traffic"
-					id      = strconv.Itoa(idx)
+					agentID   uuid.UUID
+					agentName string
+					name      = "workspace-traffic"
+					id        = strconv.Itoa(idx)
 				)
 
 				for _, res := range ws.LatestBuild.Resources {
@@ -965,6 +928,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 						continue
 					}
 					agentID = res.Agents[0].ID
+					agentName = res.Agents[0].Name
 				}
 
 				if agentID == uuid.Nil {
@@ -974,16 +938,20 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
-					AgentID:      agentID,
-					BytesPerTick: bytesPerTick,
-					Duration:     strategy.timeout,
-					TickInterval: tickInterval,
+					AgentID:        agentID,
+					AgentName:      agentName,
+					BytesPerTick:   bytesPerTick,
+					Duration:       strategy.timeout,
+					TickInterval:   tickInterval,
+					WorkspaceName:  ws.Name,
+					WorkspaceOwner: ws.OwnerName,
+					Registry:       reg,
 				}
 
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
 				}
-				var runner harness.Runnable = workspacetraffic.NewRunner(client, config)
+				var runner harness.Runnable = workspacetraffic.NewRunner(client, config, metrics)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -1033,6 +1001,20 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Default:     "100ms",
 			Description: "How often to send traffic.",
 			Value:       clibase.DurationOf(&tickInterval),
+		},
+		{
+			Flag:        "scaletest-prometheus-address",
+			Env:         "CODER_SCALETEST_PROMETHEUS_ADDRESS",
+			Default:     "0.0.0.0:21112",
+			Description: "Address on which to expose scaletest Prometheus metrics.",
+			Value:       clibase.StringOf(&scaletestPrometheusAddress),
+		},
+		{
+			Flag:        "scaletest-prometheus-wait",
+			Env:         "CODER_SCALETEST_PROMETHEUS_WAIT",
+			Default:     "5s",
+			Description: "How long to wait before exiting in order to allow Prometheus metrics to be scraped.",
+			Value:       clibase.DurationOf(&scaletestPrometheusWait),
 		},
 	}
 

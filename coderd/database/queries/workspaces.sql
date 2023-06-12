@@ -77,7 +77,11 @@ WHERE
 SELECT
 	workspaces.*, COUNT(*) OVER () as count
 FROM
-	workspaces
+    workspaces
+JOIN
+    users
+ON
+    workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
@@ -153,10 +157,12 @@ WHERE
 					latest_build.canceled_at IS NULL AND
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'delete'::workspace_transition
+					latest_build.transition = 'delete'::workspace_transition AND
+					-- If the error field is not null, the status is 'failed'
+					latest_build.error IS NULL
 
 				WHEN @status = 'deleting' THEN
-					latest_build.completed_at IS NOT NULL AND
+					latest_build.completed_at IS NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.error IS NULL AND
 					latest_build.transition = 'delete'::workspace_transition
@@ -238,7 +244,12 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	last_used_at DESC
+	(latest_build.completed_at IS NOT NULL AND
+		latest_build.canceled_at IS NULL AND
+		latest_build.error IS NULL AND
+		latest_build.transition = 'start'::workspace_transition) DESC,
+	LOWER(users.username) ASC,
+	LOWER(name) ASC
 LIMIT
 	CASE
 		WHEN @limit_ :: integer > 0 THEN

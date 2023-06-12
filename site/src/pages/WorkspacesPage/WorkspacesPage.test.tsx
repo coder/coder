@@ -61,7 +61,7 @@ describe("WorkspacesPage", () => {
     renderWithAuth(<WorkspacesPage />)
 
     const banner = await screen.findByText(
-      "You have workspaces that will be deleted soon.",
+      "You have workspaces that will be deleted soon due to inactivity. To keep these workspaces, connect to them via SSH or the web terminal.",
     )
     const user = userEvent.setup()
     await user.click(screen.getByTestId("dismiss-banner-btn"))

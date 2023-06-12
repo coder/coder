@@ -140,6 +140,7 @@ func TestLicensesListFake(t *testing.T) {
 	// so instead we have to fake the HTTP interaction.
 	t.Run("Mainline", func(t *testing.T) {
 		t.Parallel()
+		expectedLicenseExpires := time.Date(2024, 4, 6, 16, 53, 35, 0, time.UTC)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		inv := setupFakeLicenseServerTest(t, "licenses", "list")
@@ -158,6 +159,13 @@ func TestLicensesListFake(t *testing.T) {
 		assert.Equal(t, "claim1", licenses[0].Claims["h1"])
 		assert.Equal(t, int32(5), licenses[1].ID)
 		assert.Equal(t, "claim2", licenses[1].Claims["h2"])
+		expiresClaim := licenses[0].Claims["license_expires"]
+		expiresString, ok := expiresClaim.(string)
+		require.True(t, ok, "license_expires claim is not a string")
+		assert.NotEmpty(t, expiresClaim)
+		expiresTime, err := time.Parse(time.RFC3339, expiresString)
+		require.NoError(t, err)
+		require.Equal(t, expectedLicenseExpires, expiresTime.UTC())
 	})
 }
 
@@ -294,7 +302,8 @@ func (s *fakeLicenseAPI) licenses(rw http.ResponseWriter, _ *http.Request) {
 			ID:         1,
 			UploadedAt: time.Now(),
 			Claims: map[string]interface{}{
-				"h1": "claim1",
+				"license_expires": 1712422415,
+				"h1":              "claim1",
 				"features": map[string]int64{
 					"f1": 1,
 					"f2": 2,

@@ -82,8 +82,15 @@ func Test_ProxyCRUD(t *testing.T) {
 		// Also check via the api
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err, "failed to get workspace proxies")
-		require.Len(t, proxies, 1, "expected 1 proxy")
-		require.Equal(t, expectedName, proxies[0].Name, "expected proxy name to match")
+		// Include primary
+		require.Len(t, proxies, 2, "expected 1 proxy")
+		found := false
+		for _, proxy := range proxies {
+			if proxy.Name == expectedName {
+				found = true
+			}
+		}
+		require.True(t, found, "expected proxy to be found")
 	})
 
 	t.Run("Delete", func(t *testing.T) {
@@ -130,6 +137,6 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err, "failed to get workspace proxies")
-		require.Len(t, proxies, 0, "expected no proxies")
+		require.Len(t, proxies, 1, "expected only primary proxy")
 	})
 }

@@ -1,12 +1,12 @@
-import { useState, FC, ReactNode, PropsWithChildren } from "react"
+import { useState, FC, ReactNode } from "react"
 import Collapse from "@mui/material/Collapse"
 // eslint-disable-next-line no-restricted-imports -- It is the base component
 import MuiAlert, { AlertProps as MuiAlertProps } from "@mui/material/Alert"
 import Button from "@mui/material/Button"
+import Box from "@mui/material/Box"
 
-export interface AlertProps extends PropsWithChildren {
-  severity: MuiAlertProps["severity"]
-  actions?: ReactNode[]
+export type AlertProps = MuiAlertProps & {
+  actions?: ReactNode
   dismissible?: boolean
   onRetry?: () => void
   onDismiss?: () => void
@@ -14,23 +14,25 @@ export interface AlertProps extends PropsWithChildren {
 
 export const Alert: FC<AlertProps> = ({
   children,
-  actions = [],
+  actions,
   onRetry,
   dismissible,
   severity,
   onDismiss,
+  ...alertProps
 }) => {
   const [open, setOpen] = useState(true)
 
   return (
     <Collapse in={open}>
       <MuiAlert
+        {...alertProps}
+        sx={{ textAlign: "left", ...alertProps.sx }}
         severity={severity}
         action={
           <>
             {/* CTAs passed in by the consumer */}
-            {actions.length > 0 &&
-              actions.map((action) => <div key={String(action)}>{action}</div>)}
+            {actions}
 
             {/* retry CTA */}
             {onRetry && (
@@ -59,5 +61,18 @@ export const Alert: FC<AlertProps> = ({
         {children}
       </MuiAlert>
     </Collapse>
+  )
+}
+
+export const AlertDetail = ({ children }: { children: ReactNode }) => {
+  return (
+    <Box
+      component="span"
+      color={(theme) => theme.palette.text.secondary}
+      fontSize={13}
+      data-chromatic="ignore"
+    >
+      {children}
+    </Box>
   )
 }

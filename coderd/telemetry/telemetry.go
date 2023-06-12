@@ -309,22 +309,6 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		schemas, err := r.options.Database.GetParameterSchemasCreatedAfter(ctx, createdAfter)
-		if err != nil {
-			return xerrors.Errorf("get parameter schemas: %w", err)
-		}
-		snapshot.ParameterSchemas = make([]ParameterSchema, 0, len(schemas))
-		for _, schema := range schemas {
-			snapshot.ParameterSchemas = append(snapshot.ParameterSchemas, ParameterSchema{
-				ID:                  schema.ID,
-				JobID:               schema.JobID,
-				Name:                schema.Name,
-				ValidationCondition: schema.ValidationCondition,
-			})
-		}
-		return nil
-	})
-	eg.Go(func() error {
 		jobs, err := r.options.Database.GetProvisionerJobsCreatedAfter(ctx, createdAfter)
 		if err != nil {
 			return xerrors.Errorf("get provisioner jobs: %w", err)
@@ -688,7 +672,6 @@ type Snapshot struct {
 	DeploymentID string `json:"deployment_id"`
 
 	APIKeys                   []APIKey                    `json:"api_keys"`
-	ParameterSchemas          []ParameterSchema           `json:"parameter_schemas"`
 	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
 	Licenses                  []License                   `json:"licenses"`
 	Templates                 []Template                  `json:"templates"`
@@ -701,6 +684,7 @@ type Snapshot struct {
 	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
+	CLIInvocations            []CLIInvocation             `json:"cli_invocations"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -874,6 +858,18 @@ type ParameterSchema struct {
 type License struct {
 	UploadedAt time.Time `json:"uploaded_at"`
 	UUID       uuid.UUID `json:"uuid"`
+}
+
+type CLIOption struct {
+	Name        string `json:"name"`
+	ValueSource string `json:"value_source"`
+}
+
+type CLIInvocation struct {
+	Command string      `json:"command"`
+	Options []CLIOption `json:"options"`
+	// InvokedAt is provided for deduplication purposes.
+	InvokedAt time.Time `json:"invoked_at"`
 }
 
 type noopReporter struct{}

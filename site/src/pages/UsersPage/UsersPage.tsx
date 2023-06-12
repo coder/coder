@@ -7,7 +7,7 @@ import {
 } from "components/PaginationWidget/utils"
 import { useMe } from "hooks/useMe"
 import { usePermissions } from "hooks/usePermissions"
-import { FC, ReactNode } from "react"
+import { FC, ReactNode, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
 import { useSearchParams } from "react-router-dom"
@@ -17,6 +17,9 @@ import { ConfirmDialog } from "../../components/Dialogs/ConfirmDialog/ConfirmDia
 import { ResetPasswordDialog } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
 import { pageTitle } from "../../utils/page"
 import { UsersPageView } from "./UsersPageView"
+import { useStatusFilterMenu } from "./UsersFilter"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { useFilter } from "components/Filter/filter"
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -32,7 +35,8 @@ const getSelectedUser = (id: string, users?: User[]) =>
 
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const searchParamsResult = useSearchParams()
+  const [searchParams, setSearchParams] = searchParamsResult
   const filter = searchParams.get("filter") ?? ""
   const [usersState, usersSend] = useMachine(usersMachine, {
     context: {
@@ -73,6 +77,26 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
 
   const me = useMe()
 
+  // New filter
+  const dashboard = useDashboard()
+  const useFilterResult = useFilter({
+    searchParamsResult,
+    onUpdate: () => {
+      usersSend({ type: "UPDATE_PAGE", page: "1" })
+    },
+  })
+  useEffect(() => {
+    usersSend({ type: "UPDATE_FILTER", query: useFilterResult.query })
+  }, [useFilterResult.query, usersSend])
+  const statusMenu = useStatusFilterMenu({
+    value: useFilterResult.values.status,
+    onChange: (option) =>
+      useFilterResult.update({
+        ...useFilterResult.values,
+        status: option?.value,
+      }),
+  })
+
   return (
     <>
       <Helmet>
@@ -86,6 +110,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           navigate(
             "/workspaces?filter=" +
               encodeURIComponent(`owner:${user.username}`),
+          )
+        }}
+        onViewActivity={(user) => {
+          navigate(
+            "/audit?filter=" + encodeURIComponent(`username:${user.username}`),
           )
         }}
         onDeleteUser={(user) => {
@@ -123,13 +152,24 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
         isLoading={isLoading}
         canEditUsers={canEditUsers}
-        filter={usersState.context.filter}
-        onFilter={(query) => {
-          usersSend({ type: "UPDATE_FILTER", query })
-        }}
         paginationRef={paginationRef}
         isNonInitialPage={nonInitialPage(searchParams)}
         actorID={me.id}
+        filterProps={
+          dashboard.experiments.includes("workspace_filter")
+            ? {
+                filter: useFilterResult,
+                menus: {
+                  status: statusMenu,
+                },
+              }
+            : {
+                filter: usersState.context.filter,
+                onFilter: (query) => {
+                  usersSend({ type: "UPDATE_FILTER", query })
+                },
+              }
+        }
       />
 
       <DeleteDialog
