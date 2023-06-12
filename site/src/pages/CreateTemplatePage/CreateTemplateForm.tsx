@@ -175,6 +175,7 @@ export interface CreateTemplateFormProps {
   logs?: ProvisionerJobLog[]
   allowAdvancedScheduling: boolean
   copiedTemplate?: Template
+  allowDisableEveryoneAccess: boolean
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
@@ -189,6 +190,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   jobError,
   logs,
   allowAdvancedScheduling,
+  allowDisableEveryoneAccess,
 }) => {
   const styles = useStyles()
   const form = useFormik<CreateTemplateData>({
@@ -425,7 +427,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 <Checkbox
                   id="allow_everyone_group_access"
                   name="allow_everyone_group_access"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !allowDisableEveryoneAccess}
                   checked={form.values.allow_everyone_group_access}
                   onChange={form.handleChange}
                 />
