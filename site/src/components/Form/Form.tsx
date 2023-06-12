@@ -118,6 +118,10 @@ export const FormFooter: FC<BaseFormFooterProps> = (props) => {
     />
   )
 }
+const getFlexDirection = ({ direction }: FormContextValue = {}):
+  | "row"
+  | "column" =>
+  direction === "horizontal" ? ("row" as const) : ("column" as const)
 
 const useStyles = makeStyles((theme) => ({
   form: {
@@ -136,8 +140,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "flex-start",
     gap: ({ direction }: FormContextValue = {}) =>
       direction === "horizontal" ? theme.spacing(15) : theme.spacing(3),
-    flexDirection: ({ direction }: FormContextValue = {}) =>
-      direction === "horizontal" ? "row" : "column",
+    flexDirection: getFlexDirection,
 
     [theme.breakpoints.down("md")]: {
       flexDirection: "column",
@@ -156,7 +159,7 @@ const useStyles = makeStyles((theme) => ({
 
     [theme.breakpoints.down("md")]: {
       width: "100%",
-      position: "initial",
+      position: "initial" as const,
     },
   },
 

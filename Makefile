@@ -610,6 +610,7 @@ test: test-clean
 
 # When updating -timeout for this test, keep in sync with
 # test-go-postgres (.github/workflows/coder.yaml).
+# Do add coverage flags so that test caching works.
 test-postgres: test-clean test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
@@ -617,8 +618,7 @@ test-postgres: test-clean test-postgres-docker
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
 		--packages="./..." -- \
-		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
-		-coverpkg=./... \
+		-timeout=20m \
 		-failfast
 .PHONY: test-postgres
 

@@ -161,11 +161,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
-      aria-label={t("formAriaLabel")}
+      aria-label={t("formAriaLabel").toString()}
     >
       <FormSection
-        title={t("schedule.title")}
-        description={t("schedule.description")}
+        title={t("schedule.title").toString()}
+        description={t("schedule.description").toString()}
       >
         <Stack direction="row" className={styles.ttlFields}>
           <TextField

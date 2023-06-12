@@ -186,7 +186,7 @@ export const WorkspaceReadyPage = ({
         name={workspace.name}
         info={t("deleteDialog.info", {
           timeAgo: dayjs(workspace.created_at).fromNow(),
-        })}
+        }).toString()}
         isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
         onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
         onConfirm={() => {

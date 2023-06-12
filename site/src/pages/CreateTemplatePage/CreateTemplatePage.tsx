@@ -47,7 +47,7 @@ const CreateTemplatePage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(t("title"))}</title>
+        <title>{pageTitle("Create Template")}</title>
       </Helmet>
 
       <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
