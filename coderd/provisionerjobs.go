@@ -318,6 +318,10 @@ func (f *logFollower) follow() {
 			return
 		}
 		defer subCancel()
+		// Move cancel up the stack so it happens before unsubscribing,
+		// otherwise we can end up in a deadlock due to how the
+		// in-memory pubsub does mutex locking on send/unsubscribe.
+		defer cancel()
 
 		// we were provided `complete` prior to starting this subscription, so
 		// we also need to check whether the job is now complete, in case the
