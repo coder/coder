@@ -192,7 +192,7 @@ func TestSearchWorkspace(t *testing.T) {
 				Query: "deleting_by:2023-06-09",
 				Expected: searchquery.PostFilter{
 					DeletingBy: ptr.Ref(time.Date(
-						2023, 06, 9, 0, 0, 0, 0, time.UTC)),
+						2023, 6, 9, 0, 0, 0, 0, time.UTC)),
 				},
 			},
 			{
@@ -200,7 +200,7 @@ func TestSearchWorkspace(t *testing.T) {
 				Query: "deleting_by:2023-06-09 name:workspace-name",
 				Expected: searchquery.PostFilter{
 					DeletingBy: ptr.Ref(time.Date(
-						2023, 06, 9, 0, 0, 0, 0, time.UTC)),
+						2023, 6, 9, 0, 0, 0, 0, time.UTC)),
 				},
 			},
 		}
