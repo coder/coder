@@ -3,9 +3,12 @@ package dbcrypt
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"runtime"
 	"strings"
 	"sync/atomic"
 
+	"cdr.dev/slog"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -22,6 +25,7 @@ type Options struct {
 	// to encrypt/decrypt user link and git auth link tokens. If this is nil,
 	// then no encryption/decryption will be performed.
 	ExternalTokenCipher *atomic.Pointer[cryptorand.Cipher]
+	Logger              slog.Logger
 }
 
 // New creates a database.Store wrapper that encrypts/decrypts values
@@ -128,7 +132,8 @@ func (db *dbCrypt) encryptFields(fields ...*string) error {
 		if err != nil {
 			return err
 		}
-		*field = MagicPrefix + string(encrypted)
+		// Base64 is used to support UTF-8 encoding in PostgreSQL.
+		*field = MagicPrefix + base64.StdEncoding.EncodeToString(encrypted)
 	}
 	return nil
 }
@@ -136,10 +141,15 @@ func (db *dbCrypt) encryptFields(fields ...*string) error {
 // decryptFields decrypts the given fields in place.
 // If the value fails to decrypt, sql.ErrNoRows will be returned.
 func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error {
-	delete := func() error {
+	delete := func(reason string) error {
 		err := deleteFn()
 		if err != nil {
 			return xerrors.Errorf("delete encrypted row: %w", err)
+		}
+		pc, _, _, ok := runtime.Caller(2)
+		details := runtime.FuncForPC(pc)
+		if ok && details != nil {
+			db.Logger.Debug(context.Background(), "deleted row", slog.F("reason", reason), slog.F("caller", details.Name()))
 		}
 		return sql.ErrNoRows
 	}
@@ -154,7 +164,7 @@ func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error
 			if strings.HasPrefix(*field, MagicPrefix) {
 				// If we have a magic prefix but encryption is disabled,
 				// we should delete the row.
-				return delete()
+				return delete("encryption disabled")
 			}
 		}
 		return nil
@@ -166,13 +176,19 @@ func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error
 			continue
 		}
 		if len(*field) < len(MagicPrefix) || !strings.HasPrefix(*field, MagicPrefix) {
+			// We do not force encryption of unencrypted rows. This could be damaging
+			// to the deployment, and admins can always manually purge data.
 			continue
 		}
-
-		decrypted, err := cipher.Decrypt([]byte((*field)[len(MagicPrefix):]))
+		data, err := base64.StdEncoding.DecodeString((*field)[len(MagicPrefix):])
+		if err != nil {
+			// If it's not base64 with the prefix, we should delete the row.
+			return delete("stored value was not base64 encoded")
+		}
+		decrypted, err := cipher.Decrypt(data)
 		if err != nil {
 			// If the encryption key changed, we should delete the row.
-			return delete()
+			return delete("encryption key changed")
 		}
 		*field = string(decrypted)
 	}

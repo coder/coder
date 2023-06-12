@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"io"
 	"sync/atomic"
 	"testing"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
@@ -172,7 +175,9 @@ func TestGitAuthLinks(t *testing.T) {
 func requireEncryptedEquals(t *testing.T, cipher *atomic.Pointer[cryptorand.Cipher], value, expected string) {
 	t.Helper()
 	c := (*cipher.Load())
-	got, err := c.Decrypt([]byte(value[len(dbcrypt.MagicPrefix):]))
+	data, err := base64.StdEncoding.DecodeString(value[len(dbcrypt.MagicPrefix):])
+	require.NoError(t, err)
+	got, err := c.Decrypt(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, string(got))
 }
@@ -193,5 +198,6 @@ func setup(t *testing.T) (db, cryptodb database.Store, cipher *atomic.Pointer[cr
 	cipher = &atomic.Pointer[cryptorand.Cipher]{}
 	return rawDB, dbcrypt.New(rawDB, &dbcrypt.Options{
 		ExternalTokenCipher: cipher,
+		Logger:              slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 	}), cipher
 }

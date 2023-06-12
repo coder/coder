@@ -59,6 +59,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	externalTokenCipher := &atomic.Pointer[cryptorand.Cipher]{}
 	options.Database = dbcrypt.New(options.Database, &dbcrypt.Options{
 		ExternalTokenCipher: externalTokenCipher,
+		Logger:              options.Logger.Named("dbcrypt"),
 	})
 
 	api := &API{
