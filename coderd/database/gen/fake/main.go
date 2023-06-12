@@ -90,10 +90,19 @@ func run() error {
 					},
 				},
 				Body: &dst.BlockStmt{
-					Decs: dst.BlockStmtDecorations{
-						Lbrace: dst.Decorations{
-							"\n",
-							"// Not implemented",
+					List: []dst.Stmt{
+						&dst.ExprStmt{
+							X: &dst.CallExpr{
+								Fun: &dst.Ident{
+									Name: "panic",
+								},
+								Args: []dst.Expr{
+									&dst.BasicLit{
+										Kind:  token.STRING,
+										Value: "\"Not implemented\"",
+									},
+								},
+							},
 						},
 					},
 				},

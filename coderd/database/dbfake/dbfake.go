@@ -13,15 +13,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/util/slice"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
