@@ -205,7 +205,7 @@ func TestIsContainerized(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			fs := initFS(t, tt.FS)
-			actual, err := isContainerizedOnce(fs)
+			actual, err := IsContainerized(fs)
 			if tt.Error == "" {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.Expected, actual)
