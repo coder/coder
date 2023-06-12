@@ -439,10 +439,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                     spacing={0.5}
                     className={styles.optionText}
                   >
-                    <strong>
-                      Allow the &apos;everyone&apos; group &apos;use&apos;
-                      access to the template
-                    </strong>
+                    <strong>Allow the everyone to use the template</strong>
 
                     <HelpTooltip>
                       <HelpTooltipText>
