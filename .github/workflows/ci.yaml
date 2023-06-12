@@ -547,7 +547,7 @@ jobs:
 
   required:
     runs-on: ubuntu-latest
-    needs: [gen, fmt, lint, test-go, test-go-pg, test-go-race, test-js]
+    needs: [fmt, lint, gen, test-go, test-go-pg, test-go-race, test-js]
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()

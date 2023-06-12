@@ -261,7 +261,7 @@ func TestSSH(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
-			// the build and agent to connect!
+			// the build and agent to connect.
 			agentClient := agentsdk.New(client.URL)
 			agentClient.SetSessionToken(agentToken)
 			agentCloser := agent.New(agent.Options{
@@ -411,20 +411,14 @@ func TestSSH(t *testing.T) {
 	t.Run("FileLogging", func(t *testing.T) {
 		t.Parallel()
 
-		dir := t.TempDir()
+		logDir := t.TempDir()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-		inv, root := clitest.New(t, "ssh", workspace.Name, "-l", "--log-dir", dir)
+		inv, root := clitest.New(t, "ssh", "-l", logDir, workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
+		w := clitest.StartWithWaiter(t, inv)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		cmdDone := tGo(t, func() {
-			err := inv.WithContext(ctx).Run()
-			assert.NoError(t, err)
-		})
 		pty.ExpectMatch("Waiting")
 
 		agentClient := agentsdk.New(client.URL)
@@ -439,17 +433,11 @@ func TestSSH(t *testing.T) {
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
-		<-cmdDone
+		w.RequireSuccess()
 
-		entries, err := os.ReadDir(dir)
+		ents, err := os.ReadDir(logDir)
 		require.NoError(t, err)
-		for _, e := range entries {
-			t.Logf("logdir entry: %s", e.Name())
-			if strings.HasPrefix(e.Name(), "coder-ssh") {
-				return
-			}
-		}
-		t.Fatal("failed to find ssh logfile")
+		require.Len(t, ents, 1, "expected one file in logdir %s", logDir)
 	})
 }
 

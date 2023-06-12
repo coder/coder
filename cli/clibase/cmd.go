@@ -448,6 +448,19 @@ func (inv *Invocation) Run() (err error) {
 			panic(err)
 		}
 	}()
+	// We close Stdin to prevent deadlocks, e.g. when the command
+	// has ended but an io.Copy is still reading from Stdin.
+	defer func() {
+		if inv.Stdin == nil {
+			return
+		}
+		rc, ok := inv.Stdin.(io.ReadCloser)
+		if !ok {
+			return
+		}
+		e := rc.Close()
+		err = errors.Join(err, e)
+	}()
 	err = inv.run(&runState{
 		allArgs: inv.Args,
 	})
