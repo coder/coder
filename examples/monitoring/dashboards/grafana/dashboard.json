@@ -7,6 +7,20 @@
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
+    },
+    {
+      "name": "VAR_FILTER_KEY",
+      "type": "constant",
+      "label": "Filter key",
+      "value": "app",
+      "description": ""
+    },
+    {
+      "name": "VAR_FILTER_VALUE",
+      "type": "constant",
+      "label": "Filter value",
+      "value": "coder",
+      "description": ""
     }
   ],
   "__elements": {},
@@ -142,7 +156,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "rate(process_cpu_seconds_total[$__rate_interval])",
+          "expr": "rate(process_cpu_seconds_total{$filter_key=\"$filter_value\"}[$__rate_interval])",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -207,7 +221,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "coderd_api_active_users_duration_hour",
+          "expr": "coderd_api_active_users_duration_hour{$filter_key=\"$filter_value\"}",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -272,7 +286,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "sum(coderd_agents_up)",
+          "expr": "sum(coderd_agents_up{$filter_key=\"$filter_value\"})",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -338,7 +352,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "avg(coderd_agents_connection_latencies_seconds)",
+          "expr": "avg(coderd_agents_connection_latencies_seconds{$filter_key=\"$filter_value\"})",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -443,7 +457,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "coderd_provisionerd_jobs_current",
+          "expr": "coderd_provisionerd_jobs_current{$filter_key=\"$filter_value\"}",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -454,7 +468,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "coderd_provisionerd_num_daemons",
+          "expr": "coderd_provisionerd_num_daemons{$filter_key=\"$filter_value\"}",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -578,7 +592,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.95, sum by(le) (rate(coderd_db_query_latencies_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(coderd_db_query_latencies_seconds_bucket{$filter_key=\"$filter_value\"}[$__rate_interval])))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -590,7 +604,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "sum(rate(coderd_db_query_latencies_seconds_count[$__rate_interval]))",
+          "expr": "sum(rate(coderd_db_query_latencies_seconds_count{$filter_key=\"$filter_value\"}[$__rate_interval]))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -716,7 +730,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "go_memstats_alloc_bytes",
+          "expr": "go_memstats_alloc_bytes{$filter_key=\"$filter_value\"}",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -728,7 +742,7 @@
           },
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "go_goroutines",
+          "expr": "go_goroutines{$filter_key=\"$filter_value\"}",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -751,6 +765,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
+            "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
@@ -861,7 +876,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "sum by(job) (rate(coderd_api_requests_processed_total[$__rate_interval]))",
+          "expr": "sum by(job) (rate(coderd_api_requests_processed_total{$filter_key=\"$filter_value\"}[$__rate_interval]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -895,21 +910,64 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "",
+  "refresh": "10s",
   "schemaVersion": 38,
   "style": "dark",
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "description": "The key to use for filtering metrics",
+        "hide": 2,
+        "label": "Filter key",
+        "name": "filter_key",
+        "query": "${VAR_FILTER_KEY}",
+        "skipUrlSync": false,
+        "type": "constant",
+        "current": {
+          "value": "${VAR_FILTER_KEY}",
+          "text": "${VAR_FILTER_KEY}",
+          "selected": false
+        },
+        "options": [
+          {
+            "value": "${VAR_FILTER_KEY}",
+            "text": "${VAR_FILTER_KEY}",
+            "selected": false
+          }
+        ]
+      },
+      {
+        "description": "The value to use for filtering metrics",
+        "hide": 2,
+        "label": "Filter value",
+        "name": "filter_value",
+        "query": "${VAR_FILTER_VALUE}",
+        "skipUrlSync": false,
+        "type": "constant",
+        "current": {
+          "value": "${VAR_FILTER_VALUE}",
+          "text": "${VAR_FILTER_VALUE}",
+          "selected": false
+        },
+        "options": [
+          {
+            "value": "${VAR_FILTER_VALUE}",
+            "text": "${VAR_FILTER_VALUE}",
+            "selected": false
+          }
+        ]
+      }
+    ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Coder Dashboard",
   "uid": "cb63c6ac-e392-42a9-a966-ee642b9c997c",
-  "version": 7,
+  "version": 9,
   "weekStart": ""
 }
