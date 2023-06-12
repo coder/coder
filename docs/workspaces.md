@@ -90,6 +90,24 @@ state is out of sync with the template.
 coder update <your workspace name> --always-prompt
 ```
 
+## Locking workspaces
+
+Prior to deletion, workspaces are moved into a "locked" state. A workspace can
+become locked in a couple of different ways: 
+
+- The workspace has been inactive for longer than the template's inactivity
+  threshold see [template workspace scheduling](./templates/schedule.md).
+- An admin manually locks the workspace.
+
+When a workspace is locked, the workspace is automatically stopped and unable
+to be accessed by the user (unless the user is themself an admin). A locked
+workspace is retained by default for seven days before it is permanently
+deleted. The duration a workspace remains in the locked state prior to deletion
+can be configured to an arbitrary value for enterprise deployments.
+
+In order to unlock a workspace, a user must contact the template admin or a site
+admin to unlock the workspace.
+
 ## Logging
 
 Coder stores macOS and Linux logs at the following locations:
