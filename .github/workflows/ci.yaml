@@ -244,11 +244,6 @@ jobs:
           # By default Go will use the number of logical CPUs, which
           # is a fine default.
           PARALLEL_FLAG=""
-          if [ "${{ matrix.os }}" == "windows-2019" ]; then
-            # Windows appears more I/O bound, so we increase parallelism
-            # to make better use of CPU.
-            PARALLEL_FLAG="-parallel=16"
-          fi
 
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
