@@ -565,7 +565,7 @@ jobs:
 
   required:
     runs-on: ubuntu-latest
-    needs: [gen, test-go, test-go-pg, test-go-race, test-js]
+    needs: [fmt, lint, gen, test-go, test-go-pg, test-go-race, test-js]
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -573,6 +573,8 @@ jobs:
       - name: Ensure required checks
         run: |
           echo "Checking required checks"
+          echo "- fmt: ${{ needs.fmt.result }}"
+          echo "- lint: ${{ needs.lint.result }}"
           echo "- gen: ${{ needs.gen.result }}"
           echo "- test-go: ${{ needs.test-go.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
