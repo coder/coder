@@ -12,8 +12,6 @@ on:
     # Run every 6 hours Monday-Friday!
     - cron: "0 0/6 * * 1-5"
 
-  push:
-
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
 concurrency:
