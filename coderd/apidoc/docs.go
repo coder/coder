@@ -5229,6 +5229,12 @@ const docTemplate = `{
                         "description": "Filter by agent status",
                         "name": "has_agent",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter workspaces scheduled to be deleted by this time",
+                        "name": "deleting_by",
+                        "in": "query"
                     }
                 ],
                 "responses": {
