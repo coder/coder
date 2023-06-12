@@ -1335,6 +1335,9 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	tooLongValueMetadata.CollectedAt = time.Now()
 	post("foo3", tooLongValueMetadata)
 	got := recvUpdate()[2]
+	for len(got.Result.Value) != maxValueLen {
+		got = recvUpdate()[2]
+	}
 	require.Len(t, got.Result.Value, maxValueLen)
 	require.NotEmpty(t, got.Result.Error)
 
