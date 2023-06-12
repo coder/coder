@@ -127,28 +127,3 @@ func (s *Statter) HostMemory() (*Result, error) {
 	r.Used = float64(hm.Used) / 1024 / 1024 / 1024
 	return r, nil
 }
-
-// Uptime returns the uptime of the host, in seconds.
-// If the host is containerized, this will return the uptime of the container
-// by checking /proc/1/stat.
-func (s *Statter) Uptime() (*Result, error) {
-	r := &Result{
-		Unit:  "minutes",
-		Total: nil, // Is time a finite quantity? For this purpose, no.
-	}
-
-	if ok, err := IsContainerized(s.fs); err == nil && ok {
-		procStat, err := sysinfo.Process(1)
-		if err != nil {
-			return nil, xerrors.Errorf("get pid 1 info: %w", err)
-		}
-		procInfo, err := procStat.Info()
-		if err != nil {
-			return nil, xerrors.Errorf("get pid 1 stat: %w", err)
-		}
-		r.Used = time.Since(procInfo.StartTime).Minutes()
-		return r, nil
-	}
-	r.Used = s.hi.Info().Uptime().Minutes()
-	return r, nil
-}

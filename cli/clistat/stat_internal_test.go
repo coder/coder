@@ -75,15 +75,6 @@ func TestStatter(t *testing.T) {
 			assert.NotZero(t, disk.Total)
 			assert.NotZero(t, disk.Unit)
 		})
-
-		t.Run("Uptime", func(t *testing.T) {
-			t.Parallel()
-			uptime, err := s.Uptime()
-			require.NoError(t, err)
-			assert.NotZero(t, uptime.Used)
-			assert.Zero(t, uptime.Total)
-			assert.Equal(t, "minutes", uptime.Unit)
-		})
 	})
 
 	t.Run("CGroupV1", func(t *testing.T) {

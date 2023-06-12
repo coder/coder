@@ -14,7 +14,7 @@ import (
 
 func (*RootCmd) stat() *clibase.Cmd {
 	fs := afero.NewReadOnlyFs(afero.NewOsFs())
-	defaultCols := []string{"host_cpu", "host_memory", "home_disk", "uptime"}
+	defaultCols := []string{"host_cpu", "host_memory", "home_disk"}
 	if ok, err := clistat.IsContainerized(fs); err == nil && ok {
 		// If running in a container, we assume that users want to see these first. Prepend.
 		defaultCols = append([]string{"container_cpu", "container_memory"}, defaultCols...)
@@ -68,13 +68,6 @@ func (*RootCmd) stat() *clibase.Cmd {
 			}
 			sr.Disk = ds
 
-			// Uptime is calculated either based on the host or the container, depending.
-			us, err := st.Uptime()
-			if err != nil {
-				return err
-			}
-			sr.Uptime = us
-
 			// Container-only stats.
 			if ok, err := clistat.IsContainerized(fs); err == nil && ok {
 				cs, err := st.ContainerCPU()
@@ -108,5 +101,4 @@ type statsRow struct {
 	Disk            *clistat.Result `json:"home_disk" table:"home_disk"`
 	ContainerCPU    *clistat.Result `json:"container_cpu" table:"container_cpu"`
 	ContainerMemory *clistat.Result `json:"container_memory" table:"container_memory"`
-	Uptime          *clistat.Result `json:"uptime" table:"uptime"`
 }
