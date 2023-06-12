@@ -440,7 +440,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                     className={styles.optionText}
                   >
                     <strong>
-                      Allow the &apos;everyone&apos; group read &apos;user&apos;
+                      Allow the &apos;everyone&apos; group &apos;use&apos;
                       access to the template
                     </strong>
 
