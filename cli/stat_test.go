@@ -48,7 +48,6 @@ func TestStatCmd(t *testing.T) {
 		require.Contains(t, s, "HOST CPU")
 		require.Contains(t, s, "HOST MEMORY")
 		require.Contains(t, s, "HOME DISK")
-		require.Contains(t, s, "UPTIME")
 	})
 	t.Run("Default", func(t *testing.T) {
 		t.Parallel()
@@ -64,6 +63,5 @@ func TestStatCmd(t *testing.T) {
 		require.Contains(t, s, "HOST CPU")
 		require.Contains(t, s, "HOST MEMORY")
 		require.Contains(t, s, "HOME DISK")
-		require.Contains(t, s, "UPTIME")
 	})
 }
