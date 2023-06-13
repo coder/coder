@@ -410,6 +410,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				// is actually changing.
 				changed = false
 			} else {
+				_ = coordinator.Close()
 				coordinator = haCoordinator
 			}
 
