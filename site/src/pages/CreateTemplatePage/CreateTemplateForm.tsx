@@ -382,9 +382,9 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         </FormFields>
       </FormSection>
 
-      {/* Operations */}
+      {/* Permissions */}
       <FormSection
-        title="Operations"
+        title="Permissions"
         description="Regulate actions allowed on workspaces created from this template."
       >
         <Stack direction="column">

@@ -147,7 +147,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 	}
 	cmd.Options = clibase.OptionSet{
 		{
-			Flag: "disable-everyone",
+			Flag: "private",
 			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
 				"The template permissions must be updated to allow non-admin users to use this template.",
 			Value: clibase.BoolOf(&disableEveryone),
