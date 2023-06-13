@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/afero"
@@ -11,15 +12,37 @@ import (
 	"tailscale.com/types/ptr"
 )
 
+// Paths for CGroupV1.
+// Ref: https://www.kernel.org/doc/Documentation/cgroup-v1/cpuacct.txt
 const (
-	cgroupV1CPUAcctUsage        = "/sys/fs/cgroup/cpu/cpuacct.usage"
-	cgroupV1CPUAcctUsageAlt     = "/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage"
-	cgroupV1CFSQuotaUs          = "/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us"
+	// CPU usage of all tasks in cgroup in nanoseconds.
+	cgroupV1CPUAcctUsage = "/sys/fs/cgroup/cpu/cpuacct.usage"
+	// Alternate path
+	cgroupV1CPUAcctUsageAlt = "/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage"
+	// CFS quota and period for cgroup in MICROseconds
+	cgroupV1CFSQuotaUs  = "/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us"
+	cgroupV1CFSPeriodUs = "/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us"
+	// Maximum memory usable by cgroup in bytes
 	cgroupV1MemoryMaxUsageBytes = "/sys/fs/cgroup/memory/memory.max_usage_in_bytes"
-	cgroupV1MemoryUsageBytes    = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
-	cgroupV1MemoryStat          = "/sys/fs/cgroup/memory/memory.stat"
-	cgroupV2CPUMax              = "/sys/fs/cgroup/cpu.max"
-	cgroupV2CPUStat             = "/sys/fs/cgroup/cpu.stat"
+	// Current memory usage of cgroup in bytes
+	cgroupV1MemoryUsageBytes = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+	// Other memory stats - we are interested in total_inactive_file
+	cgroupV1MemoryStat = "/sys/fs/cgroup/memory/memory.stat"
+)
+
+// Paths for CGroupV2.
+// Ref: https://docs.kernel.org/admin-guide/cgroup-v2.html
+const (
+	// Contains quota and period in microseconds separated by a space.
+	cgroupV2CPUMax = "/sys/fs/cgroup/cpu.max"
+	// Contains current CPU usage under usage_usec
+	cgroupV2CPUStat = "/sys/fs/cgroup/cpu.stat"
+	// Contains current cgroup memory usage in bytes.
+	cgroupV2MemoryUsageBytes = "/sys/fs/cgroup/memory.current"
+	// Contains max cgroup memory usage in bytes.
+	cgroupV2MemoryMaxBytes = "/sys/fs/cgroup/memory.max"
+	// Other memory stats - we are interested in total_inactive_file
+	cgroupV2MemoryStat = "/sys/fs/cgroup/memory.stat"
 )
 
 // ContainerCPU returns the CPU usage of the container cgroup.
@@ -34,7 +57,7 @@ func (s *Statter) ContainerCPU() (*Result, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("get cgroup CPU usage: %w", err)
 	}
-	<-time.After(s.sampleInterval)
+	s.wait(s.sampleInterval)
 
 	// total is unlikely to change. Use the first value.
 	used2, _, err := s.cgroupCPU()
@@ -44,7 +67,7 @@ func (s *Statter) ContainerCPU() (*Result, error) {
 
 	r := &Result{
 		Unit:  "cores",
-		Used:  (used2 - used1).Seconds() * s.sampleInterval.Seconds(),
+		Used:  (used2 - used1).Seconds(),
 		Total: ptr.To(total.Seconds()), // close enough to the truth
 	}
 	return r, nil
@@ -68,72 +91,31 @@ func (s *Statter) isCGroupV2() bool {
 func (s *Statter) cGroupV2CPU() (used, total time.Duration, err error) {
 	total, err = s.cGroupv2CPUTotal()
 	if err != nil {
-		return 0, 0, xerrors.Errorf("get cgroup v2 cpu total: %w", err)
+		return 0, 0, xerrors.Errorf("get cpu total: %w", err)
 	}
 
 	used, err = s.cGroupv2CPUUsed()
 	if err != nil {
-		return 0, 0, xerrors.Errorf("get cgroup v2 cpu used: %w", err)
+		return 0, 0, xerrors.Errorf("get cpu used: %w", err)
 	}
 
 	return used, total, nil
 }
 
 func (s *Statter) cGroupv2CPUUsed() (used time.Duration, err error) {
-	var data []byte
-	data, err = afero.ReadFile(s.fs, cgroupV2CPUStat)
+	iused, err := readInt64Prefix(s.fs, cgroupV2CPUStat, "usage_usec")
 	if err != nil {
-		return 0, xerrors.Errorf("read %s: %w", cgroupV2CPUStat, err)
+		return 0, xerrors.Errorf("get cgroupv2 cpu used: %w", err)
 	}
-
-	bs := bufio.NewScanner(bytes.NewReader(data))
-	for bs.Scan() {
-		line := bs.Bytes()
-		if !bytes.HasPrefix(line, []byte("usage_usec ")) {
-			continue
-		}
-
-		parts := bytes.Split(line, []byte(" "))
-		if len(parts) != 2 {
-			return 0, xerrors.Errorf("unexpected line in %s: %s", cgroupV2CPUStat, line)
-		}
-
-		iused, err := strconv.Atoi(string(parts[1]))
-		if err != nil {
-			return 0, xerrors.Errorf("parse %s: %w", err, cgroupV2CPUStat)
-		}
-
-		return time.Duration(iused) * time.Microsecond, nil
-	}
-
-	return 0, xerrors.Errorf("did not find expected usage_usec in %s", cgroupV2CPUStat)
+	return time.Duration(iused) * time.Microsecond, nil
 }
 
 func (s *Statter) cGroupv2CPUTotal() (total time.Duration, err error) {
-	var data []byte
 	var quotaUs int64
-	data, err = afero.ReadFile(s.fs, cgroupV2CPUMax)
+	quotaUs, err = readInt64SepIdx(s.fs, cgroupV2CPUMax, " ", 0)
 	if err != nil {
-		return 0, xerrors.Errorf("read %s: %w", cgroupV2CPUMax, err)
-	}
-
-	lines := bytes.Split(data, []byte("\n"))
-	if len(lines) < 1 {
-		return 0, xerrors.Errorf("unexpected empty %s", cgroupV2CPUMax)
-	}
-
-	parts := bytes.Split(lines[0], []byte(" "))
-	if len(parts) != 2 {
-		return 0, xerrors.Errorf("unexpected line in %s: %s", cgroupV2CPUMax, lines[0])
-	}
-
-	if bytes.Equal(parts[0], []byte("max")) {
+		// Fall back to number of cores
 		quotaUs = int64(s.nproc) * time.Second.Microseconds()
-	} else {
-		quotaUs, err = strconv.ParseInt(string(parts[0]), 10, 64)
-		if err != nil {
-			return 0, xerrors.Errorf("parse %s: %w", cgroupV2CPUMax, err)
-		}
 	}
 
 	return time.Duration(quotaUs) * time.Microsecond, nil
@@ -142,33 +124,25 @@ func (s *Statter) cGroupv2CPUTotal() (total time.Duration, err error) {
 func (s *Statter) cGroupV1CPU() (used, total time.Duration, err error) {
 	total, err = s.cGroupV1CPUTotal()
 	if err != nil {
-		return 0, 0, xerrors.Errorf("get cgroup v1 CPU total: %w", err)
+		return 0, 0, xerrors.Errorf("get cpu total: %w", err)
 	}
 
 	used, err = s.cgroupV1CPUUsed()
 	if err != nil {
-		return 0, 0, xerrors.Errorf("get cgruop v1 cpu used: %w", err)
+		return 0, 0, xerrors.Errorf("get cpu used: %w", err)
 	}
 
 	return used, total, nil
 }
 
 func (s *Statter) cGroupV1CPUTotal() (time.Duration, error) {
-	var data []byte
-	var err error
-	var quotaUs int64
-
-	data, err = afero.ReadFile(s.fs, cgroupV1CFSQuotaUs)
+	quotaUs, err := readInt64(s.fs, cgroupV1CFSQuotaUs)
 	if err != nil {
-		return 0, xerrors.Errorf("read %s: %w", cgroupV1CFSQuotaUs, err)
-	}
-
-	quotaUs, err = strconv.ParseInt(string(bytes.TrimSpace(data)), 10, 64)
-	if err != nil {
-		return 0, xerrors.Errorf("parse %s: %w", cgroupV1CFSQuotaUs, err)
+		return 0, xerrors.Errorf("read cpu quota: %w", err)
 	}
 
 	if quotaUs < 0 {
+		// Fall back to the number of cores
 		quotaUs = int64(s.nproc) * time.Second.Microseconds()
 	}
 
@@ -176,32 +150,23 @@ func (s *Statter) cGroupV1CPUTotal() (time.Duration, error) {
 }
 
 func (s *Statter) cgroupV1CPUUsed() (time.Duration, error) {
-	var data []byte
-	var err error
-	var usageUs int64
-
-	data, err = afero.ReadFile(s.fs, cgroupV1CPUAcctUsage)
+	usageNs, err := readInt64(s.fs, cgroupV1CPUAcctUsage)
 	if err != nil {
 		// try alternate path
-		data, err = afero.ReadFile(s.fs, cgroupV1CPUAcctUsageAlt)
+		usageNs, err = readInt64(s.fs, cgroupV1CPUAcctUsageAlt)
 		if err != nil {
-			return 0, xerrors.Errorf("read %s or %s: %w", cgroupV1CPUAcctUsage, cgroupV1CPUAcctUsageAlt, err)
+			return 0, xerrors.Errorf("read cpu used: %w", err)
 		}
 	}
 
-	usageUs, err = strconv.ParseInt(string(bytes.TrimSpace(data)), 10, 64)
-	if err != nil {
-		return 0, xerrors.Errorf("parse %s: %w", cgroupV1CPUAcctUsage, err)
-	}
-
-	return time.Duration(usageUs) * time.Microsecond, nil
+	return time.Duration(usageNs), nil
 }
 
 // ContainerMemory returns the memory usage of the container cgroup.
 // If the system is not containerized, this always returns nil.
 func (s *Statter) ContainerMemory() (*Result, error) {
 	if ok, err := IsContainerized(s.fs); err != nil || !ok {
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
 
 	if s.isCGroupV2() {
@@ -212,60 +177,44 @@ func (s *Statter) ContainerMemory() (*Result, error) {
 	return s.cGroupv1Memory()
 }
 
-func (*Statter) cGroupv2Memory() (*Result, error) {
-	// TODO implement
-	return nil, nil
+func (s *Statter) cGroupv2Memory() (*Result, error) {
+	maxUsageBytes, err := readInt64(s.fs, cgroupV2MemoryMaxBytes)
+	if err != nil {
+		return nil, xerrors.Errorf("read memory total: %w", err)
+	}
+
+	currUsageBytes, err := readInt64(s.fs, cgroupV2MemoryUsageBytes)
+	if err != nil {
+		return nil, xerrors.Errorf("read memory usage: %w", err)
+	}
+
+	inactiveFileBytes, err := readInt64Prefix(s.fs, cgroupV2MemoryStat, "inactive_file")
+	if err != nil {
+		return nil, xerrors.Errorf("read memory stats: %w", err)
+	}
+
+	return &Result{
+		Total: ptr.To(float64(maxUsageBytes) / 1024 / 1024 / 1024),
+		Used:  float64(currUsageBytes-inactiveFileBytes) / 1024 / 1024 / 1024,
+		Unit:  "GB",
+	}, nil
 }
 
 func (s *Statter) cGroupv1Memory() (*Result, error) {
-	var data []byte
-	var err error
-	var usageBytes int64
-	var maxUsageBytes int64
-	var totalInactiveFileBytes int64
-
-	// Read max memory usage
-	data, err = afero.ReadFile(s.fs, cgroupV1MemoryMaxUsageBytes)
+	maxUsageBytes, err := readInt64(s.fs, cgroupV1MemoryMaxUsageBytes)
 	if err != nil {
-		return nil, xerrors.Errorf("read %s: %w", cgroupV1MemoryMaxUsageBytes, err)
+		return nil, xerrors.Errorf("read memory total: %w", err)
 	}
 
-	maxUsageBytes, err = strconv.ParseInt(string(bytes.TrimSpace(data)), 10, 64)
+	// need a space after total_rss so we don't hit something else
+	usageBytes, err := readInt64(s.fs, cgroupV1MemoryUsageBytes)
 	if err != nil {
-		return nil, xerrors.Errorf("parse %s: %w", cgroupV1MemoryMaxUsageBytes, err)
+		return nil, xerrors.Errorf("read memory usage: %w", err)
 	}
 
-	// Read current memory usage
-	data, err = afero.ReadFile(s.fs, cgroupV1MemoryUsageBytes)
+	totalInactiveFileBytes, err := readInt64Prefix(s.fs, cgroupV1MemoryStat, "total_inactive_file")
 	if err != nil {
-		return nil, xerrors.Errorf("read %s: %w", cgroupV1MemoryUsageBytes, err)
-	}
-
-	usageBytes, err = strconv.ParseInt(string(bytes.TrimSpace(data)), 10, 64)
-	if err != nil {
-		return nil, xerrors.Errorf("parse %s: %w", cgroupV1MemoryUsageBytes, err)
-	}
-
-	// Get total_inactive_file from memory.stat
-	data, err = afero.ReadFile(s.fs, cgroupV1MemoryStat)
-	if err != nil {
-		return nil, xerrors.Errorf("read %s: %w", cgroupV1MemoryStat, err)
-	}
-	scn := bufio.NewScanner(bytes.NewReader(data))
-	for scn.Scan() {
-		line := scn.Bytes()
-		if !bytes.HasPrefix(line, []byte("total_inactive_file")) {
-			continue
-		}
-
-		parts := bytes.Split(line, []byte(" "))
-		if len(parts) != 2 {
-			return nil, xerrors.Errorf("unexpected value in %s: %s", cgroupV1MemoryUsageBytes, string(line))
-		}
-		totalInactiveFileBytes, err = strconv.ParseInt(string(bytes.TrimSpace(parts[1])), 10, 64)
-		if err != nil {
-			return nil, xerrors.Errorf("parse %s: %w", cgroupV1MemoryUsageBytes, err)
-		}
+		return nil, xerrors.Errorf("read memory stats: %w", err)
 	}
 
 	// Total memory used is usage - total_inactive_file
@@ -274,4 +223,69 @@ func (s *Statter) cGroupv1Memory() (*Result, error) {
 		Used:  float64(usageBytes-totalInactiveFileBytes) / 1024 / 1024 / 1024,
 		Unit:  "GB",
 	}, nil
+}
+
+// read an int64 value from path
+func readInt64(fs afero.Fs, path string) (int64, error) {
+	data, err := afero.ReadFile(fs, path)
+	if err != nil {
+		return 0, xerrors.Errorf("read %s: %w", path, err)
+	}
+
+	val, err := strconv.ParseInt(string(bytes.TrimSpace(data)), 10, 64)
+	if err != nil {
+		return 0, xerrors.Errorf("parse %s: %w", path, err)
+	}
+
+	return val, nil
+}
+
+// read an int64 value from path at field idx separated by sep
+func readInt64SepIdx(fs afero.Fs, path, sep string, idx int) (int64, error) {
+	data, err := afero.ReadFile(fs, path)
+	if err != nil {
+		return 0, xerrors.Errorf("read %s: %w", path, err)
+	}
+
+	parts := strings.Split(string(data), sep)
+	if len(parts) < idx {
+		return 0, xerrors.Errorf("expected line %q to have at least %d parts", string(data), idx+1)
+	}
+
+	val, err := strconv.ParseInt(parts[idx], 10, 64)
+	if err != nil {
+		return 0, xerrors.Errorf("parse %s: %w", path, err)
+	}
+
+	return val, nil
+}
+
+// read the first int64 value from path prefixed with prefix
+func readInt64Prefix(fs afero.Fs, path, prefix string) (int64, error) {
+	data, err := afero.ReadFile(fs, path)
+	if err != nil {
+		return 0, xerrors.Errorf("read %s: %w", path, err)
+	}
+
+	scn := bufio.NewScanner(bytes.NewReader(data))
+	for scn.Scan() {
+		line := scn.Text()
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+
+		parts := strings.Fields(line)
+		if len(parts) != 2 {
+			return 0, xerrors.Errorf("parse %s: expected two fields but got %s", path, line)
+		}
+
+		val, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+		if err != nil {
+			return 0, xerrors.Errorf("parse %s: %w", path, err)
+		}
+
+		return val, nil
+	}
+
+	return 0, xerrors.Errorf("parse %s: did not find line with prefix %s", path, prefix)
 }

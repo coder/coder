@@ -2,6 +2,7 @@ package clistat
 
 import (
 	"testing"
+	"time"
 
 	"tailscale.com/types/ptr"
 
@@ -77,13 +78,35 @@ func TestStatter(t *testing.T) {
 		})
 	})
 
+	// Sometimes we do need to "fake" some stuff
+	// that happens while we wait.
+	withWait := func(waitF func(time.Duration)) Option {
+		return func(s *Statter) {
+			s.wait = waitF
+		}
+	}
+
+	// We don't want to use the actual host CPU here.
+	withNproc := func(n int) Option {
+		return func(s *Statter) {
+			s.nproc = n
+		}
+	}
+
+	// For container-specific measurements, everything we need
+	// can be read from the filesystem. We control the FS, so
+	// we control the data.
 	t.Run("CGroupV1", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("Limit", func(t *testing.T) {
 			t.Parallel()
 			fs := initFS(t, fsContainerCgroupV1)
-			s, err := New(WithFS(fs))
+			fakeWait := func(time.Duration) {
+				// Fake 1 second in ns of usage
+				mungeFS(t, fs, cgroupV1CPUAcctUsage, "1000000000")
+			}
+			s, err := New(WithFS(fs), withWait(fakeWait))
 			require.NoError(t, err)
 
 			t.Run("ContainerCPU", func(t *testing.T) {
@@ -91,8 +114,7 @@ func TestStatter(t *testing.T) {
 				cpu, err := s.ContainerCPU()
 				require.NoError(t, err)
 				require.NotNil(t, cpu)
-				// This value does not change in between tests so it is zero.
-				assert.Zero(t, cpu.Used)
+				assert.Equal(t, 1.0, cpu.Used)
 				require.NotNil(t, cpu.Total)
 				assert.Equal(t, 2.5, *cpu.Total)
 				assert.Equal(t, "cores", cpu.Unit)
@@ -103,39 +125,28 @@ func TestStatter(t *testing.T) {
 				mem, err := s.ContainerMemory()
 				require.NoError(t, err)
 				require.NotNil(t, mem)
-				assert.NotZero(t, mem.Used)
-				assert.NotZero(t, mem.Total)
+				assert.Equal(t, 0.25, mem.Used)
+				assert.Equal(t, 1.0, *mem.Total)
 				assert.Equal(t, "GB", mem.Unit)
 			})
 		})
 
-		t.Run("NoLimit", func(t *testing.T) {
+		t.Run("NoCPULimit", func(t *testing.T) {
 			t.Parallel()
 			fs := initFS(t, fsContainerCgroupV1NoLimit)
-			s, err := New(WithFS(fs))
+			fakeWait := func(time.Duration) {
+				// Fake 1 second in ns of usage
+				mungeFS(t, fs, cgroupV1CPUAcctUsage, "1000000000")
+			}
+			s, err := New(WithFS(fs), withNproc(2), withWait(fakeWait))
 			require.NoError(t, err)
-
-			t.Run("ContainerCPU", func(t *testing.T) {
-				t.Parallel()
-				cpu, err := s.ContainerCPU()
-				require.NoError(t, err)
-				require.NotNil(t, cpu)
-				// This value does not change in between tests so it is zero.
-				assert.Zero(t, cpu.Used)
-				require.NotNil(t, cpu.Total)
-				assert.Equal(t, 2.5, *cpu.Total)
-				assert.Equal(t, "cores", cpu.Unit)
-			})
-
-			t.Run("ContainerMemory", func(t *testing.T) {
-				t.Parallel()
-				mem, err := s.ContainerMemory()
-				require.NoError(t, err)
-				require.NotNil(t, mem)
-				assert.NotZero(t, mem.Used)
-				assert.NotZero(t, mem.Total)
-				assert.Equal(t, "GB", mem.Unit)
-			})
+			cpu, err := s.ContainerCPU()
+			require.NoError(t, err)
+			require.NotNil(t, cpu)
+			assert.Equal(t, 1.0, cpu.Used)
+			require.NotNil(t, cpu.Total)
+			assert.Equal(t, 2.0, *cpu.Total)
+			assert.Equal(t, "cores", cpu.Unit)
 		})
 	})
 
@@ -144,16 +155,17 @@ func TestStatter(t *testing.T) {
 		t.Run("Limit", func(t *testing.T) {
 			t.Parallel()
 			fs := initFS(t, fsContainerCgroupV2)
-			s, err := New(WithFS(fs))
+			fakeWait := func(time.Duration) {
+				// Fake 1 second in ns of usage
+				mungeFS(t, fs, cgroupV1CPUAcctUsage, "10000000000")
+			}
+			s, err := New(WithFS(fs), withWait(fakeWait))
 			require.NoError(t, err)
-			// We can make assertions about the below because these all read
-			// data from known file paths, which we can control.
 			t.Run("ContainerCPU", func(t *testing.T) {
 				t.Parallel()
 				cpu, err := s.ContainerCPU()
 				require.NoError(t, err)
 				require.NotNil(t, cpu)
-				// This value does not change in between tests so it is zero.
 				assert.Zero(t, cpu.Used)
 				require.NotNil(t, cpu.Total)
 				assert.Equal(t, 2.5, *cpu.Total)
@@ -165,42 +177,30 @@ func TestStatter(t *testing.T) {
 				mem, err := s.ContainerMemory()
 				require.NoError(t, err)
 				require.NotNil(t, mem)
-				assert.NotZero(t, mem.Used)
-				assert.NotZero(t, mem.Total)
+				assert.Equal(t, 0.25, mem.Used)
+				assert.NotNil(t, mem.Total)
+				assert.Equal(t, 1.0, *mem.Total)
 				assert.Equal(t, "GB", mem.Unit)
 			})
 		})
 
-		t.Run("NoLimit", func(t *testing.T) {
+		t.Run("NoCPULimit", func(t *testing.T) {
 			t.Parallel()
-			fs := initFS(t, fsContainerCgroupV2)
-			s, err := New(WithFS(fs), func(s *Statter) {
-				s.nproc = 2
-			})
+			fs := initFS(t, fsContainerCgroupV2NoLimit)
+			fakeWait := func(time.Duration) {
+				// Fake 1 second in ns of usage
+				mungeFS(t, fs, cgroupV1CPUAcctUsage, "100000")
+			}
+			s, err := New(WithFS(fs), withNproc(2), withWait(fakeWait))
 			require.NoError(t, err)
-			// We can make assertions about the below because these all read
-			// data from known file paths, which we can control.
-			t.Run("ContainerCPU", func(t *testing.T) {
-				t.Parallel()
-				cpu, err := s.ContainerCPU()
-				require.NoError(t, err)
-				require.NotNil(t, cpu)
-				// This value does not change in between tests so it is zero.
-				assert.Zero(t, cpu.Used)
-				require.NotNil(t, cpu.Total)
-				assert.Equal(t, 2.5, *cpu.Total)
-				assert.Equal(t, "cores", cpu.Unit)
-			})
-
-			t.Run("ContainerMemory", func(t *testing.T) {
-				t.Parallel()
-				mem, err := s.ContainerMemory()
-				require.NoError(t, err)
-				require.NotNil(t, mem)
-				assert.NotZero(t, mem.Used)
-				assert.NotZero(t, mem.Total)
-				assert.Equal(t, "GB", mem.Unit)
-			})
+			cpu, err := s.ContainerCPU()
+			require.NoError(t, err)
+			require.NotNil(t, cpu)
+			// This value does not change in between tests so it is zero.
+			assert.Zero(t, cpu.Used)
+			require.NotNil(t, cpu.Total)
+			assert.Equal(t, 2.0, *cpu.Total)
+			assert.Equal(t, "cores", cpu.Unit)
 		})
 	})
 }
@@ -255,13 +255,20 @@ func TestIsContainerized(t *testing.T) {
 	}
 }
 
+// helper function for initializing a fs
 func initFS(t testing.TB, m map[string]string) afero.Fs {
 	t.Helper()
 	fs := afero.NewMemMapFs()
 	for k, v := range m {
-		require.NoError(t, afero.WriteFile(fs, k, []byte(v+"\n"), 0o600))
+		mungeFS(t, fs, k, v)
 	}
 	return fs
+}
+
+// helper function for writing v to fs under path k
+func mungeFS(t testing.TB, fs afero.Fs, k, v string) {
+	t.Helper()
+	require.NoError(t, afero.WriteFile(fs, k, []byte(v+"\n"), 0o600))
 }
 
 var (
@@ -269,44 +276,53 @@ var (
 		procOneCgroup: "0::/",
 		procMounts:    "/dev/sda1 / ext4 rw,relatime 0 0",
 	}
-	fsContainerCgroupV2 = map[string]string{
-		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
-		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
-proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
-		cgroupV2CPUMax:  "250000 100000",
-		cgroupV2CPUStat: "usage_usec 1000000",
-	}
-	fsContainerCgroupV1 = map[string]string{
-		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
-		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
-proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
-		cgroupV1CPUAcctUsage:        "162237573",
-		cgroupV1CFSQuotaUs:          "250000",
-		cgroupV1MemoryMaxUsageBytes: "7782400",
-		cgroupV1MemoryUsageBytes:    "total_rss 143360",
-	}
-	fsContainerCgroupV1NoLimit = map[string]string{
-		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
-		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
-proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
-		cgroupV1CPUAcctUsage:        "162237573",
-		cgroupV1CFSQuotaUs:          "-1",
-		cgroupV1MemoryMaxUsageBytes: "7782400",
-		cgroupV1MemoryUsageBytes:    "total_rss 143360",
-		cgroupV1MemoryStat:          "total_inactive_file 3891200",
-	}
-	fsContainerCgroupV2NoLimit = map[string]string{
-		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
-		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
-proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
-		cgroupV2CPUMax:  "max 100000",
-		cgroupV2CPUStat: "usage_usec 1000000",
-	}
 	fsContainerSysbox = map[string]string{
 		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
 		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
 sysboxfs /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
 		cgroupV2CPUMax:  "250000 100000",
-		cgroupV2CPUStat: "usage_usec 1000000",
+		cgroupV2CPUStat: "usage_usec 0",
+	}
+	fsContainerCgroupV2 = map[string]string{
+		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
+		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
+proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
+		cgroupV2CPUMax:           "250000 100000",
+		cgroupV2CPUStat:          "usage_usec 0",
+		cgroupV2MemoryMaxBytes:   "1073741824",
+		cgroupV2MemoryUsageBytes: "536870912",
+		cgroupV2MemoryStat:       "inactive_file 268435456",
+	}
+	fsContainerCgroupV2NoLimit = map[string]string{
+		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
+		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
+proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
+		cgroupV2CPUMax:           "max 100000",
+		cgroupV2CPUStat:          "usage_usec 0",
+		cgroupV2MemoryMaxBytes:   "1073741824",
+		cgroupV2MemoryUsageBytes: "536870912",
+		cgroupV2MemoryStat:       "inactive_file 268435456",
+	}
+	fsContainerCgroupV1 = map[string]string{
+		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
+		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
+proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
+		cgroupV1CPUAcctUsage:        "0",
+		cgroupV1CFSQuotaUs:          "250000",
+		cgroupV1CFSPeriodUs:         "100000",
+		cgroupV1MemoryMaxUsageBytes: "1073741824",
+		cgroupV1MemoryUsageBytes:    "536870912",
+		cgroupV1MemoryStat:          "total_inactive_file 268435456",
+	}
+	fsContainerCgroupV1NoLimit = map[string]string{
+		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
+		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
+proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
+		cgroupV1CPUAcctUsage:        "0",
+		cgroupV1CFSQuotaUs:          "-1",
+		cgroupV1CFSPeriodUs:         "100000",
+		cgroupV1MemoryMaxUsageBytes: "1073741824",
+		cgroupV1MemoryUsageBytes:    "536870912",
+		cgroupV1MemoryStat:          "total_inactive_file 268435456",
 	}
 )

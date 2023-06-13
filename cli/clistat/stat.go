@@ -50,6 +50,7 @@ type Statter struct {
 	fs             afero.Fs
 	sampleInterval time.Duration
 	nproc          int
+	wait           func(time.Duration)
 }
 
 type Option func(*Statter)
@@ -78,6 +79,9 @@ func New(opts ...Option) (*Statter, error) {
 		fs:             afero.NewReadOnlyFs(afero.NewOsFs()),
 		sampleInterval: 100 * time.Millisecond,
 		nproc:          runtime.NumCPU(),
+		wait: func(d time.Duration) {
+			<-time.After(d)
+		},
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -101,7 +105,7 @@ func (s *Statter) HostCPU() (*Result, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("get first cpu sample: %w", err)
 	}
-	<-time.After(s.sampleInterval)
+	s.wait(s.sampleInterval)
 	c2, err := s.hi.CPUTime()
 	if err != nil {
 		return nil, xerrors.Errorf("get second cpu sample: %w", err)
