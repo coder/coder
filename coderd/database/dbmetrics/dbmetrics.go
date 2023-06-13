@@ -1532,3 +1532,10 @@ func (m metricsStore) GetDefaultProxyConfig(ctx context.Context) (database.GetDe
 	m.queryLatencies.WithLabelValues("GetDefaultProxyConfig").Observe(time.Since(start).Seconds())
 	return resp, err
 }
+
+func (m metricsStore) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
+	start := time.Now()
+	replica, err := m.s.GetReplicaByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetReplicaByID").Observe(time.Since(start).Seconds())
+	return replica, err
+}

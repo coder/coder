@@ -2773,7 +2773,7 @@ SET
 	updated_at = Now()
 WHERE
 	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type UpdateWorkspaceProxyParams struct {
@@ -2805,6 +2805,8 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }

@@ -334,20 +334,17 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		require.EqualValues(t, 10001, registerRes1.DERPRegionID)
 		require.Empty(t, registerRes1.SiblingReplicas)
 
-		// Get the proxy to ensure fields have updated.
-		// TODO: we don't have a way to get the proxy by ID yet.
-		proxies, err := client.WorkspaceProxies(ctx)
+		proxy, err := client.WorkspaceProxyByID(ctx, createRes.Proxy.ID)
 		require.NoError(t, err)
-		require.Len(t, proxies, 1)
-		require.Equal(t, createRes.Proxy.ID, proxies[0].ID)
-		require.Equal(t, proxyName, proxies[0].Name)
-		require.Equal(t, proxyDisplayName, proxies[0].DisplayName)
-		require.Equal(t, proxyIcon, proxies[0].Icon)
-		require.Equal(t, req.AccessURL, proxies[0].URL)
-		require.Equal(t, req.AccessURL, proxies[0].URL)
-		require.Equal(t, req.WildcardHostname, proxies[0].WildcardHostname)
-		require.Equal(t, req.DerpEnabled, proxies[0].DerpEnabled)
-		require.False(t, proxies[0].Deleted)
+		require.Equal(t, createRes.Proxy.ID, proxy.ID)
+		require.Equal(t, proxyName, proxy.Name)
+		require.Equal(t, proxyDisplayName, proxy.DisplayName)
+		require.Equal(t, proxyIcon, proxy.Icon)
+		require.Equal(t, req.AccessURL, proxy.URL)
+		require.Equal(t, req.AccessURL, proxy.URL)
+		require.Equal(t, req.WildcardHostname, proxy.WildcardHostname)
+		require.Equal(t, req.DerpEnabled, proxy.DerpEnabled)
+		require.False(t, proxy.Deleted)
 
 		// Get the replica from the DB.
 		replica, err := db.GetReplicaByID(ctx, req.ReplicaID)
@@ -379,18 +376,17 @@ func TestProxyRegisterDeregister(t *testing.T) {
 
 		// Get the proxy to ensure nothing has changed except updated_at.
 		// TODO: we don't have a way to get the proxy by ID yet.
-		proxiesNew, err := client.WorkspaceProxies(ctx)
+		proxyNew, err := client.WorkspaceProxyByID(ctx, createRes.Proxy.ID)
 		require.NoError(t, err)
-		require.Len(t, proxiesNew, 1)
-		require.Equal(t, createRes.Proxy.ID, proxiesNew[0].ID)
-		require.Equal(t, proxyName, proxiesNew[0].Name)
-		require.Equal(t, proxyDisplayName, proxiesNew[0].DisplayName)
-		require.Equal(t, proxyIcon, proxiesNew[0].Icon)
-		require.Equal(t, req.AccessURL, proxiesNew[0].URL)
-		require.Equal(t, req.AccessURL, proxiesNew[0].URL)
-		require.Equal(t, req.WildcardHostname, proxiesNew[0].WildcardHostname)
-		require.Equal(t, req.DerpEnabled, proxiesNew[0].DerpEnabled)
-		require.False(t, proxiesNew[0].Deleted)
+		require.Equal(t, createRes.Proxy.ID, proxyNew.ID)
+		require.Equal(t, proxyName, proxyNew.Name)
+		require.Equal(t, proxyDisplayName, proxyNew.DisplayName)
+		require.Equal(t, proxyIcon, proxyNew.Icon)
+		require.Equal(t, req.AccessURL, proxyNew.URL)
+		require.Equal(t, req.AccessURL, proxyNew.URL)
+		require.Equal(t, req.WildcardHostname, proxyNew.WildcardHostname)
+		require.Equal(t, req.DerpEnabled, proxyNew.DerpEnabled)
+		require.False(t, proxyNew.Deleted)
 
 		// Get the replica from the DB and ensure the fields have been updated,
 		// especially the updated_at.

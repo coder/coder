@@ -2130,6 +2130,19 @@ func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 	return sum, nil
 }
 
+func (q *fakeQuerier) GetReplicaByID(_ context.Context, id uuid.UUID) (database.Replica, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, replica := range q.replicas {
+		if replica.ID == id {
+			return replica, nil
+		}
+	}
+
+	return database.Replica{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.Replica, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3706,19 +3719,6 @@ func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	}
 	q.provisionerJobLogs = append(q.provisionerJobLogs, logs...)
 	return logs, nil
-}
-
-func (q *fakeQuerier) GetReplicaByID(_ context.Context, id uuid.UUID) (database.Replica, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, replica := range q.replicas {
-		if replica.ID == id {
-			return replica, nil
-		}
-	}
-
-	return database.Replica{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
