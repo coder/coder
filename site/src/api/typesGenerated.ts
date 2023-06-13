@@ -223,6 +223,7 @@ export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
+  readonly disable_login: boolean
   readonly organization_id: string
 }
 
