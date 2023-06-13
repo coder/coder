@@ -58,4 +58,8 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 
 	# Generate enums (e.g. unique constraints).
 	go run gen/enum/main.go
+
+	# Generate the database fake!
+	go run gen/fake/main.go
+	go run golang.org/x/tools/cmd/goimports@latest -w ./dbfake/dbfake.go
 )

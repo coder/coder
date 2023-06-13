@@ -308,6 +308,7 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 
 	metadataChan := make(chan []WorkspaceAgentMetadata, 256)
 
+	ready := make(chan struct{})
 	watch := func() error {
 		res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
 		if err != nil {
@@ -320,17 +321,22 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 		nextEvent := ServerSentEventReader(ctx, res.Body)
 		defer res.Body.Close()
 
+		firstEvent := true
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				break
 			}
 
 			sse, err := nextEvent()
 			if err != nil {
 				return err
+			}
+
+			if firstEvent {
+				close(ready) // Only close ready after the first event is received.
+				firstEvent = false
 			}
 
 			b, ok := sse.Data.([]byte)
@@ -362,8 +368,17 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 	errorChan := make(chan error, 1)
 	go func() {
 		defer close(errorChan)
-		errorChan <- watch()
+		err := watch()
+		select {
+		case <-ready:
+		default:
+			close(ready) // Error before first event.
+		}
+		errorChan <- err
 	}()
+
+	// Wait until first event is received and the subscription is registered.
+	<-ready
 
 	return metadataChan, errorChan
 }
