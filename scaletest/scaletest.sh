@@ -171,7 +171,9 @@ maybedryrun "$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_workspacetraffic.sh"
 	--traffic-bytes-per-tick "${SCALETEST_TRAFFIC_BYTES_PER_TICK}" \
 	--traffic-tick-interval "${SCALETEST_TRAFFIC_TICK_INTERVAL}"
 maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETEST_NAME}" wait pods coder-scaletest-workspace-traffic --for condition=Ready
-maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETEST_NAME}" logs -f pod/coder-scaletest-workspace-traffic
+
+echo "Sleeping 15 minutes for traffic generation"
+maybedryrun "$DRY_RUN" sleep 900
 
 echo "Starting pprof"
 maybedryrun "$DRY_RUN" kubectl -n "coder-${SCALETEST_NAME}" port-forward deployment/coder 6061:6060 &
