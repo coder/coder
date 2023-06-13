@@ -42,8 +42,8 @@ export const WorkspaceSettingsForm: FC<{
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
       <FormSection
-        title={t("generalInfo")}
-        description={t("generalInfoDescription")}
+        title="General info"
+        description="The name of your new workspace."
       >
         <FormFields>
           <TextField

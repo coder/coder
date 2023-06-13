@@ -10,9 +10,9 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gen2brain/beeep"
@@ -52,8 +52,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		wsPollInterval time.Duration
 		waitEnum       string
 		noWait         bool
-		logDir         string
-		logToFile      bool
+		logDirPath     string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -76,24 +75,45 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 					logger.Error(ctx, "command exit", slog.Error(retErr))
 				}
 			}()
-			if logToFile {
-				// we need a way to ensure different ssh invocations don't clobber
-				// each other's logs. Date-time strings will likely have collisions
-				// in unit tests and/or scripts unless we extend precision out to
-				// sub-millisecond, which seems unwieldy.  A simple 5-character random
-				// string will do it, since the operating system already tracks
-				// dates and times for file IO.
-				qual, err := cryptorand.String(5)
+
+			// This WaitGroup solves for a race condition where we were logging
+			// while closing the log file in a defer. It probably solves
+			// others too.
+			var wg sync.WaitGroup
+			wg.Add(1)
+			defer wg.Done()
+
+			if logDirPath != "" {
+				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
-					return xerrors.Errorf("generate random qualifier: %w", err)
+					return xerrors.Errorf("generate nonce: %w", err)
 				}
-				logPth := path.Join(logDir, fmt.Sprintf("coder-ssh-%s.log", qual))
-				logFile, err := os.Create(logPth)
+				logFilePath := filepath.Join(
+					logDirPath,
+					fmt.Sprintf(
+						"coder-ssh-%s-%s.log",
+						// The time portion makes it easier to find the right
+						// log file.
+						time.Now().Format("20060102-150405"),
+						// The nonce prevents collisions, as SSH invocations
+						// frequently happen in parallel.
+						nonce,
+					),
+				)
+				logFile, err := os.OpenFile(
+					logFilePath,
+					os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
+					0o600,
+				)
 				if err != nil {
-					return xerrors.Errorf("error opening %s for logging: %w", logPth, err)
+					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
 				}
+				go func() {
+					wg.Wait()
+					_ = logFile.Close()
+				}()
+
 				logger = slog.Make(sloghuman.Sink(logFile))
-				defer logFile.Close()
 				if r.verbose {
 					logger = logger.Leveled(slog.LevelDebug)
 				}
@@ -192,9 +212,18 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 					return xerrors.Errorf("connect SSH: %w", err)
 				}
 				defer rawSSH.Close()
-				go watchAndClose(ctx, rawSSH.Close, logger, client, workspace)
 
+				wg.Add(1)
 				go func() {
+					defer wg.Done()
+					watchAndClose(ctx, func() error {
+						return rawSSH.Close()
+					}, logger, client, workspace)
+				}()
+
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
 					// Ensure stdout copy closes incase stdin is closed
 					// unexpectedly. Typically we wouldn't worry about
 					// this since OpenSSH should kill the proxy command.
@@ -227,19 +256,24 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				return xerrors.Errorf("ssh session: %w", err)
 			}
 			defer sshSession.Close()
-			go watchAndClose(
-				ctx,
-				func() error {
-					err := sshSession.Close()
-					logger.Debug(ctx, "session close", slog.Error(err))
-					err = sshClient.Close()
-					logger.Debug(ctx, "client close", slog.Error(err))
-					return nil
-				},
-				logger,
-				client,
-				workspace,
-			)
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				watchAndClose(
+					ctx,
+					func() error {
+						err := sshSession.Close()
+						logger.Debug(ctx, "session close", slog.Error(err))
+						err = sshClient.Close()
+						logger.Debug(ctx, "client close", slog.Error(err))
+						return nil
+					},
+					logger,
+					client,
+					workspace,
+				)
+			}()
 
 			if identityAgent == "" {
 				identityAgent = os.Getenv("SSH_AUTH_SOCK")
@@ -389,18 +423,11 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			UseInstead:  []clibase.Option{waitOption},
 		},
 		{
-			Flag:        "log-dir",
-			Default:     os.TempDir(),
-			Description: "Specify the location for the log files.",
-			Env:         "CODER_SSH_LOG_DIR",
-			Value:       clibase.StringOf(&logDir),
-		},
-		{
-			Flag:          "log-to-file",
+			Flag:          "log-dir",
+			Description:   "Specify the directory containing SSH diagnostic log files.",
+			Env:           "CODER_SSH_LOG_DIR",
 			FlagShorthand: "l",
-			Env:           "CODER_SSH_LOG_TO_FILE",
-			Description:   "Enable diagnostic logging to file.",
-			Value:         clibase.BoolOf(&logToFile),
+			Value:         clibase.StringOf(&logDirPath),
 		},
 	}
 	return cmd

@@ -85,7 +85,7 @@ export const CreateTokenPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(t("createToken.title"))}</title>
+        <title>{pageTitle("Create Token")}</title>
       </Helmet>
       {tokenFetchFailed && <ErrorAlert error={tokenFetchError} />}
       <FullPageHorizontalForm

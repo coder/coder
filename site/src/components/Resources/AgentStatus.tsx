@@ -19,14 +19,14 @@ import Link from "@mui/material/Link"
 // connected:ready, connected:shutting_down, connected:shutdown_timeout,
 // connected:shutdown_error, connected:off.
 
-const ReadyLifecycle: React.FC = () => {
+const ReadyLifecycle = () => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
   return (
     <div
       role="status"
-      aria-label={t("agentStatus.connected.ready")}
+      aria-label={t("agentStatus.connected.ready") || "Ready"}
       className={combineClasses([styles.status, styles.connected])}
     />
   )
@@ -34,13 +34,12 @@ const ReadyLifecycle: React.FC = () => {
 
 const StartingLifecycle: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.connected.starting")}>
+    <Tooltip title="Starting...">
       <div
         role="status"
-        aria-label={t("agentStatus.connected.starting")}
+        aria-label="Starting..."
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
@@ -135,13 +134,12 @@ const StartErrorLifecycle: React.FC<{
 
 const ShuttingDownLifecycle: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.connected.shuttingDown")}>
+    <Tooltip title="Stopping...">
       <div
         role="status"
-        aria-label={t("agentStatus.connected.shuttingDown")}
+        aria-label="Stopping..."
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
@@ -236,13 +234,12 @@ const ShutdownErrorLifecycle: React.FC<{
 
 const OffLifecycle: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.connected.off")}>
+    <Tooltip title="Stopped">
       <div
         role="status"
-        aria-label={t("agentStatus.connected.off")}
+        aria-label="Stopped"
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
@@ -289,13 +286,12 @@ const ConnectedStatus: React.FC<{
 
 const DisconnectedStatus: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.disconnected")}>
+    <Tooltip title="Disconnected">
       <div
         role="status"
-        aria-label={t("agentStatus.disconnected")}
+        aria-label="Disconnected"
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
@@ -304,13 +300,12 @@ const DisconnectedStatus: React.FC = () => {
 
 const ConnectingStatus: React.FC = () => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={t("agentStatus.connecting")}>
+    <Tooltip title="Connecting...">
       <div
         role="status"
-        aria-label={t("agentStatus.connecting")}
+        aria-label="Connecting..."
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>

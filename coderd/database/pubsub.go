@@ -163,6 +163,8 @@ func (q *msgQueue) dropped() {
 // Pubsub implementation using PostgreSQL.
 type pgPubsub struct {
 	ctx        context.Context
+	cancel     context.CancelFunc
+	listenDone chan struct{}
 	pgListener *pq.Listener
 	db         *sql.DB
 	mut        sync.Mutex
@@ -228,7 +230,7 @@ func (p *pgPubsub) Publish(event string, message []byte) error {
 	// This is safe because we are calling pq.QuoteLiteral. pg_notify doesn't
 	// support the first parameter being a prepared statement.
 	//nolint:gosec
-	_, err := p.db.ExecContext(context.Background(), `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
+	_, err := p.db.ExecContext(p.ctx, `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
 	if err != nil {
 		return xerrors.Errorf("exec pg_notify: %w", err)
 	}
@@ -237,19 +239,24 @@ func (p *pgPubsub) Publish(event string, message []byte) error {
 
 // Close closes the pubsub instance.
 func (p *pgPubsub) Close() error {
-	return p.pgListener.Close()
+	p.cancel()
+	err := p.pgListener.Close()
+	<-p.listenDone
+	return err
 }
 
 // listen begins receiving messages on the pq listener.
-func (p *pgPubsub) listen(ctx context.Context) {
+func (p *pgPubsub) listen() {
+	defer close(p.listenDone)
+	defer p.pgListener.Close()
+
 	var (
 		notif *pq.Notification
 		ok    bool
 	)
-	defer p.pgListener.Close()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-p.ctx.Done():
 			return
 		case notif, ok = <-p.pgListener.Notify:
 			if !ok {
@@ -292,7 +299,7 @@ func (p *pgPubsub) recordReconnect() {
 func NewPubsub(ctx context.Context, database *sql.DB, connectURL string) (Pubsub, error) {
 	// Creates a new listener using pq.
 	errCh := make(chan error)
-	listener := pq.NewListener(connectURL, time.Second, time.Minute, func(event pq.ListenerEventType, err error) {
+	listener := pq.NewListener(connectURL, time.Second, time.Minute, func(_ pq.ListenerEventType, err error) {
 		// This callback gets events whenever the connection state changes.
 		// Don't send if the errChannel has already been closed.
 		select {
@@ -306,18 +313,25 @@ func NewPubsub(ctx context.Context, database *sql.DB, connectURL string) (Pubsub
 	select {
 	case err := <-errCh:
 		if err != nil {
+			_ = listener.Close()
 			return nil, xerrors.Errorf("create pq listener: %w", err)
 		}
 	case <-ctx.Done():
+		_ = listener.Close()
 		return nil, ctx.Err()
 	}
+
+	// Start a new context that will be canceled when the pubsub is closed.
+	ctx, cancel := context.WithCancel(context.Background())
 	pgPubsub := &pgPubsub{
 		ctx:        ctx,
+		cancel:     cancel,
+		listenDone: make(chan struct{}),
 		db:         database,
 		pgListener: listener,
 		queues:     make(map[string]map[uuid.UUID]*msgQueue),
 	}
-	go pgPubsub.listen(ctx)
+	go pgPubsub.listen()
 
 	return pgPubsub, nil
 }

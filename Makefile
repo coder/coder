@@ -50,7 +50,7 @@ endif
 # Note, all find statements should be written with `.` or `./path` as
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
-	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path './site/out/*' \) -prune \)
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path './site/out/*' -o -path './coderd/apidoc/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES = $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go')
 # All the shell files in the repo, excluding ignored files.
@@ -402,11 +402,17 @@ else
 endif
 .PHONY: fmt/shfmt
 
-lint: lint/shellcheck lint/go
+lint: lint/shellcheck lint/go lint/ts lint/helm
 .PHONY: lint
+
+lint/ts:
+	cd site
+	yarn && yarn lint
+.PHONY: lint/ts
 
 lint/go:
 	./scripts/check_enterprise_imports.sh
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
 	golangci-lint run
 .PHONY: lint/go
 
@@ -415,6 +421,11 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 	echo "--- shellcheck"
 	shellcheck --external-sources $(SHELL_SRC_FILES)
 .PHONY: lint/shellcheck
+
+lint/helm:
+	cd helm
+	make lint
+.PHONY: lint/helm
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
@@ -475,7 +486,7 @@ coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/dat
 	go run ./coderd/database/gen/dump/main.go
 
 # Generates Go code for querying the database.
-coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go
+coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go coderd/database/gen/fake/main.go
 	./coderd/database/generate.sh
 
 
@@ -511,7 +522,7 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	cd site
 	yarn run format:write:only ../docs/admin/prometheus.md
 
-docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
+docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES)
 	BASE_PATH="." go run ./scripts/clidocgen
 	cd site
 	yarn run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json
@@ -525,11 +536,15 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 	./scripts/apidocgen/generate.sh
 	yarn run --cwd=site format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
-update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden
+update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES)
 	go test ./cli -run="Test(CommandHelp|ServerYAML)" -update
+	touch "$@"
+
+enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES)
+	go test ./enterprise/cli -run="TestEnterpriseCommandHelp" -update
 	touch "$@"
 
 helm/tests/testdata/.gen-golden: $(wildcard helm/tests/testdata/*.yaml) $(wildcard helm/tests/testdata/*.golden) $(GO_SRC_FILES)
@@ -606,6 +621,7 @@ test: test-clean
 
 # When updating -timeout for this test, keep in sync with
 # test-go-postgres (.github/workflows/coder.yaml).
+# Do add coverage flags so that test caching works.
 test-postgres: test-clean test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
@@ -613,8 +629,7 @@ test-postgres: test-clean test-postgres-docker
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
 		--packages="./..." -- \
-		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
-		-coverpkg=./... \
+		-timeout=20m \
 		-failfast
 .PHONY: test-postgres
 
@@ -630,7 +645,7 @@ test-postgres-docker:
 		--name test-postgres-docker \
 		--restart no \
 		--detach \
-		postgres:13 \
+		gcr.io/coder-dev-1/postgres:13 \
 		-c shared_buffers=1GB \
 		-c work_mem=1GB \
 		-c effective_cache_size=1GB \

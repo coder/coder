@@ -11,7 +11,7 @@ import {
   renderWithTemplateSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
-import { getValidationSchema } from "./TemplateScheduleForm"
+import { getValidationSchema } from "./TemplateScheduleForm/formHelpers"
 import TemplateSchedulePage from "./TemplateSchedulePage"
 import i18next from "i18next"
 
@@ -157,7 +157,7 @@ describe("TemplateSchedulePage", () => {
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
-      t("defaultTTLMaxError", { ns: "templateSettingsPage" }),
+      t("defaultTTLMaxError", { ns: "templateSettingsPage" }).toString(),
     )
   })
 

@@ -1,12 +1,9 @@
 import TextField from "@mui/material/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormikTouched, useFormik } from "formik"
-import { FC, ChangeEvent } from "react"
+import { FC, ChangeEvent, useState } from "react"
 import { getFormHelpers } from "utils/formUtils"
-import * as Yup from "yup"
-import i18next from "i18next"
 import { useTranslation } from "react-i18next"
-import { Maybe } from "components/Conditionals/Maybe"
 import {
   FormSection,
   HorizontalForm,
@@ -19,82 +16,15 @@ import Link from "@mui/material/Link"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
+import { InactivityDialog } from "./InactivityDialog"
+import { useWorkspacesToBeDeleted } from "./useWorkspacesToBeDeleted"
+import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers"
+import { TTLHelperText } from "./TTLHelperText"
 
-const TTLHelperText = ({
-  ttl,
-  translationName,
-}: {
-  ttl?: number
-  translationName: string
-}) => {
-  const { t } = useTranslation("templateSettingsPage")
-  const count = typeof ttl !== "number" ? 0 : ttl
-  return (
-    // no helper text if ttl is negative - error will show once field is considered touched
-    <Maybe condition={count >= 0}>
-      <span>{t(translationName, { count })}</span>
-    </Maybe>
-  )
-}
-
-const MAX_TTL_DAYS = 7
 const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
 const FAILURE_CLEANUP_DEFAULT = 7
 const INACTIVITY_CLEANUP_DEFAULT = 180
-
-export interface TemplateScheduleFormValues extends UpdateTemplateMeta {
-  failure_cleanup_enabled: boolean
-  inactivity_cleanup_enabled: boolean
-}
-
-export const getValidationSchema = (): Yup.AnyObjectSchema =>
-  Yup.object({
-    default_ttl_ms: Yup.number()
-      .integer()
-      .min(0, i18next.t("defaultTTLMinError", { ns: "templateSettingsPage" }))
-      .max(
-        24 * MAX_TTL_DAYS /* 7 days in hours */,
-        i18next.t("defaultTTLMaxError", { ns: "templateSettingsPage" }),
-      ),
-    max_ttl_ms: Yup.number()
-      .integer()
-      .min(0, i18next.t("maxTTLMinError", { ns: "templateSettingsPage" }))
-      .max(
-        24 * MAX_TTL_DAYS /* 7 days in hours */,
-        i18next.t("maxTTLMaxError", { ns: "templateSettingsPage" }),
-      ),
-    failure_ttl_ms: Yup.number()
-      .min(0, "Failure cleanup days must not be less than 0.")
-      .test(
-        "positive-if-enabled",
-        "Failure cleanup days must be greater than zero when enabled.",
-        function (value) {
-          const parent = this.parent as TemplateScheduleFormValues
-          if (parent.failure_cleanup_enabled) {
-            return Boolean(value)
-          } else {
-            return true
-          }
-        },
-      ),
-    inactivity_ttl_ms: Yup.number()
-      .min(0, "Inactivity cleanup days must not be less than 0.")
-      .test(
-        "positive-if-enabled",
-        "Inactivity cleanup days must be greater than zero when enabled.",
-        function (value) {
-          const parent = this.parent as TemplateScheduleFormValues
-          if (parent.inactivity_cleanup_enabled) {
-            return Boolean(value)
-          } else {
-            return true
-          }
-        },
-      ),
-    allow_user_autostart: Yup.boolean(),
-    allow_user_autostop: Yup.boolean(),
-  })
 
 export interface TemplateScheduleForm {
   template: Template
@@ -144,25 +74,16 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         allowAdvancedScheduling && Boolean(template.inactivity_ttl_ms),
     },
     validationSchema,
-    onSubmit: (formData) => {
-      // on submit, convert from hours => ms
-      onSubmit({
-        default_ttl_ms: formData.default_ttl_ms
-          ? formData.default_ttl_ms * MS_HOUR_CONVERSION
-          : undefined,
-        max_ttl_ms: formData.max_ttl_ms
-          ? formData.max_ttl_ms * MS_HOUR_CONVERSION
-          : undefined,
-        failure_ttl_ms: formData.failure_ttl_ms
-          ? formData.failure_ttl_ms * MS_DAY_CONVERSION
-          : undefined,
-        inactivity_ttl_ms: formData.inactivity_ttl_ms
-          ? formData.inactivity_ttl_ms * MS_DAY_CONVERSION
-          : undefined,
-
-        allow_user_autostart: formData.allow_user_autostart,
-        allow_user_autostop: formData.allow_user_autostop,
-      })
+    onSubmit: () => {
+      if (
+        form.values.inactivity_cleanup_enabled &&
+        workspacesToBeDeletedToday &&
+        workspacesToBeDeletedToday.length > 0
+      ) {
+        setIsInactivityDialogOpen(true)
+      } else {
+        submitValues()
+      }
     },
     initialTouched,
   })
@@ -172,6 +93,32 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   )
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
+
+  const workspacesToBeDeletedToday = useWorkspacesToBeDeleted(form.values)
+
+  const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
+    useState<boolean>(false)
+
+  const submitValues = () => {
+    // on submit, convert from hours => ms
+    onSubmit({
+      default_ttl_ms: form.values.default_ttl_ms
+        ? form.values.default_ttl_ms * MS_HOUR_CONVERSION
+        : undefined,
+      max_ttl_ms: form.values.max_ttl_ms
+        ? form.values.max_ttl_ms * MS_HOUR_CONVERSION
+        : undefined,
+      failure_ttl_ms: form.values.failure_ttl_ms
+        ? form.values.failure_ttl_ms * MS_DAY_CONVERSION
+        : undefined,
+      inactivity_ttl_ms: form.values.inactivity_ttl_ms
+        ? form.values.inactivity_ttl_ms * MS_DAY_CONVERSION
+        : undefined,
+
+      allow_user_autostart: form.values.allow_user_autostart,
+      allow_user_autostop: form.values.allow_user_autostop,
+    })
+  }
 
   const handleToggleFailureCleanup = async (e: ChangeEvent) => {
     form.handleChange(e)
@@ -214,11 +161,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
-      aria-label={t("formAriaLabel")}
+      aria-label={t("formAriaLabel").toString()}
     >
       <FormSection
-        title={t("schedule.title")}
-        description={t("schedule.description")}
+        title={t("schedule.title").toString()}
+        description={t("schedule.description").toString()}
       >
         <Stack direction="row" className={styles.ttlFields}>
           <TextField
@@ -385,6 +332,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </FormSection>
         </>
       )}
+      <InactivityDialog
+        submitValues={submitValues}
+        isInactivityDialogOpen={isInactivityDialogOpen}
+        setIsInactivityDialogOpen={setIsInactivityDialogOpen}
+        workspacesToBeDeletedToday={workspacesToBeDeletedToday?.length ?? 0}
+      />
       <FormFooter
         onCancel={onCancel}
         isLoading={isSubmitting}
