@@ -8272,13 +8272,15 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 	return items, nil
 }
 
-const getWorkspacesEligibleForAutoStartStop = `-- name: GetWorkspacesEligibleForAutoStartStop :many
+const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at
 FROM
 	workspaces
 LEFT JOIN
 	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+INNER JOIN
+	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -8308,12 +8310,19 @@ WHERE
 		(
 			workspace_builds.transition = 'stop'::workspace_transition AND
 			workspaces.autostart_schedule IS NOT NULL
+		) OR
+
+		-- If the workspace's most recent job resulted in an error
+		-- it may be eligible for failed stop.
+		(
+			provisioner_jobs.error IS NOT NULL AND
+			provisioner_jobs.error != ''
 		)
-	)
+	) AND workspaces.deleted = 'false'
 `
 
-func (q *sqlQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForAutoStartStop, now)
+func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForTransition, now)
 	if err != nil {
 		return nil, err
 	}

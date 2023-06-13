@@ -9,7 +9,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/coderd/wsactions/notify"
+	"github.com/coder/coder/coderd/autobuild/notify"
 )
 
 func TestNotifier(t *testing.T) {

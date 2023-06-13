@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
@@ -19,6 +21,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestExecutorAutostartOK(t *testing.T) {
@@ -648,6 +651,191 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 	assert.Len(t, stats.Transitions, 0)
 }
 
+// TesetExecutorFailedWorkspace tests that failed workspaces that breach
+// their template failed_ttl threshold trigger a stop job.
+func TestExecutorFailedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AGPLOK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL = time.Millisecond
+
+			client = coderdtest.New(t, &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    schedule.NewAGPLTemplateScheduleStore(),
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionFailed,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Eventually(t,
+			func() bool {
+				return database.Now().Sub(*build.Job.CompletedAt) > failureTTL
+			},
+			testutil.IntervalMedium, testutil.IntervalFast)
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect no transitions since we're using AGPL.
+		require.Len(t, stats.Transitions, 0)
+	})
+
+	t.Run("EnterpriseOK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL = time.Millisecond
+
+			client = coderdtest.New(t, &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    mockEnterpriseTemplateScheduler(t),
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionFailed,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Eventually(t,
+			func() bool {
+				return database.Now().Sub(*build.Job.CompletedAt) > failureTTL
+			},
+			testutil.IntervalMedium, testutil.IntervalFast)
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect workspace to transition to stopped state for breaching
+		// failure TTL.
+		require.Len(t, stats.Transitions, 1)
+		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
+	})
+
+	t.Run("TooEarly", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL = time.Minute
+
+			client = coderdtest.New(t, &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    mockEnterpriseTemplateScheduler(t),
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionFailed,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect no transitions since not enough time has elapsed.
+		require.Len(t, stats.Transitions, 0)
+	})
+
+	t.Run("StuckJob", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitMedium)
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL     = time.Hour
+			client, _, api = coderdtest.NewWithAPI(t, &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    mockEnterpriseTemplateScheduler(t),
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionFailed,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+
+		// Emulate a stuck job.
+		err := api.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+			ID:        build.Job.ID,
+			UpdatedAt: database.Now().Add(-time.Hour),
+		})
+		require.NoError(t, err)
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect a transition since we should detect that the job stopped
+		// updating.
+		require.Len(t, stats.Transitions, 1)
+	})
+}
+
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	t.Helper()
 	user := coderdtest.CreateFirstUser(t, client)
@@ -704,4 +892,69 @@ func mustWorkspaceParameters(t *testing.T, client *codersdk.Client, workspaceID 
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
+}
+
+func mockEnterpriseTemplateScheduler(t *testing.T) schedule.TemplateScheduleStore {
+	return schedule.MockTemplateScheduleStore{
+		GetFn: func(ctx context.Context, store database.Store, id uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+			t.Helper()
+
+			template, err := store.GetTemplateByID(ctx, id)
+			require.NoError(t, err)
+
+			return schedule.TemplateScheduleOptions{
+				UserAutostartEnabled: template.AllowUserAutostart,
+				UserAutostopEnabled:  template.AllowUserAutostop,
+				DefaultTTL:           time.Duration(template.DefaultTTL),
+				MaxTTL:               time.Duration(template.MaxTTL),
+				FailureTTL:           time.Duration(template.FailureTTL),
+			}, nil
+		},
+		SetFn: func(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
+			t.Helper()
+
+			if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
+				int64(opts.MaxTTL) == tpl.MaxTTL &&
+				int64(opts.FailureTTL) == tpl.FailureTTL &&
+				int64(opts.InactivityTTL) == tpl.InactivityTTL &&
+				int64(opts.LockedTTL) == tpl.LockedTTL &&
+				opts.UserAutostartEnabled == tpl.AllowUserAutostart &&
+				opts.UserAutostopEnabled == tpl.AllowUserAutostop {
+				// Avoid updating the UpdatedAt timestamp if nothing will be changed.
+				return tpl, nil
+			}
+
+			template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+				ID:                 tpl.ID,
+				UpdatedAt:          database.Now(),
+				AllowUserAutostart: opts.UserAutostartEnabled,
+				AllowUserAutostop:  opts.UserAutostopEnabled,
+				DefaultTTL:         int64(opts.DefaultTTL),
+				MaxTTL:             int64(opts.MaxTTL),
+				FailureTTL:         int64(opts.FailureTTL),
+				InactivityTTL:      int64(opts.InactivityTTL),
+				LockedTTL:          int64(opts.LockedTTL),
+			})
+			require.NoError(t, err)
+			// Update all workspaces using the template to set the user defined schedule
+			// to be within the new bounds. This essentially does the following for each
+			// workspace using the template.
+			//   if (template.ttl != NULL) {
+			//     workspace.ttl = min(workspace.ttl, template.ttl)
+			//   }
+			//
+			// NOTE: this does not apply to currently running workspaces as their
+			// schedule information is committed to the workspace_build during start.
+			// This limitation is displayed to the user while editing the template.
+			if opts.MaxTTL > 0 {
+				err = db.UpdateWorkspaceTTLToBeWithinTemplateMax(ctx, database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams{
+					TemplateID:     template.ID,
+					TemplateMaxTTL: int64(opts.MaxTTL),
+				})
+				require.NoError(t, err)
+			}
+
+			return template, nil
+		},
+	}
 }

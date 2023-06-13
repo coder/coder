@@ -3404,7 +3404,7 @@ func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaceRows, err
 }
 
-func (q *fakeQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 

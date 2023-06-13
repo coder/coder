@@ -13,9 +13,11 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/wsbuilder"
+	"github.com/coder/coder/codersdk"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -108,7 +110,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	workspaces, err := e.db.GetWorkspacesEligibleForAutoStartStop(e.ctx, t)
+	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx, t)
 	if err != nil {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
@@ -198,24 +200,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	return stats
 }
 
-// isEligibleForTransition returns true if the workspace meets basic criteria
-// for transitioning to a new state.
-func isEligibleForTransition(ws database.Workspace, latestBuild database.WorkspaceBuild, templateSchedule schedule.TemplateScheduleOptions) bool {
-	if ws.Deleted {
-		return false
-	}
-	if templateSchedule.UserAutostartEnabled && ws.AutostartSchedule.Valid && ws.AutostartSchedule.String != "" {
-		return true
-	}
-	// Don't check the template schedule to see whether it allows autostop, this
-	// is done during the build when determining the deadline.
-	if latestBuild.Transition == database.WorkspaceTransitionStart && !latestBuild.Deadline.IsZero() {
-		return true
-	}
-
-	return false
-}
-
 func getNextTransition(
 	ws database.Workspace,
 	latestBuild database.WorkspaceBuild,
@@ -227,29 +211,34 @@ func getNextTransition(
 	database.BuildReason,
 	error,
 ) {
-	if !isEligibleForTransition(ws, latestBuild, templateSchedule) {
-		return "", "", xerrors.Errorf("workspace ineligible for transition")
-	}
-
-	if !latestJob.CompletedAt.Valid || latestJob.Error.String != "" {
-		return "", "", xerrors.Errorf("last workspace build did not complete successfully")
-	}
-
 	switch {
-	case isEligibleForAutostop(latestBuild, currentTick):
+	case isEligibleForAutostop(latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
-	case isEligibleForAutostart(ws, latestBuild, currentTick):
+	case isEligibleForAutostart(ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
+	case isEligibleForFailedStop(latestJob, templateSchedule):
+		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	default:
 		return "", "", xerrors.Errorf("last transition not valid for autostart or autostop")
 	}
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostarted.
-func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, currentTick time.Time) bool {
+func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// Don't attempt to autostart failed workspaces.
+	if !job.CompletedAt.Valid || job.Error.String != "" {
+		return false
+	}
+
 	// If the last transition for the workspace was not 'stop' then the workspace
 	// cannot be started.
 	if build.Transition != database.WorkspaceTransitionStop {
+		return false
+	}
+
+	// If autostart isn't enabled, or the schedule isn't valid/populated we can't
+	// autostart the workspace.
+	if !templateSchedule.UserAutostartEnabled || !ws.AutostartSchedule.Valid || ws.AutostartSchedule.String == "" {
 		return false
 	}
 
@@ -265,10 +254,30 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostopped.
-func isEligibleForAutostop(build database.WorkspaceBuild, currentTick time.Time) bool {
+func isEligibleForAutostop(build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
+	// Don't attempt to autostop failed workspaces.
+	if !job.CompletedAt.Valid || job.Error.String != "" {
+		return false
+	}
+
 	// A workspace must be started in order for it to be auto-stopped.
 	return build.Transition == database.WorkspaceTransitionStart &&
 		!build.Deadline.IsZero() &&
 		// We do not want to stop a workspace prior to it breaching its deadline.
 		!currentTick.Before(build.Deadline)
+}
+
+// isEligibleForFailedStop returns true if the workspace is eligible to be stopped
+// due to a failed build.
+func isEligibleForFailedStop(job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions) bool {
+	// If the template has specified a failure TLL.
+	return templateSchedule.FailureTTL > 0 &&
+		// And the job resulted in failure.
+		db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed &&
+		// And sufficient time has elapsed since the job has completed.
+		(job.CompletedAt.Valid && database.Now().Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL ||
+			// Or sufficient time has elapsed since the job was canceled.
+			job.CanceledAt.Valid && database.Now().Sub(job.CanceledAt.Time) > templateSchedule.FailureTTL ||
+			// Or the job is stuck/abandoned.
+			database.Now().Sub(job.UpdatedAt) > 30*time.Second)
 }
