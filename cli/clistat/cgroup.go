@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
@@ -105,7 +104,12 @@ func (s *Statter) cGroupV2CPUUsed() (used float64, err error) {
 	if err != nil {
 		return 0, xerrors.Errorf("get cgroupv2 cpu used: %w", err)
 	}
-	return (time.Duration(usageUs) * time.Microsecond).Seconds(), nil
+	periodUs, err := readInt64SepIdx(s.fs, cgroupV2CPUMax, " ", 1)
+	if err != nil {
+		return 0, xerrors.Errorf("get cpu period: %w", err)
+	}
+
+	return float64(usageUs) / float64(periodUs), nil
 }
 
 func (s *Statter) cGroupV2CPUTotal() (total float64, err error) {
@@ -153,7 +157,14 @@ func (s *Statter) cGroupV1CPUUsed() (float64, error) {
 		}
 	}
 
-	return time.Duration(usageNs).Seconds(), nil
+	// usage is in ns, convert to us
+	usageNs /= 1000
+	periodUs, err := readInt64(s.fs, cgroupV1CFSPeriodUs)
+	if err != nil {
+		return 0, xerrors.Errorf("get cpu period: %w", err)
+	}
+
+	return float64(usageNs) / float64(periodUs), nil
 }
 
 // ContainerMemory returns the memory usage of the container cgroup.

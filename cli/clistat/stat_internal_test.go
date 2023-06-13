@@ -108,7 +108,7 @@ func TestStatter(t *testing.T) {
 			fs := initFS(t, fsContainerCgroupV1)
 			fakeWait := func(time.Duration) {
 				// Fake 1 second in ns of usage
-				mungeFS(t, fs, cgroupV1CPUAcctUsage, "1000000000")
+				mungeFS(t, fs, cgroupV1CPUAcctUsage, "100000000")
 			}
 			s, err := New(WithFS(fs), withWait(fakeWait))
 			require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestStatter(t *testing.T) {
 			fs := initFS(t, fsContainerCgroupV1NoLimit)
 			fakeWait := func(time.Duration) {
 				// Fake 1 second in ns of usage
-				mungeFS(t, fs, cgroupV1CPUAcctUsage, "1000000000")
+				mungeFS(t, fs, cgroupV1CPUAcctUsage, "100000000")
 			}
 			s, err := New(WithFS(fs), withNproc(2), withWait(fakeWait))
 			require.NoError(t, err)
@@ -160,8 +160,7 @@ func TestStatter(t *testing.T) {
 			t.Parallel()
 			fs := initFS(t, fsContainerCgroupV2)
 			fakeWait := func(time.Duration) {
-				// Fake 1 second in ns of usage
-				mungeFS(t, fs, cgroupV2CPUStat, "usage_usec 1000000")
+				mungeFS(t, fs, cgroupV2CPUStat, "usage_usec 100000")
 			}
 			s, err := New(WithFS(fs), withWait(fakeWait))
 			require.NoError(t, err)
@@ -178,8 +177,7 @@ func TestStatter(t *testing.T) {
 			t.Parallel()
 			fs := initFS(t, fsContainerCgroupV2NoLimit)
 			fakeWait := func(time.Duration) {
-				// Fake 1 second in ns of usage
-				mungeFS(t, fs, cgroupV2CPUStat, "usage_usec 1000000")
+				mungeFS(t, fs, cgroupV2CPUStat, "usage_usec 100000")
 			}
 			s, err := New(WithFS(fs), withNproc(2), withWait(fakeWait))
 			require.NoError(t, err)
