@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/spf13/afero"
 
@@ -20,38 +19,57 @@ func (*RootCmd) stat() *clibase.Cmd {
 		defaultCols = append([]string{"container_cpu", "container_memory"}, defaultCols...)
 	}
 	var (
-		sampleInterval time.Duration
-		formatter      = cliui.NewOutputFormatter(
+		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat([]statsRow{}, defaultCols),
 			cliui.JSONFormat(),
 		)
 	)
 
 	cmd := &clibase.Cmd{
-		Use:   "stat",
-		Short: "Show workspace resource usage.",
-		Options: clibase.OptionSet{
-			{
-				Description: "Configure the sample interval.",
-				Flag:        "sample-interval",
-				Value:       clibase.DurationOf(&sampleInterval),
-				Default:     "100ms",
-			},
-		},
+		Use:     "stat",
+		Short:   "Show workspace resource usage.",
+		Options: clibase.OptionSet{},
 		Handler: func(inv *clibase.Invocation) error {
-			st, err := clistat.New(clistat.WithSampleInterval(sampleInterval), clistat.WithFS(fs))
+			st, err := clistat.New(clistat.WithFS(fs))
 			if err != nil {
 				return err
 			}
+
+			var sr statsRow
+
+			// Get CPU measurements first.
+			errCh := make(chan error, 2)
+			go func() {
+				cs, err := st.HostCPU()
+				if err != nil {
+					errCh <- err
+					return
+				}
+				sr.HostCPU = cs
+				errCh <- nil
+			}()
+			go func() {
+				if ok, _ := clistat.IsContainerized(fs); !ok {
+					errCh <- nil
+				}
+				cs, err := st.ContainerCPU()
+				if err != nil {
+					errCh <- err
+					return
+				}
+				sr.ContainerCPU = cs
+				errCh <- nil
+			}()
+
+			if err1 := <-errCh; err1 != nil {
+				return err
+			}
+			if err2 := <-errCh; err2 != nil {
+				return err
+			}
+			close(errCh)
 
 			// Host-level stats
-			var sr statsRow
-			cs, err := st.HostCPU()
-			if err != nil {
-				return err
-			}
-			sr.HostCPU = cs
-
 			ms, err := st.HostMemory()
 			if err != nil {
 				return err
