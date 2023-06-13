@@ -18,7 +18,6 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/cryptorand"
 )
@@ -278,7 +277,7 @@ func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJo
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
 		if orig.Tags == nil {
-			orig.Tags = make(dbtype.StringMap)
+			orig.Tags = make(database.StringMap)
 		}
 		// Make sure when we acquire the job, we only get this one.
 		orig.Tags[id.String()] = "true"
