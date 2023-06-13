@@ -17,7 +17,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/testutil"
 )
@@ -31,7 +30,7 @@ func TestReplica(t *testing.T) {
 	t.Run("CreateOnNew", func(t *testing.T) {
 		// This ensures that a new replica is created on New.
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		closeChan := make(chan struct{}, 1)
 		cancel, err := pubsub.Subscribe(replicasync.PubsubEvent, func(ctx context.Context, message []byte) {
 			closeChan <- struct{}{}
@@ -54,7 +53,7 @@ func TestReplica(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer srv.Close()
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		peer, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
 			ID:           uuid.New(),
 			CreatedAt:    database.Now(),
@@ -96,7 +95,7 @@ func TestReplica(t *testing.T) {
 		srv.TLS = tlsConfig
 		srv.StartTLS()
 		defer srv.Close()
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		peer, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
 			ID:           uuid.New(),
 			CreatedAt:    database.Now(),
@@ -120,7 +119,7 @@ func TestReplica(t *testing.T) {
 	})
 	t.Run("ConnectsToFakePeerWithError", func(t *testing.T) {
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		peer, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
 			ID:        uuid.New(),
 			CreatedAt: database.Now().Add(time.Minute),
@@ -147,7 +146,7 @@ func TestReplica(t *testing.T) {
 	t.Run("RefreshOnPublish", func(t *testing.T) {
 		// Refresh when a new replica appears!
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
 		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, nil)
@@ -174,7 +173,7 @@ func TestReplica(t *testing.T) {
 	})
 	t.Run("DeletesOld", func(t *testing.T) {
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		_, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
 			ID:        uuid.New(),
 			UpdatedAt: database.Now().Add(-time.Hour),

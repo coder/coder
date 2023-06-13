@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
@@ -573,7 +572,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	// For this test, we do not care about permissions.
 	// nolint:gocritic // unit testing
 	ctx := dbauthz.AsSystemRestricted(context.Background())
-	db, pubsub := dbtestutil.NewDB(t)
+	db, pubsub := testutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database: db,
 		Pubsub:   pubsub,

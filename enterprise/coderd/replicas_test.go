@@ -11,7 +11,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
@@ -22,7 +21,7 @@ func TestReplicas(t *testing.T) {
 	t.Parallel()
 	t.Run("ErrorWithoutLicense", func(t *testing.T) {
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		firstClient := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -49,7 +48,7 @@ func TestReplicas(t *testing.T) {
 	})
 	t.Run("ConnectAcrossMultiple", func(t *testing.T) {
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		firstClient := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -91,7 +90,7 @@ func TestReplicas(t *testing.T) {
 	})
 	t.Run("ConnectAcrossMultipleTLS", func(t *testing.T) {
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		certificates := []tls.Certificate{testutil.GenerateTLSCertificate(t, "localhost")}
 		firstClient := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{

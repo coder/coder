@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -19,7 +18,7 @@ func TestRegions(t *testing.T) {
 		t.Parallel()
 		const appHostname = "*.apps.coder.test"
 
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 		deploymentID := uuid.New()
 
 		ctx := testutil.Context(t, testutil.WaitLong)

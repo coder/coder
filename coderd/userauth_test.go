@@ -23,7 +23,6 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -866,7 +865,7 @@ func TestUserLogout(t *testing.T) {
 
 	// Create a custom database so it's easier to make scoped tokens for
 	// testing.
-	db, pubSub := dbtestutil.NewDB(t)
+	db, pubSub := testutil.NewDB(t)
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database: db,

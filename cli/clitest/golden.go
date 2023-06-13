@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -177,7 +176,7 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	db, pubsub := dbtestutil.NewDB(t)
+	db, pubsub := testutil.NewDB(t)
 	rootClient := coderdtest.New(t, &coderdtest.Options{
 		Database:                 db,
 		Pubsub:                   pubsub,

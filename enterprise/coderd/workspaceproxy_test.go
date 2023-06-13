@@ -18,7 +18,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -43,7 +42,7 @@ func TestRegions(t *testing.T) {
 			"*",
 		}
 
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 
 		client := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -87,7 +86,7 @@ func TestRegions(t *testing.T) {
 			"*",
 		}
 
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 
 		client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -181,7 +180,7 @@ func TestRegions(t *testing.T) {
 			"*",
 		}
 
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := testutil.NewDB(t)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -336,7 +335,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		"*",
 	}
 
-	db, pubsub := dbtestutil.NewDB(t)
+	db, pubsub := testutil.NewDB(t)
 	client := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues:         dv,
@@ -444,7 +443,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		"*",
 	}
 
-	db, pubsub := dbtestutil.NewDB(t)
+	db, pubsub := testutil.NewDB(t)
 	client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues:         dv,

@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/workspaceapps/apptest"
@@ -185,7 +184,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			db, pubsub := dbtestutil.NewDB(t)
+			db, pubsub := testutil.NewDB(t)
 
 			accessURL, err := url.Parse(c.accessURL)
 			require.NoError(t, err)

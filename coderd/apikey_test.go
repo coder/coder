@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -150,7 +149,7 @@ func TestSessionExpiry(t *testing.T) {
 	defer cancel()
 	dc := coderdtest.DeploymentValues(t)
 
-	db, pubsub := dbtestutil.NewDB(t)
+	db, pubsub := testutil.NewDB(t)
 	adminClient := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: dc,
 		Database:         db,

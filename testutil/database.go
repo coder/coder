@@ -1,4 +1,4 @@
-package dbtestutil
+package testutil
 
 import (
 	"context"

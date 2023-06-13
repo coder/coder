@@ -16,10 +16,10 @@ import (
 	"github.com/tabbed/pqtype"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestExtractUserRoles(t *testing.T) {
@@ -112,7 +112,7 @@ func TestExtractUserRoles(t *testing.T) {
 			t.Parallel()
 
 			var (
-				db, _                 = dbtestutil.NewDB(t)
+				db, _                 = testutil.NewDB(t)
 				user, expRoles, token = c.AddUser(db)
 				rw                    = httptest.NewRecorder()
 				rtr                   = chi.NewRouter()

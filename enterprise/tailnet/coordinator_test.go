@@ -11,7 +11,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/enterprise/tailnet"
 	agpl "github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
@@ -168,7 +167,7 @@ func TestCoordinatorHA(t *testing.T) {
 	t.Run("AgentWithClient", func(t *testing.T) {
 		t.Parallel()
 
-		_, pubsub := dbtestutil.NewDB(t)
+		_, pubsub := testutil.NewDB(t)
 
 		coordinator1, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub)
 		require.NoError(t, err)
