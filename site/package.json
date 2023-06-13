@@ -3,6 +3,7 @@
   "description": "Coder V2 (Workspaces V2)",
   "repository": "https://github.com/coder/coder",
   "private": true,
+  "license": "AGPL-3.0",
   "scripts": {
     "postinstall": "yarn typegen",
     "build": "NODE_ENV=production yarn vite build",
