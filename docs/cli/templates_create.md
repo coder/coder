@@ -30,14 +30,6 @@ Specify a default TTL for workspaces created from this template.
 
 Specify the directory to create from, use '-' to read tar from stdin.
 
-### --disable-everyone
-
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
-
-Disable the default behavior of granting template access to the 'everyone' group. The template permissions must be updated to allow non-admin users to use this template.
-
 ### --failure-ttl
 
 |         |                       |
@@ -55,6 +47,14 @@ Specify a failure TTL for workspaces created from this template. This licensed f
 | Default | <code>0h</code>       |
 
 Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).
+
+### --private
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Disable the default behavior of granting template access to the 'everyone' group. The template permissions must be updated to allow non-admin users to use this template.
 
 ### --provisioner-tag
 
