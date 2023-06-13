@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -66,7 +67,11 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
-func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+type PostFilter struct {
+	DeletingBy *time.Time `json:"deleting_by" format:"date-time"`
+}
+
+func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, PostFilter, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
@@ -74,8 +79,10 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 		Limit:  int32(page.Limit),
 	}
 
+	var postFilter PostFilter
+
 	if query == "" {
-		return filter, nil
+		return filter, postFilter, nil
 	}
 
 	// Always lowercase for all searches.
@@ -95,7 +102,7 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 		return nil
 	})
 	if len(errors) > 0 {
-		return filter, errors
+		return filter, postFilter, errors
 	}
 
 	parser := httpapi.NewQueryParamParser()
@@ -104,8 +111,13 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgent = parser.String(values, "", "has-agent")
+
+	if _, ok := values["deleting_by"]; ok {
+		postFilter.DeletingBy = ptr.Ref(parser.Time(values, time.Time{}, "deleting_by", "2006-01-02"))
+	}
+
 	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
+	return filter, postFilter, parser.Errors
 }
 
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {
