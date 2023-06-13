@@ -13,11 +13,7 @@ import (
 
 func (*RootCmd) stat() *clibase.Cmd {
 	fs := afero.NewReadOnlyFs(afero.NewOsFs())
-	defaultCols := []string{"host_cpu", "host_memory", "home_disk"}
-	if ok, err := clistat.IsContainerized(fs); err == nil && ok {
-		// If running in a container, we assume that users want to see these first. Prepend.
-		defaultCols = append([]string{"container_cpu", "container_memory"}, defaultCols...)
-	}
+	defaultCols := []string{"host_cpu", "host_memory", "home_disk", "container_cpu", "container_memory"}
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]statsRow{}, defaultCols),
 		cliui.JSONFormat(),
