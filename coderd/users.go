@@ -358,7 +358,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var loginType database.LoginType = "unknown"
+	var loginType database.LoginType
 	if req.DisableLogin {
 		loginType = database.LoginTypeNone
 	} else {

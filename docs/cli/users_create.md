@@ -10,6 +10,14 @@ coder users create [flags]
 
 ## Options
 
+### --disable-login
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Disabling login for a user prevents the user from authenticating themselves via a login. Authentication would require an api keys/token. Be careful when using this flag as it can lock the user out of their account.
+
 ### -e, --email
 
 |      |                     |
