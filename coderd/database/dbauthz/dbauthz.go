@@ -675,8 +675,12 @@ func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
-	panic("Not implemented")
+	// if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+	// return database.ProvisionerJob{}, err
+	// }
+	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
@@ -741,13 +745,24 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 }
 
 func (q *querier) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldWorkspaceAgentStartupLogs(ctx)
 }
 
-func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error { panic("Not implemented") }
+func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldWorkspaceAgentStats(ctx)
+}
 
 func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteReplicasUpdatedBefore(ctx, updatedAt)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -770,7 +785,12 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
-func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) { panic("Not implemented") }
+func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.GetActiveUserCount(ctx)
+}
 
 func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	// No authz checks
@@ -788,18 +808,30 @@ func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditL
 }
 
 func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetAuthorizationUserRolesRow{}, err
+	}
+	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
-func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) { panic("Not implemented") }
+func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetDERPMeshKey(ctx)
+}
 
 func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
 	// No authz checks
 	return q.db.GetDefaultProxyConfig(ctx)
 }
 
-func (q *querier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]GetDeploymentDAUsRow, error) {
-	panic("Not implemented")
+// Only used by metrics cache.
+func (q *querier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]database.GetDeploymentDAUsRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetDeploymentDAUs(ctx, tzOffset)
 }
 
 func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
@@ -807,12 +839,12 @@ func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 	return q.db.GetDeploymentID(ctx)
 }
 
-func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
-	panic("Not implemented")
+func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
+	return q.db.GetDeploymentWorkspaceAgentStats(ctx, createdAfter)
 }
 
 func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
-	panic("Not implemented")
+	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
 
 func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
@@ -847,8 +879,11 @@ func (q *querier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File,
 	return file, nil
 }
 
-func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]GetFileTemplatesRow, error) {
-	panic("Not implemented")
+func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetFileTemplates(ctx, fileID)
 }
 
 func (q *querier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
@@ -887,7 +922,12 @@ func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID 
 	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
 }
 
-func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) { panic("Not implemented") }
+func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetLastUpdateCheck(ctx)
+}
 
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
@@ -896,8 +936,15 @@ func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, work
 	return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 }
 
-func (q *querier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error) {
-	panic("Not implemented")
+func (q *querier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
+	// This function is a system function until we implement a join for workspace builds.
+	// This is because we need to query for all related workspaces to the returned builds.
+	// This is a very inefficient method of fetching the latest workspace builds.
+	// We should just join the rbac properties.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetLatestWorkspaceBuilds(ctx)
 }
 
 func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
@@ -1032,12 +1079,20 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 	return job, nil
 }
 
-func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error) {
-	panic("Not implemented")
+// TODO: we need to add a provisioner job resource
+func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
+	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+	// 	return nil, err
+	// }
+	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
-func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
-	panic("Not implemented")
+// TODO: We need to create a ProvisionerJob resource type
+func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
+	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+	// return nil, err
+	// }
+	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }
 
 func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
@@ -1065,8 +1120,11 @@ func (q *querier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID)
 	return q.db.GetQuotaConsumedForUser(ctx, userID)
 }
 
-func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error) {
-	panic("Not implemented")
+func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.Replica, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
 func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
@@ -1074,8 +1132,12 @@ func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
 	return q.db.GetServiceBanner(ctx)
 }
 
+// Only used by metrics cache.
 func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetTemplateAverageBuildTimeRow{}, err
+	}
+	return q.db.GetTemplateAverageBuildTime(ctx, arg)
 }
 
 func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
@@ -1086,8 +1148,12 @@ func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg data
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
 }
 
-func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error) {
-	panic("Not implemented")
+// Only used by metrics cache.
+func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateDAUs(ctx, arg)
 }
 
 func (q *querier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
@@ -1188,8 +1254,13 @@ func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersi
 	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
 }
 
-func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]TemplateVersion, error) {
-	panic("Not implemented")
+// GetTemplateVersionsByIDs is only used for workspace build data.
+// The workspace is already fetched.
+func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateVersionsByIDs(ctx, ids)
 }
 
 func (q *querier) GetTemplateVersionsByTemplateID(ctx context.Context, arg database.GetTemplateVersionsByTemplateIDParams) ([]database.TemplateVersion, error) {
@@ -1214,7 +1285,12 @@ func (q *querier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt
 	return q.db.GetTemplateVersionsCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) GetTemplates(ctx context.Context) ([]Template, error) { panic("Not implemented") }
+func (q *querier) GetTemplates(ctx context.Context) ([]database.Template, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplates(ctx)
+}
 
 func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceTemplate.Type)
@@ -1224,8 +1300,11 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 	return q.db.GetAuthorizedTemplates(ctx, arg, prep)
 }
 
-func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]License, error) {
-	panic("Not implemented")
+func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetUnexpiredLicenses(ctx)
 }
 
 func (q *querier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
@@ -1236,14 +1315,25 @@ func (q *querier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User,
 	return fetch(q.log, q.auth, q.db.GetUserByID)(ctx, id)
 }
 
-func (q *querier) GetUserCount(ctx context.Context) (int64, error) { panic("Not implemented") }
+func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.GetUserCount(ctx)
+}
 
 func (q *querier) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.UserLink{}, err
+	}
+	return q.db.GetUserLinkByLinkedID(ctx, linkedID)
 }
 
 func (q *querier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.UserLink{}, err
+	}
+	return q.db.GetUserLinkByUserIDLoginType(ctx, arg)
 }
 
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
@@ -1263,8 +1353,13 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
+// GetWorkspaceAgentByAuthToken is used in http middleware to get the workspace agent.
+// This should only be used by a system user in that middleware.
 func (q *querier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	return q.db.GetWorkspaceAgentByAuthToken(ctx, authToken)
 }
 
 func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
@@ -1312,20 +1407,28 @@ func (q *querier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg dat
 	return q.db.GetWorkspaceAgentStartupLogsAfter(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error) {
-	panic("Not implemented")
+func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
+	return q.db.GetWorkspaceAgentStats(ctx, createdAfter)
 }
 
-func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error) {
-	panic("Not implemented")
+func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
 }
 
-func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error) {
-	panic("Not implemented")
+// GetWorkspaceAgentsByResourceIDs
+// The workspace/job is already fetched.
+func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentsByResourceIDs(ctx, ids)
 }
 
-func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
-	panic("Not implemented")
+func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceAgent, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentsCreatedAfter(ctx, createdAt)
 }
 
 func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
@@ -1353,12 +1456,20 @@ func (q *querier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UU
 	return q.db.GetWorkspaceAppsByAgentID(ctx, agentID)
 }
 
-func (q *querier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
-	panic("Not implemented")
+// GetWorkspaceAppsByAgentIDs
+// The workspace/job is already fetched.
+func (q *querier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAppsByAgentIDs(ctx, ids)
 }
 
-func (q *querier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
-	panic("Not implemented")
+func (q *querier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceApp, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAppsCreatedAfter(ctx, createdAt)
 }
 
 func (q *querier) GetWorkspaceBuildByID(ctx context.Context, buildID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -1410,8 +1521,14 @@ func (q *querier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg datab
 	return q.db.GetWorkspaceBuildsByWorkspaceID(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error) {
-	panic("Not implemented")
+// Telemetry related functions. These functions are system functions for returning
+// telemetry data. Never called by a user.
+
+func (q *querier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceBuild, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceBuildsCreatedAfter(ctx, createdAt)
 }
 
 func (q *querier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
@@ -1436,8 +1553,11 @@ func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.Workspace
 	})(ctx, nil)
 }
 
-func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, arg database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
-	panic("Not implemented")
+func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, params database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceProxy{}, err
+	}
+	return q.db.GetWorkspaceProxyByHostname(ctx, params)
 }
 
 func (q *querier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
@@ -1463,12 +1583,20 @@ func (q *querier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (d
 	return resource, nil
 }
 
-func (q *querier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResourceMetadatum, error) {
-	panic("Not implemented")
+// GetWorkspaceResourceMetadataByResourceIDs is only used for build data.
+// The workspace/job is already fetched.
+func (q *querier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceResourceMetadataByResourceIDs(ctx, ids)
 }
 
-func (q *querier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResourceMetadatum, error) {
-	panic("Not implemented")
+func (q *querier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceResourceMetadatum, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAt)
 }
 
 func (q *querier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
@@ -1516,12 +1644,21 @@ func (q *querier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.U
 	return q.db.GetWorkspaceResourcesByJobID(ctx, jobID)
 }
 
-func (q *querier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error) {
-	panic("Not implemented")
+// GetWorkspaceResourcesByJobIDs is only used for workspace build data.
+// The workspace is already fetched.
+// TODO: Find a way to replace this with proper authz.
+func (q *querier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResource, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceResourcesByJobIDs(ctx, ids)
 }
 
-func (q *querier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error) {
-	panic("Not implemented")
+func (q *querier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceResource, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceResourcesCreatedAfter(ctx, createdAt)
 }
 
 func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
@@ -1532,8 +1669,8 @@ func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesP
 	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
-func (q *querier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]Workspace, error) {
-	panic("Not implemented")
+func (q *querier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+	return q.db.GetWorkspacesEligibleForAutoStartStop(ctx, now)
 }
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
@@ -1552,11 +1689,17 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 }
 
 func (q *querier) InsertDERPMeshKey(ctx context.Context, value string) error {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertDERPMeshKey(ctx, value)
 }
 
 func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertDeploymentID(ctx, value)
 }
 
 func (q *querier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
@@ -1605,20 +1748,35 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 	return insert(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerDaemon resource type
 func (q *querier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	panic("Not implemented")
+	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return database.ProvisionerDaemon{}, err
+	// }
+	return q.db.InsertProvisionerDaemon(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
-	panic("Not implemented")
+	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return database.ProvisionerJob{}, err
+	// }
+	return q.db.InsertProvisionerJob(ctx, arg)
 }
 
-func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error) {
-	panic("Not implemented")
+// TODO: We need to create a ProvisionerJob resource type
+func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
+	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return nil, err
+	// }
+	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
 func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.Replica{}, err
+	}
+	return q.db.InsertReplica(ctx, arg)
 }
 
 func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
@@ -1650,11 +1808,17 @@ func (q *querier) InsertTemplateVersion(ctx context.Context, arg database.Insert
 }
 
 func (q *querier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.TemplateVersionParameter{}, err
+	}
+	return q.db.InsertTemplateVersionParameter(ctx, arg)
 }
 
 func (q *querier) InsertTemplateVersionVariable(ctx context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.TemplateVersionVariable{}, err
+	}
+	return q.db.InsertTemplateVersionVariable(ctx, arg)
 }
 
 func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
@@ -1691,8 +1855,13 @@ func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorksp
 	return insert(q.log, q.auth, obj, q.db.InsertWorkspace)(ctx, arg)
 }
 
+// Provisionerd server functions
+
 func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	return q.db.InsertWorkspaceAgent(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
@@ -1705,8 +1874,8 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]WorkspaceAgentStartupLog, error) {
-	panic("Not implemented")
+func (q *querier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
+	return q.db.InsertWorkspaceAgentStartupLogs(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
@@ -1724,7 +1893,10 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceApp{}, err
+	}
+	return q.db.InsertWorkspaceApp(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
@@ -1770,11 +1942,17 @@ func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertW
 }
 
 func (q *querier) InsertWorkspaceResource(ctx context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceResource{}, err
+	}
+	return q.db.InsertWorkspaceResource(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg database.InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error) {
-	panic("Not implemented")
+func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg database.InsertWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
 func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -1837,8 +2015,12 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	return q.db.UpdateMemberRoles(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
-	panic("Not implemented")
+	// if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+	// return err
+	// }
+	return q.db.UpdateProvisionerJobByID(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
@@ -1908,12 +2090,19 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 	return q.db.UpdateProvisionerJobWithCancelByID(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
-	panic("Not implemented")
+	// if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+	// return err
+	// }
+	return q.db.UpdateProvisionerJobWithCompleteByID(ctx, arg)
 }
 
 func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.Replica{}, err
+	}
+	return q.db.UpdateReplica(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
@@ -2065,7 +2254,10 @@ func (q *querier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLin
 }
 
 func (q *querier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.UserLink{}, err
+	}
+	return q.db.UpdateUserLinkedID(ctx, arg)
 }
 
 func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
@@ -2117,7 +2309,10 @@ func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorksp
 }
 
 func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAgentConnectionByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
@@ -2227,8 +2422,12 @@ func (q *querier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.Upd
 	return q.db.UpdateWorkspaceBuildByID(ctx, arg)
 }
 
+// UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
 func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceBuild{}, err
+	}
+	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
 // Deprecated: Use SoftDeleteWorkspaceByID
@@ -2282,11 +2481,17 @@ func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertDefaultProxy(ctx, arg)
 }
 
 func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {
-	panic("Not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertLastUpdateCheck(ctx, value)
 }
 
 func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
