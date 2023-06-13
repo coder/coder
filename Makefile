@@ -431,7 +431,7 @@ lint/helm:
 gen: \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \
-	coderd/database/dbmock/store.go \
+	coderd/database/dbmock/dbmock.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
@@ -453,7 +453,7 @@ gen/mark-fresh:
 	files="\
 		coderd/database/dump.sql \
 		coderd/database/querier.go \
-		coderd/database/dbmock/store.go \
+		coderd/database/dbmock/dbmock.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		site/src/api/typesGenerated.ts \
@@ -490,7 +490,7 @@ coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $
 	./coderd/database/generate.sh
 
 
-coderd/database/dbmock/store.go: coderd/database/db.go coderd/database/querier.go
+coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
