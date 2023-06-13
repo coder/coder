@@ -32,36 +32,37 @@ func (*RootCmd) stat() *clibase.Cmd {
 			var sr statsRow
 
 			// Get CPU measurements first.
-			errCh := make(chan error, 2)
+			hostErr := make(chan error)
+			containerErr := make(chan error)
 			go func() {
+				defer close(hostErr)
 				cs, err := st.HostCPU()
 				if err != nil {
-					errCh <- err
+					hostErr <- err
 					return
 				}
 				sr.HostCPU = cs
-				errCh <- nil
 			}()
 			go func() {
+				defer close(containerErr)
 				if ok, _ := clistat.IsContainerized(fs); !ok {
-					errCh <- nil
+					// don't error if we're not in a container
+					return
 				}
 				cs, err := st.ContainerCPU()
 				if err != nil {
-					errCh <- err
+					containerErr <- err
 					return
 				}
 				sr.ContainerCPU = cs
-				errCh <- nil
 			}()
 
-			if err1 := <-errCh; err1 != nil {
+			if err := <-hostErr; err != nil {
 				return err
 			}
-			if err2 := <-errCh; err2 != nil {
+			if err := <-containerErr; err != nil {
 				return err
 			}
-			close(errCh)
 
 			// Host-level stats
 			ms, err := st.HostMemory()
