@@ -106,6 +106,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Param name query string false "Filter with partial-match by workspace name"
 // @Param status query string false "Filter by workspace status" Enums(pending,running,stopping,stopped,failed,canceling,canceled,deleted,deleting)
 // @Param has_agent query string false "Filter by agent status" Enums(connected,connecting,disconnected,timeout)
+// @Param deleting_by query string false "Filter workspaces scheduled to be deleted by this time"
 // @Success 200 {object} codersdk.WorkspacesResponse
 // @Router /workspaces [get]
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
@@ -118,7 +119,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, postFilter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -178,8 +179,26 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var filteredWorkspaces []codersdk.Workspace
+	// apply post filters, if they exist
+	if postFilter.DeletingBy == nil {
+		filteredWorkspaces = append(filteredWorkspaces, wss...)
+	} else {
+		for _, v := range wss {
+			if v.DeletingAt == nil {
+				continue
+			}
+			// get the beginning of the day on which deletion is scheduled
+			truncatedDeletionAt := time.Date(v.DeletingAt.Year(), v.DeletingAt.Month(), v.DeletingAt.Day(), 0, 0, 0, 0, v.DeletingAt.Location())
+			if truncatedDeletionAt.After(*postFilter.DeletingBy) {
+				continue
+			}
+			filteredWorkspaces = append(filteredWorkspaces, v)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
-		Workspaces: wss,
+		Workspaces: filteredWorkspaces,
 		Count:      int(workspaceRows[0].Count),
 	})
 }

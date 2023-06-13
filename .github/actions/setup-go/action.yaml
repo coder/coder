@@ -1,36 +1,65 @@
 name: "Setup Go"
 description: |
   Sets up the Go environment for tests, builds, etc.
+inputs:
+  version:
+    description: "The Go version to use."
+    default: "1.20.5"
 runs:
   using: "composite"
   steps:
-    - uses: buildjet/setup-go@v4
-      with:
-        cache: true
-        go-version: "1.20.5"
-
-    - name: Cache go
+    - name: Cache go toolchain
       uses: buildjet/cache@v3
       with:
-        # ~/go/pkg is the same across operating systems.
         path: |
-          ~/go/pkg
-          ~/.cache/go-build
-          ~/AppData/Local/go-build
-          ~/Library/Caches/go-build
+          ${{ runner.tool_cache }}/go/${{ inputs.version }}
+        key: gotoolchain-${{ runner.os }}-${{ inputs.version }}
+        restore-keys: |
+          gotoolchain-${{ runner.os }}-
+
+    - uses: buildjet/setup-go@v4
+      with:
+        # We do our own caching for implementation clarity.
+        cache: false
+        go-version: ${{ inputs.version }}
+
+    - name: Get cache dirs
+      shell: bash
+      run: |
+        set -x
+        echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_ENV
+        echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_ENV
+
+    # We split up GOMODCACHE from GOCACHE because the latter must be invalidated
+    # on code change, but the former can be kept.
+    - name: Cache $GOMODCACHE
+      uses: buildjet/cache@v3
+      with:
+        path: |
+          ${{ env.GOMODCACHE }}
+        key: gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.job }}
+        restore-keys: |
+          gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+          gomodcache-${{ runner.os }}-
+
+    - name: Cache $GOCACHE
+      uses: buildjet/cache@v3
+      with:
+        path: |
+          ${{ env.GOCACHE }}
         # Job name must be included in the key for effective
         # test cache reuse.
-        key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
+        # The key format is intentionally different than GOMODCACHE, because any
+        # time a Go file changes we invalidate this cache, whereas GOMODCACHE
+        # is only invalidated when go.sum changes.
+        key: gocache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
         restore-keys: |
-          go-${{ runner.os }}-${{ github.job }}-
-          go-${{ runner.os }}-
-          go-
+          gocache-${{ runner.os }}-${{ github.job }}-
+          gocache-${{ runner.os }}-
 
     - name: Install gotestsum
-      uses: jaxxstorm/action-install-gh-release@v1.10.0
-      with:
-        repo: gotestyourself/gotestsum
-        tag: v1.9.0
+      shell: bash
+      run: go install gotest.tools/gotestsum@latest
 
     # It isn't necessary that we ever do this, but it helps
     # separate the "setup" from the "run" times.
