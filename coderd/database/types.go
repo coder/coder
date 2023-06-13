@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -42,4 +43,37 @@ func (t *TemplateACL) Scan(src interface{}) error {
 
 func (t TemplateACL) Value() (driver.Value, error) {
 	return json.Marshal(t)
+}
+
+type StringMap map[string]string
+
+func (m *StringMap) Scan(src interface{}) error {
+	if src == nil {
+		return nil
+	}
+	switch src := src.(type) {
+	case []byte:
+		err := json.Unmarshal(src, m)
+		if err != nil {
+			return err
+		}
+	default:
+		return xerrors.Errorf("unsupported Scan, storing driver.Value type %T into type %T", src, m)
+	}
+	return nil
+}
+
+func (m StringMap) Value() (driver.Value, error) {
+	return json.Marshal(m)
+}
+
+// Now returns a standardized timezone used for database resources.
+func Now() time.Time {
+	return Time(time.Now().UTC())
+}
+
+// Time returns a time compatible with Postgres. Postgres only stores dates with
+// microsecond precision.
+func Time(t time.Time) time.Time {
+	return t.Round(time.Microsecond)
 }
