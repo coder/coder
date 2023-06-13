@@ -79,33 +79,20 @@ func TestStatter(t *testing.T) {
 
 	t.Run("CGroupV1", func(t *testing.T) {
 		t.Parallel()
-		t.Skip("not implemented")
 
 		t.Run("Limit", func(t *testing.T) {
 			t.Parallel()
-		})
-
-		t.Run("NoLimit", func(t *testing.T) {
-			t.Parallel()
-		})
-	})
-
-	t.Run("CGroupV2", func(t *testing.T) {
-		t.Parallel()
-		t.Run("Limit", func(t *testing.T) {
-			fs := initFS(t, fsContainerCgroupV2)
+			fs := initFS(t, fsContainerCgroupV1)
 			s, err := New(WithFS(fs))
 			require.NoError(t, err)
-			// We can make assertions about the below because these all read
-			// data from known file paths, which we can control.
+
 			t.Run("ContainerCPU", func(t *testing.T) {
 				t.Parallel()
 				cpu, err := s.ContainerCPU()
 				require.NoError(t, err)
-				assert.NotNil(t, cpu)
+				require.NotNil(t, cpu)
 				// This value does not change in between tests so it is zero.
 				assert.Zero(t, cpu.Used)
-				// Eve
 				require.NotNil(t, cpu.Total)
 				assert.Equal(t, 2.5, *cpu.Total)
 				assert.Equal(t, "cores", cpu.Unit)
@@ -115,7 +102,7 @@ func TestStatter(t *testing.T) {
 				t.Parallel()
 				mem, err := s.ContainerMemory()
 				require.NoError(t, err)
-				assert.NotNil(t, mem)
+				require.NotNil(t, mem)
 				assert.NotZero(t, mem.Used)
 				assert.NotZero(t, mem.Total)
 				assert.Equal(t, "GB", mem.Unit)
@@ -123,6 +110,69 @@ func TestStatter(t *testing.T) {
 		})
 
 		t.Run("NoLimit", func(t *testing.T) {
+			t.Parallel()
+			fs := initFS(t, fsContainerCgroupV1NoLimit)
+			s, err := New(WithFS(fs))
+			require.NoError(t, err)
+
+			t.Run("ContainerCPU", func(t *testing.T) {
+				t.Parallel()
+				cpu, err := s.ContainerCPU()
+				require.NoError(t, err)
+				require.NotNil(t, cpu)
+				// This value does not change in between tests so it is zero.
+				assert.Zero(t, cpu.Used)
+				require.NotNil(t, cpu.Total)
+				assert.Equal(t, 2.5, *cpu.Total)
+				assert.Equal(t, "cores", cpu.Unit)
+			})
+
+			t.Run("ContainerMemory", func(t *testing.T) {
+				t.Parallel()
+				mem, err := s.ContainerMemory()
+				require.NoError(t, err)
+				require.NotNil(t, mem)
+				assert.NotZero(t, mem.Used)
+				assert.NotZero(t, mem.Total)
+				assert.Equal(t, "GB", mem.Unit)
+			})
+		})
+	})
+
+	t.Run("CGroupV2", func(t *testing.T) {
+		t.Parallel()
+		t.Run("Limit", func(t *testing.T) {
+			t.Parallel()
+			fs := initFS(t, fsContainerCgroupV2)
+			s, err := New(WithFS(fs))
+			require.NoError(t, err)
+			// We can make assertions about the below because these all read
+			// data from known file paths, which we can control.
+			t.Run("ContainerCPU", func(t *testing.T) {
+				t.Parallel()
+				cpu, err := s.ContainerCPU()
+				require.NoError(t, err)
+				require.NotNil(t, cpu)
+				// This value does not change in between tests so it is zero.
+				assert.Zero(t, cpu.Used)
+				require.NotNil(t, cpu.Total)
+				assert.Equal(t, 2.5, *cpu.Total)
+				assert.Equal(t, "cores", cpu.Unit)
+			})
+
+			t.Run("ContainerMemory", func(t *testing.T) {
+				t.Parallel()
+				mem, err := s.ContainerMemory()
+				require.NoError(t, err)
+				require.NotNil(t, mem)
+				assert.NotZero(t, mem.Used)
+				assert.NotZero(t, mem.Total)
+				assert.Equal(t, "GB", mem.Unit)
+			})
+		})
+
+		t.Run("NoLimit", func(t *testing.T) {
+			t.Parallel()
 			fs := initFS(t, fsContainerCgroupV2)
 			s, err := New(WithFS(fs), func(s *Statter) {
 				s.nproc = 2
@@ -134,10 +184,9 @@ func TestStatter(t *testing.T) {
 				t.Parallel()
 				cpu, err := s.ContainerCPU()
 				require.NoError(t, err)
-				assert.NotNil(t, cpu)
+				require.NotNil(t, cpu)
 				// This value does not change in between tests so it is zero.
 				assert.Zero(t, cpu.Used)
-				// Eve
 				require.NotNil(t, cpu.Total)
 				assert.Equal(t, 2.5, *cpu.Total)
 				assert.Equal(t, "cores", cpu.Unit)
@@ -147,7 +196,7 @@ func TestStatter(t *testing.T) {
 				t.Parallel()
 				mem, err := s.ContainerMemory()
 				require.NoError(t, err)
-				assert.NotNil(t, mem)
+				require.NotNil(t, mem)
 				assert.NotZero(t, mem.Used)
 				assert.NotZero(t, mem.Total)
 				assert.Equal(t, "GB", mem.Unit)
@@ -231,6 +280,20 @@ proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
 		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
 		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
 proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
+		cgroupV1CPUAcctUsage:        "162237573",
+		cgroupV1CFSQuotaUs:          "250000",
+		cgroupV1MemoryMaxUsageBytes: "7782400",
+		cgroupV1MemoryUsageBytes:    "total_rss 143360",
+	}
+	fsContainerCgroupV1NoLimit = map[string]string{
+		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
+		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
+proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
+		cgroupV1CPUAcctUsage:        "162237573",
+		cgroupV1CFSQuotaUs:          "-1",
+		cgroupV1MemoryMaxUsageBytes: "7782400",
+		cgroupV1MemoryUsageBytes:    "total_rss 143360",
+		cgroupV1MemoryStat:          "total_inactive_file 3891200",
 	}
 	fsContainerCgroupV2NoLimit = map[string]string{
 		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
