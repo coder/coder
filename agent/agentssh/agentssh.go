@@ -648,9 +648,11 @@ func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
 			// Server closed.
 			return false
 		}
+		s.wg.Add(1)
 		s.sessions[ss] = struct{}{}
 		return true
 	}
+	s.wg.Done()
 	delete(s.sessions, ss)
 	return true
 }
