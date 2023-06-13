@@ -1,4 +1,4 @@
-package executor
+package autobuild
 
 import (
 	"context"
@@ -35,8 +35,8 @@ type Stats struct {
 	Error       error
 }
 
-// New returns a new autobuild executor.
-func New(ctx context.Context, db database.Store, tss *atomic.Pointer[schedule.TemplateScheduleStore], log slog.Logger, tick <-chan time.Time) *Executor {
+// New returns a new wsactions executor.
+func NewExecutor(ctx context.Context, db database.Store, tss *atomic.Pointer[schedule.TemplateScheduleStore], log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
@@ -125,77 +125,57 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		log := e.log.With(slog.F("workspace_id", wsID))
 
 		eg.Go(func() error {
-			err := e.db.InTx(func(db database.Store) error {
+			err := e.db.InTx(func(tx database.Store) error {
 				// Re-check eligibility since the first check was outside the
 				// transaction and the workspace settings may have changed.
-				ws, err := db.GetWorkspaceByID(e.ctx, wsID)
+				ws, err := tx.GetWorkspaceByID(e.ctx, wsID)
 				if err != nil {
 					log.Error(e.ctx, "get workspace autostart failed", slog.Error(err))
 					return nil
 				}
 
 				// Determine the workspace state based on its latest build.
-				priorHistory, err := db.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
+				latestBuild, err := tx.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
 				if err != nil {
 					log.Warn(e.ctx, "get latest workspace build", slog.Error(err))
 					return nil
 				}
 
-				templateSchedule, err := (*(e.templateScheduleStore.Load())).GetTemplateScheduleOptions(e.ctx, db, ws.TemplateID)
+				templateSchedule, err := (*(e.templateScheduleStore.Load())).GetTemplateScheduleOptions(e.ctx, tx, ws.TemplateID)
 				if err != nil {
 					log.Warn(e.ctx, "get template schedule options", slog.Error(err))
 					return nil
 				}
 
-				if !isEligibleForAutoStartStop(ws, priorHistory, templateSchedule) {
-					return nil
-				}
-
-				priorJob, err := db.GetProvisionerJobByID(e.ctx, priorHistory.JobID)
+				latestJob, err := tx.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
 				if err != nil {
 					log.Warn(e.ctx, "get last provisioner job for workspace %q: %w", slog.Error(err))
 					return nil
 				}
 
-				validTransition, nextTransition, err := getNextTransition(ws, priorHistory, priorJob)
+				nextTransition, reason, err := getNextTransition(ws, latestBuild, latestJob, templateSchedule, currentTick)
 				if err != nil {
 					log.Debug(e.ctx, "skipping workspace", slog.Error(err))
 					return nil
 				}
 
-				if currentTick.Before(nextTransition) {
-					log.Debug(e.ctx, "skipping workspace: too early",
-						slog.F("next_transition_at", nextTransition),
-						slog.F("transition", validTransition),
-						slog.F("current_tick", currentTick),
-					)
-					return nil
-				}
-				builder := wsbuilder.New(ws, validTransition).
-					SetLastWorkspaceBuildInTx(&priorHistory).
-					SetLastWorkspaceBuildJobInTx(&priorJob)
+				builder := wsbuilder.New(ws, nextTransition).
+					SetLastWorkspaceBuildInTx(&latestBuild).
+					SetLastWorkspaceBuildJobInTx(&latestJob).
+					Reason(reason)
 
-				switch validTransition {
-				case database.WorkspaceTransitionStart:
-					builder = builder.Reason(database.BuildReasonAutostart)
-				case database.WorkspaceTransitionStop:
-					builder = builder.Reason(database.BuildReasonAutostop)
-				default:
-					log.Error(e.ctx, "unsupported transition", slog.F("transition", validTransition))
-					return nil
-				}
-				if _, _, err := builder.Build(e.ctx, db, nil); err != nil {
+				if _, _, err := builder.Build(e.ctx, tx, nil); err != nil {
 					log.Error(e.ctx, "unable to transition workspace",
-						slog.F("transition", validTransition),
+						slog.F("transition", nextTransition),
 						slog.Error(err),
 					)
 					return nil
 				}
 				statsMu.Lock()
-				stats.Transitions[ws.ID] = validTransition
+				stats.Transitions[ws.ID] = nextTransition
 				statsMu.Unlock()
 
-				log.Info(e.ctx, "scheduling workspace transition", slog.F("transition", validTransition))
+				log.Info(e.ctx, "scheduling workspace transition", slog.F("transition", nextTransition))
 
 				return nil
 
@@ -218,7 +198,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	return stats
 }
 
-func isEligibleForAutoStartStop(ws database.Workspace, priorHistory database.WorkspaceBuild, templateSchedule schedule.TemplateScheduleOptions) bool {
+// isEligibleForTransition returns true if the workspace meets basic criteria
+// for transitioning to a new state.
+func isEligibleForTransition(ws database.Workspace, latestBuild database.WorkspaceBuild, templateSchedule schedule.TemplateScheduleOptions) bool {
 	if ws.Deleted {
 		return false
 	}
@@ -227,7 +209,7 @@ func isEligibleForAutoStartStop(ws database.Workspace, priorHistory database.Wor
 	}
 	// Don't check the template schedule to see whether it allows autostop, this
 	// is done during the build when determining the deadline.
-	if priorHistory.Transition == database.WorkspaceTransitionStart && !priorHistory.Deadline.IsZero() {
+	if latestBuild.Transition == database.WorkspaceTransitionStart && !latestBuild.Deadline.IsZero() {
 		return true
 	}
 
@@ -236,35 +218,57 @@ func isEligibleForAutoStartStop(ws database.Workspace, priorHistory database.Wor
 
 func getNextTransition(
 	ws database.Workspace,
-	priorHistory database.WorkspaceBuild,
-	priorJob database.ProvisionerJob,
+	latestBuild database.WorkspaceBuild,
+	latestJob database.ProvisionerJob,
+	templateSchedule schedule.TemplateScheduleOptions,
+	currentTick time.Time,
 ) (
-	validTransition database.WorkspaceTransition,
-	nextTransition time.Time,
-	err error,
+	database.WorkspaceTransition,
+	database.BuildReason,
+	error,
 ) {
-	if !priorJob.CompletedAt.Valid || priorJob.Error.String != "" {
-		return "", time.Time{}, xerrors.Errorf("last workspace build did not complete successfully")
+	if !isEligibleForTransition(ws, latestBuild, templateSchedule) {
+		return "", "", xerrors.Errorf("workspace ineligible for transition")
 	}
 
-	switch priorHistory.Transition {
-	case database.WorkspaceTransitionStart:
-		if priorHistory.Deadline.IsZero() {
-			return "", time.Time{}, xerrors.Errorf("latest workspace build has zero deadline")
-		}
-		// For stopping, do not truncate. This is inconsistent with autostart, but
-		// it ensures we will not stop too early.
-		return database.WorkspaceTransitionStop, priorHistory.Deadline, nil
-	case database.WorkspaceTransitionStop:
-		sched, err := schedule.Weekly(ws.AutostartSchedule.String)
-		if err != nil {
-			return "", time.Time{}, xerrors.Errorf("workspace has invalid autostart schedule: %w", err)
-		}
-		// Round down to the nearest minute, as this is the finest granularity cron supports.
-		// Truncate is probably not necessary here, but doing it anyway to be sure.
-		nextTransition = sched.Next(priorHistory.CreatedAt).Truncate(time.Minute)
-		return database.WorkspaceTransitionStart, nextTransition, nil
-	default:
-		return "", time.Time{}, xerrors.Errorf("last transition not valid for autostart or autostop")
+	if !latestJob.CompletedAt.Valid || latestJob.Error.String != "" {
+		return "", "", xerrors.Errorf("last workspace build did not complete successfully")
 	}
+
+	switch {
+	case isEligibleForAutostop(latestBuild, currentTick):
+		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
+	case isEligibleForAutostart(ws, latestBuild, currentTick):
+		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
+	default:
+		return "", "", xerrors.Errorf("last transition not valid for autostart or autostop")
+	}
+}
+
+// isEligibleForAutostart returns true if the workspace should be autostarted.
+func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, currentTick time.Time) bool {
+	// If the last transition for the workspace was not 'stop' then the workspace
+	// cannot be started.
+	if build.Transition != database.WorkspaceTransitionStop {
+		return false
+	}
+
+	sched, err := schedule.Weekly(ws.AutostartSchedule.String)
+	if err != nil {
+		return false
+	}
+	// Round down to the nearest minute, as this is the finest granularity cron supports.
+	// Truncate is probably not necessary here, but doing it anyway to be sure.
+	nextTransition := sched.Next(build.CreatedAt).Truncate(time.Minute)
+
+	return !currentTick.Before(nextTransition)
+}
+
+// isEligibleForAutostart returns true if the workspace should be autostopped.
+func isEligibleForAutostop(build database.WorkspaceBuild, currentTick time.Time) bool {
+	// A workspace must be started in order for it to be auto-stopped.
+	return build.Transition == database.WorkspaceTransitionStart &&
+		!build.Deadline.IsZero() &&
+		// We do not want to stop a workspace prior to it breaching its deadline.
+		!currentTick.Before(build.Deadline)
 }

@@ -54,7 +54,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/autobuild/executor"
+	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
@@ -102,7 +102,7 @@ type Options struct {
 	GoogleTokenValidator  *idtoken.Validator
 	SSHKeygenAlgorithm    gitsshkey.Algorithm
 	AutobuildTicker       <-chan time.Time
-	AutobuildStats        chan<- executor.Stats
+	AutobuildStats        chan<- autobuild.Stats
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
 	GitAuthConfigs        []*gitauth.Config
@@ -244,7 +244,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	templateScheduleStore.Store(&options.TemplateScheduleStore)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	lifecycleExecutor := executor.New(
+	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
 		&templateScheduleStore,
