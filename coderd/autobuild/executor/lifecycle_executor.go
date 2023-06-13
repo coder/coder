@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -89,6 +90,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	stats := Stats{
 		Transitions: make(map[uuid.UUID]database.WorkspaceTransition),
 	}
+	// we build the map of transitions concurrently, so need a mutex to serialize writes to the map
+	statsMu := sync.Mutex{}
 	defer func() {
 		stats.Elapsed = time.Since(t)
 		stats.Error = err
@@ -188,7 +191,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					)
 					return nil
 				}
+				statsMu.Lock()
 				stats.Transitions[ws.ID] = validTransition
+				statsMu.Unlock()
 
 				log.Info(e.ctx, "scheduling workspace transition", slog.F("transition", validTransition))
 

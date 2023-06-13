@@ -3,9 +3,9 @@ import { ThemeOptions, createTheme, Theme } from "@mui/material/styles"
 import { BODY_FONT_FAMILY, borderRadius } from "./constants"
 
 // MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
-const BUTTON_LG_HEIGHT = 42
-const BUTTON_MD_HEIGHT = 36
-const BUTTON_SM_HEIGHT = 30
+export const BUTTON_LG_HEIGHT = 40
+export const BUTTON_MD_HEIGHT = 36
+export const BUTTON_SM_HEIGHT = 32
 
 export type PaletteIndex = keyof Theme["palette"]
 export type PaletteStatusIndex = Extract<
@@ -110,6 +110,8 @@ dark = createTheme(dark, {
         },
       },
     },
+    // Button styles are based on
+    // https://tailwindui.com/components/application-ui/elements/buttons
     MuiButtonBase: {
       defaultProps: {
         disableRipple: true,
@@ -127,20 +129,26 @@ dark = createTheme(dark, {
           fontWeight: 500,
           height: BUTTON_MD_HEIGHT,
           padding: theme.spacing(1, 2),
+          borderRadius: "6px",
+          fontSize: 14,
 
           whiteSpace: "nowrap",
           ":focus-visible": {
             outline: `2px solid ${theme.palette.primary.main}`,
           },
+
+          "& .MuiLoadingButton-loadingIndicator": {
+            width: 14,
+            height: 14,
+          },
+
+          "& .MuiLoadingButton-loadingIndicator .MuiCircularProgress-root": {
+            width: "inherit !important",
+            height: "inherit !important",
+          },
         }),
         sizeSmall: {
-          borderRadius: 6,
           height: BUTTON_SM_HEIGHT,
-
-          "& .MuiCircularProgress-root": {
-            width: "14px !important",
-            height: "14px !important",
-          },
         },
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
@@ -173,6 +181,9 @@ dark = createTheme(dark, {
           "& > .MuiSvgIcon-root": {
             fontSize: 13,
           },
+        },
+        startIcon: {
+          marginLeft: "-2px",
         },
       },
     },

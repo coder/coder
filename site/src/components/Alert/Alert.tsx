@@ -1,12 +1,11 @@
-import { useState, FC, ReactNode, PropsWithChildren } from "react"
+import { useState, FC, ReactNode } from "react"
 import Collapse from "@mui/material/Collapse"
 // eslint-disable-next-line no-restricted-imports -- It is the base component
 import MuiAlert, { AlertProps as MuiAlertProps } from "@mui/material/Alert"
 import Button from "@mui/material/Button"
 import Box from "@mui/material/Box"
 
-export interface AlertProps extends PropsWithChildren {
-  severity: MuiAlertProps["severity"]
+export type AlertProps = MuiAlertProps & {
   actions?: ReactNode
   dismissible?: boolean
   onRetry?: () => void
@@ -20,12 +19,15 @@ export const Alert: FC<AlertProps> = ({
   dismissible,
   severity,
   onDismiss,
+  ...alertProps
 }) => {
   const [open, setOpen] = useState(true)
 
   return (
     <Collapse in={open}>
       <MuiAlert
+        {...alertProps}
+        sx={{ textAlign: "left", ...alertProps.sx }}
         severity={severity}
         action={
           <>

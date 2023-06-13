@@ -34,11 +34,11 @@ resource "kubernetes_namespace" "coder_namespace" {
   ]
 }
 
-resource "random_password" "postgres-admin-password" {
+resource "random_password" "coder-postgres-password" {
   length = 12
 }
 
-resource "random_password" "coder-postgres-password" {
+resource "random_password" "prometheus-postgres-password" {
   length = 12
 }
 
@@ -96,7 +96,11 @@ coder:
         secretKeyRef:
           name: "${kubernetes_secret.coder-db.metadata.0.name}"
           key: url
+    - name: "CODER_PPROF_ENABLE"
+      value: "true"
     - name: "CODER_PROMETHEUS_ENABLE"
+      value: "true"
+    - name: "CODER_PROMETHEUS_COLLECT_AGENT_STATS"
       value: "true"
     - name: "CODER_VERBOSE"
       value: "true"
@@ -129,7 +133,7 @@ EOF
 }
 
 resource "local_file" "kubernetes_template" {
-  filename = "${path.module}/.coderv2/templates/kubernetes/main.tf"
+  filename = "${path.module}/../.coderv2/templates/kubernetes/main.tf"
   content  = <<EOF
     terraform {
       required_providers {
@@ -214,6 +218,11 @@ resource "local_file" "kubernetes_template" {
       }
     }
   EOF
+}
+
+resource "local_file" "output_vars" {
+  filename = "${path.module}/../.coderv2/url"
+  content  = local.coder_url
 }
 
 output "coder_url" {

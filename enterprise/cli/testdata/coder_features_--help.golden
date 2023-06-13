@@ -1,0 +1,11 @@
+Usage: coder features
+
+List Enterprise features
+
+Aliases: feature
+
+[1mSubcommands[0m
+    list    
+
+---
+Run `coder --help` for a list of global options.

@@ -9,6 +9,7 @@ import { BorderedMenu } from "../BorderedMenu/BorderedMenu"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { UserAvatar } from "../UserAvatar/UserAvatar"
 import { UserDropdownContent } from "../UserDropdownContent/UserDropdownContent"
+import { BUTTON_SM_HEIGHT } from "theme/theme"
 
 export interface UserDropdownProps {
   user: TypesGen.User
@@ -42,7 +43,15 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
       >
         <div className={styles.inner}>
           <Badge overlap="circular">
-            <UserAvatar username={user.username} avatarURL={user.avatar_url} />
+            <UserAvatar
+              sx={{
+                width: BUTTON_SM_HEIGHT,
+                height: BUTTON_SM_HEIGHT,
+                fontSize: 16,
+              }}
+              username={user.username}
+              avatarURL={user.avatar_url}
+            />
           </Badge>
           {anchorEl ? (
             <CloseDropdown color={colors.gray[6]} />

@@ -26,15 +26,6 @@ Use --always-prompt to change the parameter values of the workspace.
 
 Always prompt all parameters. Does not pull parameter values from existing workspace.
 
-### --parameter-file
-
-|             |                                    |
-| ----------- | ---------------------------------- |
-| Type        | <code>string</code>                |
-| Environment | <code>$CODER_PARAMETER_FILE</code> |
-
-Specify a file path with parameter values.
-
 ### --rich-parameter-file
 
 |             |                                         |

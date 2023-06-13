@@ -78,7 +78,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 
 		// Display a line for the resource.
 		tableWriter.AppendRow(table.Row{
-			Styles.Bold.Render(resourceAddress),
+			DefaultStyles.Bold.Render(resourceAddress),
 			"",
 			"",
 		})
@@ -106,7 +106,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 				if totalAgents > 1 {
 					sshCommand += "." + agent.Name
 				}
-				sshCommand = Styles.Code.Render(sshCommand)
+				sshCommand = DefaultStyles.Code.Render(sshCommand)
 				row = append(row, sshCommand)
 			}
 			tableWriter.AppendRow(row)
@@ -121,23 +121,23 @@ func renderAgentStatus(agent codersdk.WorkspaceAgent) string {
 	switch agent.Status {
 	case codersdk.WorkspaceAgentConnecting:
 		since := database.Now().Sub(agent.CreatedAt)
-		return Styles.Warn.Render("⦾ connecting") + " " +
-			Styles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
+		return DefaultStyles.Warn.Render("⦾ connecting") + " " +
+			DefaultStyles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
 	case codersdk.WorkspaceAgentDisconnected:
 		since := database.Now().Sub(*agent.DisconnectedAt)
-		return Styles.Error.Render("⦾ disconnected") + " " +
-			Styles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
+		return DefaultStyles.Error.Render("⦾ disconnected") + " " +
+			DefaultStyles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
 	case codersdk.WorkspaceAgentTimeout:
 		since := database.Now().Sub(agent.CreatedAt)
 		return fmt.Sprintf(
 			"%s %s",
-			Styles.Warn.Render("⦾ timeout"),
-			Styles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]"),
+			DefaultStyles.Warn.Render("⦾ timeout"),
+			DefaultStyles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]"),
 		)
 	case codersdk.WorkspaceAgentConnected:
-		return Styles.Keyword.Render("⦿ connected")
+		return DefaultStyles.Keyword.Render("⦿ connected")
 	default:
-		return Styles.Warn.Render("○ unknown")
+		return DefaultStyles.Warn.Render("○ unknown")
 	}
 }
 
@@ -146,11 +146,11 @@ func renderAgentVersion(agentVersion, serverVersion string) string {
 		agentVersion = "(unknown)"
 	}
 	if !semver.IsValid(serverVersion) || !semver.IsValid(agentVersion) {
-		return Styles.Placeholder.Render(agentVersion)
+		return DefaultStyles.Placeholder.Render(agentVersion)
 	}
 	outdated := semver.Compare(agentVersion, serverVersion) < 0
 	if outdated {
-		return Styles.Warn.Render(agentVersion + " (outdated)")
+		return DefaultStyles.Warn.Render(agentVersion + " (outdated)")
 	}
-	return Styles.Keyword.Render(agentVersion)
+	return DefaultStyles.Keyword.Render(agentVersion)
 }

@@ -321,13 +321,6 @@ func (q *querier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now
 	return q.db.GetWorkspacesEligibleForAutoStartStop(ctx, now)
 }
 
-func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetParameterSchemasCreatedAfter(ctx, createdAt)
-}
-
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
@@ -439,16 +432,16 @@ func (q *querier) InsertWorkspaceResource(ctx context.Context, arg database.Inse
 	return q.db.InsertWorkspaceResource(ctx, arg)
 }
 
-func (q *querier) InsertParameterSchema(ctx context.Context, arg database.InsertParameterSchemaParams) (database.ParameterSchema, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.ParameterSchema{}, err
-	}
-	return q.db.InsertParameterSchema(ctx, arg)
-}
-
 func (q *querier) GetWorkspaceProxyByHostname(ctx context.Context, params database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceProxy{}, err
 	}
 	return q.db.GetWorkspaceProxyByHostname(ctx, params)
+}
+
+func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertDefaultProxy(ctx, arg)
 }

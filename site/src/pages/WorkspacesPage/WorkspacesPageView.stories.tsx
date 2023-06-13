@@ -1,6 +1,6 @@
 /* eslint-disable eslint-comments/disable-enable-pair -- ignore */
 /* eslint-disable @typescript-eslint/no-explicit-any -- We don't care about any here */
-import { ComponentMeta, Story } from "@storybook/react"
+import { Meta, StoryObj } from "@storybook/react"
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils"
 import dayjs from "dayjs"
 import uniqueId from "lodash/uniqueId"
@@ -16,11 +16,9 @@ import {
   MockEntitlementsWithScheduling,
   MockExperiments,
   MockUser,
+  mockApiError,
 } from "testHelpers/entities"
-import {
-  WorkspacesPageView,
-  WorkspacesPageViewProps,
-} from "./WorkspacesPageView"
+import { WorkspacesPageView } from "./WorkspacesPageView"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
 import { action } from "@storybook/addon-actions"
 import { ComponentProps } from "react"
@@ -73,7 +71,7 @@ const MockedAppearance = {
   save: () => null,
 }
 
-const mockAutocomplete = {
+const mockMenu = {
   initialOption: undefined,
   isInitializing: false,
   isSearching: false,
@@ -86,65 +84,80 @@ const mockAutocomplete = {
 
 const defaultFilterProps = {
   filter: {
-    query: `owner:${MockUser.username}`,
+    query: `owner:me`,
     update: () => action("update"),
     debounceUpdate: action("debounce") as any,
+    used: false,
     values: {
       owner: MockUser.username,
       template: undefined,
       status: undefined,
     },
   },
-  autocomplete: {
-    users: mockAutocomplete,
-    templates: mockAutocomplete,
-    status: mockAutocomplete,
+  menus: {
+    user: mockMenu,
+    template: mockMenu,
+    status: mockMenu,
   },
 } as ComponentProps<typeof WorkspacesPageView>["filterProps"]
 
-export default {
+const meta: Meta<typeof WorkspacesPageView> = {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
   args: {
     limit: DEFAULT_RECORDS_PER_PAGE,
     filterProps: defaultFilterProps,
   },
-} as ComponentMeta<typeof WorkspacesPageView>
-
-const Template: Story<WorkspacesPageViewProps> = (args) => (
-  <DashboardProviderContext.Provider
-    value={{
-      buildInfo: MockBuildInfo,
-      entitlements: MockEntitlementsWithScheduling,
-      experiments: MockExperiments,
-      appearance: MockedAppearance,
-    }}
-  >
-    <WorkspacesPageView {...args} />
-  </DashboardProviderContext.Provider>
-)
-
-export const AllStates = Template.bind({})
-AllStates.args = {
-  workspaces: allWorkspaces,
-  count: allWorkspaces.length,
+  decorators: [
+    (Story) => (
+      <DashboardProviderContext.Provider
+        value={{
+          buildInfo: MockBuildInfo,
+          entitlements: MockEntitlementsWithScheduling,
+          experiments: MockExperiments,
+          appearance: MockedAppearance,
+        }}
+      >
+        <Story />
+      </DashboardProviderContext.Provider>
+    ),
+  ],
 }
 
-export const OwnerHasNoWorkspaces = Template.bind({})
-OwnerHasNoWorkspaces.args = {
-  workspaces: [],
-  count: 0,
-}
+export default meta
+type Story = StoryObj<typeof WorkspacesPageView>
 
-export const NoSearchResults = Template.bind({})
-NoSearchResults.args = {
-  workspaces: [],
-  filterProps: {
-    ...defaultFilterProps,
-    filter: {
-      ...defaultFilterProps.filter,
-      query: "searchwithnoresults",
-    },
+export const AllStates: Story = {
+  args: {
+    workspaces: allWorkspaces,
+    count: allWorkspaces.length,
   },
-  count: 0,
+}
+
+export const OwnerHasNoWorkspaces: Story = {
+  args: {
+    workspaces: [],
+    count: 0,
+  },
+}
+
+export const NoSearchResults: Story = {
+  args: {
+    workspaces: [],
+    filterProps: {
+      ...defaultFilterProps,
+      filter: {
+        ...defaultFilterProps.filter,
+        query: "searchwithnoresults",
+        used: true,
+      },
+    },
+    count: 0,
+  },
+}
+
+export const Error: Story = {
+  args: {
+    error: mockApiError({ message: "Something went wrong" }),
+  },
 }

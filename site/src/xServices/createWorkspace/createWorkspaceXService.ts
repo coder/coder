@@ -4,11 +4,9 @@ import {
   getTemplates,
   getTemplateVersionGitAuth,
   getTemplateVersionRichParameters,
-  getTemplateVersionSchema,
 } from "api/api"
 import {
   CreateWorkspaceRequest,
-  ParameterSchema,
   Template,
   TemplateVersionGitAuth,
   TemplateVersionParameter,
@@ -26,7 +24,6 @@ type CreateWorkspaceContext = {
   templates?: Template[]
   selectedTemplate?: Template
   templateParameters?: TemplateVersionParameter[]
-  templateSchema?: ParameterSchema[]
   templateGitAuth?: TemplateVersionGitAuth[]
   createWorkspaceRequest?: CreateWorkspaceRequest
   createdWorkspace?: Workspace
@@ -34,7 +31,6 @@ type CreateWorkspaceContext = {
   getTemplatesError?: Error | unknown
   getTemplateParametersError?: Error | unknown
   getTemplateGitAuthError?: Error | unknown
-  getTemplateSchemaError?: Error | unknown
   permissions?: Record<string, boolean>
   checkPermissionsError?: Error | unknown
 }
@@ -77,9 +73,6 @@ export const createWorkspaceMachine =
           getTemplateParameters: {
             data: TemplateVersionParameter[]
           }
-          getTemplateSchema: {
-            data: ParameterSchema[]
-          }
           createWorkspace: {
             data: Workspace
           }
@@ -98,25 +91,11 @@ export const createWorkspaceMachine =
               },
               {
                 actions: ["assignTemplates", "assignSelectedTemplate"],
-                target: "gettingTemplateSchema",
+                target: "gettingTemplateParameters",
               },
             ],
             onError: {
               actions: ["assignGetTemplatesError"],
-              target: "error",
-            },
-          },
-        },
-        gettingTemplateSchema: {
-          entry: "clearGetTemplateSchemaError",
-          invoke: {
-            src: "getTemplateSchema",
-            onDone: {
-              actions: ["assignTemplateSchema"],
-              target: "gettingTemplateParameters",
-            },
-            onError: {
-              actions: ["assignGetTemplateSchemaError"],
               target: "error",
             },
           },
@@ -232,15 +211,6 @@ export const createWorkspaceMachine =
             selectedTemplate.active_version_id,
           )
         },
-        getTemplateSchema: (context) => {
-          const { selectedTemplate } = context
-
-          if (!selectedTemplate) {
-            throw new Error("No selected template")
-          }
-
-          return getTemplateVersionSchema(selectedTemplate.active_version_id)
-        },
         checkPermissions: async (context) => {
           if (!context.organizationId) {
             throw new Error("No organization ID")
@@ -296,11 +266,6 @@ export const createWorkspaceMachine =
         assignTemplateParameters: assign({
           templateParameters: (_, event) => event.data,
         }),
-        assignTemplateSchema: assign({
-          // Only show parameters that are allowed to be overridden.
-          // CLI code: https://github.com/coder/coder/blob/main/cli/create.go#L152-L155
-          templateSchema: (_, event) => event.data,
-        }),
         assignPermissions: assign({
           permissions: (_, event) => event.data as Record<string, boolean>,
         }),
@@ -333,12 +298,6 @@ export const createWorkspaceMachine =
         }),
         clearGetTemplateParametersError: assign({
           getTemplateParametersError: (_) => undefined,
-        }),
-        assignGetTemplateSchemaError: assign({
-          getTemplateSchemaError: (_, event) => event.data,
-        }),
-        clearGetTemplateSchemaError: assign({
-          getTemplateSchemaError: (_) => undefined,
         }),
         clearTemplateGitAuthError: assign({
           getTemplateGitAuthError: (_) => undefined,

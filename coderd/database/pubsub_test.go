@@ -7,8 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 	"math/rand"
-	"net"
-	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -47,11 +45,11 @@ func TestPubsub(t *testing.T) {
 		event := "test"
 		data := "testing"
 		messageChannel := make(chan []byte)
-		cancelFunc, err = pubsub.Subscribe(event, func(ctx context.Context, message []byte) {
+		unsub, err := pubsub.Subscribe(event, func(ctx context.Context, message []byte) {
 			messageChannel <- message
 		})
 		require.NoError(t, err)
-		defer cancelFunc()
+		defer unsub()
 		go func() {
 			err = pubsub.Publish(event, []byte(data))
 			assert.NoError(t, err)
@@ -73,6 +71,91 @@ func TestPubsub(t *testing.T) {
 		require.NoError(t, err)
 		defer pubsub.Close()
 		cancelFunc()
+	})
+
+	t.Run("NotClosedOnCancelContext", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		connectionURL, closePg, err := postgres.Open()
+		require.NoError(t, err)
+		defer closePg()
+		db, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer db.Close()
+		pubsub, err := database.NewPubsub(ctx, db, connectionURL)
+		require.NoError(t, err)
+		defer pubsub.Close()
+
+		// Provided context must only be active during NewPubsub, not after.
+		cancel()
+
+		event := "test"
+		data := "testing"
+		messageChannel := make(chan []byte)
+		unsub, err := pubsub.Subscribe(event, func(_ context.Context, message []byte) {
+			messageChannel <- message
+		})
+		require.NoError(t, err)
+		defer unsub()
+		go func() {
+			err = pubsub.Publish(event, []byte(data))
+			assert.NoError(t, err)
+		}()
+		message := <-messageChannel
+		assert.Equal(t, string(message), data)
+	})
+
+	t.Run("ClosePropagatesContextCancellationToSubscription", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		connectionURL, closePg, err := postgres.Open()
+		require.NoError(t, err)
+		defer closePg()
+		db, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer db.Close()
+		pubsub, err := database.NewPubsub(ctx, db, connectionURL)
+		require.NoError(t, err)
+		defer pubsub.Close()
+
+		event := "test"
+		done := make(chan struct{})
+		called := make(chan struct{})
+		unsub, err := pubsub.Subscribe(event, func(subCtx context.Context, _ []byte) {
+			defer close(done)
+			select {
+			case <-subCtx.Done():
+				assert.Fail(t, "context should not be canceled")
+			default:
+			}
+			close(called)
+			select {
+			case <-subCtx.Done():
+			case <-ctx.Done():
+				assert.Fail(t, "timeout waiting for sub context to be canceled")
+			}
+		})
+		require.NoError(t, err)
+		defer unsub()
+
+		go func() {
+			err := pubsub.Publish(event, nil)
+			assert.NoError(t, err)
+		}()
+
+		select {
+		case <-called:
+		case <-ctx.Done():
+			require.Fail(t, "timeout waiting for handler to be called")
+		}
+		err = pubsub.Close()
+		require.NoError(t, err)
+
+		select {
+		case <-done:
+		case <-ctx.Done():
+			require.Fail(t, "timeout waiting for handler to finish")
+		}
 	})
 }
 
@@ -117,11 +200,17 @@ func TestPubsub_ordering(t *testing.T) {
 	}
 }
 
+// disconnectTestPort is the hardcoded port for TestPubsub_Disconnect.  In this test we need to be able to stop Postgres
+// and restart it on the same port.  If we use an ephemeral port, there is a chance the OS will reallocate before we
+// start back up.  The downside is that if the test crashes and leaves the container up, subsequent test runs will fail
+// until we manually kill the container.
+const disconnectTestPort = 26892
+
+// nolint: paralleltest
 func TestPubsub_Disconnect(t *testing.T) {
-	t.Parallel()
 	// we always use a Docker container for this test, even in CI, since we need to be able to kill
 	// postgres and bring it back on the same port.
-	connectionURL, closePg, err := postgres.OpenContainerized(0)
+	connectionURL, closePg, err := postgres.OpenContainerized(disconnectTestPort)
 	require.NoError(t, err)
 	defer closePg()
 	db, err := sql.Open("postgres", connectionURL)
@@ -191,13 +280,8 @@ func TestPubsub_Disconnect(t *testing.T) {
 
 	// restart postgres on the same port --- since we only use LISTEN/NOTIFY it doesn't
 	// matter that the new postgres doesn't have any persisted state from before.
-	u, err := url.Parse(connectionURL)
+	_, closeNewPg, err := postgres.OpenContainerized(disconnectTestPort)
 	require.NoError(t, err)
-	addr, err := net.ResolveTCPAddr("tcp", u.Host)
-	require.NoError(t, err)
-	newURL, closeNewPg, err := postgres.OpenContainerized(addr.Port)
-	require.NoError(t, err)
-	require.Equal(t, connectionURL, newURL)
 	defer closeNewPg()
 
 	// now write messages until we DON'T hit an error -- pubsub is back up.

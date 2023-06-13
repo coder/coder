@@ -1,10 +1,12 @@
 locals {
-  prometheus_helm_repo            = "https://charts.bitnami.com/bitnami"
-  prometheus_helm_chart           = "kube-prometheus"
-  prometheus_helm_version         = null // just use latest
-  prometheus_release_name         = "prometheus"
-  prometheus_namespace            = "prometheus"
-  prometheus_remote_write_enabled = var.prometheus_remote_write_password != ""
+  prometheus_helm_repo             = "https://charts.bitnami.com/bitnami"
+  prometheus_helm_chart            = "kube-prometheus"
+  prometheus_exporter_helm_repo    = "https://prometheus-community.github.io/helm-charts"
+  prometheus_exporter_helm_chart   = "prometheus-postgres-exporter"
+  prometheus_release_name          = "prometheus"
+  prometheus_exporter_release_name = "prometheus-postgres-exporter"
+  prometheus_namespace             = "prometheus"
+  prometheus_remote_write_enabled  = var.prometheus_remote_write_password != ""
 }
 
 # Create a namespace to hold our Prometheus deployment.
@@ -37,7 +39,6 @@ resource "helm_release" "prometheus-chart" {
   repository = local.prometheus_helm_repo
   chart      = local.prometheus_helm_chart
   name       = local.prometheus_release_name
-  version    = local.prometheus_helm_version
   namespace  = kubernetes_namespace.prometheus_namespace.metadata.0.name
   values = [<<EOF
 alertmanager:
@@ -97,12 +98,54 @@ prometheus:
   ]
 }
 
+resource "kubernetes_secret" "prometheus-postgres-password" {
+  type = "kubernetes.io/basic-auth"
+  metadata {
+    name      = "prometheus-postgres"
+    namespace = kubernetes_namespace.prometheus_namespace.metadata.0.name
+  }
+  data = {
+    username = google_sql_user.prometheus.name
+    password = google_sql_user.prometheus.password
+  }
+}
+
+# Install Prometheus Postgres exporter helm chart
+resource "helm_release" "prometheus-exporter-chart" {
+  repository = local.prometheus_exporter_helm_repo
+  chart      = local.prometheus_exporter_helm_chart
+  name       = local.prometheus_exporter_release_name
+  namespace  = local.prometheus_namespace
+  values = [<<EOF
+affinity:
+  nodeAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+    - matchExpressions:
+      - key: "cloud.google.com/gke-nodepool"
+        operator: "In"
+        values: ["${google_container_node_pool.misc.name}"]
+config:
+  datasource:
+    host: "${google_sql_database_instance.db.private_ip_address}"
+    user: "${google_sql_user.prometheus.name}"
+    database: "${google_sql_database.coder.name}"
+    passwordSecret:
+      name: "${kubernetes_secret.prometheus-postgres-password.metadata.0.name}"
+      key: password
+    autoDiscoverDatabases: true
+serviceMonitor:
+  enabled: true
+  EOF
+  ]
+}
+
 # NOTE: this is created as a local file before being applied
 # as the kubernetes_manifest resource needs to be run separately
 # after creating a cluster, and we want this to be brought up
 # with a single command.
 resource "local_file" "coder-monitoring-manifest" {
-  filename   = "${path.module}/.coderv2/coder-monitoring.yaml"
+  filename   = "${path.module}/../.coderv2/coder-monitoring.yaml"
   depends_on = [helm_release.prometheus-chart]
   content    = <<EOF
 apiVersion: monitoring.coreos.com/v1
@@ -122,7 +165,7 @@ spec:
 
 resource "null_resource" "coder-monitoring-manifest_apply" {
   provisioner "local-exec" {
-    working_dir = "${abspath(path.module)}/.coderv2"
+    working_dir = "${abspath(path.module)}/../.coderv2"
     command     = <<EOF
 KUBECONFIG=${var.name}-cluster.kubeconfig gcloud container clusters get-credentials ${google_container_cluster.primary.name} --project=${var.project_id} --zone=${var.zone} && \
 KUBECONFIG=${var.name}-cluster.kubeconfig kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}

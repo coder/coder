@@ -21,12 +21,21 @@ import (
 	"github.com/coder/retry"
 )
 
-// timezoneOffsets are the timezones that are cached and supported.
+// deploymentTimezoneOffsets are the timezones that are cached and supported.
 // Any non-listed timezone offsets will need to use the closest supported one.
-var timezoneOffsets = []int{
+var deploymentTimezoneOffsets = []int{
 	0, // UTC - is listed first intentionally.
 	-12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1,
 	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+}
+
+// templateTimezoneOffsets are the timezones each template will use for it's DAU
+// calculations. This is expensive as each template needs to do each timezone, so keep this list
+// very small.
+var templateTimezoneOffsets = []int{
+	// Only do one for now. If people request more accurate template DAU, we can
+	// fix this. But it adds too much cost, so optimization is needed first.
+	0, // UTC - is listed first intentionally.
 }
 
 // Cache holds the template metrics.
@@ -166,7 +175,7 @@ func (c *Cache) refreshDeploymentDAUs(ctx context.Context) error {
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	deploymentDAUs := make(map[int]codersdk.DAUsResponse)
-	for _, tzOffset := range timezoneOffsets {
+	for _, tzOffset := range deploymentTimezoneOffsets {
 		rows, err := c.database.GetDeploymentDAUs(ctx, int32(tzOffset))
 		if err != nil {
 			return err
@@ -199,7 +208,7 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	}
 
 	for _, template := range templates {
-		for _, tzOffset := range timezoneOffsets {
+		for _, tzOffset := range templateTimezoneOffsets {
 			rows, err := c.database.GetTemplateDAUs(ctx, database.GetTemplateDAUsParams{
 				TemplateID: template.ID,
 				TzOffset:   int32(tzOffset),

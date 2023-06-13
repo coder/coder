@@ -225,8 +225,8 @@ characters long (no more than 72).
 
 Examples:
 
-- Good: `feat(api): Add feature X`
-- Bad: `feat(api): Added feature X` (past tense)
+- Good: `feat(api): add feature X`
+- Bad: `feat(api): added feature X` (past tense)
 
 A good rule of thumb for writing good commit messages is to recite: [If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
 
@@ -236,7 +236,7 @@ A good rule of thumb for writing good commit messages is to recite: [If applied,
 
 Breaking changes can be triggered in two ways:
 
-- Add `!` to the commit message title, e.g. `feat(api)!: Remove deprecated endpoint /test`
+- Add `!` to the commit message title, e.g. `feat(api)!: remove deprecated endpoint /test`
 - Add the [`release/breaking`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fbreaking) label to a PR that has, or will be, merged into `main`.
 
 ### Security

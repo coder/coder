@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/stretchr/testify/require"
@@ -19,14 +20,16 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbmock"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/util/slice"
 )
 
 var skipMethods = map[string]string{
-	"InTx": "Not relevant",
-	"Ping": "Not relevant",
+	"InTx":     "Not relevant",
+	"Ping":     "Not relevant",
+	"Wrappers": "Not relevant",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.
@@ -52,7 +55,11 @@ type MethodTestSuite struct {
 // SetupSuite sets up the suite by creating a map of all methods on querier
 // and setting their count to 0.
 func (s *MethodTestSuite) SetupSuite() {
-	az := dbauthz.New(nil, nil, slog.Make())
+	ctrl := gomock.NewController(s.T())
+	mockStore := dbmock.NewMockStore(ctrl)
+	// We intentionally set no expectations apart from this.
+	mockStore.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	az := dbauthz.New(mockStore, nil, slog.Make())
 	// Take the underlying type of the interface.
 	azt := reflect.TypeOf(az).Elem()
 	s.methodAccounting = make(map[string]int)

@@ -33,6 +33,9 @@ networking:
     # directly in the database.
     # (default: <unset>, type: bool)
     disablePasswordAuth: false
+    # The interval in which coderd should be checking the status of workspace proxies.
+    # (default: 1m0s, type: duration)
+    proxyHealthInterval: 1m0s
   # Configure TLS / HTTPS for your Coder deployment. If you're running
   #  Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
   #  secure link, you can safely ignore these settings.
@@ -238,8 +241,8 @@ oidc:
   # Ignore the userinfo endpoint and only use the ID token for user information.
   # (default: false, type: bool)
   ignoreUserInfo: false
-  # Change the OIDC default 'groups' claim field. By default, will be 'groups' if
-  # present in the oidc scopes argument.
+  # This field must be set if using the group sync feature and the scope name is not
+  # 'groups'. Set to the claim to be used for groups.
   # (default: <unset>, type: string)
   groupField: ""
   # A map of OIDC group IDs and the group in Coder it should map to. This is useful

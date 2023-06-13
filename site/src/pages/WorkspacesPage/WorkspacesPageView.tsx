@@ -17,10 +17,11 @@ import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
 import { ImpendingDeletionBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { Filter } from "./filter/filter"
+import { WorkspacesFilter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
 import { workspaceFilterQuery } from "utils/filters"
 import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
+import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -49,9 +50,9 @@ export interface WorkspacesPageViewProps {
   workspaces?: Workspace[]
   count?: number
   useNewFilter?: boolean
+  filterProps: ComponentProps<typeof WorkspacesFilter>
   page: number
   limit: number
-  filterProps: ComponentProps<typeof Filter>
   onPageChange: (page: number) => void
   onUpdateWorkspace: (workspace: Workspace) => void
 }
@@ -133,7 +134,7 @@ export const WorkspacesPageView: FC<
         />
 
         {useNewFilter ? (
-          <Filter error={error} {...filterProps} />
+          <WorkspacesFilter error={error} {...filterProps} />
         ) : (
           <SearchBarWithFilter
             filter={filterProps.filter.query}
@@ -143,9 +144,17 @@ export const WorkspacesPageView: FC<
           />
         )}
       </Stack>
+
+      <PaginationStatus
+        isLoading={!workspaces}
+        showing={workspaces?.length}
+        total={count}
+        label="workspaces"
+      />
+
       <WorkspacesTable
         workspaces={workspaces}
-        isUsingFilter={filterProps.filter.query !== ""}
+        isUsingFilter={filterProps.filter.used}
         onUpdateWorkspace={onUpdateWorkspace}
         error={error}
       />

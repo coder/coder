@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.7.0"
+      version = "0.8.3"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -91,7 +91,7 @@ resource "coder_agent" "dev" {
     GITHUB_TOKEN : data.coder_git_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
   }
-  login_before_ready = false
+  startup_script_behavior = "blocking"
 
   metadata {
     display_name = "CPU Usage"

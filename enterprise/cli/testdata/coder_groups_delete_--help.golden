@@ -1,0 +1,8 @@
+Usage: coder groups delete <name>
+
+Delete a user group
+
+Aliases: rm
+
+---
+Run `coder --help` for a list of global options.

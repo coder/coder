@@ -76,6 +76,20 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 	WorkspaceAgentLifecycleOff,
 }
 
+// WorkspaceAgentStartupScriptBehavior defines whether or not the startup script
+// should be considered blocking or non-blocking. The blocking behavior means
+// that the agent will not be considered ready until the startup script has
+// completed and, for example, SSH connections will wait for the agent to be
+// ready (can be overridden).
+//
+// Presently, non-blocking is the default, but this may change in the future.
+type WorkspaceAgentStartupScriptBehavior string
+
+const (
+	WorkspaceAgentStartupScriptBehaviorBlocking    WorkspaceAgentStartupScriptBehavior = "blocking"
+	WorkspaceAgentStartupScriptBehaviorNonBlocking WorkspaceAgentStartupScriptBehavior = "non-blocking"
+)
+
 type WorkspaceAgentMetadataResult struct {
 	CollectedAt time.Time `json:"collected_at" format:"date-time"`
 	// Age is the number of seconds since the metadata was collected.
@@ -127,8 +141,9 @@ type WorkspaceAgent struct {
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
-	// LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
-	LoginBeforeReady bool `json:"login_before_ready"`
+	// Deprecated: Use StartupScriptBehavior instead.
+	LoginBeforeReady      bool                                `json:"login_before_ready"`
+	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
 	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
 	StartupScriptTimeoutSeconds  int32          `json:"startup_script_timeout_seconds"`
 	ShutdownScript               string         `json:"shutdown_script,omitempty"`
@@ -300,6 +315,7 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 
 	metadataChan := make(chan []WorkspaceAgentMetadata, 256)
 
+	ready := make(chan struct{})
 	watch := func() error {
 		res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
 		if err != nil {
@@ -312,17 +328,22 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 		nextEvent := ServerSentEventReader(ctx, res.Body)
 		defer res.Body.Close()
 
+		firstEvent := true
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				break
 			}
 
 			sse, err := nextEvent()
 			if err != nil {
 				return err
+			}
+
+			if firstEvent {
+				close(ready) // Only close ready after the first event is received.
+				firstEvent = false
 			}
 
 			b, ok := sse.Data.([]byte)
@@ -354,8 +375,17 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 	errorChan := make(chan error, 1)
 	go func() {
 		defer close(errorChan)
-		errorChan <- watch()
+		err := watch()
+		select {
+		case <-ready:
+		default:
+			close(ready) // Error before first event.
+		}
+		errorChan <- err
 	}()
+
+	// Wait until first event is received and the subscription is registered.
+	<-ready
 
 	return metadataChan, errorChan
 }
@@ -371,7 +401,18 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 		return WorkspaceAgent{}, ReadBodyAsError(res)
 	}
 	var workspaceAgent WorkspaceAgent
-	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
+	err = json.NewDecoder(res.Body).Decode(&workspaceAgent)
+	if err != nil {
+		return WorkspaceAgent{}, err
+	}
+	// Backwards compatibility for cases where the API is older then the client.
+	if workspaceAgent.StartupScriptBehavior == "" {
+		workspaceAgent.StartupScriptBehavior = WorkspaceAgentStartupScriptBehaviorNonBlocking
+		if !workspaceAgent.LoginBeforeReady {
+			workspaceAgent.StartupScriptBehavior = WorkspaceAgentStartupScriptBehaviorBlocking
+		}
+	}
+	return workspaceAgent, nil
 }
 
 type IssueReconnectingPTYSignedTokenRequest struct {

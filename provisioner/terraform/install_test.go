@@ -1,10 +1,14 @@
+//go:build !race
+
+// This test is excluded from the race detector because the underlying
+// hc-install library makes massive allocations and can take 1-2 minutes
+// to complete.
 package terraform_test
 
 import (
 	"context"
 	"os"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,50 +29,62 @@ func TestInstall(t *testing.T) {
 	dir := t.TempDir()
 	log := slogtest.Make(t, nil)
 
-	// install spins off 8 installs with Version and waits for them all
-	// to complete.
+	// Install spins off 8 installs with Version and waits for them all
+	// to complete. The locking mechanism within Install should
+	// prevent multiple binaries from being installed, so the function
+	// should perform like a single install.
 	install := func(version *version.Version) string {
 		var wg sync.WaitGroup
-		var path atomic.Pointer[string]
+		paths := make(chan string, 8)
 		for i := 0; i < 8; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				p, err := terraform.Install(ctx, log, dir, version)
 				assert.NoError(t, err)
-				path.Store(&p)
+				paths <- p
 			}()
 		}
-		wg.Wait()
-		if t.Failed() {
-			t.FailNow()
+		go func() {
+			wg.Wait()
+			close(paths)
+		}()
+		var firstPath string
+		for p := range paths {
+			if firstPath == "" {
+				firstPath = p
+			} else {
+				require.Equal(t, firstPath, p, "installs returned different paths")
+			}
 		}
-		return *path.Load()
+		return firstPath
 	}
 
-	binPath := install(terraform.TerraformVersion)
+	version1 := terraform.TerraformVersion
+	binPath := install(version1)
 
-	checkBin := func() time.Time {
+	checkBinModTime := func() time.Time {
 		binInfo, err := os.Stat(binPath)
 		require.NoError(t, err)
 		require.Greater(t, binInfo.Size(), int64(0))
 		return binInfo.ModTime()
 	}
 
-	firstMod := checkBin()
+	modTime1 := checkBinModTime()
 
 	// Since we're using the same version the install should be idempotent.
 	install(terraform.TerraformVersion)
-	secondMod := checkBin()
-	require.Equal(t, firstMod, secondMod)
+	modTime2 := checkBinModTime()
+	require.Equal(t, modTime1, modTime2)
 
 	// Ensure a new install happens when version changes
-	differentVersion := version.Must(version.NewVersion("1.2.0"))
+	version2 := version.Must(version.NewVersion("1.2.0"))
+
 	// Sanity-check
-	require.NotEqual(t, differentVersion.String(), terraform.TerraformVersion.String())
+	require.NotEqual(t, version2.String(), version1.String())
 
-	install(differentVersion)
+	install(version2)
 
-	thirdMod := checkBin()
-	require.Greater(t, thirdMod, secondMod)
+	modTime3 := checkBinModTime()
+	require.Greater(t, modTime3, modTime2)
 }

@@ -1131,7 +1131,8 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		ConnectionTimeoutSeconds:     dbAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:           troubleshootingURL,
 		LifecycleState:               codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
-		LoginBeforeReady:             dbAgent.LoginBeforeReady,
+		LoginBeforeReady:             dbAgent.StartupScriptBehavior != database.StartupScriptBehaviorBlocking,
+		StartupScriptBehavior:        codersdk.WorkspaceAgentStartupScriptBehavior(dbAgent.StartupScriptBehavior),
 		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
 		ShutdownScript:               dbAgent.ShutdownScript.String,
 		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
@@ -1438,9 +1439,6 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 		})
 	}
 
-	// Send initial metadata.
-	sendMetadata(true)
-
 	// We debounce metadata updates to avoid overloading the frontend when
 	// an agent is sending a lot of updates.
 	pubsubDebounce := debounce.New(time.Second)
@@ -1448,7 +1446,8 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 		pubsubDebounce = debounce.New(time.Millisecond * 100)
 	}
 
-	// Send metadata on updates.
+	// Send metadata on updates, we must ensure subscription before sending
+	// initial metadata to guarantee that events in-between are not missed.
 	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
 		pubsubDebounce(func() {
 			sendMetadata(true)
@@ -1460,12 +1459,14 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	}
 	defer cancelSub()
 
+	// Send initial metadata.
+	sendMetadata(true)
+
 	for {
 		select {
 		case <-senderClosed:
 			return
 		case <-refreshTicker.C:
-			break
 		}
 
 		// Avoid spamming the DB with reads we know there are no updates. We want

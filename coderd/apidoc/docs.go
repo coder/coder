@@ -1595,167 +1595,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/parameters/{scope}/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Parameters"
-                ],
-                "summary": "Get parameters",
-                "operationId": "get-parameters",
-                "parameters": [
-                    {
-                        "enum": [
-                            "template",
-                            "workspace",
-                            "import_job"
-                        ],
-                        "type": "string",
-                        "description": "Scope",
-                        "name": "scope",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Parameter"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Parameters"
-                ],
-                "summary": "Create parameter",
-                "operationId": "create-parameter",
-                "parameters": [
-                    {
-                        "description": "Parameter request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                        }
-                    },
-                    {
-                        "enum": [
-                            "template",
-                            "workspace",
-                            "import_job"
-                        ],
-                        "type": "string",
-                        "description": "Scope",
-                        "name": "scope",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Parameter"
-                        }
-                    }
-                }
-            }
-        },
-        "/parameters/{scope}/{id}/{name}": {
-            "delete": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Parameters"
-                ],
-                "summary": "Delete parameter",
-                "operationId": "delete-parameter",
-                "parameters": [
-                    {
-                        "enum": [
-                            "template",
-                            "workspace",
-                            "import_job"
-                        ],
-                        "type": "string",
-                        "description": "Scope",
-                        "name": "scope",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Name",
-                        "name": "name",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/regions": {
             "get": {
                 "security": [
@@ -2764,14 +2603,11 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get parameters by template version",
-                "operationId": "get-parameters-by-template-version",
+                "summary": "Removed: Get parameters by template version",
+                "operationId": "removed-get-parameters-by-template-version",
                 "parameters": [
                     {
                         "type": "string",
@@ -2784,13 +2620,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/parameter.ComputedValue"
-                            }
-                        }
+                        "description": "OK"
                     }
                 }
             }
@@ -2878,14 +2708,11 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get schema by template version",
-                "operationId": "get-schema-by-template-version",
+                "summary": "Removed: Get schema by template version",
+                "operationId": "removed-get-schema-by-template-version",
                 "parameters": [
                     {
                         "type": "string",
@@ -2898,13 +2725,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ParameterSchema"
-                            }
-                        }
+                        "description": "OK"
                     }
                 }
             }
@@ -5416,6 +5237,12 @@ const docTemplate = `{
                         "description": "Filter by agent status",
                         "name": "has_agent",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter workspaces scheduled to be deleted by this time",
+                        "name": "deleting_by",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6818,52 +6645,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.CreateParameterRequest": {
-            "description": "CreateParameterRequest is a structure used to create a new parameter value for a scope.",
-            "type": "object",
-            "required": [
-                "destination_scheme",
-                "name",
-                "source_scheme",
-                "source_value"
-            ],
-            "properties": {
-                "copy_from_parameter": {
-                    "description": "CloneID allows copying the value of another parameter.\nThe other param must be related to the same template_id for this to\nsucceed.\nNo other fields are required if using this, as all fields will be copied\nfrom the other parameter.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "destination_scheme": {
-                    "enum": [
-                        "none",
-                        "environment_variable",
-                        "provisioner_variable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterDestinationScheme"
-                        }
-                    ]
-                },
-                "name": {
-                    "type": "string"
-                },
-                "source_scheme": {
-                    "enum": [
-                        "none",
-                        "data"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterSourceScheme"
-                        }
-                    ]
-                },
-                "source_value": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.CreateTemplateRequest": {
             "type": "object",
             "required": [
@@ -6915,12 +6696,6 @@ const docTemplate = `{
                     "description": "Name is the name of the template.",
                     "type": "string"
                 },
-                "parameter_values": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
-                },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
                     "type": "string",
@@ -6931,12 +6706,6 @@ const docTemplate = `{
         "codersdk.CreateTemplateVersionDryRunRequest": {
             "type": "object",
             "properties": {
-                "parameter_values": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
-                },
                 "rich_parameter_values": {
                     "type": "array",
                     "items": {
@@ -6970,13 +6739,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                },
-                "parameter_values": {
-                    "description": "ParameterValues allows for additional parameters to be provided\nduring the dry-run provision stage.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
                 },
                 "provisioner": {
                     "type": "string",
@@ -7145,14 +6907,8 @@ const docTemplate = `{
                     "description": "Orphan may be set for the Destroy transition.",
                     "type": "boolean"
                 },
-                "parameter_values": {
-                    "description": "ParameterValues are optional. It will write params to the 'workspace' scope.\nThis will overwrite any existing parameters with the same name.\nThis will not delete old params not included in this list.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
-                },
                 "rich_parameter_values": {
+                    "description": "ParameterValues are optional. It will write params to the 'workspace' scope.\nThis will overwrite any existing parameters with the same name.\nThis will not delete old params not included in this list.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
@@ -7213,14 +6969,8 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "parameter_values": {
-                    "description": "ParameterValues allows for additional parameters to be provided\nduring the initial provision.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
-                    }
-                },
                 "rich_parameter_values": {
+                    "description": "ParameterValues allows for additional parameters to be provided\nduring the initial provision.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
@@ -7472,6 +7222,9 @@ const docTemplate = `{
                 },
                 "provisioner": {
                     "$ref": "#/definitions/codersdk.ProvisionerConfig"
+                },
+                "proxy_health_status_interval": {
+                    "type": "integer"
                 },
                 "proxy_trusted_headers": {
                     "type": "array",
@@ -8070,186 +7823,6 @@ const docTemplate = `{
                     "format": "uuid"
                 }
             }
-        },
-        "codersdk.Parameter": {
-            "description": "Parameter represents a set value for the scope.",
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "destination_scheme": {
-                    "enum": [
-                        "none",
-                        "environment_variable",
-                        "provisioner_variable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterDestinationScheme"
-                        }
-                    ]
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "scope": {
-                    "enum": [
-                        "template",
-                        "workspace",
-                        "import_job"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterScope"
-                        }
-                    ]
-                },
-                "scope_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "source_scheme": {
-                    "enum": [
-                        "none",
-                        "data"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterSourceScheme"
-                        }
-                    ]
-                },
-                "source_value": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
-        },
-        "codersdk.ParameterDestinationScheme": {
-            "type": "string",
-            "enum": [
-                "none",
-                "environment_variable",
-                "provisioner_variable"
-            ],
-            "x-enum-varnames": [
-                "ParameterDestinationSchemeNone",
-                "ParameterDestinationSchemeEnvironmentVariable",
-                "ParameterDestinationSchemeProvisionerVariable"
-            ]
-        },
-        "codersdk.ParameterSchema": {
-            "type": "object",
-            "properties": {
-                "allow_override_destination": {
-                    "type": "boolean"
-                },
-                "allow_override_source": {
-                    "type": "boolean"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "default_destination_scheme": {
-                    "enum": [
-                        "none",
-                        "environment_variable",
-                        "provisioner_variable"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterDestinationScheme"
-                        }
-                    ]
-                },
-                "default_refresh": {
-                    "type": "string"
-                },
-                "default_source_scheme": {
-                    "enum": [
-                        "none",
-                        "data"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ParameterSourceScheme"
-                        }
-                    ]
-                },
-                "default_source_value": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "job_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "redisplay_value": {
-                    "type": "boolean"
-                },
-                "validation_condition": {
-                    "type": "string"
-                },
-                "validation_contains": {
-                    "description": "This is a special array of items provided if the validation condition\nexplicitly states the value must be one of a set.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "validation_error": {
-                    "type": "string"
-                },
-                "validation_type_system": {
-                    "type": "string"
-                },
-                "validation_value_type": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.ParameterScope": {
-            "type": "string",
-            "enum": [
-                "template",
-                "workspace",
-                "import_job"
-            ],
-            "x-enum-varnames": [
-                "ParameterTemplate",
-                "ParameterWorkspace",
-                "ParameterImportJob"
-            ]
-        },
-        "codersdk.ParameterSourceScheme": {
-            "type": "string",
-            "enum": [
-                "none",
-                "data"
-            ],
-            "x-enum-varnames": [
-                "ParameterSourceSchemeNone",
-                "ParameterSourceSchemeData"
-            ]
         },
         "codersdk.PatchTemplateVersionRequest": {
             "type": "object",
@@ -9258,10 +8831,10 @@ const docTemplate = `{
         "codersdk.TemplateVersionWarning": {
             "type": "string",
             "enum": [
-                "DEPRECATED_PARAMETERS"
+                "UNSUPPORTED_WORKSPACES"
             ],
             "x-enum-varnames": [
-                "TemplateVersionWarningDeprecatedParameters"
+                "TemplateVersionWarningUnsupportedWorkspaces"
             ]
         },
         "codersdk.TokenConfig": {
@@ -9660,7 +9233,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 },
                 "login_before_ready": {
-                    "description": "LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
+                    "description": "Deprecated: Use StartupScriptBehavior instead.",
                     "type": "boolean"
                 },
                 "name": {
@@ -9687,6 +9260,9 @@ const docTemplate = `{
                 },
                 "startup_script": {
                     "type": "string"
+                },
+                "startup_script_behavior": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentStartupScriptBehavior"
                 },
                 "startup_script_timeout_seconds": {
                     "description": "StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.",
@@ -9808,6 +9384,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentStartupScriptBehavior": {
+            "type": "string",
+            "enum": [
+                "blocking",
+                "non-blocking"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentStartupScriptBehaviorBlocking",
+                "WorkspaceAgentStartupScriptBehaviorNonBlocking"
+            ]
         },
         "codersdk.WorkspaceAgentStatus": {
             "type": "string",
@@ -10276,43 +9863,6 @@ const docTemplate = `{
                 }
             }
         },
-        "database.ParameterDestinationScheme": {
-            "type": "string",
-            "enum": [
-                "none",
-                "environment_variable",
-                "provisioner_variable"
-            ],
-            "x-enum-varnames": [
-                "ParameterDestinationSchemeNone",
-                "ParameterDestinationSchemeEnvironmentVariable",
-                "ParameterDestinationSchemeProvisionerVariable"
-            ]
-        },
-        "database.ParameterScope": {
-            "type": "string",
-            "enum": [
-                "template",
-                "import_job",
-                "workspace"
-            ],
-            "x-enum-varnames": [
-                "ParameterScopeTemplate",
-                "ParameterScopeImportJob",
-                "ParameterScopeWorkspace"
-            ]
-        },
-        "database.ParameterSourceScheme": {
-            "type": "string",
-            "enum": [
-                "none",
-                "data"
-            ],
-            "x-enum-varnames": [
-                "ParameterSourceSchemeNone",
-                "ParameterSourceSchemeData"
-            ]
-        },
         "derp.ServerInfoMessage": {
             "type": "object",
             "properties": {
@@ -10333,13 +9883,13 @@ const docTemplate = `{
                 "healthy": {
                     "type": "boolean"
                 },
-                "healthzResponse": {
+                "healthz_response": {
                     "type": "string"
                 },
                 "reachable": {
                     "type": "boolean"
                 },
-                "statusCode": {
+                "status_code": {
                     "type": "integer"
                 }
             }
@@ -10451,7 +10001,13 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
-                "pass": {
+                "failing_sections": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "healthy": {
                     "description": "Healthy is true if the report returns no errors.",
                     "type": "boolean"
                 },
@@ -10468,6 +10024,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
                 "response": {
                     "$ref": "#/definitions/healthcheck.WebsocketResponse"
                 }
@@ -10570,44 +10129,6 @@ const docTemplate = `{
                 },
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
-                    "type": "string"
-                }
-            }
-        },
-        "parameter.ComputedValue": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "default_source_value": {
-                    "type": "boolean"
-                },
-                "destination_scheme": {
-                    "$ref": "#/definitions/database.ParameterDestinationScheme"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "schema_id": {
-                    "type": "string"
-                },
-                "scope": {
-                    "$ref": "#/definitions/database.ParameterScope"
-                },
-                "scope_id": {
-                    "type": "string"
-                },
-                "source_scheme": {
-                    "$ref": "#/definitions/database.ParameterSourceScheme"
-                },
-                "source_value": {
-                    "type": "string"
-                },
-                "updated_at": {
                     "type": "string"
                 }
             }

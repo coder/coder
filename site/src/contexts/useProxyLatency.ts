@@ -1,5 +1,5 @@
 import { Region, RegionsResponse } from "api/typesGenerated"
-import { useEffect, useReducer } from "react"
+import { useEffect, useReducer, useState } from "react"
 import PerformanceObserver from "@fastly/performance-observer-polyfill"
 import axios from "axios"
 import { generateRandomString } from "utils/random"
@@ -24,7 +24,32 @@ const proxyLatenciesReducer = (
   state: Record<string, ProxyLatencyReport>,
   action: ProxyLatencyAction,
 ): Record<string, ProxyLatencyReport> => {
-  // Just overwrite any existing latency.
+  // TODO: We should probably not read from local storage on every action.
+  const history = loadStoredLatencies()
+  const proxyHistory = history[action.proxyID] || []
+  const minReport = proxyHistory.reduce((min, report) => {
+    if (min.latencyMS === 0) {
+      // Not yet set, so use the new report.
+      return report
+    }
+    if (min.latencyMS < report.latencyMS) {
+      return min
+    }
+    return report
+  }, {} as ProxyLatencyReport)
+
+  if (
+    minReport.latencyMS > 0 &&
+    minReport.latencyMS < action.report.latencyMS
+  ) {
+    // The new report is slower then the min report, so use the min report.
+    return {
+      ...state,
+      [action.proxyID]: minReport,
+    }
+  }
+
+  // Use the new report
   return {
     ...state,
     [action.proxyID]: action.report,
@@ -33,11 +58,36 @@ const proxyLatenciesReducer = (
 
 export const useProxyLatency = (
   proxies?: RegionsResponse,
-): Record<string, ProxyLatencyReport> => {
+): {
+  // Refetch can be called to refetch the proxy latencies.
+  // Until the new values are loaded, the old values will still be used.
+  refetch: () => void
+  proxyLatencies: Record<string, ProxyLatencyReport>
+} => {
+  // maxStoredLatencies is the maximum number of latencies to store per proxy in local storage.
+  let maxStoredLatencies = 8
+  // The reason we pull this from local storage is so for development purposes, a user can manually
+  // set a larger number to collect data in their normal usage. This data can later be analyzed to come up
+  // with some better magic numbers.
+  const maxStoredLatenciesVar = localStorage.getItem(
+    "workspace-proxy-latencies-max",
+  )
+  if (maxStoredLatenciesVar) {
+    maxStoredLatencies = Number(maxStoredLatenciesVar)
+  }
+
   const [proxyLatencies, dispatchProxyLatencies] = useReducer(
     proxyLatenciesReducer,
     {},
   )
+
+  // This latestFetchRequest is used to trigger a refetch of the proxy latencies.
+  const [latestFetchRequest, setLatestFetchRequest] = useState(
+    new Date().toISOString(),
+  )
+  const refetch = () => {
+    setLatestFetchRequest(new Date().toISOString())
+  }
 
   // Only run latency updates when the proxies change.
   useEffect(() => {
@@ -101,14 +151,17 @@ export const useProxyLatency = (
         )
         latencyMS = entry.duration
       }
-      dispatchProxyLatencies({
+      const update = {
         proxyID: check.id,
         report: {
           latencyMS,
           accurate,
           at: new Date(),
         },
-      })
+      }
+      dispatchProxyLatencies(update)
+      // Also save to local storage to persist the latency across page refreshes.
+      updateStoredLatencies(update)
 
       return
     }
@@ -128,7 +181,8 @@ export const useProxyLatency = (
     const proxyRequests = Object.keys(proxyChecks).map((latencyURL) => {
       return axios.get(latencyURL, {
         withCredentials: false,
-        // Must add a custom header to make the request not a "simple request"
+        // Must add a custom header to make the request not a "simple request".
+        // We want to force a preflight request.
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests
         headers: { "X-LATENCY-CHECK": "true" },
       })
@@ -147,8 +201,74 @@ export const useProxyLatency = (
         // At this point, we can be confident that all the proxy requests have been recorded
         // via the performance observer. So we can disconnect the observer.
         observer.disconnect()
-      })
-  }, [proxies])
 
-  return proxyLatencies
+        // Local storage cleanup
+        garbageCollectStoredLatencies(proxies, maxStoredLatencies)
+      })
+  }, [proxies, latestFetchRequest, maxStoredLatencies])
+
+  return {
+    proxyLatencies,
+    refetch,
+  }
+}
+
+// Local storage functions
+
+// loadStoredLatencies will load the stored latencies from local storage.
+// Latencies are stored in local storage to minimize the impact of outliers.
+// If a single request is slow, we want to omit that latency check, and go with
+// a more accurate latency check.
+const loadStoredLatencies = (): Record<string, ProxyLatencyReport[]> => {
+  const str = localStorage.getItem("workspace-proxy-latencies")
+  if (!str) {
+    return {}
+  }
+
+  return JSON.parse(str)
+}
+
+const updateStoredLatencies = (action: ProxyLatencyAction): void => {
+  const latencies = loadStoredLatencies()
+  const reports = latencies[action.proxyID] || []
+
+  reports.push(action.report)
+  latencies[action.proxyID] = reports
+  localStorage.setItem("workspace-proxy-latencies", JSON.stringify(latencies))
+}
+
+// garbageCollectStoredLatencies will remove any latencies that are older then 1 week or latencies of proxies
+// that no longer exist. This is intended to keep the size of local storage down.
+const garbageCollectStoredLatencies = (
+  regions: RegionsResponse,
+  maxStored: number,
+): void => {
+  const latencies = loadStoredLatencies()
+  const now = Date.now()
+  const cleaned = cleanupLatencies(latencies, regions, new Date(now), maxStored)
+
+  localStorage.setItem("workspace-proxy-latencies", JSON.stringify(cleaned))
+}
+
+const cleanupLatencies = (
+  stored: Record<string, ProxyLatencyReport[]>,
+  regions: RegionsResponse,
+  now: Date,
+  maxStored: number,
+): Record<string, ProxyLatencyReport[]> => {
+  Object.keys(stored).forEach((proxyID) => {
+    if (!regions.regions.find((region) => region.id === proxyID)) {
+      delete stored[proxyID]
+      return
+    }
+    const reports = stored[proxyID]
+    const nowMS = now.getTime()
+    stored[proxyID] = reports.filter((report) => {
+      // Only keep the reports that are less then 1 week old.
+      return new Date(report.at).getTime() > nowMS - 1000 * 60 * 60 * 24 * 7
+    })
+    // Only keep the 5 latest
+    stored[proxyID] = stored[proxyID].slice(-1 * maxStored)
+  })
+  return stored
 }

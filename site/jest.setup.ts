@@ -19,7 +19,7 @@ jest.mock("contexts/useProxyLatency", () => ({
   useProxyLatency: (proxies?: RegionsResponse) => {
     // Must use `useMemo` here to avoid infinite loop.
     // Mocking the hook with a hook.
-    const latencies = useMemo(() => {
+    const proxyLatencies = useMemo(() => {
       if (!proxies) {
         return {} as Record<string, ProxyLatencyReport>
       }
@@ -35,7 +35,7 @@ jest.mock("contexts/useProxyLatency", () => ({
       }, {} as Record<string, ProxyLatencyReport>)
     }, [proxies])
 
-    return latencies
+    return { proxyLatencies, refetch: jest.fn() }
   },
 }))
 

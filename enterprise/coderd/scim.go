@@ -71,10 +71,6 @@ func (api *API) scimGetUsers(rw http.ResponseWriter, r *http.Request) {
 // This is done to always force Okta to try and create the user, this way we
 // don't need to implement fetching users twice.
 //
-// scimGetUsers intentionally always returns no users. This is done to always force
-// Okta to try and create each user individually, this way we don't need to
-// implement fetching users twice.
-//
 // @Summary SCIM 2.0: Get user by ID
 // @ID scim-get-user-by-id
 // @Security CoderSessionToken
@@ -154,6 +150,20 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	if email == "" {
 		_ = handlerutil.WriteError(rw, spec.Error{Status: http.StatusBadRequest, Type: "invalidEmail"})
 		return
+	}
+
+	// The username is a required property in Coder. We make a best-effort
+	// attempt at using what the claims provide, but if that fails we will
+	// generate a random username.
+	usernameValid := httpapi.NameValid(sUser.UserName)
+	if usernameValid != nil {
+		// If no username is provided, we can default to use the email address.
+		// This will be converted in the from function below, so it's safe
+		// to keep the domain.
+		if sUser.UserName == "" {
+			sUser.UserName = email
+		}
+		sUser.UserName = httpapi.UsernameFrom(sUser.UserName)
 	}
 
 	var organizationID uuid.UUID

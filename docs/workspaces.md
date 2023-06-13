@@ -5,7 +5,7 @@ for software development.
 
 ## Create workspaces
 
-Each Coder user has their own workspaces created from [shared templates](./templates/README.md):
+Each Coder user has their own workspaces created from [shared templates](./templates/index.md):
 
 ```console
 # create a workspace from the template; specify any variables
@@ -22,7 +22,7 @@ Coder [supports multiple IDEs](./ides.md) for use with your workspaces.
 ## Workspace lifecycle
 
 Workspaces in Coder are started and stopped, often based on whether there was
-any activity or if there was a [template update](./templates/README.md#Start/stop) available.
+any activity or if there was a [template update](./templates/index.md#Start/stop) available.
 
 Resources are often destroyed and re-created when a workspace is restarted,
 though the exact behavior depends on the template. For more
@@ -87,6 +87,21 @@ Coder stores macOS and Linux logs at the following locations:
 | `startup_script`  | `/tmp/coder-startup-script.log`  |
 | `shutdown_script` | `/tmp/coder-shutdown-script.log` |
 | Agent             | `/tmp/coder-agent.log`           |
+
+> Note: Logs are truncated once they reach 5MB in size.
+
+## Workspace filtering
+
+In the Coder UI, you can filter your workspaces using pre-defined filters or employing the Coder's filter query. Take a look at the following examples to understand how to use the Coder's filter query:
+
+- To find the workspaces that you own, use the filter `owner:me`.
+- To find workspaces that are currently running, use the filter `status:running`.
+
+The following filters are supported:
+
+- `owner` - Represents the `username` of the owner. You can also use `me` as a convenient alias for the logged-in user.
+- `template` - Specifies the name of the template.
+- `status` - Indicates the status of the workspace. For a list of supported statuses, please refer to the [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
 
 ---
 

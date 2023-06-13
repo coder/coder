@@ -2,6 +2,7 @@ package terraform_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -43,7 +44,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
-					LoginBeforeReady:         true,
+					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
 				}},
 			}},
@@ -60,7 +61,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
-					LoginBeforeReady:         true,
+					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
 				}},
 			}, {
@@ -78,7 +79,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_InstanceId{},
-					LoginBeforeReady:         true,
+					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
 				}},
 			}},
@@ -94,7 +95,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
-					LoginBeforeReady:         true,
+					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
 				}},
 			}},
@@ -111,7 +112,7 @@ func TestConvertResources(t *testing.T) {
 					Architecture:                 "amd64",
 					Auth:                         &proto.Agent_Token{},
 					ConnectionTimeoutSeconds:     120,
-					LoginBeforeReady:             true,
+					StartupScriptBehavior:        "non-blocking",
 					StartupScriptTimeoutSeconds:  300,
 					ShutdownScriptTimeoutSeconds: 300,
 				}, {
@@ -121,7 +122,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                         &proto.Agent_Token{},
 					ConnectionTimeoutSeconds:     1,
 					MotdFile:                     "/etc/motd",
-					LoginBeforeReady:             true,
+					StartupScriptBehavior:        "non-blocking",
 					StartupScriptTimeoutSeconds:  30,
 					ShutdownScript:               "echo bye bye",
 					ShutdownScriptTimeoutSeconds: 30,
@@ -132,7 +133,16 @@ func TestConvertResources(t *testing.T) {
 					Auth:                         &proto.Agent_Token{},
 					ConnectionTimeoutSeconds:     120,
 					TroubleshootingUrl:           "https://coder.com/troubleshoot",
-					LoginBeforeReady:             false,
+					StartupScriptBehavior:        "blocking",
+					StartupScriptTimeoutSeconds:  300,
+					ShutdownScriptTimeoutSeconds: 300,
+				}, {
+					Name:                         "dev4",
+					OperatingSystem:              "linux",
+					Architecture:                 "amd64",
+					Auth:                         &proto.Agent_Token{},
+					ConnectionTimeoutSeconds:     120,
+					StartupScriptBehavior:        "blocking",
 					StartupScriptTimeoutSeconds:  300,
 					ShutdownScriptTimeoutSeconds: 300,
 				}},
@@ -171,7 +181,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
-					LoginBeforeReady:         true,
+					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
 				}},
 			}},
@@ -195,7 +205,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
-					LoginBeforeReady:         true,
+					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
 				}},
 			}},
@@ -235,7 +245,7 @@ func TestConvertResources(t *testing.T) {
 					}},
 					ShutdownScriptTimeoutSeconds: 300,
 					StartupScriptTimeoutSeconds:  300,
-					LoginBeforeReady:             true,
+					StartupScriptBehavior:        "non-blocking",
 					ConnectionTimeoutSeconds:     120,
 				}},
 			}},
@@ -286,7 +296,7 @@ func TestConvertResources(t *testing.T) {
 							},
 						},
 						Auth:                     &proto.Agent_Token{},
-						LoginBeforeReady:         true,
+						StartupScriptBehavior:    "non-blocking",
 						ConnectionTimeoutSeconds: 120,
 					}},
 				},
@@ -303,7 +313,7 @@ func TestConvertResources(t *testing.T) {
 					StartupScriptTimeoutSeconds:  300,
 					Architecture:                 "arm64",
 					Auth:                         &proto.Agent_Token{},
-					LoginBeforeReady:             true,
+					StartupScriptBehavior:        "non-blocking",
 					ConnectionTimeoutSeconds:     120,
 				}},
 			}},
@@ -323,6 +333,83 @@ func TestConvertResources(t *testing.T) {
 				Type:         "string",
 				Description:  "blah blah",
 				DefaultValue: "ok",
+			}, {
+				Name:          "number_example_min_max",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(3),
+				ValidationMax: terraform.PtrInt32(6),
+			}, {
+				Name:          "number_example_min_zero",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(0),
+				ValidationMax: terraform.PtrInt32(6),
+			}, {
+				Name:          "number_example_max_zero",
+				Type:          "number",
+				DefaultValue:  "-2",
+				ValidationMin: terraform.PtrInt32(-3),
+				ValidationMax: terraform.PtrInt32(0),
+			}, {
+				Name:          "number_example",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: nil,
+				ValidationMax: nil,
+			}},
+		},
+		"rich-parameters-validation": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                         "dev",
+					OperatingSystem:              "windows",
+					ShutdownScriptTimeoutSeconds: 300,
+					StartupScriptTimeoutSeconds:  300,
+					Architecture:                 "arm64",
+					Auth:                         &proto.Agent_Token{},
+					StartupScriptBehavior:        "non-blocking",
+					ConnectionTimeoutSeconds:     120,
+				}},
+			}},
+			parameters: []*proto.RichParameter{{
+				Name:          "number_example_min_max",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(3),
+				ValidationMax: terraform.PtrInt32(6),
+			}, {
+				Name:          "number_example_min",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(3),
+				ValidationMax: nil,
+			}, {
+				Name:          "number_example_min_zero",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: terraform.PtrInt32(0),
+				ValidationMax: nil,
+			}, {
+				Name:          "number_example_max",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: nil,
+				ValidationMax: terraform.PtrInt32(6),
+			}, {
+				Name:          "number_example_max_zero",
+				Type:          "number",
+				DefaultValue:  "-3",
+				ValidationMin: nil,
+				ValidationMax: terraform.PtrInt32(0),
+			}, {
+				Name:          "number_example",
+				Type:          "number",
+				DefaultValue:  "4",
+				ValidationMin: nil,
+				ValidationMax: nil,
 			}},
 		},
 		"git-auth-providers": {
@@ -334,7 +421,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:              "linux",
 					Architecture:                 "amd64",
 					Auth:                         &proto.Agent_Token{},
-					LoginBeforeReady:             true,
+					StartupScriptBehavior:        "non-blocking",
 					ConnectionTimeoutSeconds:     120,
 					StartupScriptTimeoutSeconds:  300,
 					ShutdownScriptTimeoutSeconds: 300,
@@ -496,6 +583,69 @@ func TestAppSlugValidation(t *testing.T) {
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "duplicate app slug")
+}
+
+func TestParameterValidation(t *testing.T) {
+	t.Parallel()
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+
+	// Load the rich-parameters state file and edit it.
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "rich-parameters")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "rich-parameters.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "rich-parameters.tfplan.dot"))
+	require.NoError(t, err)
+
+	// Change all names to be identical.
+	var names []string
+	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
+		if resource.Type == "coder_parameter" {
+			resource.AttributeValues["name"] = "identical"
+			names = append(names, resource.Name)
+		}
+	}
+
+	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), names)
+	require.Nil(t, state)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical\" appears multiple times")
+
+	// Make two sets of identical names.
+	count := 0
+	names = nil
+	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
+		if resource.Type == "coder_parameter" {
+			resource.AttributeValues["name"] = fmt.Sprintf("identical-%d", count%2)
+			names = append(names, resource.Name)
+			count++
+		}
+	}
+
+	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), names)
+	require.Nil(t, state)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical-0\" and \"identical-1\" appear multiple times")
+
+	// Once more with three sets.
+	count = 0
+	names = nil
+	for _, resource := range tfPlan.PriorState.Values.RootModule.Resources {
+		if resource.Type == "coder_parameter" {
+			resource.AttributeValues["name"] = fmt.Sprintf("identical-%d", count%3)
+			names = append(names, resource.Name)
+			count++
+		}
+	}
+
+	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), names)
+	require.Nil(t, state)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical-0\", \"identical-1\" and \"identical-2\" appear multiple times")
 }
 
 func TestInstanceTypeAssociation(t *testing.T) {

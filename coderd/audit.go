@@ -37,6 +37,7 @@ import (
 // @Router /audit [get]
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 
 	page, ok := parsePagination(rw, r)
 	if !ok {
@@ -54,6 +55,11 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 	filter.Offset = int32(page.Offset)
 	filter.Limit = int32(page.Limit)
+
+	if filter.Username == "me" {
+		filter.UserID = apiKey.UserID
+		filter.Username = ""
+	}
 
 	dblogs, err := api.Database.GetAuditLogsOffset(ctx, filter)
 	if err != nil {

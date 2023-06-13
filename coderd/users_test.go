@@ -1553,6 +1553,9 @@ func TestPaginatedUsers(t *testing.T) {
 				email = fmt.Sprintf("%d@gmail.com", i)
 				username = fmt.Sprintf("specialuser%d", i)
 			}
+			if i%3 == 0 {
+				username = strings.ToUpper(username)
+			}
 			// One side effect of having to use the api vs the db calls directly, is you cannot
 			// mock time. Ideally I could pass in mocked times and space these users out.
 			//
@@ -1579,10 +1582,7 @@ func TestPaginatedUsers(t *testing.T) {
 	err = eg.Wait()
 	require.NoError(t, err, "create users failed")
 
-	// Sorting the users will sort by (created_at, uuid). This is to handle
-	// the off case that created_at is identical for 2 users.
-	// This is a really rare case in production, but does happen in unit tests
-	// due to the fake database being in memory and exceptionally quick.
+	// Sorting the users will sort by username.
 	sortUsers(allUsers)
 	sortUsers(specialUsers)
 
@@ -1697,10 +1697,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 // sortUsers sorts by (created_at, id)
 func sortUsers(users []codersdk.User) {
 	sort.Slice(users, func(i, j int) bool {
-		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
-			return users[i].ID.String() < users[j].ID.String()
-		}
-		return users[i].CreatedAt.Before(users[j].CreatedAt)
+		return strings.ToLower(users[i].Username) < strings.ToLower(users[j].Username)
 	})
 }
 

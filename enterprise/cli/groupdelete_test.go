@@ -49,7 +49,7 @@ func TestGroupDelete(t *testing.T) {
 		err = inv.Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch(fmt.Sprintf("Successfully deleted group %s", cliui.Styles.Keyword.Render(group.Name)))
+		pty.ExpectMatch(fmt.Sprintf("Successfully deleted group %s", cliui.DefaultStyles.Keyword.Render(group.Name)))
 	})
 
 	t.Run("NoArg", func(t *testing.T) {

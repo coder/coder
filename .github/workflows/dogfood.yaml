@@ -6,15 +6,17 @@ on:
       - main
     paths:
       - "dogfood/**"
+      - ".github/workflows/dogfood.yaml"
   # Uncomment these lines when testing with CI.
   # pull_request:
   #   paths:
   #     - "dogfood/**"
+  #     - ".github/workflows/dogfood.yaml"
   workflow_dispatch:
 
 jobs:
   deploy_image:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - name: Get branch name
         id: branch-name
@@ -57,14 +59,13 @@ jobs:
       - name: Get short commit SHA
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      - name: "Install latest Coder"
+      - name: "Get latest Coder binary from the server"
         run: |
-          curl -L https://coder.com/install.sh | sh
-        # env:
-        #   VERSION: 0.x
+          curl -fsSL "https://dev.coder.com/bin/coder-linux-amd64" -o "./coder"
+          chmod +x "./coder"
       - name: "Push template"
         run: |
-          coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION
+          ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION
         env:
           # Consumed by Coder CLI
           CODER_URL: https://dev.coder.com

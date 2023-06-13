@@ -68,6 +68,9 @@ const TemplateFC = (
         clearProxy: () => {
           return
         },
+        refetchProxyLatencies: () => {
+          return
+        },
       }}
     >
       <AgentRow {...args} />

@@ -76,7 +76,7 @@ func templatesToRows(templates ...codersdk.Template) []templateTableRow {
 			OrganizationID:  template.OrganizationID,
 			Provisioner:     template.Provisioner,
 			ActiveVersionID: template.ActiveVersionID,
-			UsedBy:          cliui.Styles.Fuchsia.Render(formatActiveDevelopers(template.ActiveUserCount)),
+			UsedBy:          cliui.DefaultStyles.Fuchsia.Render(formatActiveDevelopers(template.ActiveUserCount)),
 			DefaultTTL:      (time.Duration(template.DefaultTTLMillis) * time.Millisecond),
 		}
 	}

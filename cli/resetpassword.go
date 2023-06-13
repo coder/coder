@@ -47,7 +47,7 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 			}
 
 			password, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:   "Enter new " + cliui.Styles.Field.Render("password") + ":",
+				Text:   "Enter new " + cliui.DefaultStyles.Field.Render("password") + ":",
 				Secret: true,
 				Validate: func(s string) error {
 					return userpassword.Validate(s)
@@ -57,7 +57,7 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 				return xerrors.Errorf("password prompt: %w", err)
 			}
 			confirmedPassword, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:     "Confirm " + cliui.Styles.Field.Render("password") + ":",
+				Text:     "Confirm " + cliui.DefaultStyles.Field.Render("password") + ":",
 				Secret:   true,
 				Validate: cliui.ValidateNotEmpty,
 			})
@@ -81,7 +81,7 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 				return xerrors.Errorf("updating password: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "\nPassword has been reset for user %s!\n", cliui.Styles.Keyword.Render(user.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, "\nPassword has been reset for user %s!\n", cliui.DefaultStyles.Keyword.Render(user.Username))
 			return nil
 		},
 	}

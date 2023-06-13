@@ -37,7 +37,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	// Get cached report if it exists.
 	if report := api.healthCheckCache.Load(); report != nil {
 		if time.Since(report.Time) < api.HealthcheckRefresh {
-			httpapi.Write(ctx, rw, http.StatusOK, report)
+			httpapi.WriteIndent(ctx, rw, http.StatusOK, report)
 			return
 		}
 	}
@@ -47,11 +47,9 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), api.HealthcheckTimeout)
 		defer cancel()
 
-		report, err := api.HealthcheckFunc(ctx, apiKey)
-		if err == nil {
-			api.healthCheckCache.Store(report)
-		}
-		return report, err
+		report := api.HealthcheckFunc(ctx, apiKey)
+		api.healthCheckCache.Store(report)
+		return report, nil
 	})
 
 	select {
@@ -61,7 +59,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	case res := <-resChan:
-		httpapi.Write(ctx, rw, http.StatusOK, res.Val)
+		httpapi.WriteIndent(ctx, rw, http.StatusOK, res.Val)
 		return
 	}
 }

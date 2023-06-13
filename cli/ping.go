@@ -98,14 +98,14 @@ func (r *RootCmd) ping() *clibase.Cmd {
 				if p2p {
 					if !didP2p {
 						_, _ = fmt.Fprintln(inv.Stdout, "p2p connection established in",
-							cliui.Styles.DateTimeStamp.Render(time.Since(start).Round(time.Millisecond).String()),
+							cliui.DefaultStyles.DateTimeStamp.Render(time.Since(start).Round(time.Millisecond).String()),
 						)
 					}
 					didP2p = true
 
 					via = fmt.Sprintf("%s via %s",
-						cliui.Styles.Fuchsia.Render("p2p"),
-						cliui.Styles.Code.Render(pong.Endpoint),
+						cliui.DefaultStyles.Fuchsia.Render("p2p"),
+						cliui.DefaultStyles.Code.Render(pong.Endpoint),
 					)
 				} else {
 					derpName := "unknown"
@@ -114,15 +114,15 @@ func (r *RootCmd) ping() *clibase.Cmd {
 						derpName = derpRegion.RegionName
 					}
 					via = fmt.Sprintf("%s via %s",
-						cliui.Styles.Fuchsia.Render("proxied"),
-						cliui.Styles.Code.Render(fmt.Sprintf("DERP(%s)", derpName)),
+						cliui.DefaultStyles.Fuchsia.Render("proxied"),
+						cliui.DefaultStyles.Code.Render(fmt.Sprintf("DERP(%s)", derpName)),
 					)
 				}
 
 				_, _ = fmt.Fprintf(inv.Stdout, "pong from %s %s in %s\n",
-					cliui.Styles.Keyword.Render(workspaceName),
+					cliui.DefaultStyles.Keyword.Render(workspaceName),
 					via,
-					cliui.Styles.DateTimeStamp.Render(dur.String()),
+					cliui.DefaultStyles.DateTimeStamp.Render(dur.String()),
 				)
 
 				if n == int(pingNum) {

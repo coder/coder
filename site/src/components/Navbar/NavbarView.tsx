@@ -2,7 +2,7 @@ import Drawer from "@mui/material/Drawer"
 import IconButton from "@mui/material/IconButton"
 import List from "@mui/material/List"
 import ListItem from "@mui/material/ListItem"
-import { makeStyles, useTheme } from "@mui/styles"
+import { makeStyles } from "@mui/styles"
 import MenuIcon from "@mui/icons-material/Menu"
 import { CoderIcon } from "components/Icons/CoderIcon"
 import { FC, useRef, useState } from "react"
@@ -20,9 +20,9 @@ import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutl
 import { ProxyContextValue } from "contexts/ProxyContext"
 import { displayError } from "components/GlobalSnackbar/utils"
 import Divider from "@mui/material/Divider"
-import HelpOutline from "@mui/icons-material/HelpOutline"
-import Tooltip from "@mui/material/Tooltip"
 import Skeleton from "@mui/material/Skeleton"
+import { BUTTON_SM_HEIGHT } from "theme/theme"
+import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -160,7 +160,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
         <Box
           display="flex"
-          marginLeft={{ lg: "auto" }}
+          marginLeft={{ md: "auto" }}
           gap={2}
           alignItems="center"
           paddingRight={2}
@@ -188,14 +188,18 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const selectedProxy = proxyContextValue.proxy.proxy
+  const refreshLatencies = proxyContextValue.refetchProxyLatencies
   const closeMenu = () => setIsOpen(false)
   const navigate = useNavigate()
+  const latencies = proxyContextValue.proxyLatencies
+  const isLoadingLatencies = Object.keys(latencies).length === 0
+  const isLoading = proxyContextValue.isLoading || isLoadingLatencies
 
-  if (!proxyContextValue.isFetched) {
+  if (isLoading) {
     return (
       <Skeleton
         width="160px"
-        height={30}
+        height={BUTTON_SM_HEIGHT}
         sx={{ borderRadius: "4px", transform: "none" }}
       />
     )
@@ -227,10 +231,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             </Box>
             {selectedProxy.display_name}
             <ProxyStatusLatency
-              proxy={selectedProxy}
-              latency={
-                proxyContextValue.proxyLatencies?.[selectedProxy.id]?.latencyMS
-              }
+              latency={latencies?.[selectedProxy.id]?.latencyMS}
             />
           </Box>
         ) : (
@@ -274,12 +275,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
                 />
               </Box>
               {proxy.display_name}
-              <ProxyStatusLatency
-                proxy={proxy}
-                latency={
-                  proxyContextValue.proxyLatencies?.[proxy.id]?.latencyMS
-                }
-              />
+              <ProxyStatusLatency latency={latencies?.[proxy.id]?.latencyMS} />
             </Box>
           </MenuItem>
         ))}
@@ -292,44 +288,11 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         >
           Proxy settings
         </MenuItem>
+        <MenuItem sx={{ fontSize: 14 }} onClick={refreshLatencies}>
+          Refresh Latencies
+        </MenuItem>
       </Menu>
     </>
-  )
-}
-
-const ProxyStatusLatency: FC<{ proxy: TypesGen.Region; latency?: number }> = ({
-  proxy,
-  latency,
-}) => {
-  const theme = useTheme()
-  let color = theme.palette.success.light
-
-  if (!latency) {
-    return (
-      <Tooltip title="Latency not available">
-        <HelpOutline
-          sx={{
-            ml: "auto",
-            fontSize: "14px !important",
-            color: (theme) => theme.palette.text.secondary,
-          }}
-        />
-      </Tooltip>
-    )
-  }
-
-  if (latency >= 300) {
-    color = theme.palette.error.light
-  }
-
-  if (!proxy.healthy || latency >= 100) {
-    color = theme.palette.warning.light
-  }
-
-  return (
-    <Box sx={{ color, fontSize: 13, marginLeft: "auto" }}>
-      {latency.toFixed(0)}ms
-    </Box>
   )
 }
 

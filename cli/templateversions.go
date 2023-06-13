@@ -101,15 +101,16 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 	for i, templateVersion := range templateVersions {
 		activeStatus := ""
 		if templateVersion.ID == activeVersionID {
-			activeStatus = cliui.Styles.Code.Render(cliui.Styles.Keyword.Render("Active"))
+			activeStatus = cliui.DefaultStyles.Code.Render(cliui.DefaultStyles.Keyword.Render("Active"))
 		}
 
 		rows[i] = templateVersionRow{
-			Name:      templateVersion.Name,
-			CreatedAt: templateVersion.CreatedAt,
-			CreatedBy: templateVersion.CreatedBy.Username,
-			Status:    strings.Title(string(templateVersion.Job.Status)),
-			Active:    activeStatus,
+			TemplateVersion: templateVersion,
+			Name:            templateVersion.Name,
+			CreatedAt:       templateVersion.CreatedAt,
+			CreatedBy:       templateVersion.CreatedBy.Username,
+			Status:          strings.Title(string(templateVersion.Job.Status)),
+			Active:          activeStatus,
 		}
 	}
 

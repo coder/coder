@@ -2,7 +2,9 @@ import { Workspace } from "api/typesGenerated"
 import { displayImpendingDeletion } from "./utils"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { Alert } from "components/Alert/Alert"
-import { formatDistanceToNow, differenceInDays } from "date-fns"
+import { formatDistanceToNow, differenceInDays, add, format } from "date-fns"
+import Link from "@mui/material/Link"
+import { Link as RouterLink } from "react-router-dom"
 
 export enum Count {
   Singular,
@@ -46,17 +48,34 @@ export const ImpendingDeletionBanner = ({
     new Date(),
   )
 
+  const plusFourteen = add(new Date(), { days: 14 })
+
   return (
     <Alert
       severity={daysUntilDelete <= 7 ? "warning" : "info"}
       onDismiss={onDismiss}
       dismissible
     >
-      {count === Count.Singular
-        ? `This workspace has been unused for ${formatDistanceToNow(
-            Date.parse(workspace.last_used_at),
-          )} and is scheduled for deletion. To keep it, connect via SSH or the web terminal.`
-        : "You have workspaces that will be deleted soon due to inactivity. To keep these workspaces, connect to them via SSH or the web terminal."}
+      {count === Count.Singular ? (
+        `This workspace has been unused for ${formatDistanceToNow(
+          Date.parse(workspace.last_used_at),
+        )} and is scheduled for deletion. To keep it, connect via SSH or the web terminal.`
+      ) : (
+        <>
+          <span>There are</span>{" "}
+          <Link
+            component={RouterLink}
+            to={`/workspaces?filter=deleting_by:${format(
+              plusFourteen,
+              "y-MM-dd",
+            )}`}
+          >
+            workspaces
+          </Link>{" "}
+          that will be deleted soon due to inactivity. To keep these workspaces,
+          connect to them via SSH or the web terminal.
+        </>
+      )}
     </Alert>
   )
 }

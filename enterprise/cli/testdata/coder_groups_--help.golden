@@ -1,0 +1,14 @@
+Usage: coder groups
+
+Manage groups
+
+Aliases: group
+
+[1mSubcommands[0m
+    create    Create a user group
+    delete    Delete a user group
+    edit      Edit a user group
+    list      List user groups
+
+---
+Run `coder --help` for a list of global options.
