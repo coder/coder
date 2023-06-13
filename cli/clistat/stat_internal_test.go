@@ -101,16 +101,16 @@ func TestStatter(t *testing.T) {
 
 		t.Run("Limit", func(t *testing.T) {
 			t.Parallel()
-			fs := initFS(t, fsContainerCgroupV1)
-			fakeWait := func(time.Duration) {
-				// Fake 1 second in ns of usage
-				mungeFS(t, fs, cgroupV1CPUAcctUsage, "1000000000")
-			}
-			s, err := New(WithFS(fs), withWait(fakeWait))
-			require.NoError(t, err)
 
 			t.Run("ContainerCPU", func(t *testing.T) {
 				t.Parallel()
+				fs := initFS(t, fsContainerCgroupV1)
+				fakeWait := func(time.Duration) {
+					// Fake 1 second in ns of usage
+					mungeFS(t, fs, cgroupV1CPUAcctUsage, "1000000000")
+				}
+				s, err := New(WithFS(fs), withWait(fakeWait))
+				require.NoError(t, err)
 				cpu, err := s.ContainerCPU()
 				require.NoError(t, err)
 				require.NotNil(t, cpu)
@@ -122,6 +122,13 @@ func TestStatter(t *testing.T) {
 
 			t.Run("ContainerMemory", func(t *testing.T) {
 				t.Parallel()
+				fs := initFS(t, fsContainerCgroupV1)
+				fakeWait := func(time.Duration) {
+					// Fake 1 second in ns of usage
+					mungeFS(t, fs, cgroupV1CPUAcctUsage, "1000000000")
+				}
+				s, err := New(WithFS(fs), withWait(fakeWait))
+				require.NoError(t, err)
 				mem, err := s.ContainerMemory()
 				require.NoError(t, err)
 				require.NotNil(t, mem)
@@ -154,19 +161,19 @@ func TestStatter(t *testing.T) {
 		t.Parallel()
 		t.Run("Limit", func(t *testing.T) {
 			t.Parallel()
-			fs := initFS(t, fsContainerCgroupV2)
-			fakeWait := func(time.Duration) {
-				// Fake 1 second in ns of usage
-				mungeFS(t, fs, cgroupV1CPUAcctUsage, "10000000000")
-			}
-			s, err := New(WithFS(fs), withWait(fakeWait))
-			require.NoError(t, err)
 			t.Run("ContainerCPU", func(t *testing.T) {
 				t.Parallel()
+				fs := initFS(t, fsContainerCgroupV2)
+				fakeWait := func(time.Duration) {
+					// Fake 1 second in ns of usage
+					mungeFS(t, fs, cgroupV1CPUAcctUsage, "10000000000")
+				}
+				s, err := New(WithFS(fs), withWait(fakeWait))
+				require.NoError(t, err)
 				cpu, err := s.ContainerCPU()
 				require.NoError(t, err)
 				require.NotNil(t, cpu)
-				assert.Zero(t, cpu.Used)
+				assert.Equal(t, 1.0, cpu.Used)
 				require.NotNil(t, cpu.Total)
 				assert.Equal(t, 2.5, *cpu.Total)
 				assert.Equal(t, "cores", cpu.Unit)
@@ -174,6 +181,13 @@ func TestStatter(t *testing.T) {
 
 			t.Run("ContainerMemory", func(t *testing.T) {
 				t.Parallel()
+				fs := initFS(t, fsContainerCgroupV2)
+				fakeWait := func(time.Duration) {
+					// Fake 1 second in ns of usage
+					mungeFS(t, fs, cgroupV1CPUAcctUsage, "10000000000")
+				}
+				s, err := New(WithFS(fs), withWait(fakeWait))
+				require.NoError(t, err)
 				mem, err := s.ContainerMemory()
 				require.NoError(t, err)
 				require.NotNil(t, mem)
@@ -196,8 +210,7 @@ func TestStatter(t *testing.T) {
 			cpu, err := s.ContainerCPU()
 			require.NoError(t, err)
 			require.NotNil(t, cpu)
-			// This value does not change in between tests so it is zero.
-			assert.Zero(t, cpu.Used)
+			assert.Equal(t, 1.0, cpu.Used)
 			require.NotNil(t, cpu.Total)
 			assert.Equal(t, 2.0, *cpu.Total)
 			assert.Equal(t, "cores", cpu.Unit)

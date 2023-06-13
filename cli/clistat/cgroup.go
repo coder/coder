@@ -53,33 +53,45 @@ func (s *Statter) ContainerCPU() (*Result, error) {
 		return nil, nil //nolint: nilnil
 	}
 
-	used1, total, err := s.cgroupCPU()
+	total, err := s.cGroupCPUTotal()
+	if err != nil {
+		return nil, xerrors.Errorf("get total cpu: %w", err)
+	}
+
+	used1, err := s.cGroupCPUUsed()
 	if err != nil {
 		return nil, xerrors.Errorf("get cgroup CPU usage: %w", err)
 	}
 	s.wait(s.sampleInterval)
 
-	// total is unlikely to change. Use the first value.
-	used2, _, err := s.cgroupCPU()
+	used2, err := s.cGroupCPUUsed()
 	if err != nil {
 		return nil, xerrors.Errorf("get cgroup CPU usage: %w", err)
 	}
 
 	r := &Result{
 		Unit:  "cores",
-		Used:  (used2 - used1).Seconds(),
-		Total: ptr.To(total.Seconds()), // close enough to the truth
+		Used:  (used2 - used1),
+		Total: ptr.To(total),
 	}
 	return r, nil
 }
 
-func (s *Statter) cgroupCPU() (used, total time.Duration, err error) {
+func (s *Statter) cGroupCPUTotal() (used float64, err error) {
 	if s.isCGroupV2() {
-		return s.cGroupV2CPU()
+		return s.cGroupV2CPUTotal()
 	}
 
 	// Fall back to CGroupv1
-	return s.cGroupV1CPU()
+	return s.cGroupV1CPUTotal()
+}
+
+func (s *Statter) cGroupCPUUsed() (used float64, err error) {
+	if s.isCGroupV2() {
+		return s.cGroupV2CPUUsed()
+	}
+
+	return s.cGroupV1CPUUsed()
 }
 
 func (s *Statter) isCGroupV2() bool {
@@ -88,54 +100,36 @@ func (s *Statter) isCGroupV2() bool {
 	return err == nil
 }
 
-func (s *Statter) cGroupV2CPU() (used, total time.Duration, err error) {
-	total, err = s.cGroupv2CPUTotal()
-	if err != nil {
-		return 0, 0, xerrors.Errorf("get cpu total: %w", err)
-	}
-
-	used, err = s.cGroupv2CPUUsed()
-	if err != nil {
-		return 0, 0, xerrors.Errorf("get cpu used: %w", err)
-	}
-
-	return used, total, nil
-}
-
-func (s *Statter) cGroupv2CPUUsed() (used time.Duration, err error) {
-	iused, err := readInt64Prefix(s.fs, cgroupV2CPUStat, "usage_usec")
+func (s *Statter) cGroupV2CPUUsed() (used float64, err error) {
+	usageUs, err := readInt64Prefix(s.fs, cgroupV2CPUStat, "usage_usec")
 	if err != nil {
 		return 0, xerrors.Errorf("get cgroupv2 cpu used: %w", err)
 	}
-	return time.Duration(iused) * time.Microsecond, nil
+	return (time.Duration(usageUs) * time.Microsecond).Seconds(), nil
 }
 
-func (s *Statter) cGroupv2CPUTotal() (total time.Duration, err error) {
-	var quotaUs int64
+func (s *Statter) cGroupV2CPUTotal() (total float64, err error) {
+	var quotaUs, periodUs int64
+	periodUs, err = readInt64SepIdx(s.fs, cgroupV2CPUMax, " ", 1)
+	if err != nil {
+		return 0, xerrors.Errorf("get cpu period: %w", err)
+	}
+
 	quotaUs, err = readInt64SepIdx(s.fs, cgroupV2CPUMax, " ", 0)
 	if err != nil {
 		// Fall back to number of cores
-		quotaUs = int64(s.nproc) * time.Second.Microseconds()
+		quotaUs = int64(s.nproc) * periodUs
 	}
 
-	return time.Duration(quotaUs) * time.Microsecond, nil
+	return float64(quotaUs) / float64(periodUs), nil
 }
 
-func (s *Statter) cGroupV1CPU() (used, total time.Duration, err error) {
-	total, err = s.cGroupV1CPUTotal()
+func (s *Statter) cGroupV1CPUTotal() (float64, error) {
+	periodUs, err := readInt64(s.fs, cgroupV1CFSPeriodUs)
 	if err != nil {
-		return 0, 0, xerrors.Errorf("get cpu total: %w", err)
+		return 0, xerrors.Errorf("read cpu period: %w", err)
 	}
 
-	used, err = s.cgroupV1CPUUsed()
-	if err != nil {
-		return 0, 0, xerrors.Errorf("get cpu used: %w", err)
-	}
-
-	return used, total, nil
-}
-
-func (s *Statter) cGroupV1CPUTotal() (time.Duration, error) {
 	quotaUs, err := readInt64(s.fs, cgroupV1CFSQuotaUs)
 	if err != nil {
 		return 0, xerrors.Errorf("read cpu quota: %w", err)
@@ -143,13 +137,13 @@ func (s *Statter) cGroupV1CPUTotal() (time.Duration, error) {
 
 	if quotaUs < 0 {
 		// Fall back to the number of cores
-		quotaUs = int64(s.nproc) * time.Second.Microseconds()
+		quotaUs = int64(s.nproc) * periodUs
 	}
 
-	return time.Duration(quotaUs) * time.Microsecond, nil
+	return float64(quotaUs) / float64(periodUs), nil
 }
 
-func (s *Statter) cgroupV1CPUUsed() (time.Duration, error) {
+func (s *Statter) cGroupV1CPUUsed() (float64, error) {
 	usageNs, err := readInt64(s.fs, cgroupV1CPUAcctUsage)
 	if err != nil {
 		// try alternate path
@@ -159,7 +153,7 @@ func (s *Statter) cgroupV1CPUUsed() (time.Duration, error) {
 		}
 	}
 
-	return time.Duration(usageNs), nil
+	return time.Duration(usageNs).Seconds(), nil
 }
 
 // ContainerMemory returns the memory usage of the container cgroup.
@@ -170,14 +164,14 @@ func (s *Statter) ContainerMemory() (*Result, error) {
 	}
 
 	if s.isCGroupV2() {
-		return s.cGroupv2Memory()
+		return s.cGroupV2Memory()
 	}
 
 	// Fall back to CGroupv1
-	return s.cGroupv1Memory()
+	return s.cGroupV1Memory()
 }
 
-func (s *Statter) cGroupv2Memory() (*Result, error) {
+func (s *Statter) cGroupV2Memory() (*Result, error) {
 	maxUsageBytes, err := readInt64(s.fs, cgroupV2MemoryMaxBytes)
 	if err != nil {
 		return nil, xerrors.Errorf("read memory total: %w", err)
@@ -200,7 +194,7 @@ func (s *Statter) cGroupv2Memory() (*Result, error) {
 	}, nil
 }
 
-func (s *Statter) cGroupv1Memory() (*Result, error) {
+func (s *Statter) cGroupV1Memory() (*Result, error) {
 	maxUsageBytes, err := readInt64(s.fs, cgroupV1MemoryMaxUsageBytes)
 	if err != nil {
 		return nil, xerrors.Errorf("read memory total: %w", err)
@@ -252,7 +246,7 @@ func readInt64SepIdx(fs afero.Fs, path, sep string, idx int) (int64, error) {
 		return 0, xerrors.Errorf("expected line %q to have at least %d parts", string(data), idx+1)
 	}
 
-	val, err := strconv.ParseInt(parts[idx], 10, 64)
+	val, err := strconv.ParseInt(strings.TrimSpace(parts[idx]), 10, 64)
 	if err != nil {
 		return 0, xerrors.Errorf("parse %s: %w", path, err)
 	}
