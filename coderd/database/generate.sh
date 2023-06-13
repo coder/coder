@@ -62,4 +62,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# Generate the database fake!
 	go run gen/fake/main.go
 	go run golang.org/x/tools/cmd/goimports@latest -w ./dbfake/dbfake.go
+
+	go run gen/metrics/main.go
+	go run golang.org/x/tools/cmd/goimports@latest -w ./dbmetrics/dbmetrics.go
 )
