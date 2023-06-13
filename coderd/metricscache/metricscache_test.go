@@ -435,6 +435,7 @@ func TestCache_DeploymentStats(t *testing.T) {
 	cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 		DeploymentStats: testutil.IntervalFast,
 	})
+	defer cache.Close()
 
 	_, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
 		ID:                 uuid.New(),
