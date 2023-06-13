@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
@@ -268,7 +269,7 @@ type logFollower struct {
 	ctx    context.Context
 	logger slog.Logger
 	db     database.Store
-	pubsub database.Pubsub
+	pubsub pubsub.Pubsub
 	r      *http.Request
 	rw     http.ResponseWriter
 	conn   *websocket.Conn
@@ -281,7 +282,7 @@ type logFollower struct {
 }
 
 func newLogFollower(
-	ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub,
+	ctx context.Context, logger slog.Logger, db database.Store, pubsub pubsub.Pubsub,
 	rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob, after int64,
 ) *logFollower {
 	return &logFollower{

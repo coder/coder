@@ -10,8 +10,8 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/enterprise/tailnet"
 	agpl "github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
@@ -21,7 +21,7 @@ func TestCoordinatorSingle(t *testing.T) {
 	t.Parallel()
 	t.Run("ClientWithoutAgent", func(t *testing.T) {
 		t.Parallel()
-		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub.NewInMemory())
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -49,7 +49,7 @@ func TestCoordinatorSingle(t *testing.T) {
 
 	t.Run("AgentWithoutClients", func(t *testing.T) {
 		t.Parallel()
-		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub.NewInMemory())
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -77,7 +77,7 @@ func TestCoordinatorSingle(t *testing.T) {
 	t.Run("AgentWithClient", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub.NewInMemory())
 		require.NoError(t, err)
 		defer coordinator.Close()
 

@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbmock"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/testutil"
@@ -138,7 +139,7 @@ func Test_logFollower_completeBeforeFollow(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
-	pubsub := database.NewPubsubInMemory()
+	pubsub := pubsub.NewInMemory()
 	now := database.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
@@ -200,7 +201,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
-	pubsub := database.NewPubsubInMemory()
+	pubsub := pubsub.NewInMemory()
 	now := database.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
@@ -276,7 +277,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
-	pubsub := database.NewPubsubInMemory()
+	pubsub := pubsub.NewInMemory()
 	now := database.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
