@@ -102,7 +102,7 @@ func TestDelete(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "delete", fmt.Sprintf("%s/%s", deleteMeUser.ID, workspace.ID), "-y", "--orphan")
+		inv, root := clitest.New(t, "delete", fmt.Sprintf("%s/%s", deleteMeUser.ID, workspace.Name), "-y", "--orphan")
 
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
