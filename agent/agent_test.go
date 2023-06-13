@@ -1564,6 +1564,109 @@ func TestAgent_Dial(t *testing.T) {
 	}
 }
 
+// TestAgent_UpdatedDERP checks that agents can handle their DERP map being
+// updated, and that clients can also handle it.
+func TestAgent_UpdatedDERP(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	derpMap := *tailnettest.RunDERPAndSTUN(t)
+	metadata := agentsdk.Manifest{
+		DERPMap: &derpMap,
+	}
+	coordinator := tailnet.NewCoordinator(logger, func() *tailcfg.DERPMap {
+		return &derpMap
+	})
+	defer func() {
+		_ = coordinator.Close()
+	}()
+	agentID := uuid.New()
+	statsCh := make(chan *agentsdk.Stats, 50)
+	fs := afero.NewMemMapFs()
+	c := &client{
+		t:           t,
+		agentID:     agentID,
+		manifest:    metadata,
+		statsChan:   statsCh,
+		coordinator: coordinator,
+	}
+	closer := agent.New(agent.Options{
+		Client:                 c,
+		Filesystem:             fs,
+		Logger:                 logger.Named("agent"),
+		ReconnectingPTYTimeout: time.Minute,
+	})
+	defer func() {
+		_ = closer.Close()
+	}()
+
+	// Setup a client connection.
+	newClientConn := func() *codersdk.WorkspaceAgentConn {
+		conn, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			DERPMap:   metadata.DERPMap,
+			Logger:    logger.Named("client"),
+		})
+		require.NoError(t, err)
+		clientConn, serverConn := net.Pipe()
+		serveClientDone := make(chan struct{})
+		t.Cleanup(func() {
+			_ = clientConn.Close()
+			_ = serverConn.Close()
+			_ = conn.Close()
+			<-serveClientDone
+		})
+		go func() {
+			defer close(serveClientDone)
+			err := coordinator.ServeClient(serverConn, uuid.New(), agentID)
+			assert.NoError(t, err)
+		}()
+		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(update tailnet.CoordinatorNodeUpdate) error {
+			if tailnet.CompareDERPMaps(conn.DERPMap(), update.DERPMap) {
+				conn.SetDERPMap(update.DERPMap)
+			}
+			return conn.UpdateNodes(update.Nodes, false)
+		})
+		conn.SetNodeCallback(sendNode)
+
+		sdkConn := &codersdk.WorkspaceAgentConn{
+			Conn: conn,
+		}
+		t.Cleanup(func() {
+			_ = sdkConn.Close()
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		if !sdkConn.AwaitReachable(ctx) {
+			t.Fatal("agent not reachable")
+		}
+
+		return sdkConn
+	}
+	conn1 := newClientConn()
+
+	// Change the DERP map.
+	derpMap = *tailnettest.RunDERPAndSTUN(t)
+	// Change the region ID.
+	derpMap.Regions[2] = derpMap.Regions[1]
+	delete(derpMap.Regions, 1)
+	derpMap.Regions[2].RegionID = 2
+	for _, node := range derpMap.Regions[2].Nodes {
+		node.RegionID = 2
+	}
+
+	// Connect from a second client and make sure it uses the new DERP map.
+	conn2 := newClientConn()
+	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
+
+	// Make sure the first client is still reachable (it received a a DERP map
+	// update when the agent's nodes changed).
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	require.True(t, conn1.AwaitReachable(ctx))
+}
+
 func TestAgent_Speedtest(t *testing.T) {
 	t.Parallel()
 	t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
