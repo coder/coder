@@ -63,7 +63,7 @@ func OpenContainerized(port int) (string, func(), error) {
 	}
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "postgres",
+		Repository: "gcr.io/coder-dev-1/postgres",
 		Tag:        "13",
 		Env: []string{
 			"POSTGRES_PASSWORD=postgres",
