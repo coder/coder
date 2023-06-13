@@ -4646,11 +4646,19 @@ func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.U
 			u.Deleted = params.Deleted
 			q.users[i] = u
 			// NOTE: In the real world, this is done by a trigger.
-			for i, k := range q.apiKeys {
+			i := 0
+			for {
+				if i >= len(q.apiKeys) {
+					break
+				}
+				k := q.apiKeys[i]
 				if k.UserID == u.ID {
 					q.apiKeys[i] = q.apiKeys[len(q.apiKeys)-1]
 					q.apiKeys = q.apiKeys[:len(q.apiKeys)-1]
+					// We removed an element, so decrement
+					i--
 				}
+				i++
 			}
 			return nil
 		}
