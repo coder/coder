@@ -169,6 +169,8 @@ func newWithCloser(t testing.TB, options *Options) (*codersdk.Client, io.Closer)
 }
 
 func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.CancelFunc, *url.URL, *coderd.Options) {
+	t.Helper()
+
 	if options == nil {
 		options = &Options{}
 	}
@@ -402,6 +404,8 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
 func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
+	t.Helper()
+
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
