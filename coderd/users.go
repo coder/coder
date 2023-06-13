@@ -351,21 +351,34 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = userpassword.Validate(req.Password)
-	if err != nil {
+	if req.DisableLogin && req.Password != "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Password not strong enough!",
-			Validations: []codersdk.ValidationError{{
-				Field:  "password",
-				Detail: err.Error(),
-			}},
+			Message: "Cannot set password when disabling login.",
 		})
 		return
 	}
 
+	var loginType database.LoginType = "unknown"
+	if req.DisableLogin {
+		loginType = database.LoginTypeNone
+	} else {
+		err = userpassword.Validate(req.Password)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Password not strong enough!",
+				Validations: []codersdk.ValidationError{{
+					Field:  "password",
+					Detail: err.Error(),
+				}},
+			})
+			return
+		}
+		loginType = database.LoginTypePassword
+	}
+
 	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequest: req,
-		LoginType:         database.LoginTypePassword,
+		LoginType:         loginType,
 	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{

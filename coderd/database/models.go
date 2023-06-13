@@ -398,6 +398,7 @@ func AllLogSourceValues() []LogSource {
 	}
 }
 
+// Specifies the method of authentication. "none" is a special case in which no authentication method is allowed.
 type LoginType string
 
 const (
@@ -405,6 +406,7 @@ const (
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
 	LoginTypeToken    LoginType = "token"
+	LoginTypeNone     LoginType = "none"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -447,7 +449,8 @@ func (e LoginType) Valid() bool {
 	case LoginTypePassword,
 		LoginTypeGithub,
 		LoginTypeOIDC,
-		LoginTypeToken:
+		LoginTypeToken,
+		LoginTypeNone:
 		return true
 	}
 	return false
@@ -459,6 +462,7 @@ func AllLoginTypeValues() []LoginType {
 		LoginTypeGithub,
 		LoginTypeOIDC,
 		LoginTypeToken,
+		LoginTypeNone,
 	}
 }
 
