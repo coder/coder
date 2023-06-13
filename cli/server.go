@@ -901,7 +901,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			hangDetectorTicker := time.NewTicker(cfg.JobHangDetectorInterval.Value())
 			defer hangDetectorTicker.Stop()
 			hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, logger, hangDetectorTicker.C)
-			hangDetector.Run()
+			hangDetector.Start()
 
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero

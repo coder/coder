@@ -4,7 +4,7 @@ package database
 // change. If locks are deprecated, they should be kept in this list to avoid
 // reusing the same ID.
 const (
-	lockIDUnused          = iota
-	LockIDDeploymentSetup = iota
-	LockIDHangDetector    = iota
+	lockIDUnused = iota
+	LockIDDeploymentSetup
+	LockIDHangDetector
 )

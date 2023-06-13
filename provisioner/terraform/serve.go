@@ -34,9 +34,9 @@ type ServeOptions struct {
 	//
 	// This is a no-op on Windows where the process can't be interrupted.
 	//
-	// Default value: 3 minutes. This value should be kept less than the value
-	// that Coder uses to mark hung jobs as failed, which is 5 minutes (see
-	// unhanger package).
+	// Default value: 3 minutes (unhanger.HungJobExitTimeout). This value should
+	// be kept less than the value that Coder uses to mark hung jobs as failed,
+	// which is 5 minutes (see unhanger package).
 	ExitTimeout time.Duration
 }
 

@@ -37,7 +37,7 @@ func TestDetectorNoJobs(t *testing.T) {
 	)
 
 	detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
-	detector.Run()
+	detector.Start()
 	tickCh <- time.Now()
 
 	stats := <-statsCh
@@ -84,7 +84,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 	}
 
 	detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
-	detector.Run()
+	detector.Start()
 	tickCh <- now
 
 	stats := <-statsCh
@@ -172,7 +172,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
 	detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
-	detector.Run()
+	detector.Start()
 	tickCh <- now
 
 	stats := <-statsCh
@@ -277,7 +277,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
 	detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
-	detector.Run()
+	detector.Start()
 	tickCh <- now
 
 	stats := <-statsCh
@@ -353,7 +353,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	t.Log("current job ID: ", currentWorkspaceBuildJob.ID)
 
 	detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
-	detector.Run()
+	detector.Start()
 	tickCh <- now
 
 	stats := <-statsCh
@@ -438,7 +438,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	t.Log("template dry-run job ID: ", templateDryRunJob.ID)
 
 	detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
-	detector.Run()
+	detector.Start()
 	tickCh <- now
 
 	stats := <-statsCh
@@ -559,7 +559,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 			}
 
 			detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
-			detector.Run()
+			detector.Start()
 
 			// Create pubsub subscription to listen for new log events.
 			pubsubCalled := make(chan int64, 1)

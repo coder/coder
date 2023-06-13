@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
@@ -27,6 +26,9 @@ const (
 	// HungJobExitTimeout is the duration of time that provisioners should allow
 	// for a graceful exit upon cancellation due to failing to send an update to
 	// a job.
+	//
+	// Provisioners should avoid keeping a job "running" for longer than this
+	// time after failing to send an update to the job.
 	HungJobExitTimeout = 3 * time.Minute
 )
 
@@ -95,18 +97,18 @@ func New(ctx context.Context, db database.Store, pubsub database.Pubsub, log slo
 
 // WithStatsChannel will cause Executor to push a RunStats to ch after
 // every tick. This push is blocking, so if ch is not read, the detector will
-// hang.
+// hang. This should only be used in tests.
 func (d *Detector) WithStatsChannel(ch chan<- Stats) *Detector {
 	d.stats = ch
 	return d
 }
 
-// Run will cause the detector to detect and unhang provisioner jobs on every
+// Start will cause the detector to detect and unhang provisioner jobs on every
 // tick from its channel. It will stop when its context is Done, or when its
 // channel is closed.
 //
-// Run should only be called once.
-func (d *Detector) Run() {
+// Start should only be called once.
+func (d *Detector) Start() {
 	go func() {
 		defer close(d.done)
 		for {
@@ -117,7 +119,7 @@ func (d *Detector) Run() {
 				if !ok {
 					return
 				}
-				stats := d.runOnce(t)
+				stats := d.run(t)
 				if stats.Error != nil && !xerrors.As(stats.Error, &acquireLockError{}) {
 					d.log.Warn(d.ctx, "error running workspace build hang detector once", slog.Error(stats.Error))
 				}
@@ -141,7 +143,7 @@ func (d *Detector) Wait() {
 	<-d.done
 }
 
-func (d *Detector) runOnce(t time.Time) Stats {
+func (d *Detector) run(t time.Time) Stats {
 	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Minute)
 	defer cancel()
 
@@ -169,12 +171,6 @@ func (d *Detector) runOnce(t time.Time) Stats {
 		if err != nil {
 			return xerrors.Errorf("get hung provisioner jobs: %w", err)
 		}
-
-		// We only use errgroup here for convenience of API, not for early
-		// cancellation. This means we only return nil errors in th eg.Go.
-		eg := errgroup.Group{}
-		// Limit the concurrency to avoid overloading the database.
-		eg.SetLimit(10)
 
 		// Send a message into the build log for each hung job saying that it
 		// has been detected and will be terminated, then mark the job as
