@@ -18,11 +18,9 @@ func (*RootCmd) stat() *clibase.Cmd {
 		// If running in a container, we assume that users want to see these first. Prepend.
 		defaultCols = append([]string{"container_cpu", "container_memory"}, defaultCols...)
 	}
-	var (
-		formatter = cliui.NewOutputFormatter(
-			cliui.TableFormat([]statsRow{}, defaultCols),
-			cliui.JSONFormat(),
-		)
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat([]statsRow{}, defaultCols),
+		cliui.JSONFormat(),
 	)
 
 	cmd := &clibase.Cmd{

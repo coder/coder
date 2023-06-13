@@ -704,6 +704,11 @@
           "path": "cli/start.md"
         },
         {
+          "title": "stat",
+          "description": "Show workspace resource usage.",
+          "path": "cli/stat.md"
+        },
+        {
           "title": "state",
           "description": "Manually manage Terraform state to fix broken workspaces",
           "path": "cli/state.md"

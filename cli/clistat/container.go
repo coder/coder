@@ -9,8 +9,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const procMounts = "/proc/mounts"
-const procOneCgroup = "/proc/1/cgroup"
+const (
+	procMounts    = "/proc/mounts"
+	procOneCgroup = "/proc/1/cgroup"
+)
 
 // IsContainerized returns whether the host is containerized.
 // This is adapted from https://github.com/elastic/go-sysinfo/tree/main/providers/linux/container.go#L31
