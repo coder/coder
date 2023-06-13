@@ -51,7 +51,7 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230421140225-
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
 require (
-	cdr.dev/slog v1.5.3
+	cdr.dev/slog v1.5.4
 	cloud.google.com/go/compute/metadata v0.2.3
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
@@ -352,12 +352,14 @@ require (
 	inet.af/peercred v0.0.0-20210906144145-0893ea02156a // indirect
 )
 
-require github.com/gobwas/httphead v0.1.0
+require (
+	github.com/dave/dst v0.27.2
+	github.com/gobwas/httphead v0.1.0
+)
 
 require (
 	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
-	github.com/dave/dst v0.27.2 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect

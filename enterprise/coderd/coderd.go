@@ -41,7 +41,7 @@ import (
 // New constructs an Enterprise coderd API instance.
 // This handler is designed to wrap the AGPL Coder code and
 // layer Enterprise functionality on top as much as possible.
-func New(ctx context.Context, options *Options) (*API, error) {
+func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.EntitlementsUpdateInterval == 0 {
 		options.EntitlementsUpdateInterval = 10 * time.Minute
 	}
@@ -65,6 +65,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		AGPL:    coderd.New(options.Options),
 		Options: options,
 	}
+	defer func() {
+		if err != nil {
+			_ = api.Close()
+		}
+	}()
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
 
@@ -318,8 +323,12 @@ type API struct {
 
 func (api *API) Close() error {
 	api.cancel()
-	_ = api.replicaManager.Close()
-	_ = api.derpMesh.Close()
+	if api.replicaManager != nil {
+		_ = api.replicaManager.Close()
+	}
+	if api.derpMesh != nil {
+		_ = api.derpMesh.Close()
+	}
 	return api.AGPL.Close()
 }
 
@@ -416,6 +425,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				// is actually changing.
 				changed = false
 			} else {
+				_ = coordinator.Close()
 				coordinator = haCoordinator
 			}
 

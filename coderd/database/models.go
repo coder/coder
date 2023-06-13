@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/tabbed/pqtype"
@@ -1478,7 +1477,7 @@ type ProvisionerDaemon struct {
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
-	Tags         dbtype.StringMap  `db:"tags" json:"tags"`
+	Tags         StringMap         `db:"tags" json:"tags"`
 }
 
 type ProvisionerJob struct {
@@ -1497,7 +1496,7 @@ type ProvisionerJob struct {
 	Input          json.RawMessage          `db:"input" json:"input"`
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
-	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
+	Tags           StringMap                `db:"tags" json:"tags"`
 	ErrorCode      sql.NullString           `db:"error_code" json:"error_code"`
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
 }

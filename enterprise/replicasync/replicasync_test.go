@@ -34,7 +34,10 @@ func TestReplica(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		closeChan := make(chan struct{}, 1)
 		cancel, err := pubsub.Subscribe(replicasync.PubsubEvent, func(ctx context.Context, message []byte) {
-			closeChan <- struct{}{}
+			select {
+			case closeChan <- struct{}{}:
+			default:
+			}
 		})
 		require.NoError(t, err)
 		defer cancel()
@@ -71,6 +74,8 @@ func TestReplica(t *testing.T) {
 			RelayAddress: "http://169.254.169.254",
 		})
 		require.NoError(t, err)
+		defer server.Close()
+
 		require.Len(t, server.Regional(), 1)
 		require.Equal(t, peer.ID, server.Regional()[0].ID)
 		require.Empty(t, server.Self().Error)
@@ -115,6 +120,8 @@ func TestReplica(t *testing.T) {
 			TLSConfig:    tlsConfig,
 		})
 		require.NoError(t, err)
+		defer server.Close()
+
 		require.Len(t, server.Regional(), 1)
 		require.Equal(t, peer.ID, server.Regional()[0].ID)
 		require.Empty(t, server.Self().Error)
@@ -141,6 +148,8 @@ func TestReplica(t *testing.T) {
 			RelayAddress: "http://127.0.0.1:1",
 		})
 		require.NoError(t, err)
+		defer server.Close()
+
 		require.Len(t, server.Regional(), 1)
 		require.Equal(t, peer.ID, server.Regional()[0].ID)
 		require.NotEmpty(t, server.Self().Error)
@@ -155,6 +164,7 @@ func TestReplica(t *testing.T) {
 		defer cancelCtx()
 		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, nil)
 		require.NoError(t, err)
+		defer server.Close()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))

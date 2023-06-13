@@ -660,7 +660,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err = proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
+		_, err := proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
 			// Invalid request.
 			AppRequest:   workspaceapps.Request{},
 			SessionToken: client.SessionToken(),
@@ -682,7 +682,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err = proxyClient.IssueSignedAppToken(ctx, goodRequest)
+		_, err := proxyClient.IssueSignedAppToken(ctx, goodRequest)
 		require.NoError(t, err)
 	})
 
