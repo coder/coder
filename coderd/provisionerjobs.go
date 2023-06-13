@@ -282,14 +282,14 @@ type logFollower struct {
 }
 
 func newLogFollower(
-	ctx context.Context, logger slog.Logger, db database.Store, pubsub pubsub.Pubsub,
+	ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub,
 	rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob, after int64,
 ) *logFollower {
 	return &logFollower{
 		ctx:           ctx,
 		logger:        logger,
 		db:            db,
-		pubsub:        pubsub,
+		pubsub:        ps,
 		r:             r,
 		rw:            rw,
 		jobID:         job.ID,

@@ -139,7 +139,7 @@ func Test_logFollower_completeBeforeFollow(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
-	pubsub := pubsub.NewInMemory()
+	ps := pubsub.NewInMemory()
 	now := database.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
@@ -158,7 +158,7 @@ func Test_logFollower_completeBeforeFollow(t *testing.T) {
 
 	// we need an HTTP server to get a websocket
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		uut := newLogFollower(ctx, logger, mDB, pubsub, rw, r, job, 10)
+		uut := newLogFollower(ctx, logger, mDB, ps, rw, r, job, 10)
 		uut.follow()
 	}))
 	defer srv.Close()
@@ -201,7 +201,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
-	pubsub := pubsub.NewInMemory()
+	ps := pubsub.NewInMemory()
 	now := database.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
@@ -218,7 +218,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 
 	// we need an HTTP server to get a websocket
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		uut := newLogFollower(ctx, logger, mDB, pubsub, rw, r, job, 0)
+		uut := newLogFollower(ctx, logger, mDB, ps, rw, r, job, 0)
 		uut.follow()
 	}))
 	defer srv.Close()
@@ -277,7 +277,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
-	pubsub := pubsub.NewInMemory()
+	ps := pubsub.NewInMemory()
 	now := database.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
@@ -294,7 +294,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 
 	// we need an HTTP server to get a websocket
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		uut := newLogFollower(ctx, logger, mDB, pubsub, rw, r, job, 0)
+		uut := newLogFollower(ctx, logger, mDB, ps, rw, r, job, 0)
 		uut.follow()
 	}))
 	defer srv.Close()
@@ -343,7 +343,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 	}
 	msg, err = json.Marshal(&n)
 	require.NoError(t, err)
-	err = pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(job.ID), msg)
+	err = ps.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(job.ID), msg)
 	require.NoError(t, err)
 
 	mt, msg, err = client.Read(ctx)
@@ -361,7 +361,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 	n.CreatedAfter = 0
 	msg, err = json.Marshal(&n)
 	require.NoError(t, err)
-	err = pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(job.ID), msg)
+	err = ps.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(job.ID), msg)
 	require.NoError(t, err)
 
 	// server should now close

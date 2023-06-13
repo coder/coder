@@ -22,7 +22,7 @@ import (
 
 // NewCoordinator creates a new high availability coordinator
 // that uses PostgreSQL pubsub to exchange handshakes.
-func NewCoordinator(logger slog.Logger, pubsub pubsub.Pubsub) (agpl.Coordinator, error) {
+func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	nameCache, err := lru.New[uuid.UUID, string](512)
@@ -33,7 +33,7 @@ func NewCoordinator(logger slog.Logger, pubsub pubsub.Pubsub) (agpl.Coordinator,
 	coord := &haCoordinator{
 		id:                       uuid.New(),
 		log:                      logger,
-		pubsub:                   pubsub,
+		pubsub:                   ps,
 		closeFunc:                cancelFunc,
 		close:                    make(chan struct{}),
 		nodes:                    map[uuid.UUID]*agpl.Node{},

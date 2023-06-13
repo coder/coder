@@ -171,12 +171,12 @@ func TestPubsub_ordering(t *testing.T) {
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	defer db.Close()
-	pubsub, err := pubsub.New(ctx, db, connectionURL)
+	ps, err := pubsub.New(ctx, db, connectionURL)
 	require.NoError(t, err)
-	defer pubsub.Close()
+	defer ps.Close()
 	event := "test"
 	messageChannel := make(chan []byte, 100)
-	cancelSub, err := pubsub.Subscribe(event, func(ctx context.Context, message []byte) {
+	cancelSub, err := ps.Subscribe(event, func(ctx context.Context, message []byte) {
 		// sleep a random amount of time to simulate handlers taking different amount of time
 		// to process, depending on the message
 		// nolint: gosec
@@ -187,7 +187,7 @@ func TestPubsub_ordering(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSub()
 	for i := 0; i < 100; i++ {
-		err = pubsub.Publish(event, []byte(fmt.Sprintf("%d", i)))
+		err = ps.Publish(event, []byte(fmt.Sprintf("%d", i)))
 		assert.NoError(t, err)
 	}
 	for i := 0; i < 100; i++ {
