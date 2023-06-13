@@ -4,13 +4,31 @@ import { AccountForm } from "../../../components/SettingsAccountForm/SettingsAcc
 import { useAuth } from "components/AuthProvider/AuthProvider"
 import { useMe } from "hooks/useMe"
 import { usePermissions } from "hooks/usePermissions"
+import { SignInForm } from "components/SignInForm/SignInForm"
+import { retrieveRedirect } from "utils/redirect"
+import { useQuery } from "@tanstack/react-query"
+import { getAuthMethods } from "api/api"
 
 export const AccountPage: FC = () => {
+  const queryKey = ["get-auth-methods"]
+  const {
+    data: authMethodsData,
+    error: authMethodsError,
+    isLoading: authMethodsLoading,
+    isFetched: authMethodsFetched,
+  } = useQuery({
+    queryKey,
+    queryFn: getAuthMethods,
+  })
+
   const [authState, authSend] = useAuth()
   const me = useMe()
   const permissions = usePermissions()
   const { updateProfileError } = authState.context
   const canEditUsers = permissions && permissions.updateUsers
+  // Extra
+  const redirectTo = retrieveRedirect(location.search)
+  console.log(authState.context.data)
 
   return (
     <Section title="Account" description="Update your account info">
@@ -29,6 +47,17 @@ export const AccountPage: FC = () => {
           })
         }}
       />
+
+      <SignInForm
+        authMethods={authMethodsData}
+        redirectTo={redirectTo}
+        isSigningIn={false}
+        error={authMethodsError}
+        onSubmit={(credentials: { email: string; password: string }) => {
+          console.log(credentials)
+          return
+        }}
+      ></SignInForm>
     </Section>
   )
 }
