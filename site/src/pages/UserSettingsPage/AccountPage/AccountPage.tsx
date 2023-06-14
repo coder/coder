@@ -8,6 +8,7 @@ import { SignInForm } from "components/SignInForm/SignInForm"
 import { retrieveRedirect } from "utils/redirect"
 import { useQuery } from "@tanstack/react-query"
 import { getAuthMethods } from "api/api"
+import { AuthMethods } from "api/typesGenerated"
 
 export const AccountPage: FC = () => {
   const queryKey = ["get-auth-methods"]
@@ -17,6 +18,16 @@ export const AccountPage: FC = () => {
     isLoading: authMethodsLoading,
     isFetched: authMethodsFetched,
   } = useQuery({
+    select: (res: AuthMethods) => {
+      return {
+        ...res,
+        // Disable the password auth in this account section. For merging accounts,
+        // we only want to support oidc.
+        password: {
+          enabled: false,
+        },
+      }
+    },
     queryKey,
     queryFn: getAuthMethods,
   })

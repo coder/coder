@@ -99,7 +99,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         {loginPageTranslation.t("signInTo")}{" "}
         <strong>{commonTranslation.t("coder")}</strong>
       </h1>
-      <Maybe condition={error !== undefined}>
+      <Maybe condition={Boolean(error)}>
         <div className={styles.error}>
           <ErrorAlert error={error} />
         </div>
