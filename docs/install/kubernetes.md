@@ -133,6 +133,21 @@ to log in and manage templates.
     }
    ```
 
+   By default, Coder will set the `externalTrafficPolicy` to `Cluster` which will
+   mask client IP addresses in the Audit log. To preserve the source IP, you can either
+   set this value to `Local`, or pass through the client IP via the X-Forwarded-For
+   header. To configure the latter, set the following environment
+   variables:
+
+  ```yaml
+  coder:
+    env:
+    - name: CODER_PROXY_TRUSTED_HEADERS
+      value: X-Forwarded-For
+    - name: CODER_PROXY_TRUSTED_ORIGINS
+      value: 10.0.0.1/8 # this will be the CIDR range of your Load Balancer IP address
+  ```
+
 1. Run the following command to install the chart in your cluster.
 
    ```console
