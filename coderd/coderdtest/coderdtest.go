@@ -256,7 +256,8 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	var handler http.Handler
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mutex.RLock()
-		defer mutex.RUnlock()
+		handler := handler
+		mutex.RUnlock()
 		if handler != nil {
 			handler.ServeHTTP(w, r)
 		}
