@@ -45,8 +45,13 @@ const (
 )
 
 // ContainerCPU returns the CPU usage of the container cgroup.
+// This is calculated as difference of two samples of the
+// CPU usage of the container cgroup.
+// The total is read from the relevant path in /sys/fs/cgroup.
+// If there is no limit set, the total is assumed to be the
+// number of host cores multiplied by the CFS period.
 // If the system is not containerized, this always returns nil.
-func (s *Statter) ContainerCPU() (*Result, error) {
+func (s *Statter) ContainerCPU(m Prefix) (*Result, error) {
 	// Firstly, check if we are containerized.
 	if ok, err := IsContainerized(s.fs); err != nil || !ok {
 		return nil, nil //nolint: nilnil
@@ -61,6 +66,11 @@ func (s *Statter) ContainerCPU() (*Result, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("get cgroup CPU usage: %w", err)
 	}
+
+	// The measurements in /sys/fs/cgroup are counters.
+	// We need to wait for a bit to get a difference.
+	// Note that someone could reset the counter in the meantime.
+	// We can't do anything about that.
 	s.wait(s.sampleInterval)
 
 	used2, err := s.cGroupCPUUsed()
@@ -69,9 +79,10 @@ func (s *Statter) ContainerCPU() (*Result, error) {
 	}
 
 	r := &Result{
-		Unit:  "cores",
-		Used:  (used2 - used1),
-		Total: ptr.To(total),
+		Unit:   "cores",
+		Prefix: m,
+		Used:   (used2 - used1),
+		Total:  ptr.To(total),
 	}
 	return r, nil
 }
@@ -169,20 +180,20 @@ func (s *Statter) cGroupV1CPUUsed() (float64, error) {
 
 // ContainerMemory returns the memory usage of the container cgroup.
 // If the system is not containerized, this always returns nil.
-func (s *Statter) ContainerMemory() (*Result, error) {
+func (s *Statter) ContainerMemory(m Prefix) (*Result, error) {
 	if ok, err := IsContainerized(s.fs); err != nil || !ok {
 		return nil, nil //nolint:nilnil
 	}
 
 	if s.isCGroupV2() {
-		return s.cGroupV2Memory()
+		return s.cGroupV2Memory(m)
 	}
 
 	// Fall back to CGroupv1
-	return s.cGroupV1Memory()
+	return s.cGroupV1Memory(m)
 }
 
-func (s *Statter) cGroupV2Memory() (*Result, error) {
+func (s *Statter) cGroupV2Memory(m Prefix) (*Result, error) {
 	maxUsageBytes, err := readInt64(s.fs, cgroupV2MemoryMaxBytes)
 	if err != nil {
 		return nil, xerrors.Errorf("read memory total: %w", err)
@@ -199,13 +210,14 @@ func (s *Statter) cGroupV2Memory() (*Result, error) {
 	}
 
 	return &Result{
-		Total: ptr.To(float64(maxUsageBytes) / 1024 / 1024 / 1024),
-		Used:  float64(currUsageBytes-inactiveFileBytes) / 1024 / 1024 / 1024,
-		Unit:  "GB",
+		Total:  ptr.To(float64(maxUsageBytes)),
+		Used:   float64(currUsageBytes - inactiveFileBytes),
+		Unit:   "B",
+		Prefix: m,
 	}, nil
 }
 
-func (s *Statter) cGroupV1Memory() (*Result, error) {
+func (s *Statter) cGroupV1Memory(m Prefix) (*Result, error) {
 	maxUsageBytes, err := readInt64(s.fs, cgroupV1MemoryMaxUsageBytes)
 	if err != nil {
 		return nil, xerrors.Errorf("read memory total: %w", err)
@@ -224,9 +236,10 @@ func (s *Statter) cGroupV1Memory() (*Result, error) {
 
 	// Total memory used is usage - total_inactive_file
 	return &Result{
-		Total: ptr.To(float64(maxUsageBytes) / 1024 / 1024 / 1024),
-		Used:  float64(usageBytes-totalInactiveFileBytes) / 1024 / 1024 / 1024,
-		Unit:  "GB",
+		Total:  ptr.To(float64(maxUsageBytes)),
+		Used:   float64(usageBytes - totalInactiveFileBytes),
+		Unit:   "B",
+		Prefix: m,
 	}, nil
 }
 

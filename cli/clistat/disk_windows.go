@@ -7,7 +7,7 @@ import (
 
 // Disk returns the disk usage of the given path.
 // If path is empty, it defaults to C:\
-func (*Statter) Disk(path string) (*Result, error) {
+func (*Statter) Disk(path string, m Prefix) (*Result, error) {
 	if path == "" {
 		path = `C:\`
 	}
@@ -28,8 +28,9 @@ func (*Statter) Disk(path string) (*Result, error) {
 	}
 
 	var r Result
-	r.Total = ptr.To(float64(totalBytes) / 1024 / 1024 / 1024)
-	r.Used = float64(totalBytes-freeBytes) / 1024 / 1024 / 1024
-	r.Unit = "GB"
+	r.Total = ptr.To(float64(totalBytes))
+	r.Used = float64(totalBytes - freeBytes)
+	r.Unit = "B"
+	r.Prefix = m
 	return &r, nil
 }

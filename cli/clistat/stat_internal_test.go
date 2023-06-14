@@ -33,6 +33,14 @@ func TestResultString(t *testing.T) {
 			Expected: "12.3",
 			Result:   Result{Used: 12.34, Total: nil, Unit: ""},
 		},
+		{
+			Expected: "1.5 KiB",
+			Result:   Result{Used: 1536, Total: nil, Unit: "B", Prefix: PrefixKibiShort},
+		},
+		{
+			Expected: "1.2 things",
+			Result:   Result{Used: 1.234, Total: nil, Unit: "things", Prefix: "invalid"},
+		},
 	} {
 		assert.Equal(t, tt.Expected, tt.Result.String())
 	}
@@ -52,7 +60,7 @@ func TestStatter(t *testing.T) {
 		require.NoError(t, err)
 		t.Run("HostCPU", func(t *testing.T) {
 			t.Parallel()
-			cpu, err := s.HostCPU()
+			cpu, err := s.HostCPU("")
 			require.NoError(t, err)
 			assert.NotZero(t, cpu.Used)
 			assert.NotZero(t, cpu.Total)
@@ -61,20 +69,20 @@ func TestStatter(t *testing.T) {
 
 		t.Run("HostMemory", func(t *testing.T) {
 			t.Parallel()
-			mem, err := s.HostMemory()
+			mem, err := s.HostMemory("")
 			require.NoError(t, err)
 			assert.NotZero(t, mem.Used)
 			assert.NotZero(t, mem.Total)
-			assert.Equal(t, "GB", mem.Unit)
+			assert.Equal(t, "B", mem.Unit)
 		})
 
 		t.Run("HostDisk", func(t *testing.T) {
 			t.Parallel()
-			disk, err := s.Disk("") // default to home dir
+			disk, err := s.Disk("", "") // default to home dir
 			require.NoError(t, err)
 			assert.NotZero(t, disk.Used)
 			assert.NotZero(t, disk.Total)
-			assert.NotZero(t, disk.Unit)
+			assert.Equal(t, "B", disk.Unit)
 		})
 	})
 
@@ -112,7 +120,7 @@ func TestStatter(t *testing.T) {
 			}
 			s, err := New(WithFS(fs), withWait(fakeWait))
 			require.NoError(t, err)
-			cpu, err := s.ContainerCPU()
+			cpu, err := s.ContainerCPU("")
 			require.NoError(t, err)
 			require.NotNil(t, cpu)
 			assert.Equal(t, 1.0, cpu.Used)
@@ -130,7 +138,7 @@ func TestStatter(t *testing.T) {
 			}
 			s, err := New(WithFS(fs), withNproc(2), withWait(fakeWait))
 			require.NoError(t, err)
-			cpu, err := s.ContainerCPU()
+			cpu, err := s.ContainerCPU("")
 			require.NoError(t, err)
 			require.NotNil(t, cpu)
 			assert.Equal(t, 1.0, cpu.Used)
@@ -144,12 +152,13 @@ func TestStatter(t *testing.T) {
 			fs := initFS(t, fsContainerCgroupV1)
 			s, err := New(WithFS(fs), withNoWait)
 			require.NoError(t, err)
-			mem, err := s.ContainerMemory()
+			mem, err := s.ContainerMemory("")
 			require.NoError(t, err)
 			require.NotNil(t, mem)
-			assert.Equal(t, 0.25, mem.Used)
-			assert.Equal(t, 1.0, *mem.Total)
-			assert.Equal(t, "GB", mem.Unit)
+			assert.Equal(t, 268435456.0, mem.Used)
+			assert.NotNil(t, mem.Total)
+			assert.Equal(t, 1073741824.0, *mem.Total)
+			assert.Equal(t, "B", mem.Unit)
 		})
 	})
 
@@ -164,7 +173,7 @@ func TestStatter(t *testing.T) {
 			}
 			s, err := New(WithFS(fs), withWait(fakeWait))
 			require.NoError(t, err)
-			cpu, err := s.ContainerCPU()
+			cpu, err := s.ContainerCPU("")
 			require.NoError(t, err)
 			require.NotNil(t, cpu)
 			assert.Equal(t, 1.0, cpu.Used)
@@ -181,7 +190,7 @@ func TestStatter(t *testing.T) {
 			}
 			s, err := New(WithFS(fs), withNproc(2), withWait(fakeWait))
 			require.NoError(t, err)
-			cpu, err := s.ContainerCPU()
+			cpu, err := s.ContainerCPU("")
 			require.NoError(t, err)
 			require.NotNil(t, cpu)
 			assert.Equal(t, 1.0, cpu.Used)
@@ -195,13 +204,13 @@ func TestStatter(t *testing.T) {
 			fs := initFS(t, fsContainerCgroupV2)
 			s, err := New(WithFS(fs), withNoWait)
 			require.NoError(t, err)
-			mem, err := s.ContainerMemory()
+			mem, err := s.ContainerMemory("")
 			require.NoError(t, err)
 			require.NotNil(t, mem)
-			assert.Equal(t, 0.25, mem.Used)
+			assert.Equal(t, 268435456.0, mem.Used)
 			assert.NotNil(t, mem.Total)
-			assert.Equal(t, 1.0, *mem.Total)
-			assert.Equal(t, "GB", mem.Unit)
+			assert.Equal(t, 1073741824.0, *mem.Total)
+			assert.Equal(t, "B", mem.Unit)
 		})
 	})
 }

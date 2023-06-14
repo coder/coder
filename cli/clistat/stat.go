@@ -14,6 +14,77 @@ import (
 	sysinfotypes "github.com/elastic/go-sysinfo/types"
 )
 
+// Prefix is an SI prefix for a unit.
+type Prefix string
+
+// Float64 returns the prefix as a float64.
+func (m *Prefix) Float64() (float64, error) {
+	switch *m {
+	case PrefixDeciShort, PrefixDeci:
+		return 0.1, nil
+	case PrefixCentiShort, PrefixCenti:
+		return 0.01, nil
+	case PrefixMilliShort, PrefixMilli:
+		return 0.001, nil
+	case PrefixMicroShort, PrefixMicro:
+		return 0.000_001, nil
+	case PrefixNanoShort, PrefixNano:
+		return 0.000_000_001, nil
+	case PrefixKiloShort, PrefixKilo:
+		return 1_000.0, nil
+	case PrefixMegaShort, PrefixMega:
+		return 1_000_000.0, nil
+	case PrefixGigaShort, PrefixGiga:
+		return 1_000_000_000.0, nil
+	case PrefixTeraShort, PrefixTera:
+		return 1_000_000_000_000.0, nil
+	case PrefixKibiShort, PrefixKibi:
+		return 1024.0, nil
+	case PrefixMebiShort, PrefixMebi:
+		return 1_048_576.0, nil
+	case PrefixGibiShort, PrefixGibi:
+		return 1_073_741_824.0, nil
+	case PrefixTebiShort, PrefixTebi:
+		return 1_099_511_627_776.0, nil
+	default:
+		return 0, xerrors.Errorf("unknown prefix: %s", *m)
+	}
+}
+
+const (
+	PrefixDeci  Prefix = "deci"
+	PrefixCenti Prefix = "centi"
+	PrefixMilli Prefix = "milli"
+	PrefixMicro Prefix = "micro"
+	PrefixNano  Prefix = "nano"
+
+	PrefixDeciShort  Prefix = "d"
+	PrefixCentiShort Prefix = "c"
+	PrefixMilliShort Prefix = "m"
+	PrefixMicroShort Prefix = "u"
+	PrefixNanoShort  Prefix = "n"
+
+	PrefixKilo Prefix = "kilo"
+	PrefixMega Prefix = "mega"
+	PrefixGiga Prefix = "giga"
+	PrefixTera Prefix = "tera"
+
+	PrefixKiloShort Prefix = "K"
+	PrefixMegaShort Prefix = "M"
+	PrefixGigaShort Prefix = "G"
+	PrefixTeraShort Prefix = "T"
+
+	PrefixKibi = "kibi"
+	PrefixMebi = "mebi"
+	PrefixGibi = "gibi"
+	PrefixTebi = "tebi"
+
+	PrefixKibiShort Prefix = "Ki"
+	PrefixMebiShort Prefix = "Mi"
+	PrefixGibiShort Prefix = "Gi"
+	PrefixTebiShort Prefix = "Ti"
+)
+
 // Result is a generic result type for a statistic.
 // Total is the total amount of the resource available.
 // It is nil if the resource is not a finite quantity.
@@ -23,6 +94,8 @@ type Result struct {
 	Total *float64 `json:"total"`
 	Unit  string   `json:"unit"`
 	Used  float64  `json:"used"`
+	// Prefix controls the string representation of the result.
+	Prefix Prefix `json:"-"`
 }
 
 // String returns a human-readable representation of the result.
@@ -31,13 +104,20 @@ func (r *Result) String() string {
 		return "-"
 	}
 	var sb strings.Builder
-	_, _ = sb.WriteString(strconv.FormatFloat(r.Used, 'f', 1, 64))
+	scale, err := r.Prefix.Float64()
+	prefix := string(r.Prefix)
+	if err != nil {
+		prefix = ""
+		scale = 1.0
+	}
+	_, _ = sb.WriteString(strconv.FormatFloat(r.Used/scale, 'f', 1, 64))
 	if r.Total != (*float64)(nil) {
 		_, _ = sb.WriteString("/")
-		_, _ = sb.WriteString(strconv.FormatFloat(*r.Total, 'f', 1, 64))
+		_, _ = sb.WriteString(strconv.FormatFloat(*r.Total/scale, 'f', 1, 64))
 	}
 	if r.Unit != "" {
 		_, _ = sb.WriteString(" ")
+		_, _ = sb.WriteString(prefix)
 		_, _ = sb.WriteString(r.Unit)
 	}
 	return sb.String()
@@ -96,7 +176,7 @@ func New(opts ...Option) (*Statter, error) {
 // This is calculated by taking the difference between the total and idle HostCPU time
 // and scaling it by the number of cores.
 // Units are in "cores".
-func (s *Statter) HostCPU() (*Result, error) {
+func (s *Statter) HostCPU(m Prefix) (*Result, error) {
 	r := &Result{
 		Unit:  "cores",
 		Total: ptr.To(float64(s.nproc)),
@@ -115,19 +195,21 @@ func (s *Statter) HostCPU() (*Result, error) {
 	used := total - idle
 	scaleFactor := float64(s.nproc) / total.Seconds()
 	r.Used = used.Seconds() * scaleFactor
+	r.Prefix = m
 	return r, nil
 }
 
 // HostMemory returns the memory usage of the host, in gigabytes.
-func (s *Statter) HostMemory() (*Result, error) {
+func (s *Statter) HostMemory(m Prefix) (*Result, error) {
 	r := &Result{
-		Unit: "GB",
+		Unit:   "B",
+		Prefix: m,
 	}
 	hm, err := s.hi.Memory()
 	if err != nil {
 		return nil, xerrors.Errorf("get memory info: %w", err)
 	}
-	r.Total = ptr.To(float64(hm.Total) / 1024 / 1024 / 1024)
-	r.Used = float64(hm.Used) / 1024 / 1024 / 1024
+	r.Total = ptr.To(float64(hm.Total))
+	r.Used = float64(hm.Used)
 	return r, nil
 }
