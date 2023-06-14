@@ -123,23 +123,23 @@ to log in and manage templates.
 
 ### Load balancing considerations
 
-   AWS however recommends a Network load balancer in lieu of the Classic load balancer. Use the following `values.yaml` settings to request a Network load balancer:
+AWS however recommends a Network load balancer in lieu of the Classic load balancer. Use the following `values.yaml` settings to request a Network load balancer:
 
-   ```yaml
-   coder:
-      service:
-      externalTrafficPolicy: Local
-      sessionAffinity: None
-      annotations: {
-         service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-    }
-   ```
+```yaml
+coder:
+   service:
+   externalTrafficPolicy: Local
+   sessionAffinity: None
+   annotations: {
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+ }
+```
 
-   By default, Coder will set the `externalTrafficPolicy` to `Cluster` which will
-   mask client IP addresses in the Audit log. To preserve the source IP, you can either
-   set this value to `Local`, or pass through the client IP via the X-Forwarded-For
-   header. To configure the latter, set the following environment
-   variables:
+By default, Coder will set the `externalTrafficPolicy` to `Cluster` which will
+mask client IP addresses in the Audit log. To preserve the source IP, you can either
+set this value to `Local`, or pass through the client IP via the X-Forwarded-For
+header. To configure the latter, set the following environment
+variables:
 
 ```yaml
 coder:
