@@ -459,8 +459,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                     <Link href="https://coder.com/docs/v2/latest/admin/rbac">
                       &apos;Template RBAC&apos;
                     </Link>{" "}
-                    feature to customize permissions. Without this license,
-                    unchecking this box prevents template usage by non-admins.
+                    feature to customize permissions.
                   </span>
                 </Stack>
               </Stack>
