@@ -121,6 +121,8 @@ to log in and manage templates.
        sessionAffinity: None
    ```
 
+### Load balancing considerations
+
    AWS however recommends a Network load balancer in lieu of the Classic load balancer. Use the following `values.yaml` settings to request a Network load balancer:
 
    ```yaml
