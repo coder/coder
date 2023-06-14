@@ -6859,10 +6859,13 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "password",
                 "username"
             ],
             "properties": {
+                "disable_login": {
+                    "description": "DisableLogin sets the user's login type to 'none'. This prevents the user\nfrom being able to use a password or any other authentication method to login.",
+                    "type": "boolean"
+                },
                 "email": {
                     "type": "string",
                     "format": "email"
@@ -7621,13 +7624,15 @@ const docTemplate = `{
                 "password",
                 "github",
                 "oidc",
-                "token"
+                "token",
+                "none"
             ],
             "x-enum-varnames": [
                 "LoginTypePassword",
                 "LoginTypeGithub",
                 "LoginTypeOIDC",
-                "LoginTypeToken"
+                "LoginTypeToken",
+                "LoginTypeNone"
             ]
         },
         "codersdk.LoginWithPasswordRequest": {

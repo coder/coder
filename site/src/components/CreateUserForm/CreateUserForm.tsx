@@ -50,6 +50,7 @@ export const CreateUserForm: FC<
         password: "",
         username: "",
         organization_id: myOrgId,
+        disable_login: false,
       },
       validationSchema,
       onSubmit,

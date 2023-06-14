@@ -1519,6 +1519,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "disable_login": true,
   "email": "user@example.com",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "password": "string",
@@ -1528,12 +1529,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-| ----------------- | ------ | -------- | ------------ | ----------- |
-| `email`           | string | true     |              |             |
-| `organization_id` | string | false    |              |             |
-| `password`        | string | true     |              |             |
-| `username`        | string | true     |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
+| ----------------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `disable_login`   | boolean | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. |
+| `email`           | string  | true     |              |                                                                                                                                                           |
+| `organization_id` | string  | false    |              |                                                                                                                                                           |
+| `password`        | string  | false    |              |                                                                                                                                                           |
+| `username`        | string  | true     |              |                                                                                                                                                           |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -2827,6 +2829,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `github`   |
 | `oidc`     |
 | `token`    |
+| `none`     |
 
 ## codersdk.LoginWithPasswordRequest
 

@@ -503,15 +503,22 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
-	return createAnotherUserRetry(t, client, organizationID, 5, roles...)
+	return createAnotherUserRetry(t, client, organizationID, 5, roles)
 }
 
-func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUserMutators(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
+}
+
+func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
+	}
+	for _, m := range mutators {
+		m(&req)
 	}
 
 	user, err := client.CreateUser(context.Background(), req)
@@ -520,19 +527,33 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {
 		if apiError.StatusCode() == http.StatusConflict {
 			retries--
-			return createAnotherUserRetry(t, client, organizationID, retries, roles...)
+			return createAnotherUserRetry(t, client, organizationID, retries, roles)
 		}
 	}
 	require.NoError(t, err)
 
-	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-		Email:    req.Email,
-		Password: req.Password,
-	})
-	require.NoError(t, err)
+	var sessionToken string
+	if !req.DisableLogin {
+		login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    req.Email,
+			Password: req.Password,
+		})
+		require.NoError(t, err)
+		sessionToken = login.SessionToken
+	} else {
+		// Cannot log in with a disabled login user. So make it an api key from
+		// the client making this user.
+		token, err := client.CreateToken(context.Background(), user.ID.String(), codersdk.CreateTokenRequest{
+			Lifetime:  time.Hour * 24,
+			Scope:     codersdk.APIKeyScopeAll,
+			TokenName: "no-password-user-token",
+		})
+		require.NoError(t, err)
+		sessionToken = token.Key
+	}
 
 	other := codersdk.New(client.URL)
-	other.SetSessionToken(login.SessionToken)
+	other.SetSessionToken(sessionToken)
 	t.Cleanup(func() {
 		other.HTTPClient.CloseIdleConnections()
 	})
