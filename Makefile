@@ -52,9 +52,9 @@ endif
 FIND_EXCLUSIONS= \
 	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path './site/out/*' -o -path './coderd/apidoc/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
-GO_SRC_FILES = $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go')
+GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go')
 # All the shell files in the repo, excluding ignored files.
-SHELL_SRC_FILES = $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
+SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
 OS_ARCHES := \
