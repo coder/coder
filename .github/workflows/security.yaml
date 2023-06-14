@@ -12,6 +12,8 @@ on:
     # Run every 6 hours Monday-Friday!
     - cron: "0 0/6 * * 1-5"
 
+  push:
+
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
 concurrency:
@@ -124,6 +126,14 @@ jobs:
           pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
           pcc_pass: ${{ secrets.PRISMA_CLOUD_SECRET_KEY }}
           image_name: ${{ steps.build.outputs.image }}
+
+      - name: Scan image
+        id: sysdig-scan
+        uses: sysdiglabs/scan-action@v3
+        with:
+          image-tag: ${{ steps.build.outputs.image }}
+          sysdig-secure-token: ${{ secrets.SYSDIG_API_TOKEN }}
+          input-type: docker-daemon
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@41f05d9ecffa2ed3f1580af306000f734b733e54
