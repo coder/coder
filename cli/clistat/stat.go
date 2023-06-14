@@ -178,8 +178,9 @@ func New(opts ...Option) (*Statter, error) {
 // Units are in "cores".
 func (s *Statter) HostCPU(m Prefix) (*Result, error) {
 	r := &Result{
-		Unit:  "cores",
-		Total: ptr.To(float64(s.nproc)),
+		Unit:   "cores",
+		Total:  ptr.To(float64(s.nproc)),
+		Prefix: m,
 	}
 	c1, err := s.hi.CPUTime()
 	if err != nil {
@@ -191,11 +192,13 @@ func (s *Statter) HostCPU(m Prefix) (*Result, error) {
 		return nil, xerrors.Errorf("get second cpu sample: %w", err)
 	}
 	total := c2.Total() - c1.Total()
+	if total == 0 {
+		return r, nil // no change
+	}
 	idle := c2.Idle - c1.Idle
 	used := total - idle
 	scaleFactor := float64(s.nproc) / total.Seconds()
 	r.Used = used.Seconds() * scaleFactor
-	r.Prefix = m
 	return r, nil
 }
 
