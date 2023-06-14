@@ -139,14 +139,14 @@ to log in and manage templates.
    header. To configure the latter, set the following environment
    variables:
 
-  ```yaml
-  coder:
-    env:
+```yaml
+coder:
+  env:
     - name: CODER_PROXY_TRUSTED_HEADERS
       value: X-Forwarded-For
     - name: CODER_PROXY_TRUSTED_ORIGINS
       value: 10.0.0.1/8 # this will be the CIDR range of your Load Balancer IP address
-  ```
+```
 
 1. Run the following command to install the chart in your cluster.
 
