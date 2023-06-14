@@ -1,4 +1,3 @@
-import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { AlertColor } from "@mui/material/Alert/Alert"
 import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
@@ -96,8 +95,8 @@ export default ({ alertType }: { alertType: TerminalPageAlertType }) => {
       actions={[
         <Button
           key="refresh-session"
-          startIcon={<RefreshOutlined />}
           size="small"
+          variant="text"
           onClick={() => {
             // By redirecting the user without the session in the URL we
             // create a new one
