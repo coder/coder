@@ -134,6 +134,7 @@ jobs:
           image-tag: ${{ steps.build.outputs.image }}
           sysdig-secure-token: ${{ secrets.SYSDIG_API_TOKEN }}
           input-type: docker-daemon
+          sysdig-secure-url: https://app.us4.sysdig.com
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@41f05d9ecffa2ed3f1580af306000f734b733e54
@@ -156,13 +157,13 @@ jobs:
           path: trivy-results.sarif
           retention-days: 7
 
-      - name: Send Slack notification on failure
-        if: ${{ failure() }}
-        run: |
-          msg="❌ Trivy Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl \
-            -qfsSL \
-            -X POST \
-            -H "Content-Type: application/json" \
-            --data "{\"content\": \"$msg\"}" \
-            "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
+      # - name: Send Slack notification on failure
+      #   if: ${{ failure() }}
+      #   run: |
+      #     msg="❌ Trivy Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      #     curl \
+      #       -qfsSL \
+      #       -X POST \
+      #       -H "Content-Type: application/json" \
+      #       --data "{\"content\": \"$msg\"}" \
+      #       "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
