@@ -1,22 +1,23 @@
--- name: GetUserOIDCMergeState :one
+-- name: GetUserOauthMergeState :one
 SELECT
 	*
 FROM
-	oidc_merge_state
+	oauth_merge_state
 WHERE
     user_id = @user_id AND
     state_string = @state_string;
 
--- name: InsertUserOIDCMergeState :one
+-- name: InsertUserOauthMergeState :one
 INSERT INTO
-	oidc_merge_state (
+	oauth_merge_state (
 		user_id,
 		state_string,
+		oauth_id,
 		created_at,
-		updated_at
+		expires_at
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING *;
+	($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: GetUserByID :one
 SELECT

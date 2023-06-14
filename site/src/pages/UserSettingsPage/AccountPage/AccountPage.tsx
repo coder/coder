@@ -39,7 +39,7 @@ export const AccountPage: FC = () => {
   const canEditUsers = permissions && permissions.updateUsers
   // Extra
   const redirectTo = retrieveRedirect(location.search)
-  console.log(authState.context.data)
+  console.log(authState.context.data, authMethodsError)
 
   return (
     <Section title="Account" description="Update your account info">

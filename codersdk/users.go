@@ -93,6 +93,11 @@ type UserRoles struct {
 	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
 }
 
+type UpgradeToOIDCRequest struct {
+	OauthProvider string `json:"oauth_provider" validate:"required"`
+	LoginWithPasswordRequest
+}
+
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
 	Email    string `json:"email" validate:"required,email" format:"email"`

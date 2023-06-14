@@ -4812,6 +4812,34 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const getUserOauthMergeState = `-- name: GetUserOauthMergeState :one
+SELECT
+	state_string, created_at, expires_at, oauth_id, user_id
+FROM
+	oauth_merge_state
+WHERE
+    user_id = $1 AND
+    state_string = $2
+`
+
+type GetUserOauthMergeStateParams struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	StateString string    `db:"state_string" json:"state_string"`
+}
+
+func (q *sqlQuerier) GetUserOauthMergeState(ctx context.Context, arg GetUserOauthMergeStateParams) (OauthMergeState, error) {
+	row := q.db.QueryRowContext(ctx, getUserOauthMergeState, arg.UserID, arg.StateString)
+	var i OauthMergeState
+	err := row.Scan(
+		&i.StateString,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.OauthID,
+		&i.UserID,
+	)
+	return i, err
+}
+
 const getUsers = `-- name: GetUsers :many
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, COUNT(*) OVER() AS count
@@ -5037,6 +5065,46 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
+	)
+	return i, err
+}
+
+const insertUserOauthMergeState = `-- name: InsertUserOauthMergeState :one
+INSERT INTO
+	oauth_merge_state (
+		user_id,
+		state_string,
+		oauth_id,
+		created_at,
+		expires_at
+	)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING state_string, created_at, expires_at, oauth_id, user_id
+`
+
+type InsertUserOauthMergeStateParams struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	StateString string    `db:"state_string" json:"state_string"`
+	OauthID     string    `db:"oauth_id" json:"oauth_id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt   time.Time `db:"expires_at" json:"expires_at"`
+}
+
+func (q *sqlQuerier) InsertUserOauthMergeState(ctx context.Context, arg InsertUserOauthMergeStateParams) (OauthMergeState, error) {
+	row := q.db.QueryRowContext(ctx, insertUserOauthMergeState,
+		arg.UserID,
+		arg.StateString,
+		arg.OauthID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+	)
+	var i OauthMergeState
+	err := row.Scan(
+		&i.StateString,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.OauthID,
+		&i.UserID,
 	)
 	return i, err
 }

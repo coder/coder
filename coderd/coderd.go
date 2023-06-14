@@ -604,7 +604,6 @@ func New(options *Options) *API {
 				// This value is intentionally increased during tests.
 				r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 				r.Post("/login", api.postLogin)
-				r.Post("/upgrade-to-oidc", api.postUpgradeToOIDC)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
 						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil))
@@ -614,6 +613,14 @@ func New(options *Options) *API {
 				r.Route("/oidc/callback", func(r chi.Router) {
 					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams))
 					r.Get("/", api.userOIDC)
+				})
+				// This is an authenticated route. It handles converting a user
+				// from Password based authentication to OIDC based
+				r.Route("/upgrade-to-oidc", func(r chi.Router) {
+					r.Use(
+						apiKeyMiddleware,
+					)
+					r.Post("/upgrade-to-oidc", api.postUpgradeToOIDC)
 				})
 			})
 			r.Group(func(r chi.Router) {

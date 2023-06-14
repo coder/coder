@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/coder/coder/cryptorand"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/go-github/v43/github"
@@ -29,6 +33,90 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 )
+
+func (api *API) postUpgradeToOIDC(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	// TODO: @emyrk This does make a new api key. Make a new auditable resource
+	// for oidc state.
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
+
+	var req codersdk.UpgradeToOIDCRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var oauthID string
+	switch strings.ToLower(req.OauthProvider) {
+	case "oidc":
+		oauthID = "oidc"
+	case "github":
+		oauthID = "github"
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Unknown oauth provider %q. Choose from '%s' or '%s'",
+				req.OauthProvider, "oidc", "github"),
+		})
+		return
+	}
+
+	user, _, ok := api.loginRequest(ctx, rw, req.LoginWithPasswordRequest)
+	if !ok {
+		return
+	}
+
+	// The user wants to convert their password based authentication to OIDC.
+	if user.LoginType != database.LoginTypePassword {
+		// This is checked in loginRequest, but checked again here in case that shared
+		// function changes its checks. Just some defensive programming.
+		// This login type is **required** to be password based to prevent
+		// users from converting other login types to OIDC.
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User account must be have password based authentication.",
+		})
+		return
+	}
+
+	stateString, err := cryptorand.String(32)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error generating state string.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	now := time.Now()
+	mergeState, err := api.Database.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
+		UserID:      user.ID,
+		StateString: stateString,
+		OauthID:     oauthID,
+		CreatedAt:   now,
+		ExpiresAt:   now.Add(time.Minute * 5),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal Server Error",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Redirect the user back to where they were after the account merge.
+	redirectURL := fmt.Sprintf("/api/v2/users/%s/callback?redirect=%s&oidc_merge_state=%s", oauthID, url.QueryEscape(r.URL.Path), mergeState.StateString)
+
+	// Redirect the user to the normal OIDC flow with the special 'oidc_merge_state' state string.
+	http.Redirect(rw, r, redirectURL, http.StatusTemporaryRedirect)
+}
 
 // Authenticates the user with an email and password.
 //
@@ -59,66 +147,9 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // In order to login, we need to get the user first!
-	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
-		Email: loginWithPassword.Email,
-	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error.",
-		})
-		return
-	}
-
-	aReq.UserID = user.ID
-
-	// If the user doesn't exist, it will be a default struct.
-	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error.",
-		})
-		return
-	}
-	if !equal {
-		// This message is the same as above to remove ease in detecting whether
-		// users are registered or not. Attackers still could with a timing attack.
-		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-			Message: "Incorrect email or password.",
-		})
-		return
-	}
-
-	// If password authentication is disabled and the user does not have the
-	// owner role, block the request.
-	if api.DeploymentValues.DisablePasswordAuth {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Password authentication is disabled.",
-		})
-		return
-	}
-
-	if user.LoginType != database.LoginTypePassword {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
-		})
-		return
-	}
-
-	//nolint:gocritic // System needs to fetch user roles in order to login user.
-	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error.",
-		})
-		return
-	}
-
-	// If the user logged into a suspended account, reject the login request.
-	if roles.Status != database.UserStatusActive {
-		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-			Message: "Your account is suspended. Contact an admin to reactivate your account.",
-		})
+	user, roles, ok := api.loginRequest(ctx, rw, loginWithPassword)
+	if !ok {
+		// user failed to login
 		return
 	}
 
@@ -151,6 +182,75 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: cookie.Value,
 	})
+}
+
+// loginRequest will process a LoginWithPasswordRequest and return the user if
+// the credentials are correct. If 'false' is returned, the authentication failed
+// and the appropriate error will be written to the ResponseWriter.
+func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req codersdk.LoginWithPasswordRequest) (database.User, database.GetAuthorizationUserRolesRow, bool) {
+	//nolint:gocritic // In order to login, we need to get the user first!
+	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
+		Email: req.Email,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+	}
+
+	// If the user doesn't exist, it will be a default struct.
+	equal, err := userpassword.Compare(string(user.HashedPassword), req.Password)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+	}
+
+	if !equal {
+		// This message is the same as above to remove ease in detecting whether
+		// users are registered or not. Attackers still could with a timing attack.
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "Incorrect email or password.",
+		})
+		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+	}
+
+	// If password authentication is disabled and the user does not have the
+	// owner role, block the request.
+	if api.DeploymentValues.DisablePasswordAuth {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Password authentication is disabled.",
+		})
+		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+	}
+
+	if user.LoginType != database.LoginTypePassword {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
+		})
+		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+	}
+
+	//nolint:gocritic // System needs to fetch user roles in order to login user.
+	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+	}
+
+	// If the user logged into a suspended account, reject the login request.
+	if roles.Status != database.UserStatusActive {
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "Your account is suspended. Contact an admin to reactivate your account.",
+		})
+		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+	}
+
+	return user, roles, true
 }
 
 // Clear the user's session cookie.
@@ -864,6 +964,17 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
+			mergeState, err := api.Database.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
+				UserID:      user.ID,
+				StateString: params.State.StateString,
+			})
+			if err == nil && mergeState.ExpiresAt.Before(time.Now()) {
+				return httpError{
+					code: http.StatusForbidden,
+					msg:  "Hey! This upgrade would have worked if I let it",
+				}
+			}
+
 			return httpError{
 				code: http.StatusForbidden,
 				msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",

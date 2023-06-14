@@ -108,6 +108,20 @@ func (m metricsStore) GetAuthorizedUserCount(ctx context.Context, arg database.G
 	return count, err
 }
 
+func (m metricsStore) GetUserOIDCMergeState(ctx context.Context, arg database.GetUserOIDCMergeStateParams) (database.OidcMergeState, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserOIDCMergeState(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserOIDCMergeState").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) InsertUserOIDCMergeState(ctx context.Context, arg database.InsertUserOIDCMergeStateParams) (database.OidcMergeState, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertUserOIDCMergeState(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertUserOIDCMergeState").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -689,6 +703,13 @@ func (m metricsStore) GetUserLinkByUserIDLoginType(ctx context.Context, arg data
 	return link, err
 }
 
+func (m metricsStore) GetUserOauthMergeState(ctx context.Context, arg database.GetUserOauthMergeStateParams) (database.OauthMergeState, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserOauthMergeState(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserOauthMergeState").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	start := time.Now()
 	users, err := m.s.GetUsers(ctx, arg)
@@ -1121,6 +1142,13 @@ func (m metricsStore) InsertUserLink(ctx context.Context, arg database.InsertUse
 	link, err := m.s.InsertUserLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUserLink").Observe(time.Since(start).Seconds())
 	return link, err
+}
+
+func (m metricsStore) InsertUserOauthMergeState(ctx context.Context, arg database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertUserOauthMergeState(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertUserOauthMergeState").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {

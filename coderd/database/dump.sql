@@ -266,16 +266,19 @@ CREATE SEQUENCE licenses_id_seq
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
-CREATE TABLE oidc_merge_state (
+CREATE TABLE oauth_merge_state (
     state_string text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
+    oauth_id text NOT NULL,
     user_id uuid NOT NULL
 );
 
-COMMENT ON TABLE oidc_merge_state IS 'Stores the state string for OIDC merge requests. If an OIDC state string is found in this table, it is assumed the user had a LoginType "password" and is switching to an OIDC based authentication.';
+COMMENT ON TABLE oauth_merge_state IS 'Stores the state string for Oauth merge requests. If an Oauth state string is found in this table, it is assumed the user had a LoginType "password" and is switching to an Oauth based authentication.';
 
-COMMENT ON COLUMN oidc_merge_state.expires_at IS 'The time at which the state string expires, a merge request times out if the user does not perform it quick enough.';
+COMMENT ON COLUMN oauth_merge_state.expires_at IS 'The time at which the state string expires, a merge request times out if the user does not perform it quick enough.';
+
+COMMENT ON COLUMN oauth_merge_state.oauth_id IS 'Identifier to know which Oauth provider the user is merging with. This prevents the user from requesting "github" and merging with a different Oauth provider';
 
 CREATE TABLE organization_members (
     user_id uuid NOT NULL,
@@ -806,8 +809,8 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY oidc_merge_state
-    ADD CONSTRAINT oidc_merge_state_pkey PRIMARY KEY (state_string);
+ALTER TABLE ONLY oauth_merge_state
+    ADD CONSTRAINT oauth_merge_state_pkey PRIMARY KEY (state_string);
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
@@ -974,8 +977,8 @@ ALTER TABLE ONLY group_members
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY oidc_merge_state
-    ADD CONSTRAINT oidc_merge_state_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY oauth_merge_state
+    ADD CONSTRAINT oauth_merge_state_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

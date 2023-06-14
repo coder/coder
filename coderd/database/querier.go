@@ -116,6 +116,7 @@ type sqlcQuerier interface {
 	GetUserCount(ctx context.Context) (int64, error)
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
+	GetUserOauthMergeState(ctx context.Context, arg GetUserOauthMergeStateParams) (OauthMergeState, error)
 	// This will never return deleted users.
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)
 	// This shouldn't check for deleted, because it's frequently used
@@ -193,6 +194,7 @@ type sqlcQuerier interface {
 	// InsertUserGroupsByName adds a user to all provided groups, if they exist.
 	InsertUserGroupsByName(ctx context.Context, arg InsertUserGroupsByNameParams) error
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
+	InsertUserOauthMergeState(ctx context.Context, arg InsertUserOauthMergeStateParams) (OauthMergeState, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
 	InsertWorkspaceAgentMetadata(ctx context.Context, arg InsertWorkspaceAgentMetadataParams) error

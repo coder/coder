@@ -2549,6 +2549,10 @@ func (q *fakeQuerier) GetUserLinkByUserIDLoginType(_ context.Context, params dat
 	return database.UserLink{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetUserOauthMergeState(ctx context.Context, arg database.GetUserOauthMergeStateParams) (database.OauthMergeState, error) {
+	panic("Not implemented")
+}
+
 func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return nil, err
@@ -3924,6 +3928,10 @@ func (q *fakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	q.userLinks = append(q.userLinks, link)
 
 	return link, nil
+}
+
+func (q *fakeQuerier) InsertUserOauthMergeState(ctx context.Context, arg database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
+	panic("Not implemented")
 }
 
 func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
