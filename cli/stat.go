@@ -42,8 +42,8 @@ func (r *RootCmd) stat() *clibase.Cmd {
 			var sr statsRow
 
 			// Get CPU measurements first.
-			hostErr := make(chan error)
-			containerErr := make(chan error)
+			hostErr := make(chan error, 1)
+			containerErr := make(chan error, 1)
 			go func() {
 				defer close(hostErr)
 				cs, err := st.HostCPU("")
