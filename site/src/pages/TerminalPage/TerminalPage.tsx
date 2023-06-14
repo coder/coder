@@ -1,7 +1,4 @@
-import Button from "@mui/material/Button"
 import { makeStyles, useTheme } from "@mui/styles"
-import WarningIcon from "@mui/icons-material/ErrorOutlineRounded"
-import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
 import { useMachine } from "@xstate/react"
 import { portForwardURL } from "components/PortForwardButton/PortForwardButton"
 import { Stack } from "components/Stack/Stack"
@@ -18,13 +15,13 @@ import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { pageTitle } from "../../utils/page"
 import { terminalMachine } from "../../xServices/terminal/terminalXService"
 import { useProxy } from "contexts/ProxyContext"
-import { combineClasses } from "utils/combineClasses"
 import Box from "@mui/material/Box"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { Region } from "api/typesGenerated"
 import { getLatencyColor } from "utils/latency"
 import Popover from "@mui/material/Popover"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
+import TerminalPageAlert, { TerminalPageAlertType } from "./TerminalPageAlert"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -80,12 +77,26 @@ const TerminalPage: FC = () => {
     websocketError,
   } = terminalState.context
   const reloading = useReloading(isDisconnected)
-  const shouldDisplayStartupWarning = workspaceAgent
-    ? ["starting", "starting_timeout"].includes(workspaceAgent.lifecycle_state)
-    : false
-  const shouldDisplayStartupError = workspaceAgent
-    ? workspaceAgent.lifecycle_state === "start_error"
-    : false
+  const lifecycleState = workspaceAgent?.lifecycle_state
+  const [startupWarning, setStartupWarning] = useState<
+    TerminalPageAlertType | undefined
+  >(undefined)
+
+  useEffect(() => {
+    if (lifecycleState === "start_error") {
+      setStartupWarning("error")
+    } else if (lifecycleState === "starting") {
+      setStartupWarning("starting")
+    } else {
+      setStartupWarning((prev) => {
+        if (prev === "starting") {
+          return "success"
+        }
+        return undefined
+      })
+    }
+  }, [lifecycleState])
+
   const dashboard = useDashboard()
   const proxyContext = useProxy()
   const selectedProxy = proxyContext.proxy.proxy
@@ -305,49 +316,8 @@ const TerminalPage: FC = () => {
           </Stack>
         )}
       </div>
-      {shouldDisplayStartupError && (
-        <div
-          className={combineClasses([styles.alert, styles.alertError])}
-          role="alert"
-        >
-          <WarningIcon className={styles.alertIcon} />
-          <div>
-            <div className={styles.alertTitle}>Startup script failed</div>
-            <div className={styles.alertMessage}>
-              You can continue using this terminal, but something may be missing
-              or not fully set up.
-            </div>
-          </div>
-        </div>
-      )}
       <Box display="flex" flexDirection="column" height="100vh">
-        {shouldDisplayStartupWarning && (
-          <div className={styles.alert} role="alert">
-            <WarningIcon className={styles.alertIcon} />
-            <div>
-              <div className={styles.alertTitle}>
-                Startup script is still running
-              </div>
-              <div className={styles.alertMessage}>
-                You can continue using this terminal, but something may be
-                missing or not fully set up.
-              </div>
-            </div>
-            <div className={styles.alertActions}>
-              <Button
-                startIcon={<RefreshOutlined />}
-                size="small"
-                onClick={() => {
-                  // By redirecting the user without the session in the URL we
-                  // create a new one
-                  window.location.href = window.location.pathname
-                }}
-              >
-                Refresh session
-              </Button>
-            </div>
-          </div>
-        )}
+        {startupWarning && <TerminalPageAlert alertType={startupWarning} />}
         <div
           className={styles.terminal}
           ref={xtermRef}
