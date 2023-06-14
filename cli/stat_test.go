@@ -23,7 +23,7 @@ func TestStatCmd(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
-		inv, _ := clitest.New(t, "stat", "--output=json")
+		inv, _ := clitest.New(t, "stat", "all", "--output=json")
 		buf := new(bytes.Buffer)
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
@@ -38,7 +38,7 @@ func TestStatCmd(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
-		inv, _ := clitest.New(t, "stat", "--output=table")
+		inv, _ := clitest.New(t, "stat", "all", "--output=table")
 		buf := new(bytes.Buffer)
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
@@ -53,7 +53,7 @@ func TestStatCmd(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
-		inv, _ := clitest.New(t, "stat")
+		inv, _ := clitest.New(t, "stat", "all")
 		buf := new(bytes.Buffer)
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
@@ -63,5 +63,98 @@ func TestStatCmd(t *testing.T) {
 		require.Contains(t, s, "HOST CPU")
 		require.Contains(t, s, "HOST MEMORY")
 		require.Contains(t, s, "HOME DISK")
+	})
+}
+
+func TestStatCPUCmd(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Text", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		inv, _ := clitest.New(t, "stat", "cpu", "--output=text")
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		s := buf.String()
+		require.NotEmpty(t, s)
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		inv, _ := clitest.New(t, "stat", "cpu", "--output=json")
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		s := buf.String()
+		tmp := struct{}{}
+		require.NoError(t, json.NewDecoder(strings.NewReader(s)).Decode(&tmp))
+	})
+}
+
+func TestStatMemCmd(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Text", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		inv, _ := clitest.New(t, "stat", "mem", "--output=text")
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		s := buf.String()
+		require.NotEmpty(t, s)
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		inv, _ := clitest.New(t, "stat", "mem", "--output=json")
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		s := buf.String()
+		tmp := struct{}{}
+		require.NoError(t, json.NewDecoder(strings.NewReader(s)).Decode(&tmp))
+	})
+}
+
+func TestStatDiskCmd(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Text", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		inv, _ := clitest.New(t, "stat", "disk", "--output=text")
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		s := buf.String()
+		require.NotEmpty(t, s)
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		inv, _ := clitest.New(t, "stat", "disk", "--output=json")
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		s := buf.String()
+		tmp := struct{}{}
+		require.NoError(t, json.NewDecoder(strings.NewReader(s)).Decode(&tmp))
 	})
 }

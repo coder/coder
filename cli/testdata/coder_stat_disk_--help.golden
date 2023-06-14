@@ -1,0 +1,13 @@
+Usage: coder stat disk [flags]
+
+Show disk usage, in gigabytes.
+
+[1mOptions[0m
+  -o, --output string (default: text)
+          Output format. Available formats: text, json.
+
+      --path string (default: /)
+          Path for which to check disk usage.
+
+---
+Run `coder --help` for a list of global options.

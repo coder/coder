@@ -2,13 +2,21 @@
 
 # stat
 
-Show workspace resource usage.
+Show resource usage for the current workspace.
 
 ## Usage
 
 ```console
 coder stat [flags]
 ```
+
+## Subcommands
+
+| Name                                | Purpose                          |
+| ----------------------------------- | -------------------------------- |
+| [<code>cpu</code>](./stat_cpu.md)   | Show CPU usage, in cores.        |
+| [<code>disk</code>](./stat_disk.md) | Show disk usage, in gigabytes.   |
+| [<code>mem</code>](./stat_mem.md)   | Show memory usage, in gigabytes. |
 
 ## Options
 
