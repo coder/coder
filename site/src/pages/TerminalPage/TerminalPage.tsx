@@ -90,7 +90,7 @@ const TerminalPage: FC = () => {
     context: {
       agentName: workspaceNameParts?.[1],
       reconnection: reconnectionToken,
-      workspaceName: workspaceNameParts?.[0] as string,
+      workspaceName: workspaceNameParts?.[0],
       username: username,
       command: command,
       baseURL: proxy.preferredPathAppURL,
