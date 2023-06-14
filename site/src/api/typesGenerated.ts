@@ -179,6 +179,7 @@ export interface CreateTemplateRequest {
   readonly allow_user_autostop?: boolean
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
+  readonly disable_everyone_group_access: boolean
 }
 
 // From codersdk/templateversions.go
@@ -223,6 +224,7 @@ export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
+  readonly disable_login: boolean
   readonly organization_id: string
 }
 
@@ -1395,8 +1397,14 @@ export type LogSource = "provisioner" | "provisioner_daemon"
 export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "oidc" | "password" | "token"
-export const LoginTypes: LoginType[] = ["github", "oidc", "password", "token"]
+export type LoginType = "github" | "none" | "oidc" | "password" | "token"
+export const LoginTypes: LoginType[] = [
+  "github",
+  "none",
+  "oidc",
+  "password",
+  "token",
+]
 
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobStatus =

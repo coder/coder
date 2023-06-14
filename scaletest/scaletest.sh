@@ -15,18 +15,25 @@ SCALETEST_PROJECT="${SCALETEST_PROJECT:-}"
 SCALETEST_PROMETHEUS_REMOTE_WRITE_USER="${SCALETEST_PROMETHEUS_REMOTE_WRITE_USER:-}"
 SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD="${SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD:-}"
 SCALETEST_SKIP_CLEANUP="${SCALETEST_SKIP_CLEANUP:-0}"
+SCALETEST_CREATE_CONCURRENCY="${SCALETEST_CREATE_CONCURRENCY:-10}"
+SCALETEST_TRAFFIC_BYTES_PER_TICK="${SCALETEST_TRAFFIC_BYTES_PER_TICK:-1024}"
+SCALETEST_TRAFFIC_TICK_INTERVAL="${SCALETEST_TRAFFIC_TICK_INTERVAL:-10}"
 
 script_name=$(basename "$0")
-args="$(getopt -o "" -l dry-run,help,name:,num-workspaces:,project:,scenario:,skip-cleanup -- "$@")"
+args="$(getopt -o "" -l create-concurrency:,dry-run,help,name:,num-workspaces:,project:,scenario:,skip-cleanup,traffic-bytes-per-tick:,traffic-tick-interval:, -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
+	--create-concurrency)
+		SCALETEST_CREATE_CONCURRENCY="$2"
+		shift 2
+		;;
 	--dry-run)
 		DRY_RUN=1
 		shift
 		;;
 	--help)
-		echo "Usage: $script_name --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--dry-run] [--skip-cleanup]"
+		echo "Usage: $script_name --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--dry-run] [--skip-cleanup] [--create-concurrency=<create-concurrency>]"
 		exit 1
 		;;
 	--name)
@@ -48,6 +55,14 @@ while true; do
 	--skip-cleanup)
 		SCALETEST_SKIP_CLEANUP=1
 		shift
+		;;
+	--traffic-bytes-per-tick)
+		SCALETEST_TRAFFIC_BYTES_PER_TICK="$2"
+		shift 2
+		;;
+	--traffic-tick-interval)
+		SCALETEST_TRAFFIC_TICK_INTERVAL="$2"
+		shift 2
 		;;
 	--)
 		shift
@@ -144,16 +159,21 @@ echo "Creating ${SCALETEST_NUM_WORKSPACES} workspaces."
 DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_shim.sh" scaletest create-workspaces \
 	--count "${SCALETEST_NUM_WORKSPACES}" \
 	--template=kubernetes \
-	--concurrency 10 \
+	--concurrency "${SCALETEST_CREATE_CONCURRENCY}" \
 	--no-cleanup
 
 echo "Sleeping 10 minutes to establish a baseline measurement."
 maybedryrun "$DRY_RUN" sleep 600
 
 echo "Sending traffic to workspaces"
-maybedryrun "$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_workspacetraffic.sh" "${SCALETEST_NAME}"
+maybedryrun "$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_workspacetraffic.sh" \
+	--name "${SCALETEST_NAME}" \
+	--traffic-bytes-per-tick "${SCALETEST_TRAFFIC_BYTES_PER_TICK}" \
+	--traffic-tick-interval "${SCALETEST_TRAFFIC_TICK_INTERVAL}"
 maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETEST_NAME}" wait pods coder-scaletest-workspace-traffic --for condition=Ready
-maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETEST_NAME}" logs -f pod/coder-scaletest-workspace-traffic
+
+echo "Sleeping 15 minutes for traffic generation"
+maybedryrun "$DRY_RUN" sleep 900
 
 echo "Starting pprof"
 maybedryrun "$DRY_RUN" kubectl -n "coder-${SCALETEST_NAME}" port-forward deployment/coder 6061:6060 &
@@ -168,6 +188,7 @@ while ! maybedryrun "$DRY_RUN" timeout 1 bash -c "echo > /dev/tcp/localhost/6061
 		echo "pprof failed to become ready in time!"
 		exit 1
 	fi
+	pprof_attempt_counter+=1
 	maybedryrun "$DRY_RUN" sleep 3
 done
 

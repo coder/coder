@@ -48,25 +48,28 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		// By default, everyone in the org can read the template.
+		user, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		auditor.ResetLogs()
 
-		expected := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+
+		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		got, err := client.Template(ctx, expected.ID)
+		got, err := user.Template(ctx, expected.ID)
 		require.NoError(t, err)
 
 		assert.Equal(t, expected.Name, got.Name)
 		assert.Equal(t, expected.Description, got.Description)
 
-		require.Len(t, auditor.AuditLogs(), 4)
-		assert.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[0].Action)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[2].Action)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[3].Action)
+		require.Len(t, auditor.AuditLogs(), 3)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[1].Action)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[2].Action)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
@@ -124,6 +127,27 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Zero(t, got.DefaultTTLMillis)
+	})
+
+	t.Run("DisableEveryone", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		owner := coderdtest.CreateFirstUser(t, client)
+		user, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+
+		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.DisableEveryoneGroupAccess = true
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := user.Template(ctx, expected.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {

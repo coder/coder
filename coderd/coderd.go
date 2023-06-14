@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbmetrics"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/healthcheck"
@@ -95,7 +96,7 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           database.Pubsub
+	Pubsub           pubsub.Pubsub
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
