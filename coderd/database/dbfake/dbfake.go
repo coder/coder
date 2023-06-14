@@ -2722,7 +2722,7 @@ func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg d
 		if log.AgentID != arg.AgentID {
 			continue
 		}
-		if arg.CreatedAfter != 0 && log.ID < arg.CreatedAfter {
+		if arg.CreatedAfter != 0 && log.ID <= arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, log)
@@ -4026,6 +4026,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg dat
 			CreatedAt: arg.CreatedAt[index],
 			Level:     arg.Level[index],
 			Output:    output,
+			EOF:       arg.EOF[index],
 		})
 		outputLength += int32(len(output))
 	}

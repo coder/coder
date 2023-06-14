@@ -58,6 +58,16 @@ const (
 	WorkspaceAgentLifecycleOff             WorkspaceAgentLifecycle = "off"
 )
 
+// Starting returns true if the agent is in the process of starting.
+func (l WorkspaceAgentLifecycle) Starting() bool {
+	switch l {
+	case WorkspaceAgentLifecycleCreated, WorkspaceAgentLifecycleStarting, WorkspaceAgentLifecycleStartTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
 // WorkspaceAgentLifecycleOrder is the order in which workspace agent
 // lifecycle states are expected to be reported during the lifetime of
 // the agent process. For instance, the agent can go from starting to

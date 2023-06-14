@@ -280,6 +280,7 @@
   "logs": [
     {
       "created_at": "string",
+      "eof": true,
       "level": "trace",
       "output": "string"
     }
@@ -368,6 +369,7 @@
 ```json
 {
   "created_at": "string",
+  "eof": true,
   "level": "trace",
   "output": "string"
 }
@@ -378,6 +380,7 @@
 | Name         | Type                                   | Required | Restrictions | Description |
 | ------------ | -------------------------------------- | -------- | ------------ | ----------- |
 | `created_at` | string                                 | false    |              |             |
+| `eof`        | boolean                                | false    |              |             |
 | `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
 | `output`     | string                                 | false    |              |             |
 

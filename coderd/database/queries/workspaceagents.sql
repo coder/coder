@@ -152,12 +152,13 @@ WITH new_length AS (
 	startup_logs_length = startup_logs_length + @output_length WHERE workspace_agents.id = @agent_id
 )
 INSERT INTO
-		workspace_agent_startup_logs (agent_id, created_at, output, level)
+		workspace_agent_startup_logs (agent_id, created_at, output, level, eof)
 	SELECT
 		@agent_id :: uuid AS agent_id,
 		unnest(@created_at :: timestamptz [ ]) AS created_at,
 		unnest(@output :: VARCHAR(1024) [ ]) AS output,
-		unnest(@level :: log_level [ ]) AS level
+		unnest(@level :: log_level [ ]) AS level,
+		unnest(@eof :: boolean [ ]) AS eof
 	RETURNING workspace_agent_startup_logs.*;
 
 -- If an agent hasn't connected in the last 7 days, we purge it's logs.

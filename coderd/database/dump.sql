@@ -545,8 +545,11 @@ CREATE TABLE workspace_agent_startup_logs (
     created_at timestamp with time zone NOT NULL,
     output character varying(1024) NOT NULL,
     id bigint NOT NULL,
-    level log_level DEFAULT 'info'::log_level NOT NULL
+    level log_level DEFAULT 'info'::log_level NOT NULL,
+    eof boolean DEFAULT false NOT NULL
 );
+
+COMMENT ON COLUMN workspace_agent_startup_logs.eof IS 'End of file reached';
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
     START WITH 1

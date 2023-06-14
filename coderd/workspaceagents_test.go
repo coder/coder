@@ -294,6 +294,119 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 			}
 		}
 	})
+	t.Run("AllowEOFAfterOverflowAndCloseFollow", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		updates, err := client.WatchWorkspace(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		logs, closeLogs, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0)
+		require.NoError(t, err)
+		defer closeLogs.Close()
+
+		wantLogs := []codersdk.WorkspaceAgentStartupLog{
+			{
+				CreatedAt: database.Now(),
+				Output:    "testing",
+				Level:     "info",
+			},
+		}
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+
+		var startupLogs []agentsdk.StartupLog
+		for _, log := range wantLogs {
+			startupLogs = append(startupLogs, agentsdk.StartupLog{
+				CreatedAt: log.CreatedAt,
+				Output:    log.Output,
+				Level:     log.Level,
+			})
+		}
+		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: startupLogs})
+		require.NoError(t, err)
+
+		overflowLogs := []agentsdk.StartupLog{
+			{
+				CreatedAt: database.Now(),
+				Output:    strings.Repeat("a", (1<<20)+1),
+			},
+			{
+				CreatedAt: database.Now(),
+				EOF:       true,
+			},
+		}
+		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: overflowLogs})
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusRequestEntityTooLarge, apiError.StatusCode())
+
+		// It's possible we have multiple updates queued, but that's alright, we just
+		// wait for the one where it overflows.
+		for {
+			var update codersdk.Workspace
+			select {
+			case <-ctx.Done():
+				require.Fail(t, "timed out waiting for overflow")
+			case update = <-updates:
+			}
+			if update.LatestBuild.Resources[0].Agents[0].StartupLogsOverflowed {
+				break
+			}
+		}
+
+		// Now we should still be able to send the EOF.
+		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: overflowLogs[len(overflowLogs)-1:]})
+		require.NoError(t, err)
+
+		var gotLogs []codersdk.WorkspaceAgentStartupLog
+	logsLoop:
+		for {
+			select {
+			case <-ctx.Done():
+				require.Fail(t, "timed out waiting for logs")
+			case l, ok := <-logs:
+				if !ok {
+					break logsLoop
+				}
+				gotLogs = append(gotLogs, l...)
+			}
+		}
+		for i := range gotLogs {
+			gotLogs[i].ID = 0 // Ignore ID for comparison.
+		}
+		require.Equal(t, wantLogs, gotLogs)
+	})
 }
 
 func TestWorkspaceAgentListen(t *testing.T) {

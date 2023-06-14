@@ -5856,6 +5856,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "eof": {
+                    "type": "boolean"
+                },
                 "level": {
                     "$ref": "#/definitions/codersdk.LogLevel"
                 },

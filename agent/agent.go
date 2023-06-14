@@ -929,6 +929,11 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan str
 			if errors.As(err, &sdkErr) {
 				if sdkErr.StatusCode() == http.StatusRequestEntityTooLarge {
 					a.logger.Warn(ctx, "startup logs too large, dropping logs")
+					// Always send the EOF even if logs overflow.
+					if len(logsToSend) > 1 && logsToSend[len(logsToSend)-1].EOF {
+						logsToSend = logsToSend[len(logsToSend)-1:]
+						continue
+					}
 					break
 				}
 			}
@@ -978,6 +983,14 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan str
 				Output:    scanner.Text(),
 			})
 		}
+		if err := scanner.Err(); err != nil {
+			a.logger.Error(ctx, "scan startup logs", slog.Error(err))
+		}
+		queueLog(agentsdk.StartupLog{
+			CreatedAt: database.Now(),
+			Output:    "",
+			EOF:       true,
+		})
 		defer close(logsFinished)
 		logsFlushed.L.Lock()
 		for {
