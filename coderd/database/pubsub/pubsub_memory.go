@@ -1,4 +1,4 @@
-package database
+package pubsub
 
 import (
 	"context"
@@ -87,7 +87,7 @@ func (*memoryPubsub) Close() error {
 	return nil
 }
 
-func NewPubsubInMemory() Pubsub {
+func NewInMemory() Pubsub {
 	return &memoryPubsub{
 		listeners: make(map[string]map[uuid.UUID]genericListener),
 	}

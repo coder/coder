@@ -59,6 +59,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/healthcheck"
@@ -130,7 +131,7 @@ type Options struct {
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
 	Database database.Store
-	Pubsub   database.Pubsub
+	Pubsub   pubsub.Pubsub
 
 	ConfigSSH codersdk.SSHConfigResponse
 

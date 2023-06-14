@@ -1,4 +1,4 @@
-package database
+package pubsub
 
 import (
 	"context"
@@ -48,7 +48,7 @@ type msgOrErr struct {
 type msgQueue struct {
 	ctx    context.Context
 	cond   *sync.Cond
-	q      [PubsubBufferSize]msgOrErr
+	q      [BufferSize]msgOrErr
 	front  int
 	size   int
 	closed bool
@@ -82,7 +82,7 @@ func (q *msgQueue) run() {
 			return
 		}
 		item := q.q[q.front]
-		q.front = (q.front + 1) % PubsubBufferSize
+		q.front = (q.front + 1) % BufferSize
 		q.size--
 		q.cond.L.Unlock()
 
@@ -111,20 +111,20 @@ func (q *msgQueue) enqueue(msg []byte) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 
-	if q.size == PubsubBufferSize {
+	if q.size == BufferSize {
 		// queue is full, so we're going to drop the msg we got called with.
 		// We also need to record that messages are being dropped, which we
 		// do at the last message in the queue.  This potentially makes us
 		// lose 2 messages instead of one, but it's more important at this
 		// point to warn the subscriber that they're losing messages so they
 		// can do something about it.
-		back := (q.front + PubsubBufferSize - 1) % PubsubBufferSize
+		back := (q.front + BufferSize - 1) % BufferSize
 		q.q[back].msg = nil
 		q.q[back].err = ErrDroppedMessages
 		return
 	}
 	// queue is not full, insert the message
-	next := (q.front + q.size) % PubsubBufferSize
+	next := (q.front + q.size) % BufferSize
 	q.q[next].msg = msg
 	q.q[next].err = nil
 	q.size++
@@ -143,17 +143,17 @@ func (q *msgQueue) dropped() {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 
-	if q.size == PubsubBufferSize {
+	if q.size == BufferSize {
 		// queue is full, but we need to record that messages are being dropped,
 		// which we do at the last message in the queue. This potentially drops
 		// another message, but it's more important for the subscriber to know.
-		back := (q.front + PubsubBufferSize - 1) % PubsubBufferSize
+		back := (q.front + BufferSize - 1) % BufferSize
 		q.q[back].msg = nil
 		q.q[back].err = ErrDroppedMessages
 		return
 	}
 	// queue is not full, insert the error
-	next := (q.front + q.size) % PubsubBufferSize
+	next := (q.front + q.size) % BufferSize
 	q.q[next].msg = nil
 	q.q[next].err = ErrDroppedMessages
 	q.size++
@@ -171,9 +171,9 @@ type pgPubsub struct {
 	queues     map[string]map[uuid.UUID]*msgQueue
 }
 
-// PubsubBufferSize is the maximum number of unhandled messages we will buffer
+// BufferSize is the maximum number of unhandled messages we will buffer
 // for a subscriber before dropping messages.
-const PubsubBufferSize = 2048
+const BufferSize = 2048
 
 // Subscribe calls the listener when an event matching the name is received.
 func (p *pgPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {
@@ -295,8 +295,8 @@ func (p *pgPubsub) recordReconnect() {
 	}
 }
 
-// NewPubsub creates a new Pubsub implementation using a PostgreSQL connection.
-func NewPubsub(ctx context.Context, database *sql.DB, connectURL string) (Pubsub, error) {
+// New creates a new Pubsub implementation using a PostgreSQL connection.
+func New(ctx context.Context, database *sql.DB, connectURL string) (Pubsub, error) {
 	// Creates a new listener using pq.
 	errCh := make(chan error)
 	listener := pq.NewListener(connectURL, time.Second, time.Minute, func(_ pq.ListenerEventType, err error) {

@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/testutil"
 )
@@ -212,7 +213,7 @@ func TestReplica(t *testing.T) {
 		// this many PostgreSQL connections takes some
 		// configuration tweaking.
 		db := dbfake.New()
-		pubsub := database.NewPubsubInMemory()
+		pubsub := pubsub.NewInMemory()
 		logger := slogtest.Make(t, nil)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
