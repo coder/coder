@@ -129,6 +129,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "allow_user_cancel_workspace_jobs": true,
   "default_ttl_ms": 0,
   "description": "string",
+  "disable_everyone_group_access": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",

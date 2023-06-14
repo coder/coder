@@ -274,22 +274,26 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		allowUserAutostop            = ptr.NilToDefault(createTemplate.AllowUserAutostop, true)
 	)
 
+	defaultsGroups := database.TemplateACL{}
+	if !createTemplate.DisableEveryoneGroupAccess {
+		// The organization ID is used as the group ID for the everyone group
+		// in this organization.
+		defaultsGroups[organization.ID.String()] = []rbac.Action{rbac.ActionRead}
+	}
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := database.Now()
 		dbTemplate, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:              uuid.New(),
-			CreatedAt:       now,
-			UpdatedAt:       now,
-			OrganizationID:  organization.ID,
-			Name:            createTemplate.Name,
-			Provisioner:     importJob.Provisioner,
-			ActiveVersionID: templateVersion.ID,
-			Description:     createTemplate.Description,
-			CreatedBy:       apiKey.UserID,
-			UserACL:         database.TemplateACL{},
-			GroupACL: database.TemplateACL{
-				organization.ID.String(): []rbac.Action{rbac.ActionRead},
-			},
+			ID:                           uuid.New(),
+			CreatedAt:                    now,
+			UpdatedAt:                    now,
+			OrganizationID:               organization.ID,
+			Name:                         createTemplate.Name,
+			Provisioner:                  importJob.Provisioner,
+			ActiveVersionID:              templateVersion.ID,
+			Description:                  createTemplate.Description,
+			CreatedBy:                    apiKey.UserID,
+			UserACL:                      database.TemplateACL{},
+			GroupACL:                     defaultsGroups,
 			DisplayName:                  createTemplate.DisplayName,
 			Icon:                         createTemplate.Icon,
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
