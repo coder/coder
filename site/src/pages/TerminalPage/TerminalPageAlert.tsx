@@ -91,6 +91,7 @@ export default ({ alertType }: { alertType: TerminalPageAlertType }) => {
   return (
     <Alert
       severity={mapAlertTypeToText[alertType].severity}
+      sx={{ borderRadius: 0 }}
       dismissible
       actions={[
         <Button
