@@ -90,6 +90,14 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[str
 			state := r.URL.Query().Get("state")
 
 			if code == "" {
+				// If this url param is provided, then a user is trying to merge
+				// their account with an OIDC account. Their password would have
+				// been required to get to this point, so we do not need to verify
+				// their password again.
+				// TODO: @emyrk should we check their api key here?
+				oidcMergeState := r.URL.Query().Get("oidc_merge_state")
+				var _ = oidcMergeState
+
 				// If the code isn't provided, we'll redirect!
 				state, err := cryptorand.String(32)
 				if err != nil {

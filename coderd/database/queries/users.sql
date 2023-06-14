@@ -1,3 +1,23 @@
+-- name: GetUserOIDCMergeState :one
+SELECT
+	*
+FROM
+	oidc_merge_state
+WHERE
+    user_id = @user_id AND
+    state_string = @state_string;
+
+-- name: InsertUserOIDCMergeState :one
+INSERT INTO
+	oidc_merge_state (
+		user_id,
+		state_string,
+		created_at,
+		updated_at
+	)
+VALUES
+	($1, $2, $3, $4) RETURNING *;
+
 -- name: GetUserByID :one
 SELECT
 	*

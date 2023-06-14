@@ -1422,6 +1422,15 @@ type License struct {
 	UUID uuid.UUID `db:"uuid" json:"uuid"`
 }
 
+// Stores the state string for OIDC merge requests. If an OIDC state string is found in this table, it is assumed the user had a LoginType "password" and is switching to an OIDC based authentication.
+type OidcMergeState struct {
+	StateString string    `db:"state_string" json:"state_string"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	// The time at which the state string expires, a merge request times out if the user does not perform it quick enough.
+	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+}
+
 type Organization struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Name        string    `db:"name" json:"name"`
