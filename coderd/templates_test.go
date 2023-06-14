@@ -684,7 +684,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
 			require.Equal(t, failureTTL.Milliseconds(), got.FailureTTLMillis)
-			require.Equal(t, lockedTTL.Milliseconds(), got.InactivityTTLMillis)
+			require.Equal(t, inactivityTTL.Milliseconds(), got.InactivityTTLMillis)
+			require.Equal(t, lockedTTL.Milliseconds(), got.LockedTTLMillis)
 		})
 
 		t.Run("IgnoredUnlicensed", func(t *testing.T) {
