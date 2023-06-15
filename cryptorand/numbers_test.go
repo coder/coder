@@ -26,7 +26,7 @@ func TestIntn(t *testing.T) {
 		v, err := cryptorand.Intn(100)
 		require.NoError(t, err, "unexpected error from Intn")
 		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0, "values must be positive")
+		require.GreaterOrEqual(t, v, 0, "values must be positive")
 		require.True(t, v < 100, "values must be less than 100")
 	}
 

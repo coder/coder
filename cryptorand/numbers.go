@@ -10,26 +10,28 @@ type cryptoSource struct {
 	err error
 }
 
-func (*cryptoSource) Seed(seed int64) {
+func (*cryptoSource) Seed(_ int64) {
 	// Intentionally disregard seed
 }
 
 func (c *cryptoSource) Int63() int64 {
-	var seed int64
-	err := binary.Read(rand.Reader, binary.BigEndian, &seed)
+	var n int64
+	err := binary.Read(rand.Reader, binary.BigEndian, &n)
 	if err != nil {
 		c.err = err
 	}
-	return 0
+	// The sign bit must be cleared to ensure the final value is non-negative.
+	n &= 0x7fffffffffffffff
+	return n
 }
 
 func (c *cryptoSource) Uint64() uint64 {
-	var seed uint64
-	err := binary.Read(rand.Reader, binary.BigEndian, &seed)
+	var n uint64
+	err := binary.Read(rand.Reader, binary.BigEndian, &n)
 	if err != nil {
 		c.err = err
 	}
-	return 0
+	return n
 }
 
 // secureRand returns a cryptographically secure random number generator.
