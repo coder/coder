@@ -1,40 +1,52 @@
 import {
-  render as wrappedRender,
-  RenderResult,
+  render as tlRender,
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react"
 import { AppProviders } from "app"
 import { DashboardLayout } from "components/Dashboard/DashboardLayout"
-import { createMemoryHistory } from "history"
 import { i18n } from "i18n"
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout"
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout"
-import { FC, ReactElement } from "react"
 import { I18nextProvider } from "react-i18next"
 import {
-  unstable_HistoryRouter as HistoryRouter,
   RouterProvider,
   createMemoryRouter,
   RouteObject,
 } from "react-router-dom"
 import { RequireAuth } from "../components/RequireAuth/RequireAuth"
 import { MockUser } from "./entities"
+import { ReactNode } from "react"
 
-export const history = createMemoryHistory()
-
-export const WrapperComponent: FC<React.PropsWithChildren<unknown>> = ({
-  children,
-}) => {
-  return (
-    <AppProviders>
-      <HistoryRouter history={history}>{children}</HistoryRouter>
-    </AppProviders>
+const baseRender = (element: ReactNode) => {
+  return tlRender(
+    <I18nextProvider i18n={i18n}>
+      <AppProviders>{element}</AppProviders>
+    </I18nextProvider>,
   )
 }
 
-export const render = (component: ReactElement): RenderResult => {
-  return wrappedRender(<WrapperComponent>{component}</WrapperComponent>)
+export const renderWithRouter = (
+  router: ReturnType<typeof createMemoryRouter>,
+) => {
+  return {
+    ...baseRender(<RouterProvider router={router} />),
+    router,
+  }
+}
+
+export const render = (element: ReactNode) => {
+  return renderWithRouter(
+    createMemoryRouter(
+      [
+        {
+          path: "/",
+          element,
+        },
+      ],
+      { initialEntries: ["/"] },
+    ),
+  )
 }
 
 type RenderWithAuthOptions = {
@@ -69,19 +81,12 @@ export function renderWithAuth(
     ...nonAuthenticatedRoutes,
   ]
 
-  const router = createMemoryRouter(routes, { initialEntries: [route] })
-
-  const renderResult = wrappedRender(
-    <I18nextProvider i18n={i18n}>
-      <AppProviders>
-        <RouterProvider router={router} />
-      </AppProviders>
-    </I18nextProvider>,
+  const renderResult = renderWithRouter(
+    createMemoryRouter(routes, { initialEntries: [route] }),
   )
 
   return {
     user: MockUser,
-    router,
     ...renderResult,
   }
 }
@@ -113,19 +118,12 @@ export function renderWithTemplateSettingsLayout(
     ...nonAuthenticatedRoutes,
   ]
 
-  const router = createMemoryRouter(routes, { initialEntries: [route] })
-
-  const renderResult = wrappedRender(
-    <I18nextProvider i18n={i18n}>
-      <AppProviders>
-        <RouterProvider router={router} />
-      </AppProviders>
-    </I18nextProvider>,
+  const renderResult = renderWithRouter(
+    createMemoryRouter(routes, { initialEntries: [route] }),
   )
 
   return {
     user: MockUser,
-    router,
     ...renderResult,
   }
 }
@@ -148,7 +146,7 @@ export function renderWithWorkspaceSettingsLayout(
           children: [
             {
               element: <WorkspaceSettingsLayout />,
-              children: [{ path, element }, ...extraRoutes],
+              children: [{ element, path }, ...extraRoutes],
             },
           ],
         },
@@ -157,19 +155,12 @@ export function renderWithWorkspaceSettingsLayout(
     ...nonAuthenticatedRoutes,
   ]
 
-  const router = createMemoryRouter(routes, { initialEntries: [route] })
-
-  const renderResult = wrappedRender(
-    <I18nextProvider i18n={i18n}>
-      <AppProviders>
-        <RouterProvider router={router} />
-      </AppProviders>
-    </I18nextProvider>,
+  const renderResult = renderWithRouter(
+    createMemoryRouter(routes, { initialEntries: [route] }),
   )
 
   return {
     user: MockUser,
-    router,
     ...renderResult,
   }
 }

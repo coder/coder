@@ -33,10 +33,12 @@ const useFailedBuildLogs = (workspace: Workspace | undefined) => {
 }
 
 export const WorkspacePage: FC = () => {
-  const { username, workspace: workspaceName } = useParams() as {
+  const params = useParams() as {
     username: string
     workspace: string
   }
+  const workspaceName = params.workspace
+  const username = params.username.replace("@", "")
   const orgId = useOrganizationId()
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
     context: {
