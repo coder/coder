@@ -81,13 +81,17 @@ func StringCharset(charSetStr string, size int) (string, error) {
 	buf.Grow(size)
 
 	for i := 0; i < size; i++ {
+		r := binary.BigEndian.Uint32(entropy[:4])
+		entropy = entropy[4:]
+
 		ci, err := unbiasedModulo32(
-			binary.BigEndian.Uint32(entropy[i*4:(i+1)*4]),
+			r,
 			int32(len(charSet)),
 		)
 		if err != nil {
 			return "", err
 		}
+
 		_, _ = buf.WriteRune(charSet[ci])
 	}
 
