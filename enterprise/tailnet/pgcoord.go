@@ -543,7 +543,7 @@ func (m *mapper) mappingsToNodes(mappings []mapping) []*agpl.Node {
 }
 
 // querier is responsible for monitoring pubsub notifications and querying the database for the mappings that all
-// connnected clients and agents need.  It also checks heartbeats and withdraws mappings from coordinators that have
+// connected clients and agents need.  It also checks heartbeats and withdraws mappings from coordinators that have
 // failed heartbeats.
 type querier struct {
 	ctx            context.Context

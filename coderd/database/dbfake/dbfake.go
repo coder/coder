@@ -5197,34 +5197,36 @@ func (q *fakeQuerier) UpsertServiceBanner(_ context.Context, data string) error 
 // API, and for that kind of test, the in-memory, AGPL tailnet coordinator is sufficient.  Therefore, these methods
 // remain unimplemented in the fakeQuerier.
 
+var ErrUnimplemented = xerrors.New("unimplemented")
+
 func (*fakeQuerier) UpsertTailnetClient(context.Context, database.UpsertTailnetClientParams) (database.TailnetClient, error) {
-	panic("unimplemented")
+	return database.TailnetClient{}, ErrUnimplemented
 }
 
 func (*fakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
-	panic("unimplemented")
+	return database.TailnetAgent{}, ErrUnimplemented
 }
 
 func (*fakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (database.TailnetCoordinator, error) {
-	panic("unimplemented")
+	return database.TailnetCoordinator{}, ErrUnimplemented
 }
 
 func (*fakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
-	panic("unimplemented")
+	return database.DeleteTailnetClientRow{}, ErrUnimplemented
 }
 
 func (*fakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
-	panic("unimplemented")
+	return database.DeleteTailnetAgentRow{}, ErrUnimplemented
 }
 
 func (*fakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
-	panic("unimplemented")
+	return ErrUnimplemented
 }
 
 func (*fakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
-	panic("unimplemented")
+	return nil, ErrUnimplemented
 }
 
 func (*fakeQuerier) GetTailnetClientsForAgent(context.Context, uuid.UUID) ([]database.TailnetClient, error) {
-	panic("unimplemented")
+	return nil, ErrUnimplemented
 }
