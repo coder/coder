@@ -9,10 +9,12 @@ import { patchWorkspace } from "api/api"
 import { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm"
 
 const WorkspaceSettingsPage = () => {
-  const { username, workspace: workspaceName } = useParams() as {
-    username: string
+  const params = useParams() as {
     workspace: string
+    username: string
   }
+  const workspaceName = params.workspace
+  const username = params.username.replace("@", "")
   const { workspace } = useWorkspaceSettingsContext()
   const navigate = useNavigate()
   const mutation = useMutation({

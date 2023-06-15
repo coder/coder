@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/schedule"
@@ -56,7 +57,7 @@ type Server struct {
 	GitAuthConfigs        []*gitauth.Config
 	Tags                  json.RawMessage
 	Database              database.Store
-	Pubsub                database.Pubsub
+	Pubsub                pubsub.Pubsub
 	Telemetry             telemetry.Reporter
 	Tracer                trace.Tracer
 	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]

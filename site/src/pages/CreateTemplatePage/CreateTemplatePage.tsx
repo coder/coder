@@ -39,6 +39,10 @@ const CreateTemplatePage: FC = () => {
   const { entitlements } = useDashboard()
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled
+  // Requires the template RBAC feature, otherwise disabling everyone access
+  // means no one can access.
+  const allowDisableEveryoneAccess =
+    entitlements.features["template_rbac"].enabled
 
   const onCancel = () => {
     navigate(-1)
@@ -64,6 +68,7 @@ const CreateTemplatePage: FC = () => {
             <CreateTemplateForm
               copiedTemplate={state.context.copiedTemplate}
               allowAdvancedScheduling={allowAdvancedScheduling}
+              allowDisableEveryoneAccess={allowDisableEveryoneAccess}
               error={error}
               starterTemplate={starterTemplate}
               isSubmitting={state.hasTag("submitting")}

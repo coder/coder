@@ -17,7 +17,7 @@ import { terminalMachine } from "../../xServices/terminal/terminalXService"
 import { useProxy } from "contexts/ProxyContext"
 import Box from "@mui/material/Box"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { Region } from "api/typesGenerated"
+import { Region, WorkspaceAgent } from "api/typesGenerated"
 import { getLatencyColor } from "utils/latency"
 import Popover from "@mui/material/Popover"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
@@ -29,11 +29,53 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
+const useTerminalWarning = ({
+  agent,
+  fitAddon,
+}: {
+  agent?: WorkspaceAgent
+  fitAddon: FitAddon | null
+}) => {
+  const lifecycleState = agent?.lifecycle_state
+  const [startupWarning, setStartupWarning] = useState<
+    TerminalPageAlertType | undefined
+  >(undefined)
+  const shouldDisplayWarning = startupWarning !== undefined
+
+  useEffect(() => {
+    if (lifecycleState === "start_error") {
+      setStartupWarning("error")
+    } else if (lifecycleState === "starting") {
+      setStartupWarning("starting")
+    } else {
+      setStartupWarning((prev) => {
+        if (prev === "starting") {
+          return "success"
+        }
+        return undefined
+      })
+    }
+  }, [lifecycleState])
+
+  // Resize the terminal when the warning toggles
+  useEffect(() => {
+    if (fitAddon) {
+      fitAddon.fit()
+    }
+  }, [shouldDisplayWarning, fitAddon])
+
+  return {
+    startupWarning,
+  }
+}
+
 const TerminalPage: FC = () => {
   const navigate = useNavigate()
   const styles = useStyles()
   const { proxy } = useProxy()
-  const { username, workspace: workspaceName } = useParams()
+  const params = useParams() as { username: string; workspace: string }
+  const username = params.username.replace("@", "")
+  const workspaceName = params.workspace
   const xtermRef = useRef<HTMLDivElement>(null)
   const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null)
   const [fitAddon, setFitAddon] = useState<FitAddon | null>(null)
@@ -77,32 +119,16 @@ const TerminalPage: FC = () => {
     websocketError,
   } = terminalState.context
   const reloading = useReloading(isDisconnected)
-  const lifecycleState = workspaceAgent?.lifecycle_state
-  const [startupWarning, setStartupWarning] = useState<
-    TerminalPageAlertType | undefined
-  >(undefined)
-
-  useEffect(() => {
-    if (lifecycleState === "start_error") {
-      setStartupWarning("error")
-    } else if (lifecycleState === "starting") {
-      setStartupWarning("starting")
-    } else {
-      setStartupWarning((prev) => {
-        if (prev === "starting") {
-          return "success"
-        }
-        return undefined
-      })
-    }
-  }, [lifecycleState])
-
   const dashboard = useDashboard()
   const proxyContext = useProxy()
   const selectedProxy = proxyContext.proxy.proxy
   const latency = selectedProxy
     ? proxyContext.proxyLatencies[selectedProxy.id]
     : undefined
+  const { startupWarning } = useTerminalWarning({
+    agent: workspaceAgent,
+    fitAddon,
+  })
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(

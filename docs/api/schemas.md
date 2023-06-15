@@ -1346,6 +1346,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "allow_user_cancel_workspace_jobs": true,
   "default_ttl_ms": 0,
   "description": "string",
+  "disable_everyone_group_access": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -1358,20 +1359,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                                                                                                                                                                                      | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                           |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `allow_user_autostart`                                                                                                                                                                    | boolean | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                            |
-| `allow_user_autostop`                                                                                                                                                                     | boolean | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license. |
-| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                              |
-| `default_ttl_ms`                                                                                                                                                                          | integer | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                            |
-| `description`                                                                                                                                                                             | string  | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                           |
-| `display_name`                                                                                                                                                                            | string  | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                   |
-| `failure_ttl_ms`                                                                                                                                                                          | integer | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                       |
-| `icon`                                                                                                                                                                                    | string  | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                      |
-| `inactivity_ttl_ms`                                                                                                                                                                       | integer | false    |              | Inactivity ttl ms allows optionally specifying the max lifetime before Coder deletes inactive workspaces created from this template.                                                                                                                  |
-| `max_ttl_ms`                                                                                                                                                                              | integer | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.                                                                                                                                                   |
-| `name`                                                                                                                                                                                    | string  | true     |              | Name is the name of the template.                                                                                                                                                                                                                     |
-| `template_version_id`                                                                                                                                                                     | string  | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                  |
+| Name                                                                                                                                                                                      | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow_user_autostart`                                                                                                                                                                    | boolean | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
+| `allow_user_autostop`                                                                                                                                                                     | boolean | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
+| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                                                                                            |
+| `default_ttl_ms`                                                                                                                                                                          | integer | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
+| `description`                                                                                                                                                                             | string  | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
+| `disable_everyone_group_access`                                                                                                                                                           | boolean | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template. |
+| `display_name`                                                                                                                                                                            | string  | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                                                                                 |
+| `failure_ttl_ms`                                                                                                                                                                          | integer | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
+| `icon`                                                                                                                                                                                    | string  | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
+| `inactivity_ttl_ms`                                                                                                                                                                       | integer | false    |              | Inactivity ttl ms allows optionally specifying the max lifetime before Coder deletes inactive workspaces created from this template.                                                                                                                                                                                |
+| `max_ttl_ms`                                                                                                                                                                              | integer | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.                                                                                                                                                                                                                 |
+| `name`                                                                                                                                                                                    | string  | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
+| `template_version_id`                                                                                                                                                                     | string  | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
 ## codersdk.CreateTemplateVersionDryRunRequest
@@ -1520,6 +1522,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "disable_login": true,
   "email": "user@example.com",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "password": "string",
@@ -1529,12 +1532,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-| ----------------- | ------ | -------- | ------------ | ----------- |
-| `email`           | string | true     |              |             |
-| `organization_id` | string | false    |              |             |
-| `password`        | string | true     |              |             |
-| `username`        | string | true     |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
+| ----------------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `disable_login`   | boolean | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. |
+| `email`           | string  | true     |              |                                                                                                                                                           |
+| `organization_id` | string  | false    |              |                                                                                                                                                           |
+| `password`        | string  | false    |              |                                                                                                                                                           |
+| `username`        | string  | true     |              |                                                                                                                                                           |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -1942,6 +1946,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "port": "string"
       },
       "collect_agent_stats": true,
+      "collect_db_metrics": true,
       "enable": true
     },
     "provisioner": {
@@ -2269,6 +2274,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "port": "string"
     },
     "collect_agent_stats": true,
+    "collect_db_metrics": true,
     "enable": true
   },
   "provisioner": {
@@ -2828,6 +2834,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `github`   |
 | `oidc`     |
 | `token`    |
+| `none`     |
 
 ## codersdk.LoginWithPasswordRequest
 
@@ -3090,6 +3097,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "port": "string"
   },
   "collect_agent_stats": true,
+  "collect_db_metrics": true,
   "enable": true
 }
 ```
@@ -3100,6 +3108,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | --------------------- | ------------------------------------ | -------- | ------------ | ----------- |
 | `address`             | [clibase.HostPort](#clibasehostport) | false    |              |             |
 | `collect_agent_stats` | boolean                              | false    |              |             |
+| `collect_db_metrics`  | boolean                              | false    |              |             |
 | `enable`              | boolean                              | false    |              |             |
 
 ## codersdk.ProvisionerConfig

@@ -28,6 +28,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		provisionerTags []string
 		variablesFile   string
 		variables       []string
+		disableEveryone bool
 		defaultTTL      time.Duration
 		failureTTL      time.Duration
 		inactivityTTL   time.Duration
@@ -121,11 +122,12 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			}
 
 			createReq := codersdk.CreateTemplateRequest{
-				Name:                templateName,
-				VersionID:           job.ID,
-				DefaultTTLMillis:    ptr.Ref(defaultTTL.Milliseconds()),
-				FailureTTLMillis:    ptr.Ref(failureTTL.Milliseconds()),
-				InactivityTTLMillis: ptr.Ref(inactivityTTL.Milliseconds()),
+				Name:                       templateName,
+				VersionID:                  job.ID,
+				DefaultTTLMillis:           ptr.Ref(defaultTTL.Milliseconds()),
+				FailureTTLMillis:           ptr.Ref(failureTTL.Milliseconds()),
+				InactivityTTLMillis:        ptr.Ref(inactivityTTL.Milliseconds()),
+				DisableEveryoneGroupAccess: disableEveryone,
 			}
 
 			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
@@ -144,6 +146,12 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		},
 	}
 	cmd.Options = clibase.OptionSet{
+		{
+			Flag: "private",
+			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
+				"The template permissions must be updated to allow non-admin users to use this template.",
+			Value: clibase.BoolOf(&disableEveryone),
+		},
 		{
 			Flag:        "variables-file",
 			Description: "Specify a file path with values for Terraform-managed variables.",

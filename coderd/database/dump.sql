@@ -45,8 +45,11 @@ CREATE TYPE login_type AS ENUM (
     'password',
     'github',
     'oidc',
-    'token'
+    'token',
+    'none'
 );
+
+COMMENT ON TYPE login_type IS 'Specifies the method of authentication. "none" is a special case in which no authentication method is allowed.';
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
     'none',

@@ -1,11 +1,11 @@
 import { fireEvent, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import { Route, Routes } from "react-router-dom"
+import { createMemoryRouter } from "react-router-dom"
 import { Language } from "../../components/SignInForm/SignInForm"
 import {
-  history,
   render,
+  renderWithRouter,
   waitForLoaderToBeRemoved,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
@@ -17,7 +17,6 @@ const { t } = i18n
 
 describe("LoginPage", () => {
   beforeEach(() => {
-    history.replace("/login")
     // appear logged out
     server.use(
       rest.get("/api/v2/users/me", (req, res, ctx) => {
@@ -58,7 +57,6 @@ describe("LoginPage", () => {
     // Then
     const errorMessage = await screen.findByText(apiErrorMessage)
     expect(errorMessage).toBeDefined()
-    expect(history.location.pathname).toEqual("/login")
   })
 
   it("shows github authentication when enabled", async () => {
@@ -92,11 +90,20 @@ describe("LoginPage", () => {
     )
 
     // When
-    render(
-      <Routes>
-        <Route path="/login" element={<LoginPage />}></Route>
-        <Route path="/setup" element={<h1>Setup</h1>}></Route>
-      </Routes>,
+    renderWithRouter(
+      createMemoryRouter(
+        [
+          {
+            path: "/login",
+            element: <LoginPage />,
+          },
+          {
+            path: "/setup",
+            element: <h1>Setup</h1>,
+          },
+        ],
+        { initialEntries: ["/login"] },
+      ),
     )
 
     // Then

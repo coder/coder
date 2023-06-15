@@ -68,6 +68,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbmetrics"
 	"github.com/coder/coder/coderd/database/dbpurge"
 	"github.com/coder/coder/coderd/database/migrations"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -463,7 +464,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Logger:                      logger.Named("coderd"),
 				Database:                    dbfake.New(),
 				DERPMap:                     derpMap,
-				Pubsub:                      database.NewPubsubInMemory(),
+				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				GitAuthConfigs:              gitAuthConfigs,
@@ -588,8 +589,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if cfg.InMemoryDatabase {
 				// This is only used for testing.
-				options.Database = dbmetrics.New(dbfake.New(), options.PrometheusRegistry)
-				options.Pubsub = database.NewPubsubInMemory()
+				options.Database = dbfake.New()
+				options.Pubsub = pubsub.NewInMemory()
 			} else {
 				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
 				if err != nil {
@@ -599,12 +600,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					_ = sqlDB.Close()
 				}()
 
-				options.Database = dbmetrics.New(database.New(sqlDB), options.PrometheusRegistry)
-				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.String())
+				options.Database = database.New(sqlDB)
+				options.Pubsub, err = pubsub.New(ctx, sqlDB, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
 				defer options.Pubsub.Close()
+			}
+
+			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
+				options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 			}
 
 			var deploymentID string

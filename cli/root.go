@@ -21,16 +21,13 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-isatty"
+	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/charmbracelet/lipgloss"
-	"github.com/gobwas/httphead"
-	"github.com/mattn/go-isatty"
-	"github.com/mitchellh/go-wordwrap"
-
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -430,6 +427,15 @@ type RootCmd struct {
 }
 
 func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
+	transport, ok := client.HTTPClient.Transport.(*headerTransport)
+	if !ok {
+		transport = &headerTransport{
+			transport: client.HTTPClient.Transport,
+			header:    http.Header{},
+		}
+		client.HTTPClient.Transport = transport
+	}
+
 	var topts []telemetry.CLIOption
 	for _, opt := range inv.Command.FullOptions() {
 		if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
@@ -459,10 +465,7 @@ func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
 		return
 	}
 
-	client.ExtraHeaders.Set(
-		codersdk.CLITelemetryHeader,
-		s,
-	)
+	transport.header.Add(codersdk.CLITelemetryHeader, s)
 }
 
 // InitClient sets client to a new client.
@@ -560,17 +563,16 @@ func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 		transport: http.DefaultTransport,
 		header:    http.Header{},
 	}
+	for _, header := range r.header {
+		parts := strings.SplitN(header, "=", 2)
+		if len(parts) < 2 {
+			return xerrors.Errorf("split header %q had less than two parts", header)
+		}
+		transport.header.Add(parts[0], parts[1])
+	}
 	client.URL = serverURL
 	client.HTTPClient = &http.Client{
 		Transport: transport,
-	}
-	client.ExtraHeaders = make(http.Header)
-	for _, hd := range r.header {
-		k, v, ok := httphead.ParseHeaderLine([]byte(hd))
-		if !ok {
-			return xerrors.Errorf("invalid header: %s", hd)
-		}
-		client.ExtraHeaders.Add(string(k), string(v))
 	}
 	return nil
 }

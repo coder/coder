@@ -2,11 +2,19 @@ package cli_test
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,21 +72,112 @@ func TestRoot(t *testing.T) {
 	t.Run("Header", func(t *testing.T) {
 		t.Parallel()
 
-		done := make(chan struct{})
+		var called int64
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt64(&called, 1)
 			assert.Equal(t, "wow", r.Header.Get("X-Testing"))
+			assert.Equal(t, "Dean was Here!", r.Header.Get("Cool-Header"))
 			w.WriteHeader(http.StatusGone)
-			select {
-			case <-done:
-				close(done)
-			default:
-			}
 		}))
 		defer srv.Close()
 		buf := new(bytes.Buffer)
-		inv, _ := clitest.New(t, "--header", "X-Testing=wow", "login", srv.URL)
+		inv, _ := clitest.New(t,
+			"--no-feature-warning",
+			"--no-version-warning",
+			"--header", "X-Testing=wow",
+			"--header", "Cool-Header=Dean was Here!",
+			"login", srv.URL,
+		)
 		inv.Stdout = buf
-		// This won't succeed, because we're using the login cmd to assert requests.
-		_ = inv.Run()
+
+		err := inv.Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unexpected status code 410")
+		require.EqualValues(t, 1, atomic.LoadInt64(&called), "called exactly once")
 	})
+}
+
+// TestDERPHeaders ensures that the client sends the global `--header`s to the
+// DERP server when connecting.
+func TestDERPHeaders(t *testing.T) {
+	t.Parallel()
+
+	// Create a coderd API instance the hard way since we need to change the
+	// handler to inject our custom /derp handler.
+	setHandler, cancelFunc, serverURL, newOptions := coderdtest.NewOptions(t, nil)
+
+	// We set the handler after server creation for the access URL.
+	coderAPI := coderd.New(newOptions)
+	setHandler(coderAPI.RootHandler)
+	provisionerCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
+	t.Cleanup(func() {
+		_ = provisionerCloser.Close()
+	})
+	client := codersdk.New(serverURL)
+	t.Cleanup(func() {
+		cancelFunc()
+		_ = provisionerCloser.Close()
+		_ = coderAPI.Close()
+		client.HTTPClient.CloseIdleConnections()
+	})
+
+	var (
+		user      = coderdtest.CreateFirstUser(t, client)
+		workspace = runAgent(t, client, user.UserID)
+	)
+
+	// Inject custom /derp handler so we can inspect the headers.
+	var (
+		expectedHeaders = map[string]string{
+			"X-Test-Header": "test-value",
+			"Cool-Header":   "Dean was Here!",
+		}
+		derpCalled int64
+	)
+	setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/derp") {
+			ok := true
+			for k, v := range expectedHeaders {
+				if r.Header.Get(k) != v {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				// Only increment if all the headers are set, because the agent
+				// calls derp also.
+				atomic.AddInt64(&derpCalled, 1)
+			}
+		}
+
+		coderAPI.RootHandler.ServeHTTP(w, r)
+	}))
+
+	// Connect with the headers set as args.
+	args := []string{
+		"--no-feature-warning",
+		"--no-version-warning",
+		"ping", workspace.Name,
+		"-n", "1",
+	}
+	for k, v := range expectedHeaders {
+		args = append(args, "--header", fmt.Sprintf("%s=%s", k, v))
+	}
+	inv, root := clitest.New(t, args...)
+	clitest.SetupConfig(t, client, root)
+	pty := ptytest.New(t)
+	inv.Stdin = pty.Input()
+	inv.Stderr = pty.Output()
+	inv.Stdout = pty.Output()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	cmdDone := tGo(t, func() {
+		err := inv.WithContext(ctx).Run()
+		assert.NoError(t, err)
+	})
+
+	pty.ExpectMatch("pong from " + workspace.Name)
+	<-cmdDone
+
+	require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called at least once")
 }

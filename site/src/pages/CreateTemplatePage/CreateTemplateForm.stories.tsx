@@ -17,6 +17,7 @@ export default {
   component: CreateTemplateForm,
   args: {
     isSubmitting: false,
+    allowDisableEveryoneAccess: true,
   },
 } as ComponentMeta<typeof CreateTemplateForm>
 

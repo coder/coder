@@ -6667,6 +6667,10 @@ const docTemplate = `{
                     "description": "Description is a description of what the template contains. It must be\nless than 128 bytes.",
                     "type": "string"
                 },
+                "disable_everyone_group_access": {
+                    "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
+                    "type": "boolean"
+                },
                 "display_name": {
                     "description": "DisplayName is the displayed name of the template.",
                     "type": "string"
@@ -6858,10 +6862,13 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "password",
                 "username"
             ],
             "properties": {
+                "disable_login": {
+                    "description": "DisableLogin sets the user's login type to 'none'. This prevents the user\nfrom being able to use a password or any other authentication method to login.",
+                    "type": "boolean"
+                },
                 "email": {
                     "type": "string",
                     "format": "email"
@@ -7620,13 +7627,15 @@ const docTemplate = `{
                 "password",
                 "github",
                 "oidc",
-                "token"
+                "token",
+                "none"
             ],
             "x-enum-varnames": [
                 "LoginTypePassword",
                 "LoginTypeGithub",
                 "LoginTypeOIDC",
-                "LoginTypeToken"
+                "LoginTypeToken",
+                "LoginTypeNone"
             ]
         },
         "codersdk.LoginWithPasswordRequest": {
@@ -7872,6 +7881,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/clibase.HostPort"
                 },
                 "collect_agent_stats": {
+                    "type": "boolean"
+                },
+                "collect_db_metrics": {
                     "type": "boolean"
                 },
                 "enable": {
