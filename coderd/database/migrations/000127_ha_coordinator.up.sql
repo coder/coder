@@ -31,6 +31,7 @@ CREATE TABLE tailnet_agents (
     FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE
 );
 
+
 -- For shutting down / GC a coordinator
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents (coordinator_id);
 
