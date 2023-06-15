@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clistat"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/testutil"
 )
@@ -31,7 +32,7 @@ func TestStatCmd(t *testing.T) {
 		s := buf.String()
 		require.NotEmpty(t, s)
 		// Must be valid JSON
-		tmp := make([]struct{}, 0)
+		tmp := make([]clistat.Result, 0)
 		require.NoError(t, json.NewDecoder(strings.NewReader(s)).Decode(&tmp))
 	})
 	t.Run("Table", func(t *testing.T) {
@@ -92,8 +93,12 @@ func TestStatCPUCmd(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		s := buf.String()
-		tmp := struct{}{}
+		tmp := clistat.Result{}
 		require.NoError(t, json.NewDecoder(strings.NewReader(s)).Decode(&tmp))
+		require.NotZero(t, tmp.Used)
+		require.NotNil(t, tmp.Total)
+		require.NotZero(t, *tmp.Total)
+		require.Equal(t, "cores", tmp.Unit)
 	})
 }
 
@@ -123,8 +128,12 @@ func TestStatMemCmd(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		s := buf.String()
-		tmp := struct{}{}
+		tmp := clistat.Result{}
 		require.NoError(t, json.NewDecoder(strings.NewReader(s)).Decode(&tmp))
+		require.NotZero(t, tmp.Used)
+		require.NotNil(t, tmp.Total)
+		require.NotZero(t, *tmp.Total)
+		require.Equal(t, "B", tmp.Unit)
 	})
 }
 
@@ -154,7 +163,11 @@ func TestStatDiskCmd(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		s := buf.String()
-		tmp := struct{}{}
+		tmp := clistat.Result{}
 		require.NoError(t, json.NewDecoder(strings.NewReader(s)).Decode(&tmp))
+		require.NotZero(t, tmp.Used)
+		require.NotNil(t, tmp.Total)
+		require.NotZero(t, *tmp.Total)
+		require.Equal(t, "B", tmp.Unit)
 	})
 }
