@@ -25,7 +25,7 @@ describe("WorkspaceBuildPage", () => {
     client.onmessage = async () => {
       renderWithAuth(<WorkspaceBuildPage />, {
         route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
-        path: "/@:username/:workspace/builds/:buildNumber",
+        path: "/:username/:workspace/builds/:buildNumber",
       })
 
       await screen.findByText(MockWorkspaceBuild.workspace_name)

@@ -292,7 +292,7 @@ export const AppRouter: FC = () => {
                 />
               </Route>
 
-              <Route path="/@:username">
+              <Route path="/:username">
                 <Route path=":workspace">
                   <Route index element={<WorkspacePage />} />
                   <Route
@@ -316,7 +316,7 @@ export const AppRouter: FC = () => {
 
             {/* Terminal and CLI auth pages don't have the dashboard layout */}
             <Route
-              path="/@:username/:workspace/terminal"
+              path="/:username/:workspace/terminal"
               element={<TerminalPage />}
             />
             <Route path="cli-auth" element={<CliAuthenticationPage />} />
