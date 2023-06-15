@@ -606,6 +606,7 @@ export interface PrometheusConfig {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
   readonly collect_agent_stats: boolean
+  readonly collect_db_metrics: boolean
 }
 
 // From codersdk/deployment.go
