@@ -131,7 +131,7 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 	return bestN
 }
 
-func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) (retErr error) {
+func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
 	defer func() {
 		err := conn.Close()
 		if err != nil {
@@ -150,7 +150,7 @@ func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) (ret
 	return nil
 }
 
-func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) (retErr error) {
+func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 	defer func() {
 		err := conn.Close()
 		if err != nil {
@@ -171,7 +171,6 @@ func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) (retErr e
 
 func (c *pgCoord) Close() error {
 	c.cancel()
-	// do we need to wait for the binder to complete?
 	c.closeOnce.Do(func() { close(c.closed) })
 	return nil
 }
@@ -1083,7 +1082,7 @@ func (h *heartbeats) subscribe() {
 	eb.MaxInterval = dbMaxBackoff
 	bkoff := backoff.WithContext(eb, h.ctx)
 	var cancel context.CancelFunc
-	err := backoff.Retry(func() error {
+	bErr := backoff.Retry(func() error {
 		cancelFn, err := h.pubsub.SubscribeWithErr(EventHeartbeats, h.listen)
 		if err != nil {
 			h.logger.Warn(h.ctx, "failed to subscribe to heartbeats", slog.Error(err))
@@ -1092,7 +1091,7 @@ func (h *heartbeats) subscribe() {
 		cancel = cancelFn
 		return nil
 	}, bkoff)
-	if err != nil {
+	if bErr != nil {
 		// this should only happen if context is canceled
 		return
 	}
@@ -1198,7 +1197,7 @@ func (h *heartbeats) sendBeat() {
 }
 
 func (h *heartbeats) sendDelete() {
-	// here we don't want to use the main context, since it will have been c
+	// here we don't want to use the main context, since it will have been canceled
 	err := h.store.DeleteCoordinator(context.Background(), h.self)
 	if err != nil {
 		h.logger.Error(h.ctx, "failed to send coordinator delete", slog.Error(err))
