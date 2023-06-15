@@ -40,7 +40,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
           onSubmit={onSignIn}
         />
         <footer className={styles.footer}>
-          Copyright © 2022 Coder Technologies, Inc.
+          Copyright © {new Date().getFullYear()} Coder Technologies, Inc.
         </footer>
       </div>
     </div>

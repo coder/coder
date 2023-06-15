@@ -15,7 +15,6 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbmock"
-	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/wsbuilder"
 	"github.com/coder/coder/codersdk"
@@ -614,7 +613,7 @@ func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbm
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          nil,
-			Tags: dbtype.StringMap{
+			Tags: database.StringMap{
 				"version":                   "active",
 				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
 			},
@@ -654,7 +653,7 @@ func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *d
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          nil,
-			Tags: dbtype.StringMap{
+			Tags: database.StringMap{
 				"version":                   "inactive",
 				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
 			},

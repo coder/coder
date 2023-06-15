@@ -66,9 +66,12 @@ type CreateFirstUserResponse struct {
 }
 
 type CreateUserRequest struct {
-	Email          string    `json:"email" validate:"required,email" format:"email"`
-	Username       string    `json:"username" validate:"required,username"`
-	Password       string    `json:"password" validate:"required"`
+	Email    string `json:"email" validate:"required,email" format:"email"`
+	Username string `json:"username" validate:"required,username"`
+	Password string `json:"password" validate:"required_if=DisableLogin false"`
+	// DisableLogin sets the user's login type to 'none'. This prevents the user
+	// from being able to use a password or any other authentication method to login.
+	DisableLogin   bool      `json:"disable_login"`
 	OrganizationID uuid.UUID `json:"organization_id" validate:"" format:"uuid"`
 }
 

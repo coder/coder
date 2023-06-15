@@ -68,6 +68,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbmetrics"
 	"github.com/coder/coder/coderd/database/dbpurge"
 	"github.com/coder/coder/coderd/database/migrations"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -463,7 +464,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Logger:                      logger.Named("coderd"),
 				Database:                    dbfake.New(),
 				DERPMap:                     derpMap,
-				Pubsub:                      database.NewPubsubInMemory(),
+				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				GitAuthConfigs:              gitAuthConfigs,
@@ -589,7 +590,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if cfg.InMemoryDatabase {
 				// This is only used for testing.
 				options.Database = dbmetrics.New(dbfake.New(), options.PrometheusRegistry)
-				options.Pubsub = database.NewPubsubInMemory()
+				options.Pubsub = pubsub.NewInMemory()
 			} else {
 				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
 				if err != nil {
@@ -600,7 +601,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 
 				options.Database = dbmetrics.New(database.New(sqlDB), options.PrometheusRegistry)
-				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.String())
+				options.Pubsub, err = pubsub.New(ctx, sqlDB, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}

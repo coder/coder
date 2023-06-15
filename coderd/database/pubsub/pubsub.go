@@ -1,4 +1,4 @@
-package database
+package pubsub
 
 import (
 	"context"
@@ -48,7 +48,7 @@ type msgOrErr struct {
 type msgQueue struct {
 	ctx    context.Context
 	cond   *sync.Cond
-	q      [PubsubBufferSize]msgOrErr
+	q      [BufferSize]msgOrErr
 	front  int
 	size   int
 	closed bool
@@ -82,7 +82,7 @@ func (q *msgQueue) run() {
 			return
 		}
 		item := q.q[q.front]
-		q.front = (q.front + 1) % PubsubBufferSize
+		q.front = (q.front + 1) % BufferSize
 		q.size--
 		q.cond.L.Unlock()
 
@@ -111,20 +111,20 @@ func (q *msgQueue) enqueue(msg []byte) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 
-	if q.size == PubsubBufferSize {
+	if q.size == BufferSize {
 		// queue is full, so we're going to drop the msg we got called with.
 		// We also need to record that messages are being dropped, which we
 		// do at the last message in the queue.  This potentially makes us
 		// lose 2 messages instead of one, but it's more important at this
 		// point to warn the subscriber that they're losing messages so they
 		// can do something about it.
-		back := (q.front + PubsubBufferSize - 1) % PubsubBufferSize
+		back := (q.front + BufferSize - 1) % BufferSize
 		q.q[back].msg = nil
 		q.q[back].err = ErrDroppedMessages
 		return
 	}
 	// queue is not full, insert the message
-	next := (q.front + q.size) % PubsubBufferSize
+	next := (q.front + q.size) % BufferSize
 	q.q[next].msg = msg
 	q.q[next].err = nil
 	q.size++
@@ -143,17 +143,17 @@ func (q *msgQueue) dropped() {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 
-	if q.size == PubsubBufferSize {
+	if q.size == BufferSize {
 		// queue is full, but we need to record that messages are being dropped,
 		// which we do at the last message in the queue. This potentially drops
 		// another message, but it's more important for the subscriber to know.
-		back := (q.front + PubsubBufferSize - 1) % PubsubBufferSize
+		back := (q.front + BufferSize - 1) % BufferSize
 		q.q[back].msg = nil
 		q.q[back].err = ErrDroppedMessages
 		return
 	}
 	// queue is not full, insert the error
-	next := (q.front + q.size) % PubsubBufferSize
+	next := (q.front + q.size) % BufferSize
 	q.q[next].msg = nil
 	q.q[next].err = ErrDroppedMessages
 	q.size++
@@ -163,15 +163,17 @@ func (q *msgQueue) dropped() {
 // Pubsub implementation using PostgreSQL.
 type pgPubsub struct {
 	ctx        context.Context
+	cancel     context.CancelFunc
+	listenDone chan struct{}
 	pgListener *pq.Listener
 	db         *sql.DB
 	mut        sync.Mutex
 	queues     map[string]map[uuid.UUID]*msgQueue
 }
 
-// PubsubBufferSize is the maximum number of unhandled messages we will buffer
+// BufferSize is the maximum number of unhandled messages we will buffer
 // for a subscriber before dropping messages.
-const PubsubBufferSize = 2048
+const BufferSize = 2048
 
 // Subscribe calls the listener when an event matching the name is received.
 func (p *pgPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {
@@ -228,7 +230,7 @@ func (p *pgPubsub) Publish(event string, message []byte) error {
 	// This is safe because we are calling pq.QuoteLiteral. pg_notify doesn't
 	// support the first parameter being a prepared statement.
 	//nolint:gosec
-	_, err := p.db.ExecContext(context.Background(), `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
+	_, err := p.db.ExecContext(p.ctx, `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
 	if err != nil {
 		return xerrors.Errorf("exec pg_notify: %w", err)
 	}
@@ -237,19 +239,24 @@ func (p *pgPubsub) Publish(event string, message []byte) error {
 
 // Close closes the pubsub instance.
 func (p *pgPubsub) Close() error {
-	return p.pgListener.Close()
+	p.cancel()
+	err := p.pgListener.Close()
+	<-p.listenDone
+	return err
 }
 
 // listen begins receiving messages on the pq listener.
-func (p *pgPubsub) listen(ctx context.Context) {
+func (p *pgPubsub) listen() {
+	defer close(p.listenDone)
+	defer p.pgListener.Close()
+
 	var (
 		notif *pq.Notification
 		ok    bool
 	)
-	defer p.pgListener.Close()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-p.ctx.Done():
 			return
 		case notif, ok = <-p.pgListener.Notify:
 			if !ok {
@@ -288,11 +295,11 @@ func (p *pgPubsub) recordReconnect() {
 	}
 }
 
-// NewPubsub creates a new Pubsub implementation using a PostgreSQL connection.
-func NewPubsub(ctx context.Context, database *sql.DB, connectURL string) (Pubsub, error) {
+// New creates a new Pubsub implementation using a PostgreSQL connection.
+func New(ctx context.Context, database *sql.DB, connectURL string) (Pubsub, error) {
 	// Creates a new listener using pq.
 	errCh := make(chan error)
-	listener := pq.NewListener(connectURL, time.Second, time.Minute, func(event pq.ListenerEventType, err error) {
+	listener := pq.NewListener(connectURL, time.Second, time.Minute, func(_ pq.ListenerEventType, err error) {
 		// This callback gets events whenever the connection state changes.
 		// Don't send if the errChannel has already been closed.
 		select {
@@ -306,18 +313,25 @@ func NewPubsub(ctx context.Context, database *sql.DB, connectURL string) (Pubsub
 	select {
 	case err := <-errCh:
 		if err != nil {
+			_ = listener.Close()
 			return nil, xerrors.Errorf("create pq listener: %w", err)
 		}
 	case <-ctx.Done():
+		_ = listener.Close()
 		return nil, ctx.Err()
 	}
+
+	// Start a new context that will be canceled when the pubsub is closed.
+	ctx, cancel := context.WithCancel(context.Background())
 	pgPubsub := &pgPubsub{
 		ctx:        ctx,
+		cancel:     cancel,
+		listenDone: make(chan struct{}),
 		db:         database,
 		pgListener: listener,
 		queues:     make(map[string]map[uuid.UUID]*msgQueue),
 	}
-	go pgPubsub.listen(ctx)
+	go pgPubsub.listen()
 
 	return pgPubsub, nil
 }

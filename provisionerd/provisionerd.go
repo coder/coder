@@ -357,7 +357,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 	))
 	defer span.End()
 
-	fields := []slog.Field{
+	fields := []any{
 		slog.F("initiator_username", job.UserName),
 		slog.F("provisioner", job.Provisioner),
 		slog.F("job_id", job.JobId),

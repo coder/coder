@@ -1,6 +1,6 @@
 //go:build linux
 
-package database_test
+package pubsub_test
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/testutil"
 )
 
@@ -39,17 +39,17 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := database.NewPubsub(ctx, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, db, connectionURL)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		event := "test"
 		data := "testing"
 		messageChannel := make(chan []byte)
-		cancelFunc, err = pubsub.Subscribe(event, func(ctx context.Context, message []byte) {
+		unsub, err := pubsub.Subscribe(event, func(ctx context.Context, message []byte) {
 			messageChannel <- message
 		})
 		require.NoError(t, err)
-		defer cancelFunc()
+		defer unsub()
 		go func() {
 			err = pubsub.Publish(event, []byte(data))
 			assert.NoError(t, err)
@@ -67,10 +67,95 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := database.NewPubsub(ctx, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, db, connectionURL)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		cancelFunc()
+	})
+
+	t.Run("NotClosedOnCancelContext", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		connectionURL, closePg, err := postgres.Open()
+		require.NoError(t, err)
+		defer closePg()
+		db, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer db.Close()
+		pubsub, err := pubsub.New(ctx, db, connectionURL)
+		require.NoError(t, err)
+		defer pubsub.Close()
+
+		// Provided context must only be active during NewPubsub, not after.
+		cancel()
+
+		event := "test"
+		data := "testing"
+		messageChannel := make(chan []byte)
+		unsub, err := pubsub.Subscribe(event, func(_ context.Context, message []byte) {
+			messageChannel <- message
+		})
+		require.NoError(t, err)
+		defer unsub()
+		go func() {
+			err = pubsub.Publish(event, []byte(data))
+			assert.NoError(t, err)
+		}()
+		message := <-messageChannel
+		assert.Equal(t, string(message), data)
+	})
+
+	t.Run("ClosePropagatesContextCancellationToSubscription", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		connectionURL, closePg, err := postgres.Open()
+		require.NoError(t, err)
+		defer closePg()
+		db, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer db.Close()
+		pubsub, err := pubsub.New(ctx, db, connectionURL)
+		require.NoError(t, err)
+		defer pubsub.Close()
+
+		event := "test"
+		done := make(chan struct{})
+		called := make(chan struct{})
+		unsub, err := pubsub.Subscribe(event, func(subCtx context.Context, _ []byte) {
+			defer close(done)
+			select {
+			case <-subCtx.Done():
+				assert.Fail(t, "context should not be canceled")
+			default:
+			}
+			close(called)
+			select {
+			case <-subCtx.Done():
+			case <-ctx.Done():
+				assert.Fail(t, "timeout waiting for sub context to be canceled")
+			}
+		})
+		require.NoError(t, err)
+		defer unsub()
+
+		go func() {
+			err := pubsub.Publish(event, nil)
+			assert.NoError(t, err)
+		}()
+
+		select {
+		case <-called:
+		case <-ctx.Done():
+			require.Fail(t, "timeout waiting for handler to be called")
+		}
+		err = pubsub.Close()
+		require.NoError(t, err)
+
+		select {
+		case <-done:
+		case <-ctx.Done():
+			require.Fail(t, "timeout waiting for handler to finish")
+		}
 	})
 }
 
@@ -86,12 +171,12 @@ func TestPubsub_ordering(t *testing.T) {
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	defer db.Close()
-	pubsub, err := database.NewPubsub(ctx, db, connectionURL)
+	ps, err := pubsub.New(ctx, db, connectionURL)
 	require.NoError(t, err)
-	defer pubsub.Close()
+	defer ps.Close()
 	event := "test"
 	messageChannel := make(chan []byte, 100)
-	cancelSub, err := pubsub.Subscribe(event, func(ctx context.Context, message []byte) {
+	cancelSub, err := ps.Subscribe(event, func(ctx context.Context, message []byte) {
 		// sleep a random amount of time to simulate handlers taking different amount of time
 		// to process, depending on the message
 		// nolint: gosec
@@ -102,7 +187,7 @@ func TestPubsub_ordering(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSub()
 	for i := 0; i < 100; i++ {
-		err = pubsub.Publish(event, []byte(fmt.Sprintf("%d", i)))
+		err = ps.Publish(event, []byte(fmt.Sprintf("%d", i)))
 		assert.NoError(t, err)
 	}
 	for i := 0; i < 100; i++ {
@@ -134,14 +219,14 @@ func TestPubsub_Disconnect(t *testing.T) {
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancelFunc()
-	pubsub, err := database.NewPubsub(ctx, db, connectionURL)
+	ps, err := pubsub.New(ctx, db, connectionURL)
 	require.NoError(t, err)
-	defer pubsub.Close()
+	defer ps.Close()
 	event := "test"
 
 	// buffer responses so that when the test completes, goroutines don't get blocked & leak
-	errors := make(chan error, database.PubsubBufferSize)
-	messages := make(chan string, database.PubsubBufferSize)
+	errors := make(chan error, pubsub.BufferSize)
+	messages := make(chan string, pubsub.BufferSize)
 	readOne := func() (m string, e error) {
 		t.Helper()
 		select {
@@ -159,7 +244,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 		return m, e
 	}
 
-	cancelSub, err := pubsub.SubscribeWithErr(event, func(ctx context.Context, msg []byte, err error) {
+	cancelSub, err := ps.SubscribeWithErr(event, func(ctx context.Context, msg []byte, err error) {
 		messages <- string(msg)
 		errors <- err
 	})
@@ -167,7 +252,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 	defer cancelSub()
 
 	for i := 0; i < 100; i++ {
-		err = pubsub.Publish(event, []byte(fmt.Sprintf("%d", i)))
+		err = ps.Publish(event, []byte(fmt.Sprintf("%d", i)))
 		require.NoError(t, err)
 	}
 	// make sure we're getting at least one message.
@@ -185,7 +270,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 		default:
 			// ok
 		}
-		err = pubsub.Publish(event, []byte(fmt.Sprintf("%d", j)))
+		err = ps.Publish(event, []byte(fmt.Sprintf("%d", j)))
 		j++
 		if err != nil {
 			break
@@ -207,7 +292,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 		default:
 			// ok
 		}
-		err = pubsub.Publish(event, []byte(fmt.Sprintf("%d", j)))
+		err = ps.Publish(event, []byte(fmt.Sprintf("%d", j)))
 		if err == nil {
 			break
 		}
@@ -218,7 +303,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 	k := j
 	// exceeding the buffer invalidates the test because this causes us to drop messages for reasons other than DB
 	// reconnect
-	require.Less(t, k, database.PubsubBufferSize, "exceeded buffer")
+	require.Less(t, k, pubsub.BufferSize, "exceeded buffer")
 
 	// We don't know how quickly the pubsub will reconnect, so continue to send messages with increasing numbers.  As
 	// soon as we see k or higher we know we're getting messages after the restart.
@@ -230,7 +315,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 			default:
 				// ok
 			}
-			_ = pubsub.Publish(event, []byte(fmt.Sprintf("%d", j)))
+			_ = ps.Publish(event, []byte(fmt.Sprintf("%d", j)))
 			j++
 			time.Sleep(testutil.IntervalFast)
 		}
@@ -239,7 +324,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 	gotDroppedErr := false
 	for {
 		m, err := readOne()
-		if xerrors.Is(err, database.ErrDroppedMessages) {
+		if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 			gotDroppedErr = true
 			continue
 		}
@@ -249,7 +334,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 		if l >= k {
 			// exceeding the buffer invalidates the test because this causes us to drop messages for reasons other than
 			// DB reconnect
-			require.Less(t, l, database.PubsubBufferSize, "exceeded buffer")
+			require.Less(t, l, pubsub.BufferSize, "exceeded buffer")
 			break
 		}
 	}

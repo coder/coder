@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
@@ -588,7 +588,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		InitiatorID:    owner.UserID,
 		WorkerID:       uuid.NullUUID{},
 		FileID:         file.ID,
-		Tags: dbtype.StringMap{
+		Tags: database.StringMap{
 			"custom": "true",
 		},
 	})
@@ -616,7 +616,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		job.Type = database.ProvisionerJobTypeWorkspaceBuild
 		job.OrganizationID = owner.OrganizationID
 		// Need to prevent acquire from getting this job.
-		job.Tags = dbtype.StringMap{
+		job.Tags = database.StringMap{
 			jobID.String(): "true",
 		}
 		job = dbgen.ProvisionerJob(t, db, job)
@@ -1208,6 +1208,62 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			require.NoError(t, err)
 			return workspaces.Count == 1
 		}, testutil.IntervalMedium, "agent status timeout")
+	})
+
+	t.Run("FilterQueryHasDeletingByAndUnlicensed", func(t *testing.T) {
+		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
+		t.Parallel()
+		inactivityTTL := 1 * 24 * time.Hour
+		var setCalled int64
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+				SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					if atomic.AddInt64(&setCalled, 1) == 2 {
+						assert.Equal(t, inactivityTTL, options.InactivityTTL)
+					}
+					template.InactivityTTL = int64(options.InactivityTTL)
+					return template, nil
+				},
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// update template with inactivity ttl
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			InactivityTTLMillis: inactivityTTL.Milliseconds(),
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, inactivityTTL.Milliseconds(), template.InactivityTTLMillis)
+
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// stop build so workspace is inactive
+		stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, stopBuild.ID)
+
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("deleting_by:%s", time.Now().Add(inactivityTTL).Format("2006-01-02")),
+		})
+
+		assert.NoError(t, err)
+		// we are expecting that no workspaces are returned as user is unlicensed
+		// and template.InactivityTTL should be 0
+		assert.Len(t, res.Workspaces, 0)
 	})
 }
 

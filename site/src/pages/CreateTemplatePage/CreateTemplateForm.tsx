@@ -71,25 +71,22 @@ const validationSchema = Yup.object({
   ),
   description: Yup.string().max(
     MAX_DESCRIPTION_CHAR_LIMIT,
-    i18next.t("form.error.descriptionMax", { ns: "createTemplatePage" }),
+    "Please enter a description that is less than or equal to 128 characters.",
   ),
   icon: Yup.string().optional(),
   default_ttl_hours: Yup.number()
     .integer()
-    .min(
-      0,
-      i18next.t("form.error.defaultTTLMin", { ns: "templateSettingsPage" }),
-    )
+    .min(0, "Default time until autostop must not be less than 0.")
     .max(
       24 * MAX_TTL_DAYS /* 7 days in hours */,
-      i18next.t("form.error.defaultTTLMax", { ns: "templateSettingsPage" }),
+      "Please enter a limit that is less than or equal to 168 hours (7 days).",
     ),
   max_ttl_hours: Yup.number()
     .integer()
-    .min(0, i18next.t("form.error.maxTTLMin", { ns: "templateSettingsPage" }))
+    .min(0, "Maximum time until autostop must not be less than 0.")
     .max(
       24 * MAX_TTL_DAYS /* 7 days in hours */,
-      i18next.t("form.error.maxTTLMax", { ns: "templateSettingsPage" }),
+      "Please enter a limit that is less than or equal to 168 hours(7 days).",
     ),
 })
 
@@ -105,6 +102,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_cancel_workspace_jobs: false,
   allow_user_autostart: false,
   allow_user_autostop: false,
+  allow_everyone_group_access: true,
 }
 
 type GetInitialValuesParams = {
@@ -177,6 +175,7 @@ export interface CreateTemplateFormProps {
   logs?: ProvisionerJobLog[]
   allowAdvancedScheduling: boolean
   copiedTemplate?: Template
+  allowDisableEveryoneAccess: boolean
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
@@ -191,6 +190,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   jobError,
   logs,
   allowAdvancedScheduling,
+  allowDisableEveryoneAccess,
 }) => {
   const styles = useStyles()
   const form = useFormik<CreateTemplateData>({
@@ -223,8 +223,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
     <HorizontalForm onSubmit={form.handleSubmit}>
       {/* General info */}
       <FormSection
-        title={t("form.generalInfo.title")}
-        description={t("form.generalInfo.description")}
+        title="General info"
+        description="The name is used to identify the template in URLs and the API. It must be unique within your organization."
       >
         <FormFields>
           {starterTemplate ? (
@@ -255,8 +255,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
 
       {/* Display info  */}
       <FormSection
-        title={t("form.displayInfo.title")}
-        description={t("form.displayInfo.description")}
+        title="Display info"
+        description="Give your template a friendly name, description, and icon."
       >
         <FormFields>
           <TextField
@@ -288,8 +288,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
 
       {/* Schedule */}
       <FormSection
-        title={t("form.schedule.title")}
-        description={t("form.schedule.description")}
+        title="Schedule"
+        description="Define when workspaces created from this template automatically stop."
       >
         <FormFields>
           <Stack direction="row" className={styles.ttlFields}>
@@ -382,44 +382,90 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         </FormFields>
       </FormSection>
 
-      {/* Operations */}
+      {/* Permissions */}
       <FormSection
-        title={t("form.operations.title")}
-        description={t("form.operations.description")}
+        title="Permissions"
+        description="Regulate actions allowed on workspaces created from this template."
       >
-        <FormFields>
-          <label htmlFor="allow_user_cancel_workspace_jobs">
-            <Stack direction="row" spacing={1}>
-              <Checkbox
-                id="allow_user_cancel_workspace_jobs"
-                name="allow_user_cancel_workspace_jobs"
-                disabled={isSubmitting}
-                checked={form.values.allow_user_cancel_workspace_jobs}
-                onChange={form.handleChange}
-              />
+        <Stack direction="column">
+          <FormFields>
+            <label htmlFor="allow_user_cancel_workspace_jobs">
+              <Stack direction="row" spacing={1}>
+                <Checkbox
+                  id="allow_user_cancel_workspace_jobs"
+                  name="allow_user_cancel_workspace_jobs"
+                  disabled={isSubmitting}
+                  checked={form.values.allow_user_cancel_workspace_jobs}
+                  onChange={form.handleChange}
+                />
 
-              <Stack direction="column" spacing={0.5}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={0.5}
-                  className={styles.optionText}
-                >
-                  <strong>{t("form.fields.allowUsersToCancel")}</strong>
+                <Stack direction="column" spacing={0.5}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    className={styles.optionText}
+                  >
+                    <strong>{t("form.fields.allowUsersToCancel")}</strong>
 
-                  <HelpTooltip>
-                    <HelpTooltipText>
-                      {t("form.tooltip.allowUsersToCancel")}
-                    </HelpTooltipText>
-                  </HelpTooltip>
+                    <HelpTooltip>
+                      <HelpTooltipText>
+                        {t("form.tooltip.allowUsersToCancel")}
+                      </HelpTooltipText>
+                    </HelpTooltip>
+                  </Stack>
+                  <span className={styles.optionHelperText}>
+                    {t("form.helperText.allowUsersToCancel")}
+                  </span>
                 </Stack>
-                <span className={styles.optionHelperText}>
-                  {t("form.helperText.allowUsersToCancel")}
-                </span>
               </Stack>
-            </Stack>
-          </label>
-        </FormFields>
+            </label>
+          </FormFields>
+          <FormFields>
+            <label htmlFor="allow_everyone_group_access">
+              <Stack direction="row" spacing={1}>
+                <Checkbox
+                  id="allow_everyone_group_access"
+                  name="allow_everyone_group_access"
+                  disabled={isSubmitting || !allowDisableEveryoneAccess}
+                  checked={form.values.allow_everyone_group_access}
+                  onChange={form.handleChange}
+                />
+
+                <Stack direction="column" spacing={0.5}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    className={styles.optionText}
+                  >
+                    <strong>Allow everyone to use the template</strong>
+
+                    <HelpTooltip>
+                      <HelpTooltipText>
+                        If unchecked, only users with the &apos;template
+                        admin&apos; and &apos;owner&apos; role can use this
+                        template until the permissions are updated. Navigate to{" "}
+                        <strong>
+                          Templates &gt; Select a template &gt; Settings &gt;
+                          Permissions
+                        </strong>{" "}
+                        to update permissions.
+                      </HelpTooltipText>
+                    </HelpTooltip>
+                  </Stack>
+                  <span className={styles.optionHelperText}>
+                    This setting requires an enterprise license for the&nbsp;
+                    <Link href="https://coder.com/docs/v2/latest/admin/rbac">
+                      &apos;Template RBAC&apos;
+                    </Link>{" "}
+                    feature to customize permissions.
+                  </span>
+                </Stack>
+              </Stack>
+            </label>
+          </FormFields>
+        </Stack>
       </FormSection>
 
       {/* Variables */}
