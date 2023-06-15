@@ -22,7 +22,7 @@ func IsContainerized(fs afero.Fs) (ok bool, err error) {
 	cgData, err := afero.ReadFile(fs, procOneCgroup)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, nil // how?
+			return false, nil
 		}
 		return false, xerrors.Errorf("read file %s: %w", procOneCgroup, err)
 	}
@@ -43,7 +43,7 @@ func IsContainerized(fs afero.Fs) (ok bool, err error) {
 	mountsData, err := afero.ReadFile(fs, procMounts)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, nil // how??
+			return false, nil
 		}
 		return false, xerrors.Errorf("read file %s: %w", procMounts, err)
 	}
