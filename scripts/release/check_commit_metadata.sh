@@ -45,7 +45,7 @@ main() {
 	# If a commit contains this title prefix or the source PR contains the
 	# label, patch releases will not be allowed.
 	# This regex matches both `feat!:` and `feat(site)!:`.
-	breaking_title="^[a-z]+(\([a-z]*\))?!:"
+	breaking_title="^[a-z]+(\([^)]+\))?!:"
 	breaking_label=release/breaking
 	breaking_category=breaking
 	experimental_label=release/experimental
