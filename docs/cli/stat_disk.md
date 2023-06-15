@@ -29,12 +29,3 @@ Output format. Available formats: text, json.
 | Default | <code>/</code>      |
 
 Path for which to check disk usage.
-
-### --prefix
-
-|         |                     |
-| ------- | ------------------- |
-| Type    | <code>string</code> |
-| Default | <code>Gi</code>     |
-
-Unit prefix.
