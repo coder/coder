@@ -1348,6 +1348,21 @@ func (mr *MockStoreMockRecorder) GetUserLinkByUserIDLoginType(arg0, arg1 interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserLinkByUserIDLoginType", reflect.TypeOf((*MockStore)(nil).GetUserLinkByUserIDLoginType), arg0, arg1)
 }
 
+// GetUserOauthMergeState mocks base method.
+func (m *MockStore) GetUserOauthMergeState(arg0 context.Context, arg1 database.GetUserOauthMergeStateParams) (database.OauthMergeState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserOauthMergeState", arg0, arg1)
+	ret0, _ := ret[0].(database.OauthMergeState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserOauthMergeState indicates an expected call of GetUserOauthMergeState.
+func (mr *MockStoreMockRecorder) GetUserOauthMergeState(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserOauthMergeState", reflect.TypeOf((*MockStore)(nil).GetUserOauthMergeState), arg0, arg1)
+}
+
 // GetUsers mocks base method.
 func (m *MockStore) GetUsers(arg0 context.Context, arg1 database.GetUsersParams) ([]database.GetUsersRow, error) {
 	m.ctrl.T.Helper()
@@ -2286,6 +2301,21 @@ func (m *MockStore) InsertUserLink(arg0 context.Context, arg1 database.InsertUse
 func (mr *MockStoreMockRecorder) InsertUserLink(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserLink", reflect.TypeOf((*MockStore)(nil).InsertUserLink), arg0, arg1)
+}
+
+// InsertUserOauthMergeState mocks base method.
+func (m *MockStore) InsertUserOauthMergeState(arg0 context.Context, arg1 database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertUserOauthMergeState", arg0, arg1)
+	ret0, _ := ret[0].(database.OauthMergeState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertUserOauthMergeState indicates an expected call of InsertUserOauthMergeState.
+func (mr *MockStoreMockRecorder) InsertUserOauthMergeState(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserOauthMergeState", reflect.TypeOf((*MockStore)(nil).InsertUserOauthMergeState), arg0, arg1)
 }
 
 // InsertWorkspace mocks base method.

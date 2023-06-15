@@ -620,7 +620,7 @@ func New(options *Options) *API {
 					r.Use(
 						apiKeyMiddleware,
 					)
-					r.Post("/upgrade-to-oidc", api.postUpgradeToOIDC)
+					r.Post("/", api.postConvertToOauth)
 				})
 			})
 			r.Group(func(r chi.Router) {

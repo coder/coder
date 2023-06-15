@@ -7,8 +7,9 @@ import { usePermissions } from "hooks/usePermissions"
 import { SignInForm } from "components/SignInForm/SignInForm"
 import { retrieveRedirect } from "utils/redirect"
 import { useQuery } from "@tanstack/react-query"
-import { getAuthMethods } from "api/api"
+import { convertToOauth, getAuthMethods } from "api/api"
 import { AuthMethods } from "api/typesGenerated"
+import axios from "axios"
 
 export const AccountPage: FC = () => {
   const queryKey = ["get-auth-methods"]
@@ -18,16 +19,16 @@ export const AccountPage: FC = () => {
     isLoading: authMethodsLoading,
     isFetched: authMethodsFetched,
   } = useQuery({
-    select: (res: AuthMethods) => {
-      return {
-        ...res,
-        // Disable the password auth in this account section. For merging accounts,
-        // we only want to support oidc.
-        password: {
-          enabled: false,
-        },
-      }
-    },
+    // select: (res: AuthMethods) => {
+    //   return {
+    //     ...res,
+    //     // Disable the password auth in this account section. For merging accounts,
+    //     // we only want to support oidc.
+    //     password: {
+    //       enabled: false,
+    //     },
+    //   }
+    // },
     queryKey,
     queryFn: getAuthMethods,
   })
@@ -64,9 +65,29 @@ export const AccountPage: FC = () => {
         redirectTo={redirectTo}
         isSigningIn={false}
         error={authMethodsError}
-        onSubmit={(credentials: { email: string; password: string }) => {
-          console.log(credentials)
-          return
+        onSubmit={async (credentials: { email: string; password: string }) => {
+          const mergeState = await convertToOauth(
+            credentials.email,
+            credentials.password,
+            "oidc",
+          )
+
+          window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${
+            mergeState?.state_string
+          }&redirect=${encodeURIComponent(redirectTo)}`
+          // await axios.get(
+          //   `/api/v2/users/oidc/callback?oidc_merge_state=${
+          //     mergeState?.state_string
+          //   }&redirect=${encodeURIComponent(redirectTo)}`,
+          // )
+
+          {
+            /* <Link
+          href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
+            redirectTo,
+          )}`}
+        > */
+          }
         }}
       ></SignInForm>
     </Section>

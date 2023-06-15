@@ -544,6 +544,14 @@ export interface OIDCConfig {
   readonly icon_url: string
 }
 
+// From codersdk/users.go
+export interface OauthConversionResponse {
+  readonly state_string: string
+  readonly expires_at: string
+  readonly oauth_id: string
+  readonly user_id: string
+}
+
 // From codersdk/organizations.go
 export interface Organization {
   readonly id: string
@@ -1003,6 +1011,11 @@ export interface UpdateWorkspaceRequest {
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceTTLRequest {
   readonly ttl_ms?: number
+}
+
+// From codersdk/users.go
+export interface UpgradeToOIDCRequest extends LoginWithPasswordRequest {
+  readonly oauth_provider: string
 }
 
 // From codersdk/files.go

@@ -108,20 +108,6 @@ func (m metricsStore) GetAuthorizedUserCount(ctx context.Context, arg database.G
 	return count, err
 }
 
-func (m metricsStore) GetUserOIDCMergeState(ctx context.Context, arg database.GetUserOIDCMergeStateParams) (database.OidcMergeState, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserOIDCMergeState(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetUserOIDCMergeState").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m metricsStore) InsertUserOIDCMergeState(ctx context.Context, arg database.InsertUserOIDCMergeStateParams) (database.OidcMergeState, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertUserOIDCMergeState(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertUserOIDCMergeState").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)

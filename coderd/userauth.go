@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
-	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,7 +33,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *API) postUpgradeToOIDC(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postConvertToOauth(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		auditor           = api.Auditor.Load()
@@ -111,11 +110,18 @@ func (api *API) postUpgradeToOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Redirect the user back to where they were after the account merge.
-	redirectURL := fmt.Sprintf("/api/v2/users/%s/callback?redirect=%s&oidc_merge_state=%s", oauthID, url.QueryEscape(r.URL.Path), mergeState.StateString)
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OauthConversionResponse{
+		StateString: mergeState.StateString,
+		ExpiresAt:   mergeState.ExpiresAt,
+		OAuthID:     mergeState.OauthID,
+		UserID:      mergeState.UserID,
+	})
 
-	// Redirect the user to the normal OIDC flow with the special 'oidc_merge_state' state string.
-	http.Redirect(rw, r, redirectURL, http.StatusTemporaryRedirect)
+	//// Redirect the user back to where they were after the account merge.
+	//redirectURL := fmt.Sprintf("/api/v2/users/%s/callback?redirect=%s&oidc_merge_state=%s", oauthID, url.QueryEscape(r.URL.Path), mergeState.StateString)
+	//
+	//// Redirect the user to the normal OIDC flow with the special 'oidc_merge_state' state string.
+	//http.Redirect(rw, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
 // Authenticates the user with an email and password.
@@ -968,7 +974,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				UserID:      user.ID,
 				StateString: params.State.StateString,
 			})
-			if err == nil && mergeState.ExpiresAt.Before(time.Now()) {
+			var _ = mergeState
+			if err == nil {
 				return httpError{
 					code: http.StatusForbidden,
 					msg:  "Hey! This upgrade would have worked if I let it",

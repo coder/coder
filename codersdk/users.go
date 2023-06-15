@@ -109,6 +109,13 @@ type LoginWithPasswordResponse struct {
 	SessionToken string `json:"session_token" validate:"required"`
 }
 
+type OauthConversionResponse struct {
+	StateString string    `json:"state_string"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	OAuthID     string    `json:"oauth_id"`
+	UserID      uuid.UUID `json:"user_id"`
+}
+
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
 }

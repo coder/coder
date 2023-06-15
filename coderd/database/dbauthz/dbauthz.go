@@ -1858,7 +1858,8 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 }
 
 func (q *querier) InsertUserOauthMergeState(ctx context.Context, arg database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	// TODO: @emyrk this permission feels right?
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(arg.UserID.String())); err != nil {
 		return database.OauthMergeState{}, err
 	}
 

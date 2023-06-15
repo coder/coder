@@ -107,6 +107,33 @@ export const login = async (
   return response.data
 }
 
+export const convertToOauth = async (
+  email: string,
+  password: string,
+  oauth_provider: string,
+): Promise<TypesGen.OauthConversionResponse | undefined> => {
+  const payload = JSON.stringify({
+    email,
+    password,
+    oauth_provider,
+  })
+
+  try {
+    const response = await axios.post<TypesGen.OauthConversionResponse>("/api/v2/users/upgrade-to-oidc",
+    payload,
+    {
+      headers: { ...CONTENT_TYPE_JSON },
+    })
+    return response.data
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      return undefined
+    }
+
+    throw error
+  }
+}
+
 export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
