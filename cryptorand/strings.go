@@ -1,6 +1,8 @@
 package cryptorand
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -32,23 +34,57 @@ const (
 	Human = "23456789abcdefghjkmnpqrstuvwxyz"
 )
 
+// unbiasedModulo32 uniformly modulos v by n over a sufficiently large data
+// set, regenerating v if necessary. n must be > 0. All input bits in v must be
+// fully random, you cannot cast a random uint8/uint16 for input into this
+// function.
+//
+//nolint:varnamelen
+func unbiasedModulo32(v uint32, n int32) (int32, error) {
+	prod := uint64(v) * uint64(n)
+	low := uint32(prod)
+	if low < uint32(n) {
+		thresh := uint32(-n) % uint32(n)
+		for low < thresh {
+			err := binary.Read(rand.Reader, binary.BigEndian, &v)
+			if err != nil {
+				return 0, err
+			}
+			prod = uint64(v) * uint64(n)
+			low = uint32(prod)
+		}
+	}
+	return int32(prod >> 32), nil
+}
+
 // StringCharset generates a random string using the provided charset and size
 func StringCharset(charSetStr string, size int) (string, error) {
-	charSet := []rune(charSetStr)
-
 	if size == 0 {
 		return "", nil
 	}
 
-	if len(charSet) == 0 {
+	if len(charSetStr) == 0 {
 		return "", xerrors.Errorf("charSetStr must not be empty")
+	}
+
+	charSet := []rune(charSetStr)
+
+	// We pre-allocate the entropy to amortize the crypto/rand syscall overhead.
+	entropy := make([]byte, 4*size)
+
+	_, err := rand.Read(entropy)
+	if err != nil {
+		return "", err
 	}
 
 	var buf strings.Builder
 	buf.Grow(size)
 
 	for i := 0; i < size; i++ {
-		ci, err := Intn(len(charSet))
+		ci, err := unbiasedModulo32(
+			binary.BigEndian.Uint32(entropy[i*4:(i+1)*4]),
+			int32(len(charSet)),
+		)
 		if err != nil {
 			return "", err
 		}
