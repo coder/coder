@@ -5959,6 +5959,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `enabled` | boolean | false    |              |             |
 | `error`   | any     | false    |              |             |
 
+## healthcheck.DatabaseReport
+
+```json
+{
+  "error": null,
+  "healthy": true,
+  "latency": 0,
+  "reachable": true
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description |
+| ----------- | ------- | -------- | ------------ | ----------- |
+| `error`     | any     | false    |              |             |
+| `healthy`   | boolean | false    |              |             |
+| `latency`   | integer | false    |              |             |
+| `reachable` | boolean | false    |              |             |
+
 ## healthcheck.Report
 
 ```json
@@ -5969,6 +5989,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "healthz_response": "string",
     "reachable": true,
     "status_code": 0
+  },
+  "database": {
+    "error": null,
+    "healthy": true,
+    "latency": 0,
+    "reachable": true
   },
   "derp": {
     "error": null,
@@ -6149,6 +6175,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name               | Type                                                       | Required | Restrictions | Description                                      |
 | ------------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
 | `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
+| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                  |
 | `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
 | `failing_sections` | array of string                                            | false    |              |                                                  |
 | `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
