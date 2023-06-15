@@ -41,6 +41,10 @@ func TestResultString(t *testing.T) {
 			Expected: "1.2 things",
 			Result:   Result{Used: 1.234, Total: nil, Unit: "things", Prefix: "invalid"},
 		},
+		{
+			Expected: "0.0/100.0 TiB (0%)",
+			Result:   Result{Used: 1, Total: ptr.To(1024 * 1024 * 1024 * 1024 * 100.0), Unit: "B", Prefix: "Ti"},
+		},
 	} {
 		assert.Equal(t, tt.Expected, tt.Result.String())
 	}
