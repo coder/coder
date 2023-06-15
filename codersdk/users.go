@@ -93,8 +93,9 @@ type UserRoles struct {
 	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
 }
 
-type UpgradeToOIDCRequest struct {
-	OauthProvider string `json:"oauth_provider" validate:"required"`
+type ConvertLoginRequest struct {
+	// ToLoginType is the login type to convert to.
+	ToLoginType LoginType `json:"to_login_type" validate:"required"`
 	LoginWithPasswordRequest
 }
 
@@ -112,7 +113,7 @@ type LoginWithPasswordResponse struct {
 type OauthConversionResponse struct {
 	StateString string    `json:"state_string"`
 	ExpiresAt   time.Time `json:"expires_at"`
-	OAuthID     string    `json:"oauth_id"`
+	ToLoginType LoginType `json:"to_login_type"`
 	UserID      uuid.UUID `json:"user_id"`
 }
 

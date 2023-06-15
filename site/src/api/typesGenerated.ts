@@ -140,6 +140,11 @@ export interface BuildInfoResponse {
 }
 
 // From codersdk/users.go
+export interface ConvertLoginRequest extends LoginWithPasswordRequest {
+  readonly to_login_type: LoginType
+}
+
+// From codersdk/users.go
 export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
@@ -548,7 +553,7 @@ export interface OIDCConfig {
 export interface OauthConversionResponse {
   readonly state_string: string
   readonly expires_at: string
-  readonly oauth_id: string
+  readonly to_login_type: LoginType
   readonly user_id: string
 }
 
@@ -1011,11 +1016,6 @@ export interface UpdateWorkspaceRequest {
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceTTLRequest {
   readonly ttl_ms?: number
-}
-
-// From codersdk/users.go
-export interface UpgradeToOIDCRequest extends LoginWithPasswordRequest {
-  readonly oauth_provider: string
 }
 
 // From codersdk/files.go

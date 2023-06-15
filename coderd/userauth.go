@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/cryptorand"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
@@ -31,9 +29,12 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 )
 
-func (api *API) postConvertToOauth(rw http.ResponseWriter, r *http.Request) {
+// postConvertLoginType replies with an oauth state token capable of converting
+// the user to an oauth user.
+func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		auditor           = api.Auditor.Load()
@@ -49,21 +50,22 @@ func (api *API) postConvertToOauth(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
 
-	var req codersdk.UpgradeToOIDCRequest
+	var req codersdk.ConvertLoginRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	var oauthID string
-	switch strings.ToLower(req.OauthProvider) {
-	case "oidc":
-		oauthID = "oidc"
-	case "github":
-		oauthID = "github"
+	switch req.ToLoginType {
+	case codersdk.LoginTypeGithub, codersdk.LoginTypeOIDC:
+	case codersdk.LoginTypeNone, codersdk.LoginTypePassword, codersdk.LoginTypeToken:
+		// These login types are not allowed to be converted to at this time.
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Cannot convert to login type %q.", req.ToLoginType),
+		})
+		return
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Unknown oauth provider %q. Choose from '%s' or '%s'",
-				req.OauthProvider, "oidc", "github"),
+			Message: fmt.Sprintf("Unknown login type %q.", req.ToLoginType),
 		})
 		return
 	}
@@ -73,14 +75,14 @@ func (api *API) postConvertToOauth(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The user wants to convert their password based authentication to OIDC.
+	// Only support converting from password auth.
 	if user.LoginType != database.LoginTypePassword {
 		// This is checked in loginRequest, but checked again here in case that shared
 		// function changes its checks. Just some defensive programming.
 		// This login type is **required** to be password based to prevent
 		// users from converting other login types to OIDC.
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "User account must be have password based authentication.",
+			Message: "User account must have password based authentication.",
 		})
 		return
 	}
@@ -98,7 +100,7 @@ func (api *API) postConvertToOauth(rw http.ResponseWriter, r *http.Request) {
 	mergeState, err := api.Database.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
 		UserID:      user.ID,
 		StateString: stateString,
-		OauthID:     oauthID,
+		ToLoginType: database.LoginType(req.ToLoginType),
 		CreatedAt:   now,
 		ExpiresAt:   now.Add(time.Minute * 5),
 	})
@@ -113,15 +115,9 @@ func (api *API) postConvertToOauth(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OauthConversionResponse{
 		StateString: mergeState.StateString,
 		ExpiresAt:   mergeState.ExpiresAt,
-		OAuthID:     mergeState.OauthID,
+		ToLoginType: codersdk.LoginType(mergeState.ToLoginType),
 		UserID:      mergeState.UserID,
 	})
-
-	//// Redirect the user back to where they were after the account merge.
-	//redirectURL := fmt.Sprintf("/api/v2/users/%s/callback?redirect=%s&oidc_merge_state=%s", oauthID, url.QueryEscape(r.URL.Path), mergeState.StateString)
-	//
-	//// Redirect the user to the normal OIDC flow with the special 'oidc_merge_state' state string.
-	//http.Redirect(rw, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
 // Authenticates the user with an email and password.

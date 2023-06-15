@@ -615,12 +615,12 @@ func New(options *Options) *API {
 					r.Get("/", api.userOIDC)
 				})
 				// This is an authenticated route. It handles converting a user
-				// from Password based authentication to OIDC based
-				r.Route("/upgrade-to-oidc", func(r chi.Router) {
+				// from Password based authentication to Oauth
+				r.Route("/convert-login", func(r chi.Router) {
 					r.Use(
 						apiKeyMiddleware,
 					)
-					r.Post("/", api.postConvertToOauth)
+					r.Post("/", api.postConvertLoginType)
 				})
 			})
 			r.Group(func(r chi.Router) {

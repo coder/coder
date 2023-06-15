@@ -4,15 +4,15 @@ SELECT
 FROM
 	oauth_merge_state
 WHERE
-    user_id = @user_id AND
-    state_string = @state_string;
+	user_id = @user_id AND
+	state_string = @state_string;
 
 -- name: InsertUserOauthMergeState :one
 INSERT INTO
 	oauth_merge_state (
 		user_id,
 		state_string,
-		oauth_id,
+		to_login_type,
 		created_at,
 		expires_at
 	)
@@ -60,7 +60,7 @@ SELECT
 FROM
 	users
 WHERE
-    status = 'active'::user_status AND deleted = false;
+	status = 'active'::user_status AND deleted = false;
 
 -- name: GetFilteredUserCount :one
 -- This will never count deleted users.
@@ -197,9 +197,9 @@ WHERE
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
-	    -- everyone is a member.
+		-- everyone is a member.
 		WHEN cardinality(@rbac_role :: text[]) > 0 AND 'member' != ANY(@rbac_role :: text[]) THEN
-		    rbac_roles && @rbac_role :: text[]
+			rbac_roles && @rbac_role :: text[]
 		ELSE true
 	END
 	-- End of filters
