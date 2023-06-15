@@ -590,9 +590,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if cfg.InMemoryDatabase {
 				// This is only used for testing.
 				options.Database = dbfake.New()
-				if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
-					options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
-				}
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
 				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
@@ -604,14 +601,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 
 				options.Database = database.New(sqlDB)
-				if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
-					options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
-				}
 				options.Pubsub, err = pubsub.New(ctx, sqlDB, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
 				defer options.Pubsub.Close()
+			}
+
+			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
+				options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 			}
 
 			var deploymentID string
