@@ -40,7 +40,7 @@ ignore_missing_metadata=${CODER_IGNORE_MISSING_COMMIT_METADATA:-0}
 
 main() {
 	# Match a commit prefix pattern, e.g. feat: or feat(site):.
-	prefix_pattern="^([a-z]+)(\([^)]*\))?:"
+	prefix_pattern="^([a-z]+)(\([^)]+\))?:"
 
 	# If a commit contains this title prefix or the source PR contains the
 	# label, patch releases will not be allowed.
