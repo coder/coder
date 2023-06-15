@@ -1,6 +1,8 @@
 package clistat
 
 import (
+	"fmt"
+	"math"
 	"runtime"
 	"strconv"
 	"strings"
@@ -32,37 +34,68 @@ func (r *Result) String() string {
 		return "-"
 	}
 
-	var sb strings.Builder
-	usedScaled, scale := humanize.ComputeSI(r.Used)
-	usedPrec := 1
-	if usedScaled >= 100.0 {
-		usedPrec = 0
-	}
-	_, _ = sb.WriteString(strconv.FormatFloat(usedScaled, 'f', usedPrec, 64))
+	var usedDisplay, totalDisplay string
+	var usedScaled, totalScaled float64
+	var usedPrefix, totalPrefix string
+	usedScaled, usedPrefix = humanize.ComputeSI(r.Used)
+	usedDisplay = humanizeFloat(usedScaled)
 	if r.Total != (*float64)(nil) {
-		// TODO(cian): handle case where scale of total is different to used
-		totalScaled, _ := humanize.ComputeSI(*r.Total)
-		totalPrec := 1
-		if totalScaled >= 100.0 {
-			totalPrec = 0
-		}
-		_, _ = sb.WriteString("/")
-		_, _ = sb.WriteString(strconv.FormatFloat(totalScaled, 'f', totalPrec, 64))
+		totalScaled, totalPrefix = humanize.ComputeSI(*r.Total)
+		totalDisplay = humanizeFloat(totalScaled)
 	}
 
-	if r.Unit != "" {
+	var sb strings.Builder
+	_, _ = sb.WriteString(usedDisplay)
+
+	// If the unit prefixes of the used and total values are different,
+	// display the used value's prefix to avoid confusion.
+	if usedPrefix != totalPrefix || totalDisplay == "" {
 		_, _ = sb.WriteString(" ")
-		_, _ = sb.WriteString(scale)
+		_, _ = sb.WriteString(usedPrefix)
+		_, _ = sb.WriteString(r.Unit)
+	}
+
+	if totalDisplay != "" {
+		_, _ = sb.WriteString("/")
+		_, _ = sb.WriteString(totalDisplay)
+		_, _ = sb.WriteString(" ")
+		_, _ = sb.WriteString(totalPrefix)
 		_, _ = sb.WriteString(r.Unit)
 	}
 
 	if r.Total != nil && *r.Total != 0.0 {
 		_, _ = sb.WriteString(" (")
-		_, _ = sb.WriteString(strconv.FormatFloat(r.Used/(*r.Total)*100, 'f', 0, 64))
+		_, _ = sb.WriteString(fmt.Sprintf("%.0f", r.Used/(*r.Total)*100.0))
 		_, _ = sb.WriteString("%)")
 	}
 
-	return sb.String()
+	return strings.TrimSpace(sb.String())
+}
+
+func humanizeFloat(f float64) string {
+	// humanize.FtoaWithDigits does not round correctly.
+	prec := precision(f)
+	rat := math.Pow(10, float64(prec))
+	rounded := math.Round(f*rat) / rat
+	return strconv.FormatFloat(rounded, 'f', -1, 64)
+}
+
+// limit precision to 3 digits at most to preserve space
+func precision(f float64) int {
+	fabs := math.Abs(f)
+	if fabs == 0.0 {
+		return 0
+	}
+	if fabs < 1.0 {
+		return 3
+	}
+	if fabs < 10.0 {
+		return 2
+	}
+	if fabs < 100.0 {
+		return 1
+	}
+	return 0
 }
 
 // Statter is a system statistics collector.

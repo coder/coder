@@ -46,7 +46,7 @@ func (r *RootCmd) stat() *clibase.Cmd {
 			containerErr := make(chan error, 1)
 			go func() {
 				defer close(hostErr)
-				cs, err := st.HostCPU("")
+				cs, err := st.HostCPU()
 				if err != nil {
 					hostErr <- err
 					return
@@ -59,7 +59,7 @@ func (r *RootCmd) stat() *clibase.Cmd {
 					// don't error if we're not in a container
 					return
 				}
-				cs, err := st.ContainerCPU(clistat.PrefixGibiShort)
+				cs, err := st.ContainerCPU()
 				if err != nil {
 					containerErr <- err
 					return
@@ -75,7 +75,7 @@ func (r *RootCmd) stat() *clibase.Cmd {
 			}
 
 			// Host-level stats
-			ms, err := st.HostMemory(clistat.PrefixGibiShort)
+			ms, err := st.HostMemory()
 			if err != nil {
 				return err
 			}
@@ -85,7 +85,7 @@ func (r *RootCmd) stat() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			ds, err := st.Disk(home, clistat.PrefixGibiShort)
+			ds, err := st.Disk(home)
 			if err != nil {
 				return err
 			}
@@ -93,13 +93,13 @@ func (r *RootCmd) stat() *clibase.Cmd {
 
 			// Container-only stats.
 			if ok, err := clistat.IsContainerized(fs); err == nil && ok {
-				cs, err := st.ContainerCPU("")
+				cs, err := st.ContainerCPU()
 				if err != nil {
 					return err
 				}
 				sr.ContainerCPU = cs
 
-				ms, err := st.ContainerMemory(clistat.PrefixGibiShort)
+				ms, err := st.ContainerMemory()
 				if err != nil {
 					return err
 				}
@@ -142,9 +142,9 @@ func (*RootCmd) statCPU(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 			var cs *clistat.Result
 			var err error
 			if ok, _ := clistat.IsContainerized(fs); ok && !hostArg {
-				cs, err = s.ContainerCPU(clistat.Prefix(prefixArg))
+				cs, err = s.ContainerCPU()
 			} else {
-				cs, err = s.HostCPU(clistat.Prefix(prefixArg))
+				cs, err = s.HostCPU()
 			}
 			if err != nil {
 				return err
@@ -164,7 +164,6 @@ func (*RootCmd) statCPU(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 
 func (*RootCmd) statMem(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 	var hostArg bool
-	var prefixArg string
 	formatter := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	cmd := &clibase.Cmd{
 		Use:   "mem",
@@ -175,20 +174,14 @@ func (*RootCmd) statMem(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 				Value:       clibase.BoolOf(&hostArg),
 				Description: "Force host memory measurement.",
 			},
-			{
-				Flag:        "prefix",
-				Value:       clibase.StringOf(&prefixArg),
-				Description: "Unit prefix.",
-				Default:     string(clistat.PrefixGibiShort),
-			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
 			var ms *clistat.Result
 			var err error
 			if ok, _ := clistat.IsContainerized(fs); ok && !hostArg {
-				ms, err = s.ContainerMemory(clistat.Prefix(prefixArg))
+				ms, err = s.ContainerMemory()
 			} else {
-				ms, err = s.HostMemory(clistat.Prefix(prefixArg))
+				ms, err = s.HostMemory()
 			}
 			if err != nil {
 				return err
@@ -208,7 +201,6 @@ func (*RootCmd) statMem(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 
 func (*RootCmd) statDisk(s *clistat.Statter) *clibase.Cmd {
 	var pathArg string
-	var prefixArg string
 	formatter := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	cmd := &clibase.Cmd{
 		Use:   "disk",
@@ -220,15 +212,9 @@ func (*RootCmd) statDisk(s *clistat.Statter) *clibase.Cmd {
 				Description: "Path for which to check disk usage.",
 				Default:     "/",
 			},
-			{
-				Flag:        "prefix",
-				Value:       clibase.StringOf(&prefixArg),
-				Description: "Unit prefix.",
-				Default:     string(clistat.PrefixGibiShort),
-			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
-			ds, err := s.Disk(pathArg, clistat.Prefix(prefixArg))
+			ds, err := s.Disk(pathArg)
 			if err != nil {
 				return err
 			}

@@ -4,11 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"tailscale.com/types/ptr"
-
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/types/ptr"
 )
 
 func TestResultString(t *testing.T) {
@@ -18,11 +17,11 @@ func TestResultString(t *testing.T) {
 		Result   Result
 	}{
 		{
-			Expected: "1.2/5.7 quatloos (22%)",
+			Expected: "1.23/5.68 quatloos (22%)",
 			Result:   Result{Used: 1.234, Total: ptr.To(5.678), Unit: "quatloos"},
 		},
 		{
-			Expected: "0.0/0.0 HP",
+			Expected: "0/0 HP",
 			Result:   Result{Used: 0.0, Total: ptr.To(0.0), Unit: "HP"},
 		},
 		{
@@ -34,16 +33,20 @@ func TestResultString(t *testing.T) {
 			Result:   Result{Used: 12.34, Total: nil, Unit: ""},
 		},
 		{
-			Expected: "1.5 kB",
+			Expected: "1.54 kB",
 			Result:   Result{Used: 1536, Total: nil, Unit: "B"},
 		},
 		{
-			Expected: "1.2 things",
+			Expected: "1.23 things",
 			Result:   Result{Used: 1.234, Total: nil, Unit: "things"},
 		},
 		{
-			Expected: "0.0/100 TiB (0%)",
+			Expected: "1 B/100 TB (0%)",
 			Result:   Result{Used: 1, Total: ptr.To(1000 * 1000 * 1000 * 1000 * 100.0), Unit: "B"},
+		},
+		{
+			Expected: "500 mcores/8 cores (6%)",
+			Result:   Result{Used: 0.5, Total: ptr.To(8.0), Unit: "cores"},
 		},
 	} {
 		assert.Equal(t, tt.Expected, tt.Result.String())
