@@ -1,19 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react"
-import { FC } from "react"
-import { WrapperComponent } from "../../../testHelpers/renderHelpers"
+import { fireEvent, screen } from "@testing-library/react"
 import { ConfirmDialog, ConfirmDialogProps } from "./ConfirmDialog"
-
-namespace Helpers {
-  export const Component: FC<React.PropsWithChildren<ConfirmDialogProps>> = (
-    props: ConfirmDialogProps,
-  ) => {
-    return (
-      <WrapperComponent>
-        <ConfirmDialog {...props} />
-      </WrapperComponent>
-    )
-  }
-}
+import { render } from "testHelpers/renderHelpers"
 
 describe("ConfirmDialog", () => {
   it("renders", () => {
@@ -26,7 +13,7 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    render(<Helpers.Component {...props} />)
+    render(<ConfirmDialog {...props} />)
 
     // Then
     expect(screen.getByRole("dialog")).toBeDefined()
@@ -43,7 +30,7 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    render(<Helpers.Component {...props} />)
+    render(<ConfirmDialog {...props} />)
 
     // Then
     expect(screen.queryByText("CANCEL")).toBeNull()
@@ -61,7 +48,7 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    render(<Helpers.Component {...props} />)
+    render(<ConfirmDialog {...props} />)
 
     // Then
     expect(screen.getByText("CANCEL")).toBeDefined()
@@ -79,7 +66,7 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    render(<Helpers.Component {...props} />)
+    render(<ConfirmDialog {...props} />)
 
     // Then
     expect(screen.getByText("CANCEL")).toBeDefined()
@@ -98,7 +85,7 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    render(<Helpers.Component {...props} />)
+    render(<ConfirmDialog {...props} />)
 
     // Then
     expect(screen.queryByText("CANCEL")).toBeNull()
@@ -116,7 +103,7 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    render(<Helpers.Component {...props} />)
+    render(<ConfirmDialog {...props} />)
     fireEvent.click(screen.getByText("CANCEL"))
 
     // Then
@@ -138,7 +125,7 @@ describe("ConfirmDialog", () => {
     }
 
     // When
-    render(<Helpers.Component {...props} />)
+    render(<ConfirmDialog {...props} />)
     fireEvent.click(screen.getByText("CONFIRM"))
 
     // Then

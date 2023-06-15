@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react"
 import { rest } from "msw"
 import * as CreateDayString from "utils/createDayString"
 import { MockWorkspace, MockWorkspacesResponse } from "testHelpers/entities"
-import { history, renderWithAuth } from "testHelpers/renderHelpers"
+import { renderWithAuth } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 import WorkspacesPage from "./WorkspacesPage"
 import { i18n } from "i18n"
@@ -11,7 +11,6 @@ const { t } = i18n
 
 describe("WorkspacesPage", () => {
   beforeEach(() => {
-    history.replace("/workspaces")
     // Mocking the dayjs module within the createDayString file
     const mock = jest.spyOn(CreateDayString, "createDayString")
     mock.mockImplementation(() => "a minute ago")
