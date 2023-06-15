@@ -39,6 +39,9 @@ const (
 // fully random, you cannot cast a random uint8/uint16 for input into this
 // function.
 //
+// See more details on this algorithm here:
+// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+//
 //nolint:varnamelen
 func unbiasedModulo32(v uint32, n int32) (int32, error) {
 	prod := uint64(v) * uint64(n)
