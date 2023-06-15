@@ -73,7 +73,9 @@ const TerminalPage: FC = () => {
   const navigate = useNavigate()
   const styles = useStyles()
   const { proxy } = useProxy()
-  const { username, workspace: workspaceName } = useParams()
+  const params = useParams() as { username: string; workspace: string }
+  const username = params.username.replace("@", "")
+  const workspaceName = params.workspace
   const xtermRef = useRef<HTMLDivElement>(null)
   const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null)
   const [fitAddon, setFitAddon] = useState<FitAddon | null>(null)
