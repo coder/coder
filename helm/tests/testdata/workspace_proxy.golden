@@ -181,12 +181,12 @@ spec:
               type: RuntimeDefault
           readinessProbe:
             httpGet:
-              path: /api/v2/buildinfo
+              path: /healthz
               port: "http"
               scheme: "HTTP"
           livenessProbe:
             httpGet:
-              path: /api/v2/buildinfo
+              path: /healthz
               port: "http"
               scheme: "HTTP"
           volumeMounts: []
