@@ -36,13 +36,11 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"cdr.dev/slog"
-
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/codersdk/agentsdk"
-
 	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
+
+	"cdr.dev/slog"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
@@ -64,6 +62,7 @@ import (
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/site"
