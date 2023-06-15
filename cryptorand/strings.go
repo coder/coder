@@ -57,7 +57,7 @@ func unbiasedModulo32(v uint32, n int32) (int32, error) {
 	return int32(prod >> 32), nil
 }
 
-// StringCharset generates a random string using the provided charset and size
+// StringCharset generates a random string using the provided charset and size.
 func StringCharset(charSetStr string, size int) (string, error) {
 	if size == 0 {
 		return "", nil
