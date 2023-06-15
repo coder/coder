@@ -18,7 +18,7 @@ func TestResultString(t *testing.T) {
 		Result   Result
 	}{
 		{
-			Expected: "1.2/5.7 quatloos",
+			Expected: "1.2/5.7 quatloos (22%)",
 			Result:   Result{Used: 1.234, Total: ptr.To(5.678), Unit: "quatloos"},
 		},
 		{

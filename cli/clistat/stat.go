@@ -120,6 +120,11 @@ func (r *Result) String() string {
 		_, _ = sb.WriteString(prefix)
 		_, _ = sb.WriteString(r.Unit)
 	}
+	if r.Total != (*float64)(nil) && *r.Total != 0.0 {
+		_, _ = sb.WriteString(" (")
+		_, _ = sb.WriteString(strconv.FormatFloat(100.0*r.Used/(*r.Total), 'f', 0, 64))
+		_, _ = sb.WriteString("%)")
+	}
 	return sb.String()
 }
 
