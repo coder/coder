@@ -78,10 +78,15 @@ func (s *Statter) ContainerCPU(m Prefix) (*Result, error) {
 		return nil, xerrors.Errorf("get cgroup CPU usage: %w", err)
 	}
 
+	if used2 < used1 {
+		// Someone reset the counter. Best we can do is count from zero.
+		used1 = 0
+	}
+
 	r := &Result{
 		Unit:   "cores",
 		Prefix: m,
-		Used:   (used2 - used1),
+		Used:   used2 - used1,
 		Total:  ptr.To(total),
 	}
 	return r, nil
