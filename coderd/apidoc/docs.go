@@ -7880,6 +7880,9 @@ const docTemplate = `{
                 "collect_agent_stats": {
                     "type": "boolean"
                 },
+                "collect_db_metrics": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 }

@@ -1943,6 +1943,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "port": "string"
       },
       "collect_agent_stats": true,
+      "collect_db_metrics": true,
       "enable": true
     },
     "provisioner": {
@@ -2270,6 +2271,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "port": "string"
     },
     "collect_agent_stats": true,
+    "collect_db_metrics": true,
     "enable": true
   },
   "provisioner": {
@@ -3092,6 +3094,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "port": "string"
   },
   "collect_agent_stats": true,
+  "collect_db_metrics": true,
   "enable": true
 }
 ```
@@ -3102,6 +3105,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | --------------------- | ------------------------------------ | -------- | ------------ | ----------- |
 | `address`             | [clibase.HostPort](#clibasehostport) | false    |              |             |
 | `collect_agent_stats` | boolean                              | false    |              |             |
+| `collect_db_metrics`  | boolean                              | false    |              |             |
 | `enable`              | boolean                              | false    |              |             |
 
 ## codersdk.ProvisionerConfig

@@ -192,7 +192,7 @@ func New(options *Options) *API {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 	// The below are no-ops if already wrapped.
-	if options.PrometheusRegistry != nil {
+	if options.PrometheusRegistry != nil && options.DeploymentValues.Prometheus.CollectDBMetrics {
 		options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 	}
 	options.Database = dbauthz.New(

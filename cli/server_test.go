@@ -896,6 +896,7 @@ func TestServer(t *testing.T) {
 			"--provisioner-daemons", "1",
 			"--prometheus-enable",
 			"--prometheus-address", ":"+strconv.Itoa(randomPort),
+			// "--prometheus-collect-db-metrics", // Explicitly not enabled.
 			"--cache-dir", t.TempDir(),
 		)
 
@@ -928,6 +929,9 @@ func TestServer(t *testing.T) {
 			if strings.HasPrefix(scanner.Text(), "coderd_api_workspace_latest_build_total") {
 				hasWorkspaces = true
 				continue
+			}
+			if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
+				t.Fatal("db metrics should not be tracked when --prometheus-collect-db-metrics is not enabled")
 			}
 			t.Logf("scanned %s", scanner.Text())
 		}

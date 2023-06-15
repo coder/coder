@@ -589,7 +589,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if cfg.InMemoryDatabase {
 				// This is only used for testing.
-				options.Database = dbmetrics.New(dbfake.New(), options.PrometheusRegistry)
+				options.Database = dbfake.New()
+				if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
+					options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
+				}
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
 				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
@@ -600,7 +603,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					_ = sqlDB.Close()
 				}()
 
-				options.Database = dbmetrics.New(database.New(sqlDB), options.PrometheusRegistry)
+				options.Database = database.New(sqlDB)
+				if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
+					options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
+				}
 				options.Pubsub, err = pubsub.New(ctx, sqlDB, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
