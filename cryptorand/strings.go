@@ -1,9 +1,9 @@
 package cryptorand
 
 import (
-	"crypto/rand"
-	"encoding/binary"
 	"strings"
+
+	"golang.org/x/xerrors"
 )
 
 // Charsets
@@ -36,32 +36,23 @@ const (
 func StringCharset(charSetStr string, size int) (string, error) {
 	charSet := []rune(charSetStr)
 
-	if len(charSet) == 0 || size == 0 {
+	if size == 0 {
 		return "", nil
 	}
 
-	// This buffer facilitates pre-emptively creation of random uint32s
-	// to reduce syscall overhead.
-	ibuf := make([]byte, 4*size)
-
-	_, err := rand.Read(ibuf)
-	if err != nil {
-		return "", err
+	if len(charSet) == 0 {
+		return "", xerrors.Errorf("charSetStr must not be empty")
 	}
 
 	var buf strings.Builder
 	buf.Grow(size)
 
 	for i := 0; i < size; i++ {
-		count, err := UnbiasedModulo32(
-			binary.BigEndian.Uint32(ibuf[i*4:(i+1)*4]),
-			int32(len(charSet)),
-		)
+		ci, err := Intn(len(charSet))
 		if err != nil {
 			return "", err
 		}
-
-		_, _ = buf.WriteRune(charSet[count])
+		_, _ = buf.WriteRune(charSet[ci])
 	}
 
 	return buf.String(), nil
