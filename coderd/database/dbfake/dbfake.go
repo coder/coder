@@ -966,13 +966,12 @@ func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
 }
 
-// The remaining methods are only used by the enterprise/tailnet.pgCoord.  This coordinator explicitly depends on
-// postgres triggers that announce changes on the pubsub.  Implementing support for this in the fake database would
-// strongly couple the fakeQuerier to the pubsub, which is undesirable.  Furthermore, it makes little sense to directly
-// test the pgCoord against anything other than postgres.  The fakeQuerier is designed to allow us to test the Coderd
-// API, and for that kind of test, the in-memory, AGPL tailnet coordinator is sufficient.  Therefore, these methods
-// remain unimplemented in the fakeQuerier.
-
+// ErrUnimplemented is returned by methods only used by the enterprise/tailnet.pgCoord.  This coordinator explicitly
+// depends on  postgres triggers that announce changes on the pubsub.  Implementing support for this in the fake
+// database would  strongly couple the fakeQuerier to the pubsub, which is undesirable.  Furthermore, it makes little
+// sense to directly  test the pgCoord against anything other than postgres.  The fakeQuerier is designed to allow us to
+// test the Coderd  API, and for that kind of test, the in-memory, AGPL tailnet coordinator is sufficient.  Therefore,
+// these methods  remain unimplemented in the fakeQuerier.
 var ErrUnimplemented = xerrors.New("unimplemented")
 
 func (*fakeQuerier) AcquireLock(_ context.Context, _ int64) error {
