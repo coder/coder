@@ -2730,7 +2730,7 @@ func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg d
 	return logs, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentStartupLogsEOF(ctx context.Context, agentID uuid.UUID) (bool, error) {
+func (q *fakeQuerier) GetWorkspaceAgentStartupLogsEOF(_ context.Context, agentID uuid.UUID) (bool, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
