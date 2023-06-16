@@ -181,7 +181,7 @@ jobs:
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
-        
+
       - name: Check for unsued npm packages
         run: |
           depcheck || true
