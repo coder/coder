@@ -604,6 +604,7 @@ type WorkspaceAgentStartupLog struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Output    string    `json:"output"`
 	Level     LogLevel  `json:"level"`
+	EOF       bool      `json:"eof"` // EOF indicates that this is the last log entry and the file is closed.
 }
 
 type AgentSubsystem string

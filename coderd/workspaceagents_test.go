@@ -211,14 +211,20 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 		err := agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-			Logs: []agentsdk.StartupLog{{
-				CreatedAt: database.Now(),
-				Output:    "testing",
-			}},
+			Logs: []agentsdk.StartupLog{
+				{
+					CreatedAt: database.Now(),
+					Output:    "testing",
+				},
+				{
+					CreatedAt: database.Now(),
+					Output:    "testing2",
+				},
+			},
 		})
 		require.NoError(t, err)
 
-		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, -500)
+		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0)
 		require.NoError(t, err)
 		defer func() {
 			_ = closer.Close()
@@ -229,8 +235,9 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		case logChunk = <-logs:
 		}
 		require.NoError(t, ctx.Err())
-		require.Len(t, logChunk, 1)
+		require.Len(t, logChunk, 2) // No EOF.
 		require.Equal(t, "testing", logChunk[0].Output)
+		require.Equal(t, "testing2", logChunk[1].Output)
 	})
 	t.Run("PublishesOnOverflow", func(t *testing.T) {
 		t.Parallel()
@@ -294,7 +301,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 			}
 		}
 	})
-	t.Run("AllowEOFAfterOverflowAndCloseFollow", func(t *testing.T) {
+	t.Run("AllowEOFAfterOverflowAndCloseFollowWebsocket", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -340,20 +347,28 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 				Output:    "testing",
 				Level:     "info",
 			},
+			{
+				CreatedAt: database.Now().Add(time.Minute),
+				Level:     "info",
+				EOF:       true,
+			},
 		}
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		var startupLogs []agentsdk.StartupLog
+		var convertedLogs []agentsdk.StartupLog
 		for _, log := range wantLogs {
-			startupLogs = append(startupLogs, agentsdk.StartupLog{
+			convertedLogs = append(convertedLogs, agentsdk.StartupLog{
 				CreatedAt: log.CreatedAt,
 				Output:    log.Output,
 				Level:     log.Level,
+				EOF:       log.EOF,
 			})
 		}
-		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: startupLogs})
+		initialLogs := convertedLogs[:len(convertedLogs)-1]
+		eofLog := convertedLogs[len(convertedLogs)-1]
+		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: initialLogs})
 		require.NoError(t, err)
 
 		overflowLogs := []agentsdk.StartupLog{
@@ -361,10 +376,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 				CreatedAt: database.Now(),
 				Output:    strings.Repeat("a", (1<<20)+1),
 			},
-			{
-				CreatedAt: database.Now(),
-				EOF:       true,
-			},
+			eofLog, // Include EOF which will be discarded due to overflow.
 		}
 		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: overflowLogs})
 		var apiError *codersdk.Error
@@ -386,7 +398,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		}
 
 		// Now we should still be able to send the EOF.
-		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: overflowLogs[len(overflowLogs)-1:]})
+		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: []agentsdk.StartupLog{eofLog}})
 		require.NoError(t, err)
 
 		var gotLogs []codersdk.WorkspaceAgentStartupLog
@@ -406,6 +418,133 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 			gotLogs[i].ID = 0 // Ignore ID for comparison.
 		}
 		require.Equal(t, wantLogs, gotLogs)
+	})
+	t.Run("CloseAfterLifecycleStateIsNotRunning", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+
+		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0)
+		require.NoError(t, err)
+		defer func() {
+			_ = closer.Close()
+		}()
+
+		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
+			Logs: []agentsdk.StartupLog{
+				{
+					CreatedAt: database.Now(),
+					Output:    "testing",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		err = agentClient.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
+			State: codersdk.WorkspaceAgentLifecycleReady,
+		})
+		require.NoError(t, err)
+
+		for {
+			select {
+			case <-ctx.Done():
+				require.Fail(t, "timed out waiting for logs EOF")
+			case l := <-logs:
+				for _, log := range l {
+					if log.EOF {
+						// Success.
+						return
+					}
+				}
+			}
+		}
+	})
+	t.Run("NoLogAfterEOF", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+
+		err := agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
+			Logs: []agentsdk.StartupLog{
+				{
+					CreatedAt: database.Now(),
+					EOF:       true,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
+			Logs: []agentsdk.StartupLog{
+				{
+					CreatedAt: database.Now(),
+					Output:    "testing",
+				},
+			},
+		})
+		require.Error(t, err, "insert after EOF should not succeed")
 	})
 }
 

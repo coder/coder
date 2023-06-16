@@ -146,6 +146,18 @@ WHERE
 		id > @created_after
 	) ORDER BY id ASC;
 
+-- name: GetWorkspaceAgentStartupLogsEOF :one
+SELECT CASE WHEN EXISTS (
+	SELECT
+		*
+	FROM
+		workspace_agent_startup_logs
+	WHERE
+		agent_id = $1
+		AND eof = true
+	LIMIT 1
+) THEN TRUE ELSE FALSE END;
+
 -- name: InsertWorkspaceAgentStartupLogs :many
 WITH new_length AS (
 	UPDATE workspace_agents SET

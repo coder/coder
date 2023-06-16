@@ -4844,6 +4844,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "eof": true,
   "id": 0,
   "level": "trace",
   "output": "string"
@@ -4852,12 +4853,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                   | Required | Restrictions | Description |
-| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
-| `created_at` | string                                 | false    |              |             |
-| `id`         | integer                                | false    |              |             |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
-| `output`     | string                                 | false    |              |             |
+| Name         | Type                                   | Required | Restrictions | Description                                                           |
+| ------------ | -------------------------------------- | -------- | ------------ | --------------------------------------------------------------------- |
+| `created_at` | string                                 | false    |              |                                                                       |
+| `eof`        | boolean                                | false    |              | Eof indicates that this is the last log entry and the file is closed. |
+| `id`         | integer                                | false    |              |                                                                       |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |                                                                       |
+| `output`     | string                                 | false    |              |                                                                       |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 

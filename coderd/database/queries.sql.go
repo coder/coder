@@ -5483,6 +5483,26 @@ func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg 
 	return items, nil
 }
 
+const getWorkspaceAgentStartupLogsEOF = `-- name: GetWorkspaceAgentStartupLogsEOF :one
+SELECT CASE WHEN EXISTS (
+	SELECT
+		agent_id, created_at, output, id, level, eof
+	FROM
+		workspace_agent_startup_logs
+	WHERE
+		agent_id = $1
+		AND eof = true
+	LIMIT 1
+) THEN TRUE ELSE FALSE END
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentStartupLogsEOF(ctx context.Context, agentID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentStartupLogsEOF, agentID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior

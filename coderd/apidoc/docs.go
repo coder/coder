@@ -9381,6 +9381,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "eof": {
+                    "description": "EOF indicates that this is the last log entry and the file is closed.",
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "integer"
                 },
