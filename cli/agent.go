@@ -327,7 +327,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// tcpip.KeepaliveIdleOption = 72h + 1min (forwardTCPSockOpts() in tailnet/conn.go)
 			Default:     "72h",
 			Env:         "CODER_AGENT_SSH_MAX_TIMEOUT",
-			Description: "Specify the max timeout for a SSH connection, it is advisable to set it to a minimum of 60 seconds.",
+			Description: "Specify the max timeout for a SSH connection, it is advisable to set it to a minimum of 60s, but no more than 72h.",
 			Value:       clibase.DurationOf(&sshMaxTimeout),
 		},
 		{
