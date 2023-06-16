@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
 )
@@ -116,74 +117,83 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
 		activate        bool
+		create          bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "push [template]",
-		Short: "Push a new template version from the current directory or as specified by flag",
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(0, 1),
-			r.InitClient(client),
-		),
+		Parent:      &clibase.Cmd{},
+		Children:    []*clibase.Cmd{},
+		Use:         "push [template]",
+		Aliases:     []string{},
+		Short:       "Push a new template version from the current directory or as specified by flag",
+		Hidden:      false,
+		RawArgs:     false,
+		Long:        "",
+		Options:     []clibase.Option{},
+		Annotations: map[string]string{},
+		Middleware:  clibase.Chain(clibase.RequireRangeArgs(0, 1), r.InitClient(client)),
 		Handler: func(inv *clibase.Invocation) error {
 			uploadFlags.setWorkdir(workdir)
-
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}
-
 			name, err := uploadFlags.templateName(inv.Args)
 			if err != nil {
 				return err
 			}
-
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
+				if create {
+					resp, err := uploadFlags.upload(inv, client)
+					if err != nil {
+						return err
+					}
+					tags, err := ParseProvisionerTags(provisionerTags)
+					if err != nil {
+						return err
+					}
+					job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{Client: client, Organization: organization, Provisioner: database.ProvisionerType(provisioner), FileID: resp.ID, ProvisionerTags: tags, VariablesFile: variablesFile, Variables: variables})
+					if err != nil {
+						return err
+					}
+					defaultTTL := 24 * time.Hour
+					failureTTL := 0 * time.Hour
+					inactivityTTL := 0 * time.Hour
+					disableEveryone := false
+					createReq := codersdk.CreateTemplateRequest{Name: name, VersionID: job.ID, DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()), FailureTTLMillis: ptr.Ref(failureTTL.Milliseconds()), InactivityTTLMillis: ptr.Ref(inactivityTTL.Milliseconds()), DisableEveryoneGroupAccess: disableEveryone}
+					template, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
+					if err != nil {
+						return err
+					}
+				}
 				return err
 			}
-
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
 			}
-
 			tags, err := ParseProvisionerTags(provisionerTags)
 			if err != nil {
 				return err
 			}
-
-			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
-				Name:            versionName,
-				Client:          client,
-				Organization:    organization,
-				Provisioner:     database.ProvisionerType(provisioner),
-				FileID:          resp.ID,
-				VariablesFile:   variablesFile,
-				Variables:       variables,
-				Template:        &template,
-				ReuseParameters: !alwaysPrompt,
-				ProvisionerTags: tags,
-			})
+			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{Name: versionName, Client: client, Organization: organization, Provisioner: database.ProvisionerType(provisioner), FileID: resp.ID, VariablesFile: variablesFile, Variables: variables, Template: &template, ReuseParameters: !alwaysPrompt, ProvisionerTags: tags})
 			if err != nil {
 				return err
 			}
-
 			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
-
 			if activate {
-				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-					ID: job.ID,
-				})
+				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{ID: job.ID})
 				if err != nil {
 					return err
 				}
 			}
-
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
+		},
+		HelpHandler: func(i *clibase.Invocation) error {
 		},
 	}
 
@@ -234,6 +244,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Description: "Whether the new template will be marked active.",
 			Default:     "true",
 			Value:       clibase.BoolOf(&activate),
+		},
+		{
+			Flag:        "create",
+			Description: "Create a new template if one does not already exist.",
+			Default:     "false",
+			Value:       clibase.BoolOf(&create),
 		},
 		cliui.SkipPromptOption(),
 		uploadFlags.option(),

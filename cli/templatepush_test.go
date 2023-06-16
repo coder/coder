@@ -111,6 +111,38 @@ func TestTemplatePush(t *testing.T) {
 		require.NotEqual(t, "example", templateVersions[0].Name)
 	})
 
+	t.Run("PushTemplateWithCreate", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+
+		inv, root := clitest.New(t, "templates", "push", "--create", "--directory", source, "--name", "example")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		clitest.Start(t, inv)
+
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "Upload", write: "yes"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
+		}
+	})
+
 	t.Run("UseWorkingDir", func(t *testing.T) {
 		t.Parallel()
 
