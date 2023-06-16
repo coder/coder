@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/testutil"
 )
 
@@ -20,6 +21,14 @@ const (
 	testWorkspaceName = "yogi-workspace"
 	testUsername      = "yogi-bear"
 	testAgentName     = "main-agent"
+
+	labelAgentName     = "agent_name"
+	labelUsername      = "username"
+	labelWorkspaceName = "workspace_name"
+)
+
+var (
+	commonLabelNames = []string{labelAgentName, labelUsername, labelWorkspaceName}
 )
 
 func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
@@ -174,4 +183,67 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 		<-done
 		return len(actual) == 0
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func Benchmark_MetricsAggregator_Run(b *testing.B) {
+	b.StopTimer()
+	// given
+	registry := prometheus.NewRegistry()
+	metricsAggregator := must(prometheusmetrics.NewMetricsAggregator(
+		slogtest.Make(b, &slogtest.Options{IgnoreErrors: true}),
+		registry,
+		time.Hour,
+	))
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	b.Cleanup(cancelFunc)
+
+	closeFunc := metricsAggregator.Run(ctx)
+	b.Cleanup(closeFunc)
+
+	metrics := make([]agentsdk.AgentMetric, 0, b.N)
+	for i := 0; i < b.N; i++ {
+		metrics = append(metrics, genAgentMetric(b, commonLabelNames...))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, metrics[i:i+1])
+	}
+	b.StopTimer()
+}
+
+func genAgentMetric(t testing.TB, labelNames ...string) agentsdk.AgentMetric {
+	t.Helper()
+
+	var metricType agentsdk.AgentMetricType
+	if must(cryptorand.Float64()) >= 0.5 {
+		metricType = agentsdk.AgentMetricTypeCounter
+	} else {
+		metricType = agentsdk.AgentMetricTypeGauge
+	}
+
+	// Ensure that metric name does not start or end with underscore, as it is not allowed by Prometheus.
+	metricName := "metric_" + must(cryptorand.StringCharset("a-zA-Z", 80)) + "_gen"
+	// Generate random metric value between 0 and 1000.
+	metricValue := must(cryptorand.Float64()) * float64(must(cryptorand.Intn(1000)))
+
+	lvs := make([]agentsdk.AgentMetricLabel, 0, len(labelNames))
+	for _, labelName := range labelNames {
+		lvs = append(lvs, agentsdk.AgentMetricLabel{
+			Name:  labelName,
+			Value: must(cryptorand.StringCharset("a-zA-Z", 80)),
+		})
+	}
+
+	return agentsdk.AgentMetric{
+		Name: metricName, Type: metricType, Value: metricValue, Labels: lvs,
+	}
+}
+
+func must[T any](t T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return t
 }
