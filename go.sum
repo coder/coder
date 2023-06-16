@@ -187,8 +187,8 @@ github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/retry v1.4.0 h1:g0fojHFxcdgM3sBULqgjFDxw1UIvaCqk4ngUDu0EWag=
 github.com/coder/retry v1.4.0/go.mod h1:blHMk9vs6LkoRT9ZHyuZo360cufXEhrxqvEzeMtRGoY=
-github.com/coder/ssh v0.0.0-20230421140225-04bb837133e1 h1:LBw76rEDuhNJyohve11mbvYv5CmCLmcuUQGiz7Guk50=
-github.com/coder/ssh v0.0.0-20230421140225-04bb837133e1/go.mod h1:ZSS+CUoKHDrqVakTfTWUlKSr9MtMFkC4UvtQKD7O914=
+github.com/coder/ssh v0.0.0-20230615124436-fc6e4b009688 h1:udcMVKmo37Jv6Nq+Z2gCsDcF5F6zDvwArRGgUdVFD8s=
+github.com/coder/ssh v0.0.0-20230615124436-fc6e4b009688/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
 github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f h1:F0Xr1d8h8dAHn7tab1HXuzYFkcjmCydnEfdMbkOhlVk=
 github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f/go.mod h1:jpg+77g19FpXL43U1VoIqoSg1K/Vh5CVxycGldQ8KhA=
 github.com/coder/terraform-provider-coder v0.8.2 h1:EPhkdpsNd8fcg6eqpAQr+W1eRrEAMtugoqujoTK4O6o=
@@ -786,8 +786,9 @@ github.com/stretchr/testify v1.7.2/go.mod h1:R6va5+xMeoiuVRoj+gSkQ7d3FALtqAAGI1F
 github.com/stretchr/testify v1.7.4/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/stretchr/testify v1.8.2/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
-github.com/stretchr/testify v1.8.3 h1:RP3t2pwF7cMEbC1dqtB6poj3niw/9gnV4Cjg5oW5gtY=
 github.com/stretchr/testify v1.8.3/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
+github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
+github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/swaggest/assertjson v1.7.0 h1:SKw5Rn0LQs6UvmGrIdaKQbMR1R3ncXm5KNon+QJ7jtw=
 github.com/swaggo/files/v2 v2.0.0 h1:hmAt8Dkynw7Ssz46F6pn8ok6YmGZqHSVLZ+HQM7i0kw=
 github.com/swaggo/files/v2 v2.0.0/go.mod h1:24kk2Y9NYEJ5lHuCra6iVwkMjIekMCaFq/0JQj66kyM=

@@ -769,7 +769,7 @@ func (*Conn) forwardTCPSockOpts(port uint16) []tcpip.SettableSocketOption {
 
 	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
 	if port == WorkspaceAgentSSHPort || port == 22 {
-		opt := tcpip.KeepaliveIdleOption(72 * time.Hour)
+		opt := tcpip.KeepaliveIdleOption(72*time.Hour + time.Minute) // Default ssh-max-timeout is 72h, so let's add some extra time.
 		opts = append(opts, &opt)
 	}
 
