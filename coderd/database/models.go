@@ -1731,6 +1731,8 @@ type WorkspaceAgentStartupLog struct {
 	Output    string    `db:"output" json:"output"`
 	ID        int64     `db:"id" json:"id"`
 	Level     LogLevel  `db:"level" json:"level"`
+	// End of file reached
+	EOF bool `db:"eof" json:"eof"`
 }
 
 type WorkspaceAgentStat struct {

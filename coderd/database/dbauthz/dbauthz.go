@@ -1407,6 +1407,14 @@ func (q *querier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg dat
 	return q.db.GetWorkspaceAgentStartupLogsAfter(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceAgentStartupLogsEOF(ctx context.Context, agentID uuid.UUID) (bool, error) {
+	_, err := q.GetWorkspaceAgentByID(ctx, agentID)
+	if err != nil {
+		return false, err
+	}
+	return q.db.GetWorkspaceAgentStartupLogsEOF(ctx, agentID)
+}
+
 func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
 	return q.db.GetWorkspaceAgentStats(ctx, createdAfter)
 }

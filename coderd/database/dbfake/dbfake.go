@@ -2722,12 +2722,28 @@ func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg d
 		if log.AgentID != arg.AgentID {
 			continue
 		}
-		if arg.CreatedAfter != 0 && log.ID < arg.CreatedAfter {
+		if arg.CreatedAfter != 0 && log.ID <= arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, log)
 	}
 	return logs, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceAgentStartupLogsEOF(_ context.Context, agentID uuid.UUID) (bool, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var lastLog database.WorkspaceAgentStartupLog
+	for _, log := range q.workspaceAgentLogs {
+		if log.AgentID != agentID {
+			continue
+		}
+		if log.ID > lastLog.ID {
+			lastLog = log
+		}
+	}
+	return lastLog.EOF, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -4013,7 +4029,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg dat
 	defer q.mutex.Unlock()
 
 	logs := []database.WorkspaceAgentStartupLog{}
-	id := int64(1)
+	id := int64(0)
 	if len(q.workspaceAgentLogs) > 0 {
 		id = q.workspaceAgentLogs[len(q.workspaceAgentLogs)-1].ID
 	}
@@ -4026,6 +4042,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg dat
 			CreatedAt: arg.CreatedAt[index],
 			Level:     arg.Level[index],
 			Output:    output,
+			EOF:       arg.EOF[index],
 		})
 		outputLength += int32(len(output))
 	}

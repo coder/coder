@@ -905,8 +905,10 @@ func TestAgent_StartupScript(t *testing.T) {
 			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Len(t, client.getStartupLogs(), 1)
+		require.Len(t, client.getStartupLogs(), 2)
 		require.Equal(t, output, client.getStartupLogs()[0].Output)
+		require.False(t, client.getStartupLogs()[0].EOF)
+		require.True(t, client.getStartupLogs()[1].EOF)
 	})
 	// This ensures that even when coderd sends back that the startup
 	// script has written too many lines it will still succeed!

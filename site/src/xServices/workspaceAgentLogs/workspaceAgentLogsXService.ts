@@ -6,8 +6,9 @@ import { Line } from "components/Logs/Logs"
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
 // able to just pass the array of logs to the component.
-export interface LineWithID extends Line {
+export interface LineWithIDAndEOF extends Line {
   id: number
+  eof: boolean
 }
 
 export const workspaceAgentLogsMachine = createMachine(
@@ -18,7 +19,7 @@ export const workspaceAgentLogsMachine = createMachine(
       events: {} as
         | {
             type: "ADD_STARTUP_LOGS"
-            logs: LineWithID[]
+            logs: LineWithIDAndEOF[]
           }
         | {
             type: "FETCH_STARTUP_LOGS"
@@ -28,11 +29,11 @@ export const workspaceAgentLogsMachine = createMachine(
           },
       context: {} as {
         agentID: string
-        startupLogs?: LineWithID[]
+        startupLogs?: LineWithIDAndEOF[]
       },
       services: {} as {
         getStartupLogs: {
-          data: LineWithID[]
+          data: LineWithIDAndEOF[]
         }
       },
     },
@@ -82,6 +83,7 @@ export const workspaceAgentLogsMachine = createMachine(
             level: log.level || "info",
             output: log.output,
             time: log.created_at,
+            eof: log.eof,
           })),
         ),
       streamStartupLogs: (ctx) => async (callback) => {
@@ -100,6 +102,7 @@ export const workspaceAgentLogsMachine = createMachine(
                 level: "info" as TypesGen.LogLevel,
                 output: log.output,
                 time: log.created_at,
+                eof: log.eof,
               })),
             })
           },

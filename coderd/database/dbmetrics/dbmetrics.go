@@ -738,6 +738,13 @@ func (m metricsStore) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg
 	return logs, err
 }
 
+func (m metricsStore) GetWorkspaceAgentStartupLogsEOF(ctx context.Context, agentID uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentStartupLogsEOF(ctx, agentID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStartupLogsEOF").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
 	start := time.Now()
 	stats, err := m.s.GetWorkspaceAgentStats(ctx, createdAt)
