@@ -436,9 +436,9 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		after, err = strconv.ParseInt(afterRaw, 10, 64)
 		if err != nil || after < 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Query param \"after\" must be an integer greater than zero.",
+				Message: "Query param \"after\" must be an integer greater than or equal to zero.",
 				Validations: []codersdk.ValidationError{
-					{Field: "after", Detail: "Must be an integer greater than zero"},
+					{Field: "after", Detail: "Must be an integer greater than or equal to zero"},
 				},
 			})
 			return
@@ -1625,7 +1625,10 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 				EOF:          []bool{true},
 				OutputLength: 0,
 			})
-			return xerrors.Errorf("write EOF log entry: %w", err)
+			if err != nil {
+				return xerrors.Errorf("write EOF log entry: %w", err)
+			}
+			return nil
 		}, nil)
 		if err != nil {
 			logger.Warn(ctx, "failed to mark startup logs as complete", slog.Error(err))
