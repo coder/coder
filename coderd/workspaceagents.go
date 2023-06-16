@@ -473,7 +473,31 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
-	conn, err := websocket.Accept(rw, r, nil)
+
+	opts := &websocket.AcceptOptions{}
+
+	// There is a problem with Safari and using compression with fragmented
+	// messages. Unfortunately nhooyr/websocket does not support controlling
+	// fragmentation or buffer sizes, so we have to resort to either sending
+	// fixed size payloads or disabling compression for Safari. Given the
+	// variable size of log lines and how well they compress, we choose to
+	// disable compression for Safari.
+	//
+	// Before this fix, we may see the following error when the API a large
+	// payload of logs (confirmed using Safari 16.5):
+	//
+	// 	WebSocket connection to 'wss://.../startup-logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
+	//
+	// See:
+	// * https://github.com/nhooyr/websocket/issues/62
+	// * https://github.com/nhooyr/websocket/issues/218
+	// * https://github.com/gobwas/ws/issues/169
+	ua := strings.ToLower(r.Header.Get("User-Agent"))
+	safari := strings.Contains(ua, "safari") && !strings.Contains(ua, "chrome") && !strings.Contains(ua, "android")
+	if safari {
+		opts.CompressionMode = websocket.CompressionDisabled
+	}
+	conn, err := websocket.Accept(rw, r, opts)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket.",
