@@ -13,6 +13,3 @@ runs:
     - name: Install node_modules
       shell: bash
       run: ./scripts/yarn_install.sh
-    - name: Install depcheck
-      shell: bash
-      run : npm install -g depcheck
