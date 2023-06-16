@@ -140,6 +140,27 @@ jobs:
         run: |
           make --output-sync=line -j lint
 
+      - name: Check for unsued npm packages
+        run: |
+          depcheck || true
+          if [ -f unused.json ]; then
+            echo "Unused dependencies found:"
+            cat unused.json
+            echo "Please review and remove these dependencies manually."
+            exit 1
+          fi
+
+      - name: Check for unsued go packages
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+          if [ $? -ne 0 ]; then
+            echo "Unused Go dependencies found:"
+            git diff go.mod go.sum
+            echo "Please review and remove these dependencies manually."
+            exit 1
+          fi
+
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -181,27 +202,6 @@ jobs:
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
-
-      - name: Check for unsued npm packages
-        run: |
-          depcheck || true
-          if [ -f unused.json ]; then
-            echo "Unused dependencies found:"
-            cat unused.json
-            echo "Please review and remove these dependencies manually."
-            exit 1
-          fi
-
-      - name: Check for unsued go packages
-        run: |
-          go mod tidy
-          git diff --exit-code -- go.mod go.sum
-          if [ $? -ne 0 ]; then
-            echo "Unused Go dependencies found:"
-            git diff go.mod go.sum
-            echo "Please review and remove these dependencies manually."
-            exit 1
-          fi
 
   fmt:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
