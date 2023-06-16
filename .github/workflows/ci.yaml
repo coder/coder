@@ -140,27 +140,6 @@ jobs:
         run: |
           make --output-sync=line -j lint
 
-      - name: Check for unsued npm packages
-        run: |
-          depcheck || true
-          if [ -f unused.json ]; then
-            echo "Unused dependencies found:"
-            cat unused.json
-            echo "Please review and remove these dependencies manually."
-            exit 1
-          fi
-
-      - name: Check for unsued go packages
-        run: |
-          go mod tidy
-          git diff --exit-code -- go.mod go.sum
-          if [ $? -ne 0 ]; then
-            echo "Unused Go dependencies found:"
-            git diff go.mod go.sum
-            echo "Please review and remove these dependencies manually."
-            exit 1
-          fi
-
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -174,7 +153,7 @@ jobs:
 
       - name: Install sqlc
         run: |
-          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.18.0/sqlc_1.18.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
 
       - name: go install tools
         run: |

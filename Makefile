@@ -408,12 +408,27 @@ lint: lint/shellcheck lint/go lint/ts lint/helm
 lint/ts:
 	cd site
 	yarn && yarn lint
+	depcheck || true
+	if [ -f unused.json ]; then
+		echo "Unused dependencies found:"
+		cat unused.json
+		echo "Please review and remove these dependencies manually."
+		exit 1
+	fi
 .PHONY: lint/ts
 
 lint/go:
 	./scripts/check_enterprise_imports.sh
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
 	golangci-lint run
+	go mod tidy
+	git diff --exit-code -- go.mod go.sum
+	if [ $? -ne 0 ]; then
+		echo "Unused Go dependencies found:"
+		git diff go.mod go.sum
+		echo "Please review and remove these dependencies manually."
+		exit 1
+	fi
 .PHONY: lint/go
 
 # Use shfmt to determine the shell files, takes editorconfig into consideration.
