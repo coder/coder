@@ -2,6 +2,7 @@ package prometheusmetrics_test
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/testutil"
 )
 
@@ -174,4 +176,87 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 		<-done
 		return len(actual) == 0
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func Benchmark_MetricsAggregator_Run(b *testing.B) {
+	// Number of metrics to generate and send in each iteration.
+	// Hard-coded to 1024 to avoid overflowing the queue in the metrics aggregator.
+	numMetrics := 1024
+
+	// given
+	registry := prometheus.NewRegistry()
+	metricsAggregator := must(prometheusmetrics.NewMetricsAggregator(
+		slogtest.Make(b, &slogtest.Options{IgnoreErrors: true}),
+		registry,
+		time.Hour,
+	))
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	b.Cleanup(cancelFunc)
+
+	closeFunc := metricsAggregator.Run(ctx)
+	b.Cleanup(closeFunc)
+
+	ch := make(chan prometheus.Metric)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				metricsAggregator.Collect(ch)
+			}
+		}
+	}()
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		b.Logf("N=%d generating %d metrics", b.N, numMetrics)
+		metrics := make([]agentsdk.AgentMetric, 0, numMetrics)
+		for i := 0; i < numMetrics; i++ {
+			metrics = append(metrics, genAgentMetric(b))
+		}
+
+		b.Logf("N=%d sending %d metrics", b.N, numMetrics)
+		var nGot atomic.Int64
+		b.StartTimer()
+		metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, metrics)
+		for i := 0; i < numMetrics; i++ {
+			select {
+			case <-ctx.Done():
+				b.FailNow()
+			case <-ch:
+				nGot.Add(1)
+			}
+		}
+		b.StopTimer()
+		b.Logf("N=%d got %d metrics", b.N, nGot.Load())
+	}
+}
+
+func genAgentMetric(t testing.TB) agentsdk.AgentMetric {
+	t.Helper()
+
+	var metricType agentsdk.AgentMetricType
+	if must(cryptorand.Float64()) >= 0.5 {
+		metricType = agentsdk.AgentMetricTypeCounter
+	} else {
+		metricType = agentsdk.AgentMetricTypeGauge
+	}
+
+	// Ensure that metric name does not start or end with underscore, as it is not allowed by Prometheus.
+	metricName := "metric_" + must(cryptorand.StringCharset(cryptorand.Alpha, 80)) + "_gen"
+	// Generate random metric value between 0 and 1000.
+	metricValue := must(cryptorand.Float64()) * float64(must(cryptorand.Intn(1000)))
+
+	return agentsdk.AgentMetric{
+		Name: metricName, Type: metricType, Value: metricValue, Labels: []agentsdk.AgentMetricLabel{},
+	}
+}
+
+func must[T any](t T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return t
 }

@@ -45,7 +45,7 @@ replace tailscale.com => github.com/coder/tailscale v0.0.0-20230522123520-747122
 // repo as tailscale.com/tempfork/gliderlabs/ssh, however, we can't replace the
 // subpath and it includes changes to golang.org/x/crypto/ssh as well which
 // makes importing it directly a bit messy.
-replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230421140225-04bb837133e1
+replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230615124436-fc6e4b009688
 
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
@@ -140,7 +140,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/afero v1.9.3
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.8.4
 	github.com/swaggo/http-swagger/v2 v2.0.1
 	github.com/swaggo/swag v1.8.6
 	github.com/tabbed/pqtype v0.1.1
