@@ -434,18 +434,15 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	if afterRaw != "" {
 		var err error
 		after, err = strconv.ParseInt(afterRaw, 10, 64)
-		if err != nil {
+		if err != nil || after < 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Query param \"after\" must be an integer.",
+				Message: "Query param \"after\" must be an integer greater than zero.",
 				Validations: []codersdk.ValidationError{
-					{Field: "after", Detail: "Must be an integer"},
+					{Field: "after", Detail: "Must be an integer greater than zero"},
 				},
 			})
 			return
 		}
-	}
-	if after < 0 {
-		after = 0
 	}
 
 	logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
