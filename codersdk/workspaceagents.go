@@ -553,8 +553,8 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 		defer close(closed)
 		defer close(logChunks)
 		defer conn.Close(websocket.StatusGoingAway, "")
-		var logs []WorkspaceAgentStartupLog
 		for {
+			var logs []WorkspaceAgentStartupLog
 			err = decoder.Decode(&logs)
 			if err != nil {
 				return
