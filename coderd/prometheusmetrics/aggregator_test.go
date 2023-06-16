@@ -2,6 +2,7 @@ package prometheusmetrics_test
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,14 +22,6 @@ const (
 	testWorkspaceName = "yogi-workspace"
 	testUsername      = "yogi-bear"
 	testAgentName     = "main-agent"
-
-	labelAgentName     = "agent_name"
-	labelUsername      = "username"
-	labelWorkspaceName = "workspace_name"
-)
-
-var (
-	commonLabelNames = []string{labelAgentName, labelUsername, labelWorkspaceName}
 )
 
 func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
@@ -186,7 +179,10 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 }
 
 func Benchmark_MetricsAggregator_Run(b *testing.B) {
-	b.StopTimer()
+	// Number of metrics to generate and send in each iteration.
+	// Hard-coded to 1024 to avoid overflowing the queue in the metrics aggregator.
+	var numMetrics = 1024
+
 	// given
 	registry := prometheus.NewRegistry()
 	metricsAggregator := must(prometheusmetrics.NewMetricsAggregator(
@@ -201,19 +197,44 @@ func Benchmark_MetricsAggregator_Run(b *testing.B) {
 	closeFunc := metricsAggregator.Run(ctx)
 	b.Cleanup(closeFunc)
 
-	metrics := make([]agentsdk.AgentMetric, 0, b.N)
-	for i := 0; i < b.N; i++ {
-		metrics = append(metrics, genAgentMetric(b, commonLabelNames...))
-	}
+	ch := make(chan prometheus.Metric)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				metricsAggregator.Collect(ch)
+			}
+		}
+	}()
 
-	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, metrics[i:i+1])
+		b.StopTimer()
+		b.Logf("N=%d generating %d metrics", b.N, numMetrics)
+		metrics := make([]agentsdk.AgentMetric, 0, numMetrics)
+		for i := 0; i < numMetrics; i++ {
+			metrics = append(metrics, genAgentMetric(b))
+		}
+
+		b.Logf("N=%d sending %d metrics", b.N, numMetrics)
+		var nGot atomic.Int64
+		b.StartTimer()
+		metricsAggregator.Update(ctx, testUsername, testWorkspaceName, testAgentName, metrics)
+		for i := 0; i < numMetrics; i++ {
+			select {
+			case <-ctx.Done():
+				b.FailNow()
+			case <-ch:
+				nGot.Add(1)
+			}
+		}
+		b.StopTimer()
+		b.Logf("N=%d got %d metrics", b.N, nGot.Load())
 	}
-	b.StopTimer()
 }
 
-func genAgentMetric(t testing.TB, labelNames ...string) agentsdk.AgentMetric {
+func genAgentMetric(t testing.TB) agentsdk.AgentMetric {
 	t.Helper()
 
 	var metricType agentsdk.AgentMetricType
@@ -224,20 +245,12 @@ func genAgentMetric(t testing.TB, labelNames ...string) agentsdk.AgentMetric {
 	}
 
 	// Ensure that metric name does not start or end with underscore, as it is not allowed by Prometheus.
-	metricName := "metric_" + must(cryptorand.StringCharset("a-zA-Z", 80)) + "_gen"
+	metricName := "metric_" + must(cryptorand.StringCharset(cryptorand.Alpha, 80)) + "_gen"
 	// Generate random metric value between 0 and 1000.
 	metricValue := must(cryptorand.Float64()) * float64(must(cryptorand.Intn(1000)))
 
-	lvs := make([]agentsdk.AgentMetricLabel, 0, len(labelNames))
-	for _, labelName := range labelNames {
-		lvs = append(lvs, agentsdk.AgentMetricLabel{
-			Name:  labelName,
-			Value: must(cryptorand.StringCharset("a-zA-Z", 80)),
-		})
-	}
-
 	return agentsdk.AgentMetric{
-		Name: metricName, Type: metricType, Value: metricValue, Labels: lvs,
+		Name: metricName, Type: metricType, Value: metricValue, Labels: []agentsdk.AgentMetricLabel{},
 	}
 }
 
