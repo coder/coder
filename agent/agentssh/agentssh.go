@@ -154,8 +154,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	// The MaxTimeout functionality has been substituted with the introduction of the KeepAlive feature.
 	// In cases where very short timeouts are set, the SSH server will automatically switch to the connection timeout for both read and write operations.
 	if maxTimeout >= 3*time.Second {
-		srv.ClientAliveInterval = maxTimeout / 3
 		srv.ClientAliveCountMax = 3
+		srv.ClientAliveInterval = maxTimeout / time.Duration(srv.ClientAliveCountMax)
 		srv.MaxTimeout = 0
 	} else {
 		srv.MaxTimeout = maxTimeout
