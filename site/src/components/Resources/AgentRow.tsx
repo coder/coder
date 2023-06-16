@@ -26,7 +26,7 @@ import { FixedSizeList as List, ListOnScrollProps } from "react-window"
 import { colors } from "theme/colors"
 import { combineClasses } from "utils/combineClasses"
 import {
-  LineWithID,
+  LineWithIDAndEOF,
   workspaceAgentLogsMachine,
 } from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
 import {
@@ -54,7 +54,7 @@ export interface AgentRowProps {
   hideVSCodeDesktopButton?: boolean
   serverVersion: string
   onUpdateAgent: () => void
-  storybookStartupLogs?: LineWithID[]
+  storybookStartupLogs?: LineWithIDAndEOF[]
   storybookAgentMetadata?: WorkspaceAgentMetadata[]
 }
 
@@ -98,7 +98,8 @@ export const AgentRow: FC<AgentRowProps> = ({
   const { proxy } = useProxy()
 
   const [showStartupLogs, setShowStartupLogs] = useState(
-    agent.lifecycle_state !== "ready" && hasStartupFeatures,
+    ["starting", "start_timeout"].includes(agent.lifecycle_state) &&
+      hasStartupFeatures,
   )
   useEffect(() => {
     setShowStartupLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures)
@@ -123,13 +124,17 @@ export const AgentRow: FC<AgentRowProps> = ({
   const startupLogs = useMemo(() => {
     const allLogs = logsMachine.context.startupLogs || []
 
-    const logs = [...allLogs]
+    // Filter out eof, since we don't want to show an empty line to the
+    // user. The timesetamp could be used to show when the log ended in
+    // the future.
+    const logs = [...allLogs.filter((log) => !log.eof)]
     if (agent.startup_logs_overflowed) {
       logs.push({
         id: -1,
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
         time: new Date().toISOString(),
+        eof: false,
       })
     }
     return logs
