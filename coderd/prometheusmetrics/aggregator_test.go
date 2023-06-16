@@ -181,7 +181,7 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 func Benchmark_MetricsAggregator_Run(b *testing.B) {
 	// Number of metrics to generate and send in each iteration.
 	// Hard-coded to 1024 to avoid overflowing the queue in the metrics aggregator.
-	var numMetrics = 1024
+	numMetrics := 1024
 
 	// given
 	registry := prometheus.NewRegistry()
