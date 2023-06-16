@@ -29,6 +29,15 @@ Whether the new template will be marked active.
 
 Always prompt all parameters. Does not pull parameter values from active template version.
 
+### --create
+
+|         |                    |
+| ------- | ------------------ |
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Create a new template if one does not already exist.
+
 ### -d, --directory
 
 |         |                     |
