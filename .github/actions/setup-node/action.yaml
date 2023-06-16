@@ -15,4 +15,4 @@ runs:
       run: ./scripts/yarn_install.sh
     - name: Install depcheck
       shell: bash
-      run : npm install -g depcheck
+      run: npm install -g depcheck
