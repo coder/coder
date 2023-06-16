@@ -1628,9 +1628,10 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 				EOF:          []bool{true},
 				OutputLength: 0,
 			})
-			return xerrors.Errorf("write EOF log entry", err)
+			return xerrors.Errorf("write EOF log entry: %w", err)
 		}, nil)
 		if err != nil {
+			logger.Warn(ctx, "failed to mark startup logs as complete", slog.Error(err))
 			// If this fails, we want the agent to keep trying so that the
 			// startup log is eventually marked as complete.
 			httpapi.InternalServerError(rw, err)
