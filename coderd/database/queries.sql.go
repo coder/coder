@@ -2288,23 +2288,33 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByIDsWithQueuePosition :many
+WITH unstarted_jobs AS (
+    SELECT
+        id, created_at
+    FROM
+        provisioner_jobs
+    WHERE
+        started_at IS NULL
+),
+queue_position AS (
+    SELECT
+        id,
+        ROW_NUMBER() OVER (ORDER BY created_at) AS queue_position
+    FROM
+        unstarted_jobs
+),
+queue_size AS (
+		SELECT COUNT(*) as count FROM unstarted_jobs
+)
 SELECT
-	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata,
-	COALESCE(a.queue_position, 0) AS queue_position,
-	COALESCE(a.queue_size, 0) AS queue_size
+		pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata,
+    COALESCE(qp.queue_position, 0) AS queue_position,
+    COALESCE(qs.count, 0) AS queue_size
 FROM
-	provisioner_jobs pj
-LEFT JOIN (
-	SELECT
-		id,
-		ROW_NUMBER() OVER (ORDER BY created_at) AS queue_position,
-		COUNT(*) OVER (PARTITION BY started_at IS NULL) AS queue_size
-	FROM
-		provisioner_jobs
-	WHERE
-		started_at IS NULL
-	GROUP BY id
-) a ON a.id = pj.id
+    provisioner_jobs pj
+LEFT JOIN
+    queue_position qp ON qp.id = pj.id
+LEFT JOIN queue_size qs ON TRUE
 WHERE pj.id = ANY($1 :: uuid [ ])
 `
 
