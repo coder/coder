@@ -126,7 +126,9 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			actual := convertProvisionerJob(testCase.input)
+			actual := convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
+				ProvisionerJob: testCase.input,
+			})
 			assert.Equal(t, testCase.expected, actual)
 		})
 	}

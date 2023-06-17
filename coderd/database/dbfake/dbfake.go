@@ -2051,6 +2051,35 @@ func (q *fakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	return jobs, nil
 }
 
+func (q *fakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0)
+	queuePosition := int64(1)
+	for _, job := range q.provisionerJobs {
+		for _, id := range ids {
+			if id == job.ID {
+				jobs = append(jobs, database.GetProvisionerJobsByIDsWithQueuePositionRow{
+					ProvisionerJob: job,
+					QueuePosition:  queuePosition,
+				})
+				break
+			}
+		}
+		if !job.StartedAt.Valid {
+			queuePosition++
+		}
+	}
+	for _, job := range jobs {
+		if !job.ProvisionerJob.StartedAt.Valid {
+			// Set it to the max position!
+			job.QueueSize = queuePosition
+		}
+	}
+	return jobs, nil
+}
+
 func (q *fakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after time.Time) ([]database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

@@ -195,14 +195,17 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) code
 	}
 }
 
-func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.ProvisionerJob {
+func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionRow) codersdk.ProvisionerJob {
+	provisionerJob := pj.ProvisionerJob
 	job := codersdk.ProvisionerJob{
-		ID:        provisionerJob.ID,
-		CreatedAt: provisionerJob.CreatedAt,
-		Error:     provisionerJob.Error.String,
-		ErrorCode: codersdk.JobErrorCode(provisionerJob.ErrorCode.String),
-		FileID:    provisionerJob.FileID,
-		Tags:      provisionerJob.Tags,
+		ID:            provisionerJob.ID,
+		CreatedAt:     provisionerJob.CreatedAt,
+		Error:         provisionerJob.Error.String,
+		ErrorCode:     codersdk.JobErrorCode(provisionerJob.ErrorCode.String),
+		FileID:        provisionerJob.FileID,
+		Tags:          provisionerJob.Tags,
+		QueuePosition: int(pj.QueuePosition),
+		QueueSize:     int(pj.QueueSize),
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {

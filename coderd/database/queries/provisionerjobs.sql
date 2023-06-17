@@ -47,6 +47,26 @@ FROM
 WHERE
 	id = ANY(@ids :: uuid [ ]);
 
+-- name: GetProvisionerJobsByIDsWithQueuePosition :many
+SELECT
+	sqlc.embed(pj),
+	COALESCE(a.queue_position, 0) AS queue_position,
+	COALESCE(a.queue_size, 0) AS queue_size
+FROM
+	provisioner_jobs pj
+LEFT JOIN (
+	SELECT
+		id,
+		ROW_NUMBER() OVER (ORDER BY created_at) AS queue_position,
+		COUNT(*) OVER (PARTITION BY started_at IS NULL) AS queue_size
+	FROM
+		provisioner_jobs
+	WHERE
+		started_at IS NULL
+	GROUP BY id
+) a ON a.id = pj.id
+WHERE pj.id = ANY(@ids :: uuid [ ]);
+
 -- name: GetProvisionerJobsCreatedAfter :many
 SELECT * FROM provisioner_jobs WHERE created_at > $1;
 

@@ -640,6 +640,8 @@ export interface ProvisionerJob {
   readonly worker_id?: string
   readonly file_id: string
   readonly tags: Record<string, string>
+  readonly queue_position: number
+  readonly queue_size: number
 }
 
 // From codersdk/provisionerdaemons.go

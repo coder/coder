@@ -1087,6 +1087,11 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
+// TODO: we need to add a provisioner job resource
+func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
+}
+
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {

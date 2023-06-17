@@ -286,6 +286,8 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
   tags: {},
+  queue_position: 0,
+  queue_size: 0,
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
