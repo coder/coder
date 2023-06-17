@@ -1,6 +1,6 @@
 {
   "name": "Development environments on your infrastructure",
-  "image": "codercom/dogfood-oss:latest",
+  "image": "codercom/oss-dogfood:latest",
   "runArgs": ["--init", "--privileged"],
   "overrideCommand": false,
   "remoteUser": "coder"
