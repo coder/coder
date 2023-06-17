@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 
@@ -191,6 +192,25 @@ func orderAndStubDatabaseFunctions(filePath, receiver, struc string, stub func(p
 					},
 				},
 				Body: funcDecl.Body,
+			}
+		}
+		if ok {
+			for i, pm := range fn.Func.Params.List {
+				if len(decl.Type.Params.List) < i+1 {
+					decl.Type.Params.List = append(decl.Type.Params.List, pm)
+				}
+				if !reflect.DeepEqual(decl.Type.Params.List[i].Type, pm.Type) {
+					decl.Type.Params.List[i].Type = pm.Type
+				}
+			}
+
+			for i, res := range fn.Func.Results.List {
+				if len(decl.Type.Results.List) < i+1 {
+					decl.Type.Results.List = append(decl.Type.Results.List, res)
+				}
+				if !reflect.DeepEqual(decl.Type.Results.List[i].Type, res.Type) {
+					decl.Type.Results.List[i].Type = res.Type
+				}
 			}
 		}
 		f.Decls = append(f.Decls, decl)
