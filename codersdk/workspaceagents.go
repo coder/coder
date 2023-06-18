@@ -58,6 +58,16 @@ const (
 	WorkspaceAgentLifecycleOff             WorkspaceAgentLifecycle = "off"
 )
 
+// Starting returns true if the agent is in the process of starting.
+func (l WorkspaceAgentLifecycle) Starting() bool {
+	switch l {
+	case WorkspaceAgentLifecycleCreated, WorkspaceAgentLifecycleStarting, WorkspaceAgentLifecycleStartTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
 // WorkspaceAgentLifecycleOrder is the order in which workspace agent
 // lifecycle states are expected to be reported during the lifetime of
 // the agent process. For instance, the agent can go from starting to
@@ -304,6 +314,7 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 
 	metadataChan := make(chan []WorkspaceAgentMetadata, 256)
 
+	ready := make(chan struct{})
 	watch := func() error {
 		res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
 		if err != nil {
@@ -316,17 +327,22 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 		nextEvent := ServerSentEventReader(ctx, res.Body)
 		defer res.Body.Close()
 
+		firstEvent := true
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				break
 			}
 
 			sse, err := nextEvent()
 			if err != nil {
 				return err
+			}
+
+			if firstEvent {
+				close(ready) // Only close ready after the first event is received.
+				firstEvent = false
 			}
 
 			b, ok := sse.Data.([]byte)
@@ -358,8 +374,17 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 	errorChan := make(chan error, 1)
 	go func() {
 		defer close(errorChan)
-		errorChan <- watch()
+		err := watch()
+		select {
+		case <-ready:
+		default:
+			close(ready) // Error before first event.
+		}
+		errorChan <- err
 	}()
+
+	// Wait until first event is received and the subscription is registered.
+	<-ready
 
 	return metadataChan, errorChan
 }
@@ -528,8 +553,8 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 		defer close(closed)
 		defer close(logChunks)
 		defer conn.Close(websocket.StatusGoingAway, "")
-		var logs []WorkspaceAgentStartupLog
 		for {
+			var logs []WorkspaceAgentStartupLog
 			err = decoder.Decode(&logs)
 			if err != nil {
 				return
@@ -579,6 +604,7 @@ type WorkspaceAgentStartupLog struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Output    string    `json:"output"`
 	Level     LogLevel  `json:"level"`
+	EOF       bool      `json:"eof"` // EOF indicates that this is the last log entry and the file is closed.
 }
 
 type AgentSubsystem string

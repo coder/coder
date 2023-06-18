@@ -702,6 +702,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 [
   {
     "created_at": "2019-08-24T14:15:22Z",
+    "eof": true,
     "id": 0,
     "level": "trace",
     "output": "string"
@@ -719,13 +720,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 Status Code **200**
 
-| Name           | Type                                             | Required | Restrictions | Description |
-| -------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]` | array                                            | false    |              |             |
-| `» created_at` | string(date-time)                                | false    |              |             |
-| `» id`         | integer                                          | false    |              |             |
-| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
-| `» output`     | string                                           | false    |              |             |
+| Name           | Type                                             | Required | Restrictions | Description                                                           |
+| -------------- | ------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------- |
+| `[array item]` | array                                            | false    |              |                                                                       |
+| `» created_at` | string(date-time)                                | false    |              |                                                                       |
+| `» eof`        | boolean                                          | false    |              | Eof indicates that this is the last log entry and the file is closed. |
+| `» id`         | integer                                          | false    |              |                                                                       |
+| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |                                                                       |
+| `» output`     | string                                           | false    |              |                                                                       |
 
 #### Enumerated Values
 

@@ -8,9 +8,11 @@ overrides:
   go:
     overrides:
       - column: "provisioner_daemons.tags"
-        go_type: "github.com/coder/coder/coderd/database/dbtype.StringMap"
+        go_type:
+          type: "StringMap"
       - column: "provisioner_jobs.tags"
-        go_type: "github.com/coder/coder/coderd/database/dbtype.StringMap"
+        go_type:
+          type: "StringMap"
       - column: "users.rbac_roles"
         go_type: "github.com/lib/pq.StringArray"
       - column: "templates.user_acl"
@@ -53,6 +55,7 @@ overrides:
       uuid: UUID
       failure_ttl: FailureTTL
       inactivity_ttl: InactivityTTL
+      eof: EOF
 
 sql:
   - schema: "./dump.sql"

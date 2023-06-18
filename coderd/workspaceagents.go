@@ -259,8 +259,16 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	createdAt := make([]time.Time, 0)
 	output := make([]string, 0)
 	level := make([]database.LogLevel, 0)
+	eof := make([]bool, 0)
 	outputLength := 0
-	for _, logEntry := range req.Logs {
+	for i, logEntry := range req.Logs {
+		if logEntry.EOF && i != len(req.Logs)-1 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "EOF log must be the last log entry.",
+			})
+			return
+		}
+
 		createdAt = append(createdAt, logEntry.CreatedAt)
 		output = append(output, logEntry.Output)
 		outputLength += len(logEntry.Output)
@@ -277,15 +285,42 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 			return
 		}
 		level = append(level, parsedLevel)
+		eof = append(eof, logEntry.EOF)
 	}
-	logs, err := api.Database.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
-		AgentID:      workspaceAgent.ID,
-		CreatedAt:    createdAt,
-		Output:       output,
-		Level:        level,
-		OutputLength: int32(outputLength),
-	})
+
+	var logs []database.WorkspaceAgentStartupLog
+	// Ensure logs are not written after EOF.
+	eofError := xerrors.New("EOF log already received")
+	err := api.Database.InTx(func(db database.Store) error {
+		isEOF, err := db.GetWorkspaceAgentStartupLogsEOF(ctx, workspaceAgent.ID)
+		if err != nil {
+			return xerrors.Errorf("EOF status: %w", err)
+		}
+
+		if isEOF {
+			// The agent has already sent an EOF log, so we don't need to process
+			// any more logs.
+			return eofError
+		}
+
+		logs, err = db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+			AgentID:      workspaceAgent.ID,
+			CreatedAt:    createdAt,
+			Output:       output,
+			Level:        level,
+			EOF:          eof,
+			OutputLength: int32(outputLength),
+		})
+		return err
+	}, nil)
 	if err != nil {
+		if errors.Is(err, eofError) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Startup log has been closed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		if database.IsStartupLogsLimitError(err) {
 			if !workspaceAgent.StartupLogsOverflowed {
 				err := api.Database.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, database.UpdateWorkspaceAgentStartupLogOverflowByIDParams{
@@ -332,6 +367,17 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+
+	firstLog := logs[0]
+	lastLog := logs[len(logs)-1]
+
+	// Publish by the lowest log ID inserted so the
+	// log stream will fetch everything from that point.
+	api.publishWorkspaceAgentStartupLogsUpdate(ctx, workspaceAgent.ID, agentsdk.StartupLogsNotifyMessage{
+		CreatedAfter: firstLog.ID - 1,
+		EndOfLogs:    lastLog.EOF,
+	})
+
 	if workspaceAgent.StartupLogsLength == 0 {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
@@ -356,26 +402,6 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 	}
 
-	lowestID := logs[0].ID
-	// Publish by the lowest log ID inserted so the
-	// log stream will fetch everything from that point.
-	data, err := json.Marshal(agentsdk.StartupLogsNotifyMessage{
-		CreatedAfter: lowestID - 1,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to marshal startup logs notify message",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	err = api.Pubsub.Publish(agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID), data)
-	if err != nil {
-		// We don't want to return an error to the agent here,
-		// otherwise it might try to reinsert the logs.
-		api.Logger.Warn(ctx, "failed to publish startup logs notify message", slog.Error(err))
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
@@ -397,7 +423,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	// This mostly copies how provisioner job logs are streamed!
 	var (
 		ctx            = r.Context()
-		actor, _       = dbauthz.ActorFromContext(ctx)
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
 		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
 		follow         = r.URL.Query().Has("follow")
@@ -409,11 +434,11 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	if afterRaw != "" {
 		var err error
 		after, err = strconv.ParseInt(afterRaw, 10, 64)
-		if err != nil {
+		if err != nil || after < 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Query param \"after\" must be an integer.",
+				Message: "Query param \"after\" must be an integer greater than or equal to zero.",
 				Validations: []codersdk.ValidationError{
-					{Field: "after", Detail: "Must be an integer"},
+					{Field: "after", Detail: "Must be an integer greater than or equal to zero"},
 				},
 			})
 			return
@@ -467,66 +492,36 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return
 	}
-	if workspaceAgent.LifecycleState == database.WorkspaceAgentLifecycleStateReady {
-		// The startup script has finished running, so we can close the connection.
+
+	lastSentLogID := after
+	if len(logs) > 0 {
+		last := logs[len(logs)-1]
+
+		if last.EOF {
+			// The startup script has finished running, so we can close the connection.
+			return
+		}
+		lastSentLogID = last.ID
+	}
+	if !codersdk.WorkspaceAgentLifecycle(workspaceAgent.LifecycleState).Starting() {
+		// Backwards compatibility: Avoid waiting forever in case this agent was
+		// created before the current release.
 		return
 	}
 
-	var (
-		bufferedLogs  = make(chan []database.WorkspaceAgentStartupLog, 128)
-		endOfLogs     atomic.Bool
-		lastSentLogID atomic.Int64
-	)
+	notifyCh := make(chan struct{}, 1)
+	// Allow us to immediately check if we missed any logs
+	// between initial fetch and subscribe.
+	notifyCh <- struct{}{}
 
-	sendLogs := func(logs []database.WorkspaceAgentStartupLog) {
+	// Subscribe early to prevent missing log events.
+	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
+		// The message is not important, we're tracking lastSentLogID manually.
 		select {
-		case bufferedLogs <- logs:
-			lastSentLogID.Store(logs[len(logs)-1].ID)
+		case notifyCh <- struct{}{}:
 		default:
-			logger.Warn(ctx, "workspace agent startup log overflowing channel")
 		}
-	}
-
-	closeSubscribe, err := api.Pubsub.Subscribe(
-		agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID),
-		func(ctx context.Context, message []byte) {
-			if endOfLogs.Load() {
-				return
-			}
-			jlMsg := agentsdk.StartupLogsNotifyMessage{}
-			err := json.Unmarshal(message, &jlMsg)
-			if err != nil {
-				logger.Warn(ctx, "invalid startup logs notify message", slog.Error(err))
-				return
-			}
-
-			if jlMsg.CreatedAfter != 0 {
-				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(dbauthz.As(ctx, actor), database.GetWorkspaceAgentStartupLogsAfterParams{
-					AgentID:      workspaceAgent.ID,
-					CreatedAfter: jlMsg.CreatedAfter,
-				})
-				if err != nil {
-					logger.Warn(ctx, "failed to get workspace agent startup logs after", slog.Error(err))
-					return
-				}
-				sendLogs(logs)
-			}
-
-			if jlMsg.EndOfLogs {
-				endOfLogs.Store(true)
-				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(dbauthz.As(ctx, actor), database.GetWorkspaceAgentStartupLogsAfterParams{
-					AgentID:      workspaceAgent.ID,
-					CreatedAfter: lastSentLogID.Load(),
-				})
-				if err != nil {
-					logger.Warn(ctx, "get workspace agent startup logs after", slog.Error(err))
-					return
-				}
-				sendLogs(logs)
-				bufferedLogs <- nil
-			}
-		},
-	)
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to subscribe to startup logs.",
@@ -536,15 +531,70 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 	defer closeSubscribe()
 
+	// Buffer size controls the log prefetch capacity.
+	bufferedLogs := make(chan []database.WorkspaceAgentStartupLog, 8)
+	// Check at least once per minute in case we didn't receive a pubsub message.
+	recheckInterval := time.Minute
+	t := time.NewTicker(recheckInterval)
+	defer t.Stop()
+
+	go func() {
+		defer close(bufferedLogs)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			case <-notifyCh:
+				t.Reset(recheckInterval)
+			}
+
+			logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
+				AgentID:      workspaceAgent.ID,
+				CreatedAfter: lastSentLogID,
+			})
+			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					return
+				}
+				logger.Warn(ctx, "failed to get workspace agent startup logs after", slog.Error(err))
+				continue
+			}
+			if len(logs) == 0 {
+				continue
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case bufferedLogs <- logs:
+				lastSentLogID = logs[len(logs)-1].ID
+			}
+			if logs[len(logs)-1].EOF {
+				return
+			}
+		}
+	}()
+	defer func() {
+		// Ensure that we don't return until the goroutine has exited.
+		//nolint:revive // Consume channel to wait until it's closed.
+		for range bufferedLogs {
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Debug(context.Background(), "job logs context canceled")
+			logger.Debug(ctx, "job logs context canceled")
 			return
 		case logs, ok := <-bufferedLogs:
-			// A nil log is sent when complete!
-			if !ok || logs == nil {
-				logger.Debug(context.Background(), "reached the end of published logs")
+			if !ok {
+				select {
+				case <-ctx.Done():
+					logger.Debug(ctx, "job logs context canceled")
+				default:
+					logger.Debug(ctx, "reached the end of published logs")
+				}
 				return
 			}
 			err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
@@ -1434,9 +1484,6 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 		})
 	}
 
-	// Send initial metadata.
-	sendMetadata(true)
-
 	// We debounce metadata updates to avoid overloading the frontend when
 	// an agent is sending a lot of updates.
 	pubsubDebounce := debounce.New(time.Second)
@@ -1444,7 +1491,8 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 		pubsubDebounce = debounce.New(time.Millisecond * 100)
 	}
 
-	// Send metadata on updates.
+	// Send metadata on updates, we must ensure subscription before sending
+	// initial metadata to guarantee that events in-between are not missed.
 	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
 		pubsubDebounce(func() {
 			sendMetadata(true)
@@ -1456,12 +1504,14 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	}
 	defer cancelSub()
 
+	// Send initial metadata.
+	sendMetadata(true)
+
 	for {
 		select {
 		case <-senderClosed:
 			return
 		case <-refreshTicker.C:
-			break
 		}
 
 		// Avoid spamming the DB with reads we know there are no updates. We want
@@ -1526,29 +1576,75 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	api.Logger.Debug(ctx, "workspace agent state report",
+	logger := api.Logger.With(
 		slog.F("agent", workspaceAgent.ID),
 		slog.F("workspace", workspace.ID),
 		slog.F("payload", req),
 	)
+	logger.Debug(ctx, "workspace agent state report")
 
-	lifecycleState := database.WorkspaceAgentLifecycleState(req.State)
-	if !lifecycleState.Valid() {
+	lifecycleState := req.State
+	dbLifecycleState := database.WorkspaceAgentLifecycleState(lifecycleState)
+	if !dbLifecycleState.Valid() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid lifecycle state.",
-			Detail:  fmt.Sprintf("Invalid lifecycle state %q, must be be one of %q.", req.State, database.AllWorkspaceAgentLifecycleStateValues()),
+			Detail:  fmt.Sprintf("Invalid lifecycle state %q, must be be one of %q.", lifecycleState, database.AllWorkspaceAgentLifecycleStateValues()),
 		})
 		return
 	}
 
 	err = api.Database.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 		ID:             workspaceAgent.ID,
-		LifecycleState: lifecycleState,
+		LifecycleState: dbLifecycleState,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+
+	if !lifecycleState.Starting() {
+		var eofLog []database.WorkspaceAgentStartupLog
+		// Ensure the startup logs are marked as complete if the agent
+		// is no longer starting. This should be reported by the agent
+		// itself, but we do it here as a fallback.
+		err = api.Database.InTx(func(db database.Store) error {
+			isEOF, err := db.GetWorkspaceAgentStartupLogsEOF(ctx, workspaceAgent.ID)
+			if err != nil {
+				return xerrors.Errorf("EOF status: %w", err)
+			}
+			if isEOF {
+				return nil
+			}
+
+			logger.Debug(ctx, "marking startup logs as complete because agent is no longer starting")
+			eofLog, err = db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+				AgentID:      workspaceAgent.ID,
+				CreatedAt:    []time.Time{database.Now()},
+				Output:       []string{""},
+				Level:        []database.LogLevel{database.LogLevelInfo},
+				EOF:          []bool{true},
+				OutputLength: 0,
+			})
+			if err != nil {
+				return xerrors.Errorf("write EOF log entry: %w", err)
+			}
+			return nil
+		}, nil)
+		if err != nil {
+			logger.Warn(ctx, "failed to mark startup logs as complete", slog.Error(err))
+			// If this fails, we want the agent to keep trying so that the
+			// startup log is eventually marked as complete.
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		if len(eofLog) > 0 {
+			api.publishWorkspaceAgentStartupLogsUpdate(ctx, workspaceAgent.ID, agentsdk.StartupLogsNotifyMessage{
+				CreatedAfter: eofLog[0].ID - 1,
+				EndOfLogs:    true,
+			})
+		}
+	}
+
 	api.publishWorkspaceUpdate(ctx, workspace.ID)
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
@@ -1984,6 +2080,7 @@ func convertWorkspaceAgentStartupLog(logEntry database.WorkspaceAgentStartupLog)
 		CreatedAt: logEntry.CreatedAt,
 		Output:    logEntry.Output,
 		Level:     codersdk.LogLevel(logEntry.Level),
+		EOF:       logEntry.EOF,
 	}
 }
 

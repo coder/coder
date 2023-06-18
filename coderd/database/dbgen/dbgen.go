@@ -18,7 +18,6 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/cryptorand"
 )
@@ -278,7 +277,7 @@ func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJo
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
 		if orig.Tags == nil {
-			orig.Tags = make(dbtype.StringMap)
+			orig.Tags = make(database.StringMap)
 		}
 		// Make sure when we acquire the job, we only get this one.
 		orig.Tags[id.String()] = "true"
@@ -524,4 +523,41 @@ func must[V any](v V, err error) V {
 		panic(err)
 	}
 	return v
+}
+
+func takeFirstIP(values ...net.IPNet) net.IPNet {
+	return takeFirstF(values, func(v net.IPNet) bool {
+		return len(v.IP) != 0 && len(v.Mask) != 0
+	})
+}
+
+// takeFirstSlice implements takeFirst for []any.
+// []any is not a comparable type.
+func takeFirstSlice[T any](values ...[]T) []T {
+	return takeFirstF(values, func(v []T) bool {
+		return len(v) != 0
+	})
+}
+
+// takeFirstF takes the first value that returns true
+func takeFirstF[Value any](values []Value, take func(v Value) bool) Value {
+	for _, v := range values {
+		if take(v) {
+			return v
+		}
+	}
+	// If all empty, return the last element
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	var empty Value
+	return empty
+}
+
+// takeFirst will take the first non-empty value.
+func takeFirst[Value comparable](values ...Value) Value {
+	var empty Value
+	return takeFirstF(values, func(v Value) bool {
+		return v != empty
+	})
 }

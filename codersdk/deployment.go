@@ -232,6 +232,7 @@ type PrometheusConfig struct {
 	Enable            clibase.Bool     `json:"enable" typescript:",notnull"`
 	Address           clibase.HostPort `json:"address" typescript:",notnull"`
 	CollectAgentStats clibase.Bool     `json:"collect_agent_stats" typescript:",notnull"`
+	CollectDBMetrics  clibase.Bool     `json:"collect_db_metrics" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -762,6 +763,16 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.CollectAgentStats,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "collect_agent_stats",
+		},
+		{
+			Name:        "Prometheus Collect Database Metrics",
+			Description: "Collect database metrics (may increase charges for metrics storage).",
+			Flag:        "prometheus-collect-db-metrics",
+			Env:         "CODER_PROMETHEUS_COLLECT_DB_METRICS",
+			Value:       &c.Prometheus.CollectDBMetrics,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "collect_db_metrics",
+			Default:     "false",
 		},
 		// Pprof settings
 		{

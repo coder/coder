@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
@@ -268,7 +269,7 @@ type logFollower struct {
 	ctx    context.Context
 	logger slog.Logger
 	db     database.Store
-	pubsub database.Pubsub
+	pubsub pubsub.Pubsub
 	r      *http.Request
 	rw     http.ResponseWriter
 	conn   *websocket.Conn
@@ -281,14 +282,14 @@ type logFollower struct {
 }
 
 func newLogFollower(
-	ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub,
+	ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub,
 	rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob, after int64,
 ) *logFollower {
 	return &logFollower{
 		ctx:           ctx,
 		logger:        logger,
 		db:            db,
-		pubsub:        pubsub,
+		pubsub:        ps,
 		r:             r,
 		rw:            rw,
 		jobID:         job.ID,
@@ -318,6 +319,10 @@ func (f *logFollower) follow() {
 			return
 		}
 		defer subCancel()
+		// Move cancel up the stack so it happens before unsubscribing,
+		// otherwise we can end up in a deadlock due to how the
+		// in-memory pubsub does mutex locking on send/unsubscribe.
+		defer cancel()
 
 		// we were provided `complete` prior to starting this subscription, so
 		// we also need to check whether the job is now complete, in case the

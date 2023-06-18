@@ -152,6 +152,9 @@ introspection:
     # Collect agent stats (may increase charges for metrics storage).
     # (default: <unset>, type: bool)
     collect_agent_stats: false
+    # Collect database metrics (may increase charges for metrics storage).
+    # (default: false, type: bool)
+    collect_db_metrics: false
   pprof:
     # Serve pprof metrics on the address defined by pprof address.
     # (default: <unset>, type: bool)

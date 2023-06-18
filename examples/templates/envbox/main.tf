@@ -27,6 +27,7 @@ data "coder_parameter" "home_disk" {
 variable "use_kubeconfig" {
   type        = bool
   sensitive   = true
+  default     = true
   description = <<-EOF
   Use host kubeconfig? (true/false)
   Set this to false if the Coder host is itself running as a Pod on the same
@@ -34,6 +35,10 @@ variable "use_kubeconfig" {
   Set this to true if the Coder host is running outside the Kubernetes cluster
   for workspaces.  A valid "~/.kube/config" must be present on the Coder host.
   EOF
+}
+
+provider "coder" {
+  feature_use_managed_variables = "true"
 }
 
 variable "namespace" {
@@ -46,12 +51,14 @@ variable "create_tun" {
   type        = bool
   sensitive   = true
   description = "Add a TUN device to the workspace."
+  default     = false
 }
 
 variable "create_fuse" {
   type        = bool
   description = "Add a FUSE device to the workspace."
   sensitive   = true
+  default     = false
 }
 
 variable "max_cpus" {
@@ -138,11 +145,15 @@ resource "kubernetes_persistent_volume_claim" "home" {
 
 resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
+
   metadata {
     name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
     namespace = var.namespace
   }
+
   spec {
+    restart_policy = "Never"
+
     container {
       name              = "dev"
       image             = "ghcr.io/coder/envbox:latest"

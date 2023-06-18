@@ -110,7 +110,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 				go func() {
 					wg.Wait()
-					logFile.Close()
+					_ = logFile.Close()
 				}()
 
 				logger = slog.Make(sloghuman.Sink(logFile))

@@ -105,11 +105,12 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 		}
 
 		rows[i] = templateVersionRow{
-			Name:      templateVersion.Name,
-			CreatedAt: templateVersion.CreatedAt,
-			CreatedBy: templateVersion.CreatedBy.Username,
-			Status:    strings.Title(string(templateVersion.Job.Status)),
-			Active:    activeStatus,
+			TemplateVersion: templateVersion,
+			Name:            templateVersion.Name,
+			CreatedAt:       templateVersion.CreatedAt,
+			CreatedBy:       templateVersion.CreatedBy.Username,
+			Status:          strings.Title(string(templateVersion.Job.Status)),
+			Active:          activeStatus,
 		}
 	}
 

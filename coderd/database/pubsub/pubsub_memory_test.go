@@ -1,4 +1,4 @@
-package database_test
+package pubsub_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/pubsub"
 )
 
 func TestPubsubMemory(t *testing.T) {
@@ -16,7 +16,7 @@ func TestPubsubMemory(t *testing.T) {
 	t.Run("Legacy", func(t *testing.T) {
 		t.Parallel()
 
-		pubsub := database.NewPubsubInMemory()
+		pubsub := pubsub.NewInMemory()
 		event := "test"
 		data := "testing"
 		messageChannel := make(chan []byte)
@@ -36,7 +36,7 @@ func TestPubsubMemory(t *testing.T) {
 	t.Run("WithErr", func(t *testing.T) {
 		t.Parallel()
 
-		pubsub := database.NewPubsubInMemory()
+		pubsub := pubsub.NewInMemory()
 		event := "test"
 		data := "testing"
 		messageChannel := make(chan []byte)

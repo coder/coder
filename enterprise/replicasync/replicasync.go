@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/pubsub"
 )
 
 var PubsubEvent = "replica"
@@ -36,7 +37,7 @@ type Options struct {
 
 // New registers the replica with the database and periodically updates to ensure
 // it's healthy. It contacts all other alive replicas to ensure they are reachable.
-func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub, options *Options) (*Manager, error) {
+func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub, options *Options) (*Manager, error) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -77,7 +78,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	if err != nil {
 		return nil, xerrors.Errorf("insert replica: %w", err)
 	}
-	err = pubsub.Publish(PubsubEvent, []byte(options.ID.String()))
+	err = ps.Publish(PubsubEvent, []byte(options.ID.String()))
 	if err != nil {
 		return nil, xerrors.Errorf("publish new replica: %w", err)
 	}
@@ -86,7 +87,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 		id:          options.ID,
 		options:     options,
 		db:          db,
-		pubsub:      pubsub,
+		pubsub:      ps,
 		self:        replica,
 		logger:      logger,
 		closed:      make(chan struct{}),
@@ -110,7 +111,7 @@ type Manager struct {
 	id      uuid.UUID
 	options *Options
 	db      database.Store
-	pubsub  database.Pubsub
+	pubsub  pubsub.Pubsub
 	logger  slog.Logger
 
 	closeWait   sync.WaitGroup

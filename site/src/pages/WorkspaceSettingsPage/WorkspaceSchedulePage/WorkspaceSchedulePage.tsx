@@ -16,7 +16,6 @@ import { pageTitle } from "utils/page"
 import { scheduleChanged } from "utils/schedule"
 import * as TypesGen from "../../../api/typesGenerated"
 import { WorkspaceScheduleForm } from "../../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
-import { firstOrItem } from "../../../utils/array"
 import { workspaceSchedule } from "../../../xServices/workspaceSchedule/workspaceScheduleXService"
 import {
   formValuesToAutostartRequest,
@@ -41,11 +40,10 @@ const useStyles = makeStyles((theme) => ({
 export const WorkspaceSchedulePage: FC = () => {
   const { t } = useTranslation("workspaceSchedulePage")
   const styles = useStyles()
-  const { username: usernameQueryParam, workspace: workspaceQueryParam } =
-    useParams()
+  const params = useParams() as { username: string; workspace: string }
   const navigate = useNavigate()
-  const username = firstOrItem(usernameQueryParam, null)
-  const workspaceName = firstOrItem(workspaceQueryParam, null)
+  const username = params.username.replace("@", "")
+  const workspaceName = params.workspace
   const { workspace } = useWorkspaceSettingsContext()
   const [scheduleState, scheduleSend] = useMachine(workspaceSchedule, {
     context: { workspace },

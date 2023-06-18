@@ -36,19 +36,16 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"cdr.dev/slog"
-
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/codersdk/agentsdk"
-
 	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
+
+	"cdr.dev/slog"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/dbmetrics"
-	"github.com/coder/coder/coderd/database/dbtype"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/healthcheck"
@@ -65,6 +62,7 @@ import (
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/site"
@@ -96,7 +94,7 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           database.Pubsub
+	Pubsub           pubsub.Pubsub
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -190,10 +188,6 @@ func New(options *Options) *API {
 
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
-	}
-	// The below are no-ops if already wrapped.
-	if options.PrometheusRegistry != nil {
-		options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 	}
 	options.Database = dbauthz.New(
 		options.Database,
@@ -299,11 +293,13 @@ func New(options *Options) *API {
 		},
 	)
 
-	staticHandler := site.Handler(site.FS(), binFS, binHashes)
-	// Static file handler must be wrapped with HSTS handler if the
-	// StrictTransportSecurityAge is set. We only need to set this header on
-	// static files since it only affects browsers.
-	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
+	staticHandler := site.New(&site.Options{
+		BinFS:     binFS,
+		BinHashes: binHashes,
+		Database:  options.Database,
+		SiteFS:    site.FS(),
+	})
+	staticHandler.Experiments.Store(&experiments)
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -319,7 +315,7 @@ func New(options *Options) *API {
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: staticHandler,
+		SiteHandler: staticHandler,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -819,7 +815,11 @@ func New(options *Options) *API {
 		// By default we do not add extra websocket connections to the CSP
 		return []string{}
 	})
-	r.NotFound(cspMW(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP))).ServeHTTP)
+
+	// Static file handler must be wrapped with HSTS handler if the
+	// StrictTransportSecurityAge is set. We only need to set this header on
+	// static files since it only affects browsers.
+	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
 
 	// This must be before all middleware to improve the response time.
 	// So make a new router, and mount the old one as the root.
@@ -864,7 +864,8 @@ type API struct {
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
-	siteHandler http.Handler
+	// SiteHandler serves static files for the dashboard.
+	SiteHandler *site.Handler
 
 	WebsocketWaitMutex sync.Mutex
 	WebsocketWaitGroup sync.WaitGroup
@@ -948,7 +949,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		CreatedAt:    database.Now(),
 		Name:         name,
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
-		Tags: dbtype.StringMap{
+		Tags: database.StringMap{
 			provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
 		},
 	})

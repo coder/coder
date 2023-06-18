@@ -10,7 +10,7 @@ on:
 
   schedule:
     # Run every 6 hours Monday-Friday!
-    - cron: "0 0,6,12,18 * * 1-5"
+    - cron: "0 0/6 * * 1-5"
 
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
@@ -117,8 +117,16 @@ jobs:
           make -j "$image_job"
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
+      - name: Run Prisma Cloud image scan
+        uses: PaloAltoNetworks/prisma-cloud-scan@v1
+        with:
+          pcc_console_url: ${{ secrets.PRISMA_CLOUD_URL }}
+          pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
+          pcc_pass: ${{ secrets.PRISMA_CLOUD_SECRET_KEY }}
+          image_name: ${{ steps.build.outputs.image }}
+
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@e5f43133f6e8736992c9f3c1b3296e24b37e17f2
+        uses: aquasecurity/trivy-action@41f05d9ecffa2ed3f1580af306000f734b733e54
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif
