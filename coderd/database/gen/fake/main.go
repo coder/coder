@@ -248,9 +248,25 @@ func readStoreInterface() ([]storeMethod, error) {
 			if t == nil {
 				continue
 			}
+			var (
+				ident *dst.Ident
+				ok    bool
+			)
 			for _, f := range t.List {
-				ident, ok := f.Type.(*dst.Ident)
-				if !ok {
+				switch typ := f.Type.(type) {
+				case *dst.StarExpr:
+					ident, ok = typ.X.(*dst.Ident)
+					if !ok {
+						continue
+					}
+				case *dst.ArrayType:
+					ident, ok = typ.Elt.(*dst.Ident)
+					if !ok {
+						continue
+					}
+				case *dst.Ident:
+					ident = typ
+				default:
 					continue
 				}
 				if !ident.IsExported() {
