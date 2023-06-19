@@ -140,18 +140,34 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
+			resp, err := uploadFlags.upload(inv, client)
+			if err != nil {
+				return err
+			}
+
+			tags, err := ParseProvisionerTags(provisionerTags)
+			if err != nil {
+				return err
+			}
+
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
-				if create {
-					resp, err := uploadFlags.upload(inv, client)
-					if err != nil {
-						return err
-					}
-					tags, err := ParseProvisionerTags(provisionerTags)
-					if err != nil {
-						return err
-					}
-					job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{Client: client, Organization: organization, Provisioner: database.ProvisionerType(provisioner), FileID: resp.ID, ProvisionerTags: tags, VariablesFile: variablesFile, Variables: variables})
+				if !create {
+					_, _ = fmt.Fprintf(inv.Stdout, "Template %s not found, create a new template with the --create flag\n or use `coder template create` to create a new template\n", name)
+					return xerrors.Errorf("template %q not found: %w", name, err)
+				} else {
+					job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
+						Name:            versionName,
+						Client:          client,
+						Organization:    organization,
+						Provisioner:     database.ProvisionerType(provisioner),
+						FileID:          resp.ID,
+						VariablesFile:   variablesFile,
+						Variables:       variables,
+						Template:        &template,
+						ReuseParameters: !alwaysPrompt,
+						ProvisionerTags: tags,
+					})
 					if err != nil {
 						return err
 					}
@@ -164,17 +180,8 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 					if err != nil {
 						return err
 					}
+					_, _ = fmt.Fprintf(inv.Stdout, "Created template %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 				}
-				return err
-			}
-			resp, err := uploadFlags.upload(inv, client)
-			if err != nil {
-				return err
-			}
-
-			tags, err := ParseProvisionerTags(provisionerTags)
-			if err != nil {
-				return err
 			}
 
 			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
