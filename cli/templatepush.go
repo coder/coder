@@ -171,6 +171,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
+
 			if create {
 				defaultTTL := 24 * time.Hour
 				failureTTL := 0 * time.Hour
@@ -181,8 +182,6 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				if err != nil {
 					return err
 				}
-				_, _ = fmt.Fprintf(inv.Stdout, "Created template %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
-				return nil
 			}
 
 			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
@@ -196,6 +195,11 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				if err != nil {
 					return err
 				}
+			}
+
+			if create {
+				_, _ = fmt.Fprintf(inv.Stdout, "Created template %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+				return nil
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
