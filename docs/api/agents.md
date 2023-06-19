@@ -687,12 +687,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 ### Parameters
 
-| Name             | In    | Type         | Required | Description        |
-| ---------------- | ----- | ------------ | -------- | ------------------ |
-| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID |
-| `before`         | query | integer      | false    | Before log id      |
-| `after`          | query | integer      | false    | After log id       |
-| `follow`         | query | boolean      | false    | Follow log stream  |
+| Name             | In    | Type         | Required | Description                                  |
+| ---------------- | ----- | ------------ | -------- | -------------------------------------------- |
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                           |
+| `before`         | query | integer      | false    | Before log id                                |
+| `after`          | query | integer      | false    | After log id                                 |
+| `follow`         | query | boolean      | false    | Follow log stream                            |
+| `no-compression` | query | boolean      | false    | Disable compression for WebSocket connection |
 
 ### Example responses
 
