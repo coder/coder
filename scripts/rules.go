@@ -289,3 +289,26 @@ func notImplementsFullResponseWriter(ctx *dsl.VarFilterContext) bool {
 		!(types.Implements(p, flusher) || types.Implements(ctx.Type, flusher)) ||
 		!(types.Implements(p, hijacker) || types.Implements(ctx.Type, hijacker))
 }
+
+// slogFieldNameSnakeCase is a lint rule that ensures naming consistency
+// of logged field names.
+func slogFieldNameSnakeCase(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Match(
+		`slog.F($name, $value)`,
+	).
+		Where(m["name"].Const && !m["name"].Text.Matches(`^"[a-z]+(_[a-z]+)*"$`)).
+		Report("Field name $name must be snake_case")
+}
+
+// slogUUIDFieldNameHasIDSuffix ensures that "uuid.UUID" field has ID prefix
+// in the field name.
+func slogUUIDFieldNameHasIDSuffix(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Import("github.com/google/uuid")
+	m.Match(
+		`slog.F($name, $value)`,
+	).
+		Where(m["value"].Type.Is("uuid.UUID") && !m["name"].Text.Matches(`_id"$`)).
+		Report(`uuid.UUID field $name must have "_id" suffix`)
+}

@@ -1017,7 +1017,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	defer a.connCountReconnectingPTY.Add(-1)
 
 	connectionID := uuid.NewString()
-	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
+	logger = logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
 	logger.Debug(ctx, "starting handler")
 
 	defer func() {
