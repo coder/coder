@@ -146,6 +146,7 @@ type Handler struct {
 	buildInfoJSON string
 
 	AppearanceFetcher func(ctx context.Context) (codersdk.AppearanceConfig, error)
+	RegionsFetcher    func(ctx context.Context) (codersdk.RegionsResponse, error)
 
 	Entitlements atomic.Pointer[codersdk.Entitlements]
 	Experiments  atomic.Pointer[codersdk.Experiments]
@@ -231,6 +232,7 @@ type htmlState struct {
 	Entitlements string
 	Appearance   string
 	Experiments  string
+	Regions      string
 }
 
 type csrfState struct {
@@ -313,33 +315,64 @@ func (h *Handler) renderHTMLWithState(rw http.ResponseWriter, r *http.Request, f
 		})
 		err := eg.Wait()
 		if err == nil {
-			user, err := json.Marshal(db2sdk.User(user, orgIDs))
-			if err == nil {
-				state.User = html.EscapeString(string(user))
-			}
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				user, err := json.Marshal(db2sdk.User(user, orgIDs))
+				if err == nil {
+					state.User = html.EscapeString(string(user))
+				}
+			}()
 			entitlements := h.Entitlements.Load()
 			if entitlements != nil {
-				entitlements, err := json.Marshal(entitlements)
-				if err == nil {
-					state.Entitlements = html.EscapeString(string(entitlements))
-				}
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					entitlements, err := json.Marshal(entitlements)
+					if err == nil {
+						state.Entitlements = html.EscapeString(string(entitlements))
+					}
+				}()
 			}
 			if h.AppearanceFetcher != nil {
-				cfg, err := h.AppearanceFetcher(ctx)
-				if err == nil {
-					appearance, err := json.Marshal(cfg)
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					cfg, err := h.AppearanceFetcher(ctx)
 					if err == nil {
-						state.Appearance = html.EscapeString(string(appearance))
+						appearance, err := json.Marshal(cfg)
+						if err == nil {
+							state.Appearance = html.EscapeString(string(appearance))
+						}
 					}
-				}
+				}()
+			}
+			if h.RegionsFetcher != nil {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					regions, err := h.RegionsFetcher(ctx)
+					if err == nil {
+						regions, err := json.Marshal(regions)
+						if err == nil {
+							state.Regions = html.EscapeString(string(regions))
+						}
+					}
+				}()
 			}
 			experiments := h.Experiments.Load()
 			if experiments != nil {
-				experiments, err := json.Marshal(experiments)
-				if err == nil {
-					state.Experiments = html.EscapeString(string(experiments))
-				}
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					experiments, err := json.Marshal(experiments)
+					if err == nil {
+						state.Experiments = html.EscapeString(string(experiments))
+					}
+				}()
 			}
+			wg.Wait()
 		}
 	}
 
