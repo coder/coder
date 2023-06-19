@@ -293,11 +293,13 @@ func New(options *Options) *API {
 		},
 	)
 
-	staticHandler := site.Handler(site.FS(), binFS, binHashes)
-	// Static file handler must be wrapped with HSTS handler if the
-	// StrictTransportSecurityAge is set. We only need to set this header on
-	// static files since it only affects browsers.
-	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
+	staticHandler := site.New(&site.Options{
+		BinFS:     binFS,
+		BinHashes: binHashes,
+		Database:  options.Database,
+		SiteFS:    site.FS(),
+	})
+	staticHandler.Experiments.Store(&experiments)
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -313,7 +315,7 @@ func New(options *Options) *API {
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: staticHandler,
+		SiteHandler: staticHandler,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -813,7 +815,11 @@ func New(options *Options) *API {
 		// By default we do not add extra websocket connections to the CSP
 		return []string{}
 	})
-	r.NotFound(cspMW(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP))).ServeHTTP)
+
+	// Static file handler must be wrapped with HSTS handler if the
+	// StrictTransportSecurityAge is set. We only need to set this header on
+	// static files since it only affects browsers.
+	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
 
 	// This must be before all middleware to improve the response time.
 	// So make a new router, and mount the old one as the root.
@@ -858,7 +864,8 @@ type API struct {
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
-	siteHandler http.Handler
+	// SiteHandler serves static files for the dashboard.
+	SiteHandler *site.Handler
 
 	WebsocketWaitMutex sync.Mutex
 	WebsocketWaitGroup sync.WaitGroup

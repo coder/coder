@@ -5856,6 +5856,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "eof": {
+                    "type": "boolean"
+                },
                 "level": {
                     "$ref": "#/definitions/codersdk.LogLevel"
                 },
@@ -9377,6 +9380,10 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "eof": {
+                    "description": "EOF indicates that this is the last log entry and the file is closed.",
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "integer"

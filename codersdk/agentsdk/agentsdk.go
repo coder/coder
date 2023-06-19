@@ -571,6 +571,7 @@ type StartupLog struct {
 	CreatedAt time.Time         `json:"created_at"`
 	Output    string            `json:"output"`
 	Level     codersdk.LogLevel `json:"level"`
+	EOF       bool              `json:"eof"`
 }
 
 type PatchStartupLogs struct {

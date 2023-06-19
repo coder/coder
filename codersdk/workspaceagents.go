@@ -58,6 +58,16 @@ const (
 	WorkspaceAgentLifecycleOff             WorkspaceAgentLifecycle = "off"
 )
 
+// Starting returns true if the agent is in the process of starting.
+func (l WorkspaceAgentLifecycle) Starting() bool {
+	switch l {
+	case WorkspaceAgentLifecycleCreated, WorkspaceAgentLifecycleStarting, WorkspaceAgentLifecycleStartTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
 // WorkspaceAgentLifecycleOrder is the order in which workspace agent
 // lifecycle states are expected to be reported during the lifetime of
 // the agent process. For instance, the agent can go from starting to
@@ -543,8 +553,8 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 		defer close(closed)
 		defer close(logChunks)
 		defer conn.Close(websocket.StatusGoingAway, "")
-		var logs []WorkspaceAgentStartupLog
 		for {
+			var logs []WorkspaceAgentStartupLog
 			err = decoder.Decode(&logs)
 			if err != nil {
 				return
@@ -594,6 +604,7 @@ type WorkspaceAgentStartupLog struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Output    string    `json:"output"`
 	Level     LogLevel  `json:"level"`
+	EOF       bool      `json:"eof"` // EOF indicates that this is the last log entry and the file is closed.
 }
 
 type AgentSubsystem string

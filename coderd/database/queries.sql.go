@@ -5438,7 +5438,7 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAge
 
 const getWorkspaceAgentStartupLogsAfter = `-- name: GetWorkspaceAgentStartupLogsAfter :many
 SELECT
-	agent_id, created_at, output, id, level
+	agent_id, created_at, output, id, level, eof
 FROM
 	workspace_agent_startup_logs
 WHERE
@@ -5468,6 +5468,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg 
 			&i.Output,
 			&i.ID,
 			&i.Level,
+			&i.EOF,
 		); err != nil {
 			return nil, err
 		}
@@ -5480,6 +5481,26 @@ func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg 
 		return nil, err
 	}
 	return items, nil
+}
+
+const getWorkspaceAgentStartupLogsEOF = `-- name: GetWorkspaceAgentStartupLogsEOF :one
+SELECT CASE WHEN EXISTS (
+	SELECT
+		agent_id, created_at, output, id, level, eof
+	FROM
+		workspace_agent_startup_logs
+	WHERE
+		agent_id = $1
+		AND eof = true
+	LIMIT 1
+) THEN TRUE ELSE FALSE END
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentStartupLogsEOF(ctx context.Context, agentID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentStartupLogsEOF, agentID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
@@ -5833,16 +5854,17 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 const insertWorkspaceAgentStartupLogs = `-- name: InsertWorkspaceAgentStartupLogs :many
 WITH new_length AS (
 	UPDATE workspace_agents SET
-	startup_logs_length = startup_logs_length + $5 WHERE workspace_agents.id = $1
+	startup_logs_length = startup_logs_length + $6 WHERE workspace_agents.id = $1
 )
 INSERT INTO
-		workspace_agent_startup_logs (agent_id, created_at, output, level)
+		workspace_agent_startup_logs (agent_id, created_at, output, level, eof)
 	SELECT
 		$1 :: uuid AS agent_id,
 		unnest($2 :: timestamptz [ ]) AS created_at,
 		unnest($3 :: VARCHAR(1024) [ ]) AS output,
-		unnest($4 :: log_level [ ]) AS level
-	RETURNING workspace_agent_startup_logs.agent_id, workspace_agent_startup_logs.created_at, workspace_agent_startup_logs.output, workspace_agent_startup_logs.id, workspace_agent_startup_logs.level
+		unnest($4 :: log_level [ ]) AS level,
+		unnest($5 :: boolean [ ]) AS eof
+	RETURNING workspace_agent_startup_logs.agent_id, workspace_agent_startup_logs.created_at, workspace_agent_startup_logs.output, workspace_agent_startup_logs.id, workspace_agent_startup_logs.level, workspace_agent_startup_logs.eof
 `
 
 type InsertWorkspaceAgentStartupLogsParams struct {
@@ -5850,6 +5872,7 @@ type InsertWorkspaceAgentStartupLogsParams struct {
 	CreatedAt    []time.Time `db:"created_at" json:"created_at"`
 	Output       []string    `db:"output" json:"output"`
 	Level        []LogLevel  `db:"level" json:"level"`
+	EOF          []bool      `db:"eof" json:"eof"`
 	OutputLength int32       `db:"output_length" json:"output_length"`
 }
 
@@ -5859,6 +5882,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg In
 		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Output),
 		pq.Array(arg.Level),
+		pq.Array(arg.EOF),
 		arg.OutputLength,
 	)
 	if err != nil {
@@ -5874,6 +5898,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg In
 			&i.Output,
 			&i.ID,
 			&i.Level,
+			&i.EOF,
 		); err != nil {
 			return nil, err
 		}

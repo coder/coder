@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
@@ -41,35 +43,49 @@ var DefaultSupportLinks = []codersdk.LinkConfig{
 // @Success 200 {object} codersdk.AppearanceConfig
 // @Router /appearance [get]
 func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
+	cfg, err := api.fetchAppearanceConfig(r.Context())
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch appearance config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, cfg)
+}
+
+func (api *API) fetchAppearanceConfig(ctx context.Context) (codersdk.AppearanceConfig, error) {
 	api.entitlementsMu.RLock()
 	isEntitled := api.entitlements.Features[codersdk.FeatureAppearance].Entitlement == codersdk.EntitlementEntitled
 	api.entitlementsMu.RUnlock()
 
-	ctx := r.Context()
-
 	if !isEntitled {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AppearanceConfig{
+		return codersdk.AppearanceConfig{
 			SupportLinks: DefaultSupportLinks,
-		})
-		return
+		}, nil
 	}
 
-	logoURL, err := api.Database.GetLogoURL(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch logo URL.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	serviceBannerJSON, err := api.Database.GetServiceBanner(r.Context())
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch service banner.",
-			Detail:  err.Error(),
-		})
-		return
+	var eg errgroup.Group
+	var logoURL string
+	var serviceBannerJSON string
+	eg.Go(func() (err error) {
+		logoURL, err = api.Database.GetLogoURL(ctx)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get logo url: %w", err)
+		}
+		return nil
+	})
+	eg.Go(func() (err error) {
+		serviceBannerJSON, err = api.Database.GetServiceBanner(ctx)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get service banner: %w", err)
+		}
+		return nil
+	})
+	err := eg.Wait()
+	if err != nil {
+		return codersdk.AppearanceConfig{}, err
 	}
 
 	cfg := codersdk.AppearanceConfig{
@@ -78,12 +94,9 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 	if serviceBannerJSON != "" {
 		err = json.Unmarshal([]byte(serviceBannerJSON), &cfg.ServiceBanner)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf(
-					"unmarshal json: %+v, raw: %s", err, serviceBannerJSON,
-				),
-			})
-			return
+			return codersdk.AppearanceConfig{}, xerrors.Errorf(
+				"unmarshal json: %w, raw: %s", err, serviceBannerJSON,
+			)
 		}
 	}
 
@@ -93,7 +106,7 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 		cfg.SupportLinks = api.DeploymentValues.Support.Links.Value
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, cfg)
+	return cfg, nil
 }
 
 func validateHexColor(color string) error {

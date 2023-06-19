@@ -55,6 +55,7 @@ overrides:
       uuid: UUID
       failure_ttl: FailureTTL
       inactivity_ttl: InactivityTTL
+      eof: EOF
 
 sql:
   - schema: "./dump.sql"

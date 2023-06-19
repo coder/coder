@@ -1453,6 +1453,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentStartupLogsAfter(arg0, arg1 in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStartupLogsAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStartupLogsAfter), arg0, arg1)
 }
 
+// GetWorkspaceAgentStartupLogsEOF mocks base method.
+func (m *MockStore) GetWorkspaceAgentStartupLogsEOF(arg0 context.Context, arg1 uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentStartupLogsEOF", arg0, arg1)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentStartupLogsEOF indicates an expected call of GetWorkspaceAgentStartupLogsEOF.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentStartupLogsEOF(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStartupLogsEOF", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStartupLogsEOF), arg0, arg1)
+}
+
 // GetWorkspaceAgentStats mocks base method.
 func (m *MockStore) GetWorkspaceAgentStats(arg0 context.Context, arg1 time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
 	m.ctrl.T.Helper()

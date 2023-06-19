@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -98,5 +101,33 @@ func ProvisionerJobStatus(provisionerJob database.ProvisionerJob) codersdk.Provi
 		return codersdk.ProvisionerJobFailed
 	default:
 		return codersdk.ProvisionerJobRunning
+	}
+}
+
+func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
+	convertedUser := codersdk.User{
+		ID:              user.ID,
+		Email:           user.Email,
+		CreatedAt:       user.CreatedAt,
+		LastSeenAt:      user.LastSeenAt,
+		Username:        user.Username,
+		Status:          codersdk.UserStatus(user.Status),
+		OrganizationIDs: organizationIDs,
+		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
+		AvatarURL:       user.AvatarURL.String,
+	}
+
+	for _, roleName := range user.RBACRoles {
+		rbacRole, _ := rbac.RoleByName(roleName)
+		convertedUser.Roles = append(convertedUser.Roles, Role(rbacRole))
+	}
+
+	return convertedUser
+}
+
+func Role(role rbac.Role) codersdk.Role {
+	return codersdk.Role{
+		DisplayName: role.DisplayName,
+		Name:        role.Name,
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"strings"
+
+	"golang.org/x/xerrors"
 )
 
 // Charsets
@@ -32,19 +34,48 @@ const (
 	Human = "23456789abcdefghjkmnpqrstuvwxyz"
 )
 
-// StringCharset generates a random string using the provided charset and size
-func StringCharset(charSetStr string, size int) (string, error) {
-	charSet := []rune(charSetStr)
+// unbiasedModulo32 uniformly modulos v by n over a sufficiently large data
+// set, regenerating v if necessary. n must be > 0. All input bits in v must be
+// fully random, you cannot cast a random uint8/uint16 for input into this
+// function.
+//
+// See more details on this algorithm here:
+// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+//
+//nolint:varnamelen
+func unbiasedModulo32(v uint32, n int32) (int32, error) {
+	prod := uint64(v) * uint64(n)
+	low := uint32(prod)
+	if low < uint32(n) {
+		thresh := uint32(-n) % uint32(n)
+		for low < thresh {
+			err := binary.Read(rand.Reader, binary.BigEndian, &v)
+			if err != nil {
+				return 0, err
+			}
+			prod = uint64(v) * uint64(n)
+			low = uint32(prod)
+		}
+	}
+	return int32(prod >> 32), nil
+}
 
-	if len(charSet) == 0 || size == 0 {
+// StringCharset generates a random string using the provided charset and size.
+func StringCharset(charSetStr string, size int) (string, error) {
+	if size == 0 {
 		return "", nil
 	}
 
-	// This buffer facilitates pre-emptively creation of random uint32s
-	// to reduce syscall overhead.
-	ibuf := make([]byte, 4*size)
+	if len(charSetStr) == 0 {
+		return "", xerrors.Errorf("charSetStr must not be empty")
+	}
 
-	_, err := rand.Read(ibuf)
+	charSet := []rune(charSetStr)
+
+	// We pre-allocate the entropy to amortize the crypto/rand syscall overhead.
+	entropy := make([]byte, 4*size)
+
+	_, err := rand.Read(entropy)
 	if err != nil {
 		return "", err
 	}
@@ -53,15 +84,18 @@ func StringCharset(charSetStr string, size int) (string, error) {
 	buf.Grow(size)
 
 	for i := 0; i < size; i++ {
-		count, err := UnbiasedModulo32(
-			binary.BigEndian.Uint32(ibuf[i*4:(i+1)*4]),
+		r := binary.BigEndian.Uint32(entropy[:4])
+		entropy = entropy[4:]
+
+		ci, err := unbiasedModulo32(
+			r,
 			int32(len(charSet)),
 		)
 		if err != nil {
 			return "", err
 		}
 
-		_, _ = buf.WriteRune(charSet[count])
+		_, _ = buf.WriteRune(charSet[ci])
 	}
 
 	return buf.String(), nil
