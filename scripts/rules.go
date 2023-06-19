@@ -357,3 +357,13 @@ func slogMessageLength(m dsl.Matcher) {
 				!m["message"].Text.Matches(`^"command exit"$`)).
 		Report(`Message $message is too short, it must be at least 16 characters long.`)
 }
+
+// slogErr ensures that errors are logged with "slog.Error" instead of "slog.F"
+func slogError(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Match(
+		`slog.F($name, $value)`,
+	).
+		Where(m["name"].Const && m["value"].Type.Is("error") && !m["name"].Text.Matches(`^"internal_error"$`)).
+		Report(`Error should be logged using "slog.Error" instead.`)
+}
