@@ -1,7 +1,13 @@
 {
   "name": "Development environments on your infrastructure",
-  "image": "codercom/oss-dogfood:latest",
+  "context": "../dogfood",
+  "dockerFile": "../dogfood/Dockerfile",
   "runArgs": ["--init", "--privileged"],
   "overrideCommand": false,
-  "remoteUser": "coder"
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:1": {
+      "version": "latest",
+      "moby": true
+    }
+  }
 }
