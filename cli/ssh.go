@@ -455,7 +455,7 @@ func watchAndClose(ctx context.Context, closer func() error, logger slog.Logger,
 
 startWatchLoop:
 	for {
-		logger.Debug(ctx, "(re)connecting to the coder server to watch workspace events.")
+		logger.Debug(ctx, "connecting to the coder server to watch workspace events")
 		var wsWatch <-chan codersdk.Workspace
 		var err error
 		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {

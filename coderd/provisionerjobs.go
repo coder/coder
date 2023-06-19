@@ -237,8 +237,6 @@ func fetchAndWriteLogs(ctx context.Context, logger slog.Logger, db database.Stor
 	if logs == nil {
 		logs = []database.ProvisionerJobLog{}
 	}
-
-	logger.Debug(ctx, "Finished non-follow job logs")
 	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
 }
 

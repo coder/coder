@@ -1107,9 +1107,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 					// When the PTY is closed, this is triggered.
 					// Error is typically a benign EOF, so only log for debugging.
 					if errors.Is(err, io.EOF) {
-						logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
+						logger.Debug(ctx, "unable to read pty output, command might have exited", slog.Error(err))
 					} else {
-						logger.Warn(ctx, "unable to read pty output, command exited?", slog.Error(err))
+						logger.Warn(ctx, "unable to read pty output, command might have exited", slog.Error(err))
 						a.metrics.reconnectingPTYErrors.WithLabelValues("output_reader").Add(1)
 					}
 					break

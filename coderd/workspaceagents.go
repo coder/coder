@@ -464,7 +464,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 
 	if !follow {
-		logger.Debug(ctx, "Finished non-follow job logs")
 		httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentStartupLogs(logs))
 		return
 	}

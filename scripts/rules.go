@@ -298,7 +298,7 @@ func slogFieldNameSnakeCase(m dsl.Matcher) {
 		`slog.F($name, $value)`,
 	).
 		Where(m["name"].Const && !m["name"].Text.Matches(`^"[a-z]+(_[a-z]+)*"$`)).
-		Report("Field name $name must be snake_case")
+		Report("Field name $name must be snake_case.")
 }
 
 // slogUUIDFieldNameHasIDSuffix ensures that "uuid.UUID" field has ID prefix
@@ -310,5 +310,30 @@ func slogUUIDFieldNameHasIDSuffix(m dsl.Matcher) {
 		`slog.F($name, $value)`,
 	).
 		Where(m["value"].Type.Is("uuid.UUID") && !m["name"].Text.Matches(`_id"$`)).
-		Report(`uuid.UUID field $name must have "_id" suffix`)
+		Report(`uuid.UUID field $name must have "_id" suffix.`)
+}
+
+// slogMessageFormat ensures that the log message starts with lowercase, does not
+// end with special character, and has at least 16 characters.
+func slogMessageFormat(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Match(
+		`logger.Error($ctx, $message, $*args)`,
+		`Logger.Error($ctx, $message, $*args)`,
+		`logger.Warn($ctx, $message, $*args)`,
+		`Logger.Warn($ctx, $message, $*args)`,
+		`logger.Info($ctx, $message, $*args)`,
+		`Logger.Info($ctx, $message, $*args)`,
+		`logger.Debug($ctx, $message, $*args)`,
+		`Logger.Debug($ctx, $message, $*args)`,
+	).
+		Where(
+			(
+			// It doesn't end with a special character:
+			m["message"].Text.Matches(`[.!?]"$`) ||
+				// It starts with lowercase:
+				m["message"].Text.Matches(`^"[A-Z]{1}`) &&
+					// but there are exceptions:
+					!m["message"].Text.Matches(`^"Prometheus`))).
+		Report(`Message $message must start with lowercase and does not end with a special character.`)
 }
