@@ -464,7 +464,7 @@ startWatchLoop:
 				break
 			}
 			if ctx.Err() != nil {
-				logger.Info(ctx, "context expired", slog.Error(ctx.Err()))
+				logger.Debug(ctx, "context expired", slog.Error(ctx.Err()))
 				return
 			}
 		}
@@ -472,7 +472,7 @@ startWatchLoop:
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Info(ctx, "context expired", slog.Error(ctx.Err()))
+				logger.Debug(ctx, "context expired", slog.Error(ctx.Err()))
 				return
 			case w, ok := <-wsWatch:
 				if !ok {

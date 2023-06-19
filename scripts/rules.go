@@ -313,8 +313,8 @@ func slogUUIDFieldNameHasIDSuffix(m dsl.Matcher) {
 		Report(`uuid.UUID field $name must have "_id" suffix.`)
 }
 
-// slogMessageFormat ensures that the log message starts with lowercase, does not
-// end with special character, and has at least 16 characters.
+// slogMessageFormat ensures that the log message starts with lowercase, and does not
+// end with special character.
 func slogMessageFormat(m dsl.Matcher) {
 	m.Import("cdr.dev/slog")
 	m.Match(
@@ -331,9 +331,29 @@ func slogMessageFormat(m dsl.Matcher) {
 			(
 			// It doesn't end with a special character:
 			m["message"].Text.Matches(`[.!?]"$`) ||
-				// It starts with lowercase:
+				// it starts with lowercase:
 				m["message"].Text.Matches(`^"[A-Z]{1}`) &&
 					// but there are exceptions:
 					!m["message"].Text.Matches(`^"Prometheus`))).
-		Report(`Message $message must start with lowercase and does not end with a special character.`)
+		Report(`Message $message must start with lowercase, and does not end with a special characters.`)
+}
+
+// slogMessageLength ensures that important log messages are meaningful, and must be at least 16 characters long.
+func slogMessageLength(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Match(
+		`logger.Error($ctx, $message, $*args)`,
+		`Logger.Error($ctx, $message, $*args)`,
+		`logger.Warn($ctx, $message, $*args)`,
+		`Logger.Warn($ctx, $message, $*args)`,
+		`logger.Info($ctx, $message, $*args)`,
+		`Logger.Info($ctx, $message, $*args)`,
+		// no debug
+	).
+		Where(
+			// It has at least 16 characters (+ ""):
+			m["message"].Text.Matches(`^".{0,15}"$`) &&
+				// but there are exceptions:
+				!m["message"].Text.Matches(`^"command exit"$`)).
+		Report(`Message $message is too short, it must be at least 16 characters long.`)
 }

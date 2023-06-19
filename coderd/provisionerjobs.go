@@ -257,7 +257,7 @@ func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
 		return false
 	default:
 		logger.Error(context.Background(),
-			"unknown status",
+			"can't convert the provisioner job status",
 			slog.F("job_id", job.ID), slog.F("status", status))
 		return false
 	}

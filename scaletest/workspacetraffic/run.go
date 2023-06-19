@@ -68,7 +68,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		bytesPerTick        = r.cfg.BytesPerTick
 	)
 
-	logger.Info(ctx, "config",
+	logger.Debug(ctx, "config",
 		slog.F("agent_id", agentID),
 		slog.F("reconnecting_pty_id", reconnect),
 		slog.F("height", height),

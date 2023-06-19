@@ -1029,9 +1029,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// If the agent is closed, we don't want to
 			// log this as an error since it's expected.
 			if closed {
-				logger.Debug(ctx, "session error after agent close", slog.Error(err))
+				logger.Debug(ctx, "reconnecting PTY failed with session error (agent closed)", slog.Error(err))
 			} else {
-				logger.Error(ctx, "session error", slog.Error(err))
+				logger.Error(ctx, "reconnecting PTY failed with session error", slog.Error(err))
 			}
 		}
 		logger.Debug(ctx, "session closed")
@@ -1154,7 +1154,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	err := rpty.ptty.Resize(msg.Height, msg.Width)
 	if err != nil {
 		// We can continue after this, it's not fatal!
-		logger.Error(ctx, "resize", slog.Error(err))
+		logger.Error(ctx, "reconnecting PTY failed resizing, but will continue", slog.Error(err))
 		a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 	}
 	// Write any previously stored data for the TTY.
@@ -1213,12 +1213,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			return nil
 		}
 		if err != nil {
-			logger.Warn(ctx, "read conn", slog.Error(err))
+			logger.Warn(ctx, "reconnecting PTY failed with read error", slog.Error(err))
 			return nil
 		}
 		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
-			logger.Warn(ctx, "write to pty", slog.Error(err))
+			logger.Warn(ctx, "reconnecting PTY failed with write error", slog.Error(err))
 			a.metrics.reconnectingPTYErrors.WithLabelValues("input_writer").Add(1)
 			return nil
 		}
@@ -1229,7 +1229,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		err = rpty.ptty.Resize(req.Height, req.Width)
 		if err != nil {
 			// We can continue after this, it's not fatal!
-			logger.Error(ctx, "resize", slog.Error(err))
+			logger.Error(ctx, "reconnecting PTY failed resizing", slog.Error(err))
 			a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 		}
 	}

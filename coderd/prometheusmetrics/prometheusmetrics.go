@@ -236,7 +236,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			for _, workspace := range workspaceRows {
 				user, err := db.GetUserByID(ctx, workspace.OwnerID)
 				if err != nil {
-					logger.Error(ctx, "can't get user", slog.F("user_id", workspace.OwnerID), slog.Error(err))
+					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
 					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
 					continue
 				}
