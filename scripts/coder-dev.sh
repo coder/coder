@@ -26,4 +26,7 @@ if [[ ! -x "${CODER_DEV_BIN}" ]]; then
 	exit 1
 fi
 
+if [[ -x /tmp/coder ]]; then
+	CODER_DEV_BIN=/tmp/coder
+fi
 exec "${CODER_DEV_BIN}" --global-config "${CODER_DEV_DIR}" "$@"

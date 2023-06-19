@@ -26,7 +26,7 @@ import { FixedSizeList as List, ListOnScrollProps } from "react-window"
 import { colors } from "theme/colors"
 import { combineClasses } from "utils/combineClasses"
 import {
-  LineWithIDAndEOF,
+  LineWithID,
   workspaceAgentLogsMachine,
 } from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
 import {
@@ -54,7 +54,7 @@ export interface AgentRowProps {
   hideVSCodeDesktopButton?: boolean
   serverVersion: string
   onUpdateAgent: () => void
-  storybookStartupLogs?: LineWithIDAndEOF[]
+  storybookStartupLogs?: LineWithID[]
   storybookAgentMetadata?: WorkspaceAgentMetadata[]
 }
 
@@ -124,17 +124,13 @@ export const AgentRow: FC<AgentRowProps> = ({
   const startupLogs = useMemo(() => {
     const allLogs = logsMachine.context.startupLogs || []
 
-    // Filter out eof, since we don't want to show an empty line to the
-    // user. The timesetamp could be used to show when the log ended in
-    // the future.
-    const logs = [...allLogs.filter((log) => !log.eof)]
+    const logs = [...allLogs]
     if (agent.startup_logs_overflowed) {
       logs.push({
         id: -1,
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
         time: new Date().toISOString(),
-        eof: false,
       })
     }
     return logs

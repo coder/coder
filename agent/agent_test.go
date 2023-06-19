@@ -905,10 +905,8 @@ func TestAgent_StartupScript(t *testing.T) {
 			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Len(t, client.getStartupLogs(), 2)
+		require.Len(t, client.getStartupLogs(), 1)
 		require.Equal(t, output, client.getStartupLogs()[0].Output)
-		require.False(t, client.getStartupLogs()[0].EOF)
-		require.True(t, client.getStartupLogs()[1].EOF)
 	})
 	// This ensures that even when coderd sends back that the startup
 	// script has written too many lines it will still succeed!
@@ -1115,15 +1113,8 @@ func TestAgent_Lifecycle(t *testing.T) {
 			got = client.getLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
-		switch len(got) {
-		case 1:
-			// This can happen if lifecycle state updates are
-			// too fast, only the latest one is reported.
-			require.Equal(t, want[1:], got)
-		default:
-			// This is the expected case.
-			require.Equal(t, want, got)
-		}
+
+		require.Equal(t, want, got)
 	})
 
 	t.Run("StartError", func(t *testing.T) {
@@ -1144,15 +1135,8 @@ func TestAgent_Lifecycle(t *testing.T) {
 			got = client.getLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
-		switch len(got) {
-		case 1:
-			// This can happen if lifecycle state updates are
-			// too fast, only the latest one is reported.
-			require.Equal(t, want[1:], got)
-		default:
-			// This is the expected case.
-			require.Equal(t, want, got)
-		}
+
+		require.Equal(t, want, got)
 	})
 
 	t.Run("Ready", func(t *testing.T) {
@@ -1173,15 +1157,8 @@ func TestAgent_Lifecycle(t *testing.T) {
 			got = client.getLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
-		switch len(got) {
-		case 1:
-			// This can happen if lifecycle state updates are
-			// too fast, only the latest one is reported.
-			require.Equal(t, want[1:], got)
-		default:
-			// This is the expected case.
-			require.Equal(t, want, got)
-		}
+
+		require.Equal(t, want, got)
 	})
 
 	t.Run("ShuttingDown", func(t *testing.T) {
@@ -1258,15 +1235,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		switch len(got) {
-		case 1:
-			// This can happen if lifecycle state updates are
-			// too fast, only the latest one is reported.
-			require.Equal(t, want[1:], got)
-		default:
-			// This is the expected case.
-			require.Equal(t, want, got)
-		}
+		require.Equal(t, want, got)
 	})
 
 	t.Run("ShutdownError", func(t *testing.T) {
@@ -1305,15 +1274,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		switch len(got) {
-		case 1:
-			// This can happen if lifecycle state updates are
-			// too fast, only the latest one is reported.
-			require.Equal(t, want[1:], got)
-		default:
-			// This is the expected case.
-			require.Equal(t, want, got)
-		}
+		require.Equal(t, want, got)
 	})
 
 	t.Run("ShutdownScriptOnce", func(t *testing.T) {
