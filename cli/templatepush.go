@@ -155,33 +155,33 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				if !create {
 					_, _ = fmt.Fprintf(inv.Stdout, "Template %s not found, create a new template with the --create flag\n or use `coder template create` to create a new template\n", name)
 					return xerrors.Errorf("template %q not found: %w", name, err)
-				} else {
-					job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
-						Name:            versionName,
-						Client:          client,
-						Organization:    organization,
-						Provisioner:     database.ProvisionerType(provisioner),
-						FileID:          resp.ID,
-						VariablesFile:   variablesFile,
-						Variables:       variables,
-						Template:        &template,
-						ReuseParameters: !alwaysPrompt,
-						ProvisionerTags: tags,
-					})
-					if err != nil {
-						return err
-					}
-					defaultTTL := 24 * time.Hour
-					failureTTL := 0 * time.Hour
-					inactivityTTL := 0 * time.Hour
-					disableEveryone := false
-					createReq := codersdk.CreateTemplateRequest{Name: name, VersionID: job.ID, DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()), FailureTTLMillis: ptr.Ref(failureTTL.Milliseconds()), InactivityTTLMillis: ptr.Ref(inactivityTTL.Milliseconds()), DisableEveryoneGroupAccess: disableEveryone}
-					template, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
-					if err != nil {
-						return err
-					}
-					_, _ = fmt.Fprintf(inv.Stdout, "Created template %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 				}
+
+				job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
+					Name:            versionName,
+					Client:          client,
+					Organization:    organization,
+					Provisioner:     database.ProvisionerType(provisioner),
+					FileID:          resp.ID,
+					VariablesFile:   variablesFile,
+					Variables:       variables,
+					Template:        &template,
+					ReuseParameters: !alwaysPrompt,
+					ProvisionerTags: tags,
+				})
+				if err != nil {
+					return err
+				}
+				defaultTTL := 24 * time.Hour
+				failureTTL := 0 * time.Hour
+				inactivityTTL := 0 * time.Hour
+				disableEveryone := false
+				createReq := codersdk.CreateTemplateRequest{Name: name, VersionID: job.ID, DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()), FailureTTLMillis: ptr.Ref(failureTTL.Milliseconds()), InactivityTTLMillis: ptr.Ref(inactivityTTL.Milliseconds()), DisableEveryoneGroupAccess: disableEveryone}
+				template, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
+				if err != nil {
+					return err
+				}
+				return nil
 			}
 
 			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
@@ -212,7 +212,10 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 					return err
 				}
 			}
-
+			if create {
+				_, _ = fmt.Fprintf(inv.Stdout, "Created template %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+				return nil
+			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
