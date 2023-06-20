@@ -34,6 +34,7 @@ example `scrape_config`:
 ```yaml
 scrape_configs:
   - job_name: "coder"
+    scheme: "http"
     static_configs:
       - targets: ["<ip>:2112"] # replace with the the IP address of the Coder pod or server
         labels:
