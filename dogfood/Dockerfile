@@ -78,7 +78,7 @@ RUN mkdir --parents "$GOPATH" && \
 FROM alpine:3.18 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
-RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
+RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
 RUN unzip protoc.zip
 
 FROM ubuntu:jammy
@@ -320,6 +320,7 @@ RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/go/bin/g
 COPY --from=go /tmp/bin /usr/local/bin
 COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
+COPY --from=proto /tmp/include /usr/local/bin/include
 
 USER coder
 
