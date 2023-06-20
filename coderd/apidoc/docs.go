@@ -4603,7 +4603,7 @@ const docTemplate = `{
                     {
                         "type": "boolean",
                         "description": "Disable compression for WebSocket connection",
-                        "name": "no-compression",
+                        "name": "no_compression",
                         "in": "query"
                     }
                 ],
