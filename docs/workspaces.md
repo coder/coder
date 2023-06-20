@@ -39,7 +39,7 @@ When a workspace is deleted, all of the workspace's resources are deleted.
 
 ## Workspace auto-stop
 
-In Coder, workspaces can auto-stop when the user is not actively using the workspace. By default, Coder recognizing the following actions as activity and will keep the workspace online:
+In Coder, workspaces can auto-stop when the user is not actively using the workspace. By default, Coder recognizes the following actions as activity and will keep the workspace online:
 
 - Open SSH connections (VS Code Extension, JetBrains Gateway, `coder ssh`)
 - Open tunnels (`coder port-forward`)
