@@ -62,12 +62,14 @@ func (e *acquireLockError) Unwrap() error {
 // build log and terminates them as failed.
 type Detector struct {
 	ctx    context.Context
+	cancel context.CancelFunc
+	done   chan struct{}
+
 	db     database.Store
 	pubsub database.Pubsub
 	log    slog.Logger
 	tick   <-chan time.Time
 	stats  chan<- Stats
-	done   chan struct{}
 }
 
 // Stats contains statistics about the last run of the detector.
@@ -83,14 +85,17 @@ type Stats struct {
 
 // New returns a new hang detector.
 func New(ctx context.Context, db database.Store, pubsub database.Pubsub, log slog.Logger, tick <-chan time.Time) *Detector {
+	//nolint:gocritic // Hang detector has a limited set of permissions.
+	ctx, cancel := context.WithCancel(dbauthz.AsHangDetector(ctx))
 	le := &Detector{
-		//nolint:gocritic // Hang detector has a limited set of permissions.
-		ctx:    dbauthz.AsHangDetector(ctx),
+		ctx:    ctx,
+		cancel: cancel,
+		done:   make(chan struct{}),
 		db:     db,
 		pubsub: pubsub,
-		tick:   tick,
 		log:    log,
-		done:   make(chan struct{}),
+		tick:   tick,
+		stats:  nil,
 	}
 	return le
 }
@@ -111,6 +116,8 @@ func (d *Detector) WithStatsChannel(ch chan<- Stats) *Detector {
 func (d *Detector) Start() {
 	go func() {
 		defer close(d.done)
+		defer d.cancel()
+
 		for {
 			select {
 			case <-d.ctx.Done():
@@ -143,6 +150,12 @@ func (d *Detector) Wait() {
 	<-d.done
 }
 
+// Close will stop the detector.
+func (d *Detector) Close() {
+	d.cancel()
+	<-d.done
+}
+
 func (d *Detector) run(t time.Time) Stats {
 	ctx, cancel := context.WithTimeout(d.ctx, 5*time.Minute)
 	defer cancel()
@@ -153,8 +166,8 @@ func (d *Detector) run(t time.Time) Stats {
 	}
 
 	err := d.db.InTx(func(db database.Store) error {
-		err := db.AcquireLock(ctx, database.LockIDHangDetector)
-		if err != nil {
+		locked, err := db.TryAcquireLock(ctx, database.LockIDHangDetector)
+		if !locked {
 			// If we can't acquire the lock, it means another instance of the
 			// hang detector is already running in another coder replica.
 			// There's no point in waiting to run it again, so we'll just retry
@@ -162,6 +175,10 @@ func (d *Detector) run(t time.Time) Stats {
 			d.log.Info(ctx, "skipping workspace build hang detector run due to lock", slog.Error(err))
 			// This error is ignored.
 			return &acquireLockError{err: err}
+		}
+		if err != nil {
+			d.log.Warn(ctx, "skipping workspace build hang detector run due to error acquiring lock", slog.Error(err))
+			return xerrors.Errorf("acquire lock: %w", err)
 		}
 		d.log.Info(ctx, "running workspace build hang detector")
 

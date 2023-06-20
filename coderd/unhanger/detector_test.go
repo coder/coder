@@ -29,11 +29,11 @@ func TestDetectorNoJobs(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx, cancel = context.WithCancel(testutil.Context(t, testutil.WaitLong))
-		db, pubsub  = dbtestutil.NewDB(t)
-		log         = slogtest.Make(t, nil)
-		tickCh      = make(chan time.Time)
-		statsCh     = make(chan unhanger.Stats)
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = slogtest.Make(t, nil)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan unhanger.Stats)
 	)
 
 	detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
@@ -44,7 +44,7 @@ func TestDetectorNoJobs(t *testing.T) {
 	require.NoError(t, stats.Error)
 	require.Empty(t, stats.HungJobIDs)
 
-	cancel()
+	detector.Close()
 	detector.Wait()
 }
 
@@ -52,11 +52,11 @@ func TestDetectorNoHungJobs(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx, cancel = context.WithCancel(testutil.Context(t, testutil.WaitLong))
-		db, pubsub  = dbtestutil.NewDB(t)
-		log         = slogtest.Make(t, nil)
-		tickCh      = make(chan time.Time)
-		statsCh     = make(chan unhanger.Stats)
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = slogtest.Make(t, nil)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan unhanger.Stats)
 	)
 
 	// Insert some jobs that are running and haven't been updated in a while,
@@ -91,7 +91,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 	require.NoError(t, stats.Error)
 	require.Empty(t, stats.HungJobIDs)
 
-	cancel()
+	detector.Close()
 	detector.Wait()
 }
 
@@ -99,11 +99,11 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx, cancel = context.WithCancel(testutil.Context(t, testutil.WaitLong))
-		db, pubsub  = dbtestutil.NewDB(t)
-		log         = slogtest.Make(t, nil)
-		tickCh      = make(chan time.Time)
-		statsCh     = make(chan unhanger.Stats)
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = slogtest.Make(t, nil)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan unhanger.Stats)
 	)
 
 	var (
@@ -195,7 +195,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
 
-	cancel()
+	detector.Close()
 	detector.Wait()
 }
 
@@ -203,11 +203,11 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx, cancel = context.WithCancel(testutil.Context(t, testutil.WaitLong))
-		db, pubsub  = dbtestutil.NewDB(t)
-		log         = slogtest.Make(t, nil)
-		tickCh      = make(chan time.Time)
-		statsCh     = make(chan unhanger.Stats)
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = slogtest.Make(t, nil)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan unhanger.Stats)
 	)
 
 	var (
@@ -300,7 +300,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
 
-	cancel()
+	detector.Close()
 	detector.Wait()
 }
 
@@ -308,11 +308,11 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	t.Parallel()
 
 	var (
-		ctx, cancel = context.WithCancel(testutil.Context(t, testutil.WaitLong))
-		db, pubsub  = dbtestutil.NewDB(t)
-		log         = slogtest.Make(t, nil)
-		tickCh      = make(chan time.Time)
-		statsCh     = make(chan unhanger.Stats)
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = slogtest.Make(t, nil)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan unhanger.Stats)
 	)
 
 	var (
@@ -376,7 +376,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, build.ProvisionerState)
 
-	cancel()
+	detector.Close()
 	detector.Wait()
 }
 
@@ -384,11 +384,11 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx, cancel = context.WithCancel(testutil.Context(t, testutil.WaitLong))
-		db, pubsub  = dbtestutil.NewDB(t)
-		log         = slogtest.Make(t, nil)
-		tickCh      = make(chan time.Time)
-		statsCh     = make(chan unhanger.Stats)
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = slogtest.Make(t, nil)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan unhanger.Stats)
 	)
 
 	var (
@@ -467,7 +467,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	require.Contains(t, job.Error.String, "Build has been detected as hung")
 	require.False(t, job.ErrorCode.Valid)
 
-	cancel()
+	detector.Close()
 	detector.Wait()
 }
 
@@ -506,11 +506,11 @@ func TestDetectorPushesLogs(t *testing.T) {
 			t.Parallel()
 
 			var (
-				ctx, cancel = context.WithCancel(testutil.Context(t, testutil.WaitLong))
-				db, pubsub  = dbtestutil.NewDB(t)
-				log         = slogtest.Make(t, nil)
-				tickCh      = make(chan time.Time)
-				statsCh     = make(chan unhanger.Stats)
+				ctx        = testutil.Context(t, testutil.WaitLong)
+				db, pubsub = dbtestutil.NewDB(t)
+				log        = slogtest.Make(t, nil)
+				tickCh     = make(chan time.Time)
+				statsCh    = make(chan unhanger.Stats)
 			)
 
 			var (
@@ -608,7 +608,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, logs, c.preLogCount+len(unhanger.HungJobLogMessages))
 
-			cancel()
+			detector.Close()
 			detector.Wait()
 		})
 	}

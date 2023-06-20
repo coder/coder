@@ -255,6 +255,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	defer hangDetectorTicker.Stop()
 	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, slogtest.Make(t, nil).Named("unhanger.detector"), hangDetectorTicker.C)
 	hangDetector.Start()
+	t.Cleanup(hangDetector.Close)
 
 	var mutex sync.RWMutex
 	var handler http.Handler
