@@ -12,8 +12,6 @@ on:
     # Run every 6 hours Monday-Friday!
     - cron: "0 0/6 * * 1-5"
 
-  push:
-
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
 concurrency:
@@ -157,13 +155,13 @@ jobs:
           path: trivy-results.sarif
           retention-days: 7
 
-      # - name: Send Slack notification on failure
-      #   if: ${{ failure() }}
-      #   run: |
-      #     msg="❌ Trivy Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-      #     curl \
-      #       -qfsSL \
-      #       -X POST \
-      #       -H "Content-Type: application/json" \
-      #       --data "{\"content\": \"$msg\"}" \
-      #       "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
+      - name: Send Slack notification on failure
+        if: ${{ failure() }}
+        run: |
+          msg="❌ Trivy Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl \
+            -qfsSL \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "{\"content\": \"$msg\"}" \
+            "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
