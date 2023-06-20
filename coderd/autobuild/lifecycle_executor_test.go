@@ -651,8 +651,9 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 	assert.Len(t, stats.Transitions, 0)
 }
 
-// TesetExecutorFailedWorkspace tests that failed workspaces that breach
-// their template failed_ttl threshold trigger a stop job.
+// TestExecutorFailedWorkspace test AGPL functionality which mainly
+// ensures that autostop actions as a result of a failed workspace
+// build do not trigger.
 // For enterprise functionality see enterprise/coderd/workspaces_test.go
 func TestExecutorFailedWorkspace(t *testing.T) {
 	t.Parallel()
@@ -696,6 +697,61 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		require.Eventually(t,
 			func() bool {
 				return database.Now().Sub(*build.Job.CompletedAt) > failureTTL
+			},
+			testutil.IntervalMedium, testutil.IntervalFast)
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect no transitions since we're using AGPL.
+		require.Len(t, stats.Transitions, 0)
+	})
+}
+
+// TestExecutorInactiveWorkspace test AGPL functionality which mainly
+// ensures that autostop actions as a result of an inactive workspace
+// do not trigger.
+// For enterprise functionality see enterprise/coderd/workspaces_test.go
+func TestExecutorInactiveWorkspace(t *testing.T) {
+	t.Parallel()
+
+	// Test that an AGPL TemplateScheduleStore properly disables
+	// functionality.
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			inactiveTTL = time.Millisecond
+
+			client = coderdtest.New(t, &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    schedule.NewAGPLTemplateScheduleStore(),
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.InactivityTTLMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+		require.Eventually(t,
+			func() bool {
+				return database.Now().Sub(ws.LastUsedAt) > inactiveTTL
 			},
 			testutil.IntervalMedium, testutil.IntervalFast)
 		ticker <- time.Now()
