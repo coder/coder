@@ -199,6 +199,13 @@ func (m metricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt
 	return err
 }
 
+func (m metricsStore) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteUserOauthMergeStates(ctx, userID)
+	m.queryLatencies.WithLabelValues("DeleteUserOauthMergeStates").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	apiKey, err := m.s.GetAPIKeyByID(ctx, id)
@@ -1380,6 +1387,13 @@ func (m metricsStore) UpdateUserLinkedID(ctx context.Context, arg database.Updat
 	link, err := m.s.UpdateUserLinkedID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserLinkedID").Observe(time.Since(start).Seconds())
 	return link, err
+}
+
+func (m metricsStore) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserLoginType(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserLoginType").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {

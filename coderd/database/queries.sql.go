@@ -4600,6 +4600,15 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 	return i, err
 }
 
+const deleteUserOauthMergeStates = `-- name: DeleteUserOauthMergeStates :exec
+DELETE FROM oauth_merge_state WHERE user_id = $1
+`
+
+func (q *sqlQuerier) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteUserOauthMergeStates, userID)
+	return err
+}
+
 const getActiveUserCount = `-- name: GetActiveUserCount :one
 SELECT
 	COUNT(*)
@@ -5165,6 +5174,40 @@ type UpdateUserLastSeenAtParams struct {
 
 func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, updateUserLastSeenAt, arg.ID, arg.LastSeenAt, arg.UpdatedAt)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+	)
+	return i, err
+}
+
+const updateUserLoginType = `-- name: UpdateUserLoginType :one
+UPDATE
+	users
+SET
+	login_type = $1
+WHERE
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+`
+
+type UpdateUserLoginTypeParams struct {
+	LoginType LoginType `db:"login_type" json:"login_type"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLoginTypeParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLoginType, arg.LoginType, arg.UserID)
 	var i User
 	err := row.Scan(
 		&i.ID,

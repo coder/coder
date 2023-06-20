@@ -97,13 +97,28 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	mergeState, err := api.Database.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
-		UserID:      user.ID,
-		StateString: stateString,
-		ToLoginType: database.LoginType(req.ToLoginType),
-		CreatedAt:   now,
-		ExpiresAt:   now.Add(time.Minute * 5),
-	})
+	var mergeState database.OauthMergeState
+	err = api.Database.InTx(func(store database.Store) error {
+		// We should only ever have 1 oauth merge state per user. So delete
+		// any existing if they exist.
+		err := api.Database.DeleteUserOauthMergeStates(ctx, user.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+
+		mergeState, err = api.Database.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
+			UserID:      user.ID,
+			StateString: stateString,
+			ToLoginType: database.LoginType(req.ToLoginType),
+			CreatedAt:   now,
+			ExpiresAt:   now.Add(time.Minute * 5),
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	}, nil)
+
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal Server Error",
@@ -970,20 +985,34 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				UserID:      user.ID,
 				StateString: params.State.StateString,
 			})
-			var _ = mergeState
-			if err == nil {
+			failedMsg := fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType)
+			if err != nil {
 				return httpError{
 					code: http.StatusForbidden,
-					msg:  "Hey! This upgrade would have worked if I let it",
+					msg:  failedMsg,
+				}
+			}
+			if user.ID != mergeState.UserID {
+				// User tried to use someone else's merge state?
+				return httpError{
+					code: http.StatusForbidden,
+					msg:  failedMsg,
 				}
 			}
 
-			return httpError{
-				code: http.StatusForbidden,
-				msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
-					params.LoginType,
-					user.LoginType,
-				),
+			// Convert the user and default to the normal login flow.
+			// If the login succeeds, this transaction will commit and the user
+			// will be converted.
+			// nolint:gocritic // system query to update user login type
+			user, err = tx.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+				LoginType: params.LoginType,
+				UserID:    user.ID,
+			})
+			if err != nil {
+				return httpError{
+					code: http.StatusInternalServerError,
+					msg:  "Failed to convert user to new login type",
+				}
 			}
 		}
 

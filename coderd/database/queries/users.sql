@@ -19,6 +19,17 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5) RETURNING *;
 
+-- name: DeleteUserOauthMergeStates :exec
+DELETE FROM oauth_merge_state WHERE user_id = @user_id;
+
+-- name: UpdateUserLoginType :one
+UPDATE
+	users
+SET
+	login_type = @login_type
+WHERE
+	id = @user_id RETURNING *;
+
 -- name: GetUserByID :one
 SELECT
 	*

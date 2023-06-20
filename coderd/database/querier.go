@@ -39,6 +39,7 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
+	DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
@@ -236,6 +237,7 @@ type sqlcQuerier interface {
 	UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error)
 	UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error)
 	UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error)
+	UpdateUserLoginType(ctx context.Context, arg UpdateUserLoginTypeParams) (User, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)

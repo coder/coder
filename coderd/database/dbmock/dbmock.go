@@ -223,6 +223,20 @@ func (mr *MockStoreMockRecorder) DeleteReplicasUpdatedBefore(arg0, arg1 interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicasUpdatedBefore", reflect.TypeOf((*MockStore)(nil).DeleteReplicasUpdatedBefore), arg0, arg1)
 }
 
+// DeleteUserOauthMergeStates mocks base method.
+func (m *MockStore) DeleteUserOauthMergeStates(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserOauthMergeStates", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserOauthMergeStates indicates an expected call of DeleteUserOauthMergeStates.
+func (mr *MockStoreMockRecorder) DeleteUserOauthMergeStates(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserOauthMergeStates", reflect.TypeOf((*MockStore)(nil).DeleteUserOauthMergeStates), arg0, arg1)
+}
+
 // GetAPIKeyByID mocks base method.
 func (m *MockStore) GetAPIKeyByID(arg0 context.Context, arg1 string) (database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -2844,6 +2858,21 @@ func (m *MockStore) UpdateUserLinkedID(arg0 context.Context, arg1 database.Updat
 func (mr *MockStoreMockRecorder) UpdateUserLinkedID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLinkedID", reflect.TypeOf((*MockStore)(nil).UpdateUserLinkedID), arg0, arg1)
+}
+
+// UpdateUserLoginType mocks base method.
+func (m *MockStore) UpdateUserLoginType(arg0 context.Context, arg1 database.UpdateUserLoginTypeParams) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserLoginType", arg0, arg1)
+	ret0, _ := ret[0].(database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserLoginType indicates an expected call of UpdateUserLoginType.
+func (mr *MockStoreMockRecorder) UpdateUserLoginType(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLoginType", reflect.TypeOf((*MockStore)(nil).UpdateUserLoginType), arg0, arg1)
 }
 
 // UpdateUserProfile mocks base method.

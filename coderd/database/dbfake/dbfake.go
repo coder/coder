@@ -137,6 +137,7 @@ type data struct {
 	workspaceResources        []database.WorkspaceResource
 	workspaces                []database.Workspace
 	workspaceProxies          []database.WorkspaceProxy
+	oauthMergeStates          []database.OauthMergeState
 
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
@@ -1171,6 +1172,27 @@ func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 		}
 	}
 
+	return nil
+}
+
+func (q *fakeQuerier) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	i := 0
+	for {
+		if i >= len(q.oauthMergeStates) {
+			break
+		}
+		k := q.oauthMergeStates[i]
+		if k.UserID == userID {
+			q.oauthMergeStates[i] = q.oauthMergeStates[len(q.oauthMergeStates)-1]
+			q.oauthMergeStates = q.oauthMergeStates[:len(q.oauthMergeStates)-1]
+			// We removed an element, so decrement
+			i--
+		}
+		i++
+	}
 	return nil
 }
 
@@ -2549,8 +2571,16 @@ func (q *fakeQuerier) GetUserLinkByUserIDLoginType(_ context.Context, params dat
 	return database.UserLink{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUserOauthMergeState(ctx context.Context, arg database.GetUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	panic("Not implemented")
+func (q *fakeQuerier) GetUserOauthMergeState(_ context.Context, arg database.GetUserOauthMergeStateParams) (database.OauthMergeState, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, s := range q.oauthMergeStates {
+		if s.StateString == arg.StateString && s.UserID == arg.UserID {
+			return s, nil
+		}
+	}
+	return database.OauthMergeState{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
@@ -3930,8 +3960,23 @@ func (q *fakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	return link, nil
 }
 
-func (q *fakeQuerier) InsertUserOauthMergeState(ctx context.Context, arg database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	panic("Not implemented")
+func (q *fakeQuerier) InsertUserOauthMergeState(_ context.Context, arg database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if err := validateDatabaseType(arg); err != nil {
+		return database.OauthMergeState{}, err
+	}
+
+	s := database.OauthMergeState{
+		StateString: arg.StateString,
+		CreatedAt:   arg.CreatedAt,
+		ExpiresAt:   arg.ExpiresAt,
+		ToLoginType: arg.ToLoginType,
+		UserID:      arg.UserID,
+	}
+	q.oauthMergeStates = append(q.oauthMergeStates, s)
+	return s, nil
 }
 
 func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
@@ -4753,6 +4798,24 @@ func (q *fakeQuerier) UpdateUserLinkedID(_ context.Context, params database.Upda
 	}
 
 	return database.UserLink{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateUserLoginType(_ context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.User{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, u := range q.users {
+		if u.ID == arg.UserID {
+			u.LoginType = arg.LoginType
+			q.users[i] = u
+			return u, nil
+		}
+	}
+	return database.User{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
