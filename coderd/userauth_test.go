@@ -801,8 +801,6 @@ func TestUserOIDC(t *testing.T) {
 
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		numLogs := len(auditor.AuditLogs())
-
 		code := conf.EncodeClaims(t, jwt.MapClaims{
 			"email": userData.Email,
 		})
