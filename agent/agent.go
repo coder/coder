@@ -1154,7 +1154,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	err := rpty.ptty.Resize(msg.Height, msg.Width)
 	if err != nil {
 		// We can continue after this, it's not fatal!
-		logger.Error(ctx, "reconnecting PTY failed resizing, but will continue", slog.Error(err))
+		logger.Error(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
 		a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 	}
 	// Write any previously stored data for the TTY.
@@ -1229,7 +1229,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		err = rpty.ptty.Resize(req.Height, req.Width)
 		if err != nil {
 			// We can continue after this, it's not fatal!
-			logger.Error(ctx, "reconnecting PTY failed resizing", slog.Error(err))
+			logger.Error(ctx, "reconnecting PTY resize failed, but will continue", slog.Error(err))
 			a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 		}
 	}

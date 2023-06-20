@@ -75,7 +75,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 		}
 		// Log information for debugging. This will be very helpful
 		// in the early days
-		logger.Warn(r.Context(), "user is not authorized to access the object",
+		logger.Warn(r.Context(), "requester is not authorized to access the object",
 			slog.F("roles", roles.Actor.SafeRoleNames()),
 			slog.F("actor_id", roles.Actor.ID),
 			slog.F("actor_name", roles.ActorName),

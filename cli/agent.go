@@ -126,7 +126,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					reaper.WithCatchSignals(InterruptSignals...),
 				)
 				if err != nil {
-					logger.Error(ctx, "agent process reaper failed forking", slog.Error(err))
+					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
