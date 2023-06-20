@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query"
 import { convertToOauth, getAuthMethods } from "api/api"
 import { AuthMethods } from "api/typesGenerated"
 import axios from "axios"
+import { Maybe } from "components/Conditionals/Maybe"
 
 export const AccountPage: FC = () => {
   const queryKey = ["get-auth-methods"]
@@ -60,36 +61,41 @@ export const AccountPage: FC = () => {
         }}
       />
 
-      <SignInForm
-        authMethods={authMethodsData}
-        redirectTo={redirectTo}
-        isSigningIn={false}
-        error={authMethodsError}
-        onSubmit={async (credentials: { email: string; password: string }) => {
-          const mergeState = await convertToOauth(
-            credentials.email,
-            credentials.password,
-            "oidc",
-          )
+      <Maybe condition={authMethodsData?.me_login_type === "password"}>
+        <SignInForm
+          authMethods={authMethodsData}
+          redirectTo={redirectTo}
+          isSigningIn={false}
+          error={authMethodsError}
+          onSubmit={async (credentials: {
+            email: string
+            password: string
+          }) => {
+            const mergeState = await convertToOauth(
+              credentials.email,
+              credentials.password,
+              "oidc",
+            )
 
-          window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${
-            mergeState?.state_string
-          }&redirect=${encodeURIComponent(redirectTo)}`
-          // await axios.get(
-          //   `/api/v2/users/oidc/callback?oidc_merge_state=${
-          //     mergeState?.state_string
-          //   }&redirect=${encodeURIComponent(redirectTo)}`,
-          // )
+            window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${
+              mergeState?.state_string
+            }&redirect=${encodeURIComponent(redirectTo)}`
+            // await axios.get(
+            //   `/api/v2/users/oidc/callback?oidc_merge_state=${
+            //     mergeState?.state_string
+            //   }&redirect=${encodeURIComponent(redirectTo)}`,
+            // )
 
-          {
-            /* <Link
+            {
+              /* <Link
           href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
             redirectTo,
           )}`}
         > */
-          }
-        }}
-      ></SignInForm>
+            }
+          }}
+        ></SignInForm>
+      </Maybe>
     </Section>
   )
 }

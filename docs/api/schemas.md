@@ -1108,6 +1108,7 @@
   "github": {
     "enabled": true
   },
+  "me_login_type": "password",
   "oidc": {
     "enabled": true,
     "iconUrl": "string",
@@ -1121,11 +1122,12 @@
 
 ### Properties
 
-| Name       | Type                                               | Required | Restrictions | Description |
-| ---------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `github`   | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `oidc`     | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
-| `password` | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| Name            | Type                                               | Required | Restrictions | Description                                                                                                                             |
+| --------------- | -------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `github`        | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |                                                                                                                                         |
+| `me_login_type` | [codersdk.LoginType](#codersdklogintype)           | false    |              | Me login type returns the authentication method for the given caller if the request is an authenticated request. Otherwise it is empty. |
+| `oidc`          | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |                                                                                                                                         |
+| `password`      | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |                                                                                                                                         |
 
 ## codersdk.AuthorizationCheck
 

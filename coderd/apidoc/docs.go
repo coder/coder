@@ -6469,6 +6469,14 @@ const docTemplate = `{
                 "github": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
+                "me_login_type": {
+                    "description": "UserAuthenticationType returns the authentication method for the given\ncaller if the request is an authenticated request. Otherwise it is empty.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.LoginType"
+                        }
+                    ]
+                },
                 "oidc": {
                     "$ref": "#/definitions/codersdk.OIDCAuthMethod"
                 },

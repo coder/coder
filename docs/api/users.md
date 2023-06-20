@@ -143,6 +143,7 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
   "github": {
     "enabled": true
   },
+  "me_login_type": "password",
   "oidc": {
     "enabled": true,
     "iconUrl": "string",

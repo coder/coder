@@ -597,7 +597,11 @@ func New(options *Options) *API {
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
-			r.Get("/authmethods", api.userAuthMethods)
+			r.Route("/authmethods", func(r chi.Router) {
+				r.Use(apiKeyMiddlewareOptional)
+				r.Get("/", api.userAuthMethods)
+			})
+
 			r.Group(func(r chi.Router) {
 				// We use a tight limit for password login to protect against
 				// audit-log write DoS, pbkdf2 DoS, and simple brute-force
