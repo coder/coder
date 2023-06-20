@@ -79,9 +79,16 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 
 // CompareDERPMaps returns true if the given DERPMaps are equivalent. Ordering
 // of slices is ignored.
+//
+// If the first map is nil, the second map must also be nil for them to be
+// considered equivalent. If the second map is nil, the first map can be any
+// value and the function will return true.
 func CompareDERPMaps(a *tailcfg.DERPMap, b *tailcfg.DERPMap) bool {
-	if a == nil || b == nil {
-		return false
+	if a == nil {
+		return b == nil
+	}
+	if b == nil {
+		return true
 	}
 	if len(a.Regions) != len(b.Regions) {
 		return false

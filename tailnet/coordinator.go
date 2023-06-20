@@ -83,7 +83,7 @@ type Node struct {
 // the current one.
 type CoordinatorNodeUpdate struct {
 	// DERPMap is the current DERP map used by Coder.
-	DERPMap *tailcfg.DERPMap `json:"derp_map"`
+	DERPMap *tailcfg.DERPMap `json:"derp_map,omitempty"`
 	// Nodes are the new list of nodes to add to the tailnet.
 	Nodes []*Node `json:"nodes"`
 }
