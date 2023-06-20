@@ -95,7 +95,7 @@ func TestStatCPUCmd(t *testing.T) {
 		s := buf.String()
 		tmp := clistat.Result{}
 		require.NoError(t, json.NewDecoder(strings.NewReader(s)).Decode(&tmp))
-		require.NotZero(t, tmp.Used)
+		// require.NotZero(t, tmp.Used) // Host CPU can sometimes be zero.
 		require.NotNil(t, tmp.Total)
 		require.NotZero(t, *tmp.Total)
 		require.Equal(t, "cores", tmp.Unit)
