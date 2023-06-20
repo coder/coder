@@ -22,6 +22,7 @@ const validFormValues = {
   max_ttl_ms: 2,
   failure_ttl_ms: 7,
   inactivity_ttl_ms: 180,
+  locked_ttl_ms: 30,
 }
 
 const renderTemplateSchedulePage = async () => {
@@ -37,11 +38,13 @@ const fillAndSubmitForm = async ({
   max_ttl_ms,
   failure_ttl_ms,
   inactivity_ttl_ms,
+  locked_ttl_ms,
 }: {
   default_ttl_ms: number
   max_ttl_ms: number
   failure_ttl_ms: number
   inactivity_ttl_ms: number
+  locked_ttl_ms: number
 }) => {
   const user = userEvent.setup()
   const defaultTtlLabel = t("defaultTtlLabel", { ns: "templateSettingsPage" })
@@ -63,6 +66,11 @@ const fillAndSubmitForm = async ({
     name: /Inactivity Cleanup/i,
   })
   await user.type(inactivityTtlField, inactivity_ttl_ms.toString())
+
+  const lockedTtlField = screen.getByRole("checkbox", {
+    name: /Locked Cleanup/i,
+  })
+  await user.type(lockedTtlField, locked_ttl_ms.toString())
 
   const submitButton = await screen.findByText(
     FooterFormLanguage.defaultSubmitLabel,
@@ -111,7 +119,7 @@ describe("TemplateSchedulePage", () => {
     )
   })
 
-  test("failure and inactivity ttl converted to and from days", async () => {
+  test("failure, inactivity, and locked ttl converted to and from days", async () => {
     await renderTemplateSchedulePage()
 
     jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
@@ -127,6 +135,7 @@ describe("TemplateSchedulePage", () => {
         expect.objectContaining({
           failure_ttl_ms: validFormValues.failure_ttl_ms * 86400000,
           inactivity_ttl_ms: validFormValues.inactivity_ttl_ms * 86400000,
+          locked_ttl_ms: validFormValues.locked_ttl_ms * 86400000,
         }),
       ),
     )
@@ -216,6 +225,35 @@ describe("TemplateSchedulePage", () => {
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
       "Inactivity cleanup days must not be less than 0.",
+    )
+  })
+
+  it("allows a locked ttl of 7 days", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      locked_ttl_ms: 86400000 * 7,
+    }
+    const validate = () => getValidationSchema().validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("allows a locked ttl of 0", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      locked_ttl_ms: 0,
+    }
+    const validate = () => getValidationSchema().validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("disallows a negative inactivity ttl", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      locked_ttl_ms: -1,
+    }
+    const validate = () => getValidationSchema().validateSync(values)
+    expect(validate).toThrowError(
+      "Locked cleanup days must not be less than 0.",
     )
   })
 })

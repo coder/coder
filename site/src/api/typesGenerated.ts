@@ -179,6 +179,7 @@ export interface CreateTemplateRequest {
   readonly allow_user_autostop?: boolean
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
+  readonly locked_ttl_ms?: number
   readonly disable_everyone_group_access: boolean
 }
 
@@ -805,6 +806,7 @@ export interface Template {
   readonly allow_user_cancel_workspace_jobs: boolean
   readonly failure_ttl_ms: number
   readonly inactivity_ttl_ms: number
+  readonly locked_ttl_ms: number
 }
 
 // From codersdk/templates.go
@@ -972,6 +974,7 @@ export interface UpdateTemplateMeta {
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
+  readonly locked_ttl_ms?: number
 }
 
 // From codersdk/users.go

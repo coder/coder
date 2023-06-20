@@ -1561,6 +1561,7 @@ type Template struct {
 	AllowUserAutostop bool  `db:"allow_user_autostop" json:"allow_user_autostop"`
 	FailureTTL        int64 `db:"failure_ttl" json:"failure_ttl"`
 	InactivityTTL     int64 `db:"inactivity_ttl" json:"inactivity_ttl"`
+	LockedTTL         int64 `db:"locked_ttl" json:"locked_ttl"`
 }
 
 type TemplateVersion struct {
