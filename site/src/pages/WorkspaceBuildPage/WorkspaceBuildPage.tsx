@@ -7,7 +7,14 @@ import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceB
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView"
 
 export const WorkspaceBuildPage: FC = () => {
-  const { username, workspace: workspaceName, buildNumber } = useParams()
+  const params = useParams() as {
+    username: string
+    workspace: string
+    buildNumber: string
+  }
+  const workspaceName = params.workspace
+  const buildNumber = params.buildNumber
+  const username = params.username.replace("@", "")
   const [buildState] = useMachine(workspaceBuildMachine, {
     context: { username, workspaceName, buildNumber, timeCursor: new Date() },
   })
