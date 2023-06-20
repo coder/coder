@@ -74,8 +74,8 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 }) => {
   const { t } = useTranslation("auditLog")
 
-  const isLoading = auditLogs === undefined || count === undefined
-  const isEmpty = !isLoading && auditLogs.length === 0
+  const isLoading = (auditLogs === undefined || count === undefined) && !error
+  const isEmpty = !isLoading && auditLogs?.length === 0
 
   return (
     <Margins>
@@ -104,8 +104,8 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
           <PaginationStatus
             isLoading={Boolean(isLoading)}
-            showing={auditLogs?.length}
-            total={count}
+            showing={auditLogs?.length ?? 0}
+            total={count ?? 0}
             label="audit logs"
           />
 
