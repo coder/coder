@@ -34,6 +34,15 @@ import (
 
 // postConvertLoginType replies with an oauth state token capable of converting
 // the user to an oauth user.
+//
+// @Summary Convert user from password to oauth authentication
+// @ID convert-login-type
+// @Accept json
+// @Produce json
+// @Tags Authorization
+// @Param request body codersdk.ConvertLoginRequest true "Convert request"
+// @Success 201 {object} codersdk.OauthConversionResponse
+// @Router /users/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
