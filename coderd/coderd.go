@@ -262,6 +262,7 @@ func New(options *Options) *API {
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				DB:        options.Database,
 				AccessURL: options.AccessURL,
 				DERPMap:   options.DERPMap.Clone(),
 				APIKey:    apiKey,

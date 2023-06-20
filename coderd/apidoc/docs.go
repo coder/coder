@@ -10017,11 +10017,29 @@ const docTemplate = `{
                 "error": {}
             }
         },
+        "healthcheck.DatabaseReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "latency": {
+                    "type": "integer"
+                },
+                "reachable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
                 "access_url": {
                     "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
+                "database": {
+                    "$ref": "#/definitions/healthcheck.DatabaseReport"
                 },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
