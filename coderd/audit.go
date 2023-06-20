@@ -270,6 +270,10 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	str += fmt.Sprintf(" %s",
 		codersdk.ResourceType(alog.ResourceType).FriendlyString())
 
+	if alog.ResourceType == database.ResourceTypeConvertLogin {
+		str += " to"
+	}
+
 	str += " {target}"
 
 	return str

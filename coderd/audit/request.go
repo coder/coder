@@ -85,7 +85,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.WorkspaceProxy:
 		return typed.Name
 	case database.OauthMergeState:
-		return typed.StateString
+		return string(typed.ToLoginType)
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}

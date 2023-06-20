@@ -3485,6 +3485,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `api_key`          |
 | `group`            |
 | `license`          |
+| `convert_login`    |
 
 ## codersdk.Response
 

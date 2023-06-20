@@ -126,13 +126,13 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = mergeState
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OauthConversionResponse{
 		StateString: mergeState.StateString,
 		ExpiresAt:   mergeState.ExpiresAt,
 		ToLoginType: codersdk.LoginType(mergeState.ToLoginType),
 		UserID:      mergeState.UserID,
 	})
-	aReq.New = mergeState
 }
 
 // Authenticates the user with an email and password.

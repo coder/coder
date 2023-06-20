@@ -18,3 +18,7 @@ COMMENT ON COLUMN oauth_merge_state.expires_at IS 'The time at which the state s
 COMMENT ON COLUMN oauth_merge_state.to_login_type IS 'The login type the user is converting to. Should be github or oidc.';
 
 COMMIT;
+
+
+-- This has to be outside a transaction
+ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'convert_login';

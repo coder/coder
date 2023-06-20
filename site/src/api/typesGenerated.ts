@@ -1514,6 +1514,7 @@ export const RBACResources: RBACResource[] = [
 // From codersdk/audit.go
 export type ResourceType =
   | "api_key"
+  | "convert_login"
   | "git_ssh_key"
   | "group"
   | "license"
@@ -1524,6 +1525,7 @@ export type ResourceType =
   | "workspace_build"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
+  "convert_login",
   "git_ssh_key",
   "group",
   "license",

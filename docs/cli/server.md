@@ -213,16 +213,6 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 
 Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
 
-### --enable-oauth-auth-conversion
-
-|             |                                                        |
-| ----------- | ------------------------------------------------------ |
-| Type        | <code>bool</code>                                      |
-| Environment | <code>$CODER_ENABLE_OAUTH_AUTH_CONVERSION</code>       |
-| YAML        | <code>networking.http.enableOauthAuthConversion</code> |
-
-If enabled, users can switch from password based authentication to oauth based authentication by logging into an oidc account with the same email address.
-
 ### --swagger-enable
 
 |             |                                    |

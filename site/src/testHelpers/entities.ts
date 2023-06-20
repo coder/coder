@@ -1503,6 +1503,43 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
   },
 }
 
+export const MockAuditOauthConvert: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  resource_type: "convert_login",
+  resource_target: "oidc",
+  action: "create",
+  status_code: 201,
+  description: "{user} created login type conversion to {target}}",
+  diff: {
+    created_at: {
+      old: "0001-01-01T00:00:00Z",
+      new: "2023-06-20T20:44:54.243019Z",
+      secret: false
+    },
+    expires_at: {
+        old: "0001-01-01T00:00:00Z",
+        new: "2023-06-20T20:49:54.243019Z",
+        secret: false
+    },
+    state_string: {
+        old: "",
+        new: "",
+        secret: true
+    },
+    to_login_type: {
+        old: "",
+        new: "oidc",
+        secret: false
+    },
+    user_id: {
+        old: "",
+        new: "dc790496-eaec-4f88-a53f-8ce1f61a1fff",
+        secret: false
+    }
+  },
+}
+
+
 export const MockAuditLogSuccessfulLogin: TypesGen.AuditLog = {
   ...MockAuditLog,
   resource_type: "api_key",
