@@ -337,7 +337,7 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 		if manifest != nil {
 			err := showMOTD(session, manifest.MOTDFile)
 			if err != nil {
-				s.logger.Error(ctx, "show MOTD", slog.Error(err))
+				s.logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
 				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
 			}
 		} else {
@@ -406,7 +406,7 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 	// and not something to be concerned about.  But, if it's something else, we should log it.
 	if err != nil && !xerrors.As(err, &exitErr) {
-		s.logger.Warn(ctx, "wait error", slog.Error(err))
+		s.logger.Warn(ctx, "process wait exited with error", slog.Error(err))
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "wait").Add(1)
 	}
 	if err != nil {

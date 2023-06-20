@@ -980,7 +980,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 
-	api.Logger.Info(ctx, "accepting agent",
+	api.Logger.Debug(ctx, "accepting agent",
 		slog.F("owner", owner.Username),
 		slog.F("workspace", workspace.Name),
 		slog.F("name", workspaceAgent.Name),
