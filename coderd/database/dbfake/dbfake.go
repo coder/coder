@@ -2060,10 +2060,13 @@ func (q *fakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context
 	for _, job := range q.provisionerJobs {
 		for _, id := range ids {
 			if id == job.ID {
-				jobs = append(jobs, database.GetProvisionerJobsByIDsWithQueuePositionRow{
+				job := database.GetProvisionerJobsByIDsWithQueuePositionRow{
 					ProvisionerJob: job,
-					QueuePosition:  queuePosition,
-				})
+				}
+				if !job.ProvisionerJob.StartedAt.Valid {
+					job.QueuePosition = queuePosition
+				}
+				jobs = append(jobs, job)
 				break
 			}
 		}
