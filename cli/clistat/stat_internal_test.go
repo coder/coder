@@ -69,7 +69,7 @@ func TestStatter(t *testing.T) {
 			t.Parallel()
 			cpu, err := s.HostCPU()
 			require.NoError(t, err)
-			assert.NotZero(t, cpu.Used)
+			// assert.NotZero(t, cpu.Used) // HostCPU can sometimes be zero.
 			assert.NotZero(t, cpu.Total)
 			assert.Equal(t, "cores", cpu.Unit)
 		})
