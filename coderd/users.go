@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -351,21 +352,34 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = userpassword.Validate(req.Password)
-	if err != nil {
+	if req.DisableLogin && req.Password != "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Password not strong enough!",
-			Validations: []codersdk.ValidationError{{
-				Field:  "password",
-				Detail: err.Error(),
-			}},
+			Message: "Cannot set password when disabling login.",
 		})
 		return
 	}
 
+	var loginType database.LoginType
+	if req.DisableLogin {
+		loginType = database.LoginTypeNone
+	} else {
+		err = userpassword.Validate(req.Password)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Password not strong enough!",
+				Validations: []codersdk.ValidationError{{
+					Field:  "password",
+					Detail: err.Error(),
+				}},
+			})
+			return
+		}
+		loginType = database.LoginTypePassword
+	}
+
 	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequest: req,
-		LoginType:         database.LoginTypePassword,
+		LoginType:         loginType,
 	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
@@ -388,7 +402,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		Users: []telemetry.User{telemetry.ConvertUser(user)},
 	})
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertUser(user, []uuid.UUID{req.OrganizationID}))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.User(user, []uuid.UUID{req.OrganizationID}))
 }
 
 // @Summary Delete user
@@ -482,7 +496,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertUser(user, organizationIDs))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(user, organizationIDs))
 }
 
 // @Summary Update user profile
@@ -567,7 +581,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUserProfile, organizationIDs))
 }
 
 // @Summary Suspend user account
@@ -654,7 +668,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			return
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, convertUser(suspendedUser, organizations))
+		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(suspendedUser, organizations))
 	}
 }
 
@@ -879,7 +893,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertUser(updatedUser, organizationIDs))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
 }
 
 // updateSiteUserRoles will ensure only site wide roles are passed in as arguments.
@@ -1074,32 +1088,11 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}, nil)
 }
 
-func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
-	convertedUser := codersdk.User{
-		ID:              user.ID,
-		Email:           user.Email,
-		CreatedAt:       user.CreatedAt,
-		LastSeenAt:      user.LastSeenAt,
-		Username:        user.Username,
-		Status:          codersdk.UserStatus(user.Status),
-		OrganizationIDs: organizationIDs,
-		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
-		AvatarURL:       user.AvatarURL.String,
-	}
-
-	for _, roleName := range user.RBACRoles {
-		rbacRole, _ := rbac.RoleByName(roleName)
-		convertedUser.Roles = append(convertedUser.Roles, convertRole(rbacRole))
-	}
-
-	return convertedUser
-}
-
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
 	converted := make([]codersdk.User, 0, len(users))
 	for _, u := range users {
 		userOrganizationIDs := organizationIDsByUserID[u.ID]
-		converted = append(converted, convertUser(u, userOrganizationIDs))
+		converted = append(converted, db2sdk.User(u, userOrganizationIDs))
 	}
 	return converted
 }

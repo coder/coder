@@ -315,15 +315,17 @@
 
 ```json
 {
+  "changed_at": "string",
   "state": "created"
 }
 ```
 
 ### Properties
 
-| Name    | Type                                                                 | Required | Restrictions | Description |
-| ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+| Name         | Type                                                                 | Required | Restrictions | Description |
+| ------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `changed_at` | string                                                               | false    |              |             |
+| `state`      | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
 ## agentsdk.PostMetadataRequest
 
@@ -1343,10 +1345,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "allow_user_cancel_workspace_jobs": true,
   "default_ttl_ms": 0,
   "description": "string",
+  "disable_everyone_group_access": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
   "inactivity_ttl_ms": 0,
+  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
@@ -1355,20 +1359,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                                                                                                                                                                                      | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                           |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `allow_user_autostart`                                                                                                                                                                    | boolean | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                            |
-| `allow_user_autostop`                                                                                                                                                                     | boolean | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license. |
-| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                              |
-| `default_ttl_ms`                                                                                                                                                                          | integer | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                            |
-| `description`                                                                                                                                                                             | string  | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                           |
-| `display_name`                                                                                                                                                                            | string  | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                   |
-| `failure_ttl_ms`                                                                                                                                                                          | integer | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                       |
-| `icon`                                                                                                                                                                                    | string  | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                      |
-| `inactivity_ttl_ms`                                                                                                                                                                       | integer | false    |              | Inactivity ttl ms allows optionally specifying the max lifetime before Coder deletes inactive workspaces created from this template.                                                                                                                  |
-| `max_ttl_ms`                                                                                                                                                                              | integer | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.                                                                                                                                                   |
-| `name`                                                                                                                                                                                    | string  | true     |              | Name is the name of the template.                                                                                                                                                                                                                     |
-| `template_version_id`                                                                                                                                                                     | string  | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                  |
+| Name                                                                                                                                                                                      | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow_user_autostart`                                                                                                                                                                    | boolean | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
+| `allow_user_autostop`                                                                                                                                                                     | boolean | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
+| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                                                                                            |
+| `default_ttl_ms`                                                                                                                                                                          | integer | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
+| `description`                                                                                                                                                                             | string  | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
+| `disable_everyone_group_access`                                                                                                                                                           | boolean | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template. |
+| `display_name`                                                                                                                                                                            | string  | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                                                                                 |
+| `failure_ttl_ms`                                                                                                                                                                          | integer | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
+| `icon`                                                                                                                                                                                    | string  | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
+| `inactivity_ttl_ms`                                                                                                                                                                       | integer | false    |              | Inactivity ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                  |
+| `locked_ttl_ms`                                                                                                                                                                           | integer | false    |              | Locked ttl ms allows optionally specifying the max lifetime before Coder permanently deletes locked workspaces created from this template.                                                                                                                                                                          |
+| `max_ttl_ms`                                                                                                                                                                              | integer | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.                                                                                                                                                                                                                 |
+| `name`                                                                                                                                                                                    | string  | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
+| `template_version_id`                                                                                                                                                                     | string  | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
 ## codersdk.CreateTemplateVersionDryRunRequest
@@ -1517,6 +1523,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "disable_login": true,
   "email": "user@example.com",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "password": "string",
@@ -1526,12 +1533,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-| ----------------- | ------ | -------- | ------------ | ----------- |
-| `email`           | string | true     |              |             |
-| `organization_id` | string | false    |              |             |
-| `password`        | string | true     |              |             |
-| `username`        | string | true     |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
+| ----------------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `disable_login`   | boolean | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. |
+| `email`           | string  | true     |              |                                                                                                                                                           |
+| `organization_id` | string  | false    |              |                                                                                                                                                           |
+| `password`        | string  | false    |              |                                                                                                                                                           |
+| `username`        | string  | true     |              |                                                                                                                                                           |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -1940,6 +1948,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "port": "string"
       },
       "collect_agent_stats": true,
+      "collect_db_metrics": true,
       "enable": true
     },
     "provisioner": {
@@ -2268,6 +2277,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "port": "string"
     },
     "collect_agent_stats": true,
+    "collect_db_metrics": true,
     "enable": true
   },
   "provisioner": {
@@ -2828,6 +2838,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `github`   |
 | `oidc`     |
 | `token`    |
+| `none`     |
 
 ## codersdk.LoginWithPasswordRequest
 
@@ -3090,6 +3101,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "port": "string"
   },
   "collect_agent_stats": true,
+  "collect_db_metrics": true,
   "enable": true
 }
 ```
@@ -3100,6 +3112,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | --------------------- | ------------------------------------ | -------- | ------------ | ----------- |
 | `address`             | [clibase.HostPort](#clibasehostport) | false    |              |             |
 | `collect_agent_stats` | boolean                              | false    |              |             |
+| `collect_db_metrics`  | boolean                              | false    |              |             |
 | `enable`              | boolean                              | false    |              |             |
 
 ## codersdk.ProvisionerConfig
@@ -3724,6 +3737,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
+  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -3734,29 +3748,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                                                             |
-| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                                                            |
-| `active_version_id`                | string                                                             | false    |              |                                                                                                                                                                         |
-| `allow_user_autostart`             | boolean                                                            | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature. |
-| `allow_user_autostop`              | boolean                                                            | false    |              |                                                                                                                                                                         |
-| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                                                         |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                                                         |
-| `created_at`                       | string                                                             | false    |              |                                                                                                                                                                         |
-| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                                                         |
-| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                                                         |
-| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                                                         |
-| `description`                      | string                                                             | false    |              |                                                                                                                                                                         |
-| `display_name`                     | string                                                             | false    |              |                                                                                                                                                                         |
-| `failure_ttl_ms`                   | integer                                                            | false    |              | Failure ttl ms and InactivityTTLMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.          |
-| `icon`                             | string                                                             | false    |              |                                                                                                                                                                         |
-| `id`                               | string                                                             | false    |              |                                                                                                                                                                         |
-| `inactivity_ttl_ms`                | integer                                                            | false    |              |                                                                                                                                                                         |
-| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                               |
-| `name`                             | string                                                             | false    |              |                                                                                                                                                                         |
-| `organization_id`                  | string                                                             | false    |              |                                                                                                                                                                         |
-| `provisioner`                      | string                                                             | false    |              |                                                                                                                                                                         |
-| `updated_at`                       | string                                                             | false    |              |                                                                                                                                                                         |
+| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                                                                    |
+| `active_version_id`                | string                                                             | false    |              |                                                                                                                                                                                 |
+| `allow_user_autostart`             | boolean                                                            | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.         |
+| `allow_user_autostop`              | boolean                                                            | false    |              |                                                                                                                                                                                 |
+| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                                                                 |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                                                                 |
+| `created_at`                       | string                                                             | false    |              |                                                                                                                                                                                 |
+| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                                                                 |
+| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                                                                 |
+| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                                                                 |
+| `description`                      | string                                                             | false    |              |                                                                                                                                                                                 |
+| `display_name`                     | string                                                             | false    |              |                                                                                                                                                                                 |
+| `failure_ttl_ms`                   | integer                                                            | false    |              | Failure ttl ms InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature. |
+| `icon`                             | string                                                             | false    |              |                                                                                                                                                                                 |
+| `id`                               | string                                                             | false    |              |                                                                                                                                                                                 |
+| `inactivity_ttl_ms`                | integer                                                            | false    |              |                                                                                                                                                                                 |
+| `locked_ttl_ms`                    | integer                                                            | false    |              |                                                                                                                                                                                 |
+| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                                       |
+| `name`                             | string                                                             | false    |              |                                                                                                                                                                                 |
+| `organization_id`                  | string                                                             | false    |              |                                                                                                                                                                                 |
+| `provisioner`                      | string                                                             | false    |              |                                                                                                                                                                                 |
+| `updated_at`                       | string                                                             | false    |              |                                                                                                                                                                                 |
 
 #### Enumerated Values
 
@@ -4499,9 +4514,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
+            "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "shutdown_script": "string",
             "shutdown_script_timeout_seconds": 0,
+            "started_at": "2019-08-24T14:15:22Z",
             "startup_logs_length": 0,
             "startup_logs_overflowed": true,
             "startup_script": "string",
@@ -4631,9 +4648,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "login_before_ready": true,
   "name": "string",
   "operating_system": "string",
+  "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
+  "started_at": "2019-08-24T14:15:22Z",
   "startup_logs_length": 0,
   "startup_logs_overflowed": true,
   "startup_script": "string",
@@ -4670,9 +4689,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `login_before_ready`              | boolean                                                                                      | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                             |
 | `name`                            | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `operating_system`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `ready_at`                        | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `resource_id`                     | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
+| `started_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `startup_logs_length`             | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `startup_logs_overflowed`         | boolean                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `startup_script`                  | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -5041,9 +5062,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "started_at": "2019-08-24T14:15:22Z",
           "startup_logs_length": 0,
           "startup_logs_overflowed": true,
           "startup_script": "string",
@@ -5324,9 +5347,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "login_before_ready": true,
       "name": "string",
       "operating_system": "string",
+      "ready_at": "2019-08-24T14:15:22Z",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "shutdown_script": "string",
       "shutdown_script_timeout_seconds": 0,
+      "started_at": "2019-08-24T14:15:22Z",
       "startup_logs_length": 0,
       "startup_logs_overflowed": true,
       "startup_script": "string",
@@ -5524,9 +5549,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
                 "login_before_ready": true,
                 "name": "string",
                 "operating_system": "string",
+                "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "shutdown_script": "string",
                 "shutdown_script_timeout_seconds": 0,
+                "started_at": "2019-08-24T14:15:22Z",
                 "startup_logs_length": 0,
                 "startup_logs_overflowed": true,
                 "startup_script": "string",

@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
@@ -589,7 +588,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		InitiatorID:    owner.UserID,
 		WorkerID:       uuid.NullUUID{},
 		FileID:         file.ID,
-		Tags: dbtype.StringMap{
+		Tags: database.StringMap{
 			"custom": "true",
 		},
 	})
@@ -617,7 +616,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		job.Type = database.ProvisionerJobTypeWorkspaceBuild
 		job.OrganizationID = owner.OrganizationID
 		// Need to prevent acquire from getting this job.
-		job.Tags = dbtype.StringMap{
+		job.Tags = database.StringMap{
 			jobID.String(): "true",
 		}
 		job = dbgen.ProvisionerJob(t, db, job)

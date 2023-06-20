@@ -45,6 +45,7 @@ export interface CreateTemplateData {
   allow_user_cancel_workspace_jobs: boolean
   parameter_values_by_name?: Record<string, string>
   user_variable_values?: VariableValue[]
+  allow_everyone_group_access: boolean
 }
 interface CreateTemplateContext {
   organizationId: string
@@ -457,11 +458,13 @@ export const createTemplateMachine =
             default_ttl_hours,
             max_ttl_hours,
             parameter_values_by_name,
+            allow_everyone_group_access,
             ...safeTemplateData
           } = templateData
 
           return createTemplate(organizationId, {
             ...safeTemplateData,
+            disable_everyone_group_access: !allow_everyone_group_access,
             default_ttl_ms: templateData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
             max_ttl_ms: templateData.max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
             template_version_id: version.id,

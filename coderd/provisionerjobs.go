@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
@@ -55,7 +56,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 
 	if !follow {
-		fetchAndWriteLogs(ctx, logger, api.Database, job.ID, after, rw)
+		fetchAndWriteLogs(ctx, api.Database, job.ID, after, rw)
 		return
 	}
 
@@ -221,7 +222,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	return job
 }
 
-func fetchAndWriteLogs(ctx context.Context, logger slog.Logger, db database.Store, jobID uuid.UUID, after int64, rw http.ResponseWriter) {
+func fetchAndWriteLogs(ctx context.Context, db database.Store, jobID uuid.UUID, after int64, rw http.ResponseWriter) {
 	logs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
 		JobID:        jobID,
 		CreatedAfter: after,
@@ -236,8 +237,6 @@ func fetchAndWriteLogs(ctx context.Context, logger slog.Logger, db database.Stor
 	if logs == nil {
 		logs = []database.ProvisionerJobLog{}
 	}
-
-	logger.Debug(ctx, "Finished non-follow job logs")
 	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
 }
 
@@ -258,7 +257,7 @@ func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
 		return false
 	default:
 		logger.Error(context.Background(),
-			"unknown status",
+			"can't convert the provisioner job status",
 			slog.F("job_id", job.ID), slog.F("status", status))
 		return false
 	}
@@ -268,7 +267,7 @@ type logFollower struct {
 	ctx    context.Context
 	logger slog.Logger
 	db     database.Store
-	pubsub database.Pubsub
+	pubsub pubsub.Pubsub
 	r      *http.Request
 	rw     http.ResponseWriter
 	conn   *websocket.Conn
@@ -281,14 +280,14 @@ type logFollower struct {
 }
 
 func newLogFollower(
-	ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub,
+	ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub,
 	rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob, after int64,
 ) *logFollower {
 	return &logFollower{
 		ctx:           ctx,
 		logger:        logger,
 		db:            db,
-		pubsub:        pubsub,
+		pubsub:        ps,
 		r:             r,
 		rw:            rw,
 		jobID:         job.ID,

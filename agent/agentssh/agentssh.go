@@ -105,7 +105,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		metrics: metrics,
 	}
 
-	s.srv = &ssh.Server{
+	srv := &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip":                   ssh.DirectTCPIPHandler,
 			"direct-streamlocal@openssh.com": directStreamLocalHandler,
@@ -120,8 +120,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
 			// Allow local port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
-				slog.F("destination-host", destinationHost),
-				slog.F("destination-port", destinationPort))
+				slog.F("destination_host", destinationHost),
+				slog.F("destination_port", destinationPort))
 			return true
 		},
 		PtyCallback: func(ctx ssh.Context, pty ssh.Pty) bool {
@@ -130,8 +130,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
 			// Allow reverse port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
-				slog.F("bind-host", bindHost),
-				slog.F("bind-port", bindPort))
+				slog.F("bind_host", bindHost),
+				slog.F("bind_port", bindPort))
 			return true
 		},
 		RequestHandlers: map[string]ssh.RequestHandler{
@@ -149,9 +149,19 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": s.sessionHandler,
 		},
-		MaxTimeout: maxTimeout,
 	}
 
+	// The MaxTimeout functionality has been substituted with the introduction of the KeepAlive feature.
+	// In cases where very short timeouts are set, the SSH server will automatically switch to the connection timeout for both read and write operations.
+	if maxTimeout >= 3*time.Second {
+		srv.ClientAliveCountMax = 3
+		srv.ClientAliveInterval = maxTimeout / time.Duration(srv.ClientAliveCountMax)
+		srv.MaxTimeout = 0
+	} else {
+		srv.MaxTimeout = maxTimeout
+	}
+
+	s.srv = srv
 	return s, nil
 }
 
@@ -648,9 +658,11 @@ func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
 			// Server closed.
 			return false
 		}
+		s.wg.Add(1)
 		s.sessions[ss] = struct{}{}
 		return true
 	}
+	s.wg.Done()
 	delete(s.sessions, ss)
 	return true
 }

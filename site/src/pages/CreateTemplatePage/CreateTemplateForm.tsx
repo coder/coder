@@ -102,6 +102,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_cancel_workspace_jobs: false,
   allow_user_autostart: false,
   allow_user_autostop: false,
+  allow_everyone_group_access: true,
 }
 
 type GetInitialValuesParams = {
@@ -174,6 +175,7 @@ export interface CreateTemplateFormProps {
   logs?: ProvisionerJobLog[]
   allowAdvancedScheduling: boolean
   copiedTemplate?: Template
+  allowDisableEveryoneAccess: boolean
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
@@ -188,6 +190,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   jobError,
   logs,
   allowAdvancedScheduling,
+  allowDisableEveryoneAccess,
 }) => {
   const styles = useStyles()
   const form = useFormik<CreateTemplateData>({
@@ -379,44 +382,90 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         </FormFields>
       </FormSection>
 
-      {/* Operations */}
+      {/* Permissions */}
       <FormSection
-        title="Operations"
+        title="Permissions"
         description="Regulate actions allowed on workspaces created from this template."
       >
-        <FormFields>
-          <label htmlFor="allow_user_cancel_workspace_jobs">
-            <Stack direction="row" spacing={1}>
-              <Checkbox
-                id="allow_user_cancel_workspace_jobs"
-                name="allow_user_cancel_workspace_jobs"
-                disabled={isSubmitting}
-                checked={form.values.allow_user_cancel_workspace_jobs}
-                onChange={form.handleChange}
-              />
+        <Stack direction="column">
+          <FormFields>
+            <label htmlFor="allow_user_cancel_workspace_jobs">
+              <Stack direction="row" spacing={1}>
+                <Checkbox
+                  id="allow_user_cancel_workspace_jobs"
+                  name="allow_user_cancel_workspace_jobs"
+                  disabled={isSubmitting}
+                  checked={form.values.allow_user_cancel_workspace_jobs}
+                  onChange={form.handleChange}
+                />
 
-              <Stack direction="column" spacing={0.5}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={0.5}
-                  className={styles.optionText}
-                >
-                  <strong>{t("form.fields.allowUsersToCancel")}</strong>
+                <Stack direction="column" spacing={0.5}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    className={styles.optionText}
+                  >
+                    <strong>{t("form.fields.allowUsersToCancel")}</strong>
 
-                  <HelpTooltip>
-                    <HelpTooltipText>
-                      {t("form.tooltip.allowUsersToCancel")}
-                    </HelpTooltipText>
-                  </HelpTooltip>
+                    <HelpTooltip>
+                      <HelpTooltipText>
+                        {t("form.tooltip.allowUsersToCancel")}
+                      </HelpTooltipText>
+                    </HelpTooltip>
+                  </Stack>
+                  <span className={styles.optionHelperText}>
+                    {t("form.helperText.allowUsersToCancel")}
+                  </span>
                 </Stack>
-                <span className={styles.optionHelperText}>
-                  {t("form.helperText.allowUsersToCancel")}
-                </span>
               </Stack>
-            </Stack>
-          </label>
-        </FormFields>
+            </label>
+          </FormFields>
+          <FormFields>
+            <label htmlFor="allow_everyone_group_access">
+              <Stack direction="row" spacing={1}>
+                <Checkbox
+                  id="allow_everyone_group_access"
+                  name="allow_everyone_group_access"
+                  disabled={isSubmitting || !allowDisableEveryoneAccess}
+                  checked={form.values.allow_everyone_group_access}
+                  onChange={form.handleChange}
+                />
+
+                <Stack direction="column" spacing={0.5}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    className={styles.optionText}
+                  >
+                    <strong>Allow everyone to use the template</strong>
+
+                    <HelpTooltip>
+                      <HelpTooltipText>
+                        If unchecked, only users with the &apos;template
+                        admin&apos; and &apos;owner&apos; role can use this
+                        template until the permissions are updated. Navigate to{" "}
+                        <strong>
+                          Templates &gt; Select a template &gt; Settings &gt;
+                          Permissions
+                        </strong>{" "}
+                        to update permissions.
+                      </HelpTooltipText>
+                    </HelpTooltip>
+                  </Stack>
+                  <span className={styles.optionHelperText}>
+                    This setting requires an enterprise license for the&nbsp;
+                    <Link href="https://coder.com/docs/v2/latest/admin/rbac">
+                      &apos;Template RBAC&apos;
+                    </Link>{" "}
+                    feature to customize permissions.
+                  </span>
+                </Stack>
+              </Stack>
+            </label>
+          </FormFields>
+        </Stack>
       </FormSection>
 
       {/* Variables */}

@@ -55,13 +55,6 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Actor.Roles, roles))
 }
 
-func convertRole(role rbac.Role) codersdk.Role {
-	return codersdk.Role{
-		DisplayName: role.DisplayName,
-		Name:        role.Name,
-	}
-}
-
 func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role) []codersdk.AssignableRoles {
 	assignable := make([]codersdk.AssignableRoles, 0)
 	for _, role := range roles {

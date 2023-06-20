@@ -191,3 +191,7 @@ func (testSSHContext) Permissions() *gliderssh.Permissions {
 func (testSSHContext) SetValue(_, _ interface{}) {
 	panic("not implemented")
 }
+
+func (testSSHContext) KeepAlive() *gliderssh.SessionKeepAlive {
+	panic("not implemented")
+}

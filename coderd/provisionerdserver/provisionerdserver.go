@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/schedule"
@@ -56,7 +57,7 @@ type Server struct {
 	GitAuthConfigs        []*gitauth.Config
 	Tags                  json.RawMessage
 	Database              database.Store
-	Pubsub                database.Pubsub
+	Pubsub                pubsub.Pubsub
 	Telemetry             telemetry.Reporter
 	Tracer                trace.Tracer
 	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
@@ -107,7 +108,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	if err != nil {
 		return nil, xerrors.Errorf("acquire job: %w", err)
 	}
-	server.Logger.Debug(ctx, "locked job from database", slog.F("id", job.ID))
+	server.Logger.Debug(ctx, "locked job from database", slog.F("job_id", job.ID))
 
 	// Marks the acquired job as failed with the error message provided.
 	failJob := func(errorMessage string) error {

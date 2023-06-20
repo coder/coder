@@ -347,7 +347,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	primaryAppHost, err := client.AppHost(appHostCtx)
 	require.NoError(t, err)
 	if primaryAppHost.Host != "" {
-		manifest, err := agentClient.Manifest(context.Background())
+		manifest, err := agentClient.Manifest(appHostCtx)
 		require.NoError(t, err)
 		proxyURL := fmt.Sprintf(
 			"http://{{port}}--%s--%s--%s%s",

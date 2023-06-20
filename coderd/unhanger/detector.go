@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
 )
@@ -66,7 +67,7 @@ type Detector struct {
 	done   chan struct{}
 
 	db     database.Store
-	pubsub database.Pubsub
+	pubsub pubsub.Pubsub
 	log    slog.Logger
 	tick   <-chan time.Time
 	stats  chan<- Stats
@@ -84,7 +85,7 @@ type Stats struct {
 }
 
 // New returns a new hang detector.
-func New(ctx context.Context, db database.Store, pubsub database.Pubsub, log slog.Logger, tick <-chan time.Time) *Detector {
+func New(ctx context.Context, db database.Store, pub pubsub.Pubsub, log slog.Logger, tick <-chan time.Time) *Detector {
 	//nolint:gocritic // Hang detector has a limited set of permissions.
 	ctx, cancel := context.WithCancel(dbauthz.AsHangDetector(ctx))
 	le := &Detector{
@@ -92,7 +93,7 @@ func New(ctx context.Context, db database.Store, pubsub database.Pubsub, log slo
 		cancel: cancel,
 		done:   make(chan struct{}),
 		db:     db,
-		pubsub: pubsub,
+		pubsub: pub,
 		log:    log,
 		tick:   tick,
 		stats:  nil,

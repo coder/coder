@@ -274,22 +274,26 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		allowUserAutostop            = ptr.NilToDefault(createTemplate.AllowUserAutostop, true)
 	)
 
+	defaultsGroups := database.TemplateACL{}
+	if !createTemplate.DisableEveryoneGroupAccess {
+		// The organization ID is used as the group ID for the everyone group
+		// in this organization.
+		defaultsGroups[organization.ID.String()] = []rbac.Action{rbac.ActionRead}
+	}
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := database.Now()
 		dbTemplate, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:              uuid.New(),
-			CreatedAt:       now,
-			UpdatedAt:       now,
-			OrganizationID:  organization.ID,
-			Name:            createTemplate.Name,
-			Provisioner:     importJob.Provisioner,
-			ActiveVersionID: templateVersion.ID,
-			Description:     createTemplate.Description,
-			CreatedBy:       apiKey.UserID,
-			UserACL:         database.TemplateACL{},
-			GroupACL: database.TemplateACL{
-				organization.ID.String(): []rbac.Action{rbac.ActionRead},
-			},
+			ID:                           uuid.New(),
+			CreatedAt:                    now,
+			UpdatedAt:                    now,
+			OrganizationID:               organization.ID,
+			Name:                         createTemplate.Name,
+			Provisioner:                  importJob.Provisioner,
+			ActiveVersionID:              templateVersion.ID,
+			Description:                  createTemplate.Description,
+			CreatedBy:                    apiKey.UserID,
+			UserACL:                      database.TemplateACL{},
+			GroupACL:                     defaultsGroups,
 			DisplayName:                  createTemplate.DisplayName,
 			Icon:                         createTemplate.Icon,
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
@@ -493,6 +497,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.InactivityTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
 	}
+	if req.InactivityTTLMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if req.LockedTTLMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "locked_ttl_ms", Detail: "Must be a positive integer."})
+	}
 
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -514,7 +524,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
-			req.InactivityTTLMillis == time.Duration(template.InactivityTTL).Milliseconds() {
+			req.InactivityTTLMillis == time.Duration(template.InactivityTTL).Milliseconds() &&
+			req.FailureTTLMillis == time.Duration(template.LockedTTL).Milliseconds() {
 			return nil
 		}
 
@@ -542,11 +553,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
 		inactivityTTL := time.Duration(req.InactivityTTLMillis) * time.Millisecond
+		lockedTTL := time.Duration(req.LockedTTLMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			maxTTL != time.Duration(template.MaxTTL) ||
 			failureTTL != time.Duration(template.FailureTTL) ||
 			inactivityTTL != time.Duration(template.InactivityTTL) ||
+			lockedTTL != time.Duration(template.LockedTTL) ||
 			req.AllowUserAutostart != template.AllowUserAutostart ||
 			req.AllowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, updated, schedule.TemplateScheduleOptions{
@@ -559,6 +572,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				MaxTTL:               maxTTL,
 				FailureTTL:           failureTTL,
 				InactivityTTL:        inactivityTTL,
+				LockedTTL:            lockedTTL,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)
@@ -712,5 +726,6 @@ func (api *API) convertTemplate(
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 		FailureTTLMillis:             time.Duration(template.FailureTTL).Milliseconds(),
 		InactivityTTLMillis:          time.Duration(template.InactivityTTL).Milliseconds(),
+		LockedTTLMillis:              time.Duration(template.LockedTTL).Milliseconds(),
 	}
 }

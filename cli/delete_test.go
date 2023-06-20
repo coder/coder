@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 
@@ -10,8 +11,11 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestDelete(t *testing.T) {
@@ -51,6 +55,51 @@ func TestDelete(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		inv, root := clitest.New(t, "delete", workspace.Name, "-y", "--orphan")
+
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stderr = pty.Output()
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			// When running with the race detector on, we sometimes get an EOF.
+			if err != nil {
+				assert.ErrorIs(t, err, io.EOF)
+			}
+		}()
+		pty.ExpectMatch("workspace has been deleted")
+		<-doneChan
+	})
+
+	// Super orphaned, as the workspace doesn't even have a user.
+	// This is not a scenario we should ever get into, as we do not allow users
+	// to be deleted if they have workspaces. However issue #7872 shows that
+	// it is possible to get into this state. An admin should be able to still
+	// force a delete action on the workspace.
+	t.Run("OrphanDeletedUser", func(t *testing.T) {
+		t.Parallel()
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		deleteMeClient, deleteMeUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		workspace := coderdtest.CreateWorkspace(t, deleteMeClient, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, deleteMeClient, workspace.LatestBuild.ID)
+
+		// The API checks if the user has any workspaces, so we cannot delete a user
+		// this way.
+		ctx := testutil.Context(t, testutil.WaitShort)
+		// nolint:gocritic // Unit test
+		err := api.Database.UpdateUserDeletedByID(dbauthz.AsSystemRestricted(ctx), database.UpdateUserDeletedByIDParams{
+			ID:      deleteMeUser.ID,
+			Deleted: true,
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "delete", fmt.Sprintf("%s/%s", deleteMeUser.ID, workspace.Name), "-y", "--orphan")
 
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
