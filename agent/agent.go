@@ -911,7 +911,7 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 	return nil
 }
 
-func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan struct{}, error) {
+func (a *agent) trackScriptLogs(ctx context.Context, reader io.ReadCloser) (chan struct{}, error) {
 	// Synchronous sender, there can only be one outbound send at a time.
 	//
 	// It's important that we either flush or drop all logs before returning
@@ -923,17 +923,25 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan str
 		flush := time.NewTimer(flushTimeout)
 		flush.Stop()
 
+		var backlog []agentsdk.StartupLog
 		defer func() {
 			flush.Stop()
+			_ = reader.Close() // Ensure read routine is closed.
+			if len(backlog) > 0 {
+				a.logger.Debug(ctx, "track script logs sender exiting, discarding logs", slog.F("discarded_logs_count", len(backlog)))
+			}
 			a.logger.Debug(ctx, "track script logs sender exited")
 			close(sendDone)
 		}()
 
-		var backlog []agentsdk.StartupLog
 		done := false
 		for {
 			flushed := false
 			select {
+			case <-ctx.Done():
+				return
+			case <-a.closed:
+				return
 			// Close (!ok) can be triggered by the reader closing due to
 			// EOF or due to agent closing, when this happens we attempt
 			// a final flush. If the context is canceled this will be a
@@ -1026,7 +1034,8 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan str
 	if err != nil {
 		close(send)
 		<-sendDone
-		return nil, err
+		close(logsDone)
+		return logsDone, err
 	}
 
 	return logsDone, nil
