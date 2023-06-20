@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -79,6 +80,87 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
+	})
+	t.Run("CreateNoLockfile", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		coderdtest.CreateFirstUser(t, client)
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: provisionCompleteWithAgent,
+		})
+		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
+		args := []string{
+			"templates",
+			"create",
+			"my-template",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--default-ttl", "24h",
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- inv.Run()
+		}()
+
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "No .terraform.lock.hcl file found"},
+			{match: "Upload", write: "no"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
+		}
+
+		// cmd should error once we say no.
+		require.Error(t, <-execDone)
+	})
+	t.Run("CreateNoLockfileIgnored", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		coderdtest.CreateFirstUser(t, client)
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: provisionCompleteWithAgent,
+		})
+		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
+		args := []string{
+			"templates",
+			"create",
+			"my-template",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--default-ttl", "24h",
+			"--ignore-lockfile",
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- inv.Run()
+		}()
+
+		{
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			pty.ExpectNoMatchBefore(ctx, "No .terraform.lock.hcl file found", "Upload")
+			pty.WriteLine("no")
+		}
+
+		// cmd should error once we say no.
+		require.Error(t, <-execDone)
 	})
 
 	t.Run("CreateStdin", func(t *testing.T) {

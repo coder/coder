@@ -3,7 +3,9 @@ package site
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"crypto/sha1" //#nosec // Not used for cryptography.
+	"database/sql"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
@@ -19,9 +21,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template" // html/template escapes some nonces
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/justinas/nosurf"
 	"github.com/klauspost/compress/zstd"
 	"github.com/unrolled/secure"
@@ -31,7 +35,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -52,19 +60,28 @@ func init() {
 	}
 }
 
-// Handler returns an HTTP handler for serving the static site.
-func Handler(siteFS fs.FS, binFS http.FileSystem, binHashes map[string]string) http.Handler {
-	// html files are handled by a text/template. Non-html files
-	// are served by the default file server.
-	//
-	// REMARK: text/template is needed to inject values on each request like
-	//         CSRF.
-	files, err := htmlFiles(siteFS)
-	if err != nil {
-		panic(xerrors.Errorf("Failed to return handler for static files. Html files failed to load: %w", err))
+type Options struct {
+	BinFS     http.FileSystem
+	BinHashes map[string]string
+	Database  database.Store
+	SiteFS    fs.FS
+}
+
+func New(opts *Options) *Handler {
+	handler := &Handler{
+		opts:          opts,
+		secureHeaders: secureHeaders(),
 	}
 
-	binHashCache := newBinHashCache(binFS, binHashes)
+	// html files are handled by a text/template. Non-html files
+	// are served by the default file server.
+	var err error
+	handler.htmlTemplates, err = findAndParseHTMLFiles(opts.SiteFS)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to parse html files: %v", err))
+	}
+
+	binHashCache := newBinHashCache(opts.BinFS, opts.BinHashes)
 
 	mux := http.NewServeMux()
 	mux.Handle("/bin/", http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -77,7 +94,7 @@ func Handler(siteFS fs.FS, binFS http.FileSystem, binHashes map[string]string) h
 		name := filePath(r.URL.Path)
 		if name == "" || name == "/" {
 			// Serve the directory listing.
-			http.FileServer(binFS).ServeHTTP(rw, r)
+			http.FileServer(opts.BinFS).ServeHTTP(rw, r)
 			return
 		}
 		if strings.Contains(name, "/") {
@@ -101,9 +118,9 @@ func Handler(siteFS fs.FS, binFS http.FileSystem, binHashes map[string]string) h
 
 		// http.FileServer will see the ETag header and automatically handle
 		// If-Match and If-None-Match headers on the request properly.
-		http.FileServer(binFS).ServeHTTP(rw, r)
+		http.FileServer(opts.BinFS).ServeHTTP(rw, r)
 	})))
-	mux.Handle("/", http.FileServer(http.FS(siteFS))) // All other non-html static files.
+	mux.Handle("/", http.FileServer(http.FS(opts.SiteFS)))
 
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL: buildinfo.ExternalURL(),
@@ -113,21 +130,81 @@ func Handler(siteFS fs.FS, binFS http.FileSystem, binHashes map[string]string) h
 	if err != nil {
 		panic("failed to marshal build info: " + err.Error())
 	}
+	handler.buildInfoJSON = html.EscapeString(string(buildInfoResponse))
+	handler.handler = mux.ServeHTTP
 
-	return secureHeaders(&handler{
-		fs:            siteFS,
-		htmlFiles:     files,
-		h:             mux,
-		buildInfoJSON: html.EscapeString(string(buildInfoResponse)),
-	})
+	return handler
 }
 
-type handler struct {
-	fs fs.FS
-	// htmlFiles is the text/template for all *.html files.
-	htmlFiles     *htmlTemplates
-	h             http.Handler
+type Handler struct {
+	opts *Options
+
+	secureHeaders *secure.Secure
+	handler       http.HandlerFunc
+	htmlTemplates *template.Template
+
 	buildInfoJSON string
+
+	AppearanceFetcher func(ctx context.Context) (codersdk.AppearanceConfig, error)
+	RegionsFetcher    func(ctx context.Context) (codersdk.RegionsResponse, error)
+
+	Entitlements atomic.Pointer[codersdk.Entitlements]
+	Experiments  atomic.Pointer[codersdk.Experiments]
+}
+
+func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	err := h.secureHeaders.Process(rw, r)
+	if err != nil {
+		return
+	}
+
+	// reqFile is the static file requested
+	reqFile := filePath(r.URL.Path)
+	state := htmlState{
+		// Token is the CSRF token for the given request
+		CSRF:      csrfState{Token: nosurf.Token(r)},
+		BuildInfo: h.buildInfoJSON,
+	}
+
+	// First check if it's a file we have in our templates
+	if h.serveHTML(rw, r, reqFile, state) {
+		return
+	}
+
+	switch {
+	// If requesting binaries, serve straight up.
+	case reqFile == "bin" || strings.HasPrefix(reqFile, "bin/"):
+		h.handler.ServeHTTP(rw, r)
+		return
+	// If the original file path exists we serve it.
+	case h.exists(reqFile):
+		if ShouldCacheFile(reqFile) {
+			rw.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		h.handler.ServeHTTP(rw, r)
+		return
+	}
+
+	// Serve the file assuming it's an html file
+	// This matches paths like `/app/terminal.html`
+	r.URL.Path = strings.TrimSuffix(r.URL.Path, "/")
+	r.URL.Path += ".html"
+
+	reqFile = filePath(r.URL.Path)
+	// All html files should be served by the htmlFile templates
+	if h.serveHTML(rw, r, reqFile, state) {
+		return
+	}
+
+	// If we don't have the file... we should redirect to `/`
+	// for our single-page-app.
+	r.URL.Path = "/"
+	if h.serveHTML(rw, r, "", state) {
+		return
+	}
+
+	// This will send a correct 404
+	h.handler.ServeHTTP(rw, r)
 }
 
 // filePath returns the filepath of the requested file.
@@ -138,8 +215,8 @@ func filePath(p string) string {
 	return strings.TrimPrefix(path.Clean(p), "/")
 }
 
-func (h *handler) exists(filePath string) bool {
-	f, err := h.fs.Open(filePath)
+func (h *Handler) exists(filePath string) bool {
+	f, err := h.opts.SiteFS.Open(filePath)
 	if err == nil {
 		_ = f.Close()
 	}
@@ -147,8 +224,15 @@ func (h *handler) exists(filePath string) bool {
 }
 
 type htmlState struct {
-	CSRF      csrfState
-	BuildInfo string
+	CSRF csrfState
+
+	// Below are HTML escaped JSON strings of the respective structs.
+	BuildInfo    string
+	User         string
+	Entitlements string
+	Appearance   string
+	Experiments  string
+	Regions      string
 }
 
 type csrfState struct {
@@ -164,14 +248,7 @@ func ShouldCacheFile(reqFile string) bool {
 	// techniques are one-offs or things that should have invalidation in the
 	// future.
 	denyListedSuffixes := []string{
-		// ALL *.html files
 		".html",
-
-		// ALL *worker.js files (including service-worker.js)
-		//
-		// REMARK(Grey): I'm unsure if there's a desired setting in Workbox for
-		//               content hashing these, or if doing so is a risk for
-		//               users that have a PWA installed.
 		"worker.js",
 	}
 
@@ -184,58 +261,8 @@ func ShouldCacheFile(reqFile string) bool {
 	return true
 }
 
-func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-	// reqFile is the static file requested
-	reqFile := filePath(req.URL.Path)
-	state := htmlState{
-		// Token is the CSRF token for the given request
-		CSRF:      csrfState{Token: nosurf.Token(req)},
-		BuildInfo: h.buildInfoJSON,
-	}
-
-	// First check if it's a file we have in our templates
-	if h.serveHTML(resp, req, reqFile, state) {
-		return
-	}
-
-	switch {
-	// If requesting binaries, serve straight up.
-	case reqFile == "bin" || strings.HasPrefix(reqFile, "bin/"):
-		h.h.ServeHTTP(resp, req)
-		return
-	// If the original file path exists we serve it.
-	case h.exists(reqFile):
-		if ShouldCacheFile(reqFile) {
-			resp.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
-		}
-		h.h.ServeHTTP(resp, req)
-		return
-	}
-
-	// Serve the file assuming it's an html file
-	// This matches paths like `/app/terminal.html`
-	req.URL.Path = strings.TrimSuffix(req.URL.Path, "/")
-	req.URL.Path += ".html"
-
-	reqFile = filePath(req.URL.Path)
-	// All html files should be served by the htmlFile templates
-	if h.serveHTML(resp, req, reqFile, state) {
-		return
-	}
-
-	// If we don't have the file... we should redirect to `/`
-	// for our single-page-app.
-	req.URL.Path = "/"
-	if h.serveHTML(resp, req, "", state) {
-		return
-	}
-
-	// This will send a correct 404
-	h.h.ServeHTTP(resp, req)
-}
-
-func (h *handler) serveHTML(resp http.ResponseWriter, request *http.Request, reqPath string, state htmlState) bool {
-	if data, err := h.htmlFiles.renderWithState(reqPath, state); err == nil {
+func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, reqPath string, state htmlState) bool {
+	if data, err := h.renderHTMLWithState(resp, request, reqPath, state); err == nil {
 		if reqPath == "" {
 			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
 			reqPath = "index.html"
@@ -246,28 +273,119 @@ func (h *handler) serveHTML(resp http.ResponseWriter, request *http.Request, req
 	return false
 }
 
-type htmlTemplates struct {
-	tpls *template.Template
-}
-
 // renderWithState will render the file using the given nonce if the file exists
 // as a template. If it does not, it will return an error.
-func (t *htmlTemplates) renderWithState(filePath string, state htmlState) ([]byte, error) {
+func (h *Handler) renderHTMLWithState(rw http.ResponseWriter, r *http.Request, filePath string, state htmlState) ([]byte, error) {
 	var buf bytes.Buffer
 	if filePath == "" {
 		filePath = "index.html"
 	}
-	err := t.tpls.ExecuteTemplate(&buf, filePath, state)
+	tmpl := h.htmlTemplates.Lookup(filePath)
+	if tmpl == nil {
+		return nil, xerrors.Errorf("template %q not found", filePath)
+	}
+
+	// Cookies are sent when requesting HTML, so we can get the user
+	// and pre-populate the state for the frontend to reduce requests.
+	apiKey, actor, _ := httpmw.ExtractAPIKey(rw, r, httpmw.ExtractAPIKeyConfig{
+		Optional: true,
+		DB:       h.opts.Database,
+	})
+	if apiKey != nil && actor != nil {
+		ctx := dbauthz.As(r.Context(), actor.Actor)
+
+		var eg errgroup.Group
+		var user database.User
+		orgIDs := []uuid.UUID{}
+		eg.Go(func() error {
+			var err error
+			user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
+			return err
+		})
+		eg.Go(func() error {
+			memberIDs, err := h.opts.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{apiKey.UserID})
+			if errors.Is(err, sql.ErrNoRows) || len(memberIDs) == 0 {
+				return nil
+			}
+			if err != nil {
+				return nil
+			}
+			orgIDs = memberIDs[0].OrganizationIDs
+			return err
+		})
+		err := eg.Wait()
+		if err == nil {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				user, err := json.Marshal(db2sdk.User(user, orgIDs))
+				if err == nil {
+					state.User = html.EscapeString(string(user))
+				}
+			}()
+			entitlements := h.Entitlements.Load()
+			if entitlements != nil {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					entitlements, err := json.Marshal(entitlements)
+					if err == nil {
+						state.Entitlements = html.EscapeString(string(entitlements))
+					}
+				}()
+			}
+			if h.AppearanceFetcher != nil {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					cfg, err := h.AppearanceFetcher(ctx)
+					if err == nil {
+						appearance, err := json.Marshal(cfg)
+						if err == nil {
+							state.Appearance = html.EscapeString(string(appearance))
+						}
+					}
+				}()
+			}
+			if h.RegionsFetcher != nil {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					regions, err := h.RegionsFetcher(ctx)
+					if err == nil {
+						regions, err := json.Marshal(regions)
+						if err == nil {
+							state.Regions = html.EscapeString(string(regions))
+						}
+					}
+				}()
+			}
+			experiments := h.Experiments.Load()
+			if experiments != nil {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					experiments, err := json.Marshal(experiments)
+					if err == nil {
+						state.Experiments = html.EscapeString(string(experiments))
+					}
+				}()
+			}
+			wg.Wait()
+		}
+	}
+
+	err := tmpl.Execute(&buf, state)
 	if err != nil {
 		return nil, err
 	}
-
 	return buf.Bytes(), nil
 }
 
 // secureHeaders is only needed for statically served files. We do not need this for api endpoints.
 // It adds various headers to enforce browser security features.
-func secureHeaders(next http.Handler) http.Handler {
+func secureHeaders() *secure.Secure {
 	// Permissions-Policy can be used to disabled various browser features that we do not use.
 	// This can prevent an embedded iframe from accessing these features.
 	// If we support arbitrary iframes such as generic applications, we might need to add permissions
@@ -296,12 +414,12 @@ func secureHeaders(next http.Handler) http.Handler {
 
 		// Prevent the browser from sending Referrer header with requests
 		ReferrerPolicy: "no-referrer",
-	}).Handler(next)
+	})
 }
 
-// htmlFiles recursively walks the file system passed finding all *.html files.
+// findAndParseHTMLFiles recursively walks the file system passed finding all *.html files.
 // The template returned has all html files parsed.
-func htmlFiles(files fs.FS) (*htmlTemplates, error) {
+func findAndParseHTMLFiles(files fs.FS) (*template.Template, error) {
 	// root is the collection of html templates. All templates are named by their pathing.
 	// So './404.html' is named '404.html'. './subdir/index.html' is 'subdir/index.html'
 	root := template.New("")
@@ -341,10 +459,7 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return &htmlTemplates{
-		tpls: root,
-	}, nil
+	return root, nil
 }
 
 // ExtractOrReadBinFS checks the provided fs for compressed coder binaries and

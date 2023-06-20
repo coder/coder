@@ -4599,6 +4599,12 @@ const docTemplate = `{
                         "description": "Follow log stream",
                         "name": "follow",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Disable compression for WebSocket connection",
+                        "name": "no_compression",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5812,6 +5818,9 @@ const docTemplate = `{
         "agentsdk.PostLifecycleRequest": {
             "type": "object",
             "properties": {
+                "changed_at": {
+                    "type": "string"
+                },
                 "state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 }
@@ -6689,7 +6698,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "inactivity_ttl_ms": {
-                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\ndeletes inactive workspaces created from this template.",
+                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\nlocks inactive workspaces created from this template.",
+                    "type": "integer"
+                },
+                "locked_ttl_ms": {
+                    "description": "LockedTTL allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -7891,6 +7904,9 @@ const docTemplate = `{
                 "collect_agent_stats": {
                     "type": "boolean"
                 },
+                "collect_db_metrics": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 }
@@ -7985,6 +8001,12 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "queue_position": {
+                    "type": "integer"
+                },
+                "queue_size": {
+                    "type": "integer"
                 },
                 "started_at": {
                     "type": "string",
@@ -8507,7 +8529,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "failure_ttl_ms": {
-                    "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "FailureTTLMillis, InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "integer"
                 },
                 "icon": {
@@ -8518,6 +8540,9 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "inactivity_ttl_ms": {
+                    "type": "integer"
+                },
+                "locked_ttl_ms": {
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -9256,6 +9281,10 @@ const docTemplate = `{
                 "operating_system": {
                     "type": "string"
                 },
+                "ready_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"
@@ -9265,6 +9294,10 @@ const docTemplate = `{
                 },
                 "shutdown_script_timeout_seconds": {
                     "type": "integer"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "startup_logs_length": {
                     "type": "integer"
@@ -10003,11 +10036,29 @@ const docTemplate = `{
                 "error": {}
             }
         },
+        "healthcheck.DatabaseReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "latency": {
+                    "type": "integer"
+                },
+                "reachable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
                 "access_url": {
                     "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
+                "database": {
+                    "$ref": "#/definitions/healthcheck.DatabaseReport"
                 },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"

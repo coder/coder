@@ -87,6 +87,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
 			}
 
+			err = uploadFlags.checkForLockfile(inv)
+			if err != nil {
+				return xerrors.Errorf("check for lockfile: %w", err)
+			}
+
 			// Confirm upload of the directory.
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
@@ -185,7 +190,6 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Default:     "0h",
 			Value:       clibase.DurationOf(&inactivityTTL),
 		},
-		uploadFlags.option(),
 		{
 			Flag:        "test.provisioner",
 			Description: "Customize the provisioner backend.",
@@ -195,6 +199,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		},
 		cliui.SkipPromptOption(),
 	}
+	cmd.Options = append(cmd.Options, uploadFlags.options()...)
 	return cmd
 }
 

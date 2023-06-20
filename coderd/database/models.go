@@ -1575,6 +1575,7 @@ type Template struct {
 	AllowUserAutostop bool  `db:"allow_user_autostop" json:"allow_user_autostop"`
 	FailureTTL        int64 `db:"failure_ttl" json:"failure_ttl"`
 	InactivityTTL     int64 `db:"inactivity_ttl" json:"inactivity_ttl"`
+	LockedTTL         int64 `db:"locked_ttl" json:"locked_ttl"`
 }
 
 type TemplateVersion struct {
@@ -1725,6 +1726,10 @@ type WorkspaceAgent struct {
 	Subsystem             WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
 	// When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.
 	StartupScriptBehavior StartupScriptBehavior `db:"startup_script_behavior" json:"startup_script_behavior"`
+	// The time the agent entered the starting lifecycle state
+	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
+	// The time the agent entered the ready or start_error lifecycle state
+	ReadyAt sql.NullTime `db:"ready_at" json:"ready_at"`
 }
 
 type WorkspaceAgentMetadatum struct {

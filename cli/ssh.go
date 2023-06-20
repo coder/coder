@@ -455,7 +455,7 @@ func watchAndClose(ctx context.Context, closer func() error, logger slog.Logger,
 
 startWatchLoop:
 	for {
-		logger.Debug(ctx, "(re)connecting to the coder server to watch workspace events.")
+		logger.Debug(ctx, "connecting to the coder server to watch workspace events")
 		var wsWatch <-chan codersdk.Workspace
 		var err error
 		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
@@ -464,7 +464,7 @@ startWatchLoop:
 				break
 			}
 			if ctx.Err() != nil {
-				logger.Info(ctx, "context expired", slog.Error(ctx.Err()))
+				logger.Debug(ctx, "context expired", slog.Error(ctx.Err()))
 				return
 			}
 		}
@@ -472,7 +472,7 @@ startWatchLoop:
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Info(ctx, "context expired", slog.Error(ctx.Err()))
+				logger.Debug(ctx, "context expired", slog.Error(ctx.Err()))
 				return
 			case w, ok := <-wsWatch:
 				if !ok {

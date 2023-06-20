@@ -16,6 +16,10 @@ See the [Terraform reference](https://registry.terraform.io/providers/coder/code
 All of these examples use [heredoc strings](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for the script declaration. With heredoc strings, you
 can script without messy escape codes, just as if you were working in your terminal.
 
+Some of the below examples use the [`coder stat`](../cli/stat.md) command.
+This is useful for determining CPU/memory usage inside a container, which
+can be tricky otherwise.
+
 Here's a standard set of metadata snippets for Linux agents:
 
 ```hcl
@@ -25,10 +29,38 @@ resource "coder_agent" "main" {
   metadata {
     display_name = "CPU Usage"
     key  = "cpu"
+    # Uses the coder stat command to get container CPU usage.
+    script = "coder stat cpu"
+    interval = 1
+    timeout = 1
+  }
+
+  metadata {
+    display_name = "Memory Usage"
+    key  = "mem"
+    # Uses the coder stat command to get container memory usage in GiB.
+    script = "coder stat mem --prefix Gi"
+    interval = 1
+    timeout = 1
+  }
+
+  metadata {
+    display_name = "CPU Usage (Host)"
+    key  = "cpu_host"
     # calculates CPU usage by summing the "us", "sy" and "id" columns of
-    # vmstat.
+    # top.
     script = <<EOT
-        top -bn1 | awk 'FNR==3 {printf "%2.0f%%", $2+$3+$4}'
+    top -bn1 | awk 'FNR==3 {printf "%2.0f%%", $2+$3+$4}'
+    EOT
+    interval = 1
+    timeout = 1
+  }
+
+    metadata {
+    display_name = "Memory Usage (Host)"
+    key  = "mem_host"
+    script = <<EOT
+    free | awk '/^Mem/ { printf("%.0f%%", $4/$2 * 100.0) }'
     EOT
     interval = 1
     timeout = 1
@@ -38,16 +70,6 @@ resource "coder_agent" "main" {
     display_name = "Disk Usage"
     key  = "disk"
     script = "df -h | awk '$6 ~ /^\\/$/ { print $5 }'"
-    interval = 1
-    timeout = 1
-  }
-
-  metadata {
-    display_name = "Memory Usage"
-    key  = "mem"
-    script = <<EOT
-    free | awk '/^Mem/ { printf("%.0f%%", $4/$2 * 100.0) }'
-    EOT
     interval = 1
     timeout = 1
   }

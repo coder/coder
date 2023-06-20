@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -193,7 +194,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 
 		for _, roleName := range dblog.UserRoles {
 			rbacRole, _ := rbac.RoleByName(roleName)
-			user.Roles = append(user.Roles, convertRole(rbacRole))
+			user.Roles = append(user.Roles, db2sdk.Role(rbacRole))
 		}
 	}
 

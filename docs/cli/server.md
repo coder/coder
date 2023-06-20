@@ -565,6 +565,17 @@ The bind address to serve prometheus metrics.
 
 Collect agent stats (may increase charges for metrics storage).
 
+### --prometheus-collect-db-metrics
+
+|             |                                                          |
+| ----------- | -------------------------------------------------------- |
+| Type        | <code>bool</code>                                        |
+| Environment | <code>$CODER_PROMETHEUS_COLLECT_DB_METRICS</code>        |
+| YAML        | <code>introspection.prometheus.collect_db_metrics</code> |
+| Default     | <code>false</code>                                       |
+
+Collect database metrics (may increase charges for metrics storage).
+
 ### --prometheus-enable
 
 |             |                                              |

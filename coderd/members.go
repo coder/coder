@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/rbac"
 
 	"github.com/coder/coder/coderd/database"
@@ -104,7 +105,7 @@ func convertOrganizationMember(mem database.OrganizationMember) codersdk.Organiz
 
 	for _, roleName := range mem.Roles {
 		rbacRole, _ := rbac.RoleByName(roleName)
-		convertedMember.Roles = append(convertedMember.Roles, convertRole(rbacRole))
+		convertedMember.Roles = append(convertedMember.Roles, db2sdk.Role(rbacRole))
 	}
 	return convertedMember
 }

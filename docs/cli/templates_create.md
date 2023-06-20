@@ -39,6 +39,15 @@ Specify the directory to create from, use '-' to read tar from stdin.
 
 Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).
 
+### --ignore-lockfile
+
+|         |                    |
+| ------- | ------------------ |
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Ignore warnings about not having a .terraform.lock.hcl file present in the template.
+
 ### --inactivity-ttl
 
 |         |                       |

@@ -106,8 +106,11 @@ type CreateTemplateRequest struct {
 	// stops all resources for failed workspaces created from this template.
 	FailureTTLMillis *int64 `json:"failure_ttl_ms,omitempty"`
 	// InactivityTTLMillis allows optionally specifying the max lifetime before Coder
-	// deletes inactive workspaces created from this template.
+	// locks inactive workspaces created from this template.
 	InactivityTTLMillis *int64 `json:"inactivity_ttl_ms,omitempty"`
+	// LockedTTL allows optionally specifying the max lifetime before Coder
+	// permanently deletes locked workspaces created from this template.
+	LockedTTL *int64 `json:"locked_ttl_ms,omitempty"`
 
 	// DisableEveryoneGroupAccess allows optionally disabling the default
 	// behavior of granting the 'everyone' group access to use the template.
