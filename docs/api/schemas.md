@@ -280,7 +280,6 @@
   "logs": [
     {
       "created_at": "string",
-      "eof": true,
       "level": "trace",
       "output": "string"
     }
@@ -316,15 +315,17 @@
 
 ```json
 {
+  "changed_at": "string",
   "state": "created"
 }
 ```
 
 ### Properties
 
-| Name    | Type                                                                 | Required | Restrictions | Description |
-| ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+| Name         | Type                                                                 | Required | Restrictions | Description |
+| ------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `changed_at` | string                                                               | false    |              |             |
+| `state`      | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
 ## agentsdk.PostMetadataRequest
 
@@ -369,7 +370,6 @@
 ```json
 {
   "created_at": "string",
-  "eof": true,
   "level": "trace",
   "output": "string"
 }
@@ -380,7 +380,6 @@
 | Name         | Type                                   | Required | Restrictions | Description |
 | ------------ | -------------------------------------- | -------- | ------------ | ----------- |
 | `created_at` | string                                 | false    |              |             |
-| `eof`        | boolean                                | false    |              |             |
 | `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
 | `output`     | string                                 | false    |              |             |
 
@@ -4512,9 +4511,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
+            "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "shutdown_script": "string",
             "shutdown_script_timeout_seconds": 0,
+            "started_at": "2019-08-24T14:15:22Z",
             "startup_logs_length": 0,
             "startup_logs_overflowed": true,
             "startup_script": "string",
@@ -4644,9 +4645,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "login_before_ready": true,
   "name": "string",
   "operating_system": "string",
+  "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
+  "started_at": "2019-08-24T14:15:22Z",
   "startup_logs_length": 0,
   "startup_logs_overflowed": true,
   "startup_script": "string",
@@ -4683,9 +4686,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `login_before_ready`              | boolean                                                                                      | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                             |
 | `name`                            | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `operating_system`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `ready_at`                        | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `resource_id`                     | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
+| `started_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `startup_logs_length`             | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `startup_logs_overflowed`         | boolean                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `startup_script`                  | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -4848,7 +4853,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
-  "eof": true,
   "id": 0,
   "level": "trace",
   "output": "string"
@@ -4857,13 +4861,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                   | Required | Restrictions | Description                                                           |
-| ------------ | -------------------------------------- | -------- | ------------ | --------------------------------------------------------------------- |
-| `created_at` | string                                 | false    |              |                                                                       |
-| `eof`        | boolean                                | false    |              | Eof indicates that this is the last log entry and the file is closed. |
-| `id`         | integer                                | false    |              |                                                                       |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |                                                                       |
-| `output`     | string                                 | false    |              |                                                                       |
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `id`         | integer                                | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -5056,9 +5059,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "started_at": "2019-08-24T14:15:22Z",
           "startup_logs_length": 0,
           "startup_logs_overflowed": true,
           "startup_script": "string",
@@ -5339,9 +5344,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "login_before_ready": true,
       "name": "string",
       "operating_system": "string",
+      "ready_at": "2019-08-24T14:15:22Z",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "shutdown_script": "string",
       "shutdown_script_timeout_seconds": 0,
+      "started_at": "2019-08-24T14:15:22Z",
       "startup_logs_length": 0,
       "startup_logs_overflowed": true,
       "startup_script": "string",
@@ -5539,9 +5546,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
                 "login_before_ready": true,
                 "name": "string",
                 "operating_system": "string",
+                "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "shutdown_script": "string",
                 "shutdown_script_timeout_seconds": 0,
+                "started_at": "2019-08-24T14:15:22Z",
                 "startup_logs_length": 0,
                 "startup_logs_overflowed": true,
                 "startup_script": "string",
