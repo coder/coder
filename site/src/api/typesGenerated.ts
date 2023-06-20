@@ -368,6 +368,7 @@ export interface DeploymentValues {
   readonly max_session_expiry?: number
   readonly disable_session_expiry_refresh?: boolean
   readonly disable_password_auth?: boolean
+  readonly enable_oauth_account_conversion?: boolean
   readonly support?: SupportConfig
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type

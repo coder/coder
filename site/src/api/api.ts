@@ -110,16 +110,16 @@ export const login = async (
 export const convertToOauth = async (
   email: string,
   password: string,
-  oauth_provider: string,
+  to_login_type: string,
 ): Promise<TypesGen.OauthConversionResponse | undefined> => {
   const payload = JSON.stringify({
     email,
     password,
-    oauth_provider,
+    to_login_type,
   })
 
   try {
-    const response = await axios.post<TypesGen.OauthConversionResponse>("/api/v2/users/upgrade-to-oidc",
+    const response = await axios.post<TypesGen.OauthConversionResponse>("/api/v2/users/convert-login",
     payload,
     {
       headers: { ...CONTENT_TYPE_JSON },

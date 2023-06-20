@@ -7176,6 +7176,9 @@ const docTemplate = `{
                 "disable_session_expiry_refresh": {
                     "type": "boolean"
                 },
+                "enable_oauth_account_conversion": {
+                    "type": "boolean"
+                },
                 "experiments": {
                     "type": "array",
                     "items": {

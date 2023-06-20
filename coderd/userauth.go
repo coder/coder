@@ -101,7 +101,8 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.InTx(func(store database.Store) error {
 		// We should only ever have 1 oauth merge state per user. So delete
 		// any existing if they exist.
-		err := api.Database.DeleteUserOauthMergeStates(ctx, user.ID)
+		//nolint:gocritic // Keeping the table clean
+		err := api.Database.DeleteUserOauthMergeStates(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return err
 		}
@@ -521,15 +522,16 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
-		User:         user,
-		Link:         link,
-		State:        state,
-		LinkedID:     githubLinkedID(ghUser),
-		LoginType:    database.LoginTypeGithub,
-		AllowSignups: api.GithubOAuth2Config.AllowSignups,
-		Email:        verifiedEmail.GetEmail(),
-		Username:     ghUser.GetLogin(),
-		AvatarURL:    ghUser.GetAvatarURL(),
+		User:                   user,
+		Link:                   link,
+		State:                  state,
+		LinkedID:               githubLinkedID(ghUser),
+		LoginType:              database.LoginTypeGithub,
+		AllowSignups:           api.GithubOAuth2Config.AllowSignups,
+		Email:                  verifiedEmail.GetEmail(),
+		Username:               ghUser.GetLogin(),
+		AvatarURL:              ghUser.GetAvatarURL(),
+		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -850,17 +852,18 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
-		User:         user,
-		Link:         link,
-		State:        state,
-		LinkedID:     oidcLinkedID(idToken),
-		LoginType:    database.LoginTypeOIDC,
-		AllowSignups: api.OIDCConfig.AllowSignups,
-		Email:        email,
-		Username:     username,
-		AvatarURL:    picture,
-		UsingGroups:  usingGroups,
-		Groups:       groups,
+		User:                   user,
+		Link:                   link,
+		State:                  state,
+		LinkedID:               oidcLinkedID(idToken),
+		LoginType:              database.LoginTypeOIDC,
+		AllowSignups:           api.OIDCConfig.AllowSignups,
+		Email:                  email,
+		Username:               username,
+		AvatarURL:              picture,
+		UsingGroups:            usingGroups,
+		Groups:                 groups,
+		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -940,8 +943,9 @@ type oauthLoginParams struct {
 	AvatarURL    string
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
-	UsingGroups bool
-	Groups      []string
+	UsingGroups            bool
+	Groups                 []string
+	OauthConversionEnabled bool
 }
 
 type httpError struct {
@@ -980,11 +984,26 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			}
 		}
 
+		// If this is not a new user and the login type is different,
+		// we need to check if the user is trying to change their login type.
 		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
+			wrongLoginTypeErr := httpError{
+				code: http.StatusForbidden,
+				msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
+					params.LoginType,
+					user.LoginType,
+				),
+			}
+			if !params.OauthConversionEnabled {
+				return wrongLoginTypeErr
+			}
 			mergeState, err := api.Database.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
 				UserID:      user.ID,
 				StateString: params.State.StateString,
 			})
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return wrongLoginTypeErr
+			}
 			failedMsg := fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType)
 			if err != nil {
 				return httpError{

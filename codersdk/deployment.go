@@ -158,6 +158,7 @@ type DeploymentValues struct {
 	SessionDuration                 clibase.Duration                `json:"max_session_expiry,omitempty" typescript:",notnull"`
 	DisableSessionExpiryRefresh     clibase.Bool                    `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
 	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
+	EnableOauthAccountConversion    clibase.Bool                    `json:"enable_oauth_account_conversion,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
@@ -1425,6 +1426,15 @@ when required by your organization's security policy.`,
 			Value: &c.DisablePasswordAuth,
 			Group: &deploymentGroupNetworkingHTTP,
 			YAML:  "disablePasswordAuth",
+		},
+		{
+			Name:        "Enable Oauth account conversion",
+			Description: "If enabled, users can switch from password based authentication to oauth based authentication by logging into an oidc account with the same email address.",
+			Flag:        "enable-oauth-auth-conversion",
+			Env:         "CODER_ENABLE_OAUTH_AUTH_CONVERSION",
+			Value:       &c.EnableOauthAccountConversion,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "enableOauthAuthConversion",
 		},
 		{
 			Name:          "Config Path",

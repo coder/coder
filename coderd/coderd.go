@@ -398,6 +398,8 @@ func New(options *Options) *API {
 		Optional:                    true,
 	})
 
+	allowOauthConversion := options.DeploymentValues.EnableOauthAccountConversion.Value()
+
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
@@ -620,7 +622,13 @@ func New(options *Options) *API {
 					r.Use(
 						apiKeyMiddleware,
 					)
-					r.Post("/", api.postConvertLoginType)
+					if allowOauthConversion {
+						r.Post("/", api.postConvertLoginType)
+					} else {
+						r.Post("/", func(rw http.ResponseWriter, r *http.Request) {
+							http.Error(rw, "Oauth conversion is not allowed, contact an administrator to turn on this feature.", http.StatusForbidden)
+						})
+					}
 				})
 			})
 			r.Group(func(r chi.Router) {

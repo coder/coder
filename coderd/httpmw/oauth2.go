@@ -99,13 +99,6 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[str
 				// their password again.
 				oidcMergeState := r.URL.Query().Get("oidc_merge_state")
 				if oidcMergeState != "" {
-					_, ok := APIKeyOptional(r)
-					if !ok {
-						httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-							Message: "Must be logged in to merge account.",
-						})
-						return
-					}
 					state = oidcMergeState
 				} else {
 					var err error
@@ -184,4 +177,13 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[str
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+func RemoveOauthStateCookie(rw http.ResponseWriter) {
+	http.SetCookie(rw, &http.Cookie{
+		Name:   codersdk.OAuth2StateCookie,
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
+	})
 }
