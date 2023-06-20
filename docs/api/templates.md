@@ -379,6 +379,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -457,6 +459,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -558,6 +562,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -859,6 +865,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "queue_position": 0,
+      "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
       "status": "pending",
       "tags": {
@@ -912,6 +920,8 @@ Status Code **200**
 | `»» error_code`       | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                 | false    |              |             |
 | `»» file_id`          | string(uuid)                                                             | false    |              |             |
 | `»» id`               | string(uuid)                                                             | false    |              |             |
+| `»» queue_position`   | integer                                                                  | false    |              |             |
+| `»» queue_size`       | integer                                                                  | false    |              |             |
 | `»» started_at`       | string(date-time)                                                        | false    |              |             |
 | `»» status`           | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus) | false    |              |             |
 | `»» tags`             | object                                                                   | false    |              |             |
@@ -1048,6 +1058,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "queue_position": 0,
+      "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
       "status": "pending",
       "tags": {
@@ -1101,6 +1113,8 @@ Status Code **200**
 | `»» error_code`       | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                 | false    |              |             |
 | `»» file_id`          | string(uuid)                                                             | false    |              |             |
 | `»» id`               | string(uuid)                                                             | false    |              |             |
+| `»» queue_position`   | integer                                                                  | false    |              |             |
+| `»» queue_size`       | integer                                                                  | false    |              |             |
 | `»» started_at`       | string(date-time)                                                        | false    |              |             |
 | `»» status`           | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus) | false    |              |             |
 | `»» tags`             | object                                                                   | false    |              |             |
@@ -1181,6 +1195,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -1267,6 +1283,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -1390,6 +1408,8 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   "error_code": "MISSING_TEMPLATE_PARAMETER",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "queue_position": 0,
+  "queue_size": 0,
   "started_at": "2019-08-24T14:15:22Z",
   "status": "pending",
   "tags": {
@@ -1441,6 +1461,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   "error_code": "MISSING_TEMPLATE_PARAMETER",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "queue_position": 0,
+  "queue_size": 0,
   "started_at": "2019-08-24T14:15:22Z",
   "status": "pending",
   "tags": {

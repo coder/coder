@@ -7991,6 +7991,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "queue_position": {
+                    "type": "integer"
+                },
+                "queue_size": {
+                    "type": "integer"
+                },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
