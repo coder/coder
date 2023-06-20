@@ -724,6 +724,13 @@ func (m metricsStore) GetWorkspaceAgentByInstanceID(ctx context.Context, authIns
 	return agent, err
 }
 
+func (m metricsStore) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentLifecycleStateByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentLifecycleStateByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	start := time.Now()
 	metadata, err := m.s.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)

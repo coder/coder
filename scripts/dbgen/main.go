@@ -7,6 +7,7 @@ import (
 	"go/format"
 	"go/token"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -40,7 +41,7 @@ func init() {
 func main() {
 	err := run()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
 }
@@ -171,9 +172,9 @@ type stubParams struct {
 //
 // querierFuncs is a list of functions that are in the database.
 // file is the path to the file that contains all the functions.
-// struc is the name of the struct that contains the functions.
+// structName is the name of the struct that contains the functions.
 // stub is a string that will be used to stub the functions.
-func orderAndStubDatabaseFunctions(filePath, receiver, struc string, stub func(params stubParams) string) error {
+func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub func(params stubParams) string) error {
 	declByName := map[string]*dst.FuncDecl{}
 	packageName := filepath.Base(filepath.Dir(filePath))
 
@@ -206,7 +207,7 @@ func orderAndStubDatabaseFunctions(filePath, receiver, struc string, stub func(p
 			}
 			pointer = true
 		}
-		if ident == nil || ident.Name != struc {
+		if ident == nil || ident.Name != structName {
 			continue
 		}
 		if _, ok := funcByName[funcDecl.Name.Name]; !ok {
@@ -218,9 +219,79 @@ func orderAndStubDatabaseFunctions(filePath, receiver, struc string, stub func(p
 	}
 
 	for _, fn := range funcs {
+		var bodyStmts []dst.Stmt
+		if len(fn.Func.Params.List) == 2 && fn.Func.Params.List[1].Names[0].Name == "arg" {
+			/*
+				err := validateDatabaseType(arg)
+				if err != nil {
+					return database.User{}, err
+				}
+			*/
+			bodyStmts = append(bodyStmts, &dst.AssignStmt{
+				Lhs: []dst.Expr{dst.NewIdent("err")},
+				Tok: token.DEFINE,
+				Rhs: []dst.Expr{
+					&dst.CallExpr{
+						Fun: &dst.Ident{
+							Name: "validateDatabaseType",
+						},
+						Args: []dst.Expr{dst.NewIdent("arg")},
+					},
+				},
+			})
+			returnStmt := &dst.ReturnStmt{
+				Results: []dst.Expr{}, // Filled below.
+			}
+			bodyStmts = append(bodyStmts, &dst.IfStmt{
+				Cond: &dst.BinaryExpr{
+					X:  dst.NewIdent("err"),
+					Op: token.NEQ,
+					Y:  dst.NewIdent("nil"),
+				},
+				Body: &dst.BlockStmt{
+					List: []dst.Stmt{
+						returnStmt,
+					},
+				},
+				Decs: dst.IfStmtDecorations{
+					NodeDecs: dst.NodeDecs{
+						After: dst.EmptyLine,
+					},
+				},
+			})
+			for _, r := range fn.Func.Results.List {
+				switch typ := r.Type.(type) {
+				case *dst.StarExpr, *dst.ArrayType:
+					returnStmt.Results = append(returnStmt.Results, dst.NewIdent("nil"))
+				case *dst.Ident:
+					if typ.Path != "" {
+						returnStmt.Results = append(returnStmt.Results, dst.NewIdent(fmt.Sprintf("%s.%s{}", path.Base(typ.Path), typ.Name)))
+					} else {
+						switch typ.Name {
+						case "uint8", "uint16", "uint32", "uint64", "uint", "uintptr",
+							"int8", "int16", "int32", "int64", "int",
+							"byte", "rune",
+							"float32", "float64",
+							"complex64", "complex128":
+							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("0"))
+						case "string":
+							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("\"\""))
+						case "bool":
+							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("false"))
+						case "error":
+							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("err"))
+						default:
+							panic(fmt.Sprintf("unknown ident: %#v", r.Type))
+						}
+					}
+				default:
+					panic(fmt.Sprintf("unknown return type: %T", r.Type))
+				}
+			}
+		}
 		decl, ok := declByName[fn.Name]
 		if !ok {
-			typeName := struc
+			typeName := structName
 			if pointer {
 				typeName = "*" + typeName
 			}
@@ -270,7 +341,9 @@ func orderAndStubDatabaseFunctions(filePath, receiver, struc string, stub func(p
 						After:  dst.EmptyLine,
 					},
 				},
-				Body: funcDecl.Body,
+				Body: &dst.BlockStmt{
+					List: append(bodyStmts, funcDecl.Body.List...),
+				},
 			}
 		}
 		if ok {
@@ -403,6 +476,11 @@ func readQuerierFunctions() ([]querierFunction, error) {
 				switch t := f.Type.(type) {
 				case *dst.Ident:
 					ident = t
+				case *dst.StarExpr:
+					ident, ok = t.X.(*dst.Ident)
+					if !ok {
+						continue
+					}
 				case *dst.SelectorExpr:
 					ident, ok = t.X.(*dst.Ident)
 					if !ok {

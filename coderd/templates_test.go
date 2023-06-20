@@ -635,6 +635,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		const (
 			failureTTL    = 7 * 24 * time.Hour
 			inactivityTTL = 180 * 24 * time.Hour
+			lockedTTL     = 360 * 24 * time.Hour
 		)
 
 		t.Run("OK", func(t *testing.T) {
@@ -647,9 +648,11 @@ func TestPatchTemplateMeta(t *testing.T) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
 							require.Equal(t, failureTTL, options.FailureTTL)
 							require.Equal(t, inactivityTTL, options.InactivityTTL)
+							require.Equal(t, lockedTTL, options.LockedTTL)
 						}
 						template.FailureTTL = int64(options.FailureTTL)
 						template.InactivityTTL = int64(options.InactivityTTL)
+						template.LockedTTL = int64(options.LockedTTL)
 						return template, nil
 					},
 				},
@@ -659,6 +662,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.FailureTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 				ctr.InactivityTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
+				ctr.LockedTTL = ptr.Ref(0 * time.Hour.Milliseconds())
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -674,12 +678,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				FailureTTLMillis:             failureTTL.Milliseconds(),
 				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
+				LockedTTLMillis:              lockedTTL.Milliseconds(),
 			})
 			require.NoError(t, err)
 
 			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
 			require.Equal(t, failureTTL.Milliseconds(), got.FailureTTLMillis)
 			require.Equal(t, inactivityTTL.Milliseconds(), got.InactivityTTLMillis)
+			require.Equal(t, lockedTTL.Milliseconds(), got.LockedTTLMillis)
 		})
 
 		t.Run("IgnoredUnlicensed", func(t *testing.T) {
@@ -691,6 +697,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.FailureTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 				ctr.InactivityTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
+				ctr.LockedTTL = ptr.Ref(0 * time.Hour.Milliseconds())
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -706,10 +713,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				FailureTTLMillis:             failureTTL.Milliseconds(),
 				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
+				LockedTTLMillis:              lockedTTL.Milliseconds(),
 			})
 			require.NoError(t, err)
 			require.Zero(t, got.FailureTTLMillis)
 			require.Zero(t, got.InactivityTTLMillis)
+			require.Zero(t, got.LockedTTLMillis)
 		})
 	})
 

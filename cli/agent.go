@@ -126,7 +126,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					reaper.WithCatchSignals(InterruptSignals...),
 				)
 				if err != nil {
-					logger.Error(ctx, "failed to reap", slog.Error(err))
+					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
@@ -163,7 +163,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
-			logger.Info(ctx, "starting agent",
+			logger.Info(ctx, "agent is starting now",
 				slog.F("url", r.agentURL),
 				slog.F("auth", auth),
 				slog.F("version", version),
@@ -323,10 +323,11 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Value:       clibase.BoolOf(&noReap),
 		},
 		{
-			Flag:        "ssh-max-timeout",
-			Default:     "0",
+			Flag: "ssh-max-timeout",
+			// tcpip.KeepaliveIdleOption = 72h + 1min (forwardTCPSockOpts() in tailnet/conn.go)
+			Default:     "72h",
 			Env:         "CODER_AGENT_SSH_MAX_TIMEOUT",
-			Description: "Specify the max timeout for a SSH connection.",
+			Description: "Specify the max timeout for a SSH connection, it is advisable to set it to a minimum of 60s, but no more than 72h.",
 			Value:       clibase.DurationOf(&sshMaxTimeout),
 		},
 		{

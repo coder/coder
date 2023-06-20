@@ -388,6 +388,7 @@ export const MockTemplate: TypesGen.Template = {
   allow_user_cancel_workspace_jobs: true,
   failure_ttl_ms: 0,
   inactivity_ttl_ms: 0,
+  locked_ttl_ms: 0,
   allow_user_autostart: false,
   allow_user_autostop: false,
 }

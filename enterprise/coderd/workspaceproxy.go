@@ -39,23 +39,30 @@ func (api *API) forceWorkspaceProxyHealthUpdate(ctx context.Context) {
 // NOTE: this doesn't need a swagger definition since AGPL already has one, and
 // this route overrides the AGPL one.
 func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	//nolint:gocritic // this route intentionally requests resources that users
+	regions, err := api.fetchRegions(r.Context())
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, regions)
+}
+
+func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse, error) {
+	//nolint:gocritic // this intentionally requests resources that users
 	// cannot usually access in order to give them a full list of available
 	// regions.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	primaryRegion, err := api.AGPL.PrimaryRegion(ctx)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+		return codersdk.RegionsResponse{}, err
 	}
 	regions := []codersdk.Region{primaryRegion}
 
 	proxies, err := api.Database.GetWorkspaceProxies(ctx)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+		return codersdk.RegionsResponse{}, err
 	}
 
 	// Only add additional regions if the proxy health is enabled.
@@ -81,9 +88,9 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RegionsResponse{
+	return codersdk.RegionsResponse{
 		Regions: regions,
-	})
+	}, nil
 }
 
 // @Summary Update workspace proxy

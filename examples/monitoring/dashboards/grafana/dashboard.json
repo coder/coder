@@ -128,7 +128,24 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.*/"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CPU seconds"
+              },
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -413,13 +430,25 @@
         "overrides": [
           {
             "matcher": {
-              "id": "byName",
-              "options": "{__name__=\"coderd_provisionerd_num_daemons\", app=\"coderd\", instance=\"coder:2112\", job=\"coderd\"}"
+              "id": "byRegexp",
+              "options": "/coderd_provisionerd_num_daemons/"
             },
             "properties": [
               {
                 "id": "displayName",
                 "value": "Running provisioners"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/coderd_provisionerd_jobs_current/"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Running jobs"
               }
             ]
           }
@@ -531,8 +560,8 @@
         "overrides": [
           {
             "matcher": {
-              "id": "byName",
-              "options": "sum(rate(coderd_db_query_latencies_seconds_count[1m0s]))"
+              "id": "byRegexp",
+              "options": "/.*coderd_db_query_latencies_seconds_count.*/"
             },
             "properties": [
               {
@@ -547,13 +576,13 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "histogram_quantile(0.95, sum by(le) (rate(coderd_db_query_latencies_seconds_bucket[1m0s])))"
+              "id": "byRegexp",
+              "options": "/.*coderd_db_query_latencies_seconds_bucket.*/"
             },
             "properties": [
               {
                 "id": "displayName",
-                "value": "P95 latency"
+                "value": "P95 query latency"
               }
             ]
           }
@@ -666,8 +695,8 @@
         "overrides": [
           {
             "matcher": {
-              "id": "byName",
-              "options": "{__name__=\"go_memstats_alloc_bytes\", app=\"coderd\", instance=\"coder:2112\", job=\"coderd\"}"
+              "id": "byRegexp",
+              "options": "/go_memstats_alloc_bytes/"
             },
             "properties": [
               {
@@ -686,8 +715,8 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "{__name__=\"go_goroutines\", app=\"coderd\", instance=\"coder:2112\", job=\"coderd\"}"
+              "id": "byRegexp",
+              "options": "/go_goroutines/"
             },
             "properties": [
               {
@@ -804,32 +833,40 @@
         "overrides": [
           {
             "matcher": {
-              "id": "byName",
-              "options": "sum(rate(coderd_api_requests_processed_total{code=\"500\"}[1m0s]))"
+              "id": "byRegexp",
+              "options": "/coderd_api_requests_processed_total{code=\"500\"}/"
             },
             "properties": [
               {
                 "id": "displayName",
                 "value": "Error rate"
+              },
+              {
+                "id": "unit",
+                "value": "reqps"
               }
             ]
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "coderd"
+              "id": "byRegexp",
+              "options": "/coderd_api_requests_processed_total/"
             },
             "properties": [
               {
                 "id": "displayName",
                 "value": "Request rate"
+              },
+              {
+                "id": "unit",
+                "value": "reqps"
               }
             ]
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "histogram_quantile(0.95, sum by(le) (rate(coderd_api_request_latencies_seconds_bucket[1m0s])))"
+              "id": "byRegexp",
+              "options": "/coderd_api_request_latencies_seconds_bucket/"
             },
             "properties": [
               {
@@ -870,7 +907,8 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "sum by(job) (rate(coderd_api_requests_processed_total{$filter_key=\"$filter_value\"}[$__rate_interval]))",
+          "expr": "sum(rate(coderd_api_requests_processed_total{$filter_key=\"$filter_value\"}[$__rate_interval]))",
+          "interval": "",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -962,6 +1000,6 @@
   "timezone": "",
   "title": "Coder Dashboard",
   "uid": "cb63c6ac-e392-42a9-a966-ee642b9c997c",
-  "version": 9,
+  "version": 10,
   "weekStart": ""
 }

@@ -69,7 +69,7 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 			return &contextError
 		}
 		logger.Debug(ctx, "unauthorized",
-			slog.F("internal", internalError.Internal()),
+			slog.F("internal_error", internalError.Internal()),
 			slog.F("input", internalError.Input()),
 			slog.Error(err),
 		)
@@ -1385,6 +1385,14 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 	return agent, nil
 }
 
+func (q *querier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+	_, err := q.GetWorkspaceAgentByID(ctx, id)
+	if err != nil {
+		return database.GetWorkspaceAgentLifecycleStateByIDRow{}, err
+	}
+	return q.db.GetWorkspaceAgentLifecycleStateByID(ctx, id)
+}
+
 func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, workspaceAgentID)
 	if err != nil {
@@ -2316,12 +2324,7 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 }
 
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
-	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
-	if err != nil {
-		return err
-	}
-
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
 	if err != nil {
 		return err
 	}

@@ -108,7 +108,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	if err != nil {
 		return nil, xerrors.Errorf("acquire job: %w", err)
 	}
-	server.Logger.Debug(ctx, "locked job from database", slog.F("id", job.ID))
+	server.Logger.Debug(ctx, "locked job from database", slog.F("job_id", job.ID))
 
 	// Marks the acquired job as failed with the error message provided.
 	failJob := func(errorMessage string) error {
