@@ -628,10 +628,10 @@ func (q *querier) newConn(c *connIO) {
 		return
 	}
 	cm.count++
-	go q.waitForConn(c)
+	go q.cleanupConn(c)
 }
 
-func (q *querier) waitForConn(c *connIO) {
+func (q *querier) cleanupConn(c *connIO) {
 	<-c.ctx.Done()
 	q.mu.Lock()
 	defer q.mu.Unlock()
