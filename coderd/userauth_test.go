@@ -807,7 +807,6 @@ func TestUserOIDC(t *testing.T) {
 			"email": userData.Email,
 		})
 
-		numLogs++ // add an audit log for login
 		ctx := testutil.Context(t, testutil.WaitShort)
 		convertResponse, err := user.ConvertToOAuthLogin(ctx, codersdk.ConvertLoginRequest{
 			ToLoginType: codersdk.LoginTypeOIDC,
