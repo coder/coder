@@ -1017,7 +1017,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	defer a.connCountReconnectingPTY.Add(-1)
 
 	connectionID := uuid.NewString()
-	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
+	logger = logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
 	logger.Debug(ctx, "starting handler")
 
 	defer func() {
@@ -1029,9 +1029,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// If the agent is closed, we don't want to
 			// log this as an error since it's expected.
 			if closed {
-				logger.Debug(ctx, "session error after agent close", slog.Error(err))
+				logger.Debug(ctx, "reconnecting PTY failed with session error (agent closed)", slog.Error(err))
 			} else {
-				logger.Error(ctx, "session error", slog.Error(err))
+				logger.Error(ctx, "reconnecting PTY failed with session error", slog.Error(err))
 			}
 		}
 		logger.Debug(ctx, "session closed")
@@ -1107,9 +1107,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 					// When the PTY is closed, this is triggered.
 					// Error is typically a benign EOF, so only log for debugging.
 					if errors.Is(err, io.EOF) {
-						logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
+						logger.Debug(ctx, "unable to read pty output, command might have exited", slog.Error(err))
 					} else {
-						logger.Warn(ctx, "unable to read pty output, command exited?", slog.Error(err))
+						logger.Warn(ctx, "unable to read pty output, command might have exited", slog.Error(err))
 						a.metrics.reconnectingPTYErrors.WithLabelValues("output_reader").Add(1)
 					}
 					break
@@ -1154,7 +1154,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	err := rpty.ptty.Resize(msg.Height, msg.Width)
 	if err != nil {
 		// We can continue after this, it's not fatal!
-		logger.Error(ctx, "resize", slog.Error(err))
+		logger.Error(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
 		a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 	}
 	// Write any previously stored data for the TTY.
@@ -1213,12 +1213,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			return nil
 		}
 		if err != nil {
-			logger.Warn(ctx, "read conn", slog.Error(err))
+			logger.Warn(ctx, "reconnecting PTY failed with read error", slog.Error(err))
 			return nil
 		}
 		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
-			logger.Warn(ctx, "write to pty", slog.Error(err))
+			logger.Warn(ctx, "reconnecting PTY failed with write error", slog.Error(err))
 			a.metrics.reconnectingPTYErrors.WithLabelValues("input_writer").Add(1)
 			return nil
 		}
@@ -1229,7 +1229,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		err = rpty.ptty.Resize(req.Height, req.Width)
 		if err != nil {
 			// We can continue after this, it's not fatal!
-			logger.Error(ctx, "resize", slog.Error(err))
+			logger.Error(ctx, "reconnecting PTY resize failed, but will continue", slog.Error(err))
 			a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 		}
 	}
