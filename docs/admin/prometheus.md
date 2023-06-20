@@ -35,7 +35,7 @@ example `scrape_config`:
 scrape_configs:
   - job_name: "coder"
     static_configs:
-      - targets: ["<ip>:2112"] # replcace with the the IP address of the Coder pod or server
+      - targets: ["<ip>:2112"] # replace with the the IP address of the Coder pod or server
         labels:
           apps: "coder"
 ```
