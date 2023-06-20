@@ -2696,6 +2696,21 @@ func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	agent, err := q.getWorkspaceAgentByIDNoLock(ctx, id)
+	if err != nil {
+		return database.GetWorkspaceAgentLifecycleStateByIDRow{}, err
+	}
+	return database.GetWorkspaceAgentLifecycleStateByIDRow{
+		LifecycleState: agent.LifecycleState,
+		StartedAt:      agent.StartedAt,
+		ReadyAt:        agent.ReadyAt,
+	}, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2728,22 +2743,6 @@ func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg d
 		logs = append(logs, log)
 	}
 	return logs, nil
-}
-
-func (q *fakeQuerier) GetWorkspaceAgentStartupLogsEOF(_ context.Context, agentID uuid.UUID) (bool, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	var lastLog database.WorkspaceAgentStartupLog
-	for _, log := range q.workspaceAgentLogs {
-		if log.AgentID != agentID {
-			continue
-		}
-		if log.ID > lastLog.ID {
-			lastLog = log
-		}
-	}
-	return lastLog.EOF, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -4042,7 +4041,6 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg dat
 			CreatedAt: arg.CreatedAt[index],
 			Level:     arg.Level[index],
 			Output:    output,
-			EOF:       arg.EOF[index],
 		})
 		outputLength += int32(len(output))
 	}
@@ -4901,6 +4899,8 @@ func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, 
 	for i, agent := range q.workspaceAgents {
 		if agent.ID == arg.ID {
 			agent.LifecycleState = arg.LifecycleState
+			agent.StartedAt = arg.StartedAt
+			agent.ReadyAt = arg.ReadyAt
 			q.workspaceAgents[i] = agent
 			return nil
 		}

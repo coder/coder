@@ -186,6 +186,10 @@ func (s *Statter) HostMemory() (*Result, error) {
 		return nil, xerrors.Errorf("get memory info: %w", err)
 	}
 	r.Total = ptr.To(float64(hm.Total))
-	r.Used = float64(hm.Used)
+	// On Linux, hm.Used equates to MemTotal - MemFree in /proc/stat.
+	// This includes buffers and cache.
+	// So use MemAvailable instead, which only equates to physical memory.
+	// On Windows, this is also calculated as Total - Available.
+	r.Used = float64(hm.Total - hm.Available)
 	return r, nil
 }

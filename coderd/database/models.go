@@ -1712,6 +1712,10 @@ type WorkspaceAgent struct {
 	Subsystem             WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
 	// When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.
 	StartupScriptBehavior StartupScriptBehavior `db:"startup_script_behavior" json:"startup_script_behavior"`
+	// The time the agent entered the starting lifecycle state
+	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
+	// The time the agent entered the ready or start_error lifecycle state
+	ReadyAt sql.NullTime `db:"ready_at" json:"ready_at"`
 }
 
 type WorkspaceAgentMetadatum struct {
@@ -1732,8 +1736,6 @@ type WorkspaceAgentStartupLog struct {
 	Output    string    `db:"output" json:"output"`
 	ID        int64     `db:"id" json:"id"`
 	Level     LogLevel  `db:"level" json:"level"`
-	// End of file reached
-	EOF bool `db:"eof" json:"eof"`
 }
 
 type WorkspaceAgentStat struct {
