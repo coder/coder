@@ -837,14 +837,13 @@ func (a *agent) runShutdownScript(ctx context.Context, script string) error {
 }
 
 func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err error) {
-	logger := a.logger.With(slog.F("lifecycle", lifecycle))
-
 	if script == "" {
-		logger.Info(ctx, "not running empty script")
 		return nil
 	}
 
-	logger.Info(ctx, "running script", slog.F("script", script))
+	logger := a.logger.With(slog.F("lifecycle", lifecycle))
+
+	logger.Info(ctx, fmt.Sprintf("running %s script", lifecycle), slog.F("script", script))
 	fileWriter, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", lifecycle)), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open %s script log file: %w", lifecycle, err)
@@ -852,13 +851,13 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 	defer func() {
 		err := fileWriter.Close()
 		if err != nil {
-			logger.Warn(ctx, "close script log file", slog.Error(err))
+			logger.Warn(ctx, fmt.Sprintf("close %s script log file", lifecycle), slog.Error(err))
 		}
 	}()
 
 	cmdPty, err := a.sshServer.CreateCommand(ctx, script, nil)
 	if err != nil {
-		return xerrors.Errorf("create command: %w", err)
+		return xerrors.Errorf("%s script: create command: %w", lifecycle, err)
 	}
 	cmd := cmdPty.AsExec()
 
@@ -872,7 +871,7 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 		writer = io.MultiWriter(fileWriter, logsWriter)
 		flushedLogs, err := a.trackScriptLogs(ctx, logsReader)
 		if err != nil {
-			return xerrors.Errorf("track script logs: %w", err)
+			return xerrors.Errorf("track %s script logs: %w", lifecycle, err)
 		}
 		defer func() {
 			_ = logsWriter.Close()
@@ -894,9 +893,9 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 			if xerrors.As(err, &exitError) {
 				exitCode = exitError.ExitCode()
 			}
-			logger.Warn(ctx, "script failed", slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
+			logger.Warn(ctx, fmt.Sprintf("%s script failed", lifecycle), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
 		} else {
-			logger.Info(ctx, "script completed", slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
+			logger.Info(ctx, fmt.Sprintf("%s script completed", lifecycle), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
 		}
 	}()
 
@@ -907,7 +906,7 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 			return ctx.Err()
 		}
 
-		return xerrors.Errorf("run: %w", err)
+		return xerrors.Errorf("%s script: run: %w", lifecycle, err)
 	}
 	return nil
 }

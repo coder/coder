@@ -283,12 +283,12 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	// Ensure logs are not written after script ended.
 	scriptEndedError := xerrors.New("startup script has ended")
 	err := api.Database.InTx(func(db database.Store) error {
-		ss, err := db.GetWorkspaceAgentLifecycleStateByID(ctx, workspaceAgent.ID)
+		state, err := db.GetWorkspaceAgentLifecycleStateByID(ctx, workspaceAgent.ID)
 		if err != nil {
 			return xerrors.Errorf("workspace agent startup script status: %w", err)
 		}
 
-		if ss.ReadyAt.Valid {
+		if state.ReadyAt.Valid {
 			// The agent startup script has already ended, so we don't want to
 			// process any more logs.
 			return scriptEndedError
@@ -1626,7 +1626,7 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		ReadyAt:        readyAt,
 	})
 	if err != nil {
-		logger.Warn(ctx, "failed to update lifecycle state", slog.Error(err))
+		logger.Error(ctx, "failed to update lifecycle state", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
 	}
