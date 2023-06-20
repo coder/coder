@@ -3,6 +3,7 @@ package schedule
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -10,6 +11,8 @@ import (
 	"github.com/coder/coder/coderd/database"
 	agpl "github.com/coder/coder/coderd/schedule"
 )
+
+const userMaintenanceWindowDuration = 4 * time.Hour
 
 // enterpriseUserMaintenanceScheduleStore provides an
 // agpl.UserMaintenanceScheduleStore that has all fields implemented for
@@ -46,6 +49,7 @@ func (s *enterpriseUserMaintenanceScheduleStore) parseSchedule(rawSchedule strin
 	return agpl.UserMaintenanceScheduleOptions{
 		Schedule: sched,
 		UserSet:  userSet,
+		Duration: userMaintenanceWindowDuration,
 	}, nil
 }
 
@@ -76,6 +80,9 @@ func (s *enterpriseUserMaintenanceScheduleStore) SetUserMaintenanceScheduleOptio
 	if err != nil {
 		return agpl.UserMaintenanceScheduleOptions{}, xerrors.Errorf("update user maintenance schedule: %w", err)
 	}
+
+	// TODO: update max_ttl for all active builds for this user to clamp to the
+	// new schedule.
 
 	return opts, nil
 }

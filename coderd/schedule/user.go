@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -19,6 +20,10 @@ type UserMaintenanceScheduleOptions struct {
 	// maintenance windows should not be used.
 	Schedule *Schedule
 	UserSet  bool
+	// Duration is the duration of the maintenance window starting when the cron
+	// triggers. Workspaces can be stopped for maintenance or due to max_ttl
+	// during this window.
+	Duration time.Duration
 }
 
 type UserMaintenanceScheduleStore interface {

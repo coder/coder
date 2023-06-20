@@ -11,9 +11,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// TODO: move this constant
-const userMaintenanceWindowDuration = 4 * time.Hour
-
 // @Summary Get user maintenance schedule
 // @ID get-user-maintenance-schedule
 // @Security CoderSessionToken
@@ -46,7 +43,7 @@ func (api *API) userMaintenanceSchedule(rw http.ResponseWriter, r *http.Request)
 		UserSet:     opts.UserSet,
 		Time:        opts.Schedule.Time(),
 		Timezone:    opts.Schedule.Location().String(),
-		Duration:    userMaintenanceWindowDuration,
+		Duration:    opts.Duration,
 		Next:        opts.Schedule.Next(time.Now()),
 	})
 }
@@ -93,7 +90,7 @@ func (api *API) putUserMaintenanceSchedule(rw http.ResponseWriter, r *http.Reque
 		UserSet:     opts.UserSet,
 		Time:        opts.Schedule.Time(),
 		Timezone:    opts.Schedule.Location().String(),
-		Duration:    userMaintenanceWindowDuration,
+		Duration:    opts.Duration,
 		Next:        opts.Schedule.Next(time.Now()),
 	})
 }
