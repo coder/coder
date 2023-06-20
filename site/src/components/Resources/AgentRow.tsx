@@ -98,7 +98,8 @@ export const AgentRow: FC<AgentRowProps> = ({
   const { proxy } = useProxy()
 
   const [showStartupLogs, setShowStartupLogs] = useState(
-    agent.lifecycle_state !== "ready" && hasStartupFeatures,
+    ["starting", "start_timeout"].includes(agent.lifecycle_state) &&
+      hasStartupFeatures,
   )
   useEffect(() => {
     setShowStartupLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures)

@@ -102,6 +102,8 @@ coder:
       value: "true"
     - name: "CODER_PROMETHEUS_COLLECT_AGENT_STATS"
       value: "true"
+    - name: "CODER_PROMETHEUS_COLLECT_DB_METRICS"
+      value: "true"
     - name: "CODER_VERBOSE"
       value: "true"
   image:

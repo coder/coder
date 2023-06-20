@@ -51,6 +51,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "inactivity_ttl_ms": 0,
+    "locked_ttl_ms": 0,
     "max_ttl_ms": 0,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -70,33 +71,34 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 Status Code **200**
 
-| Name                                 | Type                                                                         | Required | Restrictions | Description                                                                                                                                                             |
-| ------------------------------------ | ---------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                       | array                                                                        | false    |              |                                                                                                                                                                         |
-| `» active_user_count`                | integer                                                                      | false    |              | Active user count is set to -1 when loading.                                                                                                                            |
-| `» active_version_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
-| `» allow_user_autostart`             | boolean                                                                      | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature. |
-| `» allow_user_autostop`              | boolean                                                                      | false    |              |                                                                                                                                                                         |
-| `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                                                                                                                                                         |
-| `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                                                         |
-| `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                                                                                                                                                         |
-| `»»» p50`                            | integer                                                                      | false    |              |                                                                                                                                                                         |
-| `»»» p95`                            | integer                                                                      | false    |              |                                                                                                                                                                         |
-| `» created_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                                                         |
-| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
-| `» created_by_name`                  | string                                                                       | false    |              |                                                                                                                                                                         |
-| `» default_ttl_ms`                   | integer                                                                      | false    |              |                                                                                                                                                                         |
-| `» description`                      | string                                                                       | false    |              |                                                                                                                                                                         |
-| `» display_name`                     | string                                                                       | false    |              |                                                                                                                                                                         |
-| `» failure_ttl_ms`                   | integer                                                                      | false    |              | Failure ttl ms and InactivityTTLMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.          |
-| `» icon`                             | string                                                                       | false    |              |                                                                                                                                                                         |
-| `» id`                               | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
-| `» inactivity_ttl_ms`                | integer                                                                      | false    |              |                                                                                                                                                                         |
-| `» max_ttl_ms`                       | integer                                                                      | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                               |
-| `» name`                             | string                                                                       | false    |              |                                                                                                                                                                         |
-| `» organization_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                                                         |
-| `» provisioner`                      | string                                                                       | false    |              |                                                                                                                                                                         |
-| `» updated_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                                                         |
+| Name                                 | Type                                                                         | Required | Restrictions | Description                                                                                                                                                                     |
+| ------------------------------------ | ---------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                       | array                                                                        | false    |              |                                                                                                                                                                                 |
+| `» active_user_count`                | integer                                                                      | false    |              | Active user count is set to -1 when loading.                                                                                                                                    |
+| `» active_version_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                                 |
+| `» allow_user_autostart`             | boolean                                                                      | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.         |
+| `» allow_user_autostop`              | boolean                                                                      | false    |              |                                                                                                                                                                                 |
+| `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                                                                                                                                                                 |
+| `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                                                                 |
+| `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                                                                                                                                                                 |
+| `»»» p50`                            | integer                                                                      | false    |              |                                                                                                                                                                                 |
+| `»»» p95`                            | integer                                                                      | false    |              |                                                                                                                                                                                 |
+| `» created_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                                                                 |
+| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                                                                                                                                                                 |
+| `» created_by_name`                  | string                                                                       | false    |              |                                                                                                                                                                                 |
+| `» default_ttl_ms`                   | integer                                                                      | false    |              |                                                                                                                                                                                 |
+| `» description`                      | string                                                                       | false    |              |                                                                                                                                                                                 |
+| `» display_name`                     | string                                                                       | false    |              |                                                                                                                                                                                 |
+| `» failure_ttl_ms`                   | integer                                                                      | false    |              | Failure ttl ms InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature. |
+| `» icon`                             | string                                                                       | false    |              |                                                                                                                                                                                 |
+| `» id`                               | string(uuid)                                                                 | false    |              |                                                                                                                                                                                 |
+| `» inactivity_ttl_ms`                | integer                                                                      | false    |              |                                                                                                                                                                                 |
+| `» locked_ttl_ms`                    | integer                                                                      | false    |              |                                                                                                                                                                                 |
+| `» max_ttl_ms`                       | integer                                                                      | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                                       |
+| `» name`                             | string                                                                       | false    |              |                                                                                                                                                                                 |
+| `» organization_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                                                                 |
+| `» provisioner`                      | string                                                                       | false    |              |                                                                                                                                                                                 |
+| `» updated_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                                                                 |
 
 #### Enumerated Values
 
@@ -134,6 +136,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "failure_ttl_ms": 0,
   "icon": "string",
   "inactivity_ttl_ms": 0,
+  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
@@ -178,6 +181,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
+  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -305,6 +309,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
+  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -374,6 +379,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -452,6 +459,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -553,6 +562,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -628,6 +639,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
+  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -738,6 +750,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
+  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -852,6 +865,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "queue_position": 0,
+      "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
       "status": "pending",
       "tags": {
@@ -905,6 +920,8 @@ Status Code **200**
 | `»» error_code`       | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                 | false    |              |             |
 | `»» file_id`          | string(uuid)                                                             | false    |              |             |
 | `»» id`               | string(uuid)                                                             | false    |              |             |
+| `»» queue_position`   | integer                                                                  | false    |              |             |
+| `»» queue_size`       | integer                                                                  | false    |              |             |
 | `»» started_at`       | string(date-time)                                                        | false    |              |             |
 | `»» status`           | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus) | false    |              |             |
 | `»» tags`             | object                                                                   | false    |              |             |
@@ -1041,6 +1058,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "queue_position": 0,
+      "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
       "status": "pending",
       "tags": {
@@ -1094,6 +1113,8 @@ Status Code **200**
 | `»» error_code`       | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                 | false    |              |             |
 | `»» file_id`          | string(uuid)                                                             | false    |              |             |
 | `»» id`               | string(uuid)                                                             | false    |              |             |
+| `»» queue_position`   | integer                                                                  | false    |              |             |
+| `»» queue_size`       | integer                                                                  | false    |              |             |
 | `»» started_at`       | string(date-time)                                                        | false    |              |             |
 | `»» status`           | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus) | false    |              |             |
 | `»» tags`             | object                                                                   | false    |              |             |
@@ -1174,6 +1195,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -1260,6 +1283,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -1383,6 +1408,8 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   "error_code": "MISSING_TEMPLATE_PARAMETER",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "queue_position": 0,
+  "queue_size": 0,
   "started_at": "2019-08-24T14:15:22Z",
   "status": "pending",
   "tags": {
@@ -1434,6 +1461,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   "error_code": "MISSING_TEMPLATE_PARAMETER",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "queue_position": 0,
+  "queue_size": 0,
   "started_at": "2019-08-24T14:15:22Z",
   "status": "pending",
   "tags": {
@@ -1647,9 +1676,11 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         "login_before_ready": true,
         "name": "string",
         "operating_system": "string",
+        "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "shutdown_script": "string",
         "shutdown_script_timeout_seconds": 0,
+        "started_at": "2019-08-24T14:15:22Z",
         "startup_logs_length": 0,
         "startup_logs_overflowed": true,
         "startup_script": "string",
@@ -1731,9 +1762,11 @@ Status Code **200**
 | `»» login_before_ready`              | boolean                                                                                                | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                                                                 |
 | `»» name`                            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» ready_at`                        | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                     | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» shutdown_script`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» shutdown_script_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» started_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_logs_length`             | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_logs_overflowed`         | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -2028,9 +2061,11 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         "login_before_ready": true,
         "name": "string",
         "operating_system": "string",
+        "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "shutdown_script": "string",
         "shutdown_script_timeout_seconds": 0,
+        "started_at": "2019-08-24T14:15:22Z",
         "startup_logs_length": 0,
         "startup_logs_overflowed": true,
         "startup_script": "string",
@@ -2112,9 +2147,11 @@ Status Code **200**
 | `»» login_before_ready`              | boolean                                                                                                | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                                                                 |
 | `»» name`                            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» ready_at`                        | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                     | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» shutdown_script`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» shutdown_script_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» started_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_logs_length`             | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_logs_overflowed`         | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |

@@ -377,7 +377,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
-		*provisionerJob,
+		database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ProvisionerJob: *provisionerJob,
+			QueuePosition:  0,
+		},
 		users,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
@@ -610,7 +613,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 
 type workspaceBuildsData struct {
 	users            []database.User
-	jobs             []database.ProvisionerJob
+	jobs             []database.GetProvisionerJobsByIDsWithQueuePositionRow
 	templateVersions []database.TemplateVersion
 	resources        []database.WorkspaceResource
 	metadata         []database.WorkspaceResourceMetadatum
@@ -635,7 +638,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
 	}
@@ -717,7 +720,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 func (api *API) convertWorkspaceBuilds(
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
-	jobs []database.ProvisionerJob,
+	jobs []database.GetProvisionerJobsByIDsWithQueuePositionRow,
 	users []database.User,
 	workspaceResources []database.WorkspaceResource,
 	resourceMetadata []database.WorkspaceResourceMetadatum,
@@ -729,9 +732,9 @@ func (api *API) convertWorkspaceBuilds(
 	for _, workspace := range workspaces {
 		workspaceByID[workspace.ID] = workspace
 	}
-	jobByID := map[uuid.UUID]database.ProvisionerJob{}
+	jobByID := map[uuid.UUID]database.GetProvisionerJobsByIDsWithQueuePositionRow{}
 	for _, job := range jobs {
-		jobByID[job.ID] = job
+		jobByID[job.ProvisionerJob.ID] = job
 	}
 	templateVersionByID := map[uuid.UUID]database.TemplateVersion{}
 	for _, templateVersion := range templateVersions {
@@ -778,7 +781,7 @@ func (api *API) convertWorkspaceBuilds(
 func (api *API) convertWorkspaceBuild(
 	build database.WorkspaceBuild,
 	workspace database.Workspace,
-	job database.ProvisionerJob,
+	job database.GetProvisionerJobsByIDsWithQueuePositionRow,
 	users []database.User,
 	workspaceResources []database.WorkspaceResource,
 	resourceMetadata []database.WorkspaceResourceMetadatum,
@@ -816,7 +819,7 @@ func (api *API) convertWorkspaceBuild(
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("build initiator not found for workspace: %q", workspace.Name)
 	}
 
-	resources := resourcesByJobID[job.ID]
+	resources := resourcesByJobID[job.ProvisionerJob.ID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
 		agents := agentsByResourceID[resource.ID]

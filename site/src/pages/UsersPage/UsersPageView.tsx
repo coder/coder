@@ -77,8 +77,8 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
 
       <PaginationStatus
         isLoading={Boolean(isLoading)}
-        showing={users?.length}
-        total={count}
+        showing={users?.length ?? 0}
+        total={count ?? 0}
         label="users"
       />
 

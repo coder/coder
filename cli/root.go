@@ -103,6 +103,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.stop(),
 		r.update(),
 		r.restart(),
+		r.stat(),
 
 		// Hidden
 		r.gitssh(),

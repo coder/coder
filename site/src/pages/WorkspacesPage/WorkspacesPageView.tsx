@@ -146,9 +146,9 @@ export const WorkspacesPageView: FC<
       </Stack>
 
       <PaginationStatus
-        isLoading={!workspaces}
-        showing={workspaces?.length}
-        total={count}
+        isLoading={!workspaces && !error}
+        showing={workspaces?.length ?? 0}
+        total={count ?? 0}
         label="workspaces"
       />
 

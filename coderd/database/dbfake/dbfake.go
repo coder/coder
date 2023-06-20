@@ -2051,6 +2051,38 @@ func (q *fakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	return jobs, nil
 }
 
+func (q *fakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0)
+	queuePosition := int64(1)
+	for _, job := range q.provisionerJobs {
+		for _, id := range ids {
+			if id == job.ID {
+				job := database.GetProvisionerJobsByIDsWithQueuePositionRow{
+					ProvisionerJob: job,
+				}
+				if !job.ProvisionerJob.StartedAt.Valid {
+					job.QueuePosition = queuePosition
+				}
+				jobs = append(jobs, job)
+				break
+			}
+		}
+		if !job.StartedAt.Valid {
+			queuePosition++
+		}
+	}
+	for _, job := range jobs {
+		if !job.ProvisionerJob.StartedAt.Valid {
+			// Set it to the max position!
+			job.QueueSize = queuePosition
+		}
+	}
+	return jobs, nil
+}
+
 func (q *fakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after time.Time) ([]database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2696,6 +2728,21 @@ func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	agent, err := q.getWorkspaceAgentByIDNoLock(ctx, id)
+	if err != nil {
+		return database.GetWorkspaceAgentLifecycleStateByIDRow{}, err
+	}
+	return database.GetWorkspaceAgentLifecycleStateByIDRow{
+		LifecycleState: agent.LifecycleState,
+		StartedAt:      agent.StartedAt,
+		ReadyAt:        agent.ReadyAt,
+	}, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2722,7 +2769,7 @@ func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg d
 		if log.AgentID != arg.AgentID {
 			continue
 		}
-		if arg.CreatedAfter != 0 && log.ID < arg.CreatedAfter {
+		if arg.CreatedAfter != 0 && log.ID <= arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, log)
@@ -4013,7 +4060,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg dat
 	defer q.mutex.Unlock()
 
 	logs := []database.WorkspaceAgentStartupLog{}
-	id := int64(1)
+	id := int64(0)
 	if len(q.workspaceAgentLogs) > 0 {
 		id = q.workspaceAgentLogs[len(q.workspaceAgentLogs)-1].ID
 	}
@@ -4884,6 +4931,8 @@ func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, 
 	for i, agent := range q.workspaceAgents {
 		if agent.ID == arg.ID {
 			agent.LifecycleState = arg.LifecycleState
+			agent.StartedAt = arg.StartedAt
+			agent.ReadyAt = arg.ReadyAt
 			q.workspaceAgents[i] = agent
 			return nil
 		}

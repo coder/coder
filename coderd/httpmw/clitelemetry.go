@@ -50,7 +50,7 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 				log.Error(
 					r.Context(),
 					"base64 decode",
-					slog.F("error", err),
+					slog.Error(err),
 				)
 				return
 			}

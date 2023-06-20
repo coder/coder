@@ -1,10 +1,10 @@
 # Git Providers
 
-Coder integrates with git providers so developers can authenticate with repositories within their workspace.
+Coder integrates with git providers to automate away the need for developers to authenticate with repositories within their workspace.
 
 ## How it works
 
-When developers use `git` inside their workspace, they are first prompted to authenticate. After that, Coder will store/refresh tokens for future operations.
+When developers use `git` inside their workspace, they are prompted to authenticate. After that, Coder will store and refresh tokens for future operations.
 
 <video autoplay playsinline loop>
   <source src="https://github.com/coder/coder/blob/main/site/static/gitauth.mp4?raw=true" type="video/mp4">
@@ -15,7 +15,7 @@ Your browser does not support the video tag.
 
 To add a git provider, you'll need to create an OAuth application. The following providers are supported:
 
-- [GitHub](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app) (GitHub apps are also supported)
+- [GitHub](#github-app)
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
 - [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
@@ -30,6 +30,27 @@ CODER_GITAUTH_0_TYPE=github|gitlab|azure-devops|bitbucket
 CODER_GITAUTH_0_CLIENT_ID=xxxxxx
 CODER_GITAUTH_0_CLIENT_SECRET=xxxxxxx
 ```
+
+### GitHub
+
+1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) to enable fine-grained access to specific repositories, or a subset of permissions for security.
+
+   ![Register GitHub App](../images/admin/github-app-register.png)
+
+2. Adjust the GitHub App permissions. You can use more or less permissions than are listed here, this is merely a suggestion that allows users to clone repositories:
+
+   ![Adjust GitHub App Permissions](../images/admin/github-app-permissions.png)
+
+   | Name          | Permission   | Description                                            |
+   | ------------- | ------------ | ------------------------------------------------------ |
+   | Contents      | Read & Write | Grants access to code and commit statuses.             |
+   | Pull requests | Read & Write | Grants access to create and update pull requests.      |
+   | Workflows     | Read & Write | Grants access to update files in `.github/workflows/`. |
+   | Metadata      | Read-only    | Grants access to metadata written by GitHub Apps.      |
+
+3. Install the App for your organization. You may select a subset of repositories to grant access to.
+
+   ![Install GitHub App](../images/admin/github-app-install.png)
 
 ### GitHub Enterprise
 

@@ -1,0 +1,16 @@
+Usage: coder stat cpu [flags]
+
+Show CPU usage, in cores.
+
+[1mOptions[0m
+      --host bool
+          Force host CPU measurement.
+
+  -o, --output string (default: text)
+          Output format. Available formats: text, json.
+
+      --prefix string
+          Unit prefix.
+
+---
+Run `coder --help` for a list of global options.

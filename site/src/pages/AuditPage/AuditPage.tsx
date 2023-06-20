@@ -77,6 +77,7 @@ const AuditPage: FC = () => {
           dashboard.experiments.includes("workspace_filter")
             ? {
                 filter,
+                error,
                 menus: {
                   user: userMenu,
                   action: actionMenu,

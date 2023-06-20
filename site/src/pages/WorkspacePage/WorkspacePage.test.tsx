@@ -45,7 +45,7 @@ const renderWorkspacePage = async () => {
   })
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
-    path: "/@:username/:workspace",
+    path: "/:username/:workspace",
   })
 
   await waitForLoaderToBeRemoved()

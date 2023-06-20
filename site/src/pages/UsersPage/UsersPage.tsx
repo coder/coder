@@ -159,6 +159,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           dashboard.experiments.includes("workspace_filter")
             ? {
                 filter: useFilterResult,
+                error: getUsersError,
                 menus: {
                   status: statusMenu,
                 },
