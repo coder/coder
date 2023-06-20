@@ -69,14 +69,18 @@ coder templates create <template-name>
 > [examples/](https://github.com/coder/coder/tree/main/examples/templates)
 > directory in the repo.
 
-## Configure Max Workspace Autostop
+## Template policies (enterprise)
 
-To control cost, specify a maximum time to live flag for a template in hours or
-minutes.
+By default, developers have unlimited workspace usage and can use any template version. Template policies allows you to:
 
-```sh
-coder templates create my-template --default-ttl 4h
-```
+- Guarantee developers are using the most recent template version.
+- Auto-stop workspaces after 3 hours of inactivity.
+- Mandate stopping/restarting of workspaces, regardless of activity status.
+- Disable workspace auto-start.
+
+Learn more about [workspace auto-stop](../workspaces.md#workspace-auto-stop)
+
+<!-- TODO: Add the dashboard screenshots. We can remove the "most recent version" bullet point once we finish template version policies -->
 
 ## Customize templates
 

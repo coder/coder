@@ -37,27 +37,33 @@ information, see [Resource Persistence](./templates/resource-persistence.md).
 
 When a workspace is deleted, all of the workspace's resources are deleted.
 
-## Workspace scheduling
+## Workspace auto-stop
 
-By default, workspaces are manually turned on/off by the user. However, a schedule
-can be defined on a per-workspace basis to automate the workspace start/stop.
+In Coder, workspaces can auto-stop when the user is not actively using the workspace. By default, Coder recognizing the following actions as activity and will keep the workspace online:
 
-![Scheduling UI](./images/schedule.png)
+- Open SSH connections (VS Code Extension, JetBrains Gateway, `coder ssh`)
+- Open tunnels (`coder port-forward`)
+- Open WebSockets (web terminal, [web IDEs](./ides/web-ides.md) such as code-server and JupyterLab)
 
-### Autostart
+> [Custom activity](#TODO) can be registered via Coder's REST API, such as an ongoing data science pipeline.
 
-The autostart feature automates the workspace build at a user-specified time
-and day(s) of the week. In addition, users can select their preferred timezone.
+<!-- TODO. Document this. We may want to move to a custom activity section. See coder/coder[#8064](https://github.com/coder/coder/issues/8064) and coder/coder#5629 -->
 
-![Autostart UI](./images/autostart.png)
+Your workspace's auto-stop behavior can be seen in the dashboard. Template settings in Coder determine if users can alter their workspace schedules. 
 
-### Autostop
+![TODO: use real screenshot](./images/workspaces/stops-after-3-hours.png)
 
-The autostop feature shuts off workspaces after given number of hours in the "on"
-state. If Coder detects workspace connection activity, the autostop timer is bumped up
-one hour. IDE, SSH, Port Forwarding, and coder_app activity trigger this bump.
+### Max workspace lifetime (enterprise)
 
-![autostop UI](./images/autostop.png)
+Workspaces may also have a max lifetime, which enforces a stop or restart even if you are actively using your workspace.
+
+![TODO: use real screenshot](./images/workspaces/approaching-stop.png)
+
+To avoid interruptions, users can establish their "quiet hours", which are by default set from midnight to 4 AM, during which these actions occur. Users can also extend the deadline by up to 3 hours if they are in the middle of important work.
+
+![TODO: use real screenshot](./images/workspaces/quiet-hours.png)
+
+Admin controls around workspace auto-stop are an enterprise feature. [Learn more here](./admin/template)
 
 ## Updating workspaces
 
