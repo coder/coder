@@ -4762,6 +4762,25 @@ func (q *fakeQuerier) UpdateUserLinkedID(_ context.Context, params database.Upda
 	return database.UserLink{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateUserMaintenanceSchedule(_ context.Context, arg database.UpdateUserMaintenanceScheduleParams) (database.User, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.User{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.MaintenanceSchedule = arg.MaintenanceSchedule
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err

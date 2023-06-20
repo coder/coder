@@ -21,10 +21,11 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/schedule"
+	agplschedule "github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/coderd/proxyhealth"
+	"github.com/coder/coder/enterprise/coderd/schedule"
 	"github.com/coder/coder/enterprise/derpmesh"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/enterprise/tailnet"
@@ -198,6 +199,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.appearance)
 			r.Put("/", api.putAppearance)
 		})
+		r.Route("/users/{user}/maintenance-schedule", func(r chi.Router) {
+			r.Use(
+				// TODO: enabled MW?
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database, false),
+			)
+
+			r.Get("/", api.userMaintenanceSchedule)
+			r.Put("/", api.putUserMaintenanceSchedule)
+		})
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
@@ -343,6 +354,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
+			codersdk.FeatureUserMaintenanceSchedule:    true,
 			codersdk.FeatureWorkspaceProxy:             true,
 		})
 	if err != nil {
@@ -402,12 +414,22 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
 		if enabled {
-			store := &enterpriseTemplateScheduleStore{}
-			ptr := schedule.TemplateScheduleStore(store)
-			api.AGPL.TemplateScheduleStore.Store(&ptr)
-		} else {
-			store := schedule.NewAGPLTemplateScheduleStore()
+			store := schedule.NewEnterpriseTemplateScheduleStore()
 			api.AGPL.TemplateScheduleStore.Store(&store)
+		} else {
+			store := agplschedule.NewAGPLTemplateScheduleStore()
+			api.AGPL.TemplateScheduleStore.Store(&store)
+		}
+	}
+
+	if changed, enabled := featureChanged(codersdk.FeatureUserMaintenanceSchedule); changed {
+		if enabled {
+			// TODO: configurable default schedule
+			store := schedule.NewEnterpriseUserMaintenanceScheduleStore("CRON_TZ=UTC 0 0 * * *")
+			api.AGPL.UserMaintenanceScheduleStore.Store(&store)
+		} else {
+			store := agplschedule.NewAGPLUserMaintenanceScheduleStore()
+			api.AGPL.UserMaintenanceScheduleStore.Store(&store)
 		}
 	}
 

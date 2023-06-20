@@ -2268,6 +2268,13 @@ func (q *querier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUse
 	return q.db.UpdateUserLinkedID(ctx, arg)
 }
 
+func (q *querier) UpdateUserMaintenanceSchedule(ctx context.Context, arg database.UpdateUserMaintenanceScheduleParams) (database.User, error) {
+	fetch := func(ctx context.Context, arg database.UpdateUserMaintenanceScheduleParams) (database.User, error) {
+		return q.db.GetUserByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserMaintenanceSchedule)(ctx, arg)
+}
+
 func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	u, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {

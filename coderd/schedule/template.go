@@ -18,11 +18,14 @@ type TemplateScheduleOptions struct {
 	//
 	// If set, users cannot disable automatic workspace shutdown.
 	MaxTTL time.Duration `json:"max_ttl"`
-	// FailureTTL dictates the duration after which failed workspaces will be stopped automatically.
+	// FailureTTL dictates the duration after which failed workspaces will be
+	// stopped automatically.
 	FailureTTL time.Duration `json:"failure_ttl"`
-	// InactivityTTL dictates the duration after which inactive workspaces will be locked.
+	// InactivityTTL dictates the duration after which inactive workspaces will
+	// be locked.
 	InactivityTTL time.Duration `json:"inactivity_ttl"`
-	// LockedTTL dictates the duration after which locked workspaces will be permanently deleted.
+	// LockedTTL dictates the duration after which locked workspaces will be
+	// permanently deleted.
 	LockedTTL time.Duration `json:"locked_ttl"`
 }
 
@@ -53,8 +56,8 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 		UserAutostartEnabled: true,
 		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
-		// Disregard the values in the database, since MaxTTL, FailureTTL, InactivityTTL, and LockedTTL are enterprise
-		// features.
+		// Disregard the values in the database, since MaxTTL, FailureTTL,
+		// InactivityTTL, and LockedTTL are enterprise features.
 		MaxTTL:        0,
 		FailureTTL:    0,
 		InactivityTTL: 0,
@@ -72,8 +75,8 @@ func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context
 		ID:         tpl.ID,
 		UpdatedAt:  database.Now(),
 		DefaultTTL: int64(opts.DefaultTTL),
-		// Don't allow changing it, but keep the value in the DB (to avoid
-		// clearing settings if the license has an issue).
+		// Don't allow changing these settings, but keep the value in the DB (to
+		// avoid clearing settings if the license has an issue).
 		AllowUserAutostart: tpl.AllowUserAutostart,
 		AllowUserAutostop:  tpl.AllowUserAutostop,
 		MaxTTL:             tpl.MaxTTL,

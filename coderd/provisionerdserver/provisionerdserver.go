@@ -26,7 +26,6 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/apikey"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
@@ -50,20 +49,21 @@ var (
 )
 
 type Server struct {
-	AccessURL             *url.URL
-	ID                    uuid.UUID
-	Logger                slog.Logger
-	Provisioners          []database.ProvisionerType
-	GitAuthConfigs        []*gitauth.Config
-	Tags                  json.RawMessage
-	Database              database.Store
-	Pubsub                pubsub.Pubsub
-	Telemetry             telemetry.Reporter
-	Tracer                trace.Tracer
-	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
-	Auditor               *atomic.Pointer[audit.Auditor]
-	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
-	DeploymentValues      *codersdk.DeploymentValues
+	AccessURL                    *url.URL
+	ID                           uuid.UUID
+	Logger                       slog.Logger
+	Provisioners                 []database.ProvisionerType
+	GitAuthConfigs               []*gitauth.Config
+	Tags                         json.RawMessage
+	Database                     database.Store
+	Pubsub                       pubsub.Pubsub
+	Telemetry                    telemetry.Reporter
+	Tracer                       trace.Tracer
+	QuotaCommitter               *atomic.Pointer[proto.QuotaCommitter]
+	Auditor                      *atomic.Pointer[audit.Auditor]
+	TemplateScheduleStore        *atomic.Pointer[schedule.TemplateScheduleStore]
+	UserMaintenanceScheduleStore *atomic.Pointer[schedule.UserMaintenanceScheduleStore]
+	DeploymentValues             *codersdk.DeploymentValues
 
 	AcquireJobDebounce time.Duration
 	OIDCConfig         httpmw.OAuth2Config
@@ -934,8 +934,23 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 					// If the workspace doesn't have a deadline or the max
 					// deadline is sooner than the workspace deadline, use the
 					// max deadline as the actual deadline.
+					//
+					// Notably, this isn't affected by the user's maintenance
+					// schedule below because we'd still like to use the max TTL
+					// as the TTL for the workspace if it's not set.
 					deadline = maxDeadline
 				}
+			}
+
+			userMaintenanceSchedule, err := (*server.UserMaintenanceScheduleStore.Load()).GetUserMaintenanceScheduleOptions(ctx, db, workspace.OwnerID)
+			if err != nil {
+				return xerrors.Errorf("get user maintenance schedule options: %w", err)
+			}
+			if userMaintenanceSchedule.Schedule != nil {
+				// Round the max deadline up to the nearest occurrence of the
+				// user's maintenance schedule. This ensures that workspaces
+				// can't be force-stopped due to max TTL during business hours.
+				maxDeadline = userMaintenanceSchedule.Schedule.Next(maxDeadline)
 			}
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{

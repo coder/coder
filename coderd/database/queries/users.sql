@@ -248,3 +248,12 @@ FROM
 	users
 WHERE
 	id = @user_id;
+
+-- name: UpdateUserMaintenanceSchedule :one
+UPDATE
+	users
+SET
+	maintenance_schedule = $2
+WHERE
+	id = $1
+RETURNING *;

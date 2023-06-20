@@ -978,6 +978,11 @@ export interface UpdateTemplateMeta {
 }
 
 // From codersdk/users.go
+export interface UpdateUserMaintenanceScheduleRequest {
+  readonly schedule: string
+}
+
+// From codersdk/users.go
 export interface UpdateUserPasswordRequest {
   readonly old_password: string
   readonly password: string
@@ -1025,6 +1030,17 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
   readonly avatar_url: string
+}
+
+// From codersdk/users.go
+export interface UserMaintenanceScheduleResponse {
+  readonly raw_schedule: string
+  readonly user_set: boolean
+  readonly time: string
+  readonly timezone: string
+  // This is likely an enum in an external package ("time.Duration")
+  readonly duration: number
+  readonly next: string
 }
 
 // From codersdk/users.go
@@ -1361,6 +1377,7 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
+  | "user_maintenance_schedule"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
@@ -1373,6 +1390,7 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
+  "user_maintenance_schedule",
   "workspace_proxy",
 ]
 

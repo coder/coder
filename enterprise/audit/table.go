@@ -92,18 +92,19 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 	},
 	&database.User{}: {
-		"id":              ActionTrack,
-		"email":           ActionTrack,
-		"username":        ActionTrack,
-		"hashed_password": ActionSecret, // Do not expose a users hashed password.
-		"created_at":      ActionIgnore, // Never changes.
-		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"status":          ActionTrack,
-		"rbac_roles":      ActionTrack,
-		"login_type":      ActionIgnore,
-		"avatar_url":      ActionIgnore,
-		"last_seen_at":    ActionIgnore,
-		"deleted":         ActionTrack,
+		"id":                   ActionTrack,
+		"email":                ActionTrack,
+		"username":             ActionTrack,
+		"hashed_password":      ActionSecret, // Do not expose a users hashed password.
+		"created_at":           ActionIgnore, // Never changes.
+		"updated_at":           ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"status":               ActionTrack,
+		"rbac_roles":           ActionTrack,
+		"login_type":           ActionIgnore,
+		"avatar_url":           ActionIgnore,
+		"last_seen_at":         ActionIgnore,
+		"deleted":              ActionTrack,
+		"maintenance_schedule": ActionTrack,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,
