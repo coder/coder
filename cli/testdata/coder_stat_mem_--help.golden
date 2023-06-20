@@ -1,0 +1,13 @@
+Usage: coder stat mem [flags]
+
+Show memory usage, in gigabytes.
+
+[1mOptions[0m
+      --host bool
+          Force host memory measurement.
+
+  -o, --output string (default: text)
+          Output format. Available formats: text, json.
+
+---
+Run `coder --help` for a list of global options.
