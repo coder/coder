@@ -1035,7 +1035,7 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.ReadCloser) (chan
 			queue = nil
 		}
 		if err := s.Err(); err != nil {
-			a.logger.Error(ctx, "scan startup logs failed", slog.Error(err))
+			a.logger.Warn(ctx, "scan startup logs ended unexpectedly", slog.Error(err))
 		}
 	})
 	if err != nil {
