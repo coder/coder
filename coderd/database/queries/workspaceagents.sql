@@ -87,11 +87,24 @@ SET
 WHERE
 	id = $1;
 
+-- name: GetWorkspaceAgentLifecycleStateByID :one
+SELECT
+	lifecycle_state,
+	started_at,
+	ready_at
+FROM
+	workspace_agents
+WHERE
+	id = $1;
+
+
 -- name: UpdateWorkspaceAgentLifecycleStateByID :exec
 UPDATE
 	workspace_agents
 SET
-	lifecycle_state = $2
+	lifecycle_state = $2,
+	started_at = $3,
+	ready_at = $4
 WHERE
 	id = $1;
 
@@ -146,31 +159,18 @@ WHERE
 		id > @created_after
 	) ORDER BY id ASC;
 
--- name: GetWorkspaceAgentStartupLogsEOF :one
-SELECT CASE WHEN EXISTS (
-	SELECT
-		*
-	FROM
-		workspace_agent_startup_logs
-	WHERE
-		agent_id = $1
-		AND eof = true
-	LIMIT 1
-) THEN TRUE ELSE FALSE END;
-
 -- name: InsertWorkspaceAgentStartupLogs :many
 WITH new_length AS (
 	UPDATE workspace_agents SET
 	startup_logs_length = startup_logs_length + @output_length WHERE workspace_agents.id = @agent_id
 )
 INSERT INTO
-		workspace_agent_startup_logs (agent_id, created_at, output, level, eof)
+		workspace_agent_startup_logs (agent_id, created_at, output, level)
 	SELECT
 		@agent_id :: uuid AS agent_id,
 		unnest(@created_at :: timestamptz [ ]) AS created_at,
 		unnest(@output :: VARCHAR(1024) [ ]) AS output,
-		unnest(@level :: log_level [ ]) AS level,
-		unnest(@eof :: boolean [ ]) AS eof
+		unnest(@level :: log_level [ ]) AS level
 	RETURNING workspace_agent_startup_logs.*;
 
 -- If an agent hasn't connected in the last 7 days, we purge it's logs.
