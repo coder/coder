@@ -80,7 +80,6 @@ WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
 RUN unzip protoc.zip
-RUN ls -lah
 
 FROM ubuntu:jammy
 
