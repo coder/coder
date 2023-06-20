@@ -155,6 +155,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"scope":            ActionIgnore,
 		"token_name":       ActionIgnore,
 	},
+	&database.OauthMergeState{}: {
+		"state_string":  ActionSecret,
+		"created_at":    ActionTrack,
+		"expires_at":    ActionTrack,
+		"to_login_type": ActionTrack,
+		"user_id":       ActionTrack,
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {

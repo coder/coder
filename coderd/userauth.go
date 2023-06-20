@@ -38,16 +38,14 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.OauthMergeState](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionCreate,
 		})
 	)
-	// TODO: @emyrk This does make a new api key. Make a new auditable resource
-	// for oidc state.
-	aReq.Old = database.APIKey{}
+	aReq.Old = database.OauthMergeState{}
 	defer commitAudit()
 
 	var req codersdk.ConvertLoginRequest
@@ -102,12 +100,12 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		// We should only ever have 1 oauth merge state per user. So delete
 		// any existing if they exist.
 		//nolint:gocritic // Keeping the table clean
-		err := api.Database.DeleteUserOauthMergeStates(dbauthz.AsSystemRestricted(ctx), user.ID)
+		err := store.DeleteUserOauthMergeStates(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 
-		mergeState, err = api.Database.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
+		mergeState, err = store.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
 			UserID:      user.ID,
 			StateString: stateString,
 			ToLoginType: database.LoginType(req.ToLoginType),
@@ -134,6 +132,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		ToLoginType: codersdk.LoginType(mergeState.ToLoginType),
 		UserID:      mergeState.UserID,
 	})
+	aReq.New = mergeState
 }
 
 // Authenticates the user with an email and password.
@@ -532,6 +531,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Username:               ghUser.GetLogin(),
 		AvatarURL:              ghUser.GetAvatarURL(),
 		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
+		InitAuditRequest: func(params *audit.RequestParams) (*audit.Request[database.OauthMergeState], func()) {
+			return audit.InitRequest[database.OauthMergeState](rw, params)
+		},
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -864,6 +866,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		UsingGroups:            usingGroups,
 		Groups:                 groups,
 		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
+		InitAuditRequest: func(params *audit.RequestParams) (*audit.Request[database.OauthMergeState], func()) {
+			return audit.InitRequest[database.OauthMergeState](rw, params)
+		},
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -946,6 +951,8 @@ type oauthLoginParams struct {
 	UsingGroups            bool
 	Groups                 []string
 	OauthConversionEnabled bool
+
+	InitAuditRequest func(params *audit.RequestParams) (*audit.Request[database.OauthMergeState], func())
 }
 
 type httpError struct {
@@ -997,13 +1004,27 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			if !params.OauthConversionEnabled {
 				return wrongLoginTypeErr
 			}
-			mergeState, err := api.Database.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
+			var (
+				auditor                                    = *api.Auditor.Load()
+				oauthConvertAudit, commitOauthConvertAudit = params.InitAuditRequest(&audit.RequestParams{
+					Audit:   auditor,
+					Log:     api.Logger,
+					Request: r,
+					Action:  database.AuditActionLogin,
+				})
+			)
+			defer commitOauthConvertAudit()
+
+			// nolint:gocritic // Required to auth the oidc convert
+			mergeState, err := tx.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
 				UserID:      user.ID,
 				StateString: params.State.StateString,
 			})
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return wrongLoginTypeErr
 			}
+			oauthConvertAudit.Old = mergeState
+
 			failedMsg := fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType)
 			if err != nil {
 				return httpError{

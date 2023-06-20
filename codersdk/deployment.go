@@ -1435,6 +1435,8 @@ when required by your organization's security policy.`,
 			Value:       &c.EnableOauthAccountConversion,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "enableOauthAuthConversion",
+			// Do not show this until the feature is fully ready.
+			Hidden: true,
 		},
 		{
 			Name:          "Config Path",

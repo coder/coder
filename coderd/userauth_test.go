@@ -782,6 +782,46 @@ func TestUserOIDC(t *testing.T) {
 		})
 	}
 
+	t.Run("OIDCConvert", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		conf := coderdtest.NewOIDCConfig(t, "")
+
+		config := conf.OIDCConfig(t, nil)
+		config.AllowSignups = true
+
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.EnableOauthAccountConversion = true
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor:          auditor,
+			OIDCConfig:       config,
+			DeploymentValues: cfg,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		numLogs := len(auditor.AuditLogs())
+
+		code := conf.EncodeClaims(t, jwt.MapClaims{
+			"email": userData.Email,
+		})
+
+		numLogs++ // add an audit log for login
+		ctx := testutil.Context(t, testutil.WaitShort)
+		convertResponse, err := user.ConvertToOAuthLogin(ctx, codersdk.ConvertLoginRequest{
+			ToLoginType: codersdk.LoginTypeOIDC,
+			LoginWithPasswordRequest: codersdk.LoginWithPasswordRequest{
+				Email:    userData.Email,
+				Password: "SomeSecurePassword!",
+			},
+		})
+		require.NoError(t, err)
+
+		resp := oidcCallbackWithState(t, client, code, convertResponse.StateString)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+
 	t.Run("AlternateUsername", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -1004,17 +1044,21 @@ func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 }
 
 func oidcCallback(t *testing.T, client *codersdk.Client, code string) *http.Response {
+	return oidcCallbackWithState(t, client, code, "somestate")
+}
+
+func oidcCallbackWithState(t *testing.T, client *codersdk.Client, code, state string) *http.Response {
 	t.Helper()
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/users/oidc/callback?code=%s&state=somestate", code))
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/users/oidc/callback?code=%s&state=%s", code, state))
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.OAuth2StateCookie,
-		Value: "somestate",
+		Value: state,
 	})
 	res, err := client.HTTPClient.Do(req)
 	require.NoError(t, err)

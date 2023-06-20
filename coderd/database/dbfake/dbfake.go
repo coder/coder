@@ -1175,9 +1175,9 @@ func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 	return nil
 }
 
-func (q *fakeQuerier) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+func (q *fakeQuerier) DeleteUserOauthMergeStates(_ context.Context, userID uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	i := 0
 	for {
@@ -3961,8 +3961,8 @@ func (q *fakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 }
 
 func (q *fakeQuerier) InsertUserOauthMergeState(_ context.Context, arg database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	if err := validateDatabaseType(arg); err != nil {
 		return database.OauthMergeState{}, err
