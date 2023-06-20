@@ -17,6 +17,7 @@ const meta: Meta<typeof UsersPageView> = {
     isNonInitialPage: false,
     users: [MockUser, MockUser2],
     roles: MockAssignableSiteRoles,
+    count: 2,
     canEditUsers: true,
     filterProps: {
       onFilter: action("onFilter"),
@@ -41,12 +42,13 @@ export const Member = {
 }
 
 export const Empty = {
-  args: { users: [] },
+  args: { users: [], count: 0 },
 }
 
 export const EmptyPage = {
   args: {
     users: [],
+    count: 0,
     isNonInitialPage: true,
   },
 }
