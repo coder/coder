@@ -919,9 +919,13 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.ReadCloser) (chan
 	sendDone := make(chan struct{})
 	send := make(chan []agentsdk.StartupLog, 1)
 	go func() {
-		flushTimeout := 100 * time.Millisecond
-		flush := time.NewTimer(flushTimeout)
-		flush.Stop()
+		// Set flushTimeout and backlogLimit so that logs are uploaded
+		// once every 250ms or when 100 logs have been added to the
+		// backlog, whichever comes first.
+		flushTimeout := 250 * time.Millisecond
+		backlogLimit := 100
+
+		flush := time.NewTicker(flushTimeout)
 
 		var backlog []agentsdk.StartupLog
 		defer func() {
@@ -950,13 +954,15 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.ReadCloser) (chan
 				done = !ok
 				if ok {
 					backlog = append(backlog, logs...)
-					flushed = len(backlog) >= 100
+					flushed = len(backlog) >= backlogLimit
 				}
 			case <-flush.C:
 				flushed = true
 			}
 
 			if (done || flushed) && len(backlog) > 0 {
+				flush.Stop() // Lower the chance of a double flush.
+
 				// Retry uploading logs until successful or a specific
 				// error occurs.
 				for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
@@ -983,12 +989,13 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.ReadCloser) (chan
 					return
 				}
 				backlog = nil
+
+				// Anchor flush to the last log upload.
+				flush.Reset(flushTimeout)
 			}
 			if done {
 				return
 			}
-
-			flush.Reset(flushTimeout)
 		}
 	}()
 
