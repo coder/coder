@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -531,7 +532,10 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if req.Version != buildinfo.Version() {
+	// Version check should be forced in non-dev builds and when running in
+	// tests.
+	shouldForceVersion := !buildinfo.IsDev() || flag.Lookup("test.v") != nil
+	if shouldForceVersion && req.Version != buildinfo.Version() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Version mismatch.",
 			Detail:  fmt.Sprintf("Proxy version %q does not match primary server version %q", req.Version, buildinfo.Version()),

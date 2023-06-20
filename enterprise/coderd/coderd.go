@@ -476,11 +476,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 //
 // Two ints are returned, the first is the starting region ID for proxies, and
 // the second is the maximum region ID that already exists in the DERP map.
-func getProxyDERPStartingRegionID(derpMap *tailcfg.DERPMap) (sID int, mID int) {
-	maxRegionID := 0
+func getProxyDERPStartingRegionID(derpMap *tailcfg.DERPMap) (sID int64, mID int64) {
+	var maxRegionID int64
 	for _, region := range derpMap.Regions {
-		if region.RegionID > maxRegionID {
-			maxRegionID = region.RegionID
+		rid := int64(region.RegionID)
+		if rid > maxRegionID {
+			maxRegionID = rid
 		}
 	}
 	if maxRegionID < 0 {
@@ -488,10 +489,25 @@ func getProxyDERPStartingRegionID(derpMap *tailcfg.DERPMap) (sID int, mID int) {
 	}
 
 	// Round to the nearest 10,000 with a sufficient buffer of at least 2,000.
+	// The buffer allows for future "fixed" regions to be added to the base DERP
+	// map without conflicting with proxy region IDs (standard DERP maps usually
+	// use incrementing IDs for new regions).
+	//
+	// Example:
+	//  maxRegionID = -2_000 -> startingRegionID = 10_000
+	//  maxRegionID = 8_000 -> startingRegionID = 10_000
+	//  maxRegionID = 8_500 -> startingRegionID = 20_000
+	//  maxRegionID = 12_000 -> startingRegionID = 20_000
+	//  maxRegionID = 20_000 -> startingRegionID = 30_000
 	const roundStartingRegionID = 10_000
 	const startingRegionIDBuffer = 2_000
+	// Add the buffer first.
 	startingRegionID := maxRegionID + startingRegionIDBuffer
-	startingRegionID = int(math.Ceil(float64(startingRegionID)/roundStartingRegionID) * roundStartingRegionID)
+	// Round UP to the nearest 10,000. Go's math.Ceil rounds up to the nearest
+	// integer, so we need to divide by 10,000 first and then multiply by
+	// 10,000.
+	startingRegionID = int64(math.Ceil(float64(startingRegionID)/roundStartingRegionID) * roundStartingRegionID)
+	// This should never be hit but it's here just in case.
 	if startingRegionID < roundStartingRegionID {
 		startingRegionID = roundStartingRegionID
 	}
@@ -565,7 +581,7 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 			// This should be impossible to hit as the IDs are enforced to be
 			// unique by the database and the computed ID is greater than any
 			// existing ID in the DERP map.
-			regionID := startingRegionID + int(status.Proxy.RegionID)
+			regionID := int(startingRegionID) + int(status.Proxy.RegionID)
 			regionCode := fmt.Sprintf("coder_%s", strings.ToLower(status.Proxy.Name))
 			for _, r := range derpMap.Regions {
 				if r.RegionID == regionID || r.RegionCode == regionCode {

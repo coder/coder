@@ -350,6 +350,7 @@ func (c *Client) RegisterWorkspaceProxyLoop(ctx context.Context, opts RegisterWo
 					failureFn(xerrors.Errorf("exceeded re-registration failure count of %d: last error: %w", opts.MaxFailureCount, err))
 					return
 				}
+				continue
 			}
 			failedAttempts = 0
 
