@@ -2490,7 +2490,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------- |
 | `moons`             |
 | `workspace_actions` |
-| `workspace_filter`  |
 
 ## codersdk.Feature
 

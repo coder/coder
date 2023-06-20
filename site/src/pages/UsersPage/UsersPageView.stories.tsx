@@ -7,7 +7,20 @@ import {
   mockApiError,
 } from "testHelpers/entities"
 import { UsersPageView } from "./UsersPageView"
-import { action } from "@storybook/addon-actions"
+import { ComponentProps } from "react"
+import { MockMenu, getDefaultFilterProps } from "components/Filter/storyHelpers"
+
+type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"]
+
+const defaultFilterProps = getDefaultFilterProps<FilterProps>({
+  query: "owner:me",
+  menus: {
+    status: MockMenu,
+  },
+  values: {
+    status: "active",
+  },
+})
 
 const meta: Meta<typeof UsersPageView> = {
   title: "pages/UsersPageView",
@@ -19,10 +32,7 @@ const meta: Meta<typeof UsersPageView> = {
     roles: MockAssignableSiteRoles,
     count: 2,
     canEditUsers: true,
-    filterProps: {
-      onFilter: action("onFilter"),
-      filter: "",
-    },
+    filterProps: defaultFilterProps,
   },
 }
 
