@@ -126,7 +126,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					reaper.WithCatchSignals(InterruptSignals...),
 				)
 				if err != nil {
-					logger.Error(ctx, "failed to reap", slog.Error(err))
+					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
@@ -163,7 +163,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
-			logger.Info(ctx, "starting agent",
+			logger.Info(ctx, "agent is starting now",
 				slog.F("url", r.agentURL),
 				slog.F("auth", auth),
 				slog.F("version", version),

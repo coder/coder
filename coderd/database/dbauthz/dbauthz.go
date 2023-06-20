@@ -69,7 +69,7 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 			return &contextError
 		}
 		logger.Debug(ctx, "unauthorized",
-			slog.F("internal", internalError.Internal()),
+			slog.F("internal_error", internalError.Internal()),
 			slog.F("input", internalError.Input()),
 			slog.Error(err),
 		)

@@ -67,6 +67,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
 	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig
+	api.AGPL.SiteHandler.RegionsFetcher = api.fetchRegions
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,

@@ -452,7 +452,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 
 	if !follow {
-		logger.Debug(ctx, "Finished non-follow job logs")
 		httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentStartupLogs(logs))
 		return
 	}
@@ -970,7 +969,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 				api.Logger.Error(ctx, "failed to update agent disconnect time",
 					slog.Error(err),
-					slog.F("workspace", build.WorkspaceID),
+					slog.F("workspace_id", build.WorkspaceID),
 				)
 			}
 		}
@@ -1266,8 +1265,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	api.Logger.Debug(ctx, "read stats report",
 		slog.F("interval", api.AgentStatsRefreshInterval),
-		slog.F("agent", workspaceAgent.ID),
-		slog.F("workspace", workspace.ID),
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("workspace_id", workspace.ID),
 		slog.F("payload", req),
 	)
 
@@ -1277,7 +1276,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	payload, err := json.Marshal(req.ConnectionsByProto)
 	if err != nil {
-		api.Logger.Error(ctx, "marshal agent connections by proto", slog.F("workspace_agent", workspaceAgent.ID), slog.Error(err))
+		api.Logger.Error(ctx, "marshal agent connections by proto", slog.F("workspace_agent_id", workspaceAgent.ID), slog.Error(err))
 		payload = json.RawMessage("{}")
 	}
 
@@ -1409,8 +1408,8 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 
 	api.Logger.Debug(
 		ctx, "accepted metadata report",
-		slog.F("agent", workspaceAgent.ID),
-		slog.F("workspace", workspace.ID),
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("workspace_id", workspace.ID),
 		slog.F("collected_at", datum.CollectedAt),
 		slog.F("key", datum.Key),
 	)
@@ -1587,8 +1586,8 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 	}
 
 	logger := api.Logger.With(
-		slog.F("agent", workspaceAgent.ID),
-		slog.F("workspace", workspace.ID),
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("workspace_id", workspace.ID),
 		slog.F("payload", req),
 	)
 	logger.Debug(ctx, "workspace agent state report")

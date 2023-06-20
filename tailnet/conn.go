@@ -231,7 +231,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}()
 	wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
-		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.F("err", err))
+		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.Error(err))
 		if err != nil {
 			return
 		}

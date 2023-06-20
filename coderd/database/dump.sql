@@ -494,7 +494,8 @@ CREATE TABLE templates (
     allow_user_autostart boolean DEFAULT true NOT NULL,
     allow_user_autostop boolean DEFAULT true NOT NULL,
     failure_ttl bigint DEFAULT 0 NOT NULL,
-    inactivity_ttl bigint DEFAULT 0 NOT NULL
+    inactivity_ttl bigint DEFAULT 0 NOT NULL,
+    locked_ttl bigint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';

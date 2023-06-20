@@ -6684,7 +6684,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "inactivity_ttl_ms": {
-                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\ndeletes inactive workspaces created from this template.",
+                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\nlocks inactive workspaces created from this template.",
+                    "type": "integer"
+                },
+                "locked_ttl_ms": {
+                    "description": "LockedTTL allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -8500,7 +8504,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "failure_ttl_ms": {
-                    "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "FailureTTLMillis, InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "integer"
                 },
                 "icon": {
@@ -8511,6 +8515,9 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "inactivity_ttl_ms": {
+                    "type": "integer"
+                },
+                "locked_ttl_ms": {
                     "type": "integer"
                 },
                 "max_ttl_ms": {

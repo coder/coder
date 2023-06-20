@@ -1009,7 +1009,7 @@ func TestProvisionerd(t *testing.T) {
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					m.Lock()
 					defer m.Unlock()
-					logger.Info(ctx, "AcquiredJob called.")
+					logger.Info(ctx, "provisioner stage: AcquiredJob")
 					if len(ops) > 0 {
 						return &proto.AcquiredJob{}, nil
 					}
@@ -1031,7 +1031,7 @@ func TestProvisionerd(t *testing.T) {
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					m.Lock()
 					defer m.Unlock()
-					logger.Info(ctx, "UpdateJob called.")
+					logger.Info(ctx, "provisioner stage: UpdateJob")
 					ops = append(ops, "UpdateJob")
 					for _, log := range update.Logs {
 						ops = append(ops, fmt.Sprintf("Log: %s | %s", log.Stage, log.Output))
@@ -1041,7 +1041,7 @@ func TestProvisionerd(t *testing.T) {
 				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
 					m.Lock()
 					defer m.Unlock()
-					logger.Info(ctx, "CompleteJob called.")
+					logger.Info(ctx, "provisioner stage: CompleteJob")
 					ops = append(ops, "CompleteJob")
 					completeOnce.Do(func() { close(completeChan) })
 					return &proto.Empty{}, nil
@@ -1049,7 +1049,7 @@ func TestProvisionerd(t *testing.T) {
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					m.Lock()
 					defer m.Unlock()
-					logger.Info(ctx, "FailJob called.")
+					logger.Info(ctx, "provisioner stage: FailJob")
 					ops = append(ops, "FailJob")
 					return &proto.Empty{}, nil
 				},
