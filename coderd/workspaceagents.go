@@ -417,7 +417,7 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 // @Param before query int false "Before log id"
 // @Param after query int false "After log id"
 // @Param follow query bool false "Follow log stream"
-// @Param no-compression query bool false "Disable compression for WebSocket connection"
+// @Param no_compression query bool false "Disable compression for WebSocket connection"
 // @Success 200 {array} codersdk.WorkspaceAgentStartupLog
 // @Router /workspaceagents/{workspaceagent}/startup-logs [get]
 func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
@@ -428,7 +428,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
 		follow         = r.URL.Query().Has("follow")
 		afterRaw       = r.URL.Query().Get("after")
-		noCompression  = r.URL.Query().Has("no-compression")
+		noCompression  = r.URL.Query().Has("no_compression")
 	)
 
 	var after int64

@@ -1239,7 +1239,7 @@ export const watchStartupLogs = (
   //
   const noCompression =
     userAgentParser(navigator.userAgent).browser.name === "Safari"
-      ? "&no-compression"
+      ? "&no_compression"
       : ""
 
   const proto = location.protocol === "https:" ? "wss:" : "ws:"
