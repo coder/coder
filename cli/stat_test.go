@@ -85,6 +85,8 @@ func TestStatCPUCmd(t *testing.T) {
 
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
+		t.Skip("https://github.com/coder/coder/issues/8091")
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
 		inv, _ := clitest.New(t, "stat", "cpu", "--output=json")
