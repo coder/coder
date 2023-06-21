@@ -37,4 +37,4 @@ jobs:
 
       - name: "Remove PR namespace"
         run: |
-            kubectl delete namespace "pr${{ env.PR_NUMBER }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
+          kubectl delete namespace "pr${{ env.PR_NUMBER }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
