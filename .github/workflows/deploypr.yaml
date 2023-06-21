@@ -4,6 +4,7 @@ name: Deploy PR
 on:
   issue_comment:
     types: [created, edited]
+  workflow_dispatch:
 
 env:
   REPO: ghcr.io/coder/coder-preview
@@ -18,11 +19,11 @@ concurrency:
 
 jobs:
   pr_commented:
-    if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/review-pr') && github.event.comment.author_association == 'MEMBER'
+    if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/review-pr') && github.event.comment.author_association == 'MEMBER' || github.event_name == 'workflow_dispatch'
     outputs:
-      pr_number: ${{ steps.pr_number.outputs.pr_number }}
-      coder_base_image_tag: ${{ steps.set_tags.outputs.CODE_BASE_IMAGE_TAG }}
-      coder_image_tag: ${{ steps.set_tags.outputs.CODE_IMAGE_TAG }}
+      PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
+      CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
+      CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -33,14 +34,14 @@ jobs:
           set -euxo pipefail
           PR_NUMBER=$(echo "${{ github.event.issue.url }}" | awk -F '/' '{print $NF}')
           echo $PR_NUMBER
-          echo "pr_number=$PR_NUMBER" >> $GITHUB_ENV
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
 
       - name: Set required tags
         id: set_tags
         run: |
           set -euxo pipefail
-          echo "CODER_BASE_IMAGE_TAG=$(echo "${{ github.event.issue.pull_request.html_url }}" | grep -oP '(?<=pull\/)\d+')" > $GITHUB_OUTPUT
-          echo "CODER_IMAGE_TAG=$(echo "${{ github.event.issue.pull_request.html_url }}" | grep -oP '(?<=pull\/)\d+')" >> $GITHUB_OUTPUT
+          echo "CODER_BASE_IMAGE_TAG=ghcr.io/coder/coder-preview:base-${{ steps.pr_number.outputs.PR_NUMBER }}" >> $GITHUB_ENV
+          echo "CODER_IMAGE_TAG=ghcr.io/coder/coder-preview:${{ steps.pr_number.outputs.PR_NUMBER }}" >> $GITHUB_ENV
 
       # Comment on the PR
       - name: Comment on PR
@@ -49,7 +50,7 @@ jobs:
           curl -sSL -X POST \
           -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
-          -d '{"body": "Deploying PR ${{ steps.pr_number.outputs.number }}"}' \
+          -d '{"body": "Deploying PR ${{ steps.pr_number.outputs.PR_NUMBER }}"}' \
           "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
 
   build:
@@ -60,7 +61,7 @@ jobs:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
       CODER_BASE_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_base_image_tag }}
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_image_tag }}
-      PR_NUMBER: ${{ needs.pr_commented.outputs.number }}
+      PR_NUMBER: ${{ needs.pr_commented.outputs.pr_number }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -108,8 +109,8 @@ jobs:
     if: needs.build.result == 'success'
     runs-on: "ubuntu-latest"
     env:
-      CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_image_tag }}
-      PR_NUMBER: ${{ needs.pr_commented.outputs.number }}
+      CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.CODER_IMAGE_TAG }}
+      PR_NUMBER: ${{ needs.pr_commented.outputs.PR_NUMBER }}
     steps:
       - uses: actions/checkout@v3
 
