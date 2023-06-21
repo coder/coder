@@ -113,6 +113,21 @@ With browser-only connections, developers can only connect to their workspaces v
 
 ## Troubleshooting
 
+The `coder ping -v <workspace>` will ping a workspace and return debug logs for
+the connection. We recommend running this command and inspecting the output when
+debugging SSH connections to a workspace. For example:
+
+```console
+$ coder ping -v my-workspace
+
+2023-06-21 17:50:22.412 [debu] wgengine: ping(fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4): sending disco ping to [cFYPo] ...
+pong from my-workspace proxied via DERP(Denver) in 90ms
+2023-06-21 17:50:22.503 [debu] wgengine: magicsock: closing connection to derp-13 (conn-close), age 5s
+2023-06-21 17:50:22.503 [debu] wgengine: magicsock: 0 active derp conns
+2023-06-21 17:50:22.504 [debu] wgengine: wg: [v2] Routine: receive incoming v6 - stopped
+2023-06-21 17:50:22.504 [debu] wgengine: wg: [v2] Device closed
+```
+
 The `coder speedtest <workspace>` command measures user <-> workspace throughput.
 E.g.:
 

@@ -1,27 +1,25 @@
 # coder -- Primary configuration for `coder server`.
 coder:
-  # coder.replicaCount -- The number of Kubernetes deployment replicas. This
-  # should only be increased if High Availability is enabled.
+  # coder.env -- The environment variables to set for Coder. These can be used
+  # to configure all aspects of `coder server`. Please see `coder server --help`
+  # for information about what environment variables can be set.
+  # Note: The following environment variables are set by default and cannot be
+  # overridden:
+  # - CODER_HTTP_ADDRESS: set to 0.0.0.0:8080 and cannot be changed.
+  # - CODER_TLS_ADDRESS: set to 0.0.0.0:8443 if tls.secretName is not empty.
+  # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
+  # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
+  # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
+  # - CODER_PROMETHEUS_ADDRESS: set to 0.0.0.0:6060 and cannot be changed.
+  #   Prometheus must still be enabled by setting CODER_PROMETHEUS_ENABLE.
+  # - KUBE_POD_IP
+  # - CODER_DERP_SERVER_RELAY_URL
   #
-  # This is an Enterprise feature. Contact sales@coder.com.
-  replicaCount: 1
-
-  # coder.workspaceProxy -- Whether or not this deployment of Coder is a Coder
-  # Workspace Proxy. Workspace Proxies reduce the latency between the user and
-  # their workspace for web connections (workspace apps and web terminal) and
-  # proxied connections from the CLI. Workspace Proxies are optional and only
-  # recommended for geographically sparse teams.
-  #
-  # Make sure you set CODER_PRIMARY_ACCESS_URL and CODER_PROXY_SESSION_TOKEN in
-  # the environment below. You can get a proxy token using the CLI:
-  #   coder wsproxy create \
-  #     --name "proxy-name" \
-  #     --display-name "Proxy Name" \
-  #     --icon "/emojis/xyz.png"
-  #
-  # This is an Enterprise feature. Contact sales@coder.com
-  # Docs: https://coder.com/docs/v2/latest/admin/workspace-proxies
-  workspaceProxy: false
+  # We will additionally set CODER_ACCESS_URL if unset to the cluster service
+  # URL.
+  env: []
+  # - name: "CODER_ACCESS_URL"
+  #   value: "https://coder.example.com"
 
   # coder.image -- The image to use for Coder.
   image:
@@ -106,27 +104,6 @@ coder:
     # root. It is recommended to leave this setting disabled in production.
     allowPrivilegeEscalation: false
 
-  # coder.env -- The environment variables to set for Coder. These can be used
-  # to configure all aspects of `coder server`. Please see `coder server --help`
-  # for information about what environment variables can be set.
-  # Note: The following environment variables are set by default and cannot be
-  # overridden:
-  # - CODER_HTTP_ADDRESS: set to 0.0.0.0:8080 and cannot be changed.
-  # - CODER_TLS_ADDRESS: set to 0.0.0.0:8443 if tls.secretName is not empty.
-  # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
-  # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
-  # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
-  # - CODER_PROMETHEUS_ADDRESS: set to 0.0.0.0:6060 and cannot be changed.
-  #   Prometheus must still be enabled by setting CODER_PROMETHEUS_ENABLE.
-  # - KUBE_POD_IP
-  # - CODER_DERP_SERVER_RELAY_URL
-  #
-  # We will additionally set CODER_ACCESS_URL if unset to the cluster service
-  # URL.
-  env: []
-  # - name: "CODER_ACCESS_URL"
-  #   value: "https://coder.example.com"
-
   # coder.volumes -- A list of extra volumes to add to the Coder pod.
   volumes: []
   # - name: "my-volume"
@@ -145,6 +122,29 @@ coder:
     # will be automatically mounted into the pod if specified, and the correct
     # "CODER_TLS_*" environment variables will be set for you.
     secretNames: []
+
+  # coder.replicaCount -- The number of Kubernetes deployment replicas. This
+  # should only be increased if High Availability is enabled.
+  #
+  # This is an Enterprise feature. Contact sales@coder.com.
+  replicaCount: 1
+
+  # coder.workspaceProxy -- Whether or not this deployment of Coder is a Coder
+  # Workspace Proxy. Workspace Proxies reduce the latency between the user and
+  # their workspace for web connections (workspace apps and web terminal) and
+  # proxied connections from the CLI. Workspace Proxies are optional and only
+  # recommended for geographically sparse teams.
+  #
+  # Make sure you set CODER_PRIMARY_ACCESS_URL and CODER_PROXY_SESSION_TOKEN in
+  # the environment below. You can get a proxy token using the CLI:
+  #   coder wsproxy create \
+  #     --name "proxy-name" \
+  #     --display-name "Proxy Name" \
+  #     --icon "/emojis/xyz.png"
+  #
+  # This is an Enterprise feature. Contact sales@coder.com
+  # Docs: https://coder.com/docs/v2/latest/admin/workspace-proxies
+  workspaceProxy: false
 
   # coder.lifecycle -- container lifecycle handlers for the Coder container, allowing
   # for lifecycle events such as postStart and preStop events
@@ -268,6 +268,11 @@ coder:
       # coder.ingress.tls.wildcardSecretName -- The name of the TLS secret to
       # use for the wildcard host.
       wildcardSecretName: ""
+
+  # coder.command -- The command to use when running the Coder container. Used
+  # for customizing the location of the `coder` binary in your image.
+  command:
+    - /opt/coder
 
 # extraTemplates -- Array of extra objects to deploy with the release. Strings
 # are evaluated as a template and can use template expansions and functions. All

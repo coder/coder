@@ -42,6 +42,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -103,9 +105,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "started_at": "2019-08-24T14:15:22Z",
           "startup_logs_length": 0,
           "startup_logs_overflowed": true,
           "startup_script": "string",
@@ -196,6 +200,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -257,9 +263,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "started_at": "2019-08-24T14:15:22Z",
           "startup_logs_length": 0,
           "startup_logs_overflowed": true,
           "startup_script": "string",
@@ -552,9 +560,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "login_before_ready": true,
         "name": "string",
         "operating_system": "string",
+        "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "shutdown_script": "string",
         "shutdown_script_timeout_seconds": 0,
+        "started_at": "2019-08-24T14:15:22Z",
         "startup_logs_length": 0,
         "startup_logs_overflowed": true,
         "startup_script": "string",
@@ -636,9 +646,11 @@ Status Code **200**
 | `»» login_before_ready`              | boolean                                                                                                | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                                                                 |
 | `»» name`                            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» ready_at`                        | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                     | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» shutdown_script`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» shutdown_script_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» started_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_logs_length`             | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_logs_overflowed`         | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -736,6 +748,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -797,9 +811,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "started_at": "2019-08-24T14:15:22Z",
           "startup_logs_length": 0,
           "startup_logs_overflowed": true,
           "startup_script": "string",
@@ -895,6 +911,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "queue_position": 0,
+      "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
       "status": "pending",
       "tags": {
@@ -956,9 +974,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
+            "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "shutdown_script": "string",
             "shutdown_script_timeout_seconds": 0,
+            "started_at": "2019-08-24T14:15:22Z",
             "startup_logs_length": 0,
             "startup_logs_overflowed": true,
             "startup_script": "string",
@@ -1030,6 +1050,8 @@ Status Code **200**
 | `»» error_code`                       | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                                               | false    |              |                                                                                                                                                                                                                                                |
 | `»» file_id`                          | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» id`                               | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» queue_position`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» queue_size`                       | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                       | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» status`                           | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)                               | false    |              |                                                                                                                                                                                                                                                |
 | `»» tags`                             | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1074,9 +1096,11 @@ Status Code **200**
 | `»»» login_before_ready`              | boolean                                                                                                | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                                                                 |
 | `»»» name`                            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» operating_system`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» ready_at`                        | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» resource_id`                     | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» shutdown_script`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» shutdown_script_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» started_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_logs_length`             | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_logs_overflowed`         | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_script`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1228,6 +1252,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -1289,9 +1315,11 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "started_at": "2019-08-24T14:15:22Z",
           "startup_logs_length": 0,
           "startup_logs_overflowed": true,
           "startup_script": "string",

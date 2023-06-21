@@ -52,9 +52,9 @@ endif
 FIND_EXCLUSIONS= \
 	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path './site/out/*' -o -path './coderd/apidoc/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
-GO_SRC_FILES = $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go')
+GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go')
 # All the shell files in the repo, excluding ignored files.
-SHELL_SRC_FILES = $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
+SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
 OS_ARCHES := \
@@ -431,7 +431,7 @@ lint/helm:
 gen: \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \
-	coderd/database/dbmock/store.go \
+	coderd/database/dbmock/dbmock.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
@@ -453,7 +453,7 @@ gen/mark-fresh:
 	files="\
 		coderd/database/dump.sql \
 		coderd/database/querier.go \
-		coderd/database/dbmock/store.go \
+		coderd/database/dbmock/dbmock.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		site/src/api/typesGenerated.ts \
@@ -486,11 +486,11 @@ coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/dat
 	go run ./coderd/database/gen/dump/main.go
 
 # Generates Go code for querying the database.
-coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go coderd/database/gen/fake/main.go
+coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	./coderd/database/generate.sh
 
 
-coderd/database/dbmock/store.go: coderd/database/db.go coderd/database/querier.go
+coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto

@@ -881,59 +881,115 @@ func TestServer(t *testing.T) {
 	})
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
-		random, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		_ = random.Close()
-		tcpAddr, valid := random.Addr().(*net.TCPAddr)
-		require.True(t, valid)
-		randomPort := tcpAddr.Port
 
-		inv, cfg := clitest.New(t,
-			"server",
-			"--in-memory",
-			"--http-address", ":0",
-			"--access-url", "http://example.com",
-			"--provisioner-daemons", "1",
-			"--prometheus-enable",
-			"--prometheus-address", ":"+strconv.Itoa(randomPort),
-			"--cache-dir", t.TempDir(),
-		)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
-		clitest.Start(t, inv)
-		_ = waitAccessURL(t, cfg)
-
-		var res *http.Response
-		require.Eventually(t, func() bool {
-			req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", randomPort), nil)
-			assert.NoError(t, err)
-			// nolint:bodyclose
-			res, err = http.DefaultClient.Do(req)
-			return err == nil
-		}, testutil.WaitShort, testutil.IntervalFast)
-		defer res.Body.Close()
-
-		scanner := bufio.NewScanner(res.Body)
-		hasActiveUsers := false
-		hasWorkspaces := false
-		for scanner.Scan() {
-			// This metric is manually registered to be tracked in the server. That's
-			// why we test it's tracked here.
-			if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
-				hasActiveUsers = true
-				continue
-			}
-			if strings.HasPrefix(scanner.Text(), "coderd_api_workspace_latest_build_total") {
-				hasWorkspaces = true
-				continue
-			}
-			t.Logf("scanned %s", scanner.Text())
+		randomPort := func(t *testing.T) int {
+			random, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			_ = random.Close()
+			tcpAddr, valid := random.Addr().(*net.TCPAddr)
+			require.True(t, valid)
+			return tcpAddr.Port
 		}
-		require.NoError(t, scanner.Err())
-		require.True(t, hasActiveUsers)
-		require.True(t, hasWorkspaces)
+
+		t.Run("DBMetricsDisabled", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			randPort := randomPort(t)
+			inv, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--provisioner-daemons", "1",
+				"--prometheus-enable",
+				"--prometheus-address", ":"+strconv.Itoa(randPort),
+				// "--prometheus-collect-db-metrics", // disabled by default
+				"--cache-dir", t.TempDir(),
+			)
+
+			clitest.Start(t, inv)
+			_ = waitAccessURL(t, cfg)
+
+			var res *http.Response
+			require.Eventually(t, func() bool {
+				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", randPort), nil)
+				assert.NoError(t, err)
+				// nolint:bodyclose
+				res, err = http.DefaultClient.Do(req)
+				return err == nil
+			}, testutil.WaitShort, testutil.IntervalFast)
+			defer res.Body.Close()
+
+			scanner := bufio.NewScanner(res.Body)
+			hasActiveUsers := false
+			hasWorkspaces := false
+			for scanner.Scan() {
+				// This metric is manually registered to be tracked in the server. That's
+				// why we test it's tracked here.
+				if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
+					hasActiveUsers = true
+					continue
+				}
+				if strings.HasPrefix(scanner.Text(), "coderd_api_workspace_latest_build_total") {
+					hasWorkspaces = true
+					continue
+				}
+				if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
+					t.Fatal("db metrics should not be tracked when --prometheus-collect-db-metrics is not enabled")
+				}
+				t.Logf("scanned %s", scanner.Text())
+			}
+			require.NoError(t, scanner.Err())
+			require.True(t, hasActiveUsers)
+			require.True(t, hasWorkspaces)
+		})
+
+		t.Run("DBMetricsEnabled", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			randPort := randomPort(t)
+			inv, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--provisioner-daemons", "1",
+				"--prometheus-enable",
+				"--prometheus-address", ":"+strconv.Itoa(randPort),
+				"--prometheus-collect-db-metrics",
+				"--cache-dir", t.TempDir(),
+			)
+
+			clitest.Start(t, inv)
+			_ = waitAccessURL(t, cfg)
+
+			var res *http.Response
+			require.Eventually(t, func() bool {
+				req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", randPort), nil)
+				assert.NoError(t, err)
+				// nolint:bodyclose
+				res, err = http.DefaultClient.Do(req)
+				return err == nil
+			}, testutil.WaitShort, testutil.IntervalFast)
+			defer res.Body.Close()
+
+			scanner := bufio.NewScanner(res.Body)
+			hasDBMetrics := false
+			for scanner.Scan() {
+				if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
+					hasDBMetrics = true
+				}
+				t.Logf("scanned %s", scanner.Text())
+			}
+			require.NoError(t, scanner.Err())
+			require.True(t, hasDBMetrics)
+		})
 	})
 	t.Run("GitHubOAuth", func(t *testing.T) {
 		t.Parallel()

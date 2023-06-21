@@ -85,9 +85,8 @@ var loggableMimeTypes = map[string]struct{}{
 // New creates a Coder client for the provided URL.
 func New(serverURL *url.URL) *Client {
 	return &Client{
-		URL:          serverURL,
-		HTTPClient:   &http.Client{},
-		ExtraHeaders: make(http.Header),
+		URL:        serverURL,
+		HTTPClient: &http.Client{},
 	}
 }
 
@@ -96,9 +95,6 @@ func New(serverURL *url.URL) *Client {
 type Client struct {
 	mu           sync.RWMutex // Protects following.
 	sessionToken string
-
-	// ExtraHeaders are headers to add to every request.
-	ExtraHeaders http.Header
 
 	HTTPClient *http.Client
 	URL        *url.URL
@@ -121,6 +117,11 @@ type Client struct {
 	// Trace can be enabled to propagate tracing spans to the Coder API.
 	// This is useful for tracking a request end-to-end.
 	Trace bool
+
+	// DisableDirectConnections forces any connections to workspaces to go
+	// through DERP, regardless of the BlockEndpoints setting on each
+	// connection.
+	DisableDirectConnections bool
 }
 
 // SessionToken returns the currently set token for the client.
@@ -192,8 +193,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
-
-	req.Header = c.ExtraHeaders.Clone()
 
 	tokenHeader := c.SessionTokenHeader
 	if tokenHeader == "" {

@@ -4,6 +4,7 @@ import * as Types from "./types"
 import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
 import { delay } from "utils/delay"
+import userAgentParser from "ua-parser-js"
 
 // Adds 304 for the default axios validateStatus function
 // https://github.com/axios/axios#handling-errors Check status here
@@ -1231,9 +1232,19 @@ export const watchStartupLogs = (
   agentId: string,
   { after, onMessage, onDone, onError }: WatchStartupLogsOptions,
 ) => {
+  // WebSocket compression in Safari (confirmed in 16.5) is broken when
+  // the server sends large messages. The following error is seen:
+  //
+  //   WebSocket connection to 'wss://.../startup-logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
+  //
+  const noCompression =
+    userAgentParser(navigator.userAgent).browser.name === "Safari"
+      ? "&no_compression"
+      : ""
+
   const proto = location.protocol === "https:" ? "wss:" : "ws:"
   const socket = new WebSocket(
-    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/startup-logs?follow&after=${after}`,
+    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/startup-logs?follow&after=${after}${noCompression}`,
   )
   socket.binaryType = "blob"
   socket.addEventListener("message", (event) => {

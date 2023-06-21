@@ -7,7 +7,6 @@ import { WorkspacesPageView } from "./WorkspacesPageView"
 import { useOrganizationId, usePermissions } from "hooks"
 import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus"
 import { useSearchParams } from "react-router-dom"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { useFilter } from "components/Filter/filter"
 import { useUserFilterMenu } from "components/Filter/UserFilter"
 
@@ -49,7 +48,6 @@ const WorkspacesPage: FC = () => {
     onChange: (option) =>
       filter.update({ ...filter.values, status: option?.value }),
   })
-  const dashboard = useDashboard()
 
   return (
     <>
@@ -58,7 +56,6 @@ const WorkspacesPage: FC = () => {
       </Helmet>
 
       <WorkspacesPageView
-        useNewFilter={dashboard.experiments.includes("workspace_filter")}
         workspaces={data?.workspaces}
         error={error}
         count={data?.count}

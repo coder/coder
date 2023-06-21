@@ -902,10 +902,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
 				if err := closeTracing(ctx); err != nil {
 					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
-					// Wait for prometheus metrics to be scraped
-					_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", scaletestPrometheusWait)
-					<-time.After(scaletestPrometheusWait)
 				}
+				// Wait for prometheus metrics to be scraped
+				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", scaletestPrometheusWait)
+				<-time.After(scaletestPrometheusWait)
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 

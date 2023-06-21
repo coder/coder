@@ -92,6 +92,23 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   )
 
   const queryKey = ["get-proxies"]
+  // This doesn't seem like an idiomatic way to get react-query to use the
+  // initial data without performing an API request on mount, but it works.
+  //
+  // If anyone would like to clean this up in the future, it should seed data
+  // from the `meta` tag if it exists, and not fetch the regions route.
+  const [initialData] = useState(() => {
+    // Build info is injected by the Coder server into the HTML document.
+    const regions = document.querySelector("meta[property=regions]")
+    if (regions) {
+      const rawContent = regions.getAttribute("content")
+      try {
+        return JSON.parse(rawContent as string)
+      } catch (ex) {
+        // Ignore this and fetch as normal!
+      }
+    }
+  })
   const {
     data: proxiesResp,
     error: proxiesError,
@@ -100,6 +117,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   } = useQuery({
     queryKey,
     queryFn: getWorkspaceProxies,
+    staleTime: initialData ? Infinity : undefined,
+    initialData,
   })
 
   // Every time we get a new proxiesResponse, update the latency check

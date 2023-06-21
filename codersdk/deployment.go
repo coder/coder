@@ -230,6 +230,7 @@ type PrometheusConfig struct {
 	Enable            clibase.Bool     `json:"enable" typescript:",notnull"`
 	Address           clibase.HostPort `json:"address" typescript:",notnull"`
 	CollectAgentStats clibase.Bool     `json:"collect_agent_stats" typescript:",notnull"`
+	CollectDBMetrics  clibase.Bool     `json:"collect_db_metrics" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -772,6 +773,16 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.CollectAgentStats,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "collect_agent_stats",
+		},
+		{
+			Name:        "Prometheus Collect Database Metrics",
+			Description: "Collect database metrics (may increase charges for metrics storage).",
+			Flag:        "prometheus-collect-db-metrics",
+			Env:         "CODER_PROMETHEUS_COLLECT_DB_METRICS",
+			Value:       &c.Prometheus.CollectDBMetrics,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "collect_db_metrics",
+			Default:     "false",
 		},
 		// Pprof settings
 		{
@@ -1706,9 +1717,6 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
-	// New workspace filter
-	ExperimentWorkspaceFilter Experiment = "workspace_filter"
-
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1717,9 +1725,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentWorkspaceFilter,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

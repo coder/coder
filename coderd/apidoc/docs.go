@@ -4006,6 +4006,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/connection": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get connection info for workspace agent generic",
+                "operationId": "get-connection-info-for-workspace-agent-generic",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentConnectionInfo"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/google-instance-identity": {
             "post": {
                 "security": [
@@ -4598,6 +4626,12 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Follow log stream",
                         "name": "follow",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Disable compression for WebSocket connection",
+                        "name": "no_compression",
                         "in": "query"
                     }
                 ],
@@ -5815,6 +5849,9 @@ const docTemplate = `{
         "agentsdk.PostLifecycleRequest": {
             "type": "object",
             "properties": {
+                "changed_at": {
+                    "type": "string"
+                },
                 "state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 }
@@ -6667,6 +6704,10 @@ const docTemplate = `{
                     "description": "Description is a description of what the template contains. It must be\nless than 128 bytes.",
                     "type": "string"
                 },
+                "disable_everyone_group_access": {
+                    "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
+                    "type": "boolean"
+                },
                 "display_name": {
                     "description": "DisplayName is the displayed name of the template.",
                     "type": "string"
@@ -6680,7 +6721,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "inactivity_ttl_ms": {
-                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\ndeletes inactive workspaces created from this template.",
+                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\nlocks inactive workspaces created from this template.",
+                    "type": "integer"
+                },
+                "locked_ttl_ms": {
+                    "description": "LockedTTL allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -6858,10 +6903,13 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "password",
                 "username"
             ],
             "properties": {
+                "disable_login": {
+                    "description": "DisableLogin sets the user's login type to 'none'. This prevents the user\nfrom being able to use a password or any other authentication method to login.",
+                    "type": "boolean"
+                },
                 "email": {
                     "type": "string",
                     "format": "email"
@@ -7341,13 +7389,11 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "moons",
-                "workspace_actions",
-                "workspace_filter"
+                "workspace_actions"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
-                "ExperimentWorkspaceActions",
-                "ExperimentWorkspaceFilter"
+                "ExperimentWorkspaceActions"
             ]
         },
         "codersdk.Feature": {
@@ -7623,13 +7669,15 @@ const docTemplate = `{
                 "password",
                 "github",
                 "oidc",
-                "token"
+                "token",
+                "none"
             ],
             "x-enum-varnames": [
                 "LoginTypePassword",
                 "LoginTypeGithub",
                 "LoginTypeOIDC",
-                "LoginTypeToken"
+                "LoginTypeToken",
+                "LoginTypeNone"
             ]
         },
         "codersdk.LoginWithPasswordRequest": {
@@ -7877,6 +7925,9 @@ const docTemplate = `{
                 "collect_agent_stats": {
                     "type": "boolean"
                 },
+                "collect_db_metrics": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 }
@@ -7971,6 +8022,12 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "queue_position": {
+                    "type": "integer"
+                },
+                "queue_size": {
+                    "type": "integer"
                 },
                 "started_at": {
                     "type": "string",
@@ -8491,7 +8548,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "failure_ttl_ms": {
-                    "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "FailureTTLMillis, InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "integer"
                 },
                 "icon": {
@@ -8502,6 +8559,9 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "inactivity_ttl_ms": {
+                    "type": "integer"
+                },
+                "locked_ttl_ms": {
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -9240,6 +9300,10 @@ const docTemplate = `{
                 "operating_system": {
                     "type": "string"
                 },
+                "ready_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"
@@ -9249,6 +9313,10 @@ const docTemplate = `{
                 },
                 "shutdown_script_timeout_seconds": {
                     "type": "integer"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "startup_logs_length": {
                     "type": "integer"
@@ -9990,11 +10058,29 @@ const docTemplate = `{
                 "error": {}
             }
         },
+        "healthcheck.DatabaseReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "latency": {
+                    "type": "integer"
+                },
+                "reachable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
                 "access_url": {
                     "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
+                "database": {
+                    "$ref": "#/definitions/healthcheck.DatabaseReport"
                 },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"

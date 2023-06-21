@@ -74,6 +74,8 @@ export const useFilter = ({
   }
 }
 
+export type UseFilterResult = ReturnType<typeof useFilter>
+
 const parseFilterQuery = (filterQuery: string): FilterValues => {
   if (filterQuery === "") {
     return {}
@@ -148,9 +150,14 @@ export const Filter = ({
   const shouldDisplayError = hasError(error) && isApiValidationError(error)
   const hasFilterQuery = filter.query !== ""
   const [searchQuery, setSearchQuery] = useState(filter.query)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    setSearchQuery(filter.query)
+    // We don't want to update this while the user is typing something or has the focus in the input
+    const isFocused = document.activeElement === inputRef.current
+    if (!isFocused) {
+      setSearchQuery(filter.query)
+    }
   }, [filter.query])
 
   return (
@@ -186,6 +193,7 @@ export const Filter = ({
                 name: "query",
                 placeholder: "Search...",
                 value: searchQuery,
+                ref: inputRef,
                 onChange: (e) => {
                   setSearchQuery(e.target.value)
                   filter.debounceUpdate(e.target.value)
@@ -203,6 +211,9 @@ export const Filter = ({
                   },
                   "& .MuiInputAdornment-root": {
                     marginLeft: 0,
+                  },
+                  "&.Mui-error": {
+                    zIndex: 3,
                   },
                 },
                 startAdornment: (

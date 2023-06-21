@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/schedule"
@@ -51,14 +52,14 @@ func TestAcquireJob(t *testing.T) {
 	t.Run("Debounce", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
-		pubsub := database.NewPubsubInMemory()
+		ps := pubsub.NewInMemory()
 		srv := &provisionerdserver.Server{
 			ID:                    uuid.New(),
 			Logger:                slogtest.Make(t, nil),
 			AccessURL:             &url.URL{},
 			Provisioners:          []database.ProvisionerType{database.ProvisionerTypeEcho},
 			Database:              db,
-			Pubsub:                pubsub,
+			Pubsub:                ps,
 			Telemetry:             telemetry.NewNoop(),
 			AcquireJobDebounce:    time.Hour,
 			Auditor:               mockAuditor(),
@@ -1256,7 +1257,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 	t.Helper()
 	db := dbfake.New()
-	pubsub := database.NewPubsubInMemory()
+	ps := pubsub.NewInMemory()
 
 	return &provisionerdserver.Server{
 		ID:                    uuid.New(),
@@ -1265,7 +1266,7 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 		AccessURL:             &url.URL{},
 		Provisioners:          []database.ProvisionerType{database.ProvisionerTypeEcho},
 		Database:              db,
-		Pubsub:                pubsub,
+		Pubsub:                ps,
 		Telemetry:             telemetry.NewNoop(),
 		Auditor:               mockAuditor(),
 		TemplateScheduleStore: testTemplateScheduleStore(),
