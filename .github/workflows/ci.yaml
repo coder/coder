@@ -96,7 +96,7 @@ jobs:
   lint:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
-    if : needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main' # TODO Remove this before merging
+    if: needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main' # TODO Remove this before merging
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -148,7 +148,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
     # if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    if : needs.changes.outputs.ci == 'true' # TODO Remove this before merging
+    if: needs.changes.outputs.ci == 'true' # TODO Remove this before merging
     steps:
       - uses: actions/checkout@v3
 
