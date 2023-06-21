@@ -4,8 +4,8 @@ import { FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpers } from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
-import { Stack } from "../Stack/Stack"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { Form, FormFields } from "components/Form/Form"
 
 interface SecurityFormValues {
   old_password: string
@@ -70,8 +70,8 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 
   return (
     <>
-      <form onSubmit={form.handleSubmit}>
-        <Stack>
+      <Form onSubmit={form.handleSubmit}>
+        <FormFields>
           {Boolean(updateSecurityError) && (
             <ErrorAlert error={updateSecurityError} />
           )}
@@ -106,8 +106,8 @@ export const SecurityForm: FC<SecurityFormProps> = ({
               {isLoading ? "" : Language.updatePassword}
             </LoadingButton>
           </div>
-        </Stack>
-      </form>
+        </FormFields>
+      </Form>
     </>
   )
 }

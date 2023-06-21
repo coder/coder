@@ -35,7 +35,7 @@ export const Section: SectionFC = ({
         {(title || description) && (
           <div className={styles.header}>
             <div>
-              {title && <Typography variant="h4">{title}</Typography>}
+              {title && <Typography variant="h4" sx={{ fontSize: 24 }}>{title}</Typography>}
               {description && typeof description === "string" && (
                 <Typography className={styles.description}>
                   {description}
