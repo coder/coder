@@ -95,7 +95,7 @@ func TestCoordinatorSingle(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
-		sendAgentNode(&agpl.Node{})
+		sendAgentNode(&agpl.Node{PreferredDERP: 1})
 		require.Eventually(t, func() bool {
 			return coordinator.Node(agentID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -117,12 +117,12 @@ func TestCoordinatorSingle(t *testing.T) {
 		}()
 		agentNodes := <-clientNodeChan
 		require.Len(t, agentNodes, 1)
-		sendClientNode(&agpl.Node{})
+		sendClientNode(&agpl.Node{PreferredDERP: 2})
 		clientNodes := <-agentNodeChan
 		require.Len(t, clientNodes, 1)
 
 		// Ensure an update to the agent node reaches the client!
-		sendAgentNode(&agpl.Node{})
+		sendAgentNode(&agpl.Node{PreferredDERP: 3})
 		agentNodes = <-clientNodeChan
 		require.Len(t, agentNodes, 1)
 
@@ -188,7 +188,7 @@ func TestCoordinatorHA(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
-		sendAgentNode(&agpl.Node{})
+		sendAgentNode(&agpl.Node{PreferredDERP: 1})
 		require.Eventually(t, func() bool {
 			return coordinator1.Node(agentID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -214,13 +214,13 @@ func TestCoordinatorHA(t *testing.T) {
 		}()
 		agentNodes := <-clientNodeChan
 		require.Len(t, agentNodes, 1)
-		sendClientNode(&agpl.Node{})
+		sendClientNode(&agpl.Node{PreferredDERP: 2})
 		_ = sendClientNode
 		clientNodes := <-agentNodeChan
 		require.Len(t, clientNodes, 1)
 
 		// Ensure an update to the agent node reaches the client!
-		sendAgentNode(&agpl.Node{})
+		sendAgentNode(&agpl.Node{PreferredDERP: 3})
 		agentNodes = <-clientNodeChan
 		require.Len(t, agentNodes, 1)
 

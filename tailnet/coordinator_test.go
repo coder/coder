@@ -96,7 +96,7 @@ func TestCoordinator(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
-		sendAgentNode(&tailnet.Node{})
+		sendAgentNode(&tailnet.Node{PreferredDERP: 1})
 		require.Eventually(t, func() bool {
 			return coordinator.Node(agentID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -122,7 +122,7 @@ func TestCoordinator(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatal("timed out")
 		}
-		sendClientNode(&tailnet.Node{})
+		sendClientNode(&tailnet.Node{PreferredDERP: 2})
 		clientNodes := <-agentNodeChan
 		require.Len(t, clientNodes, 1)
 
@@ -131,7 +131,7 @@ func TestCoordinator(t *testing.T) {
 		time.Sleep(tailnet.WriteTimeout * 3 / 2)
 
 		// Ensure an update to the agent node reaches the client!
-		sendAgentNode(&tailnet.Node{})
+		sendAgentNode(&tailnet.Node{PreferredDERP: 3})
 		select {
 		case agentNodes := <-clientNodeChan:
 			require.Len(t, agentNodes, 1)
@@ -193,7 +193,7 @@ func TestCoordinator(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeAgentChan1)
 		}()
-		sendAgentNode1(&tailnet.Node{})
+		sendAgentNode1(&tailnet.Node{PreferredDERP: 1})
 		require.Eventually(t, func() bool {
 			return coordinator.Node(agentID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -215,12 +215,12 @@ func TestCoordinator(t *testing.T) {
 		}()
 		agentNodes := <-clientNodeChan
 		require.Len(t, agentNodes, 1)
-		sendClientNode(&tailnet.Node{})
+		sendClientNode(&tailnet.Node{PreferredDERP: 2})
 		clientNodes := <-agentNodeChan1
 		require.Len(t, clientNodes, 1)
 
 		// Ensure an update to the agent node reaches the client!
-		sendAgentNode1(&tailnet.Node{})
+		sendAgentNode1(&tailnet.Node{PreferredDERP: 3})
 		agentNodes = <-clientNodeChan
 		require.Len(t, agentNodes, 1)
 
