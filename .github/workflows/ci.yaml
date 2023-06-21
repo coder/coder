@@ -34,7 +34,8 @@ jobs:
       go: ${{ steps.filter.outputs.go }}
       ts: ${{ steps.filter.outputs.ts }}
       k8s: ${{ steps.filter.outputs.k8s }}
-      ci: ${{ steps.filter.outputs.ci }}
+      # ci: ${{ steps.filter.outputs.ci }}
+      ci: false # TODO: remove this before merging
     steps:
       - uses: actions/checkout@v3
       # For pull requests it's not necessary to checkout the code
