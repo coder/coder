@@ -36,6 +36,10 @@ jobs:
 
       - uses: ./.github/actions/setup-node
 
+      - name: Install sqlc
+        run: |
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.18.0/sqlc_1.18.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
+
       - name: GHCR Login
         uses: docker/login-action@v2
         with:
