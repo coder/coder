@@ -193,6 +193,14 @@ func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStart
 		case <-callCtx.Done():
 			return callCtx.Err()
 		case queue = <-send:
+			// Recheck to give priority to context cancellation.
+			select {
+			case <-shutdownCtx.Done():
+				return xerrors.Errorf("closed: %w", ctx.Err())
+			case <-callCtx.Done():
+				return callCtx.Err()
+			default:
+			}
 			// Queue has not been captured by sender yet, re-use.
 		default:
 		}
