@@ -15,6 +15,7 @@ env:
   PR_NUMBER: ${{ github.event.pull_request.number }}
 
 permissions:
+  contents: read
   packages: write
 
 concurrency:
