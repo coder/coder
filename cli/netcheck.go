@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -17,19 +18,21 @@ func (r *RootCmd) netcheck() *clibase.Cmd {
 
 	cmd := &clibase.Cmd{
 		Use:    "netcheck",
-		Short:  "Print network debug information",
+		Short:  "Print network debug information for DERP and STUN",
 		Hidden: true,
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			ctx, cancel := context.WithTimeout(inv.Context(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer cancel()
 
 			connInfo, err := client.WorkspaceAgentConnectionInfo(ctx)
 			if err != nil {
 				return err
 			}
+
+			_, _ = fmt.Fprint(inv.Stderr, "Gathering a network report. This may take a few seconds...\n\n")
 
 			var report healthcheck.DERPReport
 			report.Run(ctx, &healthcheck.DERPReportOptions{
@@ -49,6 +52,7 @@ func (r *RootCmd) netcheck() *clibase.Cmd {
 				return xerrors.Errorf("failed to write all bytes to stdout; wrote %d, len %d", n, len(raw))
 			}
 
+			_, _ = inv.Stdout.Write([]byte("\n"))
 			return nil
 		},
 	}
