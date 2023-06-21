@@ -178,12 +178,3 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[str
 		})
 	}
 }
-
-func RemoveOauthStateCookie(rw http.ResponseWriter) {
-	http.SetCookie(rw, &http.Cookie{
-		Name:   codersdk.OAuth2StateCookie,
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
-	})
-}

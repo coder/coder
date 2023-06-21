@@ -4044,11 +4044,12 @@ func (q *fakeQuerier) InsertUserOauthMergeState(_ context.Context, arg database.
 	}
 
 	s := database.OauthMergeState{
-		StateString: arg.StateString,
-		CreatedAt:   arg.CreatedAt,
-		ExpiresAt:   arg.ExpiresAt,
-		ToLoginType: arg.ToLoginType,
-		UserID:      arg.UserID,
+		StateString:   arg.StateString,
+		CreatedAt:     arg.CreatedAt,
+		ExpiresAt:     arg.ExpiresAt,
+		FromLoginType: arg.FromLoginType,
+		ToLoginType:   arg.ToLoginType,
+		UserID:        arg.UserID,
 	}
 	q.oauthMergeStates = append(q.oauthMergeStates, s)
 	return s, nil

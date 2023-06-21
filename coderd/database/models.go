@@ -1434,7 +1434,8 @@ type OauthMergeState struct {
 	StateString string    `db:"state_string" json:"state_string"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	// The time at which the state string expires, a merge request times out if the user does not perform it quick enough.
-	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
+	ExpiresAt     time.Time `db:"expires_at" json:"expires_at"`
+	FromLoginType LoginType `db:"from_login_type" json:"from_login_type"`
 	// The login type the user is converting to. Should be github or oidc.
 	ToLoginType LoginType `db:"to_login_type" json:"to_login_type"`
 	UserID      uuid.UUID `db:"user_id" json:"user_id"`

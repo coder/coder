@@ -5150,7 +5150,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUserOauthMergeState = `-- name: GetUserOauthMergeState :one
 SELECT
-	state_string, created_at, expires_at, to_login_type, user_id
+	state_string, created_at, expires_at, from_login_type, to_login_type, user_id
 FROM
 	oauth_merge_state
 WHERE
@@ -5170,6 +5170,7 @@ func (q *sqlQuerier) GetUserOauthMergeState(ctx context.Context, arg GetUserOaut
 		&i.StateString,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.FromLoginType,
 		&i.ToLoginType,
 		&i.UserID,
 	)
@@ -5410,26 +5411,29 @@ INSERT INTO
 	oauth_merge_state (
 		user_id,
 		state_string,
+	    from_login_type,
 		to_login_type,
 		created_at,
 		expires_at
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING state_string, created_at, expires_at, to_login_type, user_id
+	($1, $2, $3, $4, $5, $6) RETURNING state_string, created_at, expires_at, from_login_type, to_login_type, user_id
 `
 
 type InsertUserOauthMergeStateParams struct {
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	StateString string    `db:"state_string" json:"state_string"`
-	ToLoginType LoginType `db:"to_login_type" json:"to_login_type"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	ExpiresAt   time.Time `db:"expires_at" json:"expires_at"`
+	UserID        uuid.UUID `db:"user_id" json:"user_id"`
+	StateString   string    `db:"state_string" json:"state_string"`
+	FromLoginType LoginType `db:"from_login_type" json:"from_login_type"`
+	ToLoginType   LoginType `db:"to_login_type" json:"to_login_type"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt     time.Time `db:"expires_at" json:"expires_at"`
 }
 
 func (q *sqlQuerier) InsertUserOauthMergeState(ctx context.Context, arg InsertUserOauthMergeStateParams) (OauthMergeState, error) {
 	row := q.db.QueryRowContext(ctx, insertUserOauthMergeState,
 		arg.UserID,
 		arg.StateString,
+		arg.FromLoginType,
 		arg.ToLoginType,
 		arg.CreatedAt,
 		arg.ExpiresAt,
@@ -5439,6 +5443,7 @@ func (q *sqlQuerier) InsertUserOauthMergeState(ctx context.Context, arg InsertUs
 		&i.StateString,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.FromLoginType,
 		&i.ToLoginType,
 		&i.UserID,
 	)

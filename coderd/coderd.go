@@ -595,6 +595,9 @@ func New(options *Options) *API {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Route("/authmethods", func(r chi.Router) {
+				// The API Key allows this method to return the auth method
+				// for the logged-in user. This information is useful for the
+				// caller. If not authenticated, this information is omitted.
 				r.Use(apiKeyMiddlewareOptional)
 				r.Get("/", api.userAuthMethods)
 			})

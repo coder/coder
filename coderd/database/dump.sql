@@ -310,6 +310,7 @@ CREATE TABLE oauth_merge_state (
     state_string text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
+    from_login_type login_type NOT NULL,
     to_login_type login_type NOT NULL,
     user_id uuid NOT NULL
 );

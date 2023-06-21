@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS oauth_merge_state (
     state_string text NOT NULL,
     created_at timestamptz NOT NULL,
     expires_at timestamptz NOT NULL,
+    from_login_type login_type NOT NULL,
 	to_login_type login_type NOT NULL,
     user_id uuid NOT NULL
         REFERENCES users (id) ON DELETE CASCADE,

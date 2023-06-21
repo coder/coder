@@ -65,6 +65,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 
 	switch req.ToLoginType {
 	case codersdk.LoginTypeGithub, codersdk.LoginTypeOIDC:
+		// Allowed!
 	case codersdk.LoginTypeNone, codersdk.LoginTypePassword, codersdk.LoginTypeToken:
 		// These login types are not allowed to be converted to at this time.
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -78,6 +79,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// This handles the email/pass checking.
 	user, _, ok := api.loginRequest(ctx, rw, req.LoginWithPasswordRequest)
 	if !ok {
 		return
@@ -116,11 +118,12 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		mergeState, err = store.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
-			UserID:      user.ID,
-			StateString: stateString,
-			ToLoginType: database.LoginType(req.ToLoginType),
-			CreatedAt:   now,
-			ExpiresAt:   now.Add(time.Minute * 5),
+			UserID:        user.ID,
+			StateString:   stateString,
+			FromLoginType: user.LoginType,
+			ToLoginType:   database.LoginType(req.ToLoginType),
+			CreatedAt:     now,
+			ExpiresAt:     now.Add(time.Minute * 5),
 		})
 		if err != nil {
 			return err
@@ -175,7 +178,8 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	user, roles, ok := api.loginRequest(ctx, rw, loginWithPassword)
-	// 'user.ID' will be empty, or will be an actual value.
+	// 'user.ID' will be empty, or will be an actual value. Either is correct
+	// here.
 	aReq.UserID = user.ID
 	if !ok {
 		// user failed to login
@@ -1030,9 +1034,13 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 					user.LoginType,
 				),
 			}
+			// If we do not allow converting to oauth, return an error.
 			if !params.OauthConversionEnabled {
 				return wrongLoginTypeErr
 			}
+
+			// At this point, this request could be an attempt to convert from
+			// password auth to oauth auth.
 			var (
 				auditor                                    = *api.Auditor.Load()
 				oauthConvertAudit, commitOauthConvertAudit = params.InitAuditRequest(&audit.RequestParams{
@@ -1052,7 +1060,6 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return wrongLoginTypeErr
 			}
-			oauthConvertAudit.Old = mergeState
 
 			failedMsg := fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType)
 			if err != nil {
@@ -1061,8 +1068,11 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 					msg:  failedMsg,
 				}
 			}
-			if user.ID != mergeState.UserID {
-				// User tried to use someone else's merge state?
+			oauthConvertAudit.Old = mergeState
+			// Make sure the merge state generated matches this OIDC login request.
+			// It needs to have the correct login type information for this
+			// user.
+			if user.ID != mergeState.UserID || user.LoginType != mergeState.FromLoginType || params.LoginType != mergeState.ToLoginType {
 				return httpError{
 					code: http.StatusForbidden,
 					msg:  failedMsg,

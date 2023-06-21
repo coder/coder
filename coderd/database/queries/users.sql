@@ -12,12 +12,13 @@ INSERT INTO
 	oauth_merge_state (
 		user_id,
 		state_string,
+	    from_login_type,
 		to_login_type,
 		created_at,
 		expires_at
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: DeleteUserOauthMergeStates :exec
 DELETE FROM oauth_merge_state WHERE user_id = @user_id;
