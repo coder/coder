@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -17,25 +16,13 @@ import (
 )
 
 type startupLogsWriter struct {
-	// The mutex is only required to ensure that calling Close is
-	// concurrently safe with calling Write.
-	mu     sync.Mutex // Protects following.
-	closed bool
-	buf    bytes.Buffer // Buffer to track partial lines.
-
+	buf   bytes.Buffer // Buffer to track partial lines.
 	ctx   context.Context
 	send  func(ctx context.Context, log ...StartupLog) error
 	level codersdk.LogLevel
 }
 
 func (w *startupLogsWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	closed := w.closed
-	w.mu.Unlock()
-	if closed {
-		return 0, xerrors.New("writer is closed")
-	}
-
 	n := len(p)
 	for len(p) > 0 {
 		nl := bytes.IndexByte(p, '\n')
@@ -48,13 +35,10 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 		}
 
 		var partial []byte
-		w.mu.Lock()
 		if w.buf.Len() > 0 {
 			partial = w.buf.Bytes()
 			w.buf.Reset()
 		}
-		w.mu.Unlock()
-
 		err := w.send(w.ctx, StartupLog{
 			CreatedAt: time.Now().UTC(), // UTC, like database.Now().
 			Level:     w.level,
@@ -66,9 +50,7 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 		p = p[nl+1:]
 	}
 	if len(p) > 0 {
-		w.mu.Lock()
 		_, err := w.buf.Write(p)
-		w.mu.Unlock()
 		if err != nil {
 			return n, err
 		}
@@ -77,12 +59,6 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 }
 
 func (w *startupLogsWriter) Close() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.closed {
-		return xerrors.New("writer is already closed")
-	}
-	w.closed = true
 	if w.buf.Len() > 0 {
 		defer w.buf.Reset()
 		return w.send(w.ctx, StartupLog{
@@ -94,10 +70,14 @@ func (w *startupLogsWriter) Close() error {
 	return nil
 }
 
-// StartupLogsWriter returns an io.WriteCloser that sends logs to the
-// server. When closed, any remaining partially written logs will be
-// sent to the server. If the context passed to StartupLogsWriter is
+// StartupLogsWriter returns an io.WriteCloser that sends logs via the
+// provided sender. The sender is expected to be non-blocking. Calling
+// Close flushes any remaining partially written log lines but is
+// otherwise no-op. If the context passed to StartupLogsWriter is
 // canceled, any remaining logs will be discarded.
+//
+// Neither Write nor Close is not safe for concurrent use and must be
+// used by a single goroutine.
 func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...StartupLog) error, level codersdk.LogLevel) io.WriteCloser {
 	return &startupLogsWriter{
 		ctx:   ctx,

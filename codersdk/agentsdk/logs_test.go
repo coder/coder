@@ -208,9 +208,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			require.Equal(t, tt.want, got)
 
 			err := w.Close()
-			if tt.closeFirst {
-				require.Error(t, err)
-			} else if (err != nil) != tt.wantErr {
+			if !tt.closeFirst && (err != nil) != tt.wantErr {
 				t.Errorf("startupLogsWriter.Close() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
