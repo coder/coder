@@ -55,7 +55,7 @@ jobs:
         run: |
           set -euxo pipefail
           make -j build/coder_linux_amd64
-          ./scripts/build_docker.sh --arch amd64 --target ${{env.CODER_IMAGE_TAG }} --push build/coder_linux_amd64
+          ./scripts/build_docker.sh --arch amd64 --target ${{env.CODER_IMAGE_TAG }} --push build/coder_*_linux_amd64
         #
         env:
           CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
