@@ -39,18 +39,14 @@ jobs:
         run: mkdir base-build-context
 
       - name: Install depot.dev CLI
-        uses: depot/setup-action@v1
+        uses: docker/setup-buildx-action@v2
 
-      # This uses OIDC authentication, so no auth variables are required.
       - name: Build base Docker image via depot.dev
-        uses: depot/build-push-action@v1
+        uses: docker/build-push-action@v4
         with:
-          project: wl5hnrrkns
           context: base-build-context
           file: scripts/Dockerfile.base
           platforms: linux/amd64
-          pull: true
-          no-cache: true
           push: true
           tags: ${{ env.CODER_BASE_IMAGE_TAG }}
 
@@ -59,10 +55,10 @@ jobs:
           set -euxo pipefail
 
           # build Docker image
-          make -j build/coder_${{ env.PR_NUMBER }}_linux_amd64.tag --target ${{ env.CODER_IMAGE_TAG }}
+          docker buildx build --platform linux/amd64 -t ${{ env.CODER_IMAGE_TAG }} .
 
           # push manifest
-          make -j push/coder_${{ env.PR_NUMBER }}_linux_amd64.tag
+          docker buildx build --platform linux/amd64 --push -t ${{ env.CODER_IMAGE_TAG }} .
         env:
           CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
 
