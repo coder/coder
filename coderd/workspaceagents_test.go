@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -573,6 +574,82 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = sshClient.Close()
 	_ = conn.Close()
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
+}
+
+func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	err := dv.DERP.Config.BlockDirect.Set("true")
+	require.NoError(t, err)
+	require.True(t, dv.DERP.Config.BlockDirect.Value())
+
+	client, daemonCloser := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	daemonCloser.Close()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Verify that the manifest has DisableDirectConnections set to true.
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	manifest, err := agentClient.Manifest(ctx)
+	require.NoError(t, err)
+	require.True(t, manifest.DisableDirectConnections)
+
+	agentCloser := agent.New(agent.Options{
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	defer agentCloser.Close()
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	agentID := resources[0].Agents[0].ID
+
+	// Verify that the connection data has no STUN ports and
+	// DisableDirectConnections set to true.
+	res, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	var connInfo codersdk.WorkspaceAgentConnectionInfo
+	err = json.NewDecoder(res.Body).Decode(&connInfo)
+	require.NoError(t, err)
+	require.True(t, connInfo.DisableDirectConnections)
+	for _, region := range connInfo.DERPMap.Regions {
+		t.Logf("region %s (%v)", region.RegionCode, region.EmbeddedRelay)
+		for _, node := range region.Nodes {
+			t.Logf("  node %s (stun %d)", node.Name, node.STUNPort)
+			require.EqualValues(t, -1, node.STUNPort)
+			// tailnet.NewDERPMap() will create nodes with "stun" in the name,
+			// but not if direct is disabled.
+			require.NotContains(t, node.Name, "stun")
+			require.False(t, node.STUNOnly)
+		}
+	}
+
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+	require.True(t, conn.BlockEndpoints())
+
+	require.True(t, conn.AwaitReachable(ctx))
+	_, p2p, _, err := conn.Ping(ctx)
+	require.NoError(t, err)
+	require.False(t, p2p)
 }
 
 func TestWorkspaceAgentListeningPorts(t *testing.T) {

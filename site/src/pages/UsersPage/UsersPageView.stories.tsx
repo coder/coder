@@ -7,7 +7,20 @@ import {
   mockApiError,
 } from "testHelpers/entities"
 import { UsersPageView } from "./UsersPageView"
-import { action } from "@storybook/addon-actions"
+import { ComponentProps } from "react"
+import { MockMenu, getDefaultFilterProps } from "components/Filter/storyHelpers"
+
+type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"]
+
+const defaultFilterProps = getDefaultFilterProps<FilterProps>({
+  query: "owner:me",
+  menus: {
+    status: MockMenu,
+  },
+  values: {
+    status: "active",
+  },
+})
 
 const meta: Meta<typeof UsersPageView> = {
   title: "pages/UsersPageView",
@@ -19,10 +32,7 @@ const meta: Meta<typeof UsersPageView> = {
     roles: MockAssignableSiteRoles,
     count: 2,
     canEditUsers: true,
-    filterProps: {
-      onFilter: action("onFilter"),
-      filter: "",
-    },
+    filterProps: defaultFilterProps,
   },
 }
 
@@ -56,14 +66,18 @@ export const EmptyPage = {
 export const Error = {
   args: {
     users: undefined,
-    error: mockApiError({
-      message: "Invalid user search query.",
-      validations: [
-        {
-          field: "status",
-          detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
-        },
-      ],
-    }),
+    count: 0,
+    filterProps: {
+      ...defaultFilterProps,
+      error: mockApiError({
+        message: "Invalid user search query.",
+        validations: [
+          {
+            field: "status",
+            detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+          },
+        ],
+      }),
+    },
   },
 }

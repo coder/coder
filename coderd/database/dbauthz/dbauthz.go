@@ -707,6 +707,13 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
+func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.DeleteCoordinator(ctx, id)
+}
+
 func (q *querier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetGitSSHKey, q.db.DeleteGitSSHKey)(ctx, userID)
 }
@@ -763,6 +770,20 @@ func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt tim
 		return err
 	}
 	return q.db.DeleteReplicasUpdatedBefore(ctx, updatedAt)
+}
+
+func (q *querier) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.DeleteTailnetAgentRow{}, err
+	}
+	return q.db.DeleteTailnetAgent(ctx, arg)
+}
+
+func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.DeleteTailnetClientRow{}, err
+	}
+	return q.db.DeleteTailnetClient(ctx, arg)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -1135,6 +1156,20 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetServiceBanner(ctx)
+}
+
+func (q *querier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetTailnetAgents(ctx, id)
+}
+
+func (q *querier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]database.TailnetClient, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetTailnetClientsForAgent(ctx, agentID)
 }
 
 // Only used by metrics cache.
@@ -2514,4 +2549,25 @@ func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertServiceBanner(ctx, value)
+}
+
+func (q *querier) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetAgent{}, err
+	}
+	return q.db.UpsertTailnetAgent(ctx, arg)
+}
+
+func (q *querier) UpsertTailnetClient(ctx context.Context, arg database.UpsertTailnetClientParams) (database.TailnetClient, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetClient{}, err
+	}
+	return q.db.UpsertTailnetClient(ctx, arg)
+}
+
+func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (database.TailnetCoordinator, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetCoordinator{}, err
+	}
+	return q.db.UpsertTailnetCoordinator(ctx, id)
 }

@@ -49,7 +49,13 @@ func (r *RootCmd) ping() *clibase.Cmd {
 				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
-			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{Logger: logger})
+			if r.disableDirect {
+				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+			}
+			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
+				Logger:         logger,
+				BlockEndpoints: r.disableDirect,
+			})
 			if err != nil {
 				return err
 			}
