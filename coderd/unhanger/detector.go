@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"math/rand" //#nosec // this is only used for shuffling an array to pick random jobs to unhang
 	"time"
 
 	"golang.org/x/xerrors"
@@ -54,6 +56,17 @@ type acquireLockError struct{}
 // Error implements error.
 func (acquireLockError) Error() string {
 	return "lock is held by another client"
+}
+
+// jobNotRunningError is returned when the detector attempts to terminate a job
+// that is not running.
+type jobNotRunningError struct {
+	Status codersdk.ProvisionerJobStatus
+}
+
+// Error implements error.
+func (e jobNotRunningError) Error() string {
+	return fmt.Sprintf("job is not running (status: %s)", e.Status)
 }
 
 // Detector automatically detects hung provisioner jobs, sends messages into the
@@ -163,181 +176,180 @@ func (d *Detector) run(t time.Time) Stats {
 		Error:            nil,
 	}
 
-	err := d.db.InTx(func(db database.Store) error {
-		locked, err := db.TryAcquireLock(ctx, database.LockIDHangDetector)
-		if !locked {
-			// If we can't acquire the lock, it means another instance of the
-			// hang detector is already running in another coder replica.
-			// There's no point in waiting to run it again, so we'll just retry
-			// on the next tick.
-			d.log.Info(ctx, "skipping workspace build hang detector run due to lock")
-			// This error is ignored.
-			return acquireLockError{}
-		}
-		if err != nil {
-			d.log.Warn(ctx, "skipping workspace build hang detector run due to error acquiring lock", slog.Error(err))
-			return xerrors.Errorf("acquire lock: %w", err)
-		}
-		d.log.Info(ctx, "running workspace build hang detector")
-
-		// Find all provisioner jobs that are currently running but have not
-		// received an update in the last 5 minutes.
-		jobs, err := db.GetHungProvisionerJobs(ctx, t.Add(-HungJobDuration))
-		if err != nil {
-			return xerrors.Errorf("get hung provisioner jobs: %w", err)
-		}
-
-		// Limit the number of jobs we'll unhang in a single run to avoid
-		// timing out.
-		if len(jobs) > MaxJobsPerRun {
-			jobs = jobs[:MaxJobsPerRun]
-		}
-
-		// Send a message into the build log for each hung job saying that it
-		// has been detected and will be terminated, then mark the job as
-		// failed.
-		for _, job := range jobs {
-			log := d.log.With(slog.F("job_id", job.ID))
-
-			jobStatus := db2sdk.ProvisionerJobStatus(job)
-			if jobStatus != codersdk.ProvisionerJobRunning {
-				log.Error(ctx, "hang detector query discovered non-running job, this is a bug", slog.F("status", jobStatus))
-				continue
-			}
-
-			log.Info(ctx, "detected hung (>5m) provisioner job, forcefully terminating")
-
-			err := unhangJob(ctx, db, d.pubsub, job)
-			if err != nil {
-				log.Error(ctx, "error forcefully terminating hung provisioner job", slog.Error(err))
-				continue
-			}
-
-			stats.TerminatedJobIDs = append(stats.TerminatedJobIDs, job.ID)
-		}
-
-		return nil
-	}, nil)
+	// Find all provisioner jobs that are currently running but have not
+	// received an update in the last 5 minutes.
+	jobs, err := d.db.GetHungProvisionerJobs(ctx, t.Add(-HungJobDuration))
 	if err != nil {
-		stats.Error = err
+		stats.Error = xerrors.Errorf("get hung provisioner jobs: %w", err)
 		return stats
+	}
+
+	// Limit the number of jobs we'll unhang in a single run to avoid
+	// timing out.
+	if len(jobs) > MaxJobsPerRun {
+		// Pick a random subset of the jobs to unhang.
+		rand.Shuffle(len(jobs), func(i, j int) {
+			jobs[i], jobs[j] = jobs[j], jobs[i]
+		})
+		jobs = jobs[:MaxJobsPerRun]
+	}
+
+	// Send a message into the build log for each hung job saying that it
+	// has been detected and will be terminated, then mark the job as
+	// failed.
+	for _, job := range jobs {
+		log := d.log.With(slog.F("job_id", job.ID))
+
+		err := unhangJob(ctx, log, d.db, d.pubsub, job.ID)
+		if err != nil && !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobNotRunningError{})) {
+			log.Error(ctx, "error forcefully terminating hung provisioner job", slog.Error(err))
+			continue
+		}
+
+		stats.TerminatedJobIDs = append(stats.TerminatedJobIDs, job.ID)
 	}
 
 	return stats
 }
 
-func unhangJob(ctx context.Context, db database.Store, pub pubsub.Pubsub, job database.ProvisionerJob) error {
-	jobStatus := db2sdk.ProvisionerJobStatus(job)
-	if jobStatus != codersdk.ProvisionerJobRunning {
-		return xerrors.Errorf("hang detector query discovered non-running job, this is a bug: %s", jobStatus)
-	}
+func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, jobID uuid.UUID) error {
+	var lowestLogID int64
 
-	// First, get the latest logs from the build so we can make sure
-	// our messages are in the latest stage.
-	logs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
-		JobID:        job.ID,
-		CreatedAfter: 0,
-	})
+	err := db.InTx(func(db database.Store) error {
+		locked, err := db.TryAcquireLock(ctx, database.GenLockID(fmt.Sprintf("hang-detector:%s", jobID)))
+		if err != nil {
+			return xerrors.Errorf("acquire lock: %w", err)
+		}
+		if !locked {
+			// This error is ignored.
+			return acquireLockError{}
+		}
+
+		// Refetch the job while we hold the lock.
+		job, err := db.GetProvisionerJobByID(ctx, jobID)
+		if err != nil {
+			return xerrors.Errorf("get provisioner job: %w", err)
+		}
+		jobStatus := db2sdk.ProvisionerJobStatus(job)
+		if jobStatus != codersdk.ProvisionerJobRunning {
+			return jobNotRunningError{
+				Status: jobStatus,
+			}
+		}
+
+		log.Info(ctx, "detected hung (>5m) provisioner job, forcefully terminating")
+
+		// First, get the latest logs from the build so we can make sure
+		// our messages are in the latest stage.
+		logs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+			JobID:        job.ID,
+			CreatedAfter: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("get logs for hung job: %w", err)
+		}
+		logStage := ""
+		if len(logs) != 0 {
+			logStage = logs[len(logs)-1].Stage
+		}
+		if logStage == "" {
+			logStage = "Unknown"
+		}
+
+		// Insert the messages into the build log.
+		insertParams := database.InsertProvisionerJobLogsParams{
+			JobID: job.ID,
+		}
+		now := database.Now()
+		for i, msg := range HungJobLogMessages {
+			// Set the created at in a way that ensures each message has
+			// a unique timestamp so they will be sorted correctly.
+			insertParams.CreatedAt = append(insertParams.CreatedAt, now.Add(time.Millisecond*time.Duration(i)))
+			insertParams.Level = append(insertParams.Level, database.LogLevelError)
+			insertParams.Stage = append(insertParams.Stage, logStage)
+			insertParams.Source = append(insertParams.Source, database.LogSourceProvisionerDaemon)
+			insertParams.Output = append(insertParams.Output, msg)
+		}
+		newLogs, err := db.InsertProvisionerJobLogs(ctx, insertParams)
+		if err != nil {
+			return xerrors.Errorf("insert logs for hung job: %w", err)
+		}
+		lowestLogID = newLogs[0].ID
+
+		// Mark the job as failed.
+		now = database.Now()
+		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        job.ID,
+			UpdatedAt: now,
+			CompletedAt: sql.NullTime{
+				Time:  now,
+				Valid: true,
+			},
+			Error: sql.NullString{
+				String: "Coder: Build has been detected as hung for 5 minutes and has been terminated by hang detector.",
+				Valid:  true,
+			},
+			ErrorCode: sql.NullString{
+				Valid: false,
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("mark job as failed: %w", err)
+		}
+
+		// If the provisioner job is a workspace build, copy the
+		// provisioner state from the previous build to this workspace
+		// build.
+		if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
+			build, err := db.GetWorkspaceBuildByJobID(ctx, job.ID)
+			if err != nil {
+				return xerrors.Errorf("get workspace build for workspace build job by job id: %w", err)
+			}
+
+			// Only copy the provisioner state if there's no state in
+			// the current build.
+			if len(build.ProvisionerState) == 0 {
+				// Get the previous build if it exists.
+				prevBuild, err := db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+					WorkspaceID: build.WorkspaceID,
+					BuildNumber: build.BuildNumber - 1,
+				})
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get previous workspace build: %w", err)
+				}
+				if err == nil {
+					_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+						ID:               build.ID,
+						UpdatedAt:        database.Now(),
+						ProvisionerState: prevBuild.ProvisionerState,
+						Deadline:         time.Time{},
+						MaxDeadline:      time.Time{},
+					})
+					if err != nil {
+						return xerrors.Errorf("update workspace build by id: %w", err)
+					}
+				}
+			}
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
-		return xerrors.Errorf("get logs for hung job: %w", err)
-	}
-	logStage := ""
-	if len(logs) != 0 {
-		logStage = logs[len(logs)-1].Stage
-	}
-	if logStage == "" {
-		logStage = "Unknown"
+		return xerrors.Errorf("in tx: %w", err)
 	}
 
-	// Insert the messages into the build log.
-	insertParams := database.InsertProvisionerJobLogsParams{
-		JobID: job.ID,
-	}
-	now := database.Now()
-	for i, msg := range HungJobLogMessages {
-		// Set the created at in a way that ensures each message has
-		// a unique timestamp so they will be sorted correctly.
-		insertParams.CreatedAt = append(insertParams.CreatedAt, now.Add(time.Millisecond*time.Duration(i)))
-		insertParams.Level = append(insertParams.Level, database.LogLevelError)
-		insertParams.Stage = append(insertParams.Stage, logStage)
-		insertParams.Source = append(insertParams.Source, database.LogSourceProvisionerDaemon)
-		insertParams.Output = append(insertParams.Output, msg)
-	}
-	newLogs, err := db.InsertProvisionerJobLogs(ctx, insertParams)
-	if err != nil {
-		return xerrors.Errorf("insert logs for hung job: %w", err)
-	}
-
-	// Publish the new log notification to pubsub. Use the lowest
-	// log ID inserted so the log stream will fetch everything after
-	// that point.
-	lowestID := newLogs[0].ID
+	// Publish the new log notification to pubsub. Use the lowest log ID
+	// inserted so the log stream will fetch everything after that point.
 	data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{
-		CreatedAfter: lowestID - 1,
+		CreatedAfter: lowestLogID - 1,
 		EndOfLogs:    true,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal log notification: %w", err)
 	}
-	err = pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(job.ID), data)
+	err = pub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
 		return xerrors.Errorf("publish log notification: %w", err)
-	}
-
-	// Mark the job as failed.
-	now = database.Now()
-	err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-		ID:        job.ID,
-		UpdatedAt: now,
-		CompletedAt: sql.NullTime{
-			Time:  now,
-			Valid: true,
-		},
-		Error: sql.NullString{
-			String: "Coder: Build has been detected as hung for 5 minutes and has been terminated by hang detector.",
-			Valid:  true,
-		},
-		ErrorCode: sql.NullString{
-			Valid: false,
-		},
-	})
-	if err != nil {
-		return xerrors.Errorf("mark job as failed: %w", err)
-	}
-
-	// If the provisioner job is a workspace build, copy the
-	// provisioner state from the previous build to this workspace
-	// build.
-	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
-		build, err := db.GetWorkspaceBuildByJobID(ctx, job.ID)
-		if err != nil {
-			return xerrors.Errorf("get workspace build for workspace build job by job id: %w", err)
-		}
-
-		// Only copy the provisioner state if there's no state in
-		// the current build.
-		if len(build.ProvisionerState) == 0 {
-			// Get the previous build if it exists.
-			prevBuild, err := db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
-				WorkspaceID: build.WorkspaceID,
-				BuildNumber: build.BuildNumber - 1,
-			})
-			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-				return xerrors.Errorf("get previous workspace build: %w", err)
-			}
-			if err == nil {
-				_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-					ID:               build.ID,
-					UpdatedAt:        database.Now(),
-					ProvisionerState: prevBuild.ProvisionerState,
-					Deadline:         time.Time{},
-					MaxDeadline:      time.Time{},
-				})
-				if err != nil {
-					return xerrors.Errorf("update workspace build by id: %w", err)
-				}
-			}
-		}
 	}
 
 	return nil

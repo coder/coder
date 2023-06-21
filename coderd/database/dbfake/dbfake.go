@@ -2090,7 +2090,7 @@ func (q *fakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.
 		if jobLog.JobID != arg.JobID {
 			continue
 		}
-		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
+		if jobLog.ID <= arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, jobLog)

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -114,7 +115,23 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 		org          = dbgen.Organization(t, db, database.Organization{})
 		user         = dbgen.User(t, db, database.User{})
 		file         = dbgen.File(t, db, database.File{})
-		workspace    = dbgen.Workspace(t, db, database.Workspace{})
+		template     = dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			CreatedBy: user.ID,
+		})
+		workspace = dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+		})
 
 		// Previous build.
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
@@ -138,10 +155,11 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 			Input:          []byte("{}"),
 		})
 		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:      workspace.ID,
-			BuildNumber:      1,
-			ProvisionerState: expectedWorkspaceBuildState,
-			JobID:            previousWorkspaceBuildJob.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BuildNumber:       1,
+			ProvisionerState:  expectedWorkspaceBuildState,
+			JobID:             previousWorkspaceBuildJob.ID,
 		})
 
 		// Current build.
@@ -161,9 +179,10 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 			Input:          []byte("{}"),
 		})
 		currentWorkspaceBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID: workspace.ID,
-			BuildNumber: 2,
-			JobID:       currentWorkspaceBuildJob.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BuildNumber:       2,
+			JobID:             currentWorkspaceBuildJob.ID,
 			// No provisioner state.
 		})
 	)
@@ -218,7 +237,23 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 		org          = dbgen.Organization(t, db, database.Organization{})
 		user         = dbgen.User(t, db, database.User{})
 		file         = dbgen.File(t, db, database.File{})
-		workspace    = dbgen.Workspace(t, db, database.Workspace{})
+		template     = dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			CreatedBy: user.ID,
+		})
+		workspace = dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+		})
 
 		// Previous build.
 		previousWorkspaceBuildJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
@@ -241,10 +276,11 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 			Input:          []byte("{}"),
 		})
 		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:      workspace.ID,
-			BuildNumber:      1,
-			ProvisionerState: []byte(`{"dean":"NOT cool","colin":"also NOT cool"}`),
-			JobID:            previousWorkspaceBuildJob.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BuildNumber:       1,
+			ProvisionerState:  []byte(`{"dean":"NOT cool","colin":"also NOT cool"}`),
+			JobID:             previousWorkspaceBuildJob.ID,
 		})
 
 		// Current build.
@@ -265,9 +301,10 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 			Input:          []byte("{}"),
 		})
 		currentWorkspaceBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID: workspace.ID,
-			BuildNumber: 2,
-			JobID:       currentWorkspaceBuildJob.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BuildNumber:       2,
+			JobID:             currentWorkspaceBuildJob.ID,
 			// Should not be overridden.
 			ProvisionerState: expectedWorkspaceBuildState,
 		})
@@ -322,7 +359,23 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 		org       = dbgen.Organization(t, db, database.Organization{})
 		user      = dbgen.User(t, db, database.User{})
 		file      = dbgen.File(t, db, database.File{})
-		workspace = dbgen.Workspace(t, db, database.Workspace{})
+		template  = dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			CreatedBy: user.ID,
+		})
+		workspace = dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+		})
 
 		// First build.
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
@@ -342,9 +395,10 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 			Input:          []byte("{}"),
 		})
 		currentWorkspaceBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID: workspace.ID,
-			BuildNumber: 1,
-			JobID:       currentWorkspaceBuildJob.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BuildNumber:       1,
+			JobID:             currentWorkspaceBuildJob.ID,
 			// Should not be overridden.
 			ProvisionerState: expectedWorkspaceBuildState,
 		})
@@ -571,6 +625,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 					return
 				}
 
+				assert.True(t, event.EndOfLogs)
 				pubsubCalled <- event.CreatedAfter
 			})
 			require.NoError(t, err)
@@ -589,7 +644,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 			// expect.
 			logs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
 				JobID:        templateImportJob.ID,
-				CreatedAfter: after + 1,
+				CreatedAfter: after,
 			})
 			require.NoError(t, err)
 			require.Len(t, logs, len(unhanger.HungJobLogMessages))
