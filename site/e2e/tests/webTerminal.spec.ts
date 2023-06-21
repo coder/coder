@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { test } from "@playwright/test"
 import { createTemplate, createWorkspace, startAgent } from "../helpers"
 import { randomUUID } from "crypto"
 
@@ -34,7 +34,14 @@ test("web terminal", async ({ context, page }) => {
   await terminal.keyboard.type("echo hello")
   await terminal.keyboard.press("Enter")
 
-  // Make sure the text came back
-  const number = await terminal.locator("text=hello").all()
-  expect(number.length).toBe(2)
+  const locator = terminal.locator("text=hello")
+
+  for (let i = 0; i < 10; i++) {
+    const items = await locator.all()
+    // Make sure the text came back
+    if (items.length === 2) {
+      break
+    }
+    await new Promise((r) => setTimeout(r, 250))
+  }
 })

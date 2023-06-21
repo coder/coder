@@ -73,7 +73,7 @@ export const startAgent = async (page: Page, token: string): Promise<void> => {
   const cp = spawn("go", ["run", coderMain, "agent", "--no-reap"], {
     env: {
       ...process.env,
-      CODER_AGENT_URL: "http://localhost:"+port,
+      CODER_AGENT_URL: "http://localhost:" + port,
       CODER_AGENT_TOKEN: token,
     },
   })
