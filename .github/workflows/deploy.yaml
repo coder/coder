@@ -75,7 +75,7 @@ jobs:
       - name: "Create PR namespace"
         run: |
           set -euxo pipefail
-          kubectl create namespace "pr${{ env.PR_NUMBER }}"
+          kubectl create namespace "pr${{ env.PR_NUMBER }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
 
       - name: "Deploy"
         uses: "deliverybot/helm@v1"

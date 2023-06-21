@@ -10,4 +10,4 @@ jobs:
     steps:
       - name: "Remove PR namespace"
         run: |
-          kubectl delete namespace "pr${{ github.event.pull_request.number }}"
+          kubectl delete namespace "pr${{ github.event.pull_request.number }}" --kubeconfig "${{ secrets.KUBECONFIG }}"
