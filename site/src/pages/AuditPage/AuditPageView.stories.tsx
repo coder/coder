@@ -1,41 +1,25 @@
-/* eslint-disable eslint-comments/disable-enable-pair -- ignore */
-/* eslint-disable @typescript-eslint/no-explicit-any -- We don't care about any here */
 import { Meta, StoryObj } from "@storybook/react"
 import { MockAuditLog, MockAuditLog2, MockUser } from "testHelpers/entities"
 import { AuditPageView } from "./AuditPageView"
-import { action } from "@storybook/addon-actions"
 import { WorkspacesPageView } from "pages/WorkspacesPage/WorkspacesPageView"
 import { ComponentProps } from "react"
+import { MockMenu, getDefaultFilterProps } from "components/Filter/storyHelpers"
 
-const mockMenu = {
-  initialOption: undefined,
-  isInitializing: false,
-  isSearching: false,
-  query: "",
-  searchOptions: [],
-  selectedOption: undefined,
-  selectOption: action("selectOption"),
-  setQuery: action("updateQuery"),
-}
+type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"]
 
-const defaultFilterProps = {
-  filter: {
-    query: `owner:me`,
-    update: () => action("update"),
-    debounceUpdate: action("debounce") as any,
-    used: false,
-    values: {
-      username: MockUser.username,
-      action: undefined,
-      resource_type: undefined,
-    },
+const defaultFilterProps = getDefaultFilterProps<FilterProps>({
+  query: `owner:me`,
+  values: {
+    username: MockUser.username,
+    action: undefined,
+    resource_type: undefined,
   },
   menus: {
-    user: mockMenu,
-    action: mockMenu,
-    resourceType: mockMenu,
+    user: MockMenu,
+    action: MockMenu,
+    resourceType: MockMenu,
   },
-} as ComponentProps<typeof AuditPageView>["filterProps"]
+})
 
 const meta: Meta<typeof AuditPageView> = {
   title: "pages/AuditPageView",

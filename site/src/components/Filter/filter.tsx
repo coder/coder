@@ -74,6 +74,8 @@ export const useFilter = ({
   }
 }
 
+export type UseFilterResult = ReturnType<typeof useFilter>
+
 const parseFilterQuery = (filterQuery: string): FilterValues => {
   if (filterQuery === "") {
     return {}
