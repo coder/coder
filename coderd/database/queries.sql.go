@@ -8316,8 +8316,8 @@ WHERE
 		-- it may be eligible for failed stop.
 		(
 			provisioner_jobs.error IS NOT NULL AND
-			provisioner_jobs.error != '' AND 
-            workspace_builds.transition = "start"::workspace_transition
+			provisioner_jobs.error != '' AND
+			workspace_builds.transition = 'start'::workspace_transition
 		)
 	) AND workspaces.deleted = 'false'
 `
