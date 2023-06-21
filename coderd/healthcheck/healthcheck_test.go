@@ -13,18 +13,23 @@ type testChecker struct {
 	DERPReport      healthcheck.DERPReport
 	AccessURLReport healthcheck.AccessURLReport
 	WebsocketReport healthcheck.WebsocketReport
+	DatabaseReport  healthcheck.DatabaseReport
 }
 
 func (c *testChecker) DERP(context.Context, *healthcheck.DERPReportOptions) healthcheck.DERPReport {
 	return c.DERPReport
 }
 
-func (c *testChecker) AccessURL(context.Context, *healthcheck.AccessURLOptions) healthcheck.AccessURLReport {
+func (c *testChecker) AccessURL(context.Context, *healthcheck.AccessURLReportOptions) healthcheck.AccessURLReport {
 	return c.AccessURLReport
 }
 
 func (c *testChecker) Websocket(context.Context, *healthcheck.WebsocketReportOptions) healthcheck.WebsocketReport {
 	return c.WebsocketReport
+}
+
+func (c *testChecker) Database(context.Context, *healthcheck.DatabaseReportOptions) healthcheck.DatabaseReport {
+	return c.DatabaseReport
 }
 
 func TestHealthcheck(t *testing.T) {
@@ -47,6 +52,9 @@ func TestHealthcheck(t *testing.T) {
 			WebsocketReport: healthcheck.WebsocketReport{
 				Healthy: true,
 			},
+			DatabaseReport: healthcheck.DatabaseReport{
+				Healthy: true,
+			},
 		},
 		healthy:         true,
 		failingSections: nil,
@@ -60,6 +68,9 @@ func TestHealthcheck(t *testing.T) {
 				Healthy: true,
 			},
 			WebsocketReport: healthcheck.WebsocketReport{
+				Healthy: true,
+			},
+			DatabaseReport: healthcheck.DatabaseReport{
 				Healthy: true,
 			},
 		},
@@ -77,6 +88,9 @@ func TestHealthcheck(t *testing.T) {
 			WebsocketReport: healthcheck.WebsocketReport{
 				Healthy: true,
 			},
+			DatabaseReport: healthcheck.DatabaseReport{
+				Healthy: true,
+			},
 		},
 		healthy:         false,
 		failingSections: []string{healthcheck.SectionAccessURL},
@@ -92,14 +106,40 @@ func TestHealthcheck(t *testing.T) {
 			WebsocketReport: healthcheck.WebsocketReport{
 				Healthy: false,
 			},
+			DatabaseReport: healthcheck.DatabaseReport{
+				Healthy: true,
+			},
 		},
 		healthy:         false,
 		failingSections: []string{healthcheck.SectionWebsocket},
 	}, {
-		name:            "AllFail",
-		checker:         &testChecker{},
+		name: "DatabaseFail",
+		checker: &testChecker{
+			DERPReport: healthcheck.DERPReport{
+				Healthy: true,
+			},
+			AccessURLReport: healthcheck.AccessURLReport{
+				Healthy: true,
+			},
+			WebsocketReport: healthcheck.WebsocketReport{
+				Healthy: true,
+			},
+			DatabaseReport: healthcheck.DatabaseReport{
+				Healthy: false,
+			},
+		},
 		healthy:         false,
-		failingSections: []string{healthcheck.SectionDERP, healthcheck.SectionAccessURL, healthcheck.SectionWebsocket},
+		failingSections: []string{healthcheck.SectionDatabase},
+	}, {
+		name:    "AllFail",
+		checker: &testChecker{},
+		healthy: false,
+		failingSections: []string{
+			healthcheck.SectionDERP,
+			healthcheck.SectionAccessURL,
+			healthcheck.SectionWebsocket,
+			healthcheck.SectionDatabase,
+		},
 	}} {
 		c := c
 		t.Run(c.name, func(t *testing.T) {

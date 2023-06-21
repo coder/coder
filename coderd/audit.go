@@ -284,7 +284,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
 			}
-			api.Logger.Error(ctx, "fetch template", slog.Error(err))
+			api.Logger.Error(ctx, "unable to fetch template", slog.Error(err))
 		}
 		return template.Deleted
 	case database.ResourceTypeUser:
@@ -293,7 +293,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
 			}
-			api.Logger.Error(ctx, "fetch user", slog.Error(err))
+			api.Logger.Error(ctx, "unable to fetch user", slog.Error(err))
 		}
 		return user.Deleted
 	case database.ResourceTypeWorkspace:
@@ -302,7 +302,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
 			}
-			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
+			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
 		}
 		return workspace.Deleted
 	case database.ResourceTypeWorkspaceBuild:
@@ -311,7 +311,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
 			}
-			api.Logger.Error(ctx, "fetch workspace build", slog.Error(err))
+			api.Logger.Error(ctx, "unable to fetch workspace build", slog.Error(err))
 		}
 		// We use workspace as a proxy for workspace build here
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
@@ -319,7 +319,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
 			}
-			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
+			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
 		}
 		return workspace.Deleted
 	default:

@@ -101,3 +101,5 @@ export const useFilterMenu = <TOption extends BaseOption = BaseOption>({
     isSearching: searchOptionsQuery.isFetching,
   }
 }
+
+export type UseFilterMenuResult = ReturnType<typeof useFilterMenu>

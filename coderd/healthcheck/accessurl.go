@@ -18,12 +18,12 @@ type AccessURLReport struct {
 	Error           error  `json:"error"`
 }
 
-type AccessURLOptions struct {
+type AccessURLReportOptions struct {
 	AccessURL *url.URL
 	Client    *http.Client
 }
 
-func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLOptions) {
+func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 

@@ -2493,7 +2493,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------- |
 | `moons`             |
 | `workspace_actions` |
-| `workspace_filter`  |
 
 ## codersdk.Feature
 
@@ -3177,6 +3176,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "error_code": "MISSING_TEMPLATE_PARAMETER",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "queue_position": 0,
+  "queue_size": 0,
   "started_at": "2019-08-24T14:15:22Z",
   "status": "pending",
   "tags": {
@@ -3198,6 +3199,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `error_code`       | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
 | `file_id`          | string                                                         | false    |              |             |
 | `id`               | string                                                         | false    |              |             |
+| `queue_position`   | integer                                                        | false    |              |             |
+| `queue_size`       | integer                                                        | false    |              |             |
 | `started_at`       | string                                                         | false    |              |             |
 | `status`           | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
 | `tags`             | object                                                         | false    |              |             |
@@ -3918,6 +3921,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -4453,6 +4458,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "queue_position": 0,
+      "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
       "status": "pending",
       "tags": {
@@ -5001,6 +5008,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -5492,6 +5501,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "error_code": "MISSING_TEMPLATE_PARAMETER",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "queue_position": 0,
+          "queue_size": 0,
           "started_at": "2019-08-24T14:15:22Z",
           "status": "pending",
           "tags": {
@@ -5980,6 +5991,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `enabled` | boolean | false    |              |             |
 | `error`   | any     | false    |              |             |
 
+## healthcheck.DatabaseReport
+
+```json
+{
+  "error": null,
+  "healthy": true,
+  "latency": 0,
+  "reachable": true
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description |
+| ----------- | ------- | -------- | ------------ | ----------- |
+| `error`     | any     | false    |              |             |
+| `healthy`   | boolean | false    |              |             |
+| `latency`   | integer | false    |              |             |
+| `reachable` | boolean | false    |              |             |
+
 ## healthcheck.Report
 
 ```json
@@ -5990,6 +6021,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "healthz_response": "string",
     "reachable": true,
     "status_code": 0
+  },
+  "database": {
+    "error": null,
+    "healthy": true,
+    "latency": 0,
+    "reachable": true
   },
   "derp": {
     "error": null,
@@ -6170,6 +6207,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name               | Type                                                       | Required | Restrictions | Description                                      |
 | ------------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
 | `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
+| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                  |
 | `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
 | `failing_sections` | array of string                                            | false    |              |                                                  |
 | `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |

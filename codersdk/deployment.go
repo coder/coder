@@ -1715,9 +1715,6 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
-	// New workspace filter
-	ExperimentWorkspaceFilter Experiment = "workspace_filter"
-
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1726,9 +1723,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentWorkspaceFilter,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

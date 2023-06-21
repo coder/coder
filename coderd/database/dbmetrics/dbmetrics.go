@@ -143,6 +143,12 @@ func (m metricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Contex
 	return err
 }
 
+func (m metricsStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	defer m.queryLatencies.WithLabelValues("DeleteCoordinator").Observe(time.Since(start).Seconds())
+	return m.s.DeleteCoordinator(ctx, id)
+}
+
 func (m metricsStore) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	err := m.s.DeleteGitSSHKey(ctx, userID)
@@ -197,6 +203,18 @@ func (m metricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt
 	err := m.s.DeleteReplicasUpdatedBefore(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("DeleteReplicasUpdatedBefore").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m metricsStore) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
+	start := time.Now()
+	defer m.queryLatencies.WithLabelValues("DeleteTailnetAgent").Observe(time.Since(start).Seconds())
+	return m.s.DeleteTailnetAgent(ctx, arg)
+}
+
+func (m metricsStore) DeleteTailnetClient(ctx context.Context, arg database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
+	start := time.Now()
+	defer m.queryLatencies.WithLabelValues("DeleteTailnetClient").Observe(time.Since(start).Seconds())
+	return m.s.DeleteTailnetClient(ctx, arg)
 }
 
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -374,6 +392,13 @@ func (m metricsStore) GetGroupsByOrganizationID(ctx context.Context, organizatio
 	return groups, err
 }
 
+func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+	start := time.Now()
+	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
+	m.queryLatencies.WithLabelValues("GetHungProvisionerJobs").Observe(time.Since(start).Seconds())
+	return jobs, err
+}
+
 func (m metricsStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	start := time.Now()
 	version, err := m.s.GetLastUpdateCheck(ctx)
@@ -507,6 +532,13 @@ func (m metricsStore) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UU
 	return jobs, err
 }
 
+func (m metricsStore) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobsByIDsWithQueuePosition").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	start := time.Now()
 	jobs, err := m.s.GetProvisionerJobsCreatedAfter(ctx, createdAt)
@@ -547,6 +579,18 @@ func (m metricsStore) GetServiceBanner(ctx context.Context) (string, error) {
 	banner, err := m.s.GetServiceBanner(ctx)
 	m.queryLatencies.WithLabelValues("GetServiceBanner").Observe(time.Since(start).Seconds())
 	return banner, err
+}
+
+func (m metricsStore) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
+	start := time.Now()
+	defer m.queryLatencies.WithLabelValues("GetTailnetAgents").Observe(time.Since(start).Seconds())
+	return m.s.GetTailnetAgents(ctx, id)
+}
+
+func (m metricsStore) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]database.TailnetClient, error) {
+	start := time.Now()
+	defer m.queryLatencies.WithLabelValues("GetTailnetClientsForAgent").Observe(time.Since(start).Seconds())
+	return m.s.GetTailnetClientsForAgent(ctx, agentID)
 }
 
 func (m metricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
@@ -1543,9 +1587,20 @@ func (m metricsStore) UpsertServiceBanner(ctx context.Context, value string) err
 	return r0
 }
 
-func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+func (m metricsStore) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
 	start := time.Now()
-	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
-	m.queryLatencies.WithLabelValues("GetHungProvisionerJobs").Observe(time.Since(start).Seconds())
-	return jobs, err
+	defer m.queryLatencies.WithLabelValues("UpsertTailnetAgent").Observe(time.Since(start).Seconds())
+	return m.s.UpsertTailnetAgent(ctx, arg)
+}
+
+func (m metricsStore) UpsertTailnetClient(ctx context.Context, arg database.UpsertTailnetClientParams) (database.TailnetClient, error) {
+	start := time.Now()
+	defer m.queryLatencies.WithLabelValues("UpsertTailnetClient").Observe(time.Since(start).Seconds())
+	return m.s.UpsertTailnetClient(ctx, arg)
+}
+
+func (m metricsStore) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (database.TailnetCoordinator, error) {
+	start := time.Now()
+	defer m.queryLatencies.WithLabelValues("UpsertTailnetCoordinator").Observe(time.Since(start).Seconds())
+	return m.s.UpsertTailnetCoordinator(ctx, id)
 }

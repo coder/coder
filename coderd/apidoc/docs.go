@@ -7358,13 +7358,11 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "moons",
-                "workspace_actions",
-                "workspace_filter"
+                "workspace_actions"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
-                "ExperimentWorkspaceActions",
-                "ExperimentWorkspaceFilter"
+                "ExperimentWorkspaceActions"
             ]
         },
         "codersdk.Feature": {
@@ -7993,6 +7991,12 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "queue_position": {
+                    "type": "integer"
+                },
+                "queue_size": {
+                    "type": "integer"
                 },
                 "started_at": {
                     "type": "string",
@@ -10020,11 +10024,29 @@ const docTemplate = `{
                 "error": {}
             }
         },
+        "healthcheck.DatabaseReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "latency": {
+                    "type": "integer"
+                },
+                "reachable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
                 "access_url": {
                     "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
+                "database": {
+                    "$ref": "#/definitions/healthcheck.DatabaseReport"
                 },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"

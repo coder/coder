@@ -125,7 +125,7 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 	}
 	req, err := http.NewRequestWithContext(r.ctx, "POST", r.snapshotURL.String(), bytes.NewReader(data))
 	if err != nil {
-		r.options.Logger.Error(r.ctx, "create request", slog.Error(err))
+		r.options.Logger.Error(r.ctx, "unable to create snapshot request", slog.Error(err))
 		return
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
@@ -197,7 +197,7 @@ func (r *remoteReporter) reportWithDeployment() {
 	// Submit deployment information before creating a snapshot!
 	// This is separated from the snapshot API call to reduce
 	// duplicate data from being inserted. Snapshot may be called
-	// numerous times simaltanously if there is lots of activity!
+	// numerous times simultaneously if there is lots of activity!
 	err := r.deployment()
 	if err != nil {
 		r.options.Logger.Debug(r.ctx, "update deployment", slog.Error(err))
@@ -208,7 +208,7 @@ func (r *remoteReporter) reportWithDeployment() {
 		return
 	}
 	if err != nil {
-		r.options.Logger.Error(r.ctx, "create snapshot", slog.Error(err))
+		r.options.Logger.Error(r.ctx, "unable to create deployment snapshot", slog.Error(err))
 		return
 	}
 	r.reportSync(snapshot)

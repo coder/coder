@@ -18,7 +18,6 @@ import { ResetPasswordDialog } from "../../components/Dialogs/ResetPasswordDialo
 import { pageTitle } from "../../utils/page"
 import { UsersPageView } from "./UsersPageView"
 import { useStatusFilterMenu } from "./UsersFilter"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { useFilter } from "components/Filter/filter"
 
 export const Language = {
@@ -77,8 +76,6 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
 
   const me = useMe()
 
-  // New filter
-  const dashboard = useDashboard()
   const useFilterResult = useFilter({
     searchParamsResult,
     onUpdate: () => {
@@ -148,28 +145,19 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
             roles,
           })
         }}
-        error={getUsersError}
         isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         paginationRef={paginationRef}
         isNonInitialPage={nonInitialPage(searchParams)}
         actorID={me.id}
-        filterProps={
-          dashboard.experiments.includes("workspace_filter")
-            ? {
-                filter: useFilterResult,
-                menus: {
-                  status: statusMenu,
-                },
-              }
-            : {
-                filter: usersState.context.filter,
-                onFilter: (query) => {
-                  usersSend({ type: "UPDATE_FILTER", query })
-                },
-              }
-        }
+        filterProps={{
+          filter: useFilterResult,
+          error: getUsersError,
+          menus: {
+            status: statusMenu,
+          },
+        }}
       />
 
       <DeleteDialog
