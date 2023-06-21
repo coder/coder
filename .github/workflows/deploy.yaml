@@ -62,6 +62,8 @@ jobs:
       - name: Build and push Linux amd64 Docker image
         run: |
           set -euxo pipefail
+          go mod download
+          make gen/mark-fresh
           make -j build/coder_linux_amd64
           ./scripts/build_docker.sh --arch amd64 --target ${{env.CODER_IMAGE_TAG }} --push build/coder_*_linux_amd64
         #
