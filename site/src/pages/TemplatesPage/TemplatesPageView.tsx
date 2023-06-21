@@ -127,7 +127,7 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
             navigate(`/templates/${template.name}/workspace`)
           }}
         >
-          Use template
+          Create Workspace
         </Button>
       </TableCell>
     </TableRow>
@@ -159,7 +159,7 @@ export const TemplatesPageView: FC<
               to="new"
               variant="contained"
             >
-              Add template
+              Create Template
             </Button>
           </Maybe>
         }
@@ -172,21 +172,7 @@ export const TemplatesPageView: FC<
         </PageHeaderTitle>
         <Maybe condition={Boolean(templates && templates.length > 0)}>
           <PageHeaderSubtitle>
-            Choose a template to create a new workspace
-            {permissions.createTemplates ? (
-              <>
-                , or{" "}
-                <Link
-                  href="https://coder.com/docs/coder-oss/latest/templates#add-a-template"
-                  target="_blank"
-                >
-                  manage templates
-                </Link>{" "}
-                from the CLI.
-              </>
-            ) : (
-              "."
-            )}
+            Select a template to create a workspace.
           </PageHeaderSubtitle>
         </Maybe>
       </PageHeader>
