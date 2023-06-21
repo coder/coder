@@ -50,9 +50,8 @@ jobs:
           echo "CODER_BASE_IMAGE_TAG=$CODER_BASE_IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "CODER_IMAGE_TAG=$CODER_IMAGE_TAG" >> $GITHUB_OUTPUT
         env:
-          PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
-          CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ env.PR_NUMBER }}
-          CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ env.PR_NUMBER }}
+          CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ steps.pr_number.outputs.PR_NUMBER }}
+          CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
       # Comment on the PR
       - name: Comment on PR
