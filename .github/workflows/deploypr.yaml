@@ -156,7 +156,7 @@ jobs:
         run: |
           helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm \
           --namespace "pr${{ env.PR_NUMBER }}" \
-          --set coder.image.repo=${{ env.REPO}} \
+          --set coder.image.repo=${{ env.REPO }} \
           --set coder.image.tag=pr${{ env.PR_NUMBER }} \
           --set coder.service.type=ClusterIP \
           --set coder.env[0].name=CODER_ACCESS_URL \
