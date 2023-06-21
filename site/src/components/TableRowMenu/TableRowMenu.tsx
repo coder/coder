@@ -7,7 +7,7 @@ import { MouseEvent, useState } from "react"
 export interface TableRowMenuProps<TData> {
   data: TData
   menuItems: Array<{
-    label: JSX.Element | string | null
+    label: React.ReactNode
     disabled: boolean
     onClick: (data: TData) => void
   }>

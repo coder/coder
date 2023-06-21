@@ -170,20 +170,18 @@ export const UsersTableBody: FC<
                           (user.status === "active"
                             ? [
                                 {
-                                  label: t("suspendMenuItem") as
-                                    | string
-                                    | JSX.Element
-                                    | null,
+                                  label: t(
+                                    "suspendMenuItem",
+                                  ) as React.ReactNode,
                                   onClick: onSuspendUser,
                                   disabled: false,
                                 },
                               ]
                             : [
                                 {
-                                  label: t("activateMenuItem") as
-                                    | string
-                                    | JSX.Element
-                                    | null,
+                                  label: t(
+                                    "activateMenuItem",
+                                  ) as React.ReactNode,
                                   onClick: onActivateUser,
                                   disabled: false,
                                 },
