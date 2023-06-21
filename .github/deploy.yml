@@ -6,8 +6,8 @@ review:
   environment: pr${{ pr }}
   description: 'Review'
   payload:
-    release: coder-pr${{ pr }}
-    namespace: coder-pr${{ pr }}
+    release: pr${{ pr }}
+    namespace: pr${{ pr }}
     track: stable
     values:
       image:
