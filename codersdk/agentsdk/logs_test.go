@@ -139,6 +139,26 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			},
 		},
 		{
+			name:   "removes carraige return when grouped with newline",
+			ctx:    context.Background(),
+			level:  codersdk.LogLevelInfo,
+			writes: []string{"hello world\r\n", "\r\r\n", "goodbye world\n"},
+			want: []agentsdk.StartupLog{
+				{
+					Level:  codersdk.LogLevelInfo,
+					Output: "hello world",
+				},
+				{
+					Level:  codersdk.LogLevelInfo,
+					Output: "\r",
+				},
+				{
+					Level:  codersdk.LogLevelInfo,
+					Output: "goodbye world",
+				},
+			},
+		},
+		{
 			name: "cancel context",
 			ctx:  canceledCtx,
 			writes: []string{
