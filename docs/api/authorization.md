@@ -66,6 +66,57 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Convert user from password to oauth authentication
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/convert-login \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /users/convert-login`
+
+> Body parameter
+
+```json
+{
+  "email": "user@example.com",
+  "password": "string",
+  "to_login_type": "password"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                   | Required | Description     |
+| ------ | ---- | ---------------------------------------------------------------------- | -------- | --------------- |
+| `body` | body | [codersdk.ConvertLoginRequest](schemas.md#codersdkconvertloginrequest) | true     | Convert request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "expires_at": "string",
+  "state_string": "string",
+  "to_login_type": "password",
+  "user_id": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                         |
+| ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------ |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OauthConversionResponse](schemas.md#codersdkoauthconversionresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Log in user
 
 ### Code samples

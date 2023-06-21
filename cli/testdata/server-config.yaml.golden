@@ -33,6 +33,10 @@ networking:
     # directly in the database.
     # (default: <unset>, type: bool)
     disablePasswordAuth: false
+    # If enabled, users can switch from password based authentication to oauth based
+    # authentication by logging into an oidc account with the same email address.
+    # (default: <unset>, type: bool)
+    enableOauthAuthConversion: false
     # The interval in which coderd should be checking the status of workspace proxies.
     # (default: 1m0s, type: duration)
     proxyHealthInterval: 1m0s

@@ -1270,6 +1270,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autostart` |
 | `autostop`  |
 
+## codersdk.ConvertLoginRequest
+
+```json
+{
+  "email": "user@example.com",
+  "password": "string",
+  "to_login_type": "password"
+}
+```
+
+### Properties
+
+| Name            | Type                                     | Required | Restrictions | Description                                    |
+| --------------- | ---------------------------------------- | -------- | ------------ | ---------------------------------------------- |
+| `email`         | string                                   | true     |              |                                                |
+| `password`      | string                                   | true     |              |                                                |
+| `to_login_type` | [codersdk.LoginType](#codersdklogintype) | true     |              | To login type is the login type to convert to. |
+
 ## codersdk.CreateFirstUserRequest
 
 ```json
@@ -2991,6 +3009,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `scopes`                | array of string            | false    |              |             |
 | `sign_in_text`          | string                     | false    |              |             |
 | `username_field`        | string                     | false    |              |             |
+
+## codersdk.OauthConversionResponse
+
+```json
+{
+  "expires_at": "string",
+  "state_string": "string",
+  "to_login_type": "password",
+  "user_id": "string"
+}
+```
+
+### Properties
+
+| Name            | Type                                     | Required | Restrictions | Description |
+| --------------- | ---------------------------------------- | -------- | ------------ | ----------- |
+| `expires_at`    | string                                   | false    |              |             |
+| `state_string`  | string                                   | false    |              |             |
+| `to_login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
+| `user_id`       | string                                   | false    |              |             |
 
 ## codersdk.Organization
 
