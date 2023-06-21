@@ -186,7 +186,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	if !s.trackSession(session, true) {
 		// See (*Server).Close() for why we call Close instead of Exit.
 		_ = session.Close()
-		logger.Info(ctx, "closed session; server closing")
+		logger.Info(ctx, "unable to accept new session, server is closing")
 		return
 	}
 	defer s.trackSession(session, false)
@@ -197,7 +197,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		handled := s.x11Handler(session.Context(), x11)
 		if !handled {
 			_ = session.Exit(1)
-			logger.Warn(ctx, "x11 handler failed")
+			logger.Error(ctx, "x11 handler failed")
 			return
 		}
 		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d.0", x11.ScreenNumber))
@@ -593,19 +593,19 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 		slog.F("remote_addr", c.RemoteAddr()),
 		slog.F("local_addr", c.LocalAddr()),
 		slog.F("listen_addr", l.Addr()))
-	logger.Info(context.Background(), "started serving connection")
-	defer func() {
-		logger.Info(context.Background(), "stopped serving connection")
-	}()
 	defer c.Close()
 
 	if !s.trackConn(l, c, true) {
 		// Server is closed or we no longer want
 		// connections from this listener.
-		s.logger.Debug(context.Background(), "received connection after server closed")
+		logger.Info(context.Background(), "received connection after server closed")
 		return
 	}
 	defer s.trackConn(l, c, false)
+	logger.Info(context.Background(), "started serving connection")
+	defer func() {
+		logger.Info(context.Background(), "stopped serving connection")
+	}()
 
 	s.srv.HandleConn(c)
 }
