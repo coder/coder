@@ -27,8 +27,8 @@ jobs:
     if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/review-pr') && github.event.comment.author_association == 'MEMBER'
     outputs:
       pr_number: ${{ steps.pr_number.outputs.pr_number }}
-      coder_base_image_tag: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
-      coder_image_tag: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
+      coder_base_image_tag: ${{ steps.set_tags.outputs.CODE_BASE_IMAGE_TAG }}
+      coder_image_tag: ${{ steps.set_tags.outputs.CODE_IMAGE_TAG }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -37,7 +37,9 @@ jobs:
         # get PR number from the html_url
         run: |
           set -euxo pipefail
-          echo "{pr_number: $(echo "${{ github.event.issue.pull_request.html_url }}" | grep -oP '(?<=pull\/)\d+')}" > $GITHUB_OUTPUT
+          PR_NUMBER=$(echo "${{ github.event.issue.pull_request.html_url }}" | grep -oP '(?<=pull\/)\d+')
+          echo $PR_NUMBER
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_ENV
 
       - name: Set required tags
         id: set_tags
