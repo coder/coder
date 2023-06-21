@@ -34,7 +34,6 @@ jobs:
     steps:
       - name: Get PR number
         id: pr_number
-        # get PR number from the html_url
         run: |
           set -euxo pipefail
           if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
@@ -71,6 +70,7 @@ jobs:
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ steps.pr_number.outputs.PR_NUMBER }}
+          edit-mode: replace
           body: |
             :rocket: Deploying PR ${{ steps.pr_number.outputs.PR_NUMBER }}
             :warning: This deployment will be deleted when the PR is closed.
@@ -161,9 +161,10 @@ jobs:
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ env.PR_NUMBER }}
+          edit-mode: replace
           comment-id: ${{ needs.pr_commented.outputs.COMMENT_ID }}
           body: |
-            :success: Deployed PR ${{ env.PR_NUMBER }} successfully.
+            :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
             :warning: This deployment will be deleted when the PR is closed.
 
       # - name: "Deploy"
