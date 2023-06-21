@@ -48,8 +48,8 @@ jobs:
       - name: Delete helm release
         run: |
           set -euxo pipefail
-          helm delete --namespace "pr${{ env.PR_NUMBER }}" "pr${{ env.PR_NUMBER }}"
+          helm delete --namespace "pr${{ env.PR_NUMBER }}" "pr${{ env.PR_NUMBER }}" || echo "helm release not found"
 
       - name: "Remove PR namespace"
         run: |
-          kubectl delete namespace "pr${{ env.PR_NUMBER }}"
+          kubectl delete namespace "pr${{ env.PR_NUMBER }}" || echo "namespace not found"
