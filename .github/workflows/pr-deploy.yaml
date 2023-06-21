@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   pr_commented:
-    if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/review-pr') && github.event.comment.author_association == 'MEMBER' || github.event_name == 'workflow_dispatch'
+    if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/deploy-pr') && github.event.comment.author_association == 'MEMBER' || github.event_name == 'workflow_dispatch'
     outputs:
       PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
       COMMENT_ID: ${{ steps.comment_id.outputs.comment-id }}
