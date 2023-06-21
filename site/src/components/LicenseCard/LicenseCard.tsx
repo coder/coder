@@ -85,7 +85,7 @@ export const LicenseCard = ({
             width="134px" // standardize width of date column
           >
             {compareAsc(
-              new Date((license.claims.license_expires as number) * 1000),
+              new Date(license.claims.license_expires * 1000),
               new Date(),
             ) < 1 ? (
               <Pill
@@ -98,7 +98,7 @@ export const LicenseCard = ({
             )}
             <span className={styles.licenseExpires}>
               {dayjs
-                .unix(license.claims.license_expires as number)
+                .unix(license.claims.license_expires)
                 .format("MMMM D, YYYY")}
             </span>
           </Stack>
