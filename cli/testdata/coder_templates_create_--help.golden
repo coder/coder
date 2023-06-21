@@ -13,6 +13,10 @@ Create a template from the current directory or as specified by flag
           Specify a failure TTL for workspaces created from this template. This
           licensed feature's default is 0h (off).
 
+      --ignore-lockfile bool (default: false)
+          Ignore warnings about not having a .terraform.lock.hcl file present in
+          the template.
+
       --inactivity-ttl duration (default: 0h)
           Specify an inactivity TTL for workspaces created from this template.
           This licensed feature's default is 0h (off).

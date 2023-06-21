@@ -1087,6 +1087,11 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
+// TODO: we need to add a provisioner job resource
+func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
+}
+
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
@@ -1385,6 +1390,14 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 	return agent, nil
 }
 
+func (q *querier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+	_, err := q.GetWorkspaceAgentByID(ctx, id)
+	if err != nil {
+		return database.GetWorkspaceAgentLifecycleStateByIDRow{}, err
+	}
+	return q.db.GetWorkspaceAgentLifecycleStateByID(ctx, id)
+}
+
 func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, workspaceAgentID)
 	if err != nil {
@@ -1405,14 +1418,6 @@ func (q *querier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg dat
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentStartupLogsAfter(ctx, arg)
-}
-
-func (q *querier) GetWorkspaceAgentStartupLogsEOF(ctx context.Context, agentID uuid.UUID) (bool, error) {
-	_, err := q.GetWorkspaceAgentByID(ctx, agentID)
-	if err != nil {
-		return false, err
-	}
-	return q.db.GetWorkspaceAgentStartupLogsEOF(ctx, agentID)
 }
 
 func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -2324,12 +2329,7 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 }
 
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
-	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
-	if err != nil {
-		return err
-	}
-
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
 	if err != nil {
 		return err
 	}

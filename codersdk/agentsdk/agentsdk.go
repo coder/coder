@@ -533,7 +533,8 @@ func (c *Client) PostStats(ctx context.Context, stats *Stats) (StatsResponse, er
 }
 
 type PostLifecycleRequest struct {
-	State codersdk.WorkspaceAgentLifecycle `json:"state"`
+	State     codersdk.WorkspaceAgentLifecycle `json:"state"`
+	ChangedAt time.Time                        `json:"changed_at"`
 }
 
 func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) error {
@@ -571,7 +572,6 @@ type StartupLog struct {
 	CreatedAt time.Time         `json:"created_at"`
 	Output    string            `json:"output"`
 	Level     codersdk.LogLevel `json:"level"`
-	EOF       bool              `json:"eof"`
 }
 
 type PatchStartupLogs struct {

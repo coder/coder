@@ -487,7 +487,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
-		*provisionerJob,
+		database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ProvisionerJob: *provisionerJob,
+			QueuePosition:  0,
+		},
 		users,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},

@@ -1,0 +1,5 @@
+coder:
+  image:
+    tag: latest
+  command:
+    - /opt/colin

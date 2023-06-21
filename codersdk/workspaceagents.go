@@ -39,10 +39,6 @@ const (
 // The agent lifecycle starts in the "created" state, and transitions to
 // "starting" when the agent reports it has begun preparing (e.g. started
 // executing the startup script).
-//
-// Note that states are not guaranteed to be reported, for instance the agent
-// may go from "created" to "ready" without reporting "starting", if it had
-// trouble connecting on startup.
 type WorkspaceAgentLifecycle string
 
 // WorkspaceAgentLifecycle enums.
@@ -126,36 +122,37 @@ type WorkspaceAgentMetadata struct {
 }
 
 type WorkspaceAgent struct {
-	ID                    uuid.UUID               `json:"id" format:"uuid"`
-	CreatedAt             time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt             time.Time               `json:"updated_at" format:"date-time"`
-	FirstConnectedAt      *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt       *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt        *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
-	Status                WorkspaceAgentStatus    `json:"status"`
-	LifecycleState        WorkspaceAgentLifecycle `json:"lifecycle_state"`
-	Name                  string                  `json:"name"`
-	ResourceID            uuid.UUID               `json:"resource_id" format:"uuid"`
-	InstanceID            string                  `json:"instance_id,omitempty"`
-	Architecture          string                  `json:"architecture"`
-	EnvironmentVariables  map[string]string       `json:"environment_variables"`
-	OperatingSystem       string                  `json:"operating_system"`
-	StartupScript         string                  `json:"startup_script,omitempty"`
-	StartupLogsLength     int32                   `json:"startup_logs_length"`
-	StartupLogsOverflowed bool                    `json:"startup_logs_overflowed"`
-	Directory             string                  `json:"directory,omitempty"`
-	ExpandedDirectory     string                  `json:"expanded_directory,omitempty"`
-	Version               string                  `json:"version"`
-	Apps                  []WorkspaceApp          `json:"apps"`
+	ID                          uuid.UUID                           `json:"id" format:"uuid"`
+	CreatedAt                   time.Time                           `json:"created_at" format:"date-time"`
+	UpdatedAt                   time.Time                           `json:"updated_at" format:"date-time"`
+	FirstConnectedAt            *time.Time                          `json:"first_connected_at,omitempty" format:"date-time"`
+	LastConnectedAt             *time.Time                          `json:"last_connected_at,omitempty" format:"date-time"`
+	DisconnectedAt              *time.Time                          `json:"disconnected_at,omitempty" format:"date-time"`
+	StartedAt                   *time.Time                          `json:"started_at,omitempty" format:"date-time"`
+	ReadyAt                     *time.Time                          `json:"ready_at,omitempty" format:"date-time"`
+	Status                      WorkspaceAgentStatus                `json:"status"`
+	LifecycleState              WorkspaceAgentLifecycle             `json:"lifecycle_state"`
+	Name                        string                              `json:"name"`
+	ResourceID                  uuid.UUID                           `json:"resource_id" format:"uuid"`
+	InstanceID                  string                              `json:"instance_id,omitempty"`
+	Architecture                string                              `json:"architecture"`
+	EnvironmentVariables        map[string]string                   `json:"environment_variables"`
+	OperatingSystem             string                              `json:"operating_system"`
+	StartupScript               string                              `json:"startup_script,omitempty"`
+	StartupScriptBehavior       WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
+	StartupScriptTimeoutSeconds int32                               `json:"startup_script_timeout_seconds"` // StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
+	StartupLogsLength           int32                               `json:"startup_logs_length"`
+	StartupLogsOverflowed       bool                                `json:"startup_logs_overflowed"`
+	Directory                   string                              `json:"directory,omitempty"`
+	ExpandedDirectory           string                              `json:"expanded_directory,omitempty"`
+	Version                     string                              `json:"version"`
+	Apps                        []WorkspaceApp                      `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
 	// Deprecated: Use StartupScriptBehavior instead.
-	LoginBeforeReady      bool                                `json:"login_before_ready"`
-	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
-	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	StartupScriptTimeoutSeconds  int32          `json:"startup_script_timeout_seconds"`
+	LoginBeforeReady             bool           `json:"login_before_ready"`
 	ShutdownScript               string         `json:"shutdown_script,omitempty"`
 	ShutdownScriptTimeoutSeconds int32          `json:"shutdown_script_timeout_seconds"`
 	Subsystem                    AgentSubsystem `json:"subsystem"`
@@ -604,7 +601,6 @@ type WorkspaceAgentStartupLog struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Output    string    `json:"output"`
 	Level     LogLevel  `json:"level"`
-	EOF       bool      `json:"eof"` // EOF indicates that this is the last log entry and the file is closed.
 }
 
 type AgentSubsystem string

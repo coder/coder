@@ -46,6 +46,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "reachable": true,
     "status_code": 0
   },
+  "database": {
+    "error": null,
+    "healthy": true,
+    "latency": 0,
+    "reachable": true
+  },
   "derp": {
     "error": null,
     "healthy": true,

@@ -507,6 +507,13 @@ func (m metricsStore) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UU
 	return jobs, err
 }
 
+func (m metricsStore) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobsByIDsWithQueuePosition").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	start := time.Now()
 	jobs, err := m.s.GetProvisionerJobsCreatedAfter(ctx, createdAt)
@@ -724,6 +731,13 @@ func (m metricsStore) GetWorkspaceAgentByInstanceID(ctx context.Context, authIns
 	return agent, err
 }
 
+func (m metricsStore) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentLifecycleStateByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentLifecycleStateByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	start := time.Now()
 	metadata, err := m.s.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
@@ -736,13 +750,6 @@ func (m metricsStore) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg
 	logs, err := m.s.GetWorkspaceAgentStartupLogsAfter(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStartupLogsAfter").Observe(time.Since(start).Seconds())
 	return logs, err
-}
-
-func (m metricsStore) GetWorkspaceAgentStartupLogsEOF(ctx context.Context, agentID uuid.UUID) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentStartupLogsEOF(ctx, agentID)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStartupLogsEOF").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m metricsStore) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {

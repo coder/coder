@@ -4599,6 +4599,12 @@ const docTemplate = `{
                         "description": "Follow log stream",
                         "name": "follow",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Disable compression for WebSocket connection",
+                        "name": "no_compression",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5812,6 +5818,9 @@ const docTemplate = `{
         "agentsdk.PostLifecycleRequest": {
             "type": "object",
             "properties": {
+                "changed_at": {
+                    "type": "string"
+                },
                 "state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 }
@@ -5855,9 +5864,6 @@ const docTemplate = `{
             "properties": {
                 "created_at": {
                     "type": "string"
-                },
-                "eof": {
-                    "type": "boolean"
                 },
                 "level": {
                     "$ref": "#/definitions/codersdk.LogLevel"
@@ -7985,6 +7991,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "queue_position": {
+                    "type": "integer"
+                },
+                "queue_size": {
+                    "type": "integer"
+                },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
@@ -9256,6 +9268,10 @@ const docTemplate = `{
                 "operating_system": {
                     "type": "string"
                 },
+                "ready_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"
@@ -9265,6 +9281,10 @@ const docTemplate = `{
                 },
                 "shutdown_script_timeout_seconds": {
                     "type": "integer"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "startup_logs_length": {
                     "type": "integer"
@@ -9387,10 +9407,6 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "eof": {
-                    "description": "EOF indicates that this is the last log entry and the file is closed.",
-                    "type": "boolean"
                 },
                 "id": {
                     "type": "integer"
@@ -10007,11 +10023,29 @@ const docTemplate = `{
                 "error": {}
             }
         },
+        "healthcheck.DatabaseReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "latency": {
+                    "type": "integer"
+                },
+                "reachable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
                 "access_url": {
                     "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
+                "database": {
+                    "$ref": "#/definitions/healthcheck.DatabaseReport"
                 },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"

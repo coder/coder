@@ -28,7 +28,7 @@ func TestAccessURL(t *testing.T) {
 		)
 		defer cancel()
 
-		report.Run(ctx, &healthcheck.AccessURLOptions{
+		report.Run(ctx, &healthcheck.AccessURLReportOptions{
 			AccessURL: client.URL,
 		})
 
@@ -57,7 +57,7 @@ func TestAccessURL(t *testing.T) {
 		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 
-		report.Run(ctx, &healthcheck.AccessURLOptions{
+		report.Run(ctx, &healthcheck.AccessURLReportOptions{
 			Client:    srv.Client(),
 			AccessURL: u,
 		})
@@ -93,7 +93,7 @@ func TestAccessURL(t *testing.T) {
 		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 
-		report.Run(ctx, &healthcheck.AccessURLOptions{
+		report.Run(ctx, &healthcheck.AccessURLReportOptions{
 			Client:    client,
 			AccessURL: u,
 		})

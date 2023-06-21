@@ -1,10 +1,32 @@
-import { screen } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import WS from "jest-websocket-mock"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
 import { WorkspaceBuildPage } from "./WorkspaceBuildPage"
 import { MockWorkspace, MockWorkspaceBuild } from "testHelpers/entities"
+import * as API from "api/api"
+
+afterEach(() => {
+  WS.clean()
+})
 
 describe("WorkspaceBuildPage", () => {
+  test("gets the right workspace build", async () => {
+    const getWorkspaceBuildSpy = jest
+      .spyOn(API, "getWorkspaceBuildByNumber")
+      .mockResolvedValue(MockWorkspaceBuild)
+    renderWithAuth(<WorkspaceBuildPage />, {
+      route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,
+      path: "/:username/:workspace/builds/:buildNumber",
+    })
+    await waitFor(() =>
+      expect(getWorkspaceBuildSpy).toBeCalledWith(
+        MockWorkspace.owner_name,
+        MockWorkspace.name,
+        `${MockWorkspaceBuild.build_number}`,
+      ),
+    )
+  })
+
   test("the mock server seamlessly handles JSON protocols", async () => {
     const server = new WS("ws://localhost:1234", { jsonProtocol: true })
     const client = new WebSocket("ws://localhost:1234")
