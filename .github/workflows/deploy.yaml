@@ -51,14 +51,8 @@ jobs:
       - name: Build Linux amd64 Docker image
         run: |
           set -euxo pipefail
-
-          # build Docker image
-          docker buildx build --platform linux/amd64 -t ${{ env.CODER_IMAGE_TAG }} .
-
-          # push manifest
-          docker buildx build --platform linux/amd64 --push -t ${{ env.CODER_IMAGE_TAG }} .
-        env:
-          CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
+          make -j build/coder_${{ env.PR_NUMBER }}_linux_amd64.tag --target ${{ env.CODER_IMAGE_TAG }}
+          make -j push/build/coder_${{ env.PR_NUMBER }}_linux_amd64.tag
 
   deployment:
     needs: build
