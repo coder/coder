@@ -2,12 +2,6 @@
 # This action will trigger when a PR is opened or updated with a comment containing /review-pr by a member of the org.
 name: Deploy PR
 on:
-  # deployment:
-  # pull_request:
-  #   types: [opened, synchronize, ready_for_review]
-  workflow_dispatch:
-  push:
-    branches-ignore: main
   issue_comment:
     types: [created, edited]
 
