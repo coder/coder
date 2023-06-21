@@ -5,6 +5,8 @@ on:
   issue_comment:
     types: [created, edited]
   workflow_dispatch:
+  push:
+    branches-ignore: main # TODO: Remove this before merging
 
 env:
   REPO: ghcr.io/coder/coder-preview
