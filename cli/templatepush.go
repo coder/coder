@@ -151,9 +151,22 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			}
 
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
-			if err != nil && !create {
-				_, _ = fmt.Fprintf(inv.Stdout, "Template %s not found, create a new template with the --create flag\n or use `coder template create` to create a new template\n", name)
-				return xerrors.Errorf("template %q not found: %w", name, err)
+			if err != nil {
+				if !create {
+					_, _ = fmt.Fprintf(inv.Stdout, "Create a new template with `coder templates create %s`.\n", name)
+					_, _ = fmt.Fprintf(inv.Stdout, "Or use `coder templates push %s --create`.\n", name)
+					return xerrors.Errorf("template %q not found: %w", name, err)
+				}
+				_, _ = fmt.Fprintf(inv.Stdout, "Creating a new template: %s\n", name)
+				defaultTTL := 24 * time.Hour
+				failureTTL := 0 * time.Hour
+				inactivityTTL := 0 * time.Hour
+				disableEveryone := false
+				createReq := codersdk.CreateTemplateRequest{Name: name, DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()), FailureTTLMillis: ptr.Ref(failureTTL.Milliseconds()), InactivityTTLMillis: ptr.Ref(inactivityTTL.Milliseconds()), DisableEveryoneGroupAccess: disableEveryone}
+				template, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
+				if err != nil {
+					return err
+				}
 			}
 
 			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
@@ -170,19 +183,6 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			})
 			if err != nil {
 				return err
-			}
-
-			if create {
-				defaultTTL := 24 * time.Hour
-				failureTTL := 0 * time.Hour
-				inactivityTTL := 0 * time.Hour
-				disableEveryone := false
-				createReq := codersdk.CreateTemplateRequest{Name: name, VersionID: job.ID, DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()), FailureTTLMillis: ptr.Ref(failureTTL.Milliseconds()), InactivityTTLMillis: ptr.Ref(inactivityTTL.Milliseconds()), DisableEveryoneGroupAccess: disableEveryone}
-				template, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
-				if err != nil {
-					return err
-				}
-				_, _ = fmt.Fprintf(inv.Stdout, "Created template %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			}
 
 			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
