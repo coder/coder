@@ -158,8 +158,9 @@ jobs:
           --namespace "pr${{ env.PR_NUMBER }}" \
           --set coder.image.repo=${{ env.REPO}} \
           --set coder.image.tag=pr${{ env.PR_NUMBER }} \
-          --set service.type=ClusterIP \
-          --set env.CODER_ACCESS_URL="" \
+          --set coder.service.type=ClusterIP \
+          --set coder.env[0].name=CODER_ACCESS_URL \
+          --set coder.env[0].value=""
           --force
 
       - name: "Get deployment URL"
