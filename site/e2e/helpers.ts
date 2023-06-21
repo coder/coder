@@ -2,7 +2,7 @@ import { Page } from "@playwright/test"
 import path from "path"
 
 export const buttons = {
-  starterTemplates: "Starter templates",
+  starterTemplates: "Starter Templates",
   dockerTemplate: "Develop in Docker",
   useTemplate: "Create Workspace",
   createTemplate: "Create Template",

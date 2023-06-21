@@ -1,6 +1,6 @@
 ---
 name: Develop in Docker with a dotfiles URL
-description: Run workspaces on a Docker host using registry images
+description: Develop inside Docker containers using your local daemon
 tags: [local, docker]
 icon: /icon/docker.png
 ---

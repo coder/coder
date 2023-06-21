@@ -151,7 +151,7 @@ export const TemplatesPageView: FC<
         actions={
           <Maybe condition={permissions.createTemplates}>
             <Button component={RouterLink} to="/starter-templates">
-              Starter templates
+              Starter Templates
             </Button>
             <Button
               startIcon={<AddIcon />}
