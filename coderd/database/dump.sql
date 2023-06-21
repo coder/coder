@@ -171,7 +171,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION notify_agent_change() RETURNS trigger
+CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -186,7 +186,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION notify_client_change() RETURNS trigger
+CREATE FUNCTION tailnet_notify_client_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -201,7 +201,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION notify_coordinator_heartbeat() RETURNS trigger
+CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -441,6 +441,8 @@ CREATE TABLE tailnet_coordinators (
     id uuid NOT NULL,
     heartbeat_at timestamp with time zone NOT NULL
 );
+
+COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
 
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
@@ -1015,11 +1017,11 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
-CREATE TRIGGER notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION notify_agent_change();
+CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
 
-CREATE TRIGGER notify_client_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_clients FOR EACH ROW EXECUTE FUNCTION notify_client_change();
+CREATE TRIGGER tailnet_notify_client_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_clients FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_change();
 
-CREATE TRIGGER notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION notify_coordinator_heartbeat();
+CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 

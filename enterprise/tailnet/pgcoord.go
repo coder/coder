@@ -700,7 +700,7 @@ func (q *querier) query(mk mKey) error {
 
 func (q *querier) queryClientsOfAgent(agent uuid.UUID) ([]mapping, error) {
 	clients, err := q.store.GetTailnetClientsForAgent(q.ctx, agent)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		return nil, err
 	}
 	mappings := make([]mapping, 0, len(clients))
@@ -724,7 +724,7 @@ func (q *querier) queryClientsOfAgent(agent uuid.UUID) ([]mapping, error) {
 
 func (q *querier) queryAgent(agentID uuid.UUID) ([]mapping, error) {
 	agents, err := q.store.GetTailnetAgents(q.ctx, agentID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		return nil, err
 	}
 	mappings := make([]mapping, 0, len(agents))
@@ -761,7 +761,9 @@ func (q *querier) subscribe() {
 		return nil
 	}, bkoff)
 	if err != nil {
-		// this should only happen if context is canceled
+		if q.ctx.Err() == nil {
+			q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
+		}
 		return
 	}
 	defer cancelClient()
@@ -778,7 +780,9 @@ func (q *querier) subscribe() {
 		return nil
 	}, bkoff)
 	if err != nil {
-		// this should only happen if context is canceled
+		if q.ctx.Err() == nil {
+			q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
+		}
 		return
 	}
 	defer cancelAgent()
@@ -1092,7 +1096,9 @@ func (h *heartbeats) subscribe() {
 		return nil
 	}, bkoff)
 	if bErr != nil {
-		// this should only happen if context is canceled
+		if h.ctx.Err() == nil {
+			h.logger.Error(h.ctx, "code bug: retry failed before context canceled", slog.Error(bErr))
+		}
 		return
 	}
 	// cancel subscription when context finishes

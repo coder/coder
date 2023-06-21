@@ -5,6 +5,8 @@ CREATE TABLE tailnet_coordinators (
 	heartbeat_at timestamp with time zone NOT NULL
 );
 
+COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
+
 CREATE TABLE tailnet_clients (
 	id uuid NOT NULL,
 	coordinator_id uuid NOT NULL,
@@ -36,7 +38,7 @@ CREATE TABLE tailnet_agents (
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents (coordinator_id);
 
 -- Any time the tailnet_clients table changes, send an update with the affected client and agent IDs
-CREATE FUNCTION notify_client_change() RETURNS trigger
+CREATE FUNCTION tailnet_notify_client_change() RETURNS trigger
 	LANGUAGE plpgsql
 	AS $$
 BEGIN
@@ -51,13 +53,13 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER notify_client_change
+CREATE TRIGGER tailnet_notify_client_change
 	AFTER INSERT OR UPDATE OR DELETE ON tailnet_clients
 	FOR EACH ROW
-EXECUTE PROCEDURE notify_client_change();
+EXECUTE PROCEDURE tailnet_notify_client_change();
 
 -- Any time tailnet_agents table changes, send an update with the affected agent ID.
-CREATE FUNCTION notify_agent_change() RETURNS trigger
+CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
 	LANGUAGE plpgsql
 	AS $$
 BEGIN
@@ -72,13 +74,13 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER notify_agent_change
+CREATE TRIGGER tailnet_notify_agent_change
 	AFTER INSERT OR UPDATE OR DELETE ON tailnet_agents
 	FOR EACH ROW
-EXECUTE PROCEDURE notify_agent_change();
+EXECUTE PROCEDURE tailnet_notify_agent_change();
 
 -- Send coordinator heartbeats
-CREATE FUNCTION notify_coordinator_heartbeat() RETURNS trigger
+CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
 	LANGUAGE plpgsql
 AS $$
 BEGIN
@@ -87,9 +89,9 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER notify_coordinator_heartbeat
+CREATE TRIGGER tailnet_notify_coordinator_heartbeat
 	AFTER INSERT OR UPDATE ON tailnet_coordinators
 	FOR EACH ROW
-EXECUTE PROCEDURE notify_coordinator_heartbeat();
+EXECUTE PROCEDURE tailnet_notify_coordinator_heartbeat();
 
 COMMIT;

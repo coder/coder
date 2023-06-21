@@ -14,12 +14,17 @@ import (
 	"github.com/coder/coder/coderd/database/pubsub"
 )
 
+// WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.
+func WillUsePostgres() bool {
+	return os.Getenv("DB") != ""
+}
+
 func NewDB(t testing.TB) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 
 	db := dbfake.New()
 	ps := pubsub.NewInMemory()
-	if os.Getenv("DB") != "" {
+	if WillUsePostgres() {
 		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
 		if connectionURL == "" {
 			var (

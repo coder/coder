@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io"
 	"net"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -33,7 +32,7 @@ func TestMain(m *testing.M) {
 
 func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DB") == "" {
+	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
 	store, pubsub := dbtestutil.NewDB(t)
@@ -72,7 +71,7 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 
 func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DB") == "" {
+	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
 	store, pubsub := dbtestutil.NewDB(t)
@@ -109,7 +108,7 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 
 func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DB") == "" {
+	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
 	store, pubsub := dbtestutil.NewDB(t)
@@ -186,7 +185,7 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 
 func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DB") == "" {
+	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
 	store, pubsub := dbtestutil.NewDB(t)
@@ -245,7 +244,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 
 func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DB") == "" {
+	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
 	store, pubsub := dbtestutil.NewDB(t)
@@ -295,7 +294,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 //	            +---------+
 func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DB") == "" {
+	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
 	store, pubsub := dbtestutil.NewDB(t)
@@ -432,7 +431,7 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 //	            +---------+
 func TestPGCoordinator_MultiAgent(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DB") == "" {
+	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
 	store, pubsub := dbtestutil.NewDB(t)

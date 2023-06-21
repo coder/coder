@@ -1549,6 +1549,7 @@ type TailnetClient struct {
 	Node          json.RawMessage `db:"node" json:"node"`
 }
 
+// We keep this separate from replicas in case we need to break the coordinator out into its own service
 type TailnetCoordinator struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
