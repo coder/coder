@@ -76,8 +76,8 @@ func (w *startupLogsWriter) Close() error {
 // otherwise no-op. If the context passed to StartupLogsWriter is
 // canceled, any remaining logs will be discarded.
 //
-// Neither Write nor Close is not safe for concurrent use and must be
-// used by a single goroutine.
+// Neither Write nor Close is safe for concurrent use and must be used
+// by a single goroutine.
 func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...StartupLog) error, level codersdk.LogLevel) io.WriteCloser {
 	return &startupLogsWriter{
 		ctx:   ctx,
