@@ -60,7 +60,7 @@ const (
 	varNoFeatureWarning = "no-feature-warning"
 	varForceTty         = "force-tty"
 	varVerbose          = "verbose"
-	varDisableDirect    = "disable-direct"
+	varDisableDirect    = "disable-direct-connections"
 	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
@@ -369,7 +369,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 		},
 		{
 			Flag:        varDisableDirect,
-			Env:         "CODER_DISABLE_DIRECT",
+			Env:         "CODER_DISABLE_DIRECT_CONNECTIONS",
 			Description: "Disable direct (P2P) connections to workspaces.",
 			Value:       clibase.BoolOf(&r.disableDirect),
 			Group:       globalGroup,
@@ -532,6 +532,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				client.PlainLogger = os.Stderr
 				client.LogBodies = true
 			}
+			client.DisableDirect = r.disableDirect
 
 			// We send these requests in parallel to minimize latency.
 			var (

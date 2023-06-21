@@ -173,7 +173,8 @@ type WorkspaceAgentConnectionInfo struct {
 // @typescript-ignore DialWorkspaceAgentOptions
 type DialWorkspaceAgentOptions struct {
 	Logger slog.Logger
-	// BlockEndpoints forced a direct connection through DERP.
+	// BlockEndpoints forced a direct connection through DERP. The Client may
+	// have DisableDirect set which will override this value.
 	BlockEndpoints bool
 }
 
@@ -208,7 +209,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		DERPMap:        connInfo.DERPMap,
 		DERPHeader:     &header,
 		Logger:         options.Logger,
-		BlockEndpoints: options.BlockEndpoints,
+		BlockEndpoints: c.DisableDirect || options.BlockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

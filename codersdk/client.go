@@ -117,6 +117,10 @@ type Client struct {
 	// Trace can be enabled to propagate tracing spans to the Coder API.
 	// This is useful for tracking a request end-to-end.
 	Trace bool
+
+	// DisableDirect forces any connections to workspaces to go through DERP,
+	// regardless of the BlockEndpoints setting on each connection.
+	DisableDirect bool
 }
 
 // SessionToken returns the currently set token for the client.
