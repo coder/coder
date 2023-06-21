@@ -15,6 +15,7 @@ env:
 permissions:
   contents: read
   packages: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,6 +26,7 @@ jobs:
     if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/review-pr') && github.event.comment.author_association == 'MEMBER' || github.event_name == 'workflow_dispatch'
     outputs:
       PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
+      COMMENT_ID: ${{ steps.comment_id.outputs.comment-id }}
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
 
@@ -55,13 +57,13 @@ jobs:
 
       # Comment on the PR
       - name: Comment on PR
-        run: |
-          set -euxo pipefail
-          curl -sSL -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          -d '{"body": "Deploying PR ${{ steps.pr_number.outputs.PR_NUMBER }}"}' \
-          "https://api.github.com/repos/${{ github.repository }}/issues/${{ steps.pr_number.outputs.PR_NUMBER }}/comments"
+        id: comment_id
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ steps.pr_number.outputs.PR_NUMBER }}
+          body: |
+            :rocket: Deploying PR ${{ steps.pr_number.outputs.PR_NUMBER }}
+            :warning: This deployment will be deleted when the PR is closed.
 
   build:
     needs: pr_commented
@@ -144,13 +146,13 @@ jobs:
           helm install pr${{ env.PR_NUMBER }}  ./helm --namespace "pr${{ env.PR_NUMBER }}" --set coder.image.repo=${{ env.REPO}} --set coder.image.tag=${{ env.PR_NUMBER }} --wait
 
       - name: Comment on PR
-        run: |
-          set -euxo pipefail
-          curl -sSL -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          -d '{"body": "Deployed PR ${{ env.PR_NUMBER }} successfully"}' \
-          "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ env.PR_NUMBER }}
+          comment-id: ${{ needs.pr_commented.outputs.COMMENT_ID }}
+          body: |
+            :success: Deployed PR ${{ env.PR_NUMBER }} successfully.
+            :warning: This deployment will be deleted when the PR is closed.
 
       # - name: "Deploy"
       #   uses: "deliverybot/helm@v1"
