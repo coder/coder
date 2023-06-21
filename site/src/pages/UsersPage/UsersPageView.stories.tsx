@@ -66,14 +66,18 @@ export const EmptyPage = {
 export const Error = {
   args: {
     users: undefined,
-    error: mockApiError({
-      message: "Invalid user search query.",
-      validations: [
-        {
-          field: "status",
-          detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
-        },
-      ],
-    }),
+    count: 0,
+    filterProps: {
+      ...defaultFilterProps,
+      error: mockApiError({
+        message: "Invalid user search query.",
+        validations: [
+          {
+            field: "status",
+            detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+          },
+        ],
+      }),
+    },
   },
 }
