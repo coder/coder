@@ -1187,6 +1187,14 @@ func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 	return nil
 }
 
+func (*fakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
+	return database.DeleteTailnetAgentRow{}, ErrUnimplemented
+}
+
+func (*fakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
+	return database.DeleteTailnetClientRow{}, ErrUnimplemented
+}
+
 func (q *fakeQuerier) DeleteUserOauthMergeStates(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1206,14 +1214,6 @@ func (q *fakeQuerier) DeleteUserOauthMergeStates(_ context.Context, userID uuid.
 		i++
 	}
 	return nil
-}
-
-func (*fakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
-	return database.DeleteTailnetAgentRow{}, ErrUnimplemented
-}
-
-func (*fakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
-	return database.DeleteTailnetClientRow{}, ErrUnimplemented
 }
 
 func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {

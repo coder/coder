@@ -40,9 +40,9 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
-	DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error
 	DeleteTailnetAgent(ctx context.Context, arg DeleteTailnetAgentParams) (DeleteTailnetAgentRow, error)
 	DeleteTailnetClient(ctx context.Context, arg DeleteTailnetClientParams) (DeleteTailnetClientRow, error)
+	DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)

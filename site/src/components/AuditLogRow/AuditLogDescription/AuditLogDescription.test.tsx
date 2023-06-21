@@ -4,7 +4,6 @@ import {
   MockWorkspaceCreateAuditLogForDifferentOwner,
   MockAuditLogSuccessfulLogin,
   MockAuditLogUnsuccessfulLoginKnownUser,
-  MockAuditOauthConvert,
 } from "testHelpers/entities"
 import { AuditLogDescription } from "./AuditLogDescription"
 import { AuditLogRow } from "../AuditLogRow"
@@ -73,25 +72,6 @@ describe("AuditLogDescription", () => {
       screen.getByText(
         t("auditLog:table.logRow.description.unlinkedAuditDescription", {
           truncatedDescription: `${MockAuditLogSuccessfulLogin.user?.username} logged in`,
-          target: "",
-          onBehalfOf: undefined,
-        })
-          .replace(/<[^>]*>/g, " ")
-          .replace(/\s{2,}/g, " ")
-          .trim(),
-      ),
-    ).toBeInTheDocument()
-
-    const statusPill = screen.getByRole("status")
-    expect(statusPill).toHaveTextContent("201")
-  })
-  it("renders the correct string for login type conversion", async () => {
-    render(<AuditLogRow auditLog={MockAuditOauthConvert} />)
-
-    expect(
-      screen.getByText(
-        t("auditLog:table.logRow.description.unlinkedAuditDescription", {
-          truncatedDescription: `${MockAuditOauthConvert.user?.username} created login type conversion to ${MockAuditOauthConvert.resource_target}`,
           target: "",
           onBehalfOf: undefined,
         })

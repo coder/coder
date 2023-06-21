@@ -772,13 +772,6 @@ func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt tim
 	return q.db.DeleteReplicasUpdatedBefore(ctx, updatedAt)
 }
 
-func (q *querier) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
-	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.DeleteUserOauthMergeStates(ctx, userID)
-}
-
 func (q *querier) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
 		return database.DeleteTailnetAgentRow{}, err
@@ -791,6 +784,13 @@ func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetClientRow{}, err
 	}
 	return q.db.DeleteTailnetClient(ctx, arg)
+}
+
+func (q *querier) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteUserOauthMergeStates(ctx, userID)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {

@@ -205,13 +205,6 @@ func (m metricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt
 	return err
 }
 
-func (m metricsStore) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteUserOauthMergeStates(ctx, userID)
-	m.queryLatencies.WithLabelValues("DeleteUserOauthMergeStates").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m metricsStore) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	start := time.Now()
 	defer m.queryLatencies.WithLabelValues("DeleteTailnetAgent").Observe(time.Since(start).Seconds())
@@ -222,6 +215,13 @@ func (m metricsStore) DeleteTailnetClient(ctx context.Context, arg database.Dele
 	start := time.Now()
 	defer m.queryLatencies.WithLabelValues("DeleteTailnetClient").Observe(time.Since(start).Seconds())
 	return m.s.DeleteTailnetClient(ctx, arg)
+}
+
+func (m metricsStore) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteUserOauthMergeStates(ctx, userID)
+	m.queryLatencies.WithLabelValues("DeleteUserOauthMergeStates").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
