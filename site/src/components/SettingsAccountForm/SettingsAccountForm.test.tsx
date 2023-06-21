@@ -24,6 +24,9 @@ describe("AccountForm", () => {
           onSubmit={() => {
             return
           }}
+          onChangeToOIDCAuth={() => {
+            return
+          }}
         />,
       )
 
@@ -52,6 +55,9 @@ describe("AccountForm", () => {
           initialValues={mockInitialValues}
           isLoading={false}
           onSubmit={() => {
+            return
+          }}
+          onChangeToOIDCAuth={() => {
             return
           }}
         />,
