@@ -1,4 +1,5 @@
-# .github/workflows/deploy.yml
+# .github/workflows/deploypr.yml
+# This action will trigger when a PR is opened or updated with a comment containing /review-pr by a member of the org.
 name: Deploy PR
 on:
   deployment:
@@ -11,10 +12,6 @@ on:
     types: [created, edited]
 
 env:
-  # This is the version of the release. It is used to tag the Docker images.
-  CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ github.event.pull_request.number }}
-  CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ github.event.pull_request.number }}
-  PR_NUMBER: ${{ github.event.pull_request.number }}
   REPO: ghcr.io/coder/coder-preview
 
 permissions:
@@ -27,12 +24,29 @@ concurrency:
 
 jobs:
   pr_commented:
-    if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/review-pr')
+    if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/review-pr') && github.event.comment.author_association == 'MEMBER'
+    outputs:
+      number: ${{ steps.pr_number.outputs.number }}
+      coder_base_image_tag: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
+      coder_image_tag: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
+
     runs-on: "ubuntu-latest"
     steps:
       - name: Get PR number
         id: pr_number
-        run: echo "::set-output name=number::$(echo ${{ github.event.comment.body }} | grep -oP '(?<=/review-pr ).*')"
+        # get PR number from the html_url
+        run: |
+          set -euxo pipefail
+          echo "::set-output name=number::$(echo ${{ github.event.issue.html_url }} | cut -d'/' -f7)"
+
+      - name: Set required tags
+        id: set_tags
+        run: |
+          set -euxo pipefail
+          echo "::set-env name=CODER_BASE_IMAGE_TAG::ghcr.io/coder/coder-preview-base:pr${{ steps.pr_number.outputs.number }}"
+          echo "::set-env name=CODER_IMAGE_TAG::ghcr.io/coder/coder-preview:pr${{ steps.pr_number.outputs.number }}"
+          echo "::set-env name=REPO::ghcr.io/coder/coder-preview"
+
       # Comment on the PR
       - name: Create PR comment
         run: |
@@ -49,6 +63,9 @@ jobs:
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+      CODER_BASE_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_base_image_tag }}
+      CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_image_tag }}
+      PR_NUMBER: ${{ needs.pr_commented.outputs.number }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -92,9 +109,12 @@ jobs:
           CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
 
   deployment:
-    needs: build
+    needs: [build, pr_commented]
     if: needs.build.result == 'success'
     runs-on: "ubuntu-latest"
+    env:
+      CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_image_tag }}
+      PR_NUMBER: ${{ needs.pr_commented.outputs.number }}
     steps:
       - uses: actions/checkout@v3
 
