@@ -332,7 +332,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			lastCollectedAts[mr.key] = mr.result.CollectedAt
 			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
 			if err != nil {
-				a.logger.Error(ctx, "report metadata", slog.Error(err))
+				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
 			}
 		case <-baseTicker.C:
 		}
@@ -462,7 +462,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 				return
 			}
 			// If we fail to report the state we probably shouldn't exit, log only.
-			a.logger.Error(ctx, "post state", slog.Error(err))
+			a.logger.Error(ctx, "agent failed to report the lifecycle state", slog.Error(err))
 		}
 	}
 }
@@ -1365,7 +1365,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		)
 	})
 	if err != nil {
-		a.logger.Error(ctx, "report stats", slog.Error(err))
+		a.logger.Error(ctx, "agent failed to report stats", slog.Error(err))
 	} else {
 		if err = a.trackConnGoroutine(func() {
 			// This is OK because the agent never re-creates the tailnet

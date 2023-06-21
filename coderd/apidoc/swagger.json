@@ -6647,12 +6647,8 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["moons", "workspace_actions", "workspace_filter"],
-      "x-enum-varnames": [
-        "ExperimentMoons",
-        "ExperimentWorkspaceActions",
-        "ExperimentWorkspaceFilter"
-      ]
+      "enum": ["moons", "workspace_actions"],
+      "x-enum-varnames": ["ExperimentMoons", "ExperimentWorkspaceActions"]
     },
     "codersdk.Feature": {
       "type": "object",

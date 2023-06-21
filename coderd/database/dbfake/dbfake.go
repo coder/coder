@@ -967,6 +967,14 @@ func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
 }
 
+// ErrUnimplemented is returned by methods only used by the enterprise/tailnet.pgCoord.  This coordinator explicitly
+// depends on  postgres triggers that announce changes on the pubsub.  Implementing support for this in the fake
+// database would  strongly couple the fakeQuerier to the pubsub, which is undesirable.  Furthermore, it makes little
+// sense to directly  test the pgCoord against anything other than postgres.  The fakeQuerier is designed to allow us to
+// test the Coderd  API, and for that kind of test, the in-memory, AGPL tailnet coordinator is sufficient.  Therefore,
+// these methods  remain unimplemented in the fakeQuerier.
+var ErrUnimplemented = xerrors.New("unimplemented")
+
 func (*fakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -1065,6 +1073,10 @@ func (q *fakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 	}
 
 	return nil
+}
+
+func (*fakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
+	return ErrUnimplemented
 }
 
 func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
@@ -1194,6 +1206,14 @@ func (q *fakeQuerier) DeleteUserOauthMergeStates(_ context.Context, userID uuid.
 		i++
 	}
 	return nil
+}
+
+func (*fakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
+	return database.DeleteTailnetAgentRow{}, ErrUnimplemented
+}
+
+func (*fakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
+	return database.DeleteTailnetClientRow{}, ErrUnimplemented
 }
 
 func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -2205,6 +2225,14 @@ func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
 	}
 
 	return string(q.serviceBanner), nil
+}
+
+func (*fakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*fakeQuerier) GetTailnetClientsForAgent(context.Context, uuid.UUID) ([]database.TailnetClient, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
@@ -5308,4 +5336,16 @@ func (q *fakeQuerier) UpsertServiceBanner(_ context.Context, data string) error 
 
 	q.serviceBanner = []byte(data)
 	return nil
+}
+
+func (*fakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
+	return database.TailnetAgent{}, ErrUnimplemented
+}
+
+func (*fakeQuerier) UpsertTailnetClient(context.Context, database.UpsertTailnetClientParams) (database.TailnetClient, error) {
+	return database.TailnetClient{}, ErrUnimplemented
+}
+
+func (*fakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (database.TailnetCoordinator, error) {
+	return database.TailnetCoordinator{}, ErrUnimplemented
 }

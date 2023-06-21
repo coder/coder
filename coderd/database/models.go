@@ -1548,6 +1548,27 @@ type SiteConfig struct {
 	Value string `db:"value" json:"value"`
 }
 
+type TailnetAgent struct {
+	ID            uuid.UUID       `db:"id" json:"id"`
+	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
+	UpdatedAt     time.Time       `db:"updated_at" json:"updated_at"`
+	Node          json.RawMessage `db:"node" json:"node"`
+}
+
+type TailnetClient struct {
+	ID            uuid.UUID       `db:"id" json:"id"`
+	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
+	AgentID       uuid.UUID       `db:"agent_id" json:"agent_id"`
+	UpdatedAt     time.Time       `db:"updated_at" json:"updated_at"`
+	Node          json.RawMessage `db:"node" json:"node"`
+}
+
+// We keep this separate from replicas in case we need to break the coordinator out into its own service
+type TailnetCoordinator struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
+}
+
 type Template struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
