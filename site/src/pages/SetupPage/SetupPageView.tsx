@@ -19,7 +19,7 @@ export const Language = {
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
   passwordRequired: "Please enter a password.",
-  create: "Setup account",
+  create: "Create account",
   welcomeMessage: <>Welcome to Coder</>,
 }
 

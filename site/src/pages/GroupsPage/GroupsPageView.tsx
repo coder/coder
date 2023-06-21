@@ -44,8 +44,8 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
       <ChooseOne>
         <Cond condition={!isTemplateRBACEnabled}>
           <Paywall
-            message="User groups"
-            description="Organize the users into groups and manage their permissions. To use this feature, you have to upgrade your account."
+            message="Groups"
+            description="Organize users into groups with restricted access to templates. You need an Enterprise license to use this feature."
             cta={
               <Stack direction="row" alignItems="center">
                 <Button
@@ -55,7 +55,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                   startIcon={<ArrowRightAltOutlined />}
                   variant="contained"
                 >
-                  See how to upgrade
+                  Learn about Enterprise
                 </Button>
 
                 <Link
