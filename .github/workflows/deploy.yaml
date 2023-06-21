@@ -1,0 +1,91 @@
+# .github/workflows/deploy.yml
+name: Deploy PR
+on:
+  deployment:
+  pull_request:
+    types: ready_for_review
+  workflow_dispatch:
+
+env:
+  # This is the version of the release. It is used to tag the Docker images.
+  CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ github.event.pull_request.number }}
+  CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ github.event.pull_request.number }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+
+permissions:
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Necessary for Docker manifest
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: GHCR Login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create empty base-build-context directory
+        run: mkdir base-build-context
+
+      - name: Install depot.dev CLI
+        uses: depot/setup-action@v1
+
+      # This uses OIDC authentication, so no auth variables are required.
+      - name: Build base Docker image via depot.dev
+        uses: depot/build-push-action@v1
+        with:
+          project: wl5hnrrkns
+          context: base-build-context
+          file: scripts/Dockerfile.base
+          platforms: linux/amd64
+          pull: true
+          no-cache: true
+          push: true
+          tags: ${{ env.CODER_BASE_IMAGE_TAG }}
+
+      - name: Build Linux amd64 Docker image
+        run: |
+          set -euxo pipefail
+
+          # build Docker image
+          make -j build/coder_${{ env.PR_NUMBER }}_linux_amd64.tag --target ${{ env.CODER_IMAGE_TAG }}
+
+          # push manifest
+          make -j push/coder_${{ env.PR_NUMBER }}_linux_amd64.tag
+        env:
+          CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
+
+
+  deployment:
+    needs: build
+    if: needs.build.result == 'success'
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: "Create PR namespace"
+        run: |
+          set -euxo pipefail
+          kubectl create namespace "pr${{ env.PR_NUMBER }}"
+
+      - name: "Deploy"
+        uses: "deliverybot/helm@v1"
+        with:
+          release: "pr${{ env.PR_NUMBER }}"
+          namespace: "pr${{ env.PR_NUMBER  }}"
+          version: "{{ github.sha }}"
+          chart: "./helm"
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          values: |
+            name: foobar
+        env:
+          KUBECONFIG_FILE: "${{ secrets.DELIVERYBOT_KUBECONFIG }}"

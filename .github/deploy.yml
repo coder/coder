@@ -1,0 +1,15 @@
+# Review environments can be triggered with "/deploy review" inside a pull request.
+review:
+  transient_environment: true
+  production_environment: false
+  required_contexts: ["build-coder-preview"]
+  environment: pr${{ pr }}
+  description: 'Review'
+  payload:
+    release: coder-pr${{ pr }}
+    namespace: coder-pr${{ pr }}
+    track: stable
+    values:
+      image:
+        repo: ghcr.io/coder/coder-preview
+        tag: pr${{ pr }}

@@ -1,0 +1,13 @@
+# .github/workflows/pr-cleanup.yml
+name: PRCleanup
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  pr-close:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Remove PR namespace"
+        run: |
+          kubectl delete namespace "pr${{ github.event.pull_request.number }}"
