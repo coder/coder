@@ -1,5 +1,5 @@
 # .github/workflows/pr-cleanup.yml
-name: PRCleanup
+name: Cleanup PR
 on:
   pull_request:
     types: [closed]

@@ -41,7 +41,7 @@ jobs:
             PR_NUMBER=${{ github.event.issue.number }}
           fi
           echo $PR_NUMBER
-          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
 
       - name: Set required tags
         id: set_tags
