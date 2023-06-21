@@ -25,10 +25,14 @@ func TestNetcheck(t *testing.T) {
 
 	clitest.StartWithWaiter(t, inv).RequireSuccess()
 
+	b := out.Bytes()
+	t.Log(string(b))
 	var report healthcheck.DERPReport
-	require.NoError(t, json.Unmarshal(out.Bytes(), &report))
+	require.NoError(t, json.Unmarshal(b, &report))
 
 	assert.True(t, report.Healthy)
 	require.Len(t, report.Regions, 1)
-	require.Len(t, report.Regions[1].NodeReports, 1)
+	for _, v := range report.Regions {
+		require.Len(t, v.NodeReports, len(v.Region.Nodes))
+	}
 }

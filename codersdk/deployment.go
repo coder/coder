@@ -221,8 +221,9 @@ type DERPServerConfig struct {
 }
 
 type DERPConfig struct {
-	URL  clibase.String `json:"url" typescript:",notnull"`
-	Path clibase.String `json:"path" typescript:",notnull"`
+	BlockDirect clibase.Bool   `json:"block_direct" typescript:",notnull"`
+	URL         clibase.String `json:"url" typescript:",notnull"`
+	Path        clibase.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -710,6 +711,18 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RelayURL,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "relayURL",
+		},
+		{
+			Name:        "Block Direct Connections",
+			Description: "Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspaces may still reach out to STUN servers to get their address until they are restarted after this change has been made, but new connections will still be proxied regardless.",
+			// This cannot be called `disable-direct-connections` because that's
+			// already a global CLI flag for CLI connections. This is a
+			// deployment-wide flag.
+			Flag:  "block-direct-connections",
+			Env:   "CODER_BLOCK_DIRECT",
+			Value: &c.DERP.Config.BlockDirect,
+			Group: &deploymentGroupNetworkingDERP,
+			YAML:  "blockDirect",
 		},
 		{
 			Name:        "DERP Config URL",

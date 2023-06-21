@@ -150,6 +150,14 @@ between workspaces and users are peer-to-peer. However, when Coder cannot
 establish a peer to peer connection, Coder uses a distributed relay network
 backed by Tailscale and WireGuard.
 
+      --block-direct-connections bool, $CODER_BLOCK_DIRECT
+          Block peer-to-peer (aka. direct) workspace connections. All workspace
+          connections from the CLI will be proxied through Coder (or custom
+          configured DERP servers) and will never be peer-to-peer when enabled.
+          Workspaces may still reach out to STUN servers to get their address
+          until they are restarted after this change has been made, but new
+          connections will still be proxied regardless.
+
       --derp-config-path string, $CODER_DERP_CONFIG_PATH
           Path to read a DERP mapping from. See:
           https://tailscale.com/kb/1118/custom-derp-servers/.

@@ -5095,6 +5095,9 @@
         "directory": {
           "type": "string"
         },
+        "disable_direct_connections": {
+          "type": "boolean"
+        },
         "environment_variables": {
           "type": "object",
           "additionalProperties": {
@@ -6294,6 +6297,9 @@
     "codersdk.DERPConfig": {
       "type": "object",
       "properties": {
+        "block_direct": {
+          "type": "boolean"
+        },
         "path": {
           "type": "string"
         },
@@ -8441,6 +8447,9 @@
       "properties": {
         "derp_map": {
           "$ref": "#/definitions/tailcfg.DERPMap"
+        },
+        "disable_direct_connections": {
+          "type": "boolean"
         }
       }
     },

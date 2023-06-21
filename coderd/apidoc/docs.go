@@ -5784,6 +5784,9 @@ const docTemplate = `{
                 "directory": {
                     "type": "string"
                 },
+                "disable_direct_connections": {
+                    "type": "boolean"
+                },
                 "environment_variables": {
                     "type": "object",
                     "additionalProperties": {
@@ -7065,6 +7068,9 @@ const docTemplate = `{
         "codersdk.DERPConfig": {
             "type": "object",
             "properties": {
+                "block_direct": {
+                    "type": "boolean"
+                },
                 "path": {
                     "type": "string"
                 },
@@ -9351,6 +9357,9 @@ const docTemplate = `{
             "properties": {
                 "derp_map": {
                     "$ref": "#/definitions/tailcfg.DERPMap"
+                },
+                "disable_direct_connections": {
+                    "type": "boolean"
                 }
             }
         },
