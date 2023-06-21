@@ -154,7 +154,7 @@ jobs:
 
       - name: "Deploy"
         run: |
-          helm upgrdae --install pr${{ env.PR_NUMBER }}  ./helm --namespace "pr${{ env.PR_NUMBER }}" --set coder.image.repo=${{ env.REPO}} --set coder.image.tag=pr${{ env.PR_NUMBER }} --wait --force
+          helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm --namespace "pr${{ env.PR_NUMBER }}" --set coder.image.repo=${{ env.REPO}} --set coder.image.tag=pr${{ env.PR_NUMBER }} --wait --force
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
