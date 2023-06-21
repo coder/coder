@@ -319,13 +319,24 @@ func slogMessageFormat(m dsl.Matcher) {
 	m.Import("cdr.dev/slog")
 	m.Match(
 		`logger.Error($ctx, $message, $*args)`,
-		`Logger.Error($ctx, $message, $*args)`,
 		`logger.Warn($ctx, $message, $*args)`,
-		`Logger.Warn($ctx, $message, $*args)`,
 		`logger.Info($ctx, $message, $*args)`,
-		`Logger.Info($ctx, $message, $*args)`,
 		`logger.Debug($ctx, $message, $*args)`,
+
+		`$foo.logger.Error($ctx, $message, $*args)`,
+		`$foo.logger.Warn($ctx, $message, $*args)`,
+		`$foo.logger.Info($ctx, $message, $*args)`,
+		`$foo.logger.Debug($ctx, $message, $*args)`,
+
+		`Logger.Error($ctx, $message, $*args)`,
+		`Logger.Warn($ctx, $message, $*args)`,
+		`Logger.Info($ctx, $message, $*args)`,
 		`Logger.Debug($ctx, $message, $*args)`,
+
+		`$foo.Logger.Error($ctx, $message, $*args)`,
+		`$foo.Logger.Warn($ctx, $message, $*args)`,
+		`$foo.Logger.Info($ctx, $message, $*args)`,
+		`$foo.Logger.Debug($ctx, $message, $*args)`,
 	).
 		Where(
 			(
@@ -334,7 +345,10 @@ func slogMessageFormat(m dsl.Matcher) {
 				// it starts with lowercase:
 				m["message"].Text.Matches(`^"[A-Z]{1}`) &&
 					// but there are exceptions:
-					!m["message"].Text.Matches(`^"Prometheus`))).
+					!m["message"].Text.Matches(`^"Prometheus`) &&
+					!m["message"].Text.Matches(`^"X11`) &&
+					!m["message"].Text.Matches(`^"CSP`) &&
+					!m["message"].Text.Matches(`^"OIDC`))).
 		Report(`Message $message must start with lowercase, and does not end with a special characters.`)
 }
 
@@ -343,11 +357,21 @@ func slogMessageLength(m dsl.Matcher) {
 	m.Import("cdr.dev/slog")
 	m.Match(
 		`logger.Error($ctx, $message, $*args)`,
-		`Logger.Error($ctx, $message, $*args)`,
 		`logger.Warn($ctx, $message, $*args)`,
-		`Logger.Warn($ctx, $message, $*args)`,
 		`logger.Info($ctx, $message, $*args)`,
+
+		`$foo.logger.Error($ctx, $message, $*args)`,
+		`$foo.logger.Warn($ctx, $message, $*args)`,
+		`$foo.logger.Info($ctx, $message, $*args)`,
+
+		`Logger.Error($ctx, $message, $*args)`,
+		`Logger.Warn($ctx, $message, $*args)`,
 		`Logger.Info($ctx, $message, $*args)`,
+
+		`$foo.Logger.Error($ctx, $message, $*args)`,
+		`$foo.Logger.Warn($ctx, $message, $*args)`,
+		`$foo.Logger.Info($ctx, $message, $*args)`,
+
 		// no debug
 	).
 		Where(

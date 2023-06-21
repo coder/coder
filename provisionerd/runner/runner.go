@@ -223,17 +223,17 @@ func (r *Runner) Run() {
 		r.logger.Debug(ctx, "sending FailedJob")
 		err := r.sender.FailJob(ctx, r.failedJob)
 		if err != nil {
-			r.logger.Error(ctx, "send FailJob", slog.Error(err))
+			r.logger.Error(ctx, "sending FailJob failed", slog.Error(err))
 		} else {
-			r.logger.Info(ctx, "sent FailedJob")
+			r.logger.Debug(ctx, "sent FailedJob")
 		}
 	} else {
 		r.logger.Debug(ctx, "sending CompletedJob")
 		err := r.sender.CompleteJob(ctx, r.completedJob)
 		if err != nil {
-			r.logger.Error(ctx, "send CompletedJob", slog.Error(err))
+			r.logger.Error(ctx, "sending CompletedJob failed", slog.Error(err))
 		} else {
-			r.logger.Info(ctx, "sent CompletedJob")
+			r.logger.Debug(ctx, "sent CompletedJob")
 		}
 	}
 	close(r.done)
@@ -553,7 +553,7 @@ func (r *Runner) heartbeatRoutine(ctx context.Context) {
 		timer := time.NewTimer(r.forceCancelInterval)
 		select {
 		case <-timer.C:
-			r.logger.Warn(ctx, "Cancel timed out")
+			r.logger.Debug(ctx, "cancel timed out")
 			err := r.Fail(ctx, r.failedJobf("Cancel timed out"))
 			if err != nil {
 				r.logger.Warn(ctx, "failed to call FailJob", slog.Error(err))
@@ -706,7 +706,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Templa
 				Stage:     "Parse parameters",
 			})
 		case *sdkproto.Parse_Response_Complete:
-			r.logger.Info(context.Background(), "parse complete",
+			r.logger.Debug(context.Background(), "parse complete",
 				slog.F("template_variables", msgType.Complete.TemplateVariables),
 			)
 

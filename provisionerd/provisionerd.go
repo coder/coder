@@ -190,7 +190,7 @@ func (p *Server) connect(ctx context.Context) {
 			if p.isClosed() {
 				return
 			}
-			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			p.opts.Logger.Warn(context.Background(), "coderd client failed to dial", slog.Error(err))
 			continue
 		}
 		// Ensure connection is not left hanging during a race between
@@ -303,7 +303,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 	if p.isShutdown() {
-		p.opts.Logger.Debug(context.Background(), "skipping acquire; provisionerd is shutting down...")
+		p.opts.Logger.Debug(context.Background(), "skipping acquire; provisionerd is shutting down")
 		return
 	}
 
@@ -333,7 +333,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 			return
 		}
 
-		p.opts.Logger.Warn(ctx, "acquire job", slog.Error(err))
+		p.opts.Logger.Warn(ctx, "provisionerd was unable to acquire job", slog.Error(err))
 		return
 	}
 	if job.JobId == "" {
@@ -384,7 +384,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		)
 	}
 
-	p.opts.Logger.Info(ctx, "acquired job", fields...)
+	p.opts.Logger.Debug(ctx, "acquired job", fields...)
 
 	provisioner, ok := p.opts.Provisioners[job.Provisioner]
 	if !ok {
@@ -393,7 +393,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 			Error: fmt.Sprintf("no provisioner %s", job.Provisioner),
 		})
 		if err != nil {
-			p.opts.Logger.Error(ctx, "fail job", slog.F("job_id", job.JobId), slog.Error(err))
+			p.opts.Logger.Error(ctx, "provisioner job failed", slog.F("job_id", job.JobId), slog.Error(err))
 		}
 		return
 	}

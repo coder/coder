@@ -22,7 +22,7 @@ func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action
 	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.Actor, action, objects)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
-		h.Logger.Error(r.Context(), "filter failed",
+		h.Logger.Error(r.Context(), "authorization filter failed",
 			slog.Error(err),
 			slog.F("user_id", roles.Actor.ID),
 			slog.F("username", roles.ActorName),
