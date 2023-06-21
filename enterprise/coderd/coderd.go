@@ -52,6 +52,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
+	if options.UserMaintenanceWindowDuration < time.Hour {
+		return nil, xerrors.Errorf("user maintenance window duration must be at least 1 hour")
+	}
+
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
 		ctx:    ctx,
@@ -303,6 +307,10 @@ type Options struct {
 	DERPServerRelayAddress string
 	DERPServerRegionID     int
 
+	// Used for user maintenance schedules.
+	DefaultUserMaintenanceSchedule string        // cron schedule, if empty user maintenance schedules are disabled
+	UserMaintenanceWindowDuration  time.Duration // how long each window should last
+
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
 	Keys                       map[string]ed25519.PublicKey
@@ -354,7 +362,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
-			codersdk.FeatureUserMaintenanceSchedule:    true,
+			codersdk.FeatureUserMaintenanceSchedule:    api.DefaultUserMaintenanceSchedule != "",
 			codersdk.FeatureWorkspaceProxy:             true,
 		})
 	if err != nil {
@@ -423,10 +431,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureUserMaintenanceSchedule); changed {
-		if enabled {
-			// TODO: configurable default schedule
-			store := schedule.NewEnterpriseUserMaintenanceScheduleStore("CRON_TZ=UTC 0 0 * * *")
-			api.AGPL.UserMaintenanceScheduleStore.Store(&store)
+		if enabled && api.DefaultUserMaintenanceSchedule != "" {
+			store, err := schedule.NewEnterpriseUserMaintenanceScheduleStore(api.DefaultUserMaintenanceSchedule, api.UserMaintenanceWindowDuration)
+			if err != nil {
+				api.Logger.Error(ctx, "unable to set up enterprise user maintenance schedule store, maintenance schedules will not be applied", slog.Error(err))
+			} else {
+				api.AGPL.UserMaintenanceScheduleStore.Store(&store)
+			}
 		} else {
 			store := agplschedule.NewAGPLUserMaintenanceScheduleStore()
 			api.AGPL.UserMaintenanceScheduleStore.Store(&store)

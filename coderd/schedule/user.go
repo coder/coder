@@ -53,6 +53,7 @@ func (*agplUserMaintenanceScheduleStore) GetUserMaintenanceScheduleOptions(_ con
 	return UserMaintenanceScheduleOptions{
 		Schedule: nil,
 		UserSet:  false,
+		Duration: 0,
 	}, nil
 }
 
@@ -61,5 +62,6 @@ func (*agplUserMaintenanceScheduleStore) SetUserMaintenanceScheduleOptions(_ con
 	return UserMaintenanceScheduleOptions{
 		Schedule: nil,
 		UserSet:  false,
+		Duration: 0,
 	}, nil
 }

@@ -12,21 +12,35 @@ import (
 	agpl "github.com/coder/coder/coderd/schedule"
 )
 
-const userMaintenanceWindowDuration = 4 * time.Hour
-
 // enterpriseUserMaintenanceScheduleStore provides an
 // agpl.UserMaintenanceScheduleStore that has all fields implemented for
 // enterprise customers.
 type enterpriseUserMaintenanceScheduleStore struct {
 	defaultSchedule string
+	windowDuration  time.Duration
 }
 
 var _ agpl.UserMaintenanceScheduleStore = &enterpriseUserMaintenanceScheduleStore{}
 
-func NewEnterpriseUserMaintenanceScheduleStore(defaultSchedule string) agpl.UserMaintenanceScheduleStore {
-	return &enterpriseUserMaintenanceScheduleStore{
-		defaultSchedule: defaultSchedule,
+func NewEnterpriseUserMaintenanceScheduleStore(defaultSchedule string, windowDuration time.Duration) (agpl.UserMaintenanceScheduleStore, error) {
+	if defaultSchedule == "" {
+		return nil, xerrors.Errorf("default schedule must be set")
 	}
+	if windowDuration < 1*time.Hour {
+		return nil, xerrors.Errorf("window duration must be greater than 1 hour")
+	}
+
+	s := &enterpriseUserMaintenanceScheduleStore{
+		defaultSchedule: defaultSchedule,
+		windowDuration:  windowDuration,
+	}
+
+	_, err := s.parseSchedule(defaultSchedule)
+	if err != nil {
+		return nil, xerrors.Errorf("parse default schedule: %w", err)
+	}
+
+	return s, nil
 }
 
 func (s *enterpriseUserMaintenanceScheduleStore) parseSchedule(rawSchedule string) (agpl.UserMaintenanceScheduleOptions, error) {
@@ -49,7 +63,7 @@ func (s *enterpriseUserMaintenanceScheduleStore) parseSchedule(rawSchedule strin
 	return agpl.UserMaintenanceScheduleOptions{
 		Schedule: sched,
 		UserSet:  userSet,
-		Duration: userMaintenanceWindowDuration,
+		Duration: s.windowDuration,
 	}, nil
 }
 

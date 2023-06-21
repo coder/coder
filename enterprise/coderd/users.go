@@ -25,7 +25,7 @@ func (api *API) userMaintenanceSchedule(rw http.ResponseWriter, r *http.Request)
 		user = httpmw.UserParam(r)
 	)
 
-	// Double query here cuz of the user param
+	// TODO: Double query here cuz of the user param
 	opts, err := (*api.UserMaintenanceScheduleStore.Load()).GetUserMaintenanceScheduleOptions(ctx, api.Database, user.ID)
 	if err != nil {
 		// TODO: some of these errors are related to bad syntax, would be nice

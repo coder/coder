@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -950,7 +951,36 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				// Round the max deadline up to the nearest occurrence of the
 				// user's maintenance schedule. This ensures that workspaces
 				// can't be force-stopped due to max TTL during business hours.
-				maxDeadline = userMaintenanceSchedule.Schedule.Next(maxDeadline)
+
+				// Get the schedule occurrence that happens right before, during
+				// or after the max deadline.
+				// TODO: change to the maintenance window BEFORE max TTL
+				scheduleDur := userMaintenanceSchedule.Duration
+				if scheduleDur > 1*time.Hour {
+					// Allow a 15 minute buffer when possible so we're not too
+					// constrained with the autostop time.
+					scheduleDur -= 15 * time.Minute
+				}
+				windowStart := userMaintenanceSchedule.Schedule.Next(maxDeadline.Add(scheduleDur))
+
+				// Get the window of time that the workspace can be stopped in.
+				// This must be between windowStart and windowEnd, and also must
+				// be after the current max deadline.
+				minTime := maxDeadline
+				if windowStart.After(minTime) {
+					minTime = windowStart
+				}
+				maxTime := windowStart.Add(scheduleDur)
+				if minTime.After(maxTime) {
+					// TODO: remove this panic once we have good tests, and add
+					// a sensible fallback instead
+					panic("minTime is after maxTime")
+				}
+
+				// Pick a random time between minTime and maxTime.
+				actualDur := maxTime.Sub(minTime)
+				jitter := time.Duration(rand.Int63n(int64(actualDur)))
+				maxDeadline = minTime.Add(jitter)
 			}
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
