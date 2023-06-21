@@ -10,4 +10,14 @@ jobs:
     steps:
       - name: "Remove PR namespace"
         run: |
-          kubectl delete namespace "pr${{ github.event.pull_request.number }}" --kubeconfig "${{ secrets.KUBECONFIG }}"
+          kubectl delete namespace "pr${{ github.event.pull_request.number }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
+
+      - name: Delete image
+        uses: bots-house/ghcr-delete-image-action@v1.1.0
+        with:
+          # NOTE: at now only orgs is supported
+          owner: bots-house
+          name: some-web-service
+          # NOTE: using Personal Access Token
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: pr${{github.event.pull_request.number}}
