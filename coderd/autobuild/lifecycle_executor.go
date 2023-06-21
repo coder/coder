@@ -275,7 +275,5 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 		db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed &&
 		build.Transition == database.WorkspaceTransitionStart &&
 		// And sufficient time has elapsed since the job has completed.
-		(job.CompletedAt.Valid && database.Now().Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL ||
-			// Or sufficient time has elapsed since the job was canceled.
-			job.CanceledAt.Valid && database.Now().Sub(job.CanceledAt.Time) > templateSchedule.FailureTTL)
+		job.CompletedAt.Valid && database.Now().Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL 
 }
