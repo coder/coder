@@ -175,11 +175,12 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	user, roles, ok := api.loginRequest(ctx, rw, loginWithPassword)
+	// 'user.ID' will be empty, or will be an actual value.
+	aReq.UserID = user.ID
 	if !ok {
 		// user failed to login
 		return
 	}
-	aReq.UserID = user.ID
 
 	userSubj := rbac.Subject{
 		ID:     user.ID.String(),
@@ -224,7 +225,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
-		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
 
 	// If the user doesn't exist, it will be a default struct.
@@ -233,7 +234,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
-		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
 
 	if !equal {
@@ -242,7 +243,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Incorrect email or password.",
 		})
-		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
 
 	// If password authentication is disabled and the user does not have the
@@ -251,14 +252,14 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
 		})
-		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
 
 	if user.LoginType != database.LoginTypePassword {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
 		})
-		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
 
 	//nolint:gocritic // System needs to fetch user roles in order to login user.
@@ -267,7 +268,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
-		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
 
 	// If the user logged into a suspended account, reject the login request.
@@ -275,7 +276,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Your account is suspended. Contact an admin to reactivate your account.",
 		})
-		return database.User{}, database.GetAuthorizationUserRolesRow{}, false
+		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
 
 	return user, roles, true
