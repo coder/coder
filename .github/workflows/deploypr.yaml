@@ -26,7 +26,7 @@ jobs:
   pr_commented:
     if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/review-pr') && github.event.comment.author_association == 'MEMBER'
     outputs:
-      number: ${{ steps.pr_number.outputs.number }}
+      pr_number: ${{ steps.pr_number.outputs.pr_number }}
       coder_base_image_tag: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       coder_image_tag: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
 
@@ -37,14 +37,14 @@ jobs:
         # get PR number from the html_url
         run: |
           set -euxo pipefail
-          echo "::set-output name=number::$(echo ${{ github.event.issue.html_url }} | cut -d'/' -f7)"
+          echo "{pr_number: $(echo "${{ github.event.issue.pull_request.html_url }}" | grep -oP '(?<=pull\/)\d+')}" > $GITHUB_OUTPUT
 
       - name: Set required tags
         id: set_tags
         run: |
           set -euxo pipefail
-          echo "::set-env name=CODER_BASE_IMAGE_TAG::ghcr.io/coder/coder-preview-base:pr${{ steps.pr_number.outputs.number }}"
-          echo "::set-env name=CODER_IMAGE_TAG::ghcr.io/coder/coder-preview:pr${{ steps.pr_number.outputs.number }}"
+          echo "CODER_BASE_IMAGE_TAG=$(echo "${{ github.event.issue.pull_request.html_url }}" | grep -oP '(?<=pull\/)\d+')" > $GITHUB_OUTPUT
+          echo "CODER_IMAGE_TAG=$(echo "${{ github.event.issue.pull_request.html_url }}" | grep -oP '(?<=pull\/)\d+')" >> $GITHUB_OUTPUT
 
       # Comment on the PR
       - name: Comment on PR
