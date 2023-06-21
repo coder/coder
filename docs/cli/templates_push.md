@@ -38,6 +38,15 @@ Always prompt all parameters. Does not pull parameter values from active templat
 
 Specify the directory to create from, use '-' to read tar from stdin.
 
+### --ignore-lockfile
+
+|         |                    |
+| ------- | ------------------ |
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Ignore warnings about not having a .terraform.lock.hcl file present in the template.
+
 ### --name
 
 |      |                     |

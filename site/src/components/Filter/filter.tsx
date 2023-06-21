@@ -210,6 +210,9 @@ export const Filter = ({
                   "& .MuiInputAdornment-root": {
                     marginLeft: 0,
                   },
+                  "&.Mui-error": {
+                    zIndex: 3,
+                  },
                 },
                 startAdornment: (
                   <InputAdornment position="start">

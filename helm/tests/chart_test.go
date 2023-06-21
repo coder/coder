@@ -48,6 +48,10 @@ var TestCases = []TestCase{
 		name:          "workspace_proxy",
 		expectedError: "",
 	},
+	{
+		name:          "command",
+		expectedError: "",
+	},
 }
 
 type TestCase struct {

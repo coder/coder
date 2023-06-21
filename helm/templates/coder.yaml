@@ -61,7 +61,7 @@ spec:
           image: {{ include "coder.image" . | quote }}
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
           command:
-            - /opt/coder
+            {{- toYaml .Values.coder.command | nindent 12 }}
           args:
             {{- if .Values.coder.workspaceProxy }}
             - wsproxy

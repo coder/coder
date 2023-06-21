@@ -166,11 +166,7 @@ export const usersMachine =
             onError: [
               {
                 target: "idle",
-                actions: [
-                  "clearUsers",
-                  "assignGetUsersError",
-                  "displayGetUsersErrorMessage",
-                ],
+                actions: ["clearUsers", "assignGetUsersError"],
               },
             ],
           },
@@ -487,13 +483,6 @@ export const usersMachine =
         clearUpdateUserRolesError: assign({
           updateUserRolesError: (_) => undefined,
         }),
-        displayGetUsersErrorMessage: (context) => {
-          const message = getErrorMessage(
-            context.getUsersError,
-            Language.getUsersError,
-          )
-          displayError(message)
-        },
         displaySuspendSuccess: () => {
           displaySuccess(Language.suspendUserSuccess)
         },

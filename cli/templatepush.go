@@ -19,17 +19,23 @@ import (
 
 // templateUploadFlags is shared by `templates create` and `templates push`.
 type templateUploadFlags struct {
-	directory string
+	directory      string
+	ignoreLockfile bool
 }
 
-func (pf *templateUploadFlags) option() clibase.Option {
-	return clibase.Option{
+func (pf *templateUploadFlags) options() []clibase.Option {
+	return []clibase.Option{{
 		Flag:          "directory",
 		FlagShorthand: "d",
 		Description:   "Specify the directory to create from, use '-' to read tar from stdin.",
 		Default:       ".",
 		Value:         clibase.StringOf(&pf.directory),
-	}
+	}, {
+		Flag:        "ignore-lockfile",
+		Description: "Ignore warnings about not having a .terraform.lock.hcl file present in the template.",
+		Default:     "false",
+		Value:       clibase.BoolOf(&pf.ignoreLockfile),
+	}}
 }
 
 func (pf *templateUploadFlags) setWorkdir(wd string) {
@@ -82,6 +88,26 @@ func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.
 		return nil, xerrors.Errorf("upload: %w", err)
 	}
 	return &resp, nil
+}
+
+func (pf *templateUploadFlags) checkForLockfile(inv *clibase.Invocation) error {
+	if pf.stdin() || pf.ignoreLockfile {
+		// Just assume there's a lockfile if reading from stdin.
+		return nil
+	}
+
+	hasLockfile, err := provisionersdk.DirHasLockfile(pf.directory)
+	if err != nil {
+		return xerrors.Errorf("dir has lockfile: %w", err)
+	}
+
+	if !hasLockfile {
+		cliui.Warn(inv.Stdout, "No .terraform.lock.hcl file found",
+			"When provisioning, Coder will be unable to cache providers without a lockfile and must download them from the internet each time.",
+			"Create one by running "+cliui.DefaultStyles.Code.Render("terraform init")+" in your template directory.",
+		)
+	}
+	return nil
 }
 
 func (pf *templateUploadFlags) templateName(args []string) (string, error) {
@@ -141,6 +167,11 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
 				return err
+			}
+
+			err = uploadFlags.checkForLockfile(inv)
+			if err != nil {
+				return xerrors.Errorf("check for lockfile: %w", err)
 			}
 
 			resp, err := uploadFlags.upload(inv, client)
@@ -236,7 +267,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Value:       clibase.BoolOf(&activate),
 		},
 		cliui.SkipPromptOption(),
-		uploadFlags.option(),
 	}
+	cmd.Options = append(cmd.Options, uploadFlags.options()...)
 	return cmd
 }
