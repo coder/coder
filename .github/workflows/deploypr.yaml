@@ -166,16 +166,4 @@ jobs:
           body: |
             :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
             :warning: This deployment will be deleted when the PR is closed.
-
-      # - name: "Deploy"
-      #   uses: "deliverybot/helm@v1"
-      #   with:
-      #     release: "pr${{ env.PR_NUMBER }}"
-      #     namespace: "pr${{ env.PR_NUMBER  }}"
-      #     version: "{{ github.sha }}"
-      #     chart: "./helm"
-      #     token: "${{ secrets.GITHUB_TOKEN }}"
-      #     values: |
-      #       name: foobar
-      #   env:
-      #     KUBECONFIG_FILE: "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
+          reactions: '+1'
