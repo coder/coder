@@ -37,7 +37,7 @@ jobs:
         # get PR number from the html_url
         run: |
           set -euxo pipefail
-          PR_NUMBER=$(echo "${{ github.event.issue.pull_request.html_url }}" | grep -oP '(?<=pull\/)\d+')
+          PR_NUMBER=$(echo "${{ github.event.issue.url }}" | awk -F '/' '{print $NF}')
           echo $PR_NUMBER
           echo "pr_number=$PR_NUMBER" >> $GITHUB_ENV
 
