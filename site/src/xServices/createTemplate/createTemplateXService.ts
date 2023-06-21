@@ -11,6 +11,7 @@ import {
 import {
   ProvisionerJob,
   ProvisionerJobLog,
+  ProvisionerType,
   Template,
   TemplateExample,
   TemplateVersion,
@@ -32,6 +33,10 @@ import { assign, createMachine } from "xstate"
 //    c. wait for it to complete
 // 5.create template with the successful template version ID
 // https://github.com/coder/coder/blob/b6703b11c6578b2f91a310d28b6a7e57f0069be6/cli/templatecreate.go#L169-L170
+
+const provisioner: ProvisionerType =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright needs to use a different provisioner type!
+  typeof (window as any).playwright !== "undefined" ? "echo" : "terraform"
 
 export interface CreateTemplateData {
   name: string
@@ -356,7 +361,7 @@ export const createTemplateMachine =
             return createTemplateVersion(organizationId, {
               storage_method: "file",
               example_id: exampleId,
-              provisioner: "terraform",
+              provisioner: provisioner,
               tags: {},
             })
           }
@@ -371,7 +376,7 @@ export const createTemplateMachine =
             return createTemplateVersion(organizationId, {
               storage_method: "file",
               file_id: version.job.file_id,
-              provisioner: "terraform",
+              provisioner: provisioner,
               tags: {},
             })
           }
@@ -380,7 +385,7 @@ export const createTemplateMachine =
             return createTemplateVersion(organizationId, {
               storage_method: "file",
               file_id: uploadResponse.hash,
-              provisioner: "terraform",
+              provisioner: provisioner,
               tags: {},
             })
           }
@@ -402,7 +407,7 @@ export const createTemplateMachine =
           return createTemplateVersion(organizationId, {
             storage_method: "file",
             file_id: version.job.file_id,
-            provisioner: "terraform",
+            provisioner: provisioner,
             user_variable_values: templateData.user_variable_values,
             tags: {},
           })

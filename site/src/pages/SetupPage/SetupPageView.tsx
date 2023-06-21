@@ -96,6 +96,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
                   defaultChecked
                   value={form.values.trial}
                   onChange={form.handleChange}
+                  data-testid="trial"
                 />
               </div>
 
@@ -110,7 +111,12 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
               </Box>
             </Box>
           </div>
-          <LoadingButton fullWidth loading={isLoading} type="submit">
+          <LoadingButton
+            fullWidth
+            loading={isLoading}
+            type="submit"
+            data-testid="create"
+          >
             {Language.create}
           </LoadingButton>
         </Stack>

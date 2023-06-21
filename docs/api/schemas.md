@@ -1954,6 +1954,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
       "daemons": 0,
+      "daemons_echo": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,
@@ -2282,6 +2283,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "daemon_poll_interval": 0,
     "daemon_poll_jitter": 0,
     "daemons": 0,
+    "daemons_echo": true,
     "force_cancel_interval": 0
   },
   "proxy_health_status_interval": 0,
@@ -3118,6 +3120,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "daemon_poll_interval": 0,
   "daemon_poll_jitter": 0,
   "daemons": 0,
+  "daemons_echo": true,
   "force_cancel_interval": 0
 }
 ```
@@ -3129,6 +3132,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `daemon_poll_interval`  | integer | false    |              |             |
 | `daemon_poll_jitter`    | integer | false    |              |             |
 | `daemons`               | integer | false    |              |             |
+| `daemons_echo`          | boolean | false    |              |             |
 | `force_cancel_interval` | integer | false    |              |             |
 
 ## codersdk.ProvisionerDaemon
