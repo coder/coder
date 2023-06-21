@@ -9,9 +9,6 @@ on:
         description: "PR number"
         required: true
 
-env:
-  PR_NUMBER: if(${{ github.event_name == 'workflow_dispatch' }}, ${{ github.event.inputs.pr_number }}, ${{ github.event.pull_request.number }})
-
 permissions:
   packages: write
 
@@ -19,13 +16,21 @@ jobs:
   pr-close:
     runs-on: "ubuntu-latest"
     steps:
+      - name: Get PR number
+        id: pr_number
+        run: |
+          if [ -z "${{ github.event.pull_request.number }}" ]; then
+            echo "PR_NUMBER=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "PR_NUMBER=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+          fi
       - name: Delete base image
         uses: bots-house/ghcr-delete-image-action@v1.1.0
         with:
           owner: coder
           name: coder-preview-base
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: pr${{ env.PR_NUMBER }}
+          tag: pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
       - name: Delete image
         uses: bots-house/ghcr-delete-image-action@v1.1.0
@@ -33,7 +38,7 @@ jobs:
           owner: coder
           name: coder-preview
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: pr${{ env.PR_NUMBER }}
+          tag: pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
       - name: Install helm
         uses: azure/setup-helm@v3
@@ -48,8 +53,8 @@ jobs:
       - name: Delete helm release
         run: |
           set -euxo pipefail
-          helm delete --namespace "pr${{ env.PR_NUMBER }}" "pr${{ env.PR_NUMBER }}" || echo "helm release not found"
+          helm delete --namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "helm release not found"
 
       - name: "Remove PR namespace"
         run: |
-          kubectl delete namespace "pr${{ env.PR_NUMBER }}" || echo "namespace not found"
+          kubectl delete namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "namespace not found"
