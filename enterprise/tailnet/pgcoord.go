@@ -1128,7 +1128,7 @@ func (h *heartbeats) listen(_ context.Context, msg []byte, err error) {
 }
 
 func (h *heartbeats) recvBeat(id uuid.UUID) {
-	h.logger.Debug(h.ctx, "got heartbeat", slog.F("heartbeat_from_id", id))
+	h.logger.Debug(h.ctx, "got heartbeat", slog.F("other_coordinator_id", id))
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	var oldestTime time.Time
@@ -1161,11 +1161,11 @@ func (h *heartbeats) checkExpiry() {
 	expired := false
 	for id, t := range h.coordinators {
 		lastHB := now.Sub(t)
-		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator", id), slog.F("last_heartbeat", lastHB))
+		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
 		if lastHB > MissedHeartbeats*HeartbeatPeriod {
 			expired = true
 			delete(h.coordinators, id)
-			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator", id), slog.F("last_heartbeat", lastHB))
+			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
 		}
 	}
 	h.lock.Unlock()
