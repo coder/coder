@@ -53,6 +53,8 @@ jobs:
           set -euxo pipefail
           make -j build/coder_${{ env.PR_NUMBER }}_linux_amd64.tag --target ${{ env.CODER_IMAGE_TAG }}
           make -j push/build/coder_${{ env.PR_NUMBER }}_linux_amd64.tag
+        env:
+          CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
 
   deployment:
     needs: build
