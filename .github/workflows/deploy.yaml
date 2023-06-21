@@ -13,7 +13,7 @@ env:
   # This is the version of the release. It is used to tag the Docker images.
   CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ github.event.pull_request.number }}
   CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ github.event.pull_request.number }}
-  VERSION: ${{ github.event.pull_request.number }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
 
 permissions:
   packages: write
@@ -55,11 +55,10 @@ jobs:
         run: |
           set -euxo pipefail
           make -j build/coder_linux_amd64
-          ./build_docker.sh --arch amd64 --version ${{env.VERSION}} --target ${{env.CODER_IMAGE_TAG }} --push build/coder_linux_amd64
+          ./scripts/build_docker.sh --arch amd64 --target ${{env.CODER_IMAGE_TAG }} --push build/coder_linux_amd64
         #
         env:
           CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
-          VERSION: ${{ env.VERSION }}
 
   deployment:
     needs: build
@@ -71,13 +70,13 @@ jobs:
       - name: "Create PR namespace"
         run: |
           set -euxo pipefail
-          kubectl create namespace "pr${{ env.VERSION }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
+          kubectl create namespace "pr${{ env.PR_NUMBER }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
 
       - name: "Deploy"
         uses: "deliverybot/helm@v1"
         with:
-          release: "pr${{ env.VERSION }}"
-          namespace: "pr${{ env.VERSION  }}"
+          release: "pr${{ env.PR_NUMBER }}"
+          namespace: "pr${{ env.PR_NUMBER  }}"
           version: "{{ github.sha }}"
           chart: "./helm"
           token: "${{ secrets.GITHUB_TOKEN }}"
