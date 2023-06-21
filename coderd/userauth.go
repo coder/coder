@@ -216,6 +216,9 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 // loginRequest will process a LoginWithPasswordRequest and return the user if
 // the credentials are correct. If 'false' is returned, the authentication failed
 // and the appropriate error will be written to the ResponseWriter.
+//
+// The user struct is always returned, even if authentication failed. This is
+// to support knowing what user attempted to login.
 func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req codersdk.LoginWithPasswordRequest) (database.User, database.GetAuthorizationUserRolesRow, bool) {
 	//nolint:gocritic // In order to login, we need to get the user first!
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
