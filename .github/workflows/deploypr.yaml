@@ -154,7 +154,29 @@ jobs:
 
       - name: "Deploy"
         run: |
-          helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm --namespace "pr${{ env.PR_NUMBER }}" --set coder.image.repo=${{ env.REPO}} --set coder.image.tag=pr${{ env.PR_NUMBER }} --wait --force
+          helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm \
+          --namespace "pr${{ env.PR_NUMBER }}" \
+          --set coder.image.repo=${{ env.REPO}} \
+          --set coder.image.tag=pr${{ env.PR_NUMBER }} \
+          --set service.type=ClusterIP \
+          --set env.CODER_ACCESS_URL="" \
+          --force
+
+      - name: "Get deployment URL"
+        id: deployment_url
+        run: |
+          set -euxo pipefail
+          kubectl rollout status deployment/coder --namespace "pr${{ env.PR_NUMBER }}"
+          POD_NAME=$(kubectl get pods -n "pr${{ env.PR_NUMBER }} | awk 'NR==2{print $1}')
+          CODER_ACCESS_URL=(kubectl logs $POD_NAME -n pr8121 | grep "Web UI:" | awk -F ':' '{print $2":"$3}')
+          echo "CODER_ACCESS_URL=$CODER_ACCESS_URL" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
+        run: |
+          curl -X POST -H 'Content-type: application/json' -d '{"msg":"Access the the depluyment for ${{ env.PR_NUMBER }} at \n${{env.CODER_ACCESS_URL}}"}' ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
+          echo "Sent Slack notification"
+        env:
+          CODER_ACCESS_URL: ${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
