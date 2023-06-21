@@ -145,7 +145,7 @@ jobs:
 
       - name: "Deploy"
         run: |
-          helm install pr${{ env.PR_NUMBER }}  ./helm --namespace "pr${{ env.PR_NUMBER }}" --set coder.image.repo=${{ env.REPO}} --set coder.image.tag=${{ env.PR_NUMBER }} --wait
+          helm install pr${{ env.PR_NUMBER }}  ./helm --namespace "pr${{ env.PR_NUMBER }}" --set coder.image.repo=${{ env.REPO}} --set coder.image.tag=pr${{ env.PR_NUMBER }} --wait
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
